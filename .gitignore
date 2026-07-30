@@ -1,0 +1,8 @@
+node_modules/
+*.local
+.DS_Store
+Thumbs.db
+.vite/
+*.log
+
+# docs/ is the GitHub Pages build output and IS committed on purpose.
