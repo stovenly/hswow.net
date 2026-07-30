@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
+// Imported directly rather than through `art/registry`, which uses
+// `import.meta.glob` and so only exists under Vite. The headless movement
+// check reaches this file through esbuild.
+import { tree } from '../art/builders/tree';
+import { bush } from '../art/builders/bush';
 
 /**
  * The Proving Ground: a permanent debug level that accumulates test fixtures as
@@ -22,8 +27,6 @@ export type SurfaceName =
   | 'stair'
   | 'platform'
   | 'wall'
-  | 'bark'
-  | 'foliage'
   | 'metal'
   | 'creature';
 
@@ -46,11 +49,33 @@ const DEFAULT_SURFACES: Record<SurfaceName, string> = {
   stair: '#3d4b52',
   platform: '#46505c',
   wall: '#2e3640',
-  bark: '#463b30',
-  foliage: '#4f6039',
   metal: '#6a6f74',
   creature: '#b8a06a',
 };
+
+/**
+ * Edge of the ground plane, in metres.
+ *
+ * Widened twice: fixtures that crowd get tested together whether or not that
+ * was the intention. The gallery once sat close enough to the movement gym
+ * that walking one meant walking through the other, and eight instances per
+ * builder need a long run of clear ground on their own.
+ */
+const GROUND = 128;
+
+/**
+ * Ground cells along each edge — two-metre quads, not one-metre.
+ *
+ * The subdivision exists so the collider's broad phase has something to sort:
+ * a single triangle spanning the level is a candidate for every query no
+ * matter where the player is. But the octree stores a triangle in every cell
+ * it touches, so the count is paid for more than once, and at one-metre cells
+ * a 128 m plane is thirty-two thousand triangles before anything is built on
+ * it. Two metres is still far smaller than the octree's leaves and costs a
+ * quarter as much. The visible grid stays at one metre — lines are not
+ * collision.
+ */
+const GROUND_CELLS = 64;
 
 /** Baked into geometry at construction, so these are not live-editable. */
 const GRID_MAJOR = 0x6b6247;
@@ -254,14 +279,17 @@ export class ProvingGround {
     // Subdivided into metre cells rather than left as two enormous triangles:
     // the collider's broad phase indexes by triangle, and a triangle spanning
     // the whole level is a candidate for every query no matter where you are.
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(64, 64, 64, 64), this.materials.ground);
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(GROUND, GROUND, GROUND_CELLS, GROUND_CELLS),
+      this.materials.ground,
+    );
     plane.rotation.x = -Math.PI / 2;
     // Nudged down so the grid lines sit clearly on top instead of z-fighting.
     plane.position.y = -0.01;
     this.root.add(markCollidable(plane));
 
     // Helpers are line geometry, so the collider ignores them without being told.
-    this.root.add(new THREE.GridHelper(64, 64, GRID_MAJOR, GRID_MINOR));
+    this.root.add(new THREE.GridHelper(GROUND, GROUND, GRID_MAJOR, GRID_MINOR));
     this.root.add(new THREE.AxesHelper(2));
   }
 
@@ -406,10 +434,17 @@ export class ProvingGround {
     }
   }
 
-  /** A long face to slide along, and a corner to get caught on. */
+  /**
+   * A long face to slide along, and a corner to get caught on.
+   *
+   * The corner is at the south end. It was at the north end, where it ran
+   * straight across the approach to the ramps — so walking at a ramp from the
+   * origin meant walking into a wall first, and the movement check was
+   * measuring the player climbing that instead of the slope.
+   */
   private addStrafeWall(parent: THREE.Group): void {
     parent.add(box(0.4, 3, 16, this.materials.wall, -4, 0, 8));
-    parent.add(box(6, 3, 0.4, this.materials.wall, -7, 0, 0.2));
+    parent.add(box(6, 3, 0.4, this.materials.wall, -7, 0, 15.8));
   }
 
   /**
@@ -516,61 +551,44 @@ export class ProvingGround {
     const garden = new THREE.Group();
     garden.name = 'SoundGarden';
 
-    garden.add(this.tree(this.anchors.tree.x, this.anchors.tree.z));
-    garden.add(this.bush(this.anchors.bush.x, this.anchors.bush.z, 1));
-    garden.add(this.bush(9.2, 16.8, 0.75));
+    // Built by the Phase 4 art kit rather than by hand here. The emitters were
+    // placed against the old ad-hoc shapes, so the anchors stay put and the
+    // meshes move to them — a sound's position is a property of the world, not
+    // of whichever mesh happens to be standing there.
+    const canopy = tree.build({ seed: 4021 });
+    canopy.position.set(this.anchors.tree.x, 0, this.anchors.tree.z);
+    garden.add(markCollidable(canopy));
+
+    // The bird's perch is measured off the tree rather than written down.
+    //
+    // Hardcoded, it sat at 4.1 m — above a canopy whose actual top is 3.9, so
+    // the bird hovered in the air over the tree. Any change to the tree
+    // builder or its seed would put it somewhere else wrong again. Two thirds
+    // of the way up the crown, offset toward one side, is inside the leaves
+    // for any tree the builder can produce.
+    canopy.geometry.computeBoundingBox();
+    const crown = canopy.geometry.boundingBox;
+    if (crown) {
+      this.anchors.tree.setY(crown.max.y * 0.75);
+      this.anchors.bird.set(
+        this.anchors.tree.x + crown.max.x * 0.45,
+        crown.max.y * 0.66,
+        this.anchors.tree.z + crown.max.z * 0.3,
+      );
+    }
+
+    const shrub = bush.build({ seed: 771 });
+    shrub.position.set(this.anchors.bush.x, 0, this.anchors.bush.z);
+    garden.add(shrub);
+
+    const shrub2 = bush.build({ seed: 9114, scale: 0.8 });
+    shrub2.position.set(9.2, 0, 16.8);
+    garden.add(shrub2);
+
     garden.add(this.bird());
     garden.add(this.machine());
 
     this.root.add(garden);
-  }
-
-  private tree(x: number, z: number): THREE.Group {
-    const group = new THREE.Group();
-
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.3, 3.4, 6),
-      this.materials.bark,
-    );
-    trunk.position.set(x, 1.7, z);
-    group.add(markCollidable(trunk));
-
-    // Three overlapping lumps rather than one: a single blob reads as a
-    // lollipop, and the canopy is where the rustle is supposed to come from.
-    const canopy: [number, number, number, number][] = [
-      [0, 3.7, 0, 1.35],
-      [0.75, 3.2, 0.35, 0.95],
-      [-0.6, 3.35, -0.5, 1.05],
-    ];
-    for (const [dx, dy, dz, radius] of canopy) {
-      const lump = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(radius, 0),
-        this.materials.foliage,
-      );
-      lump.position.set(x + dx, dy, z + dz);
-      lump.rotation.set(Math.random(), Math.random(), Math.random());
-      group.add(lump);
-    }
-
-    return group;
-  }
-
-  private bush(x: number, z: number, scale: number): THREE.Group {
-    const group = new THREE.Group();
-    for (let i = 0; i < 3; i++) {
-      const lump = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.55 * scale, 0),
-        this.materials.foliage,
-      );
-      lump.position.set(
-        x + (Math.random() - 0.5) * 0.9 * scale,
-        0.36 * scale + Math.random() * 0.2,
-        z + (Math.random() - 0.5) * 0.9 * scale,
-      );
-      lump.rotation.set(Math.random(), Math.random(), Math.random());
-      group.add(lump);
-    }
-    return group;
   }
 
   /** A small thing perched in the tree, to hang the birdsong on. */

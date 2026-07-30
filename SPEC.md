@@ -16,7 +16,7 @@ prior conversation context. Update it as decisions change.
 | 1 — First-person controller | **Built, awaiting your verdict on feel** |
 | 2 — Render pipeline and filters | **Built, not yet seen on a screen** |
 | 3 — Procedural audio engine | **Built, not yet heard** |
-| 4 — Procedural art kit | Not started |
+| 4 — Procedural art kit | **Complete** |
 | 5 — Zones and portals | Not started |
 | 6 — World editor *(cuttable)* | Not started |
 | 7 — Actors, animation, wind sway | Not started |
@@ -387,10 +387,42 @@ nobody has listened to it.
 *Done when walking between those two rooms sounds obviously different, and a machine behind
 a wall is audibly occluded.*
 
-### Phase 4 — Art kit
+### Phase 4 — Art kit ✅ built
 
 `src/art/` mesh builders: figures, trees, rocks, terrain features, buildings, fittings.
 Proving Ground gains a gallery row that auto-instantiates every builder.
+
+Shipped, nineteen builders: `barrel`, `bovine`, `bush`, `cairn`, `crate`, `equine`,
+`fence`, `figure`, `grass`, `hut`, `mushroom`, `ovine`, `porcine`, `post`, `poultry`,
+`rock`, `stump`, `tree`, `trough`. Twenty to four hundred and forty triangles each.
+
+The four hoofed animals share one body plan in `art/quadruped.ts` — a cow, a pig, a sheep
+and a horse are the same parts at different proportions, and proportion is nearly all of
+what tells them apart at a glance. Poultry is separate: a chicken is not a small
+quadruped, its legs come out of the middle of the body rather than the corners.
+
+- `art/types` — a builder is a name, a radius, and `build({ seed, scale })`.
+- `art/random` — seeded RNG. **`Math.random` is banned inside builders**: a prop is stored
+  in world data as a name and a seed and rebuilt from those on load, so a builder that is
+  not reproducible would let the world rearrange itself between sessions.
+- `art/assemble` — vertex colours and sway weights baked per part, then merged into one
+  geometry sharing one material. One draw call per prop, and exactly one material for
+  Phase 7's wind shader to patch.
+- `art/palette` — colours named by material, not by hue. Placeholder art direction.
+- `art/registry` — `import.meta.glob` over `builders/`, so a new file appears in the
+  gallery without anything else being edited. **Vite-only**; nothing reachable from
+  `tools/` may import it, which is why the proving ground imports builders directly.
+- `art/blob` — welded, vertex-displaced spheres. Shared by rock, cairn and the sheep's
+  fleece, along with the non-obvious precondition: normals and UVs must be deleted before
+  `mergeVertices`, or nothing welds and the weld silently does nothing.
+- `MeshBuilder.solid` — grass, mushrooms and poultry are walked through. Blocking on a tuft
+  of grass is the fastest way to make a world feel like a floor with boxes on it.
+- `debug/Gallery` — four seeds per builder, spaced by each builder's own radius.
+- `tools/art-check.ts` — `npm run check:art`.
+
+The proving ground's tree and bushes are now built by the kit rather than by hand. The
+audio anchors did not move: a sound belongs to a place, not to whichever mesh is standing
+there.
 
 **Builders must author sway weights.** Every mesh that will move in the wind carries a
 per-vertex weight — 0 at the roots, 1 at the tips — baked into a vertex attribute at build
@@ -398,6 +430,20 @@ time. Phase 7's sway shader reads it and nothing else; without it, a trunk swing
 middle and a leaf cluster shears off its branch. This is cheap to do while the geometry is
 being generated and effectively impossible to add afterwards, which is why it belongs here
 rather than there.
+
+**Lessons worth not relearning.** Three of these cost real time:
+
+- **A box cannot lie on a curved surface.** Anything worn flat against a body — a sash, a
+  shoulder strap — is a box passing through a torso with its corners protruding. Both were
+  rebuilt and then cut. Fittings that work have volume and sit *beside* the body, where
+  overlapping is invisible rather than wrong.
+- **Seeds must be avalanched before use.** Mulberry32 advances by a fixed constant, so
+  seeds a fixed distance apart stay a fixed distance apart and their nth draws correlate.
+  The gallery drew from `1000 + i * 7919` and a 62% feature appeared on two of eight, twice
+  running — indistinguishable from a broken feature. `createRng` now mixes the seed once.
+- **Rare features are invisible at eight samples.** Eight is all anyone sees at once, and
+  at p = 0.5 eight draws come up with one or none about four times in a hundred. Anything
+  meant to be noticed has to be commoner than "rare".
 
 *Done when adding a mesh type is one file and it appears in the gallery automatically.*
 
@@ -535,6 +581,8 @@ npm run preview         # serve the built docs/ locally
 npm run dev             # dev server with HMR, exposed on the LAN
 npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
+npm run check:art       # builder determinism, sway weights, scale
+npm run check           # all three
 ```
 
 `check:movement` is not covered by `tsc --noEmit` — `tools/` is outside the tsconfig

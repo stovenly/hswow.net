@@ -51,6 +51,8 @@ export class Input {
   /** `performance.now()` of the most recent jump press, or 0 if consumed. */
   private jumpPressedAt = 0;
   private jumpHeld = false;
+  /** True until the first mouse move after capture, which is always garbage. */
+  private settling = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -142,6 +144,19 @@ export class Input {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    // Tab moves focus, and moving focus out of a pointer-locked canvas makes
+    // the browser drop the lock. Reacquiring it delivers a mouse position that
+    // has nothing to do with where the player was looking, so the camera
+    // snaps — which is exactly the jolt, and exactly why Escape never causes
+    // it: Escape releases the lock deliberately and nothing is reacquired.
+    //
+    // Swallowed only while locked, so tabbing around the tuning panel with the
+    // cursor free still works.
+    if (event.code === 'Tab' && this.locked) {
+      event.preventDefault();
+      return;
+    }
+
     if (event.repeat) return;
     this.keys.add(event.code);
     if (JUMP_KEYS.includes(event.code)) {
@@ -184,11 +199,23 @@ export class Input {
   private readonly handleLockChange = (): void => {
     this.locked = document.pointerLockElement === this.canvas;
     if (!this.locked) this.keys.clear();
+    // Anything accumulated across a lock change is stale by definition — it
+    // describes a cursor that was somewhere else, under different rules.
+    this.lookX = 0;
+    this.lookY = 0;
+    this.settling = this.locked;
     this.onLockChange?.(this.locked);
   };
 
   private readonly handleMouseMove = (event: MouseEvent): void => {
     if (!this.locked) return;
+    // The first event after capture is discarded. Browsers commonly report the
+    // jump from the cursor's old screen position to the centre as a single
+    // enormous movement, and honouring it spins the camera on every click.
+    if (this.settling) {
+      this.settling = false;
+      return;
+    }
     this.lookX += clamp(event.movementX, -MAX_LOOK_DELTA, MAX_LOOK_DELTA);
     this.lookY += clamp(event.movementY, -MAX_LOOK_DELTA, MAX_LOOK_DELTA);
   };

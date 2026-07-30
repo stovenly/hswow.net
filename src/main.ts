@@ -9,6 +9,7 @@ import { Controller } from './player/Controller';
 import { TouchControls } from './ui/TouchControls';
 import { ProvingGround, SPAWN, type SurfaceName } from './debug/ProvingGround';
 import { SoundGarden } from './debug/SoundGarden';
+import { createGallery, galleryOrder } from './debug/Gallery';
 import { AudioEngine } from './audio/AudioEngine';
 import { createDevTools } from './debug/DevPanel';
 
@@ -33,6 +34,9 @@ viewport.onResize = () => postfx.resize();
 
 const provingGround = new ProvingGround();
 viewport.scene.add(provingGround.root);
+
+// Added before the collider is built, so the gallery pieces are solid.
+provingGround.root.add(createGallery());
 
 const collider = new Collider();
 // World transforms have to be current before triangles are read out of the
@@ -241,6 +245,7 @@ if (dev.gui) {
     grounded: 'no',
     position: '',
     triangles: collider.triangles,
+    gallery: galleryOrder(),
     room: '—',
     // Audio has no visible output at all, so a readout of what it thinks is
     // happening is the only way to tell "occlusion is broken" apart from
@@ -262,6 +267,7 @@ if (dev.gui) {
   state.add(readout, 'machine').listen().disable();
   state.add(readout, 'emitters').name('audible / occluded').listen().disable();
   state.add(readout, 'triangles').disable();
+  state.add(readout, 'gallery').name('gallery order').disable();
   state.add({ respawn: () => player.teleport(SPAWN, 0) }, 'respawn');
 
   loop.add(() => {

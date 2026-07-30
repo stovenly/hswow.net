@@ -57,7 +57,7 @@ export class SoundGarden {
 
     this.bed = engine.context.createGain();
     this.bed.connect(engine.dry);
-    this.windModel = createWind(engine, { gain: 0.32, tone: this.tuning.windTone });
+    this.windModel = createWind(engine, { gain: 0.17, tone: this.tuning.windTone });
     this.windModel.output.connect(this.bed);
 
     this.footsteps = new Footsteps(engine, 0.55);
@@ -105,12 +105,13 @@ export class SoundGarden {
     }
 
     this.emitters.push(
-      new Emitter(engine, createBird(engine, { pitch: 2600, interval: 6, gain: 0.2 }), {
-        position: anchors.bird,
-        refDistance: 6,
-        maxDistance: 55,
-        reverb: 0.5,
-      }),
+      // Quiet, dull and wet: three things together read as "over there" where
+      // any one of them alone reads as "turned down".
+      new Emitter(
+        engine,
+        createBird(engine, { pitch: 2600, interval: 6, gain: 0.075, tone: 2800 }),
+        { position: anchors.bird, refDistance: 4, maxDistance: 55, reverb: 0.85 },
+      ),
     );
 
     // Heavy, slow, and worn. Reaches a long way, because the point of it is to
@@ -152,7 +153,7 @@ export class SoundGarden {
         this.engine.context.currentTime,
         0.35,
       );
-      this.footsteps.material = room === null ? 'earth' : 'stone';
+      this.footsteps.surface = room === null ? 'earth' : 'stone';
     }
 
     // The wheel you can see turns at the speed the clank you can hear is
