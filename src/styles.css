@@ -50,3 +50,113 @@ body {
 #overlay > * {
   pointer-events: auto;
 }
+
+/* --- crosshair ---------------------------------------------------------- */
+
+/* Hidden until the mouse is captured, so it isn't a floating dot on a screen
+   you can't yet steer. Touch has no capture step, so it's shown immediately. */
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+  /* Rides on top of whatever it's over, dark ground or bright sky alike. */
+  mix-blend-mode: difference;
+}
+
+body.is-playing #crosshair {
+  opacity: 0.85;
+}
+
+/* Prompt to click into the game. Desktop only — there is nothing to capture on
+   a phone, so TouchControls hides it. */
+#capture-hint {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.7rem 1.1rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0.55;
+  border: 1px solid rgb(220 220 200 / 25%);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 160ms linear;
+}
+
+body.is-playing #capture-hint,
+body.is-touch #capture-hint {
+  opacity: 0;
+}
+
+/* --- touch controls ----------------------------------------------------- */
+
+/* Covers the viewport so drags anywhere are caught; the visible parts opt into
+   hit-testing individually. */
+.touch {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  touch-action: none;
+}
+
+/* The stick is drawn where the thumb lands, so it has no resting position. */
+.touch-stick {
+  position: absolute;
+  width: 128px;
+  height: 128px;
+  margin: -64px 0 0 -64px;
+  border: 1px solid rgb(220 220 200 / 22%);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+}
+
+.touch-stick.is-active {
+  opacity: 1;
+}
+
+.touch-stick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  background: rgb(220 220 200 / 16%);
+  border: 1px solid rgb(220 220 200 / 35%);
+  border-radius: 50%;
+}
+
+.touch-jump {
+  position: absolute;
+  right: max(2rem, env(safe-area-inset-right));
+  bottom: max(2.5rem, env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  font-size: 1.5rem;
+  color: var(--ink);
+  background: rgb(220 220 200 / 8%);
+  border: 1px solid rgb(220 220 200 / 28%);
+  border-radius: 50%;
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+.touch-jump.is-active {
+  background: rgb(220 220 200 / 22%);
+  opacity: 1;
+}

@@ -8,9 +8,11 @@ Live at <https://stovenly.github.io/hswow.net/> once Pages is enabled (see below
 ## Commands
 
 ```
-npm run build     # typecheck, then bundle into docs/
-npm run preview   # serve the built docs/ locally
-npm run dev       # dev server with HMR, exposed on the LAN
+npm run build           # typecheck, then bundle into docs/
+npm run preview         # serve the built docs/ locally
+npm run dev             # dev server with HMR, exposed on the LAN
+npm run check:movement  # headless collision and movement assertions
+npm run check:audio     # gust field, noise colour, reverb decay
 ```
 
 `docs/` is committed on purpose — it is what GitHub Pages serves.
@@ -27,8 +29,9 @@ the game is tested on a phone against the live URL.
 
 | Flag | Effect |
 |---|---|
-| `?debug` | Frame stats and the live tuning panel |
+| `?debug` | Frame stats, the live tuning panel, and a movement state readout |
 | `?level=<name>` | Which level to boot into. Only `proving` exists so far |
+| `?touch` | Force the touch controls on, to test them with a mouse |
 
 ## Layout
 
@@ -52,6 +55,14 @@ than writing code.
 
 ## Build plan
 
-Phases, current status, and the reasoning behind the audio and dialogue systems live in
-the plan file kept alongside this work. Phase 0 (harness) is in place; the camera is
-temporary OrbitControls and gets replaced by the first-person controller in Phase 1.
+See **[SPEC.md](SPEC.md)** — phases, status, locked decisions, open questions, and the
+reasoning behind the audio and dialogue systems. It is written to be read without prior
+context and is the source of truth for the build.
+
+Phases 0 (harness), 1 (first-person controller), 2 (render pipeline) and 3 (procedural
+audio) are in place.
+Click to capture the mouse, WASD to move, shift to sprint, space to jump, Escape to
+release. On a phone the left half of the screen is a stick and the right half is look.
+
+Open `?debug` to tune the look — pixel size, dither, quantization, palette, vignette, fog
+— then **preset → save** to keep it across reloads.

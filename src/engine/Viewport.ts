@@ -6,6 +6,9 @@ export class Viewport {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
 
+  /** Fires after every resize, for anything sized off the renderer. */
+  onResize: (() => void) | null = null;
+
   private readonly canvas: HTMLCanvasElement;
   private readonly handleResize = (): void => this.resize();
 
@@ -41,6 +44,8 @@ export class Viewport {
 
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+
+    this.onResize?.();
   }
 
   render(): void {
