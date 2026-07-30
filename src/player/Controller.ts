@@ -66,6 +66,14 @@ export interface PlayerTuning {
   /** Footfalls per second at walking pace. Two footfalls to a bob cycle. */
   bobStepsPerSecond: number;
   /**
+   * How far into a stride the gait sits while standing still, 0..1.
+   *
+   * Moving off from a standstill should step almost at once. Starting a stride
+   * from zero means a stride's worth of silent walking before the first
+   * footfall, which reads as the sound being broken rather than as gait.
+   */
+  firstStepFraction: number;
+  /**
    * How much faster the legs turn over when moving faster, as an exponent on
    * the speed ratio.
    *
@@ -112,6 +120,7 @@ export const DEFAULT_TUNING: PlayerTuning = {
   bobRoll: 0.004,
   bobStepsPerSecond: 1.9,
   bobSpeedInfluence: 0.5,
+  firstStepFraction: 0.65,
 
   fov: 74,
   sprintFov: 82,
@@ -159,6 +168,8 @@ export class Controller {
   private jumped = false;
   private timeOffGround = 0;
   private bobPhase = 0;
+  /** Fraction of the current stride covered. Reaching 1 is a footfall. */
+  private strideProgress = 0.65;
   private dip = 0;
   private accumulator = 0;
 
@@ -493,26 +504,49 @@ export class Controller {
 
   // --- camera -------------------------------------------------------------
 
+  /**
+   * Advances the gait by **distance covered**, not by time.
+   *
+   * A time-driven cadence gets the sprint right and everything else wrong:
+   * edging forward at walking pace still steps at walking rate, and tapping a
+   * key fires a footfall for a few centimetres of movement. Distance fixes
+   * both — a step happens when a stride's worth of ground has gone past, so
+   * creeping steps rarely and a tap steps not at all.
+   *
+   * Cadence still has to rise sub-linearly with speed, or a sprint scrambles.
+   * That falls out for free by making stride length grow with speed too:
+   *
+   *     stride ∝ speed^(1 − influence)   ⟹   cadence = speed/stride ∝ speed^influence
+   *
+   * which is also roughly what people do — most of going faster is a longer
+   * stride, not a quicker one.
+   */
   private advanceBob(dt: number): void {
     const t = this.tuning;
     if (!this.grounded) return;
 
     const speed = this.speed;
-    if (speed < 0.4) {
+    if (speed < 0.15) {
       // Ease the phase back to a footfall rather than freezing mid-stride.
       this.bobPhase += (Math.round(this.bobPhase) - this.bobPhase) * Math.min(dt * 8, 1);
+      // Primed just short of a footfall, so moving off again steps promptly
+      // instead of after a full stride of silence.
+      this.strideProgress = t.firstStepFraction;
       return;
     }
 
-    // Cadence, not distance. Advancing the phase by distance travelled ties
-    // step rate directly to speed, so a sprint 75% faster than a walk takes
-    // steps 75% faster — which is not running, it is a cartoon scramble.
-    const pace = Math.pow(speed / t.walkSpeed, t.bobSpeedInfluence);
-    const previous = this.bobPhase;
-    this.bobPhase += (t.bobStepsPerSecond / 2) * pace * dt;
+    const strideAtWalk = t.walkSpeed / Math.max(t.bobStepsPerSecond, 0.1);
+    const stride = Math.max(
+      0.2,
+      strideAtWalk * Math.pow(speed / t.walkSpeed, 1 - t.bobSpeedInfluence),
+    );
 
-    // One footfall per half cycle: left, right.
-    if (Math.floor(previous * 2) !== Math.floor(this.bobPhase * 2)) {
+    this.strideProgress += (speed * dt) / stride;
+    // Phase is in cycles and a cycle is two steps, so half a stride per cycle.
+    this.bobPhase += (speed * dt) / (stride * 2);
+
+    while (this.strideProgress >= 1) {
+      this.strideProgress -= 1;
       this.onFootstep?.(speed);
     }
   }

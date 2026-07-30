@@ -26,6 +26,8 @@ export interface BirdOptions {
   interval?: number;
   /** Wind strength above which it stops calling. */
   shySpeed?: number;
+  /** Lowpass in Hz. Lower reads as further away. */
+  tone?: number;
 }
 
 export function createBird(engine: AudioEngine, options: BirdOptions = {}): SoundModel {
@@ -37,6 +39,22 @@ export function createBird(engine: AudioEngine, options: BirdOptions = {}): Soun
 
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.16;
+
+  /**
+   * A lowpass, standing in for distance.
+   *
+   * Level alone does not make something sound far away — it makes it sound
+   * like a quiet thing that is close, which is a different and much less
+   * interesting impression. Air absorbs high frequencies far faster than low
+   * ones, so distance is heard as *dullness* first and quietness second. A
+   * bird calling from the crown of a tree has already lost most of its top
+   * end by the time it reaches the ground.
+   */
+  const distance = context.createBiquadFilter();
+  distance.type = 'lowpass';
+  distance.frequency.value = options.tone ?? 3200;
+  distance.Q.value = 0.5;
+  distance.connect(output);
 
   let active = true;
   let nextCall = 0;
@@ -66,7 +84,7 @@ export function createBird(engine: AudioEngine, options: BirdOptions = {}): Soun
 
     osc.connect(envelope);
     partial.connect(partialGain).connect(envelope);
-    envelope.connect(output);
+    envelope.connect(distance);
 
     osc.start(at);
     partial.start(at);

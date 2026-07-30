@@ -13,6 +13,8 @@ npm run preview         # serve the built docs/ locally
 npm run dev             # dev server with HMR, exposed on the LAN
 npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
+npm run check:art       # builder determinism, sway weights, scale
+npm run check           # all three
 ```
 
 `docs/` is committed on purpose — it is what GitHub Pages serves. It is also Vite's output
@@ -44,11 +46,11 @@ src/
   audio/      procedural synthesis, spatialization, zone acoustics
   player/     first-person controller, collision
   world/      zones, heightfield, portals, prop streaming
-  art/        procedural mesh builders
   actors/     NPCs and animation
   systems/    topics, dialogue, quests, inventory, notes, autosave
   ui/         HUD, dialogue, journal, touch controls
   content/    data only, no engine imports
+  art/        procedural mesh builders — one file per family
   debug/      proving ground, panels, overlays
 docs/         build output, served by Pages
 ```

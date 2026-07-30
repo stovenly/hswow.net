@@ -76,7 +76,12 @@ export function createWind(engine: AudioEngine, options: WindOptions = {}): Wind
   soften.frequency.value = 2200;
   soften.gain.value = -7;
 
-  tone.connect(soften).connect(output);
+  // One gain over everything, moved by the gust, so the model swells and
+  // subsides as a whole rather than only shifting its balance of bands.
+  const breath = context.createGain();
+  breath.gain.value = 0.5;
+
+  tone.connect(soften).connect(breath).connect(output);
 
   const rumbleGain = context.createGain();
   const rushGain = context.createGain();
@@ -122,12 +127,22 @@ export function createWind(engine: AudioEngine, options: WindOptions = {}): Wind
       // these per frame would put a 60 Hz buzz under the whole thing.
       const glide = 0.09;
 
-      // The rumble is nearly always there — it is the body of the air, and it
-      // barely responds to gusting. Carrying more of the level than the bands
-      // above is also what keeps the whole thing soft: weight low, not bright.
-      rumbleGain.gain.setTargetAtTime(0.55 + strength * 0.45, now, glide);
-      rushGain.gain.setTargetAtTime(0.12 + strength * strength * 0.5, now, glide);
-      whistleGain.gain.setTargetAtTime(strength ** 3 * 0.22 * whistleScale, now, glide);
+      // The rumble is the body of the air and carries most of the level, which
+      // is what keeps the whole thing soft: weight low, not bright.
+      //
+      // Its floor is deliberately low. A rumble that never drops below about
+      // half is a *drone* — a constant present thing the ear stops hearing as
+      // weather and starts hearing as a hum under the game. Letting it fall
+      // most of the way to nothing in a lull is what turns level into breath,
+      // and it is the difference between wind that ebbs and wind that merely
+      // gets slightly louder.
+      rumbleGain.gain.setTargetAtTime(0.1 + strength * 0.85, now, glide);
+      rushGain.gain.setTargetAtTime(0.03 + strength * strength * 0.5, now, glide);
+      whistleGain.gain.setTargetAtTime(strength ** 3 * 0.2 * whistleScale, now, glide);
+
+      // And the whole model breathes on top of that, so a lull is genuinely
+      // quiet rather than the same sound turned down a little.
+      breath.gain.setTargetAtTime(0.25 + strength * 0.75, now, glide * 1.6);
 
       // Cubed above, because the whistle should be absent in light air and
       // then arrive suddenly — that threshold is most of what makes a gust

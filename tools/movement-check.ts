@@ -122,7 +122,11 @@ check('climbs 0.30 m stairs', peak > 2.1, `peak y=${peak.toFixed(2)} of 2.40`);
 // --- ramps ----------------------------------------------------------------
 for (const [index, degrees] of [10, 20, 30, 45].entries()) {
   const rise = 4 * Math.tan((degrees * Math.PI) / 180);
-  reset(-6 - index * 4, 0.1, 0, 0);
+  // Started at z = 1.5, not 0: the strafe wall's arm occupies z 0..0.4 across
+  // this whole lane, so spawning at the origin put the capsule inside it and
+  // let the step-up carry the player onto the wall before the ramp was even
+  // reached. The measurement was of the wrong thing entirely.
+  reset(-6 - index * 4, 0.1, 1.5, 0);
   input.moveZ = 1;
   const peak = run(3);
   check(
