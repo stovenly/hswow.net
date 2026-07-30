@@ -87,8 +87,13 @@ body.is-playing #crosshair {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink);
-  opacity: 0.55;
-  border: 1px solid rgb(220 220 200 / 25%);
+  /* Opaque enough to read against anything behind it. The panel used to be
+     translucent and the whole element faded to 55%, so over a dark scene it
+     was pale text on a dark background — legible only where the sky happened
+     to be behind it. Full opacity on the element, solid-ish fill on the box,
+     and the text carries its own contrast wherever it lands. */
+  background: rgb(10 10 15 / 82%);
+  border: 1px solid rgb(220 220 200 / 40%);
   pointer-events: none;
   white-space: nowrap;
   transition: opacity 160ms linear;
