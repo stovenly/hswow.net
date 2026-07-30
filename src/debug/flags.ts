@@ -12,4 +12,6 @@ export const flags = {
   debug: params.has('debug'),
   /** `?level=…` — which level to boot into. Only the proving ground exists so far. */
   level: params.get('level') ?? 'proving',
+  /** `?touch` — force the touch controls on, so they can be tested with a mouse. */
+  touch: params.has('touch'),
 } as const;
