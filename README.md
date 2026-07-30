@@ -15,7 +15,10 @@ npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
 ```
 
-`docs/` is committed on purpose — it is what GitHub Pages serves.
+`docs/` is committed on purpose — it is what GitHub Pages serves. It is also Vite's output
+directory and is **wiped on every build**, so nothing may be hand-written into it. Files
+that must ship alongside the build — `.nojekyll`, the `CNAME` for the custom domain — live
+in `public/`, which Vite copies across verbatim.
 
 ## Enabling Pages
 

@@ -514,6 +514,12 @@ Content files hold no engine imports, so Phase 10 is authoring rather than codin
 > `docs/` is Vite's `outDir` with `emptyOutDir: true`. Never put hand-written files there —
 > they will be deleted. Anything that must ship alongside the build goes in `public/`.
 
+**This has already bitten once.** `docs/CNAME` — the custom domain for `hswow.net`, added
+through the GitHub web UI, which naturally writes to the directory Pages serves — would
+have been deleted by the next `npm run build`, silently taking the domain down with it. It
+now lives in `public/CNAME` and Vite copies it out on every build. Anything else added to
+the repo through GitHub's UI is exposed to the same trap.
+
 ## Dependencies
 
 `three`, `vite`, `typescript`, `@types/three`, `lil-gui`. Note that three 0.170 ships **no**
