@@ -26,44 +26,58 @@ import { SWAY_ATTRIBUTE } from '../src/art/assemble';
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
 // directory so the two cannot drift apart unnoticed.
+import { archway } from '../src/art/builders/archway';
 import { barrel } from '../src/art/builders/barrel';
+import { bed } from '../src/art/builders/bed';
 import { bovine } from '../src/art/builders/bovine';
 import { bush } from '../src/art/builders/bush';
 import { cairn } from '../src/art/builders/cairn';
+import { chair } from '../src/art/builders/chair';
 import { crate } from '../src/art/builders/crate';
+import { door } from '../src/art/builders/door';
 import { equine } from '../src/art/builders/equine';
 import { fence } from '../src/art/builders/fence';
 import { figure } from '../src/art/builders/figure';
 import { grass } from '../src/art/builders/grass';
 import { hut } from '../src/art/builders/hut';
+import { machine } from '../src/art/builders/machine';
 import { mushroom } from '../src/art/builders/mushroom';
 import { ovine } from '../src/art/builders/ovine';
 import { porcine } from '../src/art/builders/porcine';
 import { post } from '../src/art/builders/post';
 import { poultry } from '../src/art/builders/poultry';
 import { rock } from '../src/art/builders/rock';
+import { stool } from '../src/art/builders/stool';
 import { stump } from '../src/art/builders/stump';
+import { table } from '../src/art/builders/table';
 import { tree } from '../src/art/builders/tree';
 import { trough } from '../src/art/builders/trough';
 
 const builders: MeshBuilder[] = [
+  archway,
   barrel,
+  bed,
   bovine,
   bush,
   cairn,
+  chair,
   crate,
+  door,
   equine,
   fence,
   figure,
   grass,
   hut,
+  machine,
   mushroom,
   ovine,
   porcine,
   post,
   poultry,
   rock,
+  stool,
   stump,
+  table,
   tree,
   trough,
 ];

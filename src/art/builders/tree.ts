@@ -19,6 +19,7 @@ import { PALETTE } from '../palette';
  */
 export const tree: MeshBuilder = {
   name: 'tree',
+  category: 'foliage',
   radius: 2.2,
 
   build({ seed = 1, scale = 1 } = {}) {

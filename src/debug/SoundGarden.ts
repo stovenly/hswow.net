@@ -42,7 +42,10 @@ export class SoundGarden {
    */
   private readonly bed: GainNode;
   private readonly windModel: WindModel;
-  private lastRoom: string | null = null;
+  /** `undefined` forces the next update to reapply, whatever it last was. */
+  private lastRoom: string | null | undefined = undefined;
+  /** The garden belongs to the exterior; indoors it is another zone's problem. */
+  private active = true;
 
   constructor(
     engine: AudioEngine,
@@ -75,10 +78,16 @@ export class SoundGarden {
     });
     this.foliage.push({ model: canopy, base: 0.22 });
     this.emitters.push(
+      // Pulled in hard. Wind in a tree is a *local* sound — you notice it when
+      // you are under the canopy and it should be gone well before the tree is
+      // out of sight. At 34 m with the default rolloff it was still clearly
+      // audible from most of the field, which made the whole exterior sound
+      // like it had a tree in the middle of it.
       new Emitter(engine, canopy, {
         position: anchors.tree,
-        refDistance: 3,
-        maxDistance: 34,
+        refDistance: 2.5,
+        maxDistance: 20,
+        rolloff: 1.7,
         reverb: 0.35,
       }),
     );
@@ -110,22 +119,27 @@ export class SoundGarden {
       new Emitter(
         engine,
         createBird(engine, { pitch: 2600, interval: 6, gain: 0.075, tone: 2800 }),
-        { position: anchors.bird, refDistance: 4, maxDistance: 55, reverb: 0.85 },
+        { position: anchors.bird, refDistance: 4, maxDistance: 38, rolloff: 1.4, reverb: 0.85 },
       ),
     );
 
-    // Heavy, slow, and worn. Reaches a long way, because the point of it is to
-    // be heard through the hall wall before you find it.
+    // Heavy, slow, and worn.
     this.machineModel = createMachine(engine, {
       rpm: this.tuning.machineRpm,
       fundamental: 42,
       gain: 0.4,
     });
     this.emitters.push(
+      // Still the longest reach of anything here — the point of it is to be
+      // heard through the hall wall before you find it — but 65 m was most of
+      // the level. It now carries across the yard rather than across the map,
+      // and the taper means it is genuinely gone at the edge instead of
+      // dropping off a step.
       new Emitter(engine, this.machineModel, {
         position: anchors.machine,
         refDistance: 2.5,
-        maxDistance: 65,
+        maxDistance: 34,
+        rolloff: 1.8,
         reverb: 0.9,
       }),
     );
@@ -133,6 +147,29 @@ export class SoundGarden {
 
   private readonly machineModel: MachineModel;
   private readonly foliage: { model: FoliageModel; base: number }[] = [];
+
+  /**
+   * Switches the garden on and off with its zone.
+   *
+   * The tree, the bird, the machine and the wind are all *outside*. Once zones
+   * exist, standing in an interior means none of them should be audible — and
+   * the emitters cannot work that out for themselves, because occlusion is a
+   * raycast against the collider and the collider no longer contains the world
+   * they live in. So the zone manager tells them.
+   *
+   * Silenced rather than disposed: this is the same place you walked out of,
+   * and rebuilding a dozen granular models every time somebody steps through a
+   * door would be both slower and audible as a gap.
+   */
+  setActive(active: boolean): void {
+    if (active === this.active) return;
+    this.active = active;
+    for (const emitter of this.emitters) emitter.enabled = active;
+    this.bed.gain.setTargetAtTime(active ? 1 : 0, this.engine.context.currentTime, 0.15);
+    // Forget the room, so re-entering reapplies the acoustics and the floor
+    // material that the interior overwrote.
+    if (active) this.lastRoom = undefined;
+  }
 
   update(dt: number): void {
     const retestOcclusion = this.engine.update(dt, this.camera);
@@ -142,8 +179,14 @@ export class SoundGarden {
       emitter.update(dt, this.collider, retestOcclusion);
     }
 
-    // Indoors, the wind bed drops away and loses its top end — you are hearing
-    // it through a wall, and the whistle is the first thing a wall takes.
+    // The rest of this belongs to the exterior. Indoors the zone owns the
+    // acoustics and the floor, and the garden must not fight it for them.
+    if (!this.active) return;
+
+    // Inside one of the proving ground's test rooms, the wind bed drops away
+    // and loses its top end — you are hearing it through a wall, and the
+    // whistle is the first thing a wall takes. These are rooms *within* the
+    // exterior zone, not zones of their own: the Phase 3 acoustics fixture.
     const room = this.ground.roomAt(this.engine.listenerPosition);
     if (room !== this.lastRoom) {
       this.lastRoom = room;

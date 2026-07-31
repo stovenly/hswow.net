@@ -19,6 +19,7 @@ import { PALETTE } from '../palette';
  */
 export const hut: MeshBuilder = {
   name: 'hut',
+  category: 'structures',
   radius: 2.6,
 
   build({ seed = 1, scale = 1 } = {}) {
@@ -89,6 +90,36 @@ export const hut: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'hut', 0);
+
+    const mesh = finish(geometry, 'hut', 0);
+    // Where a portal door goes, in the hut's own space, facing +Z like the
+    // door builder does.
+    //
+    // Recorded rather than recomputed by the caller. The doorway's position
+    // depends on `doorX` and `depth`, both of which are rolled from the seed,
+    // so anything placing a door against this hut by arithmetic would have to
+    // duplicate the builder's random draws in the right order — and would
+    // silently drift the moment anything above is reordered.
+    const anchor: HutDoorAnchor = {
+      x: doorX * scale,
+      z: depth * 0.487 * scale,
+      width: doorWidth * scale,
+      height: doorHeight * scale,
+    };
+    mesh.userData.doorAnchor = anchor;
+    return mesh;
   },
 };
+
+/** Where a hut's doorway is, in the hut's own space. */
+export interface HutDoorAnchor {
+  x: number;
+  z: number;
+  width: number;
+  height: number;
+}
+
+/** Reads the anchor back off a mesh built by this builder. */
+export function hutDoorAnchor(mesh: THREE.Mesh): HutDoorAnchor {
+  return mesh.userData.doorAnchor as HutDoorAnchor;
+}

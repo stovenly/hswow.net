@@ -16,9 +16,46 @@ export interface BuildOptions {
   scale?: number;
 }
 
+/**
+ * What kind of thing a builder makes.
+ *
+ * Only used for ordering the gallery, but that is worth having: sorted purely
+ * by name, a barrel sits between an ovine and a bovine and the row reads as an
+ * alphabet rather than as a kit. Grouped, you can see at a glance whether the
+ * furniture hangs together, whether the animals share a scale, and whether
+ * anything is missing from a family.
+ */
+export type BuilderCategory =
+  | 'foliage'
+  | 'nature'
+  | 'animals'
+  | 'structures'
+  | 'furniture'
+  | 'objects'
+  | 'people';
+
+/** Gallery order. Not alphabetical — this is the order they read best in. */
+export const CATEGORY_ORDER: readonly BuilderCategory[] = [
+  'foliage',
+  'nature',
+  'animals',
+  'structures',
+  'furniture',
+  'objects',
+  'people',
+];
+
 export interface MeshBuilder {
   /** Stable identifier. Content data refers to props by this. */
   readonly name: string;
+  /**
+   * Which family it belongs to, for grouping the gallery.
+   *
+   * Required rather than optional with a default, so a new builder cannot
+   * silently land in whichever bucket the default happens to be — the art
+   * check fails until it declares one.
+   */
+  readonly category: BuilderCategory;
   /**
    * Rough horizontal extent in metres.
    *

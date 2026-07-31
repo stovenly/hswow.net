@@ -48,22 +48,79 @@ const _offset = new THREE.Vector3();
 const _segment = new THREE.Line3();
 const _contact: Contact = { normal: new THREE.Vector3(), depth: 0 };
 
-export class Collider {
-  private octree = new Octree();
-  private triangleCount = 0;
+interface Index {
+  octree: Octree;
+  triangles: number;
+}
 
-  /** Rebuilds the index from every collidable mesh under `root`. */
-  build(root: THREE.Object3D): void {
-    this.octree = new Octree();
-    this.octree.layers.disableAll();
-    this.octree.layers.enable(COLLISION_LAYER);
-    this.octree.fromGraphNode(root);
-    this.triangleCount = countTriangles(this.octree);
+export class Collider {
+  private index: Index = { octree: new Octree(), triangles: 0 };
+  /**
+   * One index per zone, kept.
+   *
+   * **Zones are entered far more often than they change.** Indexing the
+   * exterior takes about 140 ms and terrain pushes that well past the fade's
+   * third of a second of black — so rebuilding on every crossing meant a visible
+   * hitch at every doorway, paid over and over for geometry that had not moved
+   * since the last time. Building once per zone and swapping the reference makes
+   * a crossing free.
+   *
+   * The cost is memory: every zone the player has visited keeps its octree. For
+   * a world of this size that is a few megabytes, and the alternative was
+   * spending a tenth of a second on every threshold forever.
+   *
+   * A zone whose geometry genuinely changes must call `invalidate` — nothing
+   * here can detect a mutated scene graph, and a stale index is a player walking
+   * through a wall that is visibly in front of them.
+   */
+  private readonly cache = new Map<string, Index>();
+
+  /**
+   * Points the collider at `root`, building and caching under `key`.
+   *
+   * Without a key it builds every time and caches nothing, which is what the
+   * checks want — they construct throwaway colliders over throwaway scenes.
+   */
+  build(root: THREE.Object3D, key?: string): void {
+    if (key !== undefined) {
+      const cached = this.cache.get(key);
+      if (cached) {
+        this.index = cached;
+        return;
+      }
+    }
+    const index = Collider.index(root);
+    if (key !== undefined) this.cache.set(key, index);
+    this.index = index;
+  }
+
+  /**
+   * Indexes `root` into the cache *without* switching to it.
+   *
+   * For paying a zone's build cost during the loading screen instead of behind
+   * the fade the first time somebody opens its door.
+   */
+  warm(root: THREE.Object3D, key: string): void {
+    if (this.cache.has(key)) return;
+    this.cache.set(key, Collider.index(root));
+  }
+
+  /** Drops a cached index, so the next entry rebuilds it. */
+  invalidate(key: string): void {
+    this.cache.delete(key);
+  }
+
+  private static index(root: THREE.Object3D): Index {
+    const octree = new Octree();
+    octree.layers.disableAll();
+    octree.layers.enable(COLLISION_LAYER);
+    octree.fromGraphNode(root);
+    return { octree, triangles: countTriangles(octree) };
   }
 
   /** How much geometry is indexed — worth watching once zones stream in. */
   get triangles(): number {
-    return this.triangleCount;
+    return this.index.triangles;
   }
 
   /**
@@ -77,7 +134,7 @@ export class Collider {
    */
   intersectCapsule(capsule: Capsule): Contact | null {
     _candidates.length = 0;
-    this.octree.getCapsuleTriangles(capsule, _candidates);
+    this.index.octree.getCapsuleTriangles(capsule, _candidates);
 
     let deepest = 0;
 
@@ -96,7 +153,7 @@ export class Collider {
   /** True if the capsule is inside anything. Stops at the first hit. */
   overlaps(capsule: Capsule): boolean {
     _candidates.length = 0;
-    this.octree.getCapsuleTriangles(capsule, _candidates);
+    this.index.octree.getCapsuleTriangles(capsule, _candidates);
     for (const triangle of _candidates) {
       if (penetration(capsule, triangle) > 0) return true;
     }
@@ -110,7 +167,7 @@ export class Collider {
   raycast(origin: THREE.Vector3, direction: THREE.Vector3): number | null {
     // rayIntersect returns `undefined` for a zero-length direction and `false`
     // for a miss, so neither can be tested for on its own.
-    const hit = this.octree.rayIntersect(new THREE.Ray(origin, direction)) as
+    const hit = this.index.octree.rayIntersect(new THREE.Ray(origin, direction)) as
       | { distance: number }
       | false
       | undefined;

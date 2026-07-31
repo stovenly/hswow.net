@@ -104,6 +104,142 @@ body.is-touch #capture-hint {
   opacity: 0;
 }
 
+/* --- boot ---------------------------------------------------------------- */
+
+/* Above everything, including the zone fade — this is the first thing drawn and
+   nothing should ever be composited over it. */
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1.1rem;
+  background: var(--void);
+  transition: opacity 350ms linear;
+}
+
+#loading.is-gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Deliberately austere: a rule that fills, and a word. Anything more decorative
+   would be art direction, which is not mine to invent. */
+.loading-track {
+  width: min(19rem, 56vw);
+  height: 1px;
+  background: rgb(220 220 200 / 18%);
+  overflow: hidden;
+}
+
+.loading-bar {
+  width: 100%;
+  height: 100%;
+  background: var(--ink);
+  /* Scaled rather than resized, so the browser animates it on the compositor
+     and a step that blocks the main thread does not freeze the bar mid-glide. */
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 220ms ease-out;
+}
+
+.loading-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: rgb(220 220 200 / 55%);
+}
+
+#loading.is-failed .loading-bar {
+  background: #9a4a3a;
+}
+
+/* The capture hint would otherwise sit behind the boot screen and appear the
+   instant it clears, before the player has seen anything of the world. */
+body.is-loading #capture-hint {
+  opacity: 0;
+}
+
+/* --- interaction prompt -------------------------------------------------- */
+
+/* Sits above the crosshair, not beside it. The crosshair is the aiming point,
+   and text running through it fights with whatever is being aimed at; directly
+   above keeps the label in the same glance without covering the target.
+
+   Positioned by its own bottom edge against the middle of the screen, so a
+   long name grows outward from the centre instead of shifting the whole label
+   sideways as it changes. */
+#prompt {
+  position: fixed;
+  bottom: 50%;
+  left: 50%;
+  display: flex;
+  gap: 0.55em;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  white-space: nowrap;
+  /* Same treatment as the capture hint: the label has to be readable against a
+     bright sky and a dark interior wall alike, so it carries its own
+     background rather than relying on what is behind it. */
+  background: rgb(10 10 15 / 78%);
+  border: 1px solid rgb(220 220 200 / 28%);
+  /* Nudged up by a few pixels while hidden, so appearing reads as a small rise
+     rather than as a box blinking into existence. */
+  transform: translate(-50%, 6px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 110ms linear,
+    transform 110ms ease-out;
+}
+
+#prompt.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* The key cap, styled as a key rather than as a word — otherwise it reads as
+   part of the name of the place you are about to walk into. */
+#prompt kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.55em;
+  padding: 0.15em 0.3em;
+  font: inherit;
+  font-size: 0.9em;
+  letter-spacing: 0;
+  color: var(--void);
+  background: var(--ink);
+  border-radius: 2px;
+}
+
+/* --- zone transition ----------------------------------------------------- */
+
+/* Covers everything during a zone swap. Above the touch controls, because a
+   thumb resting on the stick should not be drawn over the fade. */
+#fade {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: var(--void);
+  opacity: 0;
+  pointer-events: none;
+  /* Matches FADE_TIME in ui/Reticle.ts. Change both together — the swap is
+     scheduled against that constant, and a CSS transition that runs longer
+     than the script thinks would show the world changing. */
+  transition: opacity 220ms linear;
+}
+
+#fade.is-black {
+  opacity: 1;
+}
+
 /* --- touch controls ----------------------------------------------------- */
 
 /* Covers the viewport so drags anywhere are caught; the visible parts opt into

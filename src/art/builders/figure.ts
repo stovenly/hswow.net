@@ -433,6 +433,7 @@ function pickFitting(rng: Rng): Fitting {
 
 export const figure: MeshBuilder = {
   name: 'figure',
+  category: 'people',
   radius: 0.55,
 
   build({ seed = 1, scale = 1 } = {}) {

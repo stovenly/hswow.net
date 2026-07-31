@@ -56,26 +56,39 @@ const DEFAULT_SURFACES: Record<SurfaceName, string> = {
 /**
  * Edge of the ground plane, in metres.
  *
- * Widened twice: fixtures that crowd get tested together whether or not that
- * was the intention. The gallery once sat close enough to the movement gym
+ * Widened three times: fixtures that crowd get tested together whether or not
+ * that was the intention. The gallery once sat close enough to the movement gym
  * that walking one meant walking through the other, and eight instances per
  * builder need a long run of clear ground on their own.
+ *
+ * The last widening was because the gallery outgrew the floor. It lays rows out
+ * by accumulating radii, so every builder added makes it longer — two dozen of
+ * them plus the gaps between families now run past ninety metres, and the far
+ * end of it was standing on nothing. Anything placed by accumulation will do
+ * this again; the floor has to be checked whenever the kit grows.
  */
-const GROUND = 128;
+const GROUND = 208;
 
 /**
- * Ground cells along each edge — two-metre quads, not one-metre.
+ * Ground cells along each edge — **four-metre quads**.
  *
  * The subdivision exists so the collider's broad phase has something to sort:
- * a single triangle spanning the level is a candidate for every query no
- * matter where the player is. But the octree stores a triangle in every cell
- * it touches, so the count is paid for more than once, and at one-metre cells
- * a 128 m plane is thirty-two thousand triangles before anything is built on
- * it. Two metres is still far smaller than the octree's leaves and costs a
- * quarter as much. The visible grid stays at one metre — lines are not
- * collision.
+ * one triangle spanning the level would be a candidate for every query no
+ * matter where the player is. But the octree stores a triangle in every cell it
+ * touches, so the count is paid for more than once, and the collider is rebuilt
+ * from scratch on every zone crossing.
+ *
+ * That rebuild is the budget. Widening the ground to 208 m at two-metre quads
+ * took it to **246 ms** — a visible hitch on every threshold, most of it spent
+ * indexing a flat floor nobody collides with in any interesting way. Four
+ * metres costs 142 ms for exactly the same behaviour: a capsule on a plane does
+ * not care how that plane is triangulated. Eight metres saves only another
+ * 27 ms and starts making the triangles large against the octree's leaves,
+ * which is the problem this subdivision exists to avoid.
+ *
+ * The visible grid stays at one metre. Lines are not collision, so it is free.
  */
-const GROUND_CELLS = 64;
+const GROUND_CELLS = 52;
 
 /** Baked into geometry at construction, so these are not live-editable. */
 const GRID_MAJOR = 0x6b6247;
@@ -180,9 +193,6 @@ export class ProvingGround {
   /** One material per surface family, shared by every fixture that uses it. */
   private readonly materials = {} as Record<SurfaceName, THREE.MeshLambertMaterial>;
 
-  /** Exposed so the tuning panel can balance them against the sky. */
-  readonly lights = {} as { sky: THREE.HemisphereLight; sun: THREE.DirectionalLight };
-
   /**
    * Where the Phase 3 emitters live. Positions rather than objects, because a
    * sound is attached to a place, not to a mesh — and Phase 5 will read these
@@ -217,7 +227,11 @@ export class ProvingGround {
       });
     }
 
-    this.addLighting();
+    // No lighting here. `ZoneManager` owns the sun and the hemisphere light for
+    // the whole game and drives them from the active zone's environment —
+    // lights parented into a zone would be removed with it, and the frame
+    // between one zone's lights leaving and the next zone's arriving is a
+    // frame of black that no fade is covering.
     this.addGround();
     this.addHeightReference();
     this.addMeasuredCubes();
@@ -260,19 +274,6 @@ export class ProvingGround {
   resetColors(): void {
     Object.assign(this.colors, DEFAULT_SURFACES);
     this.applyColors();
-  }
-
-  private addLighting(): void {
-    // Lighting is physically-based since three r155, hence the intensities > 1.
-    //
-    // The hemisphere light's two colours are the sky above and the ground
-    // below, and they are set to match the actual sky and the actual floor.
-    // That is not decoration: a bright blue dome over a scene lit as though it
-    // were overcast is the single fastest way to make a sky look pasted on.
-    this.lights.sky = new THREE.HemisphereLight(0x9dc4e8, 0x4c4536, 1.5);
-    this.lights.sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
-    this.lights.sun.position.set(-8, 12, 6);
-    this.root.add(this.lights.sky, this.lights.sun);
   }
 
   private addGround(): void {

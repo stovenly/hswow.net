@@ -17,7 +17,7 @@ prior conversation context. Update it as decisions change.
 | 2 — Render pipeline and filters | **Built, not yet seen on a screen** |
 | 3 — Procedural audio engine | **Built, not yet heard** |
 | 4 — Procedural art kit | **Complete** |
-| 5 — Zones and portals | Not started |
+| 5 — Zones and portals | **Complete** (trigger volumes and prop streaming deferred) |
 | 6 — World editor *(cuttable)* | Not started |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |
@@ -230,10 +230,11 @@ Checked items are decided. Unchecked are open.
 ### World
 - [x] Bounded authored exterior; hills, cliffs and walls as natural barriers
 - [x] Authored heightfield terrain, sculpted not generated
-- [x] Proximity-based prop load/unload within the bounded zone
-- [x] Instanced interiors, hand-built
-- [x] Portal triggers with fade transition and reverb crossfade
-- [x] Per-zone config: light, fog, ambience, acoustics
+- [x] Ground cover: paths, fields, cobble — colour and footstep sound in one table
+- [ ] Proximity-based prop load/unload within the bounded zone — *moved to Phase 9*
+- [x] Interiors as their own zones, hand-built, sealed
+- [x] Clickable door portals with fade transition and reverb crossfade
+- [x] Per-zone config: light, fog, ambience, acoustics, floor material
 - [ ] Fixed hour vs day/night — **open** (recommendation: fix at one hour)
 - [ ] Weather particles — **open**
 
@@ -447,12 +448,147 @@ rather than there.
 
 *Done when adding a mesh type is one file and it appears in the gallery automatically.*
 
-### Phase 5 — Zones and portals
+### Phase 5 — Zones and portals ✅ built
 
-Zone abstraction over exterior and interiors, heightfield terrain, boundary geometry,
-trigger volumes, fade + reverb-crossfade transitions, proximity prop loading.
+Zone abstraction over exterior and interiors, authored heightfield terrain, boundary
+geometry, ground cover, and fade + reverb-crossfade transitions.
 
-*Done when zones can be crossed repeatedly with no leaks.*
+**Trigger volumes and proximity prop loading are deferred.** Triggers are a second portal
+kind — walk through an opening rather than pressing a key — and are cheap now that
+`PortalGraph` and `ZoneManager.use` exist. Prop streaming moves to Phase 9: it is an
+optimisation with no problem left to solve, because the collider cache below removed the
+cost it would have addressed.
+
+**Zones.** Exactly one zone is in the scene and in the collider at a time. Crossing is: fade
+out, swap the group, rebuild the collider, push the zone's air and acoustics into the render
+pipeline and the audio engine, drop the player on the arrival marker, fade in — all inside a
+single frame at full black. Zones build lazily on first entry and are kept, so re-entry is
+free.
+
+- `world/Zone.ts` — `ZoneDefinition` is data: name, environment, spawn, and a build function.
+  `ZoneEnvironment` is sky on/off, fog, light levels, room acoustics, floor material.
+- `world/ZoneManager.ts` — owns the active zone, the collider rebuild, and the two lights.
+- `world/interior.ts` — parametric sealed shell: floor, four walls, ceiling, beams, skirting.
+- `debug/zones.ts` — the fixture: one exterior, two interiors, two portals.
+
+**Environment is layered over the tuned look, never merged into it.** `RenderSettings` is the
+look and is saved as a preset; `ZoneAir` is the place and changes at every threshold. A zone
+writing into the settings would silently overwrite what the player had dialled in, and save it.
+
+**Lights are global, not zone-owned.** One sun and one hemisphere light, driven from the
+active zone's environment. Lights parented into a zone get removed with it, and the frame
+between one zone's lights leaving and the next's arriving is black that no fade is covering.
+
+**Portals.** One link, two ends; each end is a door and a place to stand in front of it. The
+arrival marker is *derived* from its own door — a step out along the facing, turned to look
+away — so authoring is two placements rather than four and the marker cannot drift out of
+alignment with its door. `arrival` overrides it where the derived spot lands awkwardly.
+
+**Doors do not open.** No swing, no animation, no hinge axis. Using one is `E`, a fade, and a
+teleport. The *sound* carries the gesture instead.
+
+- Interact is **`E`**, not left click — left click already acquires pointer lock, so a
+  click-to-interact scheme has to disambiguate the first click after every alt-tab.
+- There is no cursor to hover with. The crosshair is the cursor, so the tooltip sits above it.
+- Tooltip and use share one reach (3.2 m), which makes the tooltip *be* the affordance: if you
+  can read it, you can use it.
+- Two rays per probe: a mesh raycast for object identity, then the collider, so a door cannot
+  be used through the wall it is set into.
+
+#### The door sound
+
+Researched rather than guessed, because with no animation it is the only thing carrying the
+gesture. Three engines, after the same decomposition that recorded libraries and automotive
+acoustics both use: **hardware** (latch, bolt, strike plate), **panel** (the leaf's formants
+and its early reflections), and **hinge** (friction).
+
+- **A creak is stick-slip, not noise.** The joint grips, elastic force builds, it releases with
+  a snap, it grips again. Each release is a discrete impulse and the sound is a train of them.
+- **So the train is quasi-*periodic*, not Poisson** — a creak has a pitch, and that pitch is
+  the slip rate. This is the exact opposite of the PhISEM grit in `footsteps.ts`, where
+  independent stone collisions genuinely are Poisson. Even intervals there give a buzz instead
+  of a crunch; random intervals here give a rattle instead of a creak. Easiest mistake in the
+  model, and the check asserts a coefficient of variation below 0.7 to pin it.
+- **Slip rate follows swing velocity**, which is why a door groans low, rises, and falls away.
+  Below a stiction threshold nothing happens at all, and that silence is what makes the first
+  creak land.
+- **Force accumulated while stuck is velocity × time**, square-rooted to compress the range.
+  Note what this does *not* say: rate is itself proportional to velocity, so the product comes
+  out roughly constant along the swing — correct physics, since a limit cycle releases about
+  the same energy each cycle regardless of drive. A door speeding up gets *higher*, not louder.
+  The loudness variation is local, and the check detrends both series before correlating.
+- **Panel network**: eight parallel pure delays across the leaf, averaged and high-passed —
+  Farnell's approximation to a rectangular panel's early reflections, and most of the
+  difference between "resonant" and "wooden". Timber formants and delay times are his measured
+  wooden-door values.
+- Three voices: `timber`, `iron`, `plank`. Material drives look and sound from one field.
+
+**The whole gesture is scheduled at fire time**, not driven per frame. That is correctness, not
+performance: a door sound outlives the zone that made it. The creak carries across the cut,
+which is most of what makes a transition feel like a door rather than a screen wipe.
+
+Sources: [Farnell, *Designing Sound*, Practical 9](http://aspress.co.uk/sd/practical09.html)
+and its [SuperCollider port](https://en.wikibooks.org/wiki/Designing_Sound_in_SuperCollider/Print_version);
+[DAFx-17 friction synthesis](https://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_58.pdf);
+[door slam anatomy](https://sfxengine.com/blog/door-slam-sound-effect).
+
+#### Terrain
+
+`world/terrain.ts`. A heightfield summed from **placed landforms** — `hill`, `ridge`, `basin`,
+`rim`, `terrace` — rather than from noise or from a grid of control numbers. Every bump is a
+shape somebody put there, listed as data, legible as text, and the same list a Phase 6 editor
+would drag around. 256 raw decimals are unreviewable; nobody can look at them and see a valley.
+
+- **The boundary is terrain.** `rim` lifts the outer ring past the controller's slope limit,
+  so the edge of the world turns you back. No invisible walls, no special collision.
+- **`terrace` is the one landform that is not additive** — it *replaces* height inside a
+  radius and eases back over a blend. Buildings are rigid and ground is not; a hut on a
+  one-in-twenty slope buries one corner and floats the other, and no placement fixes that
+  because the problem is the ground.
+- **Variable density.** `detail` regions subdivide the base grid where it matters. Stitching
+  closes the T-junctions: a vertex on an edge shared with a coarser neighbour takes its
+  height from *that edge as the neighbour draws it*, so both sides describe the same line.
+
+#### Ground cover
+
+`world/ground.ts`. **A ground material is a colour and a footstep sound in one table** — a
+cobbled path you can see but that sounds like grass is worse than no path, and one table
+means the two cannot drift apart. Painted with placed shapes (`path`, `blot`, `field`),
+layered so later wins. Edges are hard, not blended: a gradient between two materials survives
+the pixelation and quantization as a band of dither and reads as a mistake.
+
+#### Arkstin Village
+
+`debug/village.ts`. The first zone that is a place rather than a fixture: a 96 m bowl with a
+settlement on a level shelf, streets between the houses, fields and a paddock, and clear
+ground left deliberately open for the Phase 7 actors.
+
+#### Lessons worth not relearning
+
+- **Never dispose materials per zone.** The art kit shares one `ART_MATERIAL`; freeing it
+  breaks other zones and surfaces as black geometry somewhere else entirely.
+- **Abutting boxes fail watertightness.** Exact shared corners weld into edges on four
+  triangles. Overlap by a few percent.
+- **A ring handle does not survive the render pass.** Concave detail at this scale reads as
+  damage once chunked. Convex shapes stay legible.
+- **Feet exactly on the ground is an intersection.** The capsule's lower sphere is tangent to
+  the surface, and on any slope the uphill side of the contact is higher than the contact
+  point. Settled placements get 12 cm of clearance.
+- **Detail boundaries belong on gentle ground.** Stitching closes the geometric seam, but
+  nothing hides a change of *facet size* on a slope: two different normals meeting along a
+  line is a line you can see, and it looks exactly like a crack.
+- **Widening a check catches more than deepening one.** Extending "buildings stand on level
+  ground" from huts to everything rigid immediately found a gateway arch with 127 cm of fall
+  across its piers. Twice this phase, pointing an existing check at more objects beat making
+  it cleverer.
+
+*Done when zones can be crossed repeatedly with no leaks.* `npm run check:world` asserts:
+every portal has two live ends; arrivals are clear of geometry, standing on floor, within
+reach of their own door, facing away from it, and walkable-off; round trips return within
+0.01 m; interiors contain 600 rays fired out of their centre; 60 crossings change neither
+triangle count nor child count; the rim cannot be walked over at any of 240 spokes; the
+valley is walkable; every prop stands on the ground; buildings stand level; detail boundaries
+sit on gentle ground; and variable density leaves no cracks.
 
 ### Phase 6 — World editor *(cuttable)*
 
@@ -542,11 +678,13 @@ src/
   engine/              Viewport, Loop, Input, PostFX
   audio/               context, buses, noise substrate, models/, Emitter, zone acoustics
   player/              Controller, Collider
-  world/               Zone, Heightfield, Portals, PropStreamer
+  world/               Zone, ZoneManager, Portal, Interaction, interior,
+                       terrain (landforms), ground (cover materials)
   art/                 mesh builders — one file per family
   actors/              Actor, NPC, animation drivers
   systems/             Topics, Dialogue, Quests, Inventory, Interaction, Notes, Autosave
-  ui/                  HUD, DialogueUI, JournalUI, NoteUI, TouchControls
+  ui/                  Reticle (prompt + fade), Loader, TouchControls
+                       (DialogueUI, JournalUI, NoteUI from Phase 8)
   content/             data only — zones, npcs, topics, quests, items, notes
   editor/              world editor (Phase 6)
   debug/               ProvingGround, panels, overlays
@@ -581,11 +719,12 @@ npm run preview         # serve the built docs/ locally
 npm run dev             # dev server with HMR, exposed on the LAN
 npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
-npm run check:art       # builder determinism, sway weights, scale
-npm run check           # all three
+npm run check:art       # builder determinism, sway weights, scale, watertightness
+npm run check:world     # portals, arrivals, sealing, crossing leaks, terrain, door cue
+npm run check           # all four
 ```
 
-`check:movement` is not covered by `tsc --noEmit` — `tools/` is outside the tsconfig
+The `tools/` suites are not covered by `tsc --noEmit` — `tools/` is outside the tsconfig
 `include`, which is what keeps Node globals out of the browser build's typecheck.
 
 ## Debug switches
@@ -595,7 +734,7 @@ is tested on a phone against the live URL.
 
 | Flag | Effect |
 |---|---|
-| `?debug` | Frame stats, the live tuning panel, and a movement state readout |
+| `?debug` | Frame stats, the live tuning panel, a movement/zone readout, and zone jumps |
 | `?level=<name>` | Which level to boot into. Only `proving` exists so far |
 | `?touch` | Force the touch controls on, to test them with a mouse |
 

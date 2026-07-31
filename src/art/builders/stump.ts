@@ -15,6 +15,7 @@ import { PALETTE } from '../palette';
  */
 export const stump: MeshBuilder = {
   name: 'stump',
+  category: 'foliage',
   radius: 0.75,
 
   build({ seed = 1, scale = 1 } = {}) {
