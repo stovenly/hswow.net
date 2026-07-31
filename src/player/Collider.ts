@@ -31,10 +31,27 @@ export interface Contact {
   depth: number;
 }
 
-/** Marks a subtree as solid. Call before building the collider. */
+/**
+ * Marks a subtree as solid. Call before building the collider.
+ *
+ * A subtree flagged `userData.noCollide` is skipped, along with everything
+ * under it. Builders return one object and callers mark the whole of it, which
+ * is right for the parts of a prop that are made of wood or stone and wrong for
+ * the parts that are not made of anything — a street lamp's beam of light is
+ * geometry, and without an opt-out the player would walk into it and stop.
+ *
+ * Recursive rather than `traverse`, because `traverse` has no way to prune: it
+ * would skip the flagged node and then carry on into its children anyway.
+ */
 export function markCollidable<T extends THREE.Object3D>(object: T): T {
-  object.traverse((child) => child.layers.enable(COLLISION_LAYER));
+  mark(object);
   return object;
+}
+
+function mark(node: THREE.Object3D): void {
+  if (node.userData.noCollide === true) return;
+  node.layers.enable(COLLISION_LAYER);
+  for (const child of node.children) mark(child);
 }
 
 const _candidates: THREE.Triangle[] = [];
