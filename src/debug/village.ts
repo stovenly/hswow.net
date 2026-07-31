@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { type ZoneDefinition, OUTDOOR_ENVIRONMENT } from '../world/Zone';
+import type { SoundscapeSpec } from '../audio/Soundscape';
 import { Terrain, type Landform } from '../world/terrain';
 import type { GroundPatch } from '../world/ground';
 import { markCollidable } from '../player/Collider';
@@ -186,6 +187,260 @@ export const villageTerrain = terrain;
 /** Where you arrive from the Proving Ground, on the lane at the north end. */
 export const VILLAGE_GATE = new THREE.Vector3(0, 0, 34);
 
+/**
+ * What Arkstin sounds like.
+ *
+ * **The first zone in this game to have a voice of its own.** Everything before
+ * this took its ambience from `SoundGarden`, which was hardcoded to the proving
+ * ground, so walking into the village — a 96 m bowl with a settlement in it —
+ * got you footsteps and nothing else.
+ *
+ * Three rules held to here, and they are the ones worth reusing:
+ *
+ * - **Local sounds have short reach.** Wind in a tree is something you notice
+ *   when you are under it. Given a generous `maxDistance` every tree in the
+ *   village is audible from every point in it, which does not read as a lot of
+ *   trees — it reads as one undifferentiated hiss laid over the whole zone.
+ * - **Sparse beats dense.** Four foliage emitters spread across the bowl place
+ *   the settlement in a landscape. Fourteen would place it inside a waterfall,
+ *   and would cost fourteen voices to do it.
+ * - **Nothing sits in the middle of the green.** The open ground was left clear
+ *   for the Phase 7 actors, and it should stay acoustically clear too, so that
+ *   when something does move through it there is room to hear it.
+ *
+ * Deliberately no crowd, no livestock, no smithy: those want models that do not
+ * exist yet, and a village that murmurs from an empty street is worse than a
+ * quiet one. This is the landscape the settlement sits in. The settlement's own
+ * sounds come with the village pack.
+ */
+const VILLAGE_SOUND: SoundscapeSpec = {
+  // A touch softer and darker than the default. Open ground with hills around
+  // it — the bowl takes the top off the wind before it reaches the middle.
+  bed: [
+    { model: 'wind', id: 'wind', options: { gain: 0.15, tone: 3000 } },
+    // Off by default and driven from the tuning panel, because there is no
+    // weather system yet to decide when it should rain. Idle cost is one noise
+    // voice and a filter: below an intensity of 0.02 the model stops scheduling
+    // drops entirely rather than raining faintly out of a clear sky.
+    {
+      model: 'rain',
+      id: 'rain',
+      options: { gain: 0.5, intensity: 0, surface: 'earth', articulation: 0.3 },
+    },
+  ],
+  emitters: [
+    // The treeline, around the rim rather than in the settlement.
+    {
+      model: 'foliage',
+      id: 'wood-north',
+      at: [-26, 4, -31],
+      options: { density: 260, tone: 0.78, gain: 0.4, articulation: 0.2 },
+      refDistance: 3,
+      maxDistance: 24,
+      rolloff: 1.6,
+      reverb: 0.3,
+    },
+    {
+      model: 'foliage',
+      id: 'wood-east',
+      at: [33, 4, -9],
+      options: { density: 240, tone: 0.85, gain: 0.38, articulation: 0.22 },
+      refDistance: 3,
+      maxDistance: 22,
+      rolloff: 1.6,
+      reverb: 0.3,
+    },
+    // A hedge by the lane. Small, dry and close — it only exists when you are
+    // beside it, which is what makes walking past it an event.
+    {
+      model: 'foliage',
+      id: 'hedge',
+      at: [-11, 1, 14],
+      options: { density: 150, tone: 1.5, gain: 0.24, articulation: 0.34 },
+      refDistance: 1.4,
+      maxDistance: 13,
+      reverb: 0.22,
+    },
+    // Two birds, far apart and both quiet. One bird is a decoration; two at
+    // opposite ends of a valley is a valley with birds in it.
+    {
+      model: 'bird',
+      id: 'bird-west',
+      at: [-24, 6, 4],
+      options: { pitch: 2500, interval: 7, gain: 0.07, tone: 2700 },
+      refDistance: 5,
+      maxDistance: 46,
+      rolloff: 1.3,
+      reverb: 0.9,
+    },
+    {
+      model: 'bird',
+      id: 'bird-south',
+      at: [17, 5.5, 34],
+      options: { pitch: 3100, interval: 11, gain: 0.055, tone: 3000 },
+      refDistance: 5,
+      maxDistance: 44,
+      rolloff: 1.35,
+      reverb: 0.9,
+    },
+    // The forge, behind the house on the east lane. The only sound in the
+    // village that is continuously *worked* rather than merely present, and it
+    // is what the hammer below is standing next to.
+    {
+      model: 'fire',
+      id: 'forge',
+      at: [13, 1.2, 7],
+      // Bright and small — a charcoal hearth under a roof, not a bonfire.
+      // Little draught response, because it is sheltered and half of what is
+      // fanning it is a bellows rather than the weather.
+      options: { gain: 0.5, intensity: 0.85, tone: 1.15, crackle: 0.65, draught: 0.12 },
+      refDistance: 2,
+      maxDistance: 20,
+      rolloff: 1.5,
+      reverb: 0.35,
+    },
+    // People, on the far side of the green. Quiet, dull and deliberately never
+    // close enough to make out — `refDistance` is short and the model's own
+    // lowpass is well down, because walla that gets near enough for the ear to
+    // start reaching for words stops being a crowd and starts being uncanny.
+    {
+      model: 'crowd',
+      id: 'folk',
+      at: [-3, 1.4, 16],
+      options: { voices: 5, density: 0.4, pitch: 132, variety: 0.55, gain: 0.36, distance: 1450 },
+      refDistance: 5,
+      maxDistance: 30,
+      rolloff: 1.5,
+      reverb: 0.6,
+    },
+  ],
+  scatter: [
+    // **The sound that makes the village inhabited.** Everything above is a
+    // place; this is somebody in it. Carried much further than anything else
+    // here on purpose — a hammer on an anvil is the one village sound that
+    // genuinely crosses a valley, and hearing it from the ridge before you can
+    // see where it comes from is the whole point of having it.
+    {
+      sound: 'hammer',
+      id: 'smith',
+      at: [13.5, 1.2, 5.5],
+      // Tight: the smith is at the anvil, not wandering. The metre of wander
+      // is the swing, not the man.
+      spread: [0.7, 0.2, 0.7],
+      every: 13,
+      force: [0.45, 1],
+      options: { gain: 0.5, tone: 0.95, damping: 0.35, bounces: 2 },
+      refDistance: 3,
+      maxDistance: 52,
+      rolloff: 1.1,
+      reverb: 0.55,
+    },
+    // Everything else: a bucket set down, firewood dropped, a shutter. Spread
+    // across the whole settled part of the bowl, rare enough that two in a row
+    // is a surprise, and never twice from the same spot.
+    {
+      sound: 'clatter',
+      id: 'yards',
+      at: [0, 1, 8],
+      spread: [13, 0.5, 11],
+      every: 26,
+      force: [0.3, 0.85],
+      options: { material: 'wood', gain: 0.45, tone: 1.05 },
+      refDistance: 2.5,
+      maxDistance: 34,
+      rolloff: 1.25,
+      reverb: 0.4,
+    },
+    // The pen on the west side, where the cattle and sheep actually stand. One
+    // voice each: a herd that answers itself in unison is a synthesiser, and
+    // the overlapping-call problem is not worth solving for two animals.
+    {
+      sound: 'animal',
+      id: 'cattle',
+      at: [-16, 1.1, -10],
+      spread: [4, 0.2, 4],
+      every: 44,
+      force: [0.5, 0.9],
+      voices: 1,
+      options: { kind: 'cow', gain: 0.55, tone: 0.97 },
+      refDistance: 4,
+      maxDistance: 48,
+      rolloff: 1.1,
+      reverb: 0.5,
+    },
+    {
+      sound: 'animal',
+      id: 'sheep',
+      at: [-16.5, 0.9, -11],
+      spread: [5, 0.2, 5],
+      every: 27,
+      force: [0.4, 0.85],
+      voices: 1,
+      options: { kind: 'sheep', gain: 0.42, tone: 1.06 },
+      refDistance: 3.5,
+      maxDistance: 40,
+      rolloff: 1.2,
+      reverb: 0.45,
+    },
+    // Hens on the green. Wide spread and often, because they are the one animal
+    // here that genuinely wanders and the one whose noise is background rather
+    // than event.
+    {
+      sound: 'animal',
+      id: 'fowl',
+      at: [-2, 0.7, 6],
+      spread: [8, 0.15, 8],
+      every: 16,
+      force: [0.3, 0.7],
+      voices: 1,
+      options: { kind: 'fowl', gain: 0.3, tone: 1 },
+      refDistance: 2.5,
+      maxDistance: 26,
+      rolloff: 1.35,
+      reverb: 0.35,
+    },
+    // A dog, roaming the whole settled part of the village. Rare, carries a
+    // long way, and never twice from the same place — which between them do
+    // more work than the bark itself does.
+    {
+      sound: 'animal',
+      id: 'dog',
+      at: [2, 1, 10],
+      spread: [11, 0.3, 10],
+      every: 36,
+      force: [0.45, 1],
+      voices: 1,
+      options: { kind: 'dog', gain: 0.5, tone: 0.94 },
+      refDistance: 4,
+      maxDistance: 50,
+      rolloff: 1.15,
+      reverb: 0.55,
+    },
+    // A bell, rarely, from somewhere above the roofs. The longest reach and the
+    // longest tail of anything in the zone — it is the sound that tells you the
+    // valley has edges, because you hear it come back off them.
+    //
+    // A single fixed point with no spread: a bell hangs in a tower and does not
+    // move, and wandering it by even a metre would undo the one thing it is
+    // here to establish.
+    {
+      sound: 'bell',
+      id: 'bell',
+      at: [-9, 6.5, 13],
+      spread: [0, 0, 0],
+      every: 95,
+      rhythm: 'periodic',
+      force: [0.8, 1],
+      voices: 1,
+      options: { hz: 186, decay: 12, gain: 0.34, strokes: 2, interval: 2.6, warble: 1.1 },
+      refDistance: 8,
+      maxDistance: 70,
+      rolloff: 0.9,
+      reverb: 1,
+    },
+  ],
+};
+
 export function villageZone(): ZoneDefinition {
   return {
     id: ZONE_VILLAGE,
@@ -197,6 +452,7 @@ export function villageZone(): ZoneDefinition {
       fogNear: 30,
       fogFar: 190,
       footstepReverb: 0.5,
+      soundscape: VILLAGE_SOUND,
     },
     spawn: { position: onGround(0, 28), yaw: Math.PI },
     floor: -20,

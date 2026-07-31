@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { createNoiseBuffers, type NoiseBuffers } from './noise';
 import { generateImpulseResponse, ROOM_PRESETS, type RoomName, type RoomAcoustics } from './reverb';
 import { Weather } from './weather';
+import type { Emitter } from './Emitter';
+import { createFaustNode, type FaustNode } from './faust/FaustNode';
+import { reverbMeta, reverbUrl } from './faust/built/reverb';
 
 /**
  * The audio graph and its lifecycle.
@@ -53,6 +56,26 @@ export const DEFAULT_AUDIO: AudioSettings = {
 /** Raycasts listener→emitter cost real time; they do not need doing every frame. */
 const OCCLUSION_INTERVAL = 0.12;
 
+/**
+ * How many emitters get full HRTF spatialisation.
+ *
+ * The most expensive node in the API, and the one that makes a sound seem to
+ * be outside your head rather than merely on one side of it. Eight is enough
+ * that everything in the room with you is fully placed, and few enough that a
+ * zone can afford forty sources.
+ */
+const HRTF_VOICES = 8;
+
+/**
+ * Ceiling on emitters that are audible at all.
+ *
+ * Beyond this the quietest are forced virtual — disconnected, not turned down.
+ * A cap is what stops a dense zone degrading into a wash: past a couple of
+ * dozen simultaneous sources nothing is individually audible anyway, so the
+ * ones that lose are ones nobody could have picked out.
+ */
+const VOICE_CAP = 24;
+
 export class AudioEngine {
   readonly context: AudioContext;
   readonly settings: AudioSettings = { ...DEFAULT_AUDIO };
@@ -75,6 +98,26 @@ export class AudioEngine {
   private readonly rooms = new Map<RoomName, { convolver: ConvolverNode; gain: GainNode }>();
   private currentRoom: RoomName | null = null;
   private occlusionTimer = 0;
+
+  /**
+   * Every live emitter, so the budget can be allocated across all of them.
+   *
+   * An emitter cannot decide its own detail level: whether it deserves HRTF
+   * depends entirely on what *else* is audible, which is knowledge only the
+   * engine has. Emitters register themselves on construction.
+   */
+  private readonly emitters = new Set<Emitter>();
+  /** Reused across ticks; ranking allocates nothing per frame. */
+  private readonly ranking: { emitter: Emitter; priority: number }[] = [];
+
+  /**
+   * The feedback-delay-network reverb, when it loads.
+   *
+   * `null` means the wasm did not arrive and the convolvers below are carrying
+   * the rooms instead. Both paths exist permanently and exactly one is audible.
+   */
+  private faust: FaustNode | null = null;
+  private faustWet: GainNode | null = null;
 
   constructor() {
     // 'interactive' asks for the smallest buffer the device will give, because
@@ -110,11 +153,33 @@ export class AudioEngine {
   private async build(): Promise<void> {
     this.noise = createNoiseBuffers(this.context);
 
+    // Tried first, because if it arrives the convolvers never make a sound and
+    // there is no point paying for their impulse responses to be crossfaded.
+    // They are still built: a room has to exist even when the network does not.
+    const faust = await createFaustNode(this.context, reverbUrl, reverbMeta);
+    if (faust) {
+      const wet = this.context.createGain();
+      wet.gain.value = 0;
+      this.send.connect(faust.node);
+      faust.node.connect(wet);
+      wet.connect(this.duck);
+      this.faust = faust;
+      this.faustWet = wet;
+    }
+
     // Rendered in parallel; the hall's four-second tail is the long pole.
     const names = Object.keys(ROOM_PRESETS) as RoomName[];
     const buffers = await Promise.all(
       names.map((name) => generateImpulseResponse(this.context.sampleRate, ROOM_PRESETS[name])),
     );
+
+    // **Only if the network did not arrive.** A `ConvolverNode` is one of the
+    // most expensive nodes in the API and it does not stop working when its
+    // output gain is zero — it keeps convolving the send bus into silence. The
+    // first version built all three regardless and left them running forever
+    // behind a muted gain, which is three FFT-based convolutions a quantum for
+    // nothing at all.
+    if (this.faust) return;
 
     names.forEach((name, index) => {
       const convolver = this.context.createConvolver();
@@ -139,9 +204,41 @@ export class AudioEngine {
    */
   setRoom(name: RoomName, seconds = 0.45): void {
     this.currentRoom = name;
+    const now = this.context.currentTime;
+    const preset = ROOM_PRESETS[name];
+
+    // --- the network -------------------------------------------------------
+    //
+    // **No crossfade, and that is the improvement.** Swapping a convolver's
+    // buffer cuts its tail dead, which is why there are two of them fading
+    // past each other. An FDN has no buffer to swap: changing its decay
+    // changes the feedback gains, so the tail already ringing carries on and
+    // simply starts dying at the new rate. Walking out of a hall stops being
+    // a crossfade between two rooms and becomes the room itself changing size,
+    // which is what actually happens.
+    if (this.faust && this.faustWet) {
+      // Bass rings longer than treble in any real room — it is most of what
+      // makes stone sound like stone — and a single RT60 cannot say so.
+      this.faust.set('decayLow', preset.rt60 * 1.5);
+      this.faust.set('decayMid', preset.rt60);
+      this.faust.set('crossover', 200);
+      // `damping` is 0 (bare stone) to 1 (heavy curtains); the control is the
+      // frequency above which the tail dies fastest, so it runs the other way.
+      this.faust.set('damping', 700 + (1 - preset.damping) ** 2 * 15300);
+      this.faust.set('preDelay', preset.preDelay * 1000);
+
+      this.faustWet.gain.cancelScheduledValues(now);
+      this.faustWet.gain.setTargetAtTime(
+        preset.wet * this.settings.reverbAmount,
+        now,
+        seconds / 3,
+      );
+      return;
+    }
+
+    // --- the fallback ------------------------------------------------------
     if (this.rooms.size === 0) return; // IRs still rendering; picked up in build()
 
-    const now = this.context.currentTime;
     for (const [key, room] of this.rooms) {
       const target = key === name ? ROOM_PRESETS[key].wet * this.settings.reverbAmount : 0;
       room.gain.gain.cancelScheduledValues(now);
@@ -149,8 +246,22 @@ export class AudioEngine {
     }
   }
 
+  /** Which reverb is actually running, for the debug readout. */
+  get reverbKind(): 'fdn' | 'convolution' {
+    return this.faust ? 'fdn' : 'convolution';
+  }
+
   get room(): RoomName | null {
     return this.currentRoom;
+  }
+
+  /** Emitters register themselves. Not called directly. */
+  register(emitter: Emitter): void {
+    this.emitters.add(emitter);
+  }
+
+  unregister(emitter: Emitter): void {
+    this.emitters.delete(emitter);
   }
 
   /** Per-frame housekeeping: weather, listener pose, and the occlusion clock. */
@@ -162,7 +273,74 @@ export class AudioEngine {
     this.occlusionTimer -= dt;
     if (this.occlusionTimer > 0) return false;
     this.occlusionTimer = OCCLUSION_INTERVAL;
+
+    // Paced with the raycasts rather than run every frame. Both are answers to
+    // "what can be heard from here", both change at walking pace, and doing
+    // them together means one distance calculation per emitter serves both.
+    this.allocateVoices();
     return true; // emitters should re-test occlusion this frame
+  }
+
+  /**
+   * Hands out the HRTF and audibility budgets.
+   *
+   * Ranked by distance over importance, so an emitter marked important
+   * competes as though it were nearer. Anything past its own `maxDistance` is
+   * out regardless of rank — the budget decides between things you *could*
+   * hear, it does not resurrect things you could not.
+   */
+  private allocateVoices(): void {
+    this.ranking.length = 0;
+    for (const emitter of this.emitters) {
+      if (!emitter.enabled) {
+        emitter.setDetail('virtual');
+        continue;
+      }
+      const distance = emitter.position.distanceTo(_position);
+      if (distance > emitter.maxDistance) {
+        emitter.setDetail('virtual');
+        continue;
+      }
+      this.ranking.push({ emitter, priority: distance / Math.max(emitter.importance, 0.01) });
+    }
+
+    this.ranking.sort((a, b) => a.priority - b.priority);
+
+    // **Hysteresis, or the boundaries chatter.** Two emitters at nearly equal
+    // priority swap ranks on almost every tick, and each swap costs a fade out
+    // and back in. Without a dead band, standing still between two sources of
+    // similar distance produces a continuous flutter on both. Holding a level
+    // until the emitter is clearly past the threshold costs a couple of extra
+    // HRTF voices in the worst case and removes the artifact entirely.
+    const SLACK = 2;
+    for (let i = 0; i < this.ranking.length; i++) {
+      const { emitter } = this.ranking[i];
+      const held = emitter.detailLevel;
+
+      let level: 'hrtf' | 'panned' | 'virtual';
+      if (i < HRTF_VOICES) level = 'hrtf';
+      else if (i < VOICE_CAP) level = 'panned';
+      else level = 'virtual';
+
+      // Only demote once it is properly past the line, never on a tie.
+      if (held === 'hrtf' && i < HRTF_VOICES + SLACK) level = 'hrtf';
+      else if (held === 'panned' && level === 'virtual' && i < VOICE_CAP + SLACK) level = 'panned';
+
+      emitter.setDetail(level);
+    }
+  }
+
+  /** How many emitters are at each level. For the debug readout. */
+  get voiceCounts(): { hrtf: number; panned: number; virtual: number } {
+    let hrtf = 0;
+    let panned = 0;
+    let virtual = 0;
+    for (const emitter of this.emitters) {
+      if (emitter.detailLevel === 'hrtf') hrtf++;
+      else if (emitter.detailLevel === 'panned') panned++;
+      else virtual++;
+    }
+    return { hrtf, panned, virtual };
   }
 
   private updateListener(camera: THREE.Camera): void {

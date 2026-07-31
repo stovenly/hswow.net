@@ -11,6 +11,8 @@
  * filters are wrong".
  */
 import { Weather } from '../src/audio/weather';
+import { measure, periodicity } from '../src/audio/audition/measure';
+import { bubbleHz, bubbleRadius } from '../src/audio/dsp/bubble';
 
 let failures = 0;
 
@@ -210,6 +212,115 @@ for (const rt60 of [0.45, 0.7, 4.2]) {
     `rt60 ${rt60}s decays to -60 dB`,
     Math.abs(atRt60 + 60) < 0.1,
     `${atRt60.toFixed(2)} dB at t=rt60`,
+  );
+}
+
+// --- the audition measurements -------------------------------------------
+//
+// **A measuring instrument that has not been measured is a decoration.** These
+// numbers are about to be the basis for "does this model sound bad", so each is
+// checked against a signal whose answer is known in advance rather than against
+// a model, where a wrong reading and a wrong model are indistinguishable.
+const RATE = 48000;
+const N = 16384;
+
+function generate(fill: (i: number) => number): Float32Array {
+  const signal = new Float32Array(N);
+  for (let i = 0; i < N; i++) signal[i] = fill(i);
+  return signal;
+}
+
+// A 1 kHz sine: peak 1, crest 3.01 dB, centroid at 1 kHz.
+const sine = measure(generate((i) => Math.sin((2 * Math.PI * 1000 * i) / RATE)), RATE);
+check('sine peak is 1', Math.abs(sine.peak - 1) < 0.01, sine.peak.toFixed(4));
+check('sine crest is 3 dB', Math.abs(sine.crest - 3.01) < 0.2, `${sine.crest.toFixed(2)} dB`);
+check(
+  'sine centroid lands on its pitch',
+  Math.abs(sine.centroid - 1000) < 150,
+  `${sine.centroid.toFixed(0)} Hz`,
+);
+
+const noise = measure(generate(() => Math.random() * 2 - 1), RATE);
+// Uniform noise sits at 4.77 dB — RMS is 1/root-3 — which is *lower* than most
+// people expect and only a little above a sine. The first version of this
+// asserted it would be well above, and the measurement was right and the
+// assertion was wrong. Crest factor does not measure randomness; it measures
+// **sparseness**, which is why the impulse train below is the real test.
+check('dense noise has a low crest', Math.abs(noise.crest - 4.77) < 0.6, `${noise.crest.toFixed(2)} dB`);
+
+// One click every 40 ms over silence: the shape of grains loud and sparse
+// enough to be heard individually, which is the bubble-wrap failure.
+const sparse = measure(generate((i) => (i % 1920 === 0 ? 1 : 0)), RATE);
+check(
+  'sparse events read as a high crest',
+  sparse.crest > 25 && sparse.crest > noise.crest + 15,
+  `${sparse.crest.toFixed(1)} dB against dense noise at ${noise.crest.toFixed(1)}`,
+);
+check(
+  'noise spreads across every band',
+  noise.bands.every((b) => b > 0.001),
+  `weakest band ${(Math.min(...noise.bands) * 100).toFixed(1)}%`,
+);
+
+// A DC offset is invisible in peak and obvious here — it is the fault that
+// silently eats headroom and thumps when a source starts.
+const offset = measure(generate(() => 0.5), RATE);
+check('DC offset is caught', Math.abs(offset.dc - 0.5) < 0.01, offset.dc.toFixed(3));
+
+// Loudness has to *order* correctly; its absolute value means nothing.
+const quiet = measure(generate((i) => 0.1 * Math.sin((2 * Math.PI * 1000 * i) / RATE)), RATE);
+check(
+  'loudness orders two levels of one tone',
+  sine.loudness > quiet.loudness + 15,
+  `${sine.loudness.toFixed(1)} vs ${quiet.loudness.toFixed(1)} dB`,
+);
+
+// Periodicity has to catch an LFO and clear noise, or it is worthless as the
+// thing that separates weather from a wobble.
+const lags = Array.from({ length: 40 }, (_, i) => (i + 1) * 24);
+const sineRevival = periodicity(generate((i) => Math.sin((2 * Math.PI * 300 * i) / RATE)), lags);
+const noiseRevival = periodicity(generate(() => Math.random() * 2 - 1), lags);
+check('periodicity catches a sine', sineRevival > 0.35, `revival ${sineRevival.toFixed(3)}`);
+check('periodicity clears noise', noiseRevival < 0.35, `revival ${noiseRevival.toFixed(3)}`);
+
+// --- bubbles ---------------------------------------------------------------
+//
+// Minnaert's relation and the radius distribution over it are the whole of the
+// water models, and both are pure arithmetic that is easy to get subtly wrong
+// and impossible to diagnose by ear — a distribution skewed to the bottom
+// octave sounds like water that is merely *duller*, not like a bug.
+
+// A one-millimetre bubble sings at 3.26 kHz. If this drifts, every radius in
+// every water preset means a different pitch than the comment beside it claims.
+for (const [mm, hz] of [
+  [1, 3260],
+  [3, 1087],
+  [6, 543],
+] as const) {
+  const got = bubbleHz(mm / 1000);
+  check(`${mm} mm bubble sings at ${hz} Hz`, Math.abs(got - hz) < 2, `${got.toFixed(0)} Hz`);
+}
+
+// **Log-uniform, not uniform.** Radius maps to pitch as 1/r, so a uniform draw
+// piles most bubbles into the bottom octave of the pitch range. The test: the
+// median draw must land at the *geometric* mean of the bounds, not the
+// arithmetic one — for 0.4–4 mm those are 1.26 mm and 2.2 mm, far enough apart
+// that a wrong distribution cannot pass.
+{
+  const low = 0.0004;
+  const high = 0.004;
+  const draws = Array.from({ length: 20000 }, () => bubbleRadius(low, high)).sort((a, b) => a - b);
+  const median = draws[draws.length >> 1];
+  const geometric = Math.sqrt(low * high);
+  check(
+    'bubble radii are spread evenly across pitch',
+    Math.abs(median - geometric) / geometric < 0.05,
+    `median ${(median * 1000).toFixed(2)} mm vs geometric mean ${(geometric * 1000).toFixed(2)} mm`,
+  );
+  check(
+    'bubble radii stay inside their bounds',
+    draws[0] >= low - 1e-9 && draws[draws.length - 1] <= high + 1e-9,
+    `${(draws[0] * 1000).toFixed(2)}–${(draws[draws.length - 1] * 1000).toFixed(2)} mm`,
   );
 }
 

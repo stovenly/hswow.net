@@ -40,9 +40,15 @@ export type SurfaceName =
  * it. Splitting the floor onto the opposite side of the colour wheel from
  * everything you can climb survives quantization, because the levels are
  * per-channel and the channels now disagree.
+ *
+ * The floor is also the *lightest* thing here, which hue alone was not
+ * achieving: a dark warm floor under dark cool fixtures separates on a colour
+ * wheel and not to the eye, so silhouettes went missing at any distance where
+ * the fog had taken a little saturation out. A light floor gives every fixture
+ * an edge against something, which is what a proving ground is for.
  */
 const DEFAULT_SURFACES: Record<SurfaceName, string> = {
-  ground: '#4c4536',
+  ground: '#cabb9c',
   cube: '#525f66',
   marker: '#b08040',
   ramp: '#38474a',
@@ -90,9 +96,17 @@ const GROUND = 208;
  */
 const GROUND_CELLS = 52;
 
-/** Baked into geometry at construction, so these are not live-editable. */
-const GRID_MAJOR = 0x6b6247;
-const GRID_MINOR = 0x3a3527;
+/**
+ * Baked into geometry at construction, so these are not live-editable.
+ *
+ * Both are *darker* than the floor, because the floor is now the light surface
+ * in the scene. Lines drawn lighter than what they sit on read as glow rather
+ * than as a grid, and the metre lines in particular have to stay quiet enough
+ * that a hundred of them across the view do not become the brightest thing in
+ * it.
+ */
+const GRID_MAJOR = 0x5a4f38;
+const GRID_MINOR = 0x9c8f72;
 const BAND_LIGHT = 0xdcdcc8;
 const BAND_DARK = 0x5c3a2e;
 

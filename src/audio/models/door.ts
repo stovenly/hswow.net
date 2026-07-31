@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import type { AudioEngine } from '../AudioEngine';
+import { createModalBank } from '../dsp/modal';
+import { strike } from '../dsp/envelopes';
+import { thump } from '../dsp/impact';
 
 /**
  * The sound of going somewhere else.
@@ -165,19 +168,47 @@ export class DoorAudio {
     const nodes: AudioNode[] = [];
     const output = this.buildOutput(spec, position, nodes);
 
-    this.click(output, spec, start, 1, nodes);
+    // The resonators are built per fire rather than kept, unlike `footsteps`.
+    // A door sound has to outlive the zone that made it — you press E, the
+    // world is torn down and rebuilt somewhere else, and this carries across
+    // the cut — so it owns everything it needs and throws it all away on a
+    // timer rather than hanging off anything a zone can dispose.
+    const hardware = createModalBank(
+      context,
+      // The latch as a single mode. Its `decay` is the click's duration; `q`
+      // is given explicitly so the bank does not derive one.
+      [{ hz: spec.click.hz, decay: spec.click.duration, level: spec.click.level, q: spec.click.q }],
+      output,
+    );
+    const panel = createModalBank(context, spec.modes, output);
+
+    this.excite(hardware.inputs[0], spec.click.level, start, 0.0006, spec.click.duration * 1.5, nodes);
 
     const bodyAt = start + CLICK_GAP;
-    for (const mode of spec.modes) {
-      this.ring(output, mode, bodyAt, rand(0.92, 1.08), nodes);
-    }
+    spec.modes.forEach((mode, i) => {
+      this.excite(panel.inputs[i], mode.level * rand(0.92, 1.08), bodyAt, 0.002, mode.decay, nodes);
+    });
 
-    this.thump(output, spec.thump, bodyAt, 1, nodes);
+    // The weight of the leaf. A sine rather than another resonator: down here
+    // a bandpass would need a Q high enough to ring for a second, and the
+    // weight has to land and stop.
+    thump(
+      context,
+      output,
+      bodyAt,
+      spec.thump.level,
+      spec.thump.from * rand(0.96, 1.04),
+      spec.thump.to,
+      spec.thump.decay,
+      0.004,
+    );
 
     const tail = doorDuration(spec);
     window.setTimeout(
       () => {
         for (const node of nodes) node.disconnect();
+        hardware.dispose();
+        panel.dispose();
       },
       (start - context.currentTime + tail) * 1000 + 250,
     );
@@ -216,12 +247,21 @@ export class DoorAudio {
     return output;
   }
 
-  /** One resonant band, driven by a decaying noise burst. */
-  private ring(
+  /**
+   * A decaying burst of noise into one resonator input.
+   *
+   * **The ring-down is in this envelope, not in the filter's Q.** See the
+   * header: a resonator sharp enough to ring for 150 ms at 200 Hz needs a Q
+   * above 120, which is a sine wave with a rumour of noise in it. Driving a
+   * moderate resonator with a decaying excitation gives the same perceived
+   * decay while leaving the band wide enough to have a timbre.
+   */
+  private excite(
     target: AudioNode,
-    mode: Mode,
+    level: number,
     at: number,
-    force: number,
+    attack: number,
+    decay: number,
     nodes: AudioNode[],
   ): void {
     const context = this.engine.context;
@@ -233,91 +273,14 @@ export class DoorAudio {
     source.playbackRate.value = rand(0.9, 1.1);
 
     const envelope = context.createGain();
-    envelope.gain.setValueAtTime(0, at);
-    envelope.gain.linearRampToValueAtTime(mode.level * force, at + 0.002);
-    // `setTargetAtTime` approaches its target exponentially; a third of the
-    // decay time as the constant lands it near silence by `decay`.
-    envelope.gain.setTargetAtTime(0, at + 0.002, mode.decay / 3);
+    strike(envelope.gain, at, level, attack, decay);
 
-    const filter = context.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = mode.hz;
-    filter.Q.value = mode.q;
-
-    // A bandpass with a constant 0 dB peak passes less total energy as its Q
-    // rises, because the band it passes is narrower. So sharper modes need
-    // *boosting* to keep `level` meaning the same thing. The previous version
-    // divided instead, which is why its sharpest resonators were its quietest.
-    const trim = context.createGain();
-    trim.gain.value = Math.sqrt(mode.q);
-
-    source.connect(envelope).connect(filter).connect(trim).connect(target);
-    source.start(at, rand(0, noise.white.duration - 1), mode.decay * 3 + 0.05);
-    source.stop(at + mode.decay * 3 + 0.06);
-    nodes.push(source, envelope, filter, trim);
-  }
-
-  /** The hardware: a very short, very bright tick. */
-  private click(
-    target: AudioNode,
-    spec: DoorSpec,
-    at: number,
-    force: number,
-    nodes: AudioNode[],
-  ): void {
-    const context = this.engine.context;
-    const noise = this.engine.noise;
-    if (!noise) return;
-
-    const source = context.createBufferSource();
-    source.buffer = noise.white;
-    source.playbackRate.value = rand(0.92, 1.08);
-
-    const envelope = context.createGain();
-    envelope.gain.setValueAtTime(0, at);
-    envelope.gain.linearRampToValueAtTime(spec.click.level * force, at + 0.0006);
-    envelope.gain.setTargetAtTime(0, at + 0.0006, spec.click.duration * 0.5);
-
-    const filter = context.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = spec.click.hz;
-    filter.Q.value = spec.click.q;
-
-    const trim = context.createGain();
-    trim.gain.value = Math.sqrt(spec.click.q);
-
-    source.connect(envelope).connect(filter).connect(trim).connect(target);
-    source.start(at, rand(0, noise.white.duration - 0.5), spec.click.duration + 0.08);
-    source.stop(at + spec.click.duration + 0.1);
-    nodes.push(source, envelope, filter, trim);
-  }
-
-  /** The weight of the leaf: a short sine dropping in pitch. */
-  private thump(
-    target: AudioNode,
-    thud: DoorSpec['thump'],
-    at: number,
-    force: number,
-    nodes: AudioNode[],
-  ): void {
-    const context = this.engine.context;
-
-    // A sine rather than another resonator. Down here a bandpass would need a
-    // Q high enough to ring for a second, and the weight has to land and stop.
-    const osc = context.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(thud.from * rand(0.96, 1.04), at);
-    osc.frequency.exponentialRampToValueAtTime(thud.to, at + thud.decay);
-
-    const envelope = context.createGain();
-    envelope.gain.setValueAtTime(0, at);
-    envelope.gain.linearRampToValueAtTime(thud.level * force, at + 0.004);
-    envelope.gain.setTargetAtTime(0, at + 0.004, thud.decay / 3);
-
-    osc.connect(envelope).connect(target);
-    osc.start(at);
-    osc.stop(at + thud.decay * 3 + 0.06);
-    nodes.push(osc, envelope);
+    source.connect(envelope).connect(target);
+    // A random offset into the buffer, so two presses of the same door are two
+    // different noises rather than the same one twice.
+    source.start(at, rand(0, noise.white.duration - 1), decay * 3 + 0.05);
+    source.stop(at + decay * 3 + 0.06);
+    nodes.push(source, envelope);
   }
 }
 

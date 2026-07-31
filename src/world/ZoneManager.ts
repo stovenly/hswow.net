@@ -9,6 +9,7 @@ import type { PostFX } from '../engine/PostFX';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Footsteps, SurfaceName } from '../audio/models/footsteps';
 import { DoorAudio } from '../audio/models/door';
+import { Soundscape } from '../audio/Soundscape';
 import type { Reticle, Fade } from '../ui/Reticle';
 
 /**
@@ -59,6 +60,15 @@ export class ZoneManager {
   private readonly options: ZoneManagerOptions;
   private audio: ZoneAudio | null = null;
   private doorAudio: DoorAudio | null = null;
+
+  /**
+   * One soundscape per zone that has been entered, kept for the session.
+   *
+   * Built lazily on first entry and never rebuilt. Granular models are not
+   * free to construct and zones are revisited constantly; a gap where the wind
+   * should be costs far more than a few dozen dormant filters.
+   */
+  private readonly soundscapes = new Map<ZoneId, Soundscape>();
 
   private active: Zone | null = null;
   /** Zones whose portal doors have been built into them. */
@@ -223,6 +233,34 @@ export class ZoneManager {
     this.audio.engine.setRoom(zone.environment.room);
     this.audio.footsteps.surface = zone.environment.surface;
     this.audio.footsteps.setReverb(zone.environment.footstepReverb);
+
+    let soundscape = this.soundscapes.get(zone.id);
+    if (!soundscape) {
+      soundscape = new Soundscape(this.audio.engine, zone.environment.soundscape);
+      this.soundscapes.set(zone.id, soundscape);
+    }
+    // Everything else is silenced rather than disposed. Emitters cannot work
+    // out that they have become inaudible on their own: occlusion is a raycast
+    // against the collider, and the collider no longer holds the world they
+    // live in, so every one of them would report itself unobstructed.
+    for (const [id, other] of this.soundscapes) other.setActive(id === zone.id);
+  }
+
+  /**
+   * Drives the active zone's ambience.
+   *
+   * Separate from `update` on the loop because the listener has to be moved
+   * before anything is judged against it — the caller pumps the engine first
+   * and passes on whether the occlusion raycasts are due this frame.
+   */
+  updateSound(dt: number, retestOcclusion: boolean): void {
+    if (!this.active) return;
+    this.soundscapes.get(this.active.id)?.update(dt, this.options.collider, retestOcclusion);
+  }
+
+  /** The active zone's soundscape, for tuning panels and readouts. */
+  get sound(): Soundscape | null {
+    return this.active ? (this.soundscapes.get(this.active.id) ?? null) : null;
   }
 
   /**
@@ -315,6 +353,8 @@ export class ZoneManager {
     const { scene } = this.options;
     if (this.active) scene.remove(this.active.root());
     scene.remove(this.lights.sun, this.lights.fill, this.lights.ambient);
+    for (const soundscape of this.soundscapes.values()) soundscape.dispose();
+    this.soundscapes.clear();
     for (const zone of this.zones.values()) zone.dispose();
     this.zones.clear();
     this.doored.clear();
