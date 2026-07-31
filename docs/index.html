@@ -75,14 +75,50 @@
         color: rgb(220 220 200 / 55%);
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-C2V0hgPt.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Dej4_7Li.css">
+    <script type="module" crossorigin src="./assets/index-D0ccA8jl.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CDUdIQXl.css">
   </head>
   <body class="is-loading">
     <canvas id="viewport"></canvas>
     <div id="overlay">
       <div id="crosshair"></div>
-      <div id="capture-hint">click to look &middot; wasd &middot; shift &middot; space</div>
+      <!--
+        Shown whenever the mouse is not captured, which is the closest thing
+        this game has to a pause screen — there is no menu, so this is where the
+        controls live. Static markup rather than built in script: it has to be
+        correct before any module has run, and nothing about it is dynamic.
+      -->
+      <div id="capture-hint">
+        <div class="hint-title">click to play</div>
+        <dl class="controls">
+          <dt>Look Around</dt>
+          <dd>
+            <!-- Drawn inline rather than loaded: no asset in this project is a
+                 file, and a mouse is four strokes. -->
+            <svg class="control-mouse" viewBox="0 0 24 20" aria-label="move the mouse">
+              <rect x="8" y="2" width="8" height="16" rx="4" />
+              <line x1="12" y1="5.5" x2="12" y2="8.5" />
+              <path d="M4.5 6.5 q-1.6 3.5 0 7" />
+              <path d="M19.5 6.5 q1.6 3.5 0 7" />
+            </svg>
+          </dd>
+
+          <dt>Move Around</dt>
+          <dd>
+            <kbd class="key">W</kbd><kbd class="key">A</kbd><kbd class="key">S</kbd
+            ><kbd class="key">D</kbd>
+          </dd>
+
+          <dt>Interact</dt>
+          <dd><kbd class="key">E</kbd></dd>
+
+          <dt>Sprint</dt>
+          <dd><kbd class="key key-wide">Shift</kbd></dd>
+
+          <dt>Jump</dt>
+          <dd><kbd class="key key-wide">Space</kbd></dd>
+        </dl>
+      </div>
     </div>
     <div id="loading">
       <div class="loading-track"><div class="loading-bar"></div></div>

@@ -7,6 +7,7 @@ import { RetroShader, MAX_PALETTE } from './RetroShader';
 import { generateBlueNoise } from './blueNoise';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
+import { GLOW_MATERIAL } from '../art/glow';
 import type { Viewport } from './Viewport';
 
 /**
@@ -186,6 +187,7 @@ export class PostFX {
     this.settings = { ...DEFAULT_RENDER, ...saved, sky: { ...DEFAULT_SKY, ...saved.sky } };
 
     viewport.scene.add(this.sky.mesh);
+    this.hideGlowFromEdges(viewport.scene);
 
     this.composer = new EffectComposer(viewport.renderer);
     this.pixelPass = new RenderPixelatedPass(1, viewport.scene, viewport.camera);
@@ -277,6 +279,29 @@ export class PostFX {
   }
 
   /**
+   * Keeps additive glow geometry out of the edge detector.
+   *
+   * `RenderPixelatedPass` draws the scene twice: once for colour, and once with
+   * `scene.overrideMaterial` set to a `MeshNormalMaterial`, whose output the
+   * shader differences to find edges. That second pass has no concept of
+   * transparency — every object in it is opaque — so a street lamp's flame came
+   * back with a hard outline drawn round its silhouette, reading as a small
+   * solid object hanging in the lantern rather than as something burning.
+   *
+   * Three tests `material.visible` while it is building the render list, and
+   * `scene.onBeforeRender` fires just before that happens. Since every glow in
+   * the game shares one material — exactly as the art kit shares one
+   * `ART_MATERIAL` — switching that one flag drops all of them from the pass,
+   * and `overrideMaterial` being set is what identifies the pass. One line, and
+   * no copy of three's render loop to keep in step with upstream.
+   */
+  private hideGlowFromEdges(scene: THREE.Scene): void {
+    scene.onBeforeRender = (_renderer, rendered) => {
+      GLOW_MATERIAL.visible = (rendered as THREE.Scene).overrideMaterial === null;
+    };
+  }
+
+  /**
    * Builds the blue-noise mask, once, the first time that pattern is selected.
    *
    * Void-and-cluster costs about 25 ms, which is not much but is entirely
@@ -329,6 +354,10 @@ export class PostFX {
 
   dispose(): void {
     this.ditherTexture?.dispose();
+    // Left set, the hook would keep flipping a shared material for a pipeline
+    // that no longer exists — and it could leave it hidden.
+    this.viewport.scene.onBeforeRender = () => {};
+    GLOW_MATERIAL.visible = true;
     this.viewport.scene.remove(this.sky.mesh);
     this.sky.dispose();
     this.composer.dispose();

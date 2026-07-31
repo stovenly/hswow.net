@@ -48,6 +48,7 @@ import { post } from '../src/art/builders/post';
 import { poultry } from '../src/art/builders/poultry';
 import { rock } from '../src/art/builders/rock';
 import { stool } from '../src/art/builders/stool';
+import { streetlamp } from '../src/art/builders/streetlamp';
 import { stump } from '../src/art/builders/stump';
 import { table } from '../src/art/builders/table';
 import { tree } from '../src/art/builders/tree';
@@ -76,6 +77,7 @@ const builders: MeshBuilder[] = [
   poultry,
   rock,
   stool,
+  streetlamp,
   stump,
   table,
   tree,
