@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
 import type { Interaction } from './Interaction';
-import { buildDoor, doorMetrics } from '../art/builders/door';
+import { buildDoor, doorMetrics, doorName } from '../art/builders/door';
 import { markCollidable, type Collider } from '../player/Collider';
 import type { Controller } from '../player/Controller';
 import type { PostFX } from '../engine/PostFX';
@@ -248,7 +248,7 @@ export class ZoneManager {
       // this system is that it is not one.
       markCollidable(mesh);
       root.add(mesh);
-      this.portals.bind(side, mesh);
+      this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
     }
 
     return root;
@@ -270,7 +270,7 @@ export class ZoneManager {
 
     const hover = interaction.probe(player.camera, collider);
     this.hovered = hover ? this.portals.sideOf(hover.object) : null;
-    reticle.set(this.hovered ? this.hovered.label : null);
+    reticle.set(this.hovered ? { title: this.hovered.title, target: this.hovered.label } : null);
     return this.hovered;
   }
 
