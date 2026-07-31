@@ -30,6 +30,7 @@ const CLASSES = [
 
 export const crate: MeshBuilder = {
   name: 'crate',
+  category: 'objects',
   // Sized for the biggest class, so the gallery and prop placement leave room
   // for one even when most instances need a fraction of it.
   radius: 1.2,

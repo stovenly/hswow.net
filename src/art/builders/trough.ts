@@ -17,6 +17,7 @@ import { PALETTE } from '../palette';
  */
 export const trough: MeshBuilder = {
   name: 'trough',
+  category: 'objects',
   radius: 1.1,
 
   build({ seed = 1, scale = 1 } = {}) {

@@ -14,6 +14,7 @@ import { PALETTE } from '../palette';
  */
 export const barrel: MeshBuilder = {
   name: 'barrel',
+  category: 'objects',
   radius: 0.55,
 
   build({ seed = 1, scale = 1 } = {}) {

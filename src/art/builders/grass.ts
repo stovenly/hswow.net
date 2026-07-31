@@ -17,6 +17,7 @@ import { PALETTE } from '../palette';
  */
 export const grass: MeshBuilder = {
   name: 'grass',
+  category: 'foliage',
   radius: 0.55,
   // Walk straight through it. A tuft that stops you is the fastest way to make
   // a world feel like a floor with boxes on it.

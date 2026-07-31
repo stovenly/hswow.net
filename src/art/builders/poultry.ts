@@ -20,6 +20,7 @@ import { PALETTE } from '../palette';
  */
 export const poultry: MeshBuilder = {
   name: 'poultry',
+  category: 'animals',
   radius: 0.35,
   solid: false,
 

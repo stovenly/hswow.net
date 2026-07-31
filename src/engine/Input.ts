@@ -15,6 +15,16 @@ const LEFT_KEYS = ['KeyA', 'ArrowLeft'];
 const RIGHT_KEYS = ['KeyD', 'ArrowRight'];
 const SPRINT_KEYS = ['ShiftLeft', 'ShiftRight'];
 const JUMP_KEYS = ['Space'];
+/**
+ * Interact.
+ *
+ * A key rather than a mouse button, deliberately. Left click is already how
+ * pointer lock is acquired, so a click-to-interact scheme has to distinguish
+ * "click that captured the mouse" from "click that meant something", and the
+ * first click after every alt-tab lands in the ambiguous case. `E` has no such
+ * overload and is where every player's hand already is.
+ */
+const INTERACT_KEYS = ['KeyE'];
 
 /**
  * Pointer lock occasionally delivers one enormous delta on the frame capture is
@@ -51,6 +61,8 @@ export class Input {
   /** `performance.now()` of the most recent jump press, or 0 if consumed. */
   private jumpPressedAt = 0;
   private jumpHeld = false;
+  /** Edge-triggered and consumed by the reader — see `takeInteract`. */
+  private interactPressed = false;
   /** True until the first mouse move after capture, which is always garbage. */
   private settling = false;
 
@@ -107,6 +119,22 @@ export class Input {
     return true;
   }
 
+  /**
+   * True once per press of the interact key, then false until it is released
+   * and pressed again.
+   *
+   * Consumed rather than sampled, so holding `E` in a doorway uses the door
+   * once instead of firing a transition on every frame until the fade starts.
+   * Unlike the jump buffer there is no time window: an interaction that
+   * arrived a moment too early should be dropped, not replayed at whatever the
+   * player happens to be looking at by the time it lands.
+   */
+  takeInteract(): boolean {
+    if (!this.interactPressed) return false;
+    this.interactPressed = false;
+    return true;
+  }
+
   /** Returns the accumulated look delta and resets it. Call once per frame. */
   drainLook(out: { x: number; y: number }): void {
     out.x = this.lookX;
@@ -137,6 +165,11 @@ export class Input {
     this.jumpHeld = false;
   }
 
+  /** Touch taps route here, so glass and keyboard share one path. */
+  pressInteract(): void {
+    this.interactPressed = true;
+  }
+
   // --- internals ----------------------------------------------------------
 
   private pressed(codes: readonly string[]): boolean {
@@ -164,6 +197,10 @@ export class Input {
       event.preventDefault();
       this.pressJump();
     }
+    // Only while captured. With the cursor free the player is using the tuning
+    // panel, and typing an `e` into a numeric field should not open a door
+    // behind them.
+    if (INTERACT_KEYS.includes(event.code) && this.locked) this.pressInteract();
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {

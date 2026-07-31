@@ -146,6 +146,23 @@ export const DEFAULT_RENDER: RenderSettings = {
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1, palette: 2 };
 const PATTERN_CODE: Record<DitherPattern, number> = { bayer: 0, blue: 1, noise: 2 };
 
+/**
+ * The part of the look that belongs to a *place* rather than to the game.
+ *
+ * Kept separate from `RenderSettings` and applied on top of it. The settings
+ * are the look — pixel size, dither, palette — dialled in once and saved as a
+ * preset; this is the air in the room, and it changes at every threshold. If a
+ * zone wrote into the settings instead, walking through a door would silently
+ * overwrite whatever the player had tuned, and it would be saved that way.
+ */
+export interface ZoneAir {
+  /** Whether the sky dome is drawn at all. Off indoors. */
+  sky: boolean;
+  fogColor: string;
+  fogNear: number;
+  fogFar: number;
+}
+
 export class PostFX {
   readonly settings: RenderSettings;
 
@@ -157,6 +174,8 @@ export class PostFX {
   private readonly paletteBuffer = new Float32Array(MAX_PALETTE * 3);
   /** Built on first use — see `ensureBlueNoise`. */
   private ditherTexture: THREE.DataTexture | null = null;
+  /** Null until a zone is entered, which on a real boot is immediately. */
+  private air: ZoneAir | null = null;
 
   constructor(viewport: Viewport) {
     this.viewport = viewport;
@@ -184,6 +203,18 @@ export class PostFX {
     this.retroPass.uniforms.uDitherSize.value = BLUE_NOISE_SIZE;
 
     this.resize();
+    this.apply();
+  }
+
+  /**
+   * Sets the current zone's air. Pass null to fall back to the tuned settings.
+   *
+   * Applied immediately rather than on the next frame: this is called at full
+   * black during a transition, and the whole point is that the new fog is
+   * already in place by the time anything is visible again.
+   */
+  setEnvironment(air: ZoneAir | null): void {
+    this.air = air;
     this.apply();
   }
 
@@ -222,12 +253,25 @@ export class PostFX {
     u.uPaletteCount.value = count;
 
     this.sky.apply(s.sky);
+    this.sky.mesh.visible = this.air === null || this.air.sky;
 
     const fog = this.viewport.scene.fog;
     if (fog instanceof THREE.Fog) {
-      fog.color.set(s.linkFogToSky ? s.sky.horizon : s.fogColor);
-      fog.near = s.fogNear;
-      fog.far = s.fogFar;
+      // Indoors the fog is the darkness at the end of the room and has nothing
+      // to do with the horizon, so `linkFogToSky` only applies where there is
+      // a sky to link it to.
+      if (this.air && !this.air.sky) {
+        fog.color.set(this.air.fogColor);
+      } else if (s.linkFogToSky) {
+        fog.color.set(s.sky.horizon);
+      } else {
+        fog.color.set(this.air?.fogColor ?? s.fogColor);
+      }
+      fog.near = this.air?.fogNear ?? s.fogNear;
+      fog.far = this.air?.fogFar ?? s.fogFar;
+      // The clear colour is what shows where nothing was drawn. With the sky
+      // dome off that is every pixel the geometry does not cover, so it has to
+      // be the fog colour or an interior is a lit room floating in blue.
       this.viewport.renderer.setClearColor(fog.color, 1);
     }
   }

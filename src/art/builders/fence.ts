@@ -18,6 +18,7 @@ import { PALETTE } from '../palette';
  */
 export const fence: MeshBuilder = {
   name: 'fence',
+  category: 'structures',
   radius: 2.4,
 
   build({ seed = 1, scale = 1 } = {}) {

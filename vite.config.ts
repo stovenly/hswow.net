@@ -7,7 +7,9 @@ export default defineConfig({
   build: {
     outDir: 'docs',
     emptyOutDir: true,
-    target: 'es2020',
+    // es2022 for top-level await, which `main.ts` uses to sequence boot behind
+    // the loading screen. Supported everywhere pointer lock and WebGL2 are.
+    target: 'es2022',
     // The whole game is one bundle; there is nothing to lazily split yet.
     chunkSizeWarningLimit: 1500,
   },

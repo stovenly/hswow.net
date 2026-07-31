@@ -19,6 +19,7 @@ import { PALETTE } from '../palette';
  */
 export const rock: MeshBuilder = {
   name: 'rock',
+  category: 'nature',
   radius: 0.9,
 
   build({ seed = 1, scale = 1 } = {}) {

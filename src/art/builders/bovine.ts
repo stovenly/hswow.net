@@ -36,6 +36,7 @@ const BOVINE: Species = {
 
 export const bovine: MeshBuilder = {
   name: 'bovine',
+  category: 'animals',
   radius: 1.4,
   build: (options = {}) =>
     buildQuadruped('bovine', BOVINE, createRng(options.seed ?? 1), options),
