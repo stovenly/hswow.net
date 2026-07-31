@@ -61,6 +61,24 @@ const LOOKS: Record<DoorMaterial, Palette> = {
 
 const MATERIALS: readonly DoorMaterial[] = ['timber', 'iron', 'plank'];
 
+/**
+ * What a door is called when the player looks at it.
+ *
+ * Descriptive rather than evocative, on purpose. This is the top line of the
+ * tooltip and it names the *object*; the line beneath it names the place, and
+ * that one is content. A door that called itself something atmospheric would be
+ * competing with the destination for the one thing the player is reading.
+ */
+const NAMES: Record<DoorMaterial, string> = {
+  timber: 'Wooden Door',
+  iron: 'Iron Door',
+  plank: 'Plank Door',
+};
+
+export function doorName(material: DoorMaterial): string {
+  return NAMES[material];
+}
+
 /** What a portal needs to know about the door it just built. */
 export interface DoorMetrics {
   width: number;

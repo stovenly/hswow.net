@@ -18,7 +18,7 @@ prior conversation context. Update it as decisions change.
 | 3 — Procedural audio engine | **Built, not yet heard** |
 | 4 — Procedural art kit | **Complete** |
 | 5 — Zones and portals | **Complete** (trigger volumes and prop streaming deferred) |
-| 6 — World editor *(cuttable)* | Not started |
+| 6 — World editor *(cuttable)* | **Deferred** — revisit when hand-editing data starts to hurt |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |
 | 9 — Autosave, touch controls, performance | Not started |
@@ -590,17 +590,23 @@ triangle count nor child count; the rim cannot be walked over at any of 240 spok
 valley is walkable; every prop stands on the ground; buildings stand level; detail boundaries
 sit on gentle ground; and variable density leaves no cracks.
 
-### Phase 6 — World editor *(cuttable)*
+### Phase 6 — World editor ⏸ deferred
 
 In-browser: fly camera, place/move/rotate props, sculpt the heightfield, place audio
 emitters with visible radii, place triggers and NPC spawns, export JSON to disk.
 
 *Done when a zone can be built without touching code.*
 
-> **Cut decision pending.** Dropping procedural generation means everything is placed by
-> hand, including audio emitters, which are miserable to position by typing coordinates. An
-> editor pays for itself if the world exceeds a couple of small zones. The fallback is
-> hand-edited JSON with hot reload — fine for a small world, awful for a large one.
+> **Deferred, not cut.** The argument for an editor was that hand-placing everything by
+> typing coordinates would become miserable. Phase 5 turned out to weaken that: terrain is a
+> short list of named landforms, ground cover is a short list of painted shapes, and props are
+> scattered by seeded rules against the heightfield rather than placed one at a time. Arkstin
+> Village is a few dozen lines of data, and the checks catch the errors an editor would
+> otherwise catch by eye — props off the ground, buildings on slopes, arrivals inside walls.
+>
+> So the editor is worth building when hand-editing genuinely starts to hurt, and not before.
+> The signal to watch for: wanting to nudge one prop at a time, or authoring a zone that is
+> mostly hand-placed set pieces rather than rules. **Phase 7 is next.**
 
 ### Phase 7 — Actors and ambient motion
 

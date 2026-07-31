@@ -32,6 +32,17 @@ const INTERACT_KEYS = ['KeyE'];
  */
 const MAX_LOOK_DELTA = 200;
 
+/**
+ * How long to keep trying for pointer lock after a click, in milliseconds.
+ *
+ * The browser's cooldown after a user-initiated exit is around a second; this
+ * is comfortably past it, and bounded so a refused click cannot leave a retry
+ * loop running for the rest of the session.
+ */
+const RELOCK_WINDOW = 3000;
+/** Gap between attempts. Short enough to feel immediate once the gate lifts. */
+const RELOCK_INTERVAL = 120;
+
 export class Input {
   /** Raw look delta in device pixels, accumulated between frames. */
   lookX = 0;
@@ -65,6 +76,8 @@ export class Input {
   private interactPressed = false;
   /** True until the first mouse move after capture, which is always garbage. */
   private settling = false;
+  /** Guards against a second click starting a parallel retry loop. */
+  private relocking = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -218,7 +231,42 @@ export class Input {
     void this.requestLock();
   };
 
+  /**
+   * Asks for pointer lock, and keeps asking until the browser allows it.
+   *
+   * **This is why clicking back in after Escape used to do nothing.** Browsers
+   * enforce a cooldown of about a second after a *user-initiated* exit from
+   * pointer lock, so that a page cannot simply re-grab the cursor the instant
+   * you try to get it back. A click inside that window is refused. Alt-tabbing
+   * out never felt slow because losing the lock to a focus change is not
+   * user-initiated and carries no cooldown — the difference between the two
+   * cases is entirely in how the lock was lost.
+   *
+   * The old code caught that rejection and gave up, with a comment calling it
+   * harmless. It was not: the player's click was silently discarded and they
+   * had to click again, which reads as the game hanging for two seconds.
+   * Retrying turns the cooldown into exactly what it should be — a short wait
+   * that resolves itself — and the capture panel stays up meanwhile, so there
+   * is something on screen the whole time.
+   */
   private async requestLock(): Promise<void> {
+    if (this.relocking) return;
+    this.relocking = true;
+
+    const deadline = performance.now() + RELOCK_WINDOW;
+    while (!this.locked && performance.now() < deadline) {
+      await this.tryLock();
+      // Even a successful request resolves before `pointerlockchange` fires,
+      // and on browsers where `requestPointerLock` returns nothing at all there
+      // is no promise to wait on. Pausing and re-reading `locked` covers both.
+      await wait(RELOCK_INTERVAL);
+    }
+
+    this.relocking = false;
+  }
+
+  /** One attempt, swallowing the refusal. */
+  private async tryLock(): Promise<void> {
     try {
       // unadjustedMovement bypasses OS mouse acceleration, which is what makes
       // aim consistent. Chrome-only, and it rejects rather than ignoring the
@@ -228,7 +276,7 @@ export class Input {
       try {
         await this.canvas.requestPointerLock();
       } catch {
-        // Denied — usually a second request too soon after Escape. Harmless.
+        // Refused. The caller decides whether to try again.
       }
     }
   }
@@ -270,6 +318,10 @@ export class Input {
 /** `?touch` forces the mobile path on so it can be tested with a mouse. */
 export function isTouchDevice(): boolean {
   return flags.touch || window.matchMedia('(pointer: coarse)').matches;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function axis(positive: boolean, negative: boolean): number {

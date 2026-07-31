@@ -33,7 +33,7 @@ import { Collider } from '../src/player/Collider';
 import { Zone } from '../src/world/Zone';
 import { PortalGraph, arrivalFor, doorFacing, ARRIVAL_STANDOFF } from '../src/world/Portal';
 import { DEFAULT_REACH } from '../src/world/Interaction';
-import { buildDoor } from '../src/art/builders/door';
+import { buildDoor, doorMetrics, doorName } from '../src/art/builders/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
 import { ProvingGround } from '../src/debug/ProvingGround';
@@ -85,7 +85,7 @@ for (const zone of zones.values()) {
     mesh.rotation.y = side.end.yaw;
     markCollidable(mesh);
     root.add(mesh);
-    portals.bind(side, mesh);
+    portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
   }
   root.updateWorldMatrix(true, true);
 }
@@ -98,7 +98,9 @@ for (const zone of zones.values()) {
 
   const paired = [...byPortal.values()].every((count) => count === 2);
   const resolved = sides.every((side) => zones.has(side.end.zone) && zones.has(side.target.zone));
-  const labelled = sides.every((side) => side.label.length > 0);
+  // Both lines of the tooltip. A door with no type reads as "Door to
+  // somewhere", which is the default and means the material never reached it.
+  const labelled = sides.every((side) => side.label.length > 0 && side.title !== 'Door');
   const doored = sides.every((side) => side.door !== null);
 
   check(
