@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { type ZoneDefinition, OUTDOOR_ENVIRONMENT, INDOOR_ENVIRONMENT } from '../world/Zone';
+import type { SoundscapeSpec } from '../audio/Soundscape';
 import type { PortalDefinition } from '../world/Portal';
 import { buildInterior, HOUSE_STYLE, WORKS_STYLE } from '../world/interior';
 import { markCollidable } from '../player/Collider';
@@ -153,7 +154,142 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
     {
       id: ZONE_EXTERIOR,
       name: 'Outside',
-      environment: OUTDOOR_ENVIRONMENT,
+      environment: {
+        ...OUTDOOR_ENVIRONMENT,
+        // The shared outdoor default bounces the old dark floor colour. This
+        // zone's floor is now pale, and a pale floor throwing dark warm light
+        // back up leaves every fixture's underside reading as dirt. Local to
+        // the proving ground — the village floor did not change.
+        ambientGround: 0xbfb298,
+        // The Phase 3 emitter garden, now declared rather than hand-wired.
+        //
+        // Positions come from `ground.anchors` rather than from the meshes
+        // standing on them, because **a sound belongs to a place, not to
+        // whichever prop happens to be there** — the props were replaced with
+        // art-kit builders in Phase 4 and the anchors deliberately did not move.
+        soundscape: {
+          bed: { model: 'wind', id: 'wind', options: { gain: 0.17, tone: 3400 } },
+          emitters: [
+            // A big canopy: tuned down for broad heavy leaves, articulated very
+            // lightly. Pulled in hard, because wind in a tree is a *local*
+            // sound — at 34 m the whole field sounded like it had a tree in the
+            // middle of it.
+            {
+              model: 'foliage',
+              id: 'canopy',
+              at: [ground.anchors.tree.x, ground.anchors.tree.y, ground.anchors.tree.z],
+              options: { density: 240, tone: 0.8, gain: 0.42, articulation: 0.22 },
+              refDistance: 2.5,
+              maxDistance: 20,
+              rolloff: 1.7,
+              reverb: 0.35,
+            },
+            // The bushes are small, dry and quiet, with a much shorter reach —
+            // they only exist when you are beside them.
+            {
+              model: 'foliage',
+              id: 'shrub-a',
+              at: [ground.anchors.bush.x, ground.anchors.bush.y, ground.anchors.bush.z],
+              options: { density: 160, tone: 1.45, gain: 0.26, articulation: 0.34 },
+              refDistance: 1.4,
+              maxDistance: 14,
+              reverb: 0.25,
+            },
+            {
+              model: 'foliage',
+              id: 'shrub-b',
+              at: [9.2, 0.5, 16.8],
+              options: { density: 160, tone: 1.45, gain: 0.26, articulation: 0.34 },
+              refDistance: 1.4,
+              maxDistance: 14,
+              reverb: 0.25,
+            },
+            // Quiet, dull and wet: three things together read as "over there"
+            // where any one of them alone reads as "turned down".
+            {
+              model: 'bird',
+              id: 'bird',
+              at: [ground.anchors.bird.x, ground.anchors.bird.y, ground.anchors.bird.z],
+              options: { pitch: 2600, interval: 6, gain: 0.075, tone: 2800 },
+              refDistance: 4,
+              maxDistance: 38,
+              rolloff: 1.4,
+              reverb: 0.85,
+            },
+            // Heavy, slow and worn. The longest reach of anything here — the
+            // point of it is to be heard through the hall wall before you find
+            // it — but it carries across the yard, not across the map.
+            {
+              model: 'machine',
+              id: 'mill',
+              at: [ground.anchors.machine.x, ground.anchors.machine.y, ground.anchors.machine.z],
+              options: { rpm: 52, fundamental: 42, gain: 0.4 },
+              refDistance: 2.5,
+              maxDistance: 34,
+              rolloff: 1.8,
+              reverb: 0.9,
+              // The one sound in the zone the player is meant to walk toward,
+              // so it holds a voice when the budget is tight.
+              importance: 1.6,
+            },
+            // Standing water in the cell, which is the small sealed stone box
+            // at x 19–27, z −4–4. Two reasons it lives there rather than out
+            // in the open: a cistern is what a room like that would actually
+            // contain, and the drips below need a long hard tail to be
+            // anything at all.
+            {
+              model: 'water',
+              id: 'cistern',
+              at: [23, 0.2, 1.5],
+              options: { flow: 'cistern', gain: 0.4, tone: 0.9 },
+              refDistance: 1.5,
+              maxDistance: 12,
+              rolloff: 1.6,
+              reverb: 1,
+            },
+          ],
+          scatter: [
+            // **The reason the room reads as a room.** Nearly all of what you
+            // hear is the tail, so this runs almost no dry signal and a full
+            // reverb send. Periodic rather than Poisson: water collects at a
+            // fixed rate and falls at a fixed volume, and a drip scattered
+            // randomly reads as several leaks instead of one.
+            {
+              sound: 'drip',
+              id: 'seep',
+              at: [22, 1.4, -0.5],
+              spread: [0.3, 0, 0.3],
+              every: 3.6,
+              rhythm: 'periodic',
+              force: [0.7, 1],
+              voices: 1,
+              options: { gain: 0.5, radius: [0.0019, 0.0027], cycles: 32 },
+              refDistance: 2,
+              maxDistance: 16,
+              rolloff: 1.4,
+              reverb: 1,
+            },
+            // A second, slower one across the room at an interval that shares
+            // no factor with the first. Two independent drips never settle into
+            // a pattern; one drip twice as fast is just a faster drip.
+            {
+              sound: 'drip',
+              id: 'seep-far',
+              at: [25.5, 1.4, 2.4],
+              spread: [0.3, 0, 0.3],
+              every: 7.1,
+              rhythm: 'periodic',
+              force: [0.5, 0.8],
+              voices: 1,
+              options: { gain: 0.4, radius: [0.0031, 0.0042], cycles: 26 },
+              refDistance: 2,
+              maxDistance: 16,
+              rolloff: 1.4,
+              reverb: 1,
+            },
+          ],
+        } satisfies SoundscapeSpec,
+      },
       spawn: { position: SPAWN.clone(), yaw: 0 },
       floor: -20,
       build() {

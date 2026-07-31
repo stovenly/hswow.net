@@ -11,10 +11,13 @@
     "check:movement": "esbuild tools/movement-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/movement-check.mjs && node node_modules/.cache/movement-check.mjs",
     "check:audio": "esbuild tools/audio-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/audio-check.mjs && node node_modules/.cache/audio-check.mjs",
     "check:art": "esbuild tools/art-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/art-check.mjs && node node_modules/.cache/art-check.mjs",
-    "check": "npm run check:movement && npm run check:audio && npm run check:art && npm run check:world",
-    "check:world": "esbuild tools/world-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/world-check.mjs && node node_modules/.cache/world-check.mjs"
+    "check": "npm run check:movement && npm run check:audio && npm run check:art && npm run check:world && npm run check:faust",
+    "check:world": "esbuild tools/world-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/world-check.mjs && node node_modules/.cache/world-check.mjs",
+    "build:faust": "esbuild tools/faust-build.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/faust-build.mjs && node node_modules/.cache/faust-build.mjs",
+    "check:faust": "esbuild tools/faust-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/faust-check.mjs && node node_modules/.cache/faust-check.mjs"
   },
   "devDependencies": {
+    "@grame/faustwasm": "^0.16.6",
     "@types/three": "^0.170.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"

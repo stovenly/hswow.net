@@ -1,0 +1,119 @@
+/**
+ * PhISEM — many small things colliding.
+ *
+ * Perry Cook's *Physically Informed Stochastic Event Modeling*. The insight is
+ * that a maraca, a handful of gravel, a chain dropped on a floor and a boot in
+ * dry leaves are all the same system: a population of small objects whose
+ * collisions happen at random moments, and whose total energy decays
+ * exponentially after whatever set them off. You do not need to simulate the
+ * particles. You need collisions at Poisson intervals, an exponential energy
+ * envelope over them, and one shared resonance for the material — and that is
+ * genuinely enough to be convincing.
+ *
+ * It is also almost free, which is why it turns up everywhere: gravel and
+ * leaves underfoot, rockfall, a portcullis chain, coins, rain on a canopy.
+ *
+ * ## Why this schedules rather than runs
+ *
+ * Cook's original runs per sample: decay the system energy, roll against the
+ * object count, inject into the resonator on a hit. Web Audio cannot do
+ * per-sample logic without a worklet — but the *output* of that loop is a
+ * Poisson train of impulses whose amplitudes follow an exponential, and a train
+ * of impulses is something the audio clock can place exactly. So the whole
+ * burst is scheduled up front. The result is identical and it costs nothing on
+ * the audio thread.
+ *
+ * Extracted from the `scatter` method in `footsteps.ts`.
+ */
+
+import { strike } from './envelopes';
+
+export interface Particles {
+  /** Collisions in the burst. More is coarser, louder and heavier underfoot. */
+  count: number;
+  /** Seconds the burst is spread over. */
+  over: number;
+  /** Time constant of the energy decay. Short is a scuff, long is a spill. */
+  energyDecay: number;
+  /** Centre of the shared resonance — what the particles are made of. */
+  hz: number;
+  /** Broad. These are small irregular objects, not tuned ones. */
+  q: number;
+  level: number;
+}
+
+/**
+ * The material the particles are made of: one resonance they all excite.
+ *
+ * Built once and kept. A handful of gravel does not acquire a new resonance
+ * each time it is disturbed, and rebuilding filters per event is both slower
+ * and less true.
+ */
+export function createParticleBed(
+  context: BaseAudioContext,
+  particles: Particles,
+  destination: AudioNode,
+): { input: GainNode; dispose(): void } {
+  const input = context.createGain();
+  const filter = context.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = particles.hz;
+  // Deliberately low. A sharp filter here would give every stone the same
+  // pitch, which is the one thing a pile of loose material never has.
+  filter.Q.value = particles.q;
+  input.connect(filter).connect(destination);
+
+  return {
+    input,
+    dispose() {
+      input.disconnect();
+      filter.disconnect();
+    },
+  };
+}
+
+/**
+ * Schedules one burst of collisions into a bed.
+ *
+ * @param at Audio-clock time for the first possible collision.
+ * @param force Scales the whole burst.
+ */
+export function scatterParticles(
+  context: BaseAudioContext,
+  noise: AudioBuffer,
+  target: AudioNode,
+  particles: Particles,
+  at: number,
+  force: number,
+): void {
+  const rate = particles.count / Math.max(particles.over, 1e-3);
+  let t = 0;
+
+  for (let i = 0; i < particles.count; i++) {
+    // Exponential gaps. Evenly spaced collisions are a buzz at the collision
+    // rate; this is the difference between a crunch and a kazoo.
+    t += -Math.log(1 - Math.random() * 0.999 - 0.001) / rate;
+    // The tail is allowed to run past the nominal window, but not forever —
+    // an exponential has no end and the quiet end of it is inaudible anyway.
+    if (t > particles.over * 1.4) break;
+
+    const energy = Math.exp(-t / particles.energyDecay);
+    // The per-collision spread is wide on purpose. Uniform amplitudes read as
+    // one object rattling; a broad spread reads as many different ones.
+    const level = force * particles.level * energy * (0.35 + Math.random() * 0.65);
+    if (level < 0.002) continue;
+
+    const source = context.createBufferSource();
+    source.buffer = noise;
+    // Per-collision detune: pitch variety for the cost of a float.
+    source.playbackRate.value = 0.7 + Math.random() * 0.7;
+
+    const envelope = context.createGain();
+    const when = at + t;
+    strike(envelope.gain, when, level, 0.0008, 0.012);
+
+    source.connect(envelope).connect(target);
+    source.start(when, Math.random() * Math.max(noise.duration - 0.2, 0), 0.06);
+    source.stop(when + 0.07);
+  }
+}

@@ -15,14 +15,16 @@ prior conversation context. Update it as decisions change.
 | 0 — Harness | **Complete** |
 | 1 — First-person controller | **Built, awaiting your verdict on feel** |
 | 2 — Render pipeline and filters | **Built, not yet seen on a screen** |
-| 3 — Procedural audio engine | **Built, not yet heard** |
+| 3 — Procedural audio engine | **Complete** |
 | 4 — Procedural art kit | **Complete** |
 | 5 — Zones and portals | **Complete** (trigger volumes and prop streaming deferred) |
-| 6 — World editor *(cuttable)* | **Deferred** — revisit when hand-editing data starts to hurt |
+| 6 — Procedural audio: the sound of places | **In progress** — library and zone soundscapes built; friction and the sound stage remain |
+| 6b — Galleries, and objects for the sounds | Planned, to be done before 6 closes |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |
 | 9 — Autosave, touch controls, performance | Not started |
 | 10 — Content authoring | Not started |
+| 11 — World editor *(cuttable)* | **Deferred** — revisit when hand-editing hurts for a reason a builder cannot fix |
 
 ---
 
@@ -240,7 +242,10 @@ Checked items are decided. Unchecked are open.
 
 ### Audio
 - [x] Everything in the audio section above
-- [ ] Water, fire, bird models — **open**
+- [x] Water, fire, bird models — *built in Phase 6, with rain, crowd and scatter one-shots*
+- [x] Zone-declared soundscapes; panner LOD and voice cap; FDN room acoustics
+- [ ] Friction family (stick-slip, needs Faust) — Phase 6
+- [ ] Sound stage and the rendering half of the audition harness — Phase 6
 
 ### Actors and animation
 - [x] Procedural jointed figures from primitives
@@ -536,7 +541,7 @@ and its [SuperCollider port](https://en.wikibooks.org/wiki/Designing_Sound_in_Su
 
 `world/terrain.ts`. A heightfield summed from **placed landforms** — `hill`, `ridge`, `basin`,
 `rim`, `terrace` — rather than from noise or from a grid of control numbers. Every bump is a
-shape somebody put there, listed as data, legible as text, and the same list a Phase 6 editor
+shape somebody put there, listed as data, legible as text, and the same list a Phase 11 editor
 would drag around. 256 raw decimals are unreviewable; nobody can look at them and see a valley.
 
 - **The boundary is terrain.** `rim` lifts the outer ring past the controller's slope limit,
@@ -590,23 +595,127 @@ triangle count nor child count; the rim cannot be walked over at any of 240 spok
 valley is walkable; every prop stands on the ground; buildings stand level; detail boundaries
 sit on gentle ground; and variable density leaves no cracks.
 
-### Phase 6 — World editor ⏸ deferred
+### Phase 6 — Procedural audio: the sound of places 🔨 in progress
 
-In-browser: fly camera, place/move/rotate props, sculpt the heightfield, place audio
-emitters with visible radii, place triggers and NPC spawns, export JSON to disk.
+The Phase 3 engine was good and nearly unused. Every model it built was wired into one
+debug object hardcoded to the Proving Ground's anchors, and Arkstin Village — the first
+zone in this game that is a *place* — was silent apart from footsteps and doors. This
+phase makes a zone declare its own soundscape as data, and widens the library enough to
+dress forest, village, castle, industrial and cave settings.
 
-*Done when a zone can be built without touching code.*
+Four tiers. Tier 0 (noise, weather, materials) existed. Tier 1 is `src/audio/dsp/` —
+shared primitives extracted from models that already proved them. Tier 2 is the model
+library. Tier 3 is `src/audio/faust/` — precompiled `.wasm` worklets, **and nothing in it
+is load-bearing**: every Faust model has a native fallback or is optional dressing, so a
+wasm load failure degrades the soundscape rather than breaking the game.
 
-> **Deferred, not cut.** The argument for an editor was that hand-placing everything by
-> typing coordinates would become miserable. Phase 5 turned out to weaken that: terrain is a
-> short list of named landforms, ground cover is a short list of painted shapes, and props are
-> scattered by seeded rules against the heightfield rather than placed one at a time. Arkstin
-> Village is a few dozen lines of data, and the checks catch the errors an editor would
-> otherwise catch by eye — props off the ground, buildings on slopes, arrivals inside walls.
->
-> So the editor is worth building when hand-editing genuinely starts to hurt, and not before.
-> The signal to watch for: wanting to nudge one prop at a time, or authoring a zone that is
-> mostly hand-placed set pieces rather than rules. **Phase 7 is next.**
+**Built:**
+
+- `dsp/` — `clock` (lookahead scheduling), `envelopes`, `modal`, `impact`, `phisem`,
+  `grain`, `formant`, `bubble`.
+- `Soundscape.ts` — a zone declares `bed` / `emitters` / `scatter` as data, built on entry
+  and silenced (never torn down) on exit.
+- `Scatter.ts` — one-shots at random points in a region at Poisson intervals. The missing
+  primitive: continuous sources establish that a place exists, scattered ones establish
+  that somebody lives in it.
+- Emitter rework — panner LOD (`hrtf` / `panned` / `virtual`), voice cap, and the three
+  magical flags (`ignoreAbsorption`, `ignoreOcclusion`, `invertDistance`).
+- Faust spine — hand-rolled loader and worklet, `reverb.dsp` replacing the two-convolver
+  crossfade with a live-parameter FDN. `check:faust` asserts no shared-memory imports, so
+  GitHub Pages' inability to set COOP/COEP is a checked fact rather than a hope.
+- Models: wind, foliage, machine, bird, footsteps, door (Phase 3) plus **fire, rain,
+  water, crowd**. One-shots: **hammer, clatter, animal, drip, bell**.
+- `audition/measure.ts` — peak, RMS, DC, crest, centroid, band balance, loudness,
+  periodicity. Self-tested in `check:audio` against signals with known answers.
+
+**Remaining:** the friction family (`friction.dsp` — rope on a windlass, cart axles,
+portcullis chains, hinges, a tree groaning under load). Stick-slip needs a per-sample
+feedback loop and is the genuine Faust case. Then the sound stage and the rendering half
+of the audition harness.
+
+> **The bell is not a Faust model, and that was a real decision.** The plan reserved
+> `pm.lib`'s physical bell for it. But `dsp/modal.ts`'s own argument rules modal synthesis
+> out of bells — a resonator sharp enough to ring for fifteen seconds has no bandwidth left
+> to carry timbre — and a bell's partials genuinely *are* near-pure sines, so the thing
+> modal loses is the thing a bell does not have. Additive is the honest implementation,
+> and it is cheaper, exactly controllable, and numerically safe where a biquad at Q ≈ 600
+> is not. Faust is worth spending on what nodes genuinely cannot do, not on what they can.
+
+### Phase 6b — Galleries, and objects for the sounds
+
+Sits before the Faust friction work that closes Phase 6.
+
+**Every sound gets a builder.** A forge fire at `[13, 1.2, 7]` with nothing standing there
+is not something you can walk up to and judge — it reads as a bug rather than as a thing.
+Needed now: anvil, bell, dog, sink. **Placement runs object → sound, never the reverse**:
+the coordinates already in the zone files were picked to get a model audible in the absence
+of anything to look at, and they constrain nothing.
+
+The Proving Ground has meanwhile accumulated an object gallery it was never meant to hold —
+it was built as a movement and acoustics rig. So the objects move out to galleries of their
+own, split by kind with setting used only where it matters: **Animal, Foliage, Prop,
+Village Structures, Factory Structures**. Castle and Cave when those kits exist; an empty
+gallery is worse than none. Each gallery is a soundscape too — the anvil should ring when
+you walk up to it. A rank of portals stands in the Proving Ground where the gallery was.
+
+> **The "infinite floor" is a quad and some fog.** The instinct is a ground mesh that
+> recentres on the player; do not build it. The collider indexes each zone into an octree
+> once and caches it by key, so ground that moves reinvalidates that index every frame. The
+> Proving Ground's floor is expensive because it is a *painted terrain patch*, not because
+> it is large — one flat 400 m quad is two triangles, and `fogFar: 140` hides the edge two
+> and a half times over. The only worthwhile addition is a world-space grid in vertex
+> colour: in a featureless void there is no way to judge how big a thing is or how far you
+> have walked, which is the entire job of a gallery.
+
+#### The galleries
+
+| Gallery | Contents |
+|---|---|
+| **Animal** | bovine, ovine, equine, porcine, poultry, **dog**, figure |
+| **Foliage** | tree, bush, grass, mushroom, stump, rock, cairn |
+| **Prop** | crate, barrel, table, trough, post, fence, **anvil**, **bell**, **sink** |
+| **Village Structures** | hut, archway, fence runs, and the forge when it lands |
+| **Factory Structures** | machine, flywheel, and the industrial kit as it lands |
+
+One file each, next to `debug/village.ts`, sharing a layout helper — the grid-with-labels
+logic is identical between them and should exist once.
+
+#### The floor
+
+New helper in the world kit, roughly `flatGround(size, options)`:
+
+- One `PlaneGeometry`, segmented 8 × 8 rather than 1 × 1 so vertex lighting across 400 m is
+  not degenerate, and excluded from shadow casting.
+- `markCollidable`, so it enters the octree as a handful of triangles.
+- A world-space grid in vertex colour at 4 m spacing — the ruler, per the note above.
+- Zone wiring: `groundAt: () => 0`, `floor: -20`, flat `environment.surface`.
+
+Deliberately **not** doing: painted ground cover, height variation, or the terrain system in
+any form. A gallery is a dev room and should look like one.
+
+#### The builders
+
+- **anvil** — the hammer scatter field in Arkstin has nothing standing under it.
+- **bell** — currently ringing from six and a half metres up, out of thin air.
+- **dog** — the only creature in the animal call table with no body.
+- **sink / cistern** — a stone basin for the standing water in the Proving Ground's cell.
+
+A forge or hearth is the obvious fifth, for the fire in Arkstin. It is a structure rather
+than a prop, so it waits for the Village Structures kit rather than being rushed in.
+
+#### Work order
+
+1. `flatGround` and one gallery end to end, to prove the shape.
+2. The four builders.
+3. The remaining four galleries, moving objects out of the Proving Ground as they land.
+4. Portals in the Proving Ground, standing where the vacated gallery was.
+5. Site the new builders in Arkstin and the Proving Ground, moving the emitters to them.
+
+*Done when every emitter in the game has something visible at its position.*
+
+> **Watch the triangle count.** A gallery's collider index should come out *lower* than the
+> Proving Ground's, not higher. If a flat floor costs more than a terrain, the follower-mesh
+> mistake has been made by accident.
 
 ### Phase 7 — Actors and ambient motion
 
@@ -674,6 +783,28 @@ Autosave, settings overlay if kept, performance pass. (Touch controls moved to P
 Systems frozen. Authoring data files only. **The fiction is to be settled with the repo
 owner before this starts — do not invent it.**
 
+### Phase 11 — World editor ⏸ optional
+
+In-browser: fly camera, place/move/rotate props, sculpt the heightfield, place audio
+emitters with visible radii, place triggers and NPC spawns, export JSON to disk.
+
+*Done when a zone can be built without touching code.*
+
+> **Deferred, not cut, and moved to the end.** The argument for an editor was that
+> hand-placing everything by typing coordinates would become miserable. Phase 5 weakened
+> that: terrain is a short list of named landforms, ground cover is a short list of painted
+> shapes, and props are scattered by seeded rules against the heightfield rather than placed
+> one at a time. Arkstin Village is a few dozen lines of data, and the checks catch the
+> errors an editor would otherwise catch by eye — props off the ground, buildings on slopes,
+> arrivals inside walls.
+>
+> Phase 6 pushed in the other direction and is worth recording: **placing sounds by typing
+> coordinates genuinely is miserable**, because there is nothing to look at. But the answer
+> to that turned out to be Phase 6b — give every sound an object and put the objects in
+> galleries — not an editor. The editor is worth building when hand-editing hurts for a
+> reason a builder cannot fix. The signal to watch for: wanting to nudge one prop at a time,
+> or authoring a zone that is mostly hand-placed set pieces rather than rules.
+
 ---
 
 ## Architecture
@@ -692,7 +823,7 @@ src/
   ui/                  Reticle (prompt + fade), Loader, TouchControls
                        (DialogueUI, JournalUI, NoteUI from Phase 8)
   content/             data only — zones, npcs, topics, quests, items, notes
-  editor/              world editor (Phase 6)
+  editor/              world editor (Phase 11, optional)
   debug/               ProvingGround, panels, overlays
 tools/                 headless checks, run under node — outside the tsconfig
 docs/                  build output, served by Pages — WIPED ON EVERY BUILD
@@ -818,8 +949,9 @@ slow correlations back into a signal whose entire purpose is not having any.
 
 ## Open questions
 
-1. World editor — build Phase 6, or hand-edit JSON?
-2. Which optional audio models: water and fire? *(Birds are built.)*
+1. World editor — build Phase 11, or hand-edit JSON? *(Leaning hand-edit; see Phase 11.)*
+2. ~~Which optional audio models: water and fire?~~ *(Settled in Phase 6: both built, plus
+   rain, crowd, and the scatter one-shots.)*
 3. Crouch and sprint-stamina — in or out? *(Phase 1 shipped without them.)*
 4. Keep the minimal settings overlay, or truly no UI at all?
 5. Fixed hour or a day/night cycle?

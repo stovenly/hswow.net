@@ -1,6 +1,8 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
+import { createEventClock, poisson } from '../dsp/clock';
+import { createGrainBed, scheduleGrain } from '../dsp/grain';
 
 /**
  * Leaves.
@@ -35,11 +37,6 @@ import { playNoise, type NoiseVoice } from '../noise';
  * not.
  */
 
-/** How far ahead to schedule. Longer survives worse frame hitches. */
-const LOOKAHEAD = 0.14;
-/** Cap per update, in case a huge dt would otherwise queue thousands. */
-const MAX_PER_UPDATE = 160;
-
 /**
  * Grains are routed into a few fixed filter channels rather than each building
  * its own — a bandpass per grain is hundreds of filter nodes a second per tree
@@ -54,27 +51,6 @@ const CHANNELS = [
   { hz: 2400, q: 3.2, weight: 0.46 },
   { hz: 4600, q: 3.8, weight: 0.14 },
 ];
-
-/**
- * Precomputed Hann envelopes at several peak levels.
- *
- * `setValueCurveAtTime` copies the array it is given, so one shared curve per
- * amplitude avoids allocating a Float32Array for every grain — at a few
- * hundred grains a second that is the difference between negligible and
- * noticeable garbage.
- */
-const ENVELOPE_STEPS = 8;
-const ENVELOPE_POINTS = 48;
-const ENVELOPES = Array.from({ length: ENVELOPE_STEPS }, (_, step) => {
-  // Squared spacing, so most grains are quiet and a few stand slightly out —
-  // evenly spread amplitudes sound mechanical.
-  const peak = ((step + 1) / ENVELOPE_STEPS) ** 2;
-  const curve = new Float32Array(ENVELOPE_POINTS);
-  for (let i = 0; i < ENVELOPE_POINTS; i++) {
-    curve[i] = peak * 0.5 * (1 - Math.cos((2 * Math.PI * i) / (ENVELOPE_POINTS - 1)));
-  }
-  return curve;
-});
 
 export interface FoliageOptions {
   /** Grains per second in a full gust. See the note on overlap above. */
@@ -117,23 +93,7 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
   grainBus.gain.value = 0;
   grainBus.connect(output);
 
-  const channels = CHANNELS.map((channel) => {
-    const filter = context.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = channel.hz * tone;
-    filter.Q.value = channel.q;
-    filter.connect(grainBus);
-    return { node: filter, weight: channel.weight };
-  });
-
-  const pick = (): BiquadFilterNode => {
-    let roll = Math.random();
-    for (const channel of channels) {
-      roll -= channel.weight;
-      if (roll <= 0) return channel.node;
-    }
-    return channels[channels.length - 1].node;
-  };
+  const grains = createGrainBed(context, CHANNELS, grainBus, tone);
 
   // The hush: the layer that actually carries the sound. Pink rather than
   // white because foliage is weighted to the middle, and a gentle Q so it is a
@@ -149,32 +109,15 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
 
   let articulation = options.articulation ?? 0.3;
   let active = true;
-  let nextGrain = 0;
+  const clock = createEventClock(context);
 
-  const scheduleGrain = (at: number): void => {
-    const source = context.createBufferSource();
-    source.buffer = noise.white;
-    // Detuned per grain: pitch variety that costs no extra node.
-    source.playbackRate.value = 0.7 + Math.random() * 0.7;
-
-    const envelope = context.createGain();
-    // Long, so grains overlap heavily and blur into one another. Short grains
-    // are what make a canopy sound like a rainstick.
-    const duration = 0.055 + Math.random() * 0.11;
-    // No `setValueAtTime` ahead of this: an automation event at the same
-    // instant as the start of a value curve is a spec violation and throws.
-    // The curve begins at zero of its own accord, and the source does not
-    // start until `at` regardless.
-    envelope.gain.setValueCurveAtTime(
-      ENVELOPES[Math.floor(Math.random() * ENVELOPE_STEPS)],
-      at,
-      duration,
-    );
-
-    source.connect(envelope).connect(pick());
-    source.start(at, Math.random() * (noise.white.duration - 0.3), duration + 0.02);
-    source.stop(at + duration + 0.03);
-  };
+  // Long grains, so they overlap heavily and blur into one another. Short
+  // grains are what make a canopy sound like a rainstick.
+  const fire = (at: number): void =>
+    scheduleGrain(context, noise.white, grains.pick(), at, {
+      minDuration: 0.055,
+      maxDuration: 0.165,
+    });
 
   return {
     output,
@@ -187,7 +130,7 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
       active = next;
       // Reset the cursor: coming back after minutes away must not try to
       // catch up on every grain it missed.
-      if (next) nextGrain = 0;
+      if (next) clock.reset();
       if (!next) {
         bedGain.gain.value = 0;
         grainBus.gain.value = 0;
@@ -199,7 +142,6 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
 
       const strength = Math.max(audio.weather.strength, restlessness);
       const now = context.currentTime;
-      if (nextGrain < now) nextGrain = now;
 
       // The hush carries the level and brightens as the wind rises — a canopy
       // in a gust is not just louder, the air through it is moving faster past
@@ -208,24 +150,15 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
       bedFilter.frequency.setTargetAtTime((1500 + strength * 1900) * tone, now, 0.15);
       grainBus.gain.setTargetAtTime(articulation * (0.25 + strength * 0.75), now, 0.15);
 
-      const horizon = now + LOOKAHEAD;
       // Rate scales with the square of strength: a stiff breeze does not
       // rustle twice as many leaves as a light one, it rustles far more.
       const rate = Math.max(20, density * strength * strength);
-
-      let queued = 0;
-      while (nextGrain < horizon && queued < MAX_PER_UPDATE) {
-        scheduleGrain(nextGrain);
-        // Exponential gaps — a Poisson process. Evenly spaced grains sound
-        // like a buzz at the grain rate, which is exactly what this is trying
-        // not to be.
-        nextGrain += -Math.log(1 - Math.random()) / rate;
-        queued++;
-      }
+      clock.pump(fire, poisson(rate));
     },
 
     dispose() {
       bed.stop();
+      grains.dispose();
       grainBus.disconnect();
       output.disconnect();
     },
