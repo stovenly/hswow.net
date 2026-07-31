@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { RoomName } from '../audio/reverb';
 import type { SurfaceName } from '../audio/models/footsteps';
+import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
 
 /**
  * A zone is a place: one contiguous piece of world you can walk around in.
@@ -80,6 +81,15 @@ export interface ZoneEnvironment {
    * less on your boots than the preset would give them.
    */
   footstepReverb: number;
+  /**
+   * What this place sounds like when nothing is happening in it.
+   *
+   * Declared here, next to the fog and the light, because ambience is part of
+   * the same statement: those three together are what a zone *is* before any
+   * of its geometry is considered. Built on first entry and kept — see
+   * `Soundscape`.
+   */
+  soundscape: SoundscapeSpec;
 }
 
 export const OUTDOOR_ENVIRONMENT: ZoneEnvironment = {
@@ -98,6 +108,9 @@ export const OUTDOOR_ENVIRONMENT: ZoneEnvironment = {
   room: 'open',
   surface: 'earth',
   footstepReverb: 0.7,
+  // Wind and nothing else. A zone that wants trees or a mill declares them;
+  // this is only what every outdoor place has in common.
+  soundscape: { bed: { model: 'wind', id: 'wind', options: { gain: 0.17, tone: 3400 } } },
 };
 
 /**
@@ -125,6 +138,10 @@ export const INDOOR_ENVIRONMENT: ZoneEnvironment = {
   room: 'cell',
   surface: 'wood',
   footstepReverb: 0.5,
+  // Silent by default, and deliberately so. An interior with a generic hum in
+  // it sounds like a menu; one that is genuinely quiet makes the room you came
+  // from audible by its absence, which is most of what a threshold is for.
+  soundscape: SILENCE,
 };
 
 /**

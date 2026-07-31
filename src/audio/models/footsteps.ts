@@ -1,4 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
+import { createModalBank, type ModalBank } from '../dsp/modal';
+import { createParticleBed, scatterParticles, type Particles } from '../dsp/phisem';
+import { excite } from '../dsp/impact';
 
 /**
  * Footsteps, after Cook's physically informed models.
@@ -44,17 +47,11 @@ interface Mode {
   level: number;
 }
 
-interface Grit {
-  /** Collisions per step. More is coarser and louder underfoot. */
-  count: number;
-  /** Seconds they are spread over. */
-  over: number;
-  /** How fast the collision energy falls away across that window. */
-  energyDecay: number;
-  hz: number;
-  q: number;
-  level: number;
-}
+/**
+ * Loose material underfoot. See `dsp/phisem.ts` — this is Cook's model, and
+ * the field names line up with `Particles` deliberately.
+ */
+type Grit = Particles;
 
 export interface Surface {
   /** Overall level, before the speed curve. */
@@ -223,7 +220,7 @@ function rand(min: number, max: number): number {
 
 interface Chain {
   impactInput: GainNode;
-  modeInputs: GainNode[];
+  bank: ModalBank;
   gritInput: GainNode | null;
 }
 
@@ -447,72 +444,31 @@ export class Footsteps {
 
     // A single short excitation feeds both the transient and every resonator,
     // exactly as one physical impact would.
-    const excite = (target: AudioNode, level: number, duration: number): void => {
-      const source = context.createBufferSource();
-      source.buffer = noise.white;
-      const envelope = context.createGain();
-      envelope.gain.setValueAtTime(0, at);
-      envelope.gain.linearRampToValueAtTime(level, at + Math.min(0.0012, duration * 0.3));
-      envelope.gain.setTargetAtTime(0, at + 0.0012, duration * 0.4);
-      source.connect(envelope).connect(target);
-      source.start(at, rand(0, noise.white.duration - 0.5), duration + 0.05);
-      source.stop(at + duration + 0.06);
-    };
-
-    excite(chain.impactInput, force * surface.impact.level, surface.impact.duration * stretch);
+    excite(
+      context,
+      noise.white,
+      chain.impactInput,
+      at,
+      force * surface.impact.level,
+      surface.impact.duration * stretch,
+    );
 
     // Resonators need only a click — their ring-down is the filter's own, not
     // an envelope's, which is what makes it sound like a body rather than a
     // fade.
     for (let i = 0; i < surface.modes.length; i++) {
-      excite(chain.modeInputs[i], force * surface.modes[i].level * 0.5 * modeScale, 0.002);
+      excite(
+        context,
+        noise.white,
+        chain.bank.inputs[i],
+        at,
+        force * surface.modes[i].level * 0.5 * modeScale,
+        0.002,
+      );
     }
 
     if (surface.grit && chain.gritInput) {
-      this.scatter(chain.gritInput, surface.grit, at, force * gritScale);
-    }
-  }
-
-  /**
-   * PhISEM: collisions at random intervals, into an exponentially falling
-   * system energy.
-   *
-   * Cook's algorithm runs per sample — decay the system energy, roll against
-   * the object count, add energy to the resonator on a hit. Web Audio cannot
-   * do per-sample logic without a worklet, but the *result* is a Poisson train
-   * of impulses whose amplitude follows that exponential, and that schedules
-   * exactly. Randomising the intervals is the part that matters: evenly spaced
-   * collisions are a buzz, not a crunch.
-   */
-  private scatter(target: AudioNode, grit: Grit, at: number, force: number): void {
-    const context = this.engine.context;
-    const noise = this.engine.noise;
-    if (!noise) return;
-
-    const rate = grit.count / grit.over;
-    let t = 0;
-
-    for (let i = 0; i < grit.count; i++) {
-      t += -Math.log(1 - rand(0.001, 1)) / rate;
-      if (t > grit.over * 1.4) break;
-
-      const energy = Math.exp(-t / grit.energyDecay);
-      const level = force * grit.level * energy * rand(0.35, 1);
-      if (level < 0.002) continue;
-
-      const source = context.createBufferSource();
-      source.buffer = noise.white;
-      source.playbackRate.value = rand(0.7, 1.4);
-
-      const envelope = context.createGain();
-      const when = at + t;
-      envelope.gain.setValueAtTime(0, when);
-      envelope.gain.linearRampToValueAtTime(level, when + 0.0008);
-      envelope.gain.setTargetAtTime(0, when + 0.0008, 0.004);
-
-      source.connect(envelope).connect(target);
-      source.start(when, rand(0, noise.white.duration - 0.2), 0.06);
-      source.stop(when + 0.07);
+      scatterParticles(context, noise.white, chain.gritInput, surface.grit, at, force * gritScale);
     }
   }
 
@@ -530,34 +486,31 @@ export class Footsteps {
     impactFilter.frequency.value = surface.impact.tone;
     impactInput.connect(impactFilter).connect(this.output);
 
-    const modeInputs = surface.modes.map((mode) => {
-      const input = context.createGain();
-      const filter = context.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = mode.hz;
-      // A two-pole resonator's ring-down follows from its Q, so the decay time
-      // is the parameter and Q is derived. Specifying Q directly means every
-      // change of pitch silently changes how long the mode rings.
-      filter.Q.value = Math.min(220, Math.max(1, Math.PI * mode.hz * mode.decay));
-      // High Q concentrates energy into a narrow band and makes it far louder;
-      // this pays that back so `level` means what it says.
-      const trim = context.createGain();
-      trim.gain.value = 1 / Math.sqrt(filter.Q.value);
-      input.connect(filter).connect(trim).connect(this.output);
-      return input;
+    // **Both options here are the historical ones, and both are wrong.**
+    //
+    // `'filter'` lets the resonator carry the ring-down, which for metal's
+    // half-second modes wants a Q of 750 and clamps at 220 — far past the point
+    // a bandpass keeps any timbre. And `'inverse'` divides by `sqrt(Q)` where
+    // the physics calls for multiplying by it, so the sharpest modes come out
+    // quietest, exactly backwards. `door.ts` diagnosed both and fixed them;
+    // this file predates that and still has them.
+    //
+    // They are preserved verbatim because `SURFACES` above was tuned by ear
+    // *against* them, and correcting the bank without re-tuning the table would
+    // change how every surface in the game sounds. That is an audible change
+    // and it belongs in its own commit where it can be heard before and after —
+    // not smuggled in under a refactor that promises to change nothing.
+    const bank = createModalBank(context, surface.modes, this.output, {
+      ring: 'filter',
+      compensation: 'inverse',
     });
 
     let gritInput: GainNode | null = null;
     if (surface.grit) {
-      gritInput = context.createGain();
-      const filter = context.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = surface.grit.hz;
-      filter.Q.value = surface.grit.q;
-      gritInput.connect(filter).connect(this.output);
+      gritInput = createParticleBed(context, surface.grit, this.output).input;
     }
 
-    const chain: Chain = { impactInput, modeInputs, gritInput };
+    const chain: Chain = { impactInput, bank, gritInput };
     this.chains.set(name, chain);
     return chain;
   }

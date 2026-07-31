@@ -1,6 +1,8 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
+import { createEventClock, periodic } from '../dsp/clock';
+import { strike } from '../dsp/envelopes';
 
 /**
  * Something turning.
@@ -141,7 +143,10 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
   let baseRpm = options.rpm ?? 52;
   let rpm = baseRpm;
   let active = true;
-  let nextClank = 0;
+  // 0.15 rather than the clock's default: this is what the hand-rolled loop
+  // used, and a clank is percussive enough that the window length is audible
+  // as latency if it grows.
+  const clankClock = createEventClock(context, 0.15);
 
   let phase: PhaseName = 'steady';
   let phaseRemaining = 12;
@@ -160,9 +165,7 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
     resonator.Q.value = 14;
 
     const envelope = context.createGain();
-    envelope.gain.setValueAtTime(0, at);
-    envelope.gain.linearRampToValueAtTime(0.9 + Math.random() * 0.3, at + 0.001);
-    envelope.gain.setTargetAtTime(0, at + 0.001, 0.05);
+    strike(envelope.gain, at, 0.9 + Math.random() * 0.3, 0.001, 0.15);
 
     source.connect(resonator).connect(envelope).connect(clankBus);
     source.start(at, Math.random() * 2, 0.4);
@@ -220,12 +223,11 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
 
     setActive(next) {
       active = next;
-      if (next) nextClank = 0;
+      if (next) clankClock.reset();
     },
 
     update(dt) {
       if (!active) return;
-      const now = context.currentTime;
 
       // --- phase cycle ----------------------------------------------------
       phaseRemaining -= dt;
@@ -244,15 +246,13 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
       }
 
       // --- the clank ------------------------------------------------------
+      // One per revolution, with slight jitter — a perfectly periodic clank is
+      // a metronome, and the ear latches onto metronomes and stops believing
+      // them. `'oneGap'` because a clank is individually audible: resuming
+      // immediately after a hitch would fire one the instant the machine comes
+      // back, which reads as a glitch rather than as the shaft coming round.
       const period = 60 / Math.max(rpm, 3);
-      if (nextClank < now) nextClank = now + period;
-
-      while (nextClank < now + 0.15) {
-        scheduleClank(nextClank);
-        // Slight jitter: a perfectly periodic clank is a metronome, and the
-        // ear latches onto metronomes and stops believing them.
-        nextClank += period * (0.94 + Math.random() * 0.12);
-      }
+      clankClock.pump(scheduleClank, periodic(period, 0.06), 'oneGap');
     },
 
     dispose() {

@@ -8,7 +8,13 @@ import { Collider } from './player/Collider';
 import { Controller } from './player/Controller';
 import { TouchControls } from './ui/TouchControls';
 import { ProvingGround, type SurfaceName } from './debug/ProvingGround';
-import { SoundGarden } from './debug/SoundGarden';
+import { Footsteps } from './audio/models/footsteps';
+import type { WindModel } from './audio/models/wind';
+import type { FoliageModel } from './audio/models/foliage';
+import type { MachineModel } from './audio/models/machine';
+import type { FireModel } from './audio/models/fire';
+import type { RainModel } from './audio/models/rain';
+import type { WaterModel } from './audio/models/water';
 import { createGallery, galleryOrder } from './debug/Gallery';
 import { AudioEngine } from './audio/AudioEngine';
 import { createDevTools } from './debug/DevPanel';
@@ -96,44 +102,74 @@ await loader.step('raising arkstin', 0.78, () => zones.prebuild(ZONE_VILLAGE));
 // impulse responses are rendered offline regardless, and the emitters cannot be
 // built until they are done.
 const audio = new AudioEngine();
-let garden: SoundGarden | null = null;
+
+/**
+ * Your own feet, which belong to you rather than to any zone.
+ *
+ * Everything else audible is declared by the zone you are standing in and built
+ * by `ZoneManager`. Footsteps are the exception: they happen *at* the listener,
+ * they follow you through every door, and they are the one sound that would be
+ * wrong to tear down and rebuild on a threshold.
+ */
+let footsteps: Footsteps | null = null;
+
+/**
+ * Which of the proving ground's test rooms the listener is standing in.
+ *
+ * `undefined` rather than `null` to start, so the first frame applies whatever
+ * it finds — `null` is a legitimate value here and means "outdoors".
+ */
+let lastRoom: string | null | undefined = undefined;
+
+/**
+ * Base leaf articulation per foliage emitter, so one slider can scale them all.
+ *
+ * Read off the specs rather than guessed: a hedge ticks where a canopy hushes,
+ * and a single absolute value applied to both flattens that distinction.
+ */
+const FOLIAGE_BASE = new Map<string, number>([
+  ['canopy', 0.22],
+  ['shrub-a', 0.34],
+  ['shrub-b', 0.34],
+  ['wood-north', 0.2],
+  ['wood-east', 0.22],
+  ['hedge', 0.34],
+]);
 
 await loader.step('rendering the rooms', 0.86, () => audio.ready);
 
 await loader.step('tuning the air', 0.96, () => {
-  garden = new SoundGarden(audio, provingGround, collider, viewport.camera);
+  footsteps = new Footsteps(audio, 0.55);
   player.onFootstep = (speed) => {
-    if (!garden) return;
+    if (!footsteps) return;
     // Sampled per step rather than per zone: outdoors the ground cover changes
     // under you, and a cobbled lane that sounds like the grass beside it is
     // only paint.
     const at = player.position;
-    garden.footsteps.surface = zones.surfaceAt(at.x, at.z);
-    garden.footsteps.step(speed);
+    footsteps.surface = zones.surfaceAt(at.x, at.z);
+    footsteps.step(speed);
   };
   // Landing is part of the same system — same surface, same models, different
   // gesture. Without this, jumping on the spot is completely silent.
   player.onLand = (impact) => {
-    if (!garden) return;
+    if (!footsteps) return;
     const at = player.position;
-    garden.footsteps.surface = zones.surfaceAt(at.x, at.z);
-    garden.footsteps.land(impact);
+    footsteps.surface = zones.surfaceAt(at.x, at.z);
+    footsteps.land(impact);
   };
   // The push-off. The controller decides whether this one counts — a hop
   // chained straight off a landing does not, because the landing was the same
   // contact with the ground.
   player.onJump = () => {
-    if (!garden) return;
+    if (!footsteps) return;
     const at = player.position;
-    garden.footsteps.surface = zones.surfaceAt(at.x, at.z);
-    garden.footsteps.jump();
+    footsteps.surface = zones.surfaceAt(at.x, at.z);
+    footsteps.jump();
   };
-  zones.attachAudio({ engine: audio, footsteps: garden.footsteps });
-  // The garden is the exterior's, and it has no way to notice being left.
-  garden.setActive(zones.current?.id === ZONE_EXTERIOR);
+  // Attaching builds the current zone's soundscape, including the one the
+  // player was already standing in before the audio existed.
+  zones.attachAudio({ engine: audio, footsteps });
 });
-
-zones.onZoneChange = (zone) => garden?.setActive(zone.id === ZONE_EXTERIOR);
 
 // On touch there is no capture step, so the game is live from the first frame.
 if (isTouchDevice()) {
@@ -288,32 +324,70 @@ if (dev.gui) {
   weather.add(audio.weather.settings, 'windSpeed', 0, 1, 0.01).name('wind');
   weather.add(audio.weather.settings, 'gustDepth', 0, 1, 0.01).name('gust depth');
   weather.add(audio.weather.settings, 'gustRate', 0.01, 0.6, 0.01).name('gust rate');
-  // Bound late: the garden does not exist until the impulse responses finish
-  // rendering, so the controller reads through a getter rather than a value.
+  // Bound through the active zone's soundscape rather than to a model directly.
+  // A zone declares its sound as data and the models are built on entry, so a
+  // panel that captured one at startup would be tuning the proving ground's
+  // tree while the player stands in Arkstin. `find` looks it up by the `id` the
+  // spec declared, every time the slider moves.
+  const tuning = {
+    windTone: 3400,
+    leaves: 1,
+    machineRpm: 52,
+    fireIntensity: 0.85,
+    rain: 0,
+    water: 1,
+    // Scatter events are minutes apart by design, so tuning one by waiting for
+    // it means changing a parameter twice between hearings.
+    strike: () => zones.sound?.findField('smith')?.trigger(),
+    drop: () => zones.sound?.findField('yards')?.trigger(),
+    // Ninety-five seconds is a long time to wait to hear whether a tail is
+    // right.
+    toll: () => zones.sound?.findField('bell')?.trigger(),
+  };
   weather
-    .add({ get windTone() { return garden?.tuning.windTone ?? 3400; } }, 'windTone', 700, 9000, 50)
-    .name('wind softness')
+    .add(tuning, 'windTone', 700, 9000, 50)
+    .name('wind tone (Hz)')
     .onChange((value: number) => {
-      if (garden) garden.tuning.windTone = value;
+      zones.sound?.find<WindModel>('wind')?.setTone(value);
     });
   weather
-    .add(
-      { get leaves() { return garden?.tuning.foliageArticulation ?? 1; } },
-      'leaves',
-      0,
-      2.5,
-      0.05,
-    )
+    .add(tuning, 'leaves', 0, 2, 0.01)
     .name('leaf articulation')
     .onChange((value: number) => {
-      if (garden) garden.tuning.foliageArticulation = value;
+      // Every foliage model in the zone, whatever it is called. Their base
+      // articulations differ — a stiff bush ticks where a canopy hushes — so
+      // this scales what the spec asked for rather than replacing it.
+      for (const [id, base] of FOLIAGE_BASE) {
+        zones.sound?.find<FoliageModel>(id)?.setArticulation(base * value);
+      }
     });
   weather
-    .add({ get machineRpm() { return garden?.tuning.machineRpm ?? 52; } }, 'machineRpm', 0, 200, 1)
-    .name('machine rpm')
+    .add(tuning, 'machineRpm', 0, 200, 1)
+    .name('mill rpm')
     .onChange((value: number) => {
-      if (garden) garden.tuning.machineRpm = value;
+      zones.sound?.find<MachineModel>('mill')?.setRpm(value);
     });
+  weather
+    .add(tuning, 'fireIntensity', 0, 1, 0.01)
+    .name('forge intensity')
+    .onChange((value: number) => {
+      zones.sound?.find<FireModel>('forge')?.setIntensity(value);
+    });
+  weather
+    .add(tuning, 'rain', 0, 1, 0.01)
+    .name('rain')
+    .onChange((value: number) => {
+      zones.sound?.find<RainModel>('rain')?.setIntensity(value);
+    });
+  weather
+    .add(tuning, 'water', 0, 1, 0.01)
+    .name('water flow')
+    .onChange((value: number) => {
+      zones.sound?.find<WaterModel>('cistern')?.setRate(value);
+    });
+  weather.add(tuning, 'strike').name('hammer now');
+  weather.add(tuning, 'drop').name('clatter now');
+  weather.add(tuning, 'toll').name('bell now');
 
   // A readout rather than a control: what the controller thinks is happening,
   // which is the only way to tell a tuning problem from a collision problem.
@@ -346,7 +420,7 @@ if (dev.gui) {
   state.add(readout, 'gust').listen().disable();
   state.add(readout, 'swell').listen().disable();
   state.add(readout, 'machine').listen().disable();
-  state.add(readout, 'emitters').name('audible / occluded').listen().disable();
+  state.add(readout, 'emitters').name('hrtf / panned / virtual').listen().disable();
   // Triangles change with the zone now, so this has to be watched rather than
   // read once — it is also the first place a collider leak would show up.
   state.add(readout, 'triangles').listen().disable();
@@ -369,12 +443,19 @@ if (dev.gui) {
     readout.crossings = zones.crossings;
     readout.triangles = collider.triangles;
     readout.room = audio.room ?? 'open';
-    readout.audio = garden === null ? 'rendering…' : audio.context.state;
+    readout.audio = footsteps === null ? 'rendering…' : audio.context.state;
     readout.gust = audio.weather.strength.toFixed(2);
     readout.swell = audio.weather.swell.toFixed(2);
-    readout.machine = garden?.machinePhase ?? '—';
+    readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
+    // The voice budget, made visible. HRTF panning is the most expensive node
+    // in the API, so "how many are running one" is the number that decides
+    // whether a dense zone is affordable — and it is not a number worth
+    // assuming.
+    const voices = audio.voiceCounts;
     readout.emitters =
-      garden === null ? '—' : `${garden.audibleCount} / ${garden.occludedCount}`;
+      zones.sound === null
+        ? '—'
+        : `${voices.hrtf} / ${voices.panned} / ${voices.virtual} · ${zones.sound.occludedCount} occl`;
   });
 }
 
@@ -394,7 +475,32 @@ loop.add((dt, elapsed) => {
   const interacted = input.takeInteract();
   if (interacted && door) void zones.use(door);
 
-  garden?.update(dt);
+  // The listener has to be moved before anything is judged against it, so the
+  // engine is pumped first and hands back whether the occlusion raycasts are
+  // due this frame.
+  const retestOcclusion = audio.update(dt, viewport.camera);
+  zones.updateSound(dt, retestOcclusion);
+
+  // The proving ground's two test rooms are rooms *within* the exterior zone
+  // rather than zones of their own — the Phase 3 acoustics fixture — so nothing
+  // in the zone system knows about them and this has to be driven by hand.
+  if (zones.current?.id === ZONE_EXTERIOR) {
+    const room = provingGround.roomAt(audio.listenerPosition);
+    if (room !== lastRoom) {
+      lastRoom = room;
+      audio.setRoom(room ?? 'open');
+      // Inside one of the rooms the wind bed drops away and loses its top end:
+      // you are hearing it through a wall, and the whistle is the first thing
+      // a wall takes.
+      zones.sound?.setBedLevel(room === null ? 1 : 0.22);
+      zones.sound?.find<WindModel>('wind')?.setTone(room === null ? 3400 : 900);
+      if (footsteps) footsteps.surface = room === null ? 'earth' : 'stone';
+    }
+  }
+
+  // The wheel you can see turns at the speed the clank you can hear is firing
+  // at, phase cycle included, so it visibly labours and surges.
+  provingGround.update(dt, zones.sound?.find<MachineModel>('mill')?.currentRpm ?? 0);
   postfx.render(elapsed);
   dev.update();
 });
