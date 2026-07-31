@@ -13,6 +13,7 @@ import { PALETTE } from '../palette';
  */
 export const bush: MeshBuilder = {
   name: 'bush',
+  category: 'foliage',
   radius: 1,
 
   build({ seed = 1, scale = 1 } = {}) {

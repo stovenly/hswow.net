@@ -60,6 +60,23 @@ const OCCLUDED_GAIN = 0.32;
 /** Smoothing constant for absorption and occlusion moves. */
 const GLIDE = 0.08;
 
+/**
+ * Where the distance taper begins, as a fraction of `maxDistance`.
+ *
+ * **Web Audio's distance models never reach zero.** `inverse` clamps the
+ * distance to `maxDistance` and holds whatever gain that implies — for a source
+ * with `refDistance` 2.5 and `rolloff` 1.1 at 40 m that is about −29 dB, which
+ * is quiet but perfectly audible in a still scene. The emitter then goes
+ * virtual one metre later and stops dead.
+ *
+ * So the far field was both too loud and, at the very edge, a step. This tapers
+ * the last part of the range smoothly to silence, which makes `maxDistance`
+ * mean what it looks like it means: the distance past which you cannot hear
+ * this. Raising an emitter's `rolloff` steepens the near field; this fixes the
+ * far one, and the two are worth tuning separately.
+ */
+const TAPER_FROM = 0.5;
+
 export class Emitter {
   readonly position = new THREE.Vector3();
   /** Set false to silence without tearing the emitter down. */
@@ -165,8 +182,14 @@ export class Emitter {
     const occlusionMix = this.occluded ? settings.occlusion : 0;
     const cutoff = Math.min(absorbed, lerp(OPEN_HZ, OCCLUDED_HZ, occlusionMix));
 
+    // Smootherstep rather than a straight line: a linear fade to zero has a
+    // corner at each end, and a gain corner on a sustained source is audible as
+    // a change of gear rather than as distance.
+    const taper =
+      reach <= TAPER_FROM ? 1 : 1 - smootherstep((reach - TAPER_FROM) / (1 - TAPER_FROM));
+
     this.glide(this.absorption.frequency, Math.max(cutoff, 180));
-    this.glide(this.occlusion.gain, lerp(1, OCCLUDED_GAIN, occlusionMix));
+    this.glide(this.occlusion.gain, lerp(1, OCCLUDED_GAIN, occlusionMix) * taper);
     this.sendGain.gain.value = this.reverb * settings.reverbAmount;
   }
 
@@ -238,6 +261,12 @@ function setOrientation(panner: PannerNode, direction: THREE.Vector3): void {
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+/** Ken Perlin's smootherstep: zero first *and* second derivative at both ends. */
+function smootherstep(t: number): number {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t;
+  return x * x * x * (x * (x * 6 - 15) + 10);
 }
 
 const _direction = new THREE.Vector3();

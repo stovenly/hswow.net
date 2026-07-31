@@ -16,6 +16,7 @@ import { PALETTE } from '../palette';
  */
 export const post: MeshBuilder = {
   name: 'post',
+  category: 'structures',
   radius: 0.4,
 
   build({ seed = 1, scale = 1 } = {}) {

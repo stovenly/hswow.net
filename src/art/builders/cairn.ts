@@ -42,6 +42,7 @@ function stone(rng: Rng, radius: number): THREE.BufferGeometry {
 
 export const cairn: MeshBuilder = {
   name: 'cairn',
+  category: 'nature',
   radius: 0.7,
 
   build({ seed = 1, scale = 1 } = {}) {

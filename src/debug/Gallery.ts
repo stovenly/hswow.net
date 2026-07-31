@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { builders } from '../art/registry';
+import { CATEGORY_ORDER, type MeshBuilder } from '../art/types';
 import { markCollidable } from '../player/Collider';
 
 /**
@@ -13,6 +14,14 @@ import { markCollidable } from '../player/Collider';
  *
  * Populated from the registry, so a new file in `art/builders/` appears here
  * without this file being touched.
+ *
+ * **Rows are grouped by family, not sorted by name.** Alphabetically a barrel
+ * lands between an ovine and a porcine and the gallery reads as an alphabet
+ * rather than as a kit — which makes it useless for the thing it is actually
+ * for, which is judging whether a family hangs together. Grouped, you can see
+ * at a glance whether the animals share a scale, whether the furniture shares
+ * a timber, and what is missing. A wider gap separates one family from the
+ * next, so the groups are legible from across the field.
  */
 
 /**
@@ -28,6 +37,25 @@ import { markCollidable } from '../player/Collider';
 const INSTANCES = 8;
 /** Gap between instances of the same builder, beyond their own radius. */
 const PADDING = 1.4;
+/** Extra gap where one family ends and the next begins. */
+const GROUP_PADDING = 5;
+
+/**
+ * Builders in gallery order: by family, then by name within a family.
+ *
+ * Anything whose category is not in `CATEGORY_ORDER` sorts to the end rather
+ * than being dropped — a builder missing from the gallery is far harder to
+ * notice than one in the wrong place.
+ */
+function galleryBuilders(): MeshBuilder[] {
+  const rank = (builder: MeshBuilder): number => {
+    const index = CATEGORY_ORDER.indexOf(builder.category);
+    return index === -1 ? CATEGORY_ORDER.length : index;
+  };
+  return [...builders].sort(
+    (a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name),
+  );
+}
 
 export interface GalleryOptions {
   /** Where the row starts, and which way it runs. */
@@ -44,18 +72,22 @@ export function createGallery(options: GalleryOptions = {}): THREE.Group {
 
   const gallery = new THREE.Group();
   gallery.name = 'Gallery';
+  const ordered = galleryBuilders();
 
   // Laid out by accumulating radii rather than on a fixed grid, so a hut and a
   // tuft of grass each get the room they need and no more.
   let x = origin.x;
 
-  for (let index = 0; index < builders.length; index++) {
-    const builder = builders[index];
+  for (let index = 0; index < ordered.length; index++) {
+    const builder = ordered[index];
     // The gap to the *next* row has to clear both radii. Spacing from only the
     // current builder's radius leaves a three-metre hut standing on top of the
     // grass beside it — which is exactly what it did.
-    const next = builders[index + 1];
-    const spacing = next ? builder.radius + next.radius + PADDING : 0;
+    const next = ordered[index + 1];
+    const crossesFamily = next !== undefined && next.category !== builder.category;
+    const spacing = next
+      ? builder.radius + next.radius + PADDING + (crossesFamily ? GROUP_PADDING : 0)
+      : 0;
     const row = new THREE.Group();
     row.name = `gallery:${builder.name}`;
 
@@ -88,7 +120,16 @@ export function createGallery(options: GalleryOptions = {}): THREE.Group {
   return gallery;
 }
 
-/** Names in layout order, for the debug readout. */
+/** Names in layout order, grouped by family, for the debug readout. */
 export function galleryOrder(): string {
-  return builders.map((builder) => builder.name).join(' · ');
+  const groups: string[] = [];
+  let category = '';
+  for (const builder of galleryBuilders()) {
+    if (builder.category !== category) {
+      category = builder.category;
+      groups.push(`[${category}]`);
+    }
+    groups.push(builder.name);
+  }
+  return groups.join(' · ');
 }

@@ -26,6 +26,17 @@ const RESOLVE_PASSES = 4;
 /** Downward probe increments for the step-up landing sweep. */
 const STEP_DROP_SAMPLES = 6;
 
+/**
+ * How soon after landing a jump counts as a continuation rather than a new
+ * push-off, in seconds.
+ *
+ * Chaining hops is one continuous contact with the ground: the foot arrives,
+ * loads and leaves. The landing already made that sound, so a take-off scuff
+ * a few milliseconds later reads as a stutter rather than as effort. Past this
+ * the player has been standing there and pushing off is its own event.
+ */
+const HOP_CONTINUATION = 0.28;
+
 export interface PlayerTuning {
   /** Capsule radius. Also, incidentally, how tight a gap the player fits through. */
   radius: number;
@@ -85,6 +96,26 @@ export interface PlayerTuning {
    */
   bobSpeedInfluence: number;
 
+  /**
+   * Ceiling on horizontal speed while airborne, as a multiple of sprint speed.
+   *
+   * **This exists because Quake acceleration has no upper bound in the air.**
+   * The rule is "add up to the shortfall between your speed *along the wish
+   * direction* and the wish speed" — and if you point the wish direction
+   * sideways to where you are already going, that dot product stays near zero,
+   * so the shortfall stays near full and you keep getting acceleration you have
+   * no business getting. It adds at right angles to your motion, so the total
+   * speed grows by Pythagoras, and with no air friction to bleed it off, every
+   * hop compounds the last. That is air-strafing, and it is why holding jump
+   * while steering at an angle ran away to absurd speeds.
+   *
+   * Capping the *magnitude* rather than the acceleration keeps what is good
+   * about air control — you can still steer freely mid-jump — and removes only
+   * the speed gain. A little over 1 leaves a small reward for chaining jumps
+   * well without letting it snowball.
+   */
+  maxAirSpeed: number;
+
   fov: number;
   sprintFov: number;
   /** Camera dip on landing, per m/s of impact speed. */
@@ -122,6 +153,8 @@ export const DEFAULT_TUNING: PlayerTuning = {
   bobSpeedInfluence: 0.5,
   firstStepFraction: 0.65,
 
+  maxAirSpeed: 1.12,
+
   fov: 74,
   sprintFov: 82,
   landDip: 0.02,
@@ -149,14 +182,27 @@ export class Controller {
   onFootstep: ((speed: number) => void) | null = null;
   /** Fires on touchdown, with impact speed in m/s. */
   onLand: ((impact: number) => void) | null = null;
+  /**
+   * Fires on a jump that is a fresh push-off rather than a continued hop.
+   *
+   * Suppressed within `HOP_CONTINUATION` of landing — see that constant.
+   */
+  onJump: (() => void) | null = null;
 
-  private readonly camera: THREE.PerspectiveCamera;
+  /**
+   * Public so systems that need the player's *view* can read it — the
+   * interaction ray is cast down the camera axis, not the body's facing, and
+   * those differ by the head bob and the pitch.
+   */
+  readonly camera: THREE.PerspectiveCamera;
   private readonly input: Input;
   private readonly collider: Collider;
   private readonly capsule = new Capsule();
 
   private yaw = 0;
   private pitch = 0;
+  /** Latched, with hysteresis — see `applyCamera`. */
+  private sprintFov = false;
 
   /** Surface the player is standing on. Straight up whenever airborne. */
   private readonly groundNormal = new THREE.Vector3(0, 1, 0);
@@ -167,6 +213,8 @@ export class Controller {
   /** Set for the one sub-step a jump is launched on, so it isn't snapped back. */
   private jumped = false;
   private timeOffGround = 0;
+  /** Seconds standing since the last touchdown. Gates the take-off sound. */
+  private timeSinceLand = Infinity;
   private bobPhase = 0;
   /** Fraction of the current stride covered. Reaching 1 is a footfall. */
   private strideProgress = 0.65;
@@ -180,6 +228,16 @@ export class Controller {
     // The controller drives rotation directly; three's default order would let
     // pitch tilt the horizon.
     this.camera.rotation.order = 'YXZ';
+    // **Seeded, not damped into.**
+    //
+    // `Viewport` constructs the camera at whatever fov it likes — 70 — and the
+    // tuning here wants 74, so without this the first second of play is a slow
+    // zoom from one to the other. That is bad enough on its own, and worse
+    // because those are the frames boot work is stuttering through: `damp` fed
+    // erratic deltas moves in lurches, and the whole thing reads as the camera
+    // wobbling in and out as the page loads.
+    this.camera.fov = this.tuning.fov;
+    this.camera.updateProjectionMatrix();
     this.teleport(new THREE.Vector3(0, 2, 6), 0);
   }
 
@@ -257,6 +315,7 @@ export class Controller {
 
     if (this.grounded) {
       this.timeOffGround = 0;
+      this.timeSinceLand += dt;
       this.applyFriction(dt);
     } else {
       this.timeOffGround += dt;
@@ -265,15 +324,19 @@ export class Controller {
 
     this.applyWish(dt);
     this.applyJump();
+    this.capAirSpeed();
 
     const wasGrounded = this.grounded;
     const impact = -this.velocity.y;
 
     this.move(dt);
 
-    if (this.grounded && !wasGrounded && impact > 1) {
-      this.dip += Math.min(impact, 18) * t.landDip;
-      this.onLand?.(impact);
+    if (this.grounded && !wasGrounded) {
+      this.timeSinceLand = 0;
+      if (impact > 1) {
+        this.dip += Math.min(impact, 18) * t.landDip;
+        this.onLand?.(impact);
+      }
     }
 
     this.advanceBob(dt);
@@ -342,6 +405,24 @@ export class Controller {
     this.velocity.addScaledVector(_wish, Math.min(accel * wishSpeed * dt, shortfall));
   }
 
+  /**
+   * Bounds horizontal speed in the air. See `maxAirSpeed`.
+   *
+   * Horizontal only — scaling the vertical component too would turn the cap
+   * into a parachute, slowing every fall the moment a player happened to be
+   * moving quickly sideways.
+   */
+  private capAirSpeed(): void {
+    if (this.grounded) return;
+    const t = this.tuning;
+    const max = t.walkSpeed * t.sprintScale * t.maxAirSpeed;
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    if (speed <= max || speed < 1e-6) return;
+    const scale = max / speed;
+    this.velocity.x *= scale;
+    this.velocity.z *= scale;
+  }
+
   private applyJump(): void {
     const t = this.tuning;
     const canJump = this.grounded || this.timeOffGround < t.coyoteTime;
@@ -353,6 +434,10 @@ export class Controller {
     this.velocity.y = t.jumpSpeed;
     this.grounded = false;
     this.jumped = true;
+    // Only when this is a push-off in its own right, not the second half of a
+    // hop that has just landed.
+    if (this.timeSinceLand > HOP_CONTINUATION) this.onJump?.();
+    this.timeSinceLand = 0;
     // Spent, so the coyote window cannot be used twice for one jump.
     this.timeOffGround = t.coyoteTime;
   }
@@ -577,7 +662,16 @@ export class Controller {
 
     this.camera.rotation.set(this.pitch, this.yaw, Math.sin(cycle) * t.bobRoll * intensity);
 
-    const targetFov = this.input.sprint && this.speed > 0.5 ? t.sprintFov : t.fov;
+    // Hysteresis on the speed gate. A single threshold makes the FOV flap
+    // between the two values whenever you happen to be moving at about that
+    // speed with sprint held — which is a zoom oscillating at frame rate, and
+    // reads as the camera wobbling in and out.
+    if (this.sprintFov) {
+      if (!this.input.sprint || this.speed < 0.4) this.sprintFov = false;
+    } else if (this.input.sprint && this.speed > 1.2) {
+      this.sprintFov = true;
+    }
+    const targetFov = this.sprintFov ? t.sprintFov : t.fov;
     const fov = THREE.MathUtils.damp(this.camera.fov, targetFov, 6, dt);
     if (Math.abs(fov - this.camera.fov) > 1e-3) {
       this.camera.fov = fov;

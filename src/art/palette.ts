@@ -47,3 +47,23 @@ export const PALETTE = {
 } as const;
 
 export type PaletteName = keyof typeof PALETTE;
+
+/**
+ * Multiplies a colour's brightness, clamped per channel.
+ *
+ * For giving the individual boards of a floor, a table top or a door leaf
+ * slightly different timber. A surface built from one repeated colour reads as
+ * a texture-less plane however many polygons it has, and varying the value by
+ * a few percent per piece is the cheapest fix there is.
+ *
+ * Operates on the packed hex directly rather than through `THREE.Color`, which
+ * would convert into linear space on the way in and back out — that would make
+ * a factor of 1.1 mean something different for a dark colour than for a light
+ * one, which is not what any caller wants.
+ */
+export function shade(hex: number, factor: number): number {
+  const r = Math.min(255, Math.round(((hex >> 16) & 0xff) * factor));
+  const g = Math.min(255, Math.round(((hex >> 8) & 0xff) * factor));
+  const b = Math.min(255, Math.round((hex & 0xff) * factor));
+  return (r << 16) | (g << 8) | b;
+}

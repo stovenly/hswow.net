@@ -7,11 +7,16 @@ import { Input, isTouchDevice } from './engine/Input';
 import { Collider } from './player/Collider';
 import { Controller } from './player/Controller';
 import { TouchControls } from './ui/TouchControls';
-import { ProvingGround, SPAWN, type SurfaceName } from './debug/ProvingGround';
+import { ProvingGround, type SurfaceName } from './debug/ProvingGround';
 import { SoundGarden } from './debug/SoundGarden';
 import { createGallery, galleryOrder } from './debug/Gallery';
 import { AudioEngine } from './audio/AudioEngine';
 import { createDevTools } from './debug/DevPanel';
+import { ZoneManager } from './world/ZoneManager';
+import { Interaction } from './world/Interaction';
+import { Reticle, Fade } from './ui/Reticle';
+import { createTestWorld, ZONE_EXTERIOR, ZONE_VILLAGE } from './debug/zones';
+import { Loader } from './ui/Loader';
 
 const canvas = document.getElementById('viewport');
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -32,34 +37,103 @@ viewport.scene.fog = new THREE.Fog(0x0a0a0f, 20, 90);
 const postfx = new PostFX(viewport);
 viewport.onResize = () => postfx.resize();
 
-const provingGround = new ProvingGround();
-viewport.scene.add(provingGround.root);
-
-// Added before the collider is built, so the gallery pieces are solid.
-provingGround.root.add(createGallery());
-
 const collider = new Collider();
-// World transforms have to be current before triangles are read out of the
-// scene graph, and nothing has rendered yet at this point.
-provingGround.root.updateWorldMatrix(true, true);
-collider.build(provingGround.root);
-
 const input = new Input(canvas);
 const player = new Controller(viewport.camera, input, collider);
-player.teleport(SPAWN, 0);
+
+// --- boot -------------------------------------------------------------------
+// Sequenced behind a loading screen rather than run in one synchronous burst.
+//
+// None of this is a download — every triangle and every sample is generated
+// here — so there is no network progress to report, but there is easily a
+// second of work, and a second of blank page looks like a fault. Splitting it
+// into steps also stops the whole thing landing in one frame, which is what
+// made the first seconds of play stutter.
+const loader = new Loader(document.body);
+
+const provingGround = await loader.step(
+  'shaping the ground',
+  0.12,
+  () => new ProvingGround(),
+);
+
+// Built here rather than inside the zone builder so it gets its own step — it
+// is two dozen builders at eight instances each and the single heaviest thing
+// in the boot.
+const gallery = await loader.step('raising the props', 0.42, () => createGallery());
+
+// --- zones ------------------------------------------------------------------
+// Nothing is added to the scene or to the collider here. `ZoneManager.enter`
+// owns both, because exactly one zone is ever present in either, and having two
+// places that add geometry is how a zone ends up half-swapped.
+const zones = new ZoneManager({
+  scene: viewport.scene,
+  collider,
+  player,
+  postfx,
+  interaction: new Interaction(),
+  reticle: new Reticle(overlay),
+  fade: new Fade(overlay),
+});
+
+const world = createTestWorld(provingGround, { gallery: () => gallery });
+for (const definition of world.zones) zones.register(definition);
+// Linked after every zone is registered — a portal to an unregistered zone
+// throws here rather than when somebody opens the door.
+for (const portal of world.portals) zones.link(portal);
+
+// Builds the exterior's geometry and indexes all of it for collision, which on
+// a world this size is a couple of hundred milliseconds on its own.
+await loader.step('settling the world', 0.6, () => zones.enter(ZONE_EXTERIOR));
+
+// Built now rather than on first entry. A zone this size takes longer to raise
+// than the transition fade is black for, so paying it here keeps the doorway
+// instant — and the collider caches it, so it is paid exactly once.
+await loader.step('raising arkstin', 0.78, () => zones.prebuild(ZONE_VILLAGE));
 
 // --- audio ----------------------------------------------------------------
-// The engine exists immediately but its context is suspended until a gesture,
-// and the emitters cannot be built until the noise buffers and room impulse
-// responses have been rendered. So the garden arrives a beat late, and the
-// frame loop has to cope with it not being there yet.
+// The context is suspended until a gesture, but the noise buffers and the room
+// impulse responses are rendered offline regardless, and the emitters cannot be
+// built until they are done.
 const audio = new AudioEngine();
 let garden: SoundGarden | null = null;
 
-void audio.ready.then(() => {
+await loader.step('rendering the rooms', 0.86, () => audio.ready);
+
+await loader.step('tuning the air', 0.96, () => {
   garden = new SoundGarden(audio, provingGround, collider, viewport.camera);
-  player.onFootstep = (speed) => garden?.footsteps.step(speed);
+  player.onFootstep = (speed) => {
+    if (!garden) return;
+    // Sampled per step rather than per zone: outdoors the ground cover changes
+    // under you, and a cobbled lane that sounds like the grass beside it is
+    // only paint.
+    const at = player.position;
+    garden.footsteps.surface = zones.surfaceAt(at.x, at.z);
+    garden.footsteps.step(speed);
+  };
+  // Landing is part of the same system — same surface, same models, different
+  // gesture. Without this, jumping on the spot is completely silent.
+  player.onLand = (impact) => {
+    if (!garden) return;
+    const at = player.position;
+    garden.footsteps.surface = zones.surfaceAt(at.x, at.z);
+    garden.footsteps.land(impact);
+  };
+  // The push-off. The controller decides whether this one counts — a hop
+  // chained straight off a landing does not, because the landing was the same
+  // contact with the ground.
+  player.onJump = () => {
+    if (!garden) return;
+    const at = player.position;
+    garden.footsteps.surface = zones.surfaceAt(at.x, at.z);
+    garden.footsteps.jump();
+  };
+  zones.attachAudio({ engine: audio, footsteps: garden.footsteps });
+  // The garden is the exterior's, and it has no way to notice being left.
+  garden.setActive(zones.current?.id === ZONE_EXTERIOR);
 });
+
+zones.onZoneChange = (zone) => garden?.setActive(zone.id === ZONE_EXTERIOR);
 
 // On touch there is no capture step, so the game is live from the first frame.
 if (isTouchDevice()) {
@@ -104,9 +178,12 @@ if (dev.gui) {
   clouds.add(r.sky, 'cloudOpacity', 0, 1, 0.01).name('opacity').onChange(refresh);
   clouds.add(r.sky, 'cloudDrift', 0, 0.1, 0.001).name('drift').onChange(refresh);
 
+  // Owned by the zone manager and overwritten on every crossing, so these are
+  // for looking at a zone's lighting rather than for dialling one in — that
+  // belongs in the zone's environment, in data.
   const lights = dev.gui.addFolder('light').close();
-  lights.add(provingGround.lights.sun, 'intensity', 0, 5, 0.1).name('sun');
-  lights.add(provingGround.lights.sky, 'intensity', 0, 5, 0.1).name('ambient');
+  lights.add(zones.lights.sun, 'intensity', 0, 5, 0.1).name('sun');
+  lights.add(zones.lights.ambient, 'intensity', 0, 5, 0.1).name('ambient');
 
   const fogFolder = dev.gui.addFolder('fog').close();
   fogFolder.add(r, 'linkFogToSky').name('match horizon').onChange(refresh);
@@ -246,6 +323,8 @@ if (dev.gui) {
     position: '',
     triangles: collider.triangles,
     gallery: galleryOrder(),
+    zone: '—',
+    crossings: 0,
     room: '—',
     // Audio has no visible output at all, so a readout of what it thinks is
     // happening is the only way to tell "occlusion is broken" apart from
@@ -260,21 +339,35 @@ if (dev.gui) {
   state.add(readout, 'speed').listen().disable();
   state.add(readout, 'grounded').listen().disable();
   state.add(readout, 'position').listen().disable();
+  state.add(readout, 'zone').listen().disable();
+  state.add(readout, 'crossings').listen().disable();
   state.add(readout, 'room').listen().disable();
   state.add(readout, 'audio').listen().disable();
   state.add(readout, 'gust').listen().disable();
   state.add(readout, 'swell').listen().disable();
   state.add(readout, 'machine').listen().disable();
   state.add(readout, 'emitters').name('audible / occluded').listen().disable();
-  state.add(readout, 'triangles').disable();
+  // Triangles change with the zone now, so this has to be watched rather than
+  // read once — it is also the first place a collider leak would show up.
+  state.add(readout, 'triangles').listen().disable();
   state.add(readout, 'gallery').name('gallery order').disable();
-  state.add({ respawn: () => player.teleport(SPAWN, 0) }, 'respawn');
+  state.add({ respawn: () => zones.respawn() }, 'respawn');
+
+  // Jumping straight to a zone, without walking to its door. Mostly for
+  // getting back out of an interior after breaking the door that leads there.
+  const travel = dev.gui.addFolder('zones');
+  for (const zone of zones.zones.values()) {
+    travel.add({ go: () => zones.enter(zone.id) }, 'go').name(zone.name);
+  }
 
   loop.add(() => {
     readout.speed = player.speed.toFixed(2);
     readout.grounded = player.isGrounded ? 'yes' : 'no';
     const p = player.position;
     readout.position = `${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
+    readout.zone = zones.current?.name ?? '—';
+    readout.crossings = zones.crossings;
+    readout.triangles = collider.triangles;
     readout.room = audio.room ?? 'open';
     readout.audio = garden === null ? 'rendering…' : audio.context.state;
     readout.gust = audio.weather.strength.toFixed(2);
@@ -285,16 +378,40 @@ if (dev.gui) {
   });
 }
 
-// A floor under the world, so a fall through a seam is recoverable rather than
-// permanent. Real death planes belong to zones in Phase 5.
-const VOID_Y = -20;
-
 loop.add((dt, elapsed) => {
   player.update(dt);
-  if (player.position.y < VOID_Y) player.teleport(SPAWN, 0);
+
+  // A floor under the world, so a fall through a seam is recoverable rather
+  // than permanent. Each zone sets its own — an interior's is just below its
+  // floor, because down there is not a fall, it is a bug.
+  const zone = zones.current;
+  if (zone && player.position.y < zone.floor) zones.respawn();
+
+  const door = zones.update();
+  // Consumed unconditionally. Read only when a door is in front of you, a
+  // press aimed at nothing would sit in the buffer and fire at whatever you
+  // happened to look at next.
+  const interacted = input.takeInteract();
+  if (interacted && door) void zones.use(door);
+
   garden?.update(dt);
   postfx.render(elapsed);
   dev.update();
 });
 
+// One frame drawn *before* the boot screen fades, so it reveals the world
+// rather than an empty canvas. The composer has never run at this point — its
+// render targets are allocated but nothing has been drawn into them — and
+// fading out over that shows black for the length of the fade.
+//
+// The zero-length update is not a formality. `teleport` moves the *capsule*;
+// the camera is only placed by `applyCamera`, which runs at the end of an
+// update — so until one has happened the camera is still at the origin the
+// `PerspectiveCamera` constructor left it at. Rendering before that draws the
+// world from ground level, and the player sees themselves half sunk into the
+// floor for a frame before the loop starts and pops them up to eye height.
+player.update(0);
+postfx.render(0);
+
+await loader.done();
 loop.start();

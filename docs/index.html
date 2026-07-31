@@ -13,14 +13,80 @@
     <!-- The title with its vowels taken out. The description keeps the real one,
          so search and link previews still say what this is. -->
     <title>hevn.slps.wthn.our.wnds</title>
-    <script type="module" crossorigin src="./assets/index-DVR3Ur0j.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Te5ZAgRV.css">
+
+    <!--
+      Critical first-paint styles, inline on purpose.
+
+      `styles.css` is imported from `main.ts`, so Vite serves it *through
+      JavaScript* — which means there is a window, before that module has run,
+      where the browser paints this document with its own default styles: a
+      white page, black text, and the capture hint sitting in the corner. The
+      flash is brief and extremely obvious, and nothing inside the app can fix
+      it, because the app has not started yet.
+
+      So everything the first frame needs is duplicated here: the dark ground
+      colour, and the loading screen itself. The loading markup is static rather
+      than built in script for the same reason — it has to exist before any
+      script runs. `ui/Loader.ts` adopts these elements instead of creating its
+      own, and `styles.css` restates these rules for the rest of the session.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a0f;
+        color: #dcdcc8;
+        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      }
+      /* Scoped to the class so it stops applying the moment boot removes it. An
+         unscoped rule here would keep the hint hidden for the whole session. */
+      .is-loading #capture-hint {
+        opacity: 0;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 1.1rem;
+        background: #0a0a0f;
+      }
+      .loading-track {
+        width: min(19rem, 56vw);
+        height: 1px;
+        overflow: hidden;
+        background: rgb(220 220 200 / 18%);
+      }
+      .loading-bar {
+        width: 100%;
+        height: 100%;
+        background: #dcdcc8;
+        transform: scaleX(0);
+        transform-origin: left center;
+      }
+      .loading-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.22em;
+        text-transform: lowercase;
+        color: rgb(220 220 200 / 55%);
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-C2V0hgPt.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Dej4_7Li.css">
   </head>
-  <body>
+  <body class="is-loading">
     <canvas id="viewport"></canvas>
     <div id="overlay">
       <div id="crosshair"></div>
       <div id="capture-hint">click to look &middot; wasd &middot; shift &middot; space</div>
-    </div>
+    </div>
+    <div id="loading">
+      <div class="loading-track"><div class="loading-bar"></div></div>
+      <div class="loading-label">starting</div>
+    </div>
   </body>
 </html>

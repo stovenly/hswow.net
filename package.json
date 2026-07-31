@@ -11,7 +11,8 @@
     "check:movement": "esbuild tools/movement-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/movement-check.mjs && node node_modules/.cache/movement-check.mjs",
     "check:audio": "esbuild tools/audio-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/audio-check.mjs && node node_modules/.cache/audio-check.mjs",
     "check:art": "esbuild tools/art-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/art-check.mjs && node node_modules/.cache/art-check.mjs",
-    "check": "npm run check:movement && npm run check:audio && npm run check:art"
+    "check": "npm run check:movement && npm run check:audio && npm run check:art && npm run check:world",
+    "check:world": "esbuild tools/world-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/world-check.mjs && node node_modules/.cache/world-check.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.170.0",

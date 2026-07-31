@@ -244,5 +244,48 @@ if (process.argv.includes('--trace')) {
   }
 }
 
+// --- air-strafing cannot run away -----------------------------------------
+// Quake acceleration adds up to the shortfall between speed *along the wish
+// direction* and the wish speed. Point the wish sideways to where you are
+// already going and that dot product stays near zero, so the shortfall stays
+// near full and the acceleration lands at right angles — which grows the total
+// speed by Pythagoras rather than by addition. With no air friction, every jump
+// keeps whatever the last one gained.
+//
+// Performed here the way a player performs it: hold sprint, hop the instant
+// there is ground to hop from, and sweep the heading and the strafe together so
+// the wish direction keeps leading the velocity. Run out on empty ground well
+// west of the gym and the rooms, so this measures acceleration rather than how
+// often it runs into a wall.
+{
+  const state = player as unknown as { velocity: THREE.Vector3; yaw: number };
+  reset(-60, 0.1, 90, 0);
+  input.sprint = true;
+  input.moveZ = 1;
+
+  let fastest = 0;
+  let turn = 0;
+  const dt = 1 / 60;
+  for (let i = 0; i < 60 * 12; i++) {
+    if (player.isGrounded) input.press();
+    turn += dt * 2.4;
+    state.yaw = Math.sin(turn) * 0.9;
+    input.moveX = Math.cos(turn) > 0 ? 1 : -1;
+    player.update(dt);
+    fastest = Math.max(fastest, Math.hypot(state.velocity.x, state.velocity.z));
+  }
+  input.sprint = false;
+  input.moveX = 0;
+  input.moveZ = 0;
+
+  const sprintSpeed = t.walkSpeed * t.sprintScale;
+  const ceiling = sprintSpeed * t.maxAirSpeed;
+  check(
+    'air-strafing cannot run away',
+    fastest <= ceiling * 1.02,
+    `peaked ${fastest.toFixed(2)} m/s vs ${ceiling.toFixed(2)} cap (sprint ${sprintSpeed.toFixed(2)})`,
+  );
+}
+
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

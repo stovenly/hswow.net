@@ -18,6 +18,7 @@ import { PALETTE } from '../palette';
  */
 export const mushroom: MeshBuilder = {
   name: 'mushroom',
+  category: 'foliage',
   radius: 0.4,
   solid: false,
 
