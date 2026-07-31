@@ -31,7 +31,17 @@ export const PALETTE = {
   TIMBER_DARK: 0x453727,
 
   IRON: 0x5a5f63,
+  IRON_DARK: 0x3f4448,
   RUST: 0x7a4a30,
+  /**
+   * The colour of a flame seen directly, not of anything lit by one.
+   *
+   * Only ever used on `GLOW_MATERIAL`, which is additive and unlit — so this is
+   * read as an amount of light to add rather than as a surface colour, and it
+   * is deliberately far brighter than anything else in the table. Used on a lit
+   * material it would come out as cream-coloured paint.
+   */
+  LAMPLIGHT: 0xffe0a8,
   CLOTH: 0x8d8672,
   SKIN: 0xa8927a,
 
