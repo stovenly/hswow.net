@@ -287,5 +287,63 @@ if (process.argv.includes('--trace')) {
   );
 }
 
+// --- coyote time ----------------------------------------------------------
+// Players press jump *as* they reach an edge, not a frame before it. Without a
+// grace window the honest result — nothing happens — reads as the game dropping
+// inputs rather than as the player being late, so there is a window in which
+// walking off a ledge still counts as standing on it.
+//
+// Both halves matter. A window that never expires is a double jump, and one
+// that never opens is the bug it was meant to fix, so this measures the vertical
+// velocity on the frame the press lands: a real jump sets it to `jumpSpeed`, and
+// a refused one leaves it falling.
+//
+// Run off the high walkway rather than a kerb, so there is enough airtime to
+// test a press from *outside* the window while still off the ground.
+{
+  const state = player as unknown as { velocity: THREE.Vector3 };
+  const dt = 1 / 60;
+
+  const pressAfterLeaving = (delay: number): number => {
+    // North end, walking on toward -Z. The *south* end of the walkway adjoins
+    // the 45 degree ramp's landing, so walking off that way just strolls back
+    // down the ramp and never leaves the ground at all.
+    reset(-18, 4.05, -14.5, 0);
+    input.moveZ = 1;
+    let leftGround = -1;
+    let pressed = false;
+    let verticalAfterPress = 0;
+    for (let i = 0; i < 60 * 3; i++) {
+      const now = i * dt;
+      if (leftGround < 0 && !player.isGrounded) leftGround = now;
+      if (leftGround >= 0 && !pressed && now - leftGround >= delay) {
+        input.press();
+        pressed = true;
+        player.update(dt);
+        verticalAfterPress = state.velocity.y;
+        continue;
+      }
+      player.update(dt);
+    }
+    input.moveZ = 0;
+    return verticalAfterPress;
+  };
+
+  const t2 = player.tuning;
+  const inside = pressAfterLeaving(t2.coyoteTime * 0.45);
+  const outside = pressAfterLeaving(t2.coyoteTime + 0.12);
+
+  check(
+    'a jump just after a ledge still fires',
+    inside > t2.jumpSpeed * 0.9,
+    `vy=${inside.toFixed(2)} after leaving the edge, jumpSpeed is ${t2.jumpSpeed}`,
+  );
+  check(
+    'the coyote window does expire',
+    outside < 0,
+    `vy=${outside.toFixed(2)} once ${(t2.coyoteTime + 0.12).toFixed(2)} s past the edge`,
+  );
+}
+
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

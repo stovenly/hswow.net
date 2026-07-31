@@ -75,33 +75,123 @@ body.is-playing #crosshair {
   opacity: 0.85;
 }
 
-/* Prompt to click into the game. Desktop only — there is nothing to capture on
-   a phone, so TouchControls hides it. */
+/* The capture panel — the closest thing to a pause screen. Desktop only: there
+   is nothing to capture on a phone, so TouchControls hides it.
+
+   This is where the controls are taught, which is why the interaction tooltip
+   no longer carries a key cap of its own. A prompt that repeats the key every
+   time you look at a door is teaching something the player learned once. */
 #capture-hint {
   position: fixed;
+  /* Hangs *below* the crosshair, mirroring the interaction prompt above it.
+     Centred, the panel sat exactly where a door tooltip appears — the two are
+     never on screen together today, since one shows only while captured and the
+     other only while not, but sharing the middle of the screen makes that an
+     accident of state rather than a decision, and the middle is where the
+     player is looking. */
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 0.7rem 1.1rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  margin-top: 22px;
+  transform: translateX(-50%);
+  padding: 1.15rem 1.5rem 1.25rem;
   color: var(--ink);
   /* Opaque enough to read against anything behind it. The panel used to be
      translucent and the whole element faded to 55%, so over a dark scene it
      was pale text on a dark background — legible only where the sky happened
      to be behind it. Full opacity on the element, solid-ish fill on the box,
      and the text carries its own contrast wherever it lands. */
-  background: rgb(10 10 15 / 82%);
-  border: 1px solid rgb(220 220 200 / 40%);
+  background: rgb(10 10 15 / 86%);
+  border: 1px solid rgb(220 220 200 / 32%);
   pointer-events: none;
-  white-space: nowrap;
   transition: opacity 160ms linear;
 }
 
 body.is-playing #capture-hint,
 body.is-touch #capture-hint {
   opacity: 0;
+}
+
+.hint-title {
+  margin-bottom: 1rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgb(220 220 200 / 55%);
+}
+
+/* Two columns: what it does on the left, what to press on the right.
+   The names are right-aligned against the gutter so the keys all start on the
+   same line — ragged on the left of a key column reads as a list of unrelated
+   things rather than as a table of controls. */
+.controls {
+  /* One height for every cap and icon in the panel.
+     Declared here rather than on `.key` because the mouse glyph has to match it
+     too — and because it must not be an `em`. A cap sized in `em` resolves
+     against its *own* font-size, so setting SHIFT and SPACE in smaller type to
+     fit their words also made those caps shorter, and the first three rows came
+     out visibly taller than the last two. */
+  --key-size: 1.5rem;
+
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+}
+
+.controls dt {
+  text-align: right;
+  color: rgb(220 220 200 / 78%);
+}
+
+.controls dd {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  /* Holds the row open even for a glyph shorter than a cap, so the rows stay
+     evenly pitched however their contents are drawn. */
+  min-height: var(--key-size);
+}
+
+/* A key cap: a face with a lip under it.
+   The heavier bottom border is the whole trick — one extra pixel along one edge
+   reads as depth, and depth is what separates a key from a boxed letter. */
+.key {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--key-size);
+  height: var(--key-size);
+  padding: 0 0.45em;
+  font: inherit;
+  font-size: 0.92em;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--ink);
+  background: rgb(220 220 200 / 11%);
+  border: 1px solid rgb(220 220 200 / 42%);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+}
+
+/* Named keys carry a word rather than a letter, so the *type* comes down to fit
+   it. Only the type: the cap keeps `--key-size`, so a row with SPACE in it is
+   exactly as tall as a row with E in it. */
+.key-wide {
+  font-size: 0.74em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.control-mouse {
+  /* Matched to the caps, so the icon row is pitched like every other row. */
+  height: var(--key-size);
+  width: calc(var(--key-size) * 1.2);
+  fill: none;
+  stroke: rgb(220 220 200 / 78%);
+  stroke-width: 1.3;
+  stroke-linecap: round;
 }
 
 /* --- boot ---------------------------------------------------------------- */
@@ -169,17 +259,16 @@ body.is-loading #capture-hint {
    above keeps the label in the same glance without covering the target.
 
    Positioned by its own bottom edge against the middle of the screen, so a
-   long name grows outward from the centre instead of shifting the whole label
-   sideways as it changes. */
+   long name grows upward and outward from the centre instead of shifting the
+   whole block sideways as it changes. */
 #prompt {
   position: fixed;
   bottom: 50%;
   left: 50%;
-  display: flex;
-  gap: 0.55em;
-  align-items: center;
-  margin-bottom: 18px;
-  padding: 0.4rem 0.7rem;
+  display: grid;
+  justify-items: center;
+  margin-bottom: 22px;
+  padding: 0.5rem 0.85rem;
   font-size: 0.78rem;
   letter-spacing: 0.1em;
   color: var(--ink);
@@ -204,19 +293,45 @@ body.is-loading #capture-hint {
   transform: translate(-50%, 0);
 }
 
-/* The key cap, styled as a key rather than as a word — otherwise it reads as
-   part of the name of the place you are about to walk into. */
-#prompt kbd {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.55em;
-  padding: 0.15em 0.3em;
-  font: inherit;
-  font-size: 0.9em;
-  letter-spacing: 0;
-  color: var(--void);
-  background: var(--ink);
-  border-radius: 2px;
+/* Only while captured, exactly like the crosshair.
+   The interaction ray is cast every frame whether or not the mouse is held, so
+   releasing it with a door under the crosshair left the tooltip on screen —
+   alongside the controls panel, which is the collision the panel was moved
+   below the crosshair to avoid. Hiding it here rather than in the zone manager
+   keeps it a property of the HUD: you cannot interact while not captured, so a
+   prompt saying what you could do is noise. */
+body:not(.is-playing) #prompt {
+  opacity: 0;
+}
+
+/* Three stacked lines, every one centred on the others:
+
+       Wooden Door
+            to
+     Arkstin Village
+
+   A grid rather than three block elements, so the column takes the width of
+   its widest line and the other two centre against that — which is what makes
+   the joining word sit under the middle of the name above it however long
+   either of them turns out to be. */
+.prompt-lines {
+  display: grid;
+  justify-items: center;
+  gap: 0.12em;
+  line-height: 1.3;
+}
+
+/* A joiner, not a label: small, dim, and lower case, so the eye passes over it
+   on the way from the object to the destination instead of reading it as a
+   third piece of information. */
+.prompt-to {
+  font-size: 0.78em;
+  letter-spacing: 0.16em;
+  color: rgb(220 220 200 / 45%);
+}
+
+.prompt-target {
+  color: rgb(220 220 200 / 92%);
 }
 
 /* --- zone transition ----------------------------------------------------- */

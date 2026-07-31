@@ -48,6 +48,20 @@ export interface PlayerTuning {
   walkSpeed: number;
   sprintScale: number;
   groundAccel: number;
+  /**
+   * Steering authority while airborne.
+   *
+   * Deliberately generous — about half the ground figure, where a cautious
+   * controller uses a fifth of it. A jump you cannot adjust once you have left
+   * the ground is a jump you have to line up perfectly *before* taking it, and
+   * a game about moving over things becomes a game about standing still and
+   * aiming.
+   *
+   * **This is only safe because `maxAirSpeed` exists.** Quake air acceleration
+   * has no upper bound, so raising this without a speed cap would not have made
+   * the player more agile, it would have made air-strafing accumulate faster.
+   * With the magnitude capped, this buys steering and nothing else.
+   */
   airAccel: number;
   friction: number;
   /** Floor under the friction curve, so low speeds still stop crisply. */
@@ -56,7 +70,15 @@ export interface PlayerTuning {
   /** Well above 9.81. Real gravity reads as floating in a first-person game. */
   gravity: number;
   jumpSpeed: number;
-  /** Grace period after walking off a ledge during which a jump still works. */
+  /**
+   * Grace period after walking off a ledge during which a jump still works.
+   *
+   * Generous on purpose. Players press jump *as* they reach an edge, not a
+   * frame before it, and the honest version of that — no grace at all — reads
+   * as the game dropping inputs rather than as the player being late. A fifth
+   * of a second is long enough to cover a normal mistime and short enough that
+   * jumping from thin air never looks like it.
+   */
   coyoteTime: number;
   /** How early a jump press can land before touchdown and still be honoured. */
   jumpBuffer: number;
@@ -130,13 +152,13 @@ export const DEFAULT_TUNING: PlayerTuning = {
   walkSpeed: 4.2,
   sprintScale: 1.75,
   groundAccel: 14,
-  airAccel: 3,
+  airAccel: 7.5,
   friction: 10,
   stopSpeed: 1.6,
 
   gravity: 26,
   jumpSpeed: 7.2,
-  coyoteTime: 0.12,
+  coyoteTime: 0.22,
   jumpBuffer: 0.15,
   autoHop: false,
 

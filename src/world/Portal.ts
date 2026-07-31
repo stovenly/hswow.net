@@ -97,7 +97,14 @@ export interface PortalSide {
   readonly arrival: Placement;
   /** Set once the door mesh has been built into its zone. */
   door: THREE.Mesh | null;
-  /** What the tooltip says. Resolved against zone names at registration. */
+  /**
+   * What kind of door this is — the tooltip's first line.
+   *
+   * Filled in when the mesh is bound, because the kind is rolled from the
+   * door's seed and is not knowable before it has been built.
+   */
+  title: string;
+  /** Where it goes — the tooltip's last line. Resolved against zone names. */
   label: string;
 }
 
@@ -132,6 +139,7 @@ export class PortalGraph {
       target,
       arrival: arrivalFor(target),
       door: null,
+      title: 'Door',
       // A door is labelled with where it *goes*, not with where it is. Standing
       // outside a building, the useful thing to be told is the name of the
       // building; standing inside it, the name of the street.
@@ -148,8 +156,9 @@ export class PortalGraph {
   }
 
   /** Called once a side's door mesh exists, to make it findable by raycast. */
-  bind(side: PortalSide, door: THREE.Mesh): void {
+  bind(side: PortalSide, door: THREE.Mesh, title: string): void {
     side.door = door;
+    side.title = title;
     door.userData.portal = side;
     this.byDoor.set(door, side);
   }
