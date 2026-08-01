@@ -1,4 +1,4 @@
-# Heaven Sleeps Within Our Wounds
+# Here Stands What Once Was
 
 A first-person browser game. three.js, TypeScript, no art assets — every mesh and every
 sound is generated in code.
@@ -14,7 +14,9 @@ npm run dev             # dev server with HMR, exposed on the LAN
 npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
 npm run check:art       # builder determinism, sway weights, scale
-npm run check           # all three
+npm run check:world     # zone graph, portals, terrain, prop placement
+npm run check:faust     # every .dsp matches its committed .wasm
+npm run check           # all five
 ```
 
 `docs/` is committed on purpose — it is what GitHub Pages serves. It is also Vite's output
@@ -64,10 +66,11 @@ See **[SPEC.md](SPEC.md)** — phases, status, locked decisions, open questions,
 reasoning behind the audio and dialogue systems. It is written to be read without prior
 context and is the source of truth for the build.
 
-Phases 0 (harness), 1 (first-person controller), 2 (render pipeline) and 3 (procedural
-audio) are in place.
+Phases 0 through 6 are in place: harness, first-person controller, render pipeline,
+procedural audio, art kit, zones and portals, and zone soundscapes.
+
 Click to capture the mouse, WASD to move, shift to sprint, space to jump, Escape to
 release. On a phone the left half of the screen is a stick and the right half is look.
 
-Open `?debug` to tune the look — pixel size, dither, quantization, palette, vignette, fog
+Open `?debug` to tune the look — pixel size, edge strength, levels, dither, vignette, fog
 — then **preset → save** to keep it across reloads.
