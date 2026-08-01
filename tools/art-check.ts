@@ -22,6 +22,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { MeshBuilder } from '../src/art/types';
 import { SWAY_ATTRIBUTE } from '../src/art/assemble';
+import { FLEX } from '../src/art/flex';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
@@ -69,6 +70,30 @@ import { railing } from '../src/art/builders/railing';
 import { reeds } from '../src/art/builders/reeds';
 import { rock } from '../src/art/builders/rock';
 import { smallTree } from '../src/art/builders/small-tree';
+import { rowan } from '../src/art/builders/rowan';
+import { smallRowan } from '../src/art/builders/small-rowan';
+// Interior. `window` is declared as `windowBuilder` in its own file because a
+// module-scope `const window` shadows the DOM global for the whole file; it is
+// re-exported under the bare name too, and the builder's `name` is 'window'.
+import { windowBuilder } from '../src/art/builders/window';
+import { fireplace } from '../src/art/builders/fireplace';
+import { stove } from '../src/art/builders/stove';
+import { broom } from '../src/art/builders/broom';
+import { chest } from '../src/art/builders/chest';
+import { dresser } from '../src/art/builders/dresser';
+import { hangingHerbs } from '../src/art/builders/hanging-herbs';
+import { spinningWheel } from '../src/art/builders/spinning-wheel';
+import { wallPegs } from '../src/art/builders/wall-pegs';
+import { washtub } from '../src/art/builders/washtub';
+import { elder } from '../src/art/builders/elder';
+import { gorse } from '../src/art/builders/gorse';
+import { hazel } from '../src/art/builders/hazel';
+import { birch } from '../src/art/builders/birch';
+import { smallBirch } from '../src/art/builders/small-birch';
+import { oak } from '../src/art/builders/oak';
+import { smallOak } from '../src/art/builders/small-oak';
+import { spruce } from '../src/art/builders/spruce';
+import { smallSpruce } from '../src/art/builders/small-spruce';
 import { sink } from '../src/art/builders/sink';
 import { stool } from '../src/art/builders/stool';
 import { streetlamp } from '../src/art/builders/streetlamp';
@@ -149,6 +174,27 @@ const builders: MeshBuilder[] = [
   reeds,
   rock,
   smallTree,
+  rowan,
+  smallRowan,
+  windowBuilder,
+  fireplace,
+  stove,
+  broom,
+  chest,
+  dresser,
+  hangingHerbs,
+  spinningWheel,
+  wallPegs,
+  washtub,
+  elder,
+  gorse,
+  hazel,
+  birch,
+  smallBirch,
+  oak,
+  smallOak,
+  spruce,
+  smallSpruce,
   sink,
   stool,
   streetlamp,
@@ -182,6 +228,23 @@ check(
   onDisk.join(',') === imported.join(',')
     ? `${onDisk.length} builders`
     : `on disk [${onDisk}] vs imported [${imported}]`,
+);
+
+// --- the flex table names real builders -----------------------------------
+//
+// `FLEX` is keyed by builder name and anything missing from it does not move.
+// That default is deliberate — an anvil should never wobble because somebody
+// forgot — but it makes a *typo* silent: `'sunflowr': 0.2` is not an error,
+// it is a sunflower that has quietly gone rigid, and nothing about the frame
+// rate, the geometry or the checks would say so. Only standing in a field on
+// a windy day would, and only if you were looking at the right plant.
+const stale = Object.keys(FLEX).filter((name) => !onDisk.includes(name));
+check(
+  'every flex entry names a builder',
+  stale.length === 0,
+  stale.length === 0
+    ? `${Object.keys(FLEX).length} species bend, ${onDisk.length - Object.keys(FLEX).length} are rigid`
+    : `no such builder: ${stale.join(', ')}`,
 );
 
 console.log('');

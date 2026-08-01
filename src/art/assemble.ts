@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { FLEX } from './flex';
+import { SWAY_DEPTH_MATERIAL } from './sway';
 
 /**
  * Turning a pile of primitives into one mesh.
@@ -120,15 +122,39 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
 /**
  * Finishes a merged geometry into a mesh.
  *
- * `swayPhase` is stamped here rather than in the shader. Every instance needs
- * its own offset — trees moving in unison read instantly as one mechanism
- * rather than as many things standing in the same wind — and the builder is
- * the only place that knows an instance is being created.
+ * Also where the species' stiffness is applied: the per-vertex weights say
+ * where a thing bends, `FLEX` says whether it bends at all, and multiplying
+ * them here keeps the whole kit on one material and therefore one draw call.
+ * See `art/sway.ts` for the table and the reasoning.
+ *
+ * `swayPhase` is stamped here rather than derived in the shader, and is now
+ * carried for anything that wants a stable per-instance number — the sway
+ * shader itself ended up not needing it, because a travelling front already
+ * gives every instance a different phase from where it stands, which is both
+ * cheaper and more correct than a random offset.
  */
 export function finish(geometry: THREE.BufferGeometry, name: string, phase: number): THREE.Mesh {
+  // Baked into the attribute rather than passed as a uniform: a uniform would
+  // need a material per species, and the whole kit sharing one material is
+  // what keeps a prop to a single draw call.
+  const flex = FLEX[name] ?? 0;
+  const weights = geometry.getAttribute(SWAY_ATTRIBUTE);
+  if (weights && flex !== 1) {
+    const array = weights.array as Float32Array;
+    for (let i = 0; i < array.length; i++) array[i] *= flex;
+    weights.needsUpdate = true;
+  }
+
   const mesh = new THREE.Mesh(geometry, ART_MATERIAL);
   mesh.name = name;
   mesh.userData.swayPhase = phase;
+  // So the sun sees what the camera sees. Without it the shadow map is drawn
+  // from undisplaced geometry and every swaying plant casts a still shadow of
+  // where it is not — see `SWAY_DEPTH_MATERIAL`. Set on everything rather than
+  // only on things that bend: it is one shared material, a rigid prop's
+  // displacement is zero, and the alternative is a rule that has to be
+  // remembered every time a species is added to `FLEX`.
+  mesh.customDepthMaterial = SWAY_DEPTH_MATERIAL;
   return mesh;
 }
 

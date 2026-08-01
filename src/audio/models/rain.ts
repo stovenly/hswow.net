@@ -256,14 +256,14 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
       }
     },
 
-    update(_dt, audio) {
+    update(_dt, audio, at) {
       if (!active) return;
       const now = context.currentTime;
 
       // Wind drives rain sideways and into things, so a gust genuinely makes it
       // louder and harder. Weak coupling — rain that tracked the gust field
       // exactly would read as one sound with two names.
-      const fall = Math.min(1, intensity * (1 + audio.weather.strength * 0.22));
+      const fall = Math.min(1, intensity * (1 + audio.weather.strengthAt(at.x, at.z) * 0.22));
 
       // Off means off. The drop rate has a floor on it so that light rain stays
       // a texture rather than becoming countable, and without this gate that

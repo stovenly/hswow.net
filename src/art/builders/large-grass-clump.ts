@@ -155,27 +155,48 @@ export const largeGrassClump: MeshBuilder = {
         sway: (_x, y) => Math.max(0, y / tall) ** 1.3,
       });
 
-      // Where the top of the culm actually ended up, taken from the same
-      // rotations the geometry got rather than worked out separately — the
-      // flowers were built the other way round once and every head sat beside
-      // its own stalk.
-      _tip.set(0, tall, 0).applyAxisAngle(X_AXIS, bend).applyAxisAngle(Z_AXIS, roll);
+      /**
+       * A point on the culm, at `t` of its length.
+       *
+       * **Taken from the same two rotations the geometry got**, so a spikelet
+       * cannot be anywhere the stalk is not. The head used to be placed at the
+       * tip's x and z and then stepped straight *down in world Y* — which is
+       * only where the stalk is when the stalk is vertical. Every culm leans,
+       * by up to nineteen degrees, so the lower spikelets hung in clear air
+       * beside their own stem and the whole head came away from it.
+       *
+       * The same mistake the flowers made and the same fix: ask the transform
+       * where the stem is rather than working it out again by hand.
+       */
+      const axisAt = (t: number): THREE.Vector3 =>
+        _axis
+          .set(0, t * tall, 0)
+          .applyAxisAngle(X_AXIS, bend)
+          .applyAxisAngle(Z_AXIS, roll)
+          .add(_base.set(cx, 0, cz));
 
       // The head: a few small spikelets stepping down the top of the culm,
       // which is a panicle near enough at this size. One blob would be a
       // bulrush, and a bulrush is a different plant that is already in the kit.
       const spikelets = rng.int(3, 6);
-      const headLong = tall * rng.range(0.14, 0.24);
+      const headLong = rng.range(0.14, 0.24);
       for (let s = 0; s < spikelets; s++) {
         const along = s / spikelets;
         const size = 0.011 * (1 - along * 0.4);
-        const grain = new THREE.ConeGeometry(size, size * rng.range(3, 4.5), 3);
-        grain.translate(0, size * 1.8, 0);
+        const length = size * rng.range(3, 4.5);
+        const grain = new THREE.ConeGeometry(size, length, 3);
+        // Base exactly on the origin, so rotating pivots it about the point
+        // where it meets the stem and the join stays shut. Half the height was
+        // being approximated by a constant before, which left every spikelet a
+        // few millimetres off its own attachment.
+        grain.translate(0, length / 2, 0);
         grain.scale(1, 1, 0.6);
         // Out and down off the stem, which is how a grass head hangs.
         grain.rotateZ(rng.range(0.5, 1.1));
         grain.rotateY((s / spikelets) * Math.PI * 2 + rng.range(0, 0.6));
-        grain.translate(cx + _tip.x, _tip.y - headLong * along, cz + _tip.z);
+        // Down the culm itself, as a fraction of its length.
+        const at = axisAt(1 - headLong * along);
+        grain.translate(at.x, at.y, at.z);
         parts.push({
           geometry: grain,
           color: shade(rng.chance(0.4) ? 0x9c8f5c : PALETTE.GRASS_DRY, rng.range(0.9, 1.12)),
@@ -193,4 +214,5 @@ export const largeGrassClump: MeshBuilder = {
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 /** Reused across culms. One patch is built at a time and never concurrently. */
-const _tip = new THREE.Vector3();
+const _axis = new THREE.Vector3();
+const _base = new THREE.Vector3();

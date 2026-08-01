@@ -240,7 +240,7 @@ export function createWaveguide(
       hit(context.currentTime + 0.02, force);
     },
 
-    update(dt, audio) {
+    update(dt, audio, at) {
       if (!active) return;
       void dt;
 
@@ -248,7 +248,7 @@ export function createWaveguide(
       // squared above the floor, because a chime does not respond in
       // proportion to the wind, it responds when the wind is enough to move
       // something and not at all below that.
-      const wind = Math.max(0, audio.weather.strength - WEATHER_FLOOR) / (1 - WEATHER_FLOOR);
+      const wind = Math.max(0, audio.weather.strengthAt(at.x, at.z) - WEATHER_FLOOR) / (1 - WEATHER_FLOOR);
       const amount = weatherDriven ? drive * wind ** 2 : drive;
 
       const now = context.currentTime;

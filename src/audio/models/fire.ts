@@ -259,13 +259,13 @@ export function createFire(engine: AudioEngine, options: FireOptions = {}): Fire
       }
     },
 
-    update(_dt, audio) {
+    update(_dt, audio, at) {
       if (!active) return;
 
       const now = context.currentTime;
       // A gust fans a fire and then it settles. Capped above 1 so an exposed
       // brazier in a storm genuinely flares rather than merely getting louder.
-      const heat = Math.min(1.35, intensity * (1 + audio.weather.strength * draught));
+      const heat = Math.min(1.35, intensity * (1 + audio.weather.strengthAt(at.x, at.z) * draught));
 
       // Never quite off: embers still move air. The floor is what keeps a
       // banked hearth from vanishing entirely when intensity is turned down.

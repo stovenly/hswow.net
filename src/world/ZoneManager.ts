@@ -4,6 +4,7 @@ import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
 import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/builders/door';
 import { markCollidable, type Collider } from '../player/Collider';
+import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';
 import type { PostFX } from '../engine/PostFX';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -69,6 +70,27 @@ export class ZoneManager {
    * should be costs far more than a few dozen dormant filters.
    */
   private readonly soundscapes = new Map<ZoneId, Soundscape>();
+  /**
+   * Zones whose geometry has been built *and* indexed for collision.
+   *
+   * Distinct from `Zone.root`'s own cache: a zone can have been prebuilt
+   * without ever being entered. This is what decides whether entering shows
+   * anything, so it has to mean "the expensive part is already paid".
+   */
+  private readonly warmed = new Set<ZoneId>();
+  /** Guards against a second `enter` arriving mid-transition. See `enter`. */
+  private entering = 0;
+  private readonly building = new Building(document.body);
+  /**
+   * Whether the player has arrived anywhere yet.
+   *
+   * The first entry is part of booting, and boot already has a loading bar —
+   * `Loader`'s, in the same place on screen, saying the same thing. Putting the
+   * transition indicator up underneath it stacks two bars over each other for
+   * the length of the first zone build. So the first one is always silent, cold
+   * or not, and the boot screen speaks for it.
+   */
+  private arrived = false;
 
   private active: Zone | null = null;
   /** Zones whose portal doors have been built into them. */
@@ -227,6 +249,9 @@ export class ZoneManager {
     const root = this.prepare(zone);
     root.updateWorldMatrix(true, true);
     this.options.collider.warm(root, zone.id);
+    // Prebuilding pays the whole cost up front, so entering later must take the
+    // silent path — that is the entire point of doing it at boot.
+    this.warmed.add(zone.id);
   }
 
   /**
@@ -259,15 +284,56 @@ export class ZoneManager {
   }
 
   /** Puts the player in a zone. Used for the initial boot and by `use`. */
-  enter(id: ZoneId, at?: Placement): void {
+  /**
+   * Enters a zone, yielding to the browser while a cold one is built.
+   *
+   * **Async because building blocks, and a blocked frame cannot paint.** A
+   * dense zone runs every builder, merges the geometry and indexes the lot into
+   * an octree, which on the foliage gallery is comfortably over a second. Done
+   * synchronously the game simply stops: no frame is presented, so anything put
+   * on screen to say so is only drawn *after* the work it was describing. The
+   * two costly steps are therefore separated by a real yield, and the indicator
+   * goes up before either of them.
+   *
+   * A zone that has been entered before is cached in `Zone.root` and in the
+   * collider, so it takes the fast path and shows nothing at all — which is
+   * most doorways in the game.
+   */
+  async enter(id: ZoneId, at?: Placement): Promise<void> {
     const zone = this.zones.get(id);
     if (!zone) throw new Error(`no such zone "${id}"`);
 
+    // **Re-entry guard.** Once this is async a second call can arrive while the
+    // first is still yielding — a player mashing a door, or a jump from the
+    // debug panel mid-transition. The later call wins and the earlier one is
+    // abandoned at its next yield, because the later one is what the player
+    // asked for most recently. Ignoring it instead would leave the door they
+    // just used feeling dead.
+    const token = ++this.entering;
+    const stale = (): boolean => token !== this.entering;
+
     const { scene, collider, player, postfx, interaction } = this.options;
+    const cold = !this.warmed.has(zone.id) && this.arrived;
+
+    if (cold) {
+      await this.building.show(`entering ${zone.name.toLowerCase()}`);
+      // Sweeping rather than sitting at a width. The step about to run is one
+      // synchronous `build()` that cannot report its own progress, and on a
+      // slow machine a bar frozen at 4% for two seconds reads as a hang. See
+      // `Building.step`.
+      await this.building.step('raising the world');
+      if (stale()) return;
+    }
 
     if (this.active && this.active !== zone) scene.remove(this.active.root());
 
     const root = this.prepare(zone);
+    if (cold) {
+      // Still indeterminate: indexing the octree is the longer of the two and
+      // is equally unable to say how far through it is.
+      await this.building.step('settling the ground');
+      if (stale()) return;
+    }
     scene.add(root);
     this.active = zone;
 
@@ -275,8 +341,11 @@ export class ZoneManager {
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
     // Keyed by zone, so re-entering a place the player has been before costs
-    // nothing. See `Collider.build`.
+    // nothing. See `Collider.build`. This is the single most expensive step on
+    // a dense zone, which is why it gets the yield before it rather than after.
     collider.build(root, zone.id);
+    this.warmed.add(zone.id);
+    if (cold) await this.building.step('almost there', 0.96);
 
     const env = zone.environment;
     postfx.setEnvironment({
@@ -321,6 +390,8 @@ export class ZoneManager {
     this.options.reticle.set(null);
 
     this.onZoneChange?.(zone);
+    this.arrived = true;
+    this.building.hide();
   }
 
   private applyAudio(zone: Zone): void {
@@ -455,8 +526,8 @@ export class ZoneManager {
     _at.copy(side.end.position).setY(side.end.position.y + 1.2);
     this.doorAudio?.play(_at, material);
 
-    await this.options.fade.cover(() => {
-      this.enter(side.target.zone, side.arrival);
+    await this.options.fade.cover(async () => {
+      await this.enter(side.target.zone, side.arrival);
       this.crossings++;
     });
 

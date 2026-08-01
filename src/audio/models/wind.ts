@@ -120,8 +120,8 @@ export function createWind(engine: AudioEngine, options: WindOptions = {}): Wind
       tone.frequency.setTargetAtTime(hz, context.currentTime, 0.1);
     },
 
-    update(_dt, audio) {
-      const strength = audio.weather.strength;
+    update(_dt, audio, at) {
+      const strength = audio.weather.strengthAt(at.x, at.z);
       const now = context.currentTime;
       // Every move is a glide. Wind changes continuously; stepping any of
       // these per frame would put a 60 Hz buzz under the whole thing.
