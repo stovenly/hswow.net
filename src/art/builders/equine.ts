@@ -20,7 +20,10 @@ const EQUINE: Species = {
   neckRise: [0.75, 1.05],
   headSize: [0.2, 0.25],
   headStretch: 1.9,
-  snout: 0.5,
+  // The narrowest of the four. A horse's head is long rather than wide, and
+  // `headStretch` at 1.9 is already doing that work — a broad muzzle on the end
+  // of it turns the whole head into a club.
+  snout: 0.3,
   ears: 'perked',
   horns: 'none',
   tail: 'flowing',

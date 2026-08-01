@@ -221,6 +221,17 @@ export class PostFX {
   }
 
   /** Pushes `settings` into the passes. Cheap; call it whenever they change. */
+  /**
+   * Points the drawn sun wherever the scene's sun light is.
+   *
+   * Called once at start-up rather than per frame, because the sun is static.
+   * When it stops being static this is the seam that has to move — one call,
+   * and the disc and the shadows keep agreeing by construction.
+   */
+  aimSun(direction: THREE.Vector3): void {
+    this.sky.aimAt(direction);
+  }
+
   apply(): void {
     const s = this.settings;
 

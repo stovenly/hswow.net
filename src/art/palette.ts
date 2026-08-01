@@ -22,17 +22,70 @@ export const PALETTE = {
   GRASS: 0x5c6b3a,
   GRASS_DRY: 0x7a7444,
 
-  STONE: 0x6a6f74,
-  STONE_DARK: 0x4c5157,
-  STONE_PALE: 0x878c8f,
+  /**
+   * Worked stone and sawn timber — the two materials nearly every building is.
+   *
+   * Lifted about 40% in luminance, **at constant chroma**. That second half is
+   * the whole trick and getting it wrong is instructive: the obvious way to
+   * brighten a colour is to multiply every channel by the same factor, and that
+   * does not make it lighter — it makes it *more saturated*. Timber at
+   * `(95, 76, 55)` multiplied by 1.25 gains 24 in red and 16 in blue, so the
+   * gap between the channels widens by half and the wood comes out redder than
+   * it started, which is precisely what happened on the first attempt.
+   *
+   * Lifting toward white instead keeps the difference between the channels the
+   * same in absolute terms while raising all three, which is what the eye reads
+   * as the same material under more light. Timber's channel spread is 40 before
+   * and 40 after; stone's is 10 and 10.
+   *
+   * The hue relationships therefore survive intact, which matters for the
+   * reason at the top of this file: quantization is per channel, so cold stone
+   * against warm wood stays distinct where two colours differing only in
+   * brightness would collapse together.
+   *
+   * `BARK` deliberately did not move with them. Bark is not timber — a tree is
+   * meant to sit *darker* than the buildings around it, and lifting both would
+   * stop a village separating from its treeline at all.
+   */
+  STONE: 0x969aa0,
+  STONE_DARK: 0x757a80,
+  STONE_PALE: 0xaeb2b6,
 
   EARTH: 0x4c4536,
-  TIMBER: 0x5f4c37,
-  TIMBER_DARK: 0x453727,
+  TIMBER: 0x8a7362,
+  TIMBER_DARK: 0x6b5a4d,
+  /**
+   * Sun-bleached softwood. The lightest timber in the kit.
+   *
+   * Added because the plank door had nowhere to go. It was built from
+   * `TIMBER_DARK` on both its leaf and its frame — the darkest wood there was —
+   * so the one door in three whose whole idea is *rough sawn boards* came out
+   * as the one you could not see the boards on. Three door types need three
+   * legible woods, and taking `TIMBER_DARK` for the darkest of them left the
+   * range with no top end.
+   */
+  TIMBER_PALE: 0xa89376,
 
   IRON: 0x5a5f63,
   IRON_DARK: 0x3f4448,
   RUST: 0x7a4a30,
+  /**
+   * Cast bronze, and what it goes when it has stood outside for a century.
+   *
+   * Two entries rather than one because a bell is nearly always both: the
+   * patina takes the sheltered faces and the rain keeps the rest bright, and a
+   * bell in one flat colour reads as a plastic cone.
+   */
+  BRONZE: 0x8a7038,
+  PATINA: 0x5c7060,
+  /**
+   * Standing water seen from above.
+   *
+   * Dark and desaturated on purpose. Water is mostly a reflection of the sky,
+   * and there are no reflections here — a bright blue panel in a trough reads
+   * as painted tin, where a dark one reads as depth.
+   */
+  WATER: 0x2c3f46,
   /**
    * The colour of a flame seen directly, not of anything lit by one.
    *

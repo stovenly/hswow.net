@@ -9,6 +9,8 @@ import { createFire, type FireOptions } from './models/fire';
 import { createRain, type RainOptions } from './models/rain';
 import { createWater, type WaterOptions } from './models/water';
 import { createCrowd, type CrowdOptions } from './models/crowd';
+import { createFriction, type FrictionOptions } from './models/friction';
+import { createWaveguide, type WaveguideOptions } from './models/waveguide';
 import { ScatterField, type ScatterSpec } from './Scatter';
 import type { Collider } from '../player/Collider';
 
@@ -53,7 +55,9 @@ export type ModelSpec =
   | { model: 'fire'; options?: FireOptions }
   | { model: 'rain'; options?: RainOptions }
   | { model: 'water'; options?: WaterOptions }
-  | { model: 'crowd'; options?: CrowdOptions };
+  | { model: 'crowd'; options?: CrowdOptions }
+  | { model: 'friction'; options?: FrictionOptions }
+  | { model: 'waveguide'; options?: WaveguideOptions };
 
 /** A model somewhere in particular. */
 export type EmitterSpec = ModelSpec & {
@@ -119,6 +123,10 @@ function build(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createWater(engine, spec.options);
     case 'crowd':
       return createCrowd(engine, spec.options);
+    case 'friction':
+      return createFriction(engine, spec.options);
+    case 'waveguide':
+      return createWaveguide(engine, spec.options);
   }
 }
 
@@ -126,6 +134,8 @@ export class Soundscape {
   private readonly engine: AudioEngine;
   private readonly emitters: Emitter[] = [];
   private readonly models = new Map<string, SoundModel>();
+  /** Only the emitters that declared an `id`. See `setSolo`. */
+  private readonly emitterById = new Map<string, Emitter>();
   private readonly fields = new Map<string, ScatterField>();
   /** Beds are updated by hand — they have no emitter to do it for them. */
   private readonly beds: SoundModel[] = [];
@@ -155,19 +165,19 @@ export class Soundscape {
     for (const placed of spec.emitters ?? []) {
       const model = build(engine, placed);
       if (placed.id) this.models.set(placed.id, model);
-      this.emitters.push(
-        new Emitter(engine, model, {
-          position: new THREE.Vector3(...placed.at),
-          refDistance: placed.refDistance,
-          maxDistance: placed.maxDistance,
-          rolloff: placed.rolloff,
-          reverb: placed.reverb,
-          importance: placed.importance,
-          ignoreAbsorption: placed.ignoreAbsorption,
-          ignoreOcclusion: placed.ignoreOcclusion,
-          invertDistance: placed.invertDistance,
-        }),
-      );
+      const emitter = new Emitter(engine, model, {
+        position: new THREE.Vector3(...placed.at),
+        refDistance: placed.refDistance,
+        maxDistance: placed.maxDistance,
+        rolloff: placed.rolloff,
+        reverb: placed.reverb,
+        importance: placed.importance,
+        ignoreAbsorption: placed.ignoreAbsorption,
+        ignoreOcclusion: placed.ignoreOcclusion,
+        invertDistance: placed.invertDistance,
+      });
+      this.emitters.push(emitter);
+      if (placed.id) this.emitterById.set(placed.id, emitter);
     }
 
     for (const field of spec.scatter ?? []) {
@@ -232,6 +242,25 @@ export class Soundscape {
     return this.fields.get(id) ?? null;
   }
 
+  /**
+   * Silences every emitter but one. `null` restores the lot.
+   *
+   * For the sound stage, and the reason it exists: a model that sounds wrong
+   * in a mix is either wrong or merely masked, and there is no way to tell
+   * which without hearing it alone. Walking up to a source gets most of the
+   * way there and not all — the room tail is shared, and a neighbouring drone
+   * sits underneath everything however close you stand.
+   *
+   * Deliberately not persisted anywhere. Leaving a zone re-activates every
+   * emitter through `setActive`, so a soloed stage cannot follow you out of
+   * the room and leave the world half-silent with no visible cause.
+   */
+  setSolo(id: string | null): void {
+    if (!this.active) return;
+    for (const [key, emitter] of this.emitterById) emitter.enabled = id === null || key === id;
+    for (const [key, field] of this.fields) field.setActive(id === null || key === id);
+  }
+
   get emitterCount(): number {
     return this.emitters.length + this.scatter.reduce((n, f) => n + f.voiceCount, 0);
   }
@@ -243,6 +272,7 @@ export class Soundscape {
   dispose(): void {
     for (const emitter of this.emitters) emitter.dispose();
     this.emitters.length = 0;
+    this.emitterById.clear();
     for (const field of this.scatter) field.dispose();
     this.scatter.length = 0;
     this.fields.clear();

@@ -20,7 +20,11 @@ const BOVINE: Species = {
   neckRise: [0.05, 0.3],
   headSize: [0.24, 0.3],
   headStretch: 1.5,
-  snout: 0.55,
+  // Well under the pig's 0.75, which is the reference: a pig's snout genuinely
+  // is as wide as its face and a cow's muzzle is a good deal narrower than its
+  // cheeks. Reading `snout` as a fraction of head width makes that comparison
+  // the way to set it.
+  snout: 0.38,
   ears: 'side',
   horns: 'stub',
   tail: 'switch',

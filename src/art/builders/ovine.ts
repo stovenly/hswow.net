@@ -19,7 +19,9 @@ const OVINE: Species = {
   neckRise: [0.2, 0.5],
   headSize: [0.13, 0.17],
   headStretch: 1.4,
-  snout: 0.5,
+  // Narrow. A sheep's face tapers to a point far more than a cow's, and the
+  // fleece behind it makes anything blunt on the front read as enormous.
+  snout: 0.32,
   ears: 'side',
   horns: 'none',
   tail: 'switch',

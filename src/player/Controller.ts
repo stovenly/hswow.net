@@ -47,6 +47,44 @@ export interface PlayerTuning {
 
   walkSpeed: number;
   sprintScale: number;
+  /**
+   * Eye height while crouched, as a fraction of the standing one.
+   *
+   * The camera moves and the capsule does not. That is a deliberate
+   * simplification and worth stating plainly: a shorter capsule would let the
+   * player crouch under things, which needs a headroom test before standing up
+   * again or they stand up inside geometry. Nothing in this world is low enough
+   * to crawl under yet, so crouch is a *viewpoint* — it lowers the eye to look
+   * at something properly — and the collision volume is unchanged.
+   */
+  crouchScale: number;
+  /**
+   * Capsule height while crouched, as a fraction of the standing one.
+   *
+   * The collider really does shrink now. That is what makes crouching a
+   * *movement* rather than a camera effect — you can get under a beam — and it
+   * brings an obligation with it: something has to stop the player standing up
+   * inside whatever they crouched under. See `headroom`.
+   */
+  crouchHeight: number;
+  /**
+   * How fast the crouch eases in and out, in fractions per second.
+   *
+   * High. The ease exists only so the camera does not *teleport* between two
+   * heights — a couple of frames of travel is enough to read as movement, and
+   * anything slower feels like the controller is thinking about it. Crouching
+   * is an input, not an animation.
+   */
+  crouchSpeed: number;
+  /** Movement speed while crouched, as a multiple of the walk. */
+  crouchDrag: number;
+  /**
+   * How fast the camera catches up after a step, in fractions per second.
+   *
+   * High enough that the lag is never more than a few centimetres — this is
+   * smoothing a judder, not adding suspension.
+   */
+  stepSmoothing: number;
   groundAccel: number;
   /**
    * Steering authority while airborne.
@@ -147,10 +185,23 @@ export interface PlayerTuning {
 export const DEFAULT_TUNING: PlayerTuning = {
   radius: 0.32,
   height: 1.8,
-  eyeHeight: 1.62,
+  // Well below the top of the capsule, and deliberately.
+  //
+  // 1.62 is where a person's eyes actually are on a 1.8 m body, and it looked
+  // wrong: at that height you are above most of the art kit, the ground is a
+  // long way down, and everything reads as smaller than it is. Dropping the
+  // camera without dropping the capsule keeps collision honest — you still
+  // occupy a person's volume — while putting the view somewhere the world can
+  // be looked *at* rather than over.
+  eyeHeight: 1.35,
 
   walkSpeed: 4.2,
   sprintScale: 1.75,
+  crouchScale: 0.52,
+  crouchHeight: 0.58,
+  crouchSpeed: 22,
+  crouchDrag: 0.45,
+  stepSmoothing: 16,
   groundAccel: 14,
   airAccel: 7.5,
   friction: 10,
@@ -225,6 +276,41 @@ export class Controller {
   private pitch = 0;
   /** Latched, with hysteresis — see `applyCamera`. */
   private sprintFov = false;
+  /**
+   * How far into the crouch the camera is, 0..1.
+   *
+   * Eased rather than switched. A camera that jumps between two heights on a
+   * key press reads as a teleport, and the whole value of crouching is that you
+   * watch the world get taller.
+   */
+  private crouch = 0;
+  /**
+   * How far the camera is still lagging behind the feet after a step up.
+   *
+   * Climbing a stair is a sequence of instantaneous vertical jumps: the
+   * collider finds the next tread, the capsule is placed on it, and the camera
+   * — which is pinned to the feet — snaps up with it. At a 0.19 m rise and four
+   * steps a second that is a visible judder, and it reads as the controller
+   * struggling rather than as the player climbing.
+   *
+   * The fix is not to move the feet more smoothly, which would break collision;
+   * it is to let the *camera* arrive late. Each upward step is subtracted from
+   * the camera's height here and paid back over the next fraction of a second,
+   * so the body climbs in steps and the view rises in one continuous glide.
+   */
+  private stepLag = 0;
+  /**
+   * How short the capsule currently is, 0..1, matching `crouch`.
+   *
+   * Held separately from the input because the two can disagree: releasing the
+   * key under a low beam has to leave the body crouched until there is room to
+   * rise. The camera follows this rather than the key for the same reason —
+   * the view has to agree with the collision volume or you are looking out of
+   * the top of a ceiling.
+   */
+  private stance = 0;
+  /** Feet height last frame, for spotting those steps. */
+  private lastFeetY: number | null = null;
 
   /** Surface the player is standing on. Straight up whenever airborne. */
   private readonly groundNormal = new THREE.Vector3(0, 1, 0);
@@ -274,6 +360,15 @@ export class Controller {
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
     this.grounded = false;
+    // The capsule has just been rebuilt at full height. `applyStance` only acts
+    // when the crouch has moved, so without this a player who arrives mid-crouch
+    // would keep a standing collision volume until they stood up and ducked
+    // again — and the camera, which follows `stance`, would be at the wrong
+    // height for it the whole time.
+    this.stance = 0;
+    this.crouch = 0;
+    this.stepLag = 0;
+    this.lastFeetY = null;
   }
 
   /** Feet position — what autosave persists in Phase 9. Shared scratch; copy it. */
@@ -414,7 +509,13 @@ export class Controller {
     // Analog sticks scale speed; keys are already unit-length so this is a
     // no-op for them. Diagonals are normalised above, so no strafe-run bonus.
     const wishSpeed =
-      t.walkSpeed * Math.min(magnitude, 1) * (this.input.sprint ? t.sprintScale : 1);
+      t.walkSpeed *
+      Math.min(magnitude, 1) *
+      (this.input.sprint ? t.sprintScale : 1) *
+      // Crouching slows you down, and does so smoothly with the camera rather
+      // than as a step — otherwise the speed changes a beat before the view
+      // does and the two read as unrelated.
+      (1 - this.stance * (1 - t.crouchDrag));
 
     // Quake acceleration: only ever adds up to the shortfall between current
     // speed along the wish direction and the wish speed, so you cannot exceed
@@ -527,6 +628,50 @@ export class Controller {
     }
 
     if (!this.grounded) this.groundNormal.set(0, 1, 0);
+  }
+
+  /**
+   * Whether there is room to stand up.
+   *
+   * Tests the capsule at *full* height at the player's current feet. Cheap —
+   * one overlap query — and only meaningful while crouched, so it short-circuits
+   * the rest of the time.
+   *
+   * Without this, releasing the key under a beam would push the capsule's head
+   * into solid geometry and the collider would resolve it by shoving the player
+   * sideways out of the gap they had deliberately squeezed into, which reads as
+   * the world rejecting them.
+   */
+  private headroom(): boolean {
+    if (this.stance < 0.01) return true;
+    const t = this.tuning;
+    const feetY = this.capsule.start.y - t.radius;
+    _probe.copy(this.capsule);
+    _probe.start.set(this.capsule.start.x, feetY + t.radius, this.capsule.start.z);
+    _probe.end.set(this.capsule.start.x, feetY + t.height - t.radius, this.capsule.start.z);
+    return !this.collider.overlaps(_probe);
+  }
+
+  /**
+   * Resizes the capsule to match the current crouch.
+   *
+   * **The feet stay put and the head moves**, which is the only version that
+   * behaves: shrinking about the middle would lift the feet off the floor on
+   * the way down and drive them through it on the way up, and either one is a
+   * frame of the player falling or being ejected.
+   */
+  private applyStance(): void {
+    if (Math.abs(this.crouch - this.stance) < 0.001) return;
+    this.stance = this.crouch;
+    const t = this.tuning;
+    const feetY = this.capsule.start.y - t.radius;
+    const height = t.height * (1 - this.stance * (1 - t.crouchHeight));
+    // Never shorter than the two end spheres, or the capsule turns inside out.
+    this.capsule.end.set(
+      this.capsule.start.x,
+      feetY + Math.max(height - t.radius, t.radius + 0.01),
+      this.capsule.start.z,
+    );
   }
 
   /**
@@ -660,6 +805,16 @@ export class Controller {
 
   private applyCamera(dt: number): void {
     const t = this.tuning;
+
+    // Eased toward whatever the key is doing — unless standing up would put
+    // the player's head through something, in which case they stay down.
+    //
+    // Held, not toggled: `crouching` is a live read of the key state, so
+    // releasing it always stands you up the moment there is room.
+    const wanted = this.input.crouching || !this.headroom() ? 1 : 0;
+    this.crouch += (wanted - this.crouch) * Math.min(dt * t.crouchSpeed, 1);
+    this.applyStance();
+
     const cycle = this.bobPhase * Math.PI * 2;
     // Recomputed rather than reused from the movement step, which does not run
     // on every frame.
@@ -673,9 +828,27 @@ export class Controller {
     this.dip = Math.max(this.dip - this.dip * Math.min(dt * 9, 1), 0);
 
     const feetY = this.capsule.start.y - t.radius;
+
+    // A step is an *upward* move, while grounded, of less than a step height.
+    // Bounding it above matters: a teleport or a fall arrival also moves the
+    // feet, and smoothing those would leave the camera drifting up through the
+    // floor for half a second after every portal.
+    if (this.lastFeetY !== null && this.grounded) {
+      const climbed = feetY - this.lastFeetY;
+      if (climbed > 0.001 && climbed < t.stepHeight * 1.2) this.stepLag += climbed;
+    }
+    this.lastFeetY = feetY;
+    // Paid back exponentially. Fast enough that the camera is never far from
+    // where the body is — which matters, because the lag is a lie about where
+    // your eyes are and a long one would be felt as floating.
+    this.stepLag = Math.max(0, this.stepLag - this.stepLag * Math.min(dt * t.stepSmoothing, 1));
     this.camera.position.set(
       this.capsule.start.x,
-      feetY + t.eyeHeight - this.dip + Math.sin(cycle * 2) * t.bobAmount * intensity,
+      feetY -
+        this.stepLag +
+        t.eyeHeight * (1 - this.stance * (1 - t.crouchScale)) -
+        this.dip +
+        Math.sin(cycle * 2) * t.bobAmount * intensity,
       this.capsule.start.z,
     );
     // Lateral sway runs at half the vertical rate — one sideways lean per pair

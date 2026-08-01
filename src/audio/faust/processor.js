@@ -84,7 +84,7 @@ class FaustProcessor extends AudioWorkletProcessor {
 
     this.numIn = meta.inputs;
     this.numOut = meta.outputs;
-    this.params = meta.params; // label → byte index into the DSP struct
+    this.params = meta.params; // label → { at, min, max, ... }; only `at` is used here
 
     const size = meta.size;
     this.ptrIn = size;
@@ -133,8 +133,15 @@ class FaustProcessor extends AudioWorkletProcessor {
     this.port.onmessage = (event) => {
       const { type, key, value } = event.data;
       if (type === 'param') {
-        const index = this.params[key];
-        if (index !== undefined) this.api.setParamValue(0, index, value);
+        const control = this.params[key];
+        // Clamped here rather than trusted. A control driven outside its
+        // declared range is not merely wrong — for anything inside a feedback
+        // loop it is the difference between a model and a runaway, and this is
+        // the last place before it reaches the DSP.
+        if (control !== undefined) {
+          const clamped = Math.min(control.max, Math.max(control.min, value));
+          this.api.setParamValue(0, control.at, clamped);
+        }
       }
     };
 

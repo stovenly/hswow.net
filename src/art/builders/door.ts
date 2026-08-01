@@ -51,8 +51,13 @@ const LOOKS: Record<DoorMaterial, Palette> = {
     iron: PALETTE.RUST,
     frame: PALETTE.STONE,
   },
+  // Rough sawn boards, and the pale one of the three. It used to take
+  // `TIMBER_DARK` for both leaf and frame, which made the door whose entire
+  // idea is *visible planks* the one door you could not see the planks on —
+  // the gaps between boards are read by the shadow between them, and there is
+  // no shadow to see against near-black wood.
   plank: {
-    leaf: PALETTE.TIMBER_DARK,
+    leaf: PALETTE.TIMBER_PALE,
     ledge: PALETTE.TIMBER,
     iron: PALETTE.RUST,
     frame: PALETTE.TIMBER_DARK,

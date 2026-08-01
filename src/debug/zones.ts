@@ -1,26 +1,36 @@
 import * as THREE from 'three';
 import { type ZoneDefinition, OUTDOOR_ENVIRONMENT, INDOOR_ENVIRONMENT } from '../world/Zone';
 import type { SoundscapeSpec } from '../audio/Soundscape';
-import type { PortalDefinition } from '../world/Portal';
+import type { PortalDefinition, PortalEnd } from '../world/Portal';
 import { buildInterior, HOUSE_STYLE, WORKS_STYLE } from '../world/interior';
 import { markCollidable } from '../player/Collider';
+import { PALETTE, shade } from '../art/palette';
 import { ProvingGround, SPAWN } from './ProvingGround';
 // Builders are imported directly rather than through `art/registry`, which is
 // Vite-only. The headless zone check reaches this file through esbuild.
 import { hut, hutDoorAnchor } from '../art/builders/hut';
 import { crate } from '../art/builders/crate';
 import { barrel } from '../art/builders/barrel';
-import { post } from '../art/builders/post';
-import { bush } from '../art/builders/bush';
 import { bed } from '../art/builders/bed';
 import { table } from '../art/builders/table';
 import { chair } from '../art/builders/chair';
 import { stool } from '../art/builders/stool';
 import { figure } from '../art/builders/figure';
 import { machine } from '../art/builders/machine';
-import { archway } from '../art/builders/archway';
-import { PALETTE } from '../art/palette';
+import { sink } from '../art/builders/sink';
+import { candle } from '../art/builders/candle';
+import { floodlight } from '../art/builders/floodlight';
+import { pipes } from '../art/builders/pipes';
+import { tank } from '../art/builders/tank';
+import { vent } from '../art/builders/vent';
+import { railing } from '../art/builders/railing';
+import { chainlink } from '../art/builders/chainlink';
+import { hoist } from '../art/builders/hoist';
+import { lantern } from '../art/builders/lantern';
+import { cistern, CISTERN_WATER_HEIGHT } from '../art/builders/cistern';
 import { villageZone, villageTerrain, VILLAGE_GATE, ZONE_VILLAGE } from './village';
+import { GALLERIES, galleryZone, galleryPortal } from './galleries';
+import { soundStageZone } from './SoundStage';
 
 /**
  * The test world: one exterior and two interiors, joined by two portals.
@@ -65,23 +75,26 @@ const HUT_AT = new THREE.Vector3(5, 0, 6);
 const HUT_YAW = 0;
 
 /**
- * The factory: immediately east of the proving ground's machine hall.
+ * The factory door, standing beside the village gate.
  *
- * Stood beside the hall rather than out in the open. The hall at x 15..29 is
- * the Phase 3 acoustics room with the flywheel in it, and the factory reads as
- * the same industry — walking from one to the other is a few paces instead of a
- * hike across the field, and it keeps the south-east clear of the prop gallery.
+ * **The shed it used to be set into is gone.** There was a hand-built exterior
+ * out at x = 42, and the walk to it was most of the cost of using the fixture:
+ * fifty metres each way to test a threshold, past nothing else that needed
+ * testing. The doors that lead somewhere are worth far more standing together
+ * where you spawn looking at them — and a door alone in open ground is exactly
+ * as honest as a door in a hand-carved wall. Both are scaffolding, and one of
+ * them is free.
  *
- * **The hall is deliberately not the factory's exterior.** It is the Phase 3
- * fixture: two rooms of very different acoustics that you walk between through
- * an open doorway, which is how the reverb crossfade is judged. Putting a
- * portal on it would replace a walk-through with a teleport and destroy the
- * only test that proves the crossfade works. So the factory is its own
- * building next door, and the machinery it is named for now stands *inside*
- * it, where you can get at it.
+ * The building comes back when there is an industrial structure kit to build it
+ * from, at which point it is content rather than a prop whittled in this file.
+ *
+ * The machine hall at x 15..29 is deliberately still not its exterior: that is
+ * the Phase 3 acoustics fixture, two rooms you *walk* between through an open
+ * doorway, and putting a portal on it would replace the walk with a teleport
+ * and destroy the only test that proves the reverb crossfade works.
  */
-const FACTORY_AT = new THREE.Vector3(42, 0, -11);
-/** Yaw 0 faces +Z — you come at it from the south, as you do the hall. */
+const FACTORY_DOOR_AT = new THREE.Vector3(14, 0, 6);
+/** Faces +Z, back toward spawn, square-on beside the gate. */
 const FACTORY_YAW = 0;
 
 /**
@@ -94,14 +107,41 @@ const FACTORY_YAW = 0;
 const DOOR_PROUD = 0.07;
 
 /**
- * The gateway out to the village, west of spawn.
+ * The gateway out to the village, immediately right of the near hut.
  *
- * Clear of the movement gym (which starts at x = -4 and runs west from z = -12)
- * by sitting south of it, and clear of the strafe wall's corner at z = 15.8.
+ * Spawn looks down -Z, so "right" is +X, and the hut sits at x = 5 with a
+ * radius of about three. Standing the gate just past it puts the two doors that
+ * lead somewhere in the same glance: you boot, look forward, and both the
+ * interior and the village are in front of you.
  */
-const GATE_AT = new THREE.Vector3(-9, 0, 24);
-/** Faces +Z, so it is side-on as you walk west from spawn and obvious. */
-const GATE_YAW = 0.35;
+const GATE_AT = new THREE.Vector3(10, 0, 6);
+/** Faces +Z, back toward spawn, so it is square-on the moment you look at it. */
+const GATE_YAW = 0;
+
+/**
+ * The rank of gallery doors, directly behind spawn.
+ *
+ * Standing where nothing was, rather than where the object gallery sprawled.
+ * The gallery was rows of props accumulated by radius, so every builder added
+ * made it longer — two dozen of them ran past ninety metres and forced the
+ * floor to be widened three times. What replaced it is a fixed-width rank of
+ * doors, because what grows now is the number of *rooms*, and a room is a door.
+ *
+ * Being fixed-width is what lets it sit this close in. You spawn looking at the
+ * fixtures with every gallery one about-face away, which is the difference
+ * between a room that gets looked at when something changes and one that gets
+ * looked at once.
+ *
+ * Yaw π faces -Z, back toward spawn, so the rank is square-on when you turn.
+ *
+ * Clear of the movement gym's strafe wall, which runs along z = 15.8 from
+ * x = -10 to -4. The first two doors sat directly behind it at z = 18 and the
+ * arrival check caught it as "boxed in 0.5 m from the door" — walkable on
+ * arrival, and walled a stride later.
+ */
+const GALLERY_RANK = new THREE.Vector3(-10, 0, 22);
+const GALLERY_SPACING = 5;
+const GALLERY_YAW = Math.PI;
 
 /** Interior dimensions, shared by the zone builder and the portal placement. */
 // Roomy rather than snug. The first version was 6.4 x 5.2 and read as a
@@ -110,30 +150,231 @@ const GATE_YAW = 0.35;
 const EXAMPLE = { width: 10, depth: 8, height: 3.4 };
 const FACTORY = { width: 15, depth: 11, height: 5.6 };
 
-/** The factory's exterior footprint, which its doorway is measured from. */
-const SHED_WIDTH = 16;
-const SHED_DEPTH = 12;
-const SHED_HEIGHT = 6.4;
-
 const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * The wet corner of the Proving Ground's cell.
+ *
+ * Standing water and dripping have been audible in this room since the water
+ * models landed, coming out of bare flagstones — which reads as a fault rather
+ * than as a place. **Placement runs object → sound**, so these are the
+ * positions of the things, and the emitters below are moved to them rather than
+ * the other way round.
+ *
+ * The cell interior is x 19..27, z -4..4. The sink stands against the west
+ * wall, turned a quarter so its splashback is against the stone; the cistern
+ * sits out in the room where something can drip into it from the ceiling.
+ */
+const SINK_AT = new THREE.Vector3(19.7, 0, 0);
+const SINK_YAW = Math.PI / 2;
+const CISTERN_AT = new THREE.Vector3(25.5, 0, 2.4);
+
+/**
+ * Where the sink's spout actually is, in world space.
+ *
+ * The tap is on the far side of the basin from the room, so rotating the sink
+ * moves it — and a drip placed at the sink's *origin* would be coming from the
+ * middle of the bowl. Derived rather than typed: `rotateY` maps local (x, z) to
+ * (z, −x) at a quarter turn, and the spout sits at local z ≈ −0.14.
+ */
+const SPOUT_AT: readonly [number, number, number] = [SINK_AT.x - 0.14, 1.2, SINK_AT.z];
+
+/**
+ * Where the plant in the factory hall actually stands.
+ *
+ * Same rule as the wet corner above: **placement runs object → sound.** These
+ * are read by `buildFactory` and by `FACTORY_SOUND`, so an engine cannot be
+ * moved without its noise following it, which is exactly what went wrong the
+ * first time an emitter was given coordinates of its own.
+ */
+const ENGINE_X = -5.4;
+const ENGINE_Z = [-2.4, 1.1, 4.4] as const;
+/** The engine pulled out into the aisle, part-way through being worked on. */
+const STRIPPED_AT: readonly [number, number, number] = [1.5, 0.9, 1.9];
+/** The gantry straddling the aisle, and the height of its trolley. */
+const GANTRY_AT: readonly [number, number, number] = [-1.8, 2.6, 2.4];
+/**
+ * The pipe run on the east wall, and roughly the height of its main.
+ *
+ * `FACTORY.width / 2 − 0.34` — written out because this is read before
+ * `buildFactory` declares its local `halfW`, and the two must not drift.
+ */
+const PIPE_RUN: readonly [number, number, number] = [15 / 2 - 0.34, 1.5, 1.6];
+
+/**
+ * The factory hall.
+ *
+ * A works is not a village and the rules are different. Out in the open,
+ * sparse beats dense and everything has a short reach; in a sealed stone box
+ * fifteen metres across there is nowhere to walk *away* to, so the danger is
+ * the opposite one — four continuous sources at once is a wall of noise with
+ * no shape, and the room stops having a near end and a far end.
+ *
+ * So: two engines and not four. The row is three machines long and the ear
+ * cannot separate three of the same model in one room anyway — it hears "an
+ * engine room", which is the read that is wanted, and two sources deliver it
+ * for half the voices. They are pitched a fifth apart and run at different
+ * speeds, because two identical machines beat against each other into a
+ * chorus and stop being two objects.
+ *
+ * The gantry is what makes it a *working* room rather than a running one. It
+ * moves in bursts with long silences between, and a silence in an industrial
+ * space is worth more than another drone in it.
+ *
+ * ## Everything here is quieter than it looks
+ *
+ * The first pass used gains borrowed from the proving ground's mill, and in
+ * here it was far too loud. Three things stack up in a sealed room and none of
+ * them is the gain:
+ *
+ * - **There is nowhere to be far away.** The hall is 15 × 11, so the listener
+ *   is within about eight metres of everything in it at all times. Distance
+ *   attenuation, which does most of the mixing outdoors, does almost nothing.
+ * - **`refDistance` was set as though it would.** At 2.5 m the sources were at
+ *   full level across most of the floor. Pulled in, so crossing the room is
+ *   actually a change.
+ * - **The room adds the sound back.** A `hall` tail returns most of what is
+ *   sent to it, so a continuous source at reverb 0.9 is heard roughly twice —
+ *   once dry and once as a room that never stops ringing. Fine for a hammer
+ *   with silence after it; wrong for an engine that never stops. Sends are
+ *   well down here for exactly that reason, and the intermittent sources keep
+ *   theirs.
+ */
+const FACTORY_SOUND: SoundscapeSpec = {
+  emitters: [
+    // The north end of the row, nearest the door — heard first, and the reason
+    // the hall sounds occupied before you are properly inside it.
+    {
+      model: 'machine',
+      id: 'engine-north',
+      at: [ENGINE_X + 1, 1.1, ENGINE_Z[0]],
+      options: { rpm: 74, fundamental: 52, gain: 0.15, wear: 0.55, clank: 0.45 },
+      refDistance: 1.4,
+      maxDistance: 22,
+      rolloff: 1.7,
+      reverb: 0.3,
+    },
+    // The far end. Slower, heavier, and duller, so walking the aisle is a
+    // change of register rather than a change of level.
+    {
+      model: 'machine',
+      id: 'engine-south',
+      at: [ENGINE_X + 1, 1.1, ENGINE_Z[2]],
+      options: { rpm: 46, fundamental: 35, gain: 0.16, wear: 0.8, clank: 0.7 },
+      refDistance: 1.4,
+      maxDistance: 22,
+      rolloff: 1.7,
+      reverb: 0.35,
+    },
+    // **The chain hoist.** The genuine friction case: a load on a chain over a
+    // drum, hauled in bursts. Iron, so the body rings much longer and brighter
+    // than the tree in the proving ground does — same model, and nobody would
+    // mistake one for the other, which is the argument for modelling it rather
+    // than crossfading two recordings.
+    {
+      model: 'friction',
+      id: 'gantry',
+      at: GANTRY_AT,
+      // **Duller and slower than the first pass, and both matter.** `bright`
+      // at 0.75 put most of the energy into the three upper modes, where the
+      // contact noise lives — measured across octave bands it came out flat,
+      // which is the definition of hiss. And 0.34 sits past the Stribeck dip
+      // in the model's rub regime, so it never reached the creak at all.
+      options: {
+        motion: 'cycle',
+        speed: 0.26,
+        force: 0.8,
+        pitch: 210,
+        decay: 1.4,
+        bright: 0.4,
+        roughness: 0.22,
+        gain: 0.18,
+      },
+      refDistance: 1.6,
+      maxDistance: 22,
+      rolloff: 1.5,
+      // Keeps its send. It stops, so the tail has somewhere to fall into —
+      // which is what makes the hall sound big rather than merely reverberant.
+      reverb: 0.8,
+      // Intermittent and quiet, and the one thing in here that is somebody
+      // rather than something. It should not lose its voice to an engine.
+      importance: 1.5,
+    },
+    // Air in the pipework on the east wall — a stopped tube with a draught
+    // through it, which is a thing a works has a great deal of.
+    //
+    // **Deliberately tiny reach.** This room was already too loud once, and
+    // the fix for that was not only lower gains but shorter distances: a fifth
+    // continuous source that filled the hall would undo it. At 9 m this exists
+    // when you are beside the wall and nowhere else, which is what a draught
+    // in a pipe actually does — and it rewards walking the room rather than
+    // adding to its floor.
+    {
+      model: 'waveguide',
+      id: 'pipe-air',
+      at: PIPE_RUN,
+      options: {
+        excite: 'breath',
+        // Stopped at one end: odd harmonics only, sounding an octave below the
+        // 190 asked for. A hollow, woody note rather than a whistle.
+        closed: true,
+        pitch: 190,
+        decay: 0.9,
+        bright: 0.28,
+        drive: 0.55,
+        gain: 0.3,
+      },
+      refDistance: 1.2,
+      maxDistance: 9,
+      rolloff: 1.8,
+      reverb: 0.4,
+    },
+  ],
+  scatter: [
+    // Somebody working on the stripped engine. Rare, close, and metal — the
+    // room is full of it, so a clatter has something to have come off.
+    {
+      sound: 'clatter',
+      id: 'fitting',
+      at: STRIPPED_AT,
+      spread: [1.1, 0.4, 1.1],
+      every: 17,
+      force: [0.3, 0.85],
+      options: { material: 'metal', gain: 0.2, pieces: 3 },
+      refDistance: 1.8,
+      maxDistance: 22,
+      rolloff: 1.3,
+      reverb: 0.85,
+    },
+  ],
+};
 
 export interface TestWorld {
   zones: ZoneDefinition[];
   portals: PortalDefinition[];
 }
 
-export interface TestWorldOptions {
-  /**
-   * Builds the prop gallery, if wanted.
-   *
-   * Injected rather than imported because the gallery reads `art/registry`,
-   * which uses `import.meta.glob` and therefore only exists under Vite. The
-   * headless check imports this module through esbuild and omits it.
-   */
-  gallery?: () => THREE.Group;
+/**
+ * Where the door to the nth gallery stands in the hub.
+ *
+ * Shared by the portal definition and the arch built around it, so the two
+ * cannot drift apart — the same trick the village gate uses.
+ */
+function galleryHub(index: number): PortalEnd {
+  return {
+    zone: ZONE_EXTERIOR,
+    position: new THREE.Vector3(
+      GALLERY_RANK.x + index * GALLERY_SPACING,
+      GALLERY_RANK.y,
+      GALLERY_RANK.z,
+    ),
+    yaw: GALLERY_YAW,
+    material: 'timber',
+    seed: 5200 + index * 17,
+  };
 }
 
-export function createTestWorld(ground: ProvingGround, options: TestWorldOptions = {}): TestWorld {
+export function createTestWorld(ground: ProvingGround): TestWorld {
   // Built eagerly, outside the zone builder, because the portal placement below
   // has to measure the hut's doorway — and the doorway's position is rolled
   // from the hut's seed, so it cannot be known before the mesh exists.
@@ -145,10 +386,6 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
   const hutDoor = new THREE.Vector3(anchor.x, 0, anchor.z + DOOR_PROUD)
     .applyAxisAngle(UP, HUT_YAW)
     .add(HUT_AT);
-
-  const factoryDoor = new THREE.Vector3(0, 0, SHED_DEPTH / 2 + DOOR_PROUD)
-    .applyAxisAngle(UP, FACTORY_YAW)
-    .add(FACTORY_AT);
 
   const zones: ZoneDefinition[] = [
     {
@@ -183,6 +420,43 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
               maxDistance: 20,
               rolloff: 1.7,
               reverb: 0.35,
+            },
+            // The same tree, from underneath. Foliage is the leaves; this is
+            // the timber taking the load — a limb turning against the one it
+            // is resting on when a gust gets into the crown.
+            //
+            // Silent almost all the time, and that is the design. `'weather'`
+            // motion has a threshold under it, so this says nothing at all
+            // until the wind is actually up, and then it complains once and
+            // stops. A tree that groaned continuously would be a drone with a
+            // creak in it, and the ear would file it away inside ten seconds.
+            {
+              model: 'friction',
+              id: 'limb',
+              at: [ground.anchors.tree.x - 0.4, ground.anchors.tree.y - 1.2, ground.anchors.tree.z],
+              // Low, short-ringing and dull: green timber is a poor resonator,
+              // which is exactly why a tree groans rather than sings.
+              //
+              // No stroke cycle here and none needed: the gust field is doing
+              // that job. `'weather'` motion tracks `strength`, which rises
+              // and falls over seconds, so the speed sweeps across the
+              // friction curve on its own and the groan changes shape as the
+              // wind does. That is the whole reason to drive it from the
+              // weather rather than to schedule it.
+              options: {
+                motion: 'weather',
+                speed: 0.22,
+                force: 0.7,
+                pitch: 78,
+                decay: 0.35,
+                bright: 0.2,
+                roughness: 0.4,
+                gain: 0.4,
+              },
+              refDistance: 2,
+              maxDistance: 22,
+              rolloff: 1.6,
+              reverb: 0.3,
             },
             // The bushes are small, dry and quiet, with a much shorter reach —
             // they only exist when you are beside them.
@@ -240,7 +514,8 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
             {
               model: 'water',
               id: 'cistern',
-              at: [23, 0.2, 1.5],
+              // The surface of the water in the basin, not the middle of it.
+              at: [CISTERN_AT.x, CISTERN_WATER_HEIGHT, CISTERN_AT.z],
               options: { flow: 'cistern', gain: 0.4, tone: 0.9 },
               refDistance: 1.5,
               maxDistance: 12,
@@ -257,7 +532,8 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
             {
               sound: 'drip',
               id: 'seep',
-              at: [22, 1.4, -0.5],
+              // The tap, which is now a tap.
+              at: SPOUT_AT,
               spread: [0.3, 0, 0.3],
               every: 3.6,
               rhythm: 'periodic',
@@ -275,7 +551,10 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
             {
               sound: 'drip',
               id: 'seep-far',
-              at: [25.5, 1.4, 2.4],
+              // Off the ceiling into the cistern. Left up high on purpose —
+              // this one is falling water rather than a leaking fitting, and
+              // the drop is most of what tells the two apart.
+              at: [CISTERN_AT.x, 1.4, CISTERN_AT.z],
               spread: [0.3, 0, 0.3],
               every: 7.1,
               rhythm: 'periodic',
@@ -295,16 +574,24 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
       build() {
         const root = ground.root;
         root.add(markCollidable(hutMesh));
-        root.add(buildFactoryExterior());
 
-        // The arch the village door stands in. Placed by the same position and
-        // yaw as the portal, so the two cannot drift apart.
-        const arch = archway.build({ seed: 4711 });
-        arch.position.copy(GATE_AT);
-        arch.rotation.y = GATE_YAW;
-        root.add(markCollidable(arch));
+        // The wet corner of the cell. See `SINK_AT` — these exist so the
+        // water you can hear has something to be coming out of.
+        const basin = sink.build({ seed: 8811 });
+        basin.position.copy(SINK_AT);
+        basin.rotation.y = SINK_YAW;
+        root.add(markCollidable(basin));
 
-        if (options.gallery) root.add(options.gallery());
+        const tank = cistern.build({ seed: 8812 });
+        tank.position.copy(CISTERN_AT);
+        root.add(markCollidable(tank));
+
+        // No frames around the village gate or the gallery rank. An archway
+        // reads as a threshold you walk *through*, and neither of these is —
+        // both are doors you use and are teleported by. Ringing every one of
+        // them in masonry made the Proving Ground look like a folly garden and
+        // said nothing true about what they do. The portal system builds the
+        // door meshes themselves; that is the whole fixture.
         return root;
       },
     },
@@ -352,8 +639,19 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
         fogNear: 12,
         fogFar: 48,
         ambientSky: 0x7c8794,
-        ambientGround: 0x3a3f44,
-        ambientIntensity: 2,
+        // **This is what the ceiling is lit by, and almost nothing else.**
+        //
+        // A hemisphere light is sampled by the surface normal, and a ceiling
+        // points straight down — so it takes the *ground* lobe and none of the
+        // sky one. Both directional lights are above it and contribute nothing
+        // at all. At 0x3a3f44 the roof was being lit by a dark slate colour and
+        // no amount of adjusting the material could rescue it: the albedo was
+        // being multiplied by nearly zero.
+        //
+        // Lifted well up, and warm rather than blue, because what is actually
+        // bouncing up here is light off a lit floor.
+        ambientGround: 0x8a8378,
+        ambientIntensity: 2.2,
         sunIntensity: 0.9,
         fillIntensity: 0.85,
         fillColor: 0x93a3b5,
@@ -364,6 +662,7 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
         // tells you a sound is happening in a *room* rather than in your ears.
         // Enough to place them in the hall, not enough to ring it.
         footstepReverb: 0.34,
+        soundscape: FACTORY_SOUND,
       },
       spawn: { position: new THREE.Vector3(0, 0.1, 2), yaw: Math.PI },
       floor: -5,
@@ -397,7 +696,7 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
       id: 'factory-door',
       a: {
         zone: ZONE_EXTERIOR,
-        position: factoryDoor,
+        position: FACTORY_DOOR_AT,
         yaw: FACTORY_YAW,
         material: 'iron',
         seed: 9301,
@@ -432,74 +731,20 @@ export function createTestWorld(ground: ProvingGround, options: TestWorldOptions
     },
   ];
 
+  // One zone and one portal per gallery, both derived from the same plan, so a
+  // gallery cannot exist without a way in.
+  GALLERIES.forEach((plan, index) => {
+    zones.push(galleryZone(plan));
+    portals.push(galleryPortal(plan, galleryHub(index)));
+  });
+
+  // **A zone with no portal, on purpose.** The sound stage runs every model in
+  // the library at once, which is a workbench and not a place — the only way
+  // in is the jump list under `?debug`. See its header for why that is the
+  // right amount of friction rather than an oversight.
+  zones.push(soundStageZone());
+
   return { zones, portals };
-}
-
-/**
- * The factory, from the outside.
- *
- * Hand-built rather than taken from the art kit: the kit has a `hut`, which is
- * a dwelling, and nothing at this scale. Crude on purpose — the point of this
- * fixture is the doorway in it. If more industrial buildings are ever wanted
- * this should become a builder so it lands in the gallery with everything else.
- */
-function buildFactoryExterior(): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'FactoryExterior';
-  group.position.copy(FACTORY_AT);
-  group.rotation.y = FACTORY_YAW;
-
-  const stone = new THREE.MeshLambertMaterial({ color: PALETTE.STONE_DARK, flatShading: true });
-  const iron = new THREE.MeshLambertMaterial({ color: PALETTE.IRON, flatShading: true });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x14161a, flatShading: true });
-
-  const walls = new THREE.Mesh(new THREE.BoxGeometry(SHED_WIDTH, SHED_HEIGHT, SHED_DEPTH), stone);
-  walls.position.y = SHED_HEIGHT / 2;
-  group.add(walls);
-
-  // A gable roof, overhanging the walls on every side.
-  //
-  // **Built by rotating the geometry, then seated by measuring it** — the same
-  // way `hut` does it, and for the same two reasons it had to learn to.
-  //
-  // The first version set `rotation.x` and `rotation.z` on the *mesh*, which
-  // composes them as an Euler triple in a fixed order rather than applying them
-  // one after the other. The prism came out rotated about an axis that was no
-  // longer where the previous rotation had left it, so it sat askew and cut
-  // through its own walls. Geometry rotations are sequential and mean exactly
-  // what they read as.
-  //
-  // The second reason is the seating. A prism rotated twice and then scaled has
-  // an underside whose height is not obvious from any of those numbers, so any
-  // guessed `position.y` buries the eaves or floats them. Measuring the bounding
-  // box and lifting by exactly the shortfall puts the eave on the wall head
-  // whatever the roof is next changed to.
-  const ridge = 2.1;
-  const roof = new THREE.CylinderGeometry(ridge, ridge, SHED_WIDTH * 1.08, 3, 1);
-  // Lay the prism on its side, so its axis runs along the building's length.
-  roof.rotateZ(Math.PI / 2);
-  // Spin the triangular section a sixth of a turn so a flat face is downward —
-  // an untouched three-sided prism rests on an edge, not a face.
-  roof.rotateX(Math.PI / 6);
-  // Stretch the section across the building's depth, with a little overhang.
-  roof.scale(1, 1, (SHED_DEPTH * 1.1) / (ridge * 2));
-  roof.computeBoundingBox();
-  roof.translate(0, SHED_HEIGHT - (roof.boundingBox?.min.y ?? 0), 0);
-  group.add(new THREE.Mesh(roof, iron));
-
-  // The recess the portal door stands in. Set *into* the wall rather than
-  // proud of it, so the door — which stands proud — is not fighting it.
-  const recess = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.7, 0.3), dark);
-  recess.position.set(0, 1.35, SHED_DEPTH / 2 - 0.13);
-  group.add(recess);
-
-  // A chimney, so the silhouette says works rather than barn. Placed off the
-  // ridge line and tall enough to clear it.
-  const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.78, 6.4, 8), stone);
-  stack.position.set(SHED_WIDTH * 0.3, SHED_HEIGHT + 2.6, -SHED_DEPTH * 0.22);
-  group.add(stack);
-
-  return markCollidable(group);
 }
 
 /**
@@ -529,23 +774,48 @@ function buildExampleInterior(): THREE.Group {
   place(root, stool.build({ seed: 415 }), -halfW + 1.1, 0, 0.7, 0.6);
 
   // Table and seating in the east half, clear of the door's approach.
-  place(root, table.build({ seed: 2077 }), 2.2, 0, 0.6, 0.08);
+  const board = table.build({ seed: 2077 });
+  place(root, board, 2.2, 0, 0.6, 0.08);
   place(root, chair.build({ seed: 411 }), 2.1, 0, 2.1, Math.PI);
   place(root, chair.build({ seed: 412 }), 2.3, 0, -0.9, 0);
   place(root, stool.build({ seed: 413 }), 3.6, 0, 1.8, 0.4);
 
   // A side table against the south wall, with the clutter on it.
-  place(root, table.build({ seed: 2078 }), -1.6, 0, halfD - 0.9, Math.PI);
+  const side = table.build({ seed: 2078 });
+  place(root, side, -1.6, 0, halfD - 0.9, Math.PI);
 
   // Somebody home. Static — Phase 7 is where figures start moving — but a room
   // with a person standing in it reads completely differently from one without,
   // and this is the fixture the animation work will be judged against.
   place(root, figure.build({ seed: 6602 }), -0.2, 0, 2.4, Math.PI * 0.85);
 
-  place(root, crate.build({ seed: 61 }), halfW - 0.9, 0, -halfD + 1, 0.4);
+  const crateA = crate.build({ seed: 61 });
+  place(root, crateA, halfW - 0.9, 0, -halfD + 1, 0.4);
   place(root, crate.build({ seed: 66 }), halfW - 1, 0, -halfD + 2.3, 1.1);
   place(root, barrel.build({ seed: 63 }), -halfW + 0.7, 0, halfD - 0.9, -0.3);
   place(root, barrel.build({ seed: 67 }), halfW - 0.8, 0, halfD - 1, 0.2);
+
+  // --- light you can see ---------------------------------------------------
+  //
+  // The interior's own lighting is a sun at a tenth strength and a generous
+  // ambient — enough to read the room by and no reason for any of it. These are
+  // the reason: four small sources, each standing on something, so the light in
+  // here is *coming from* things rather than being a property of the air.
+  //
+  // Four rather than a dozen. Each carries a `PointLight`, and every one of
+  // those is another iteration in the shader for every lit fragment in the
+  // room. Four is enough to give the space a direction and a couple of pools of
+  // warmth; a candle on every surface would cost real frames for a difference
+  // that reads as "the lights are on".
+  //
+  // Stood on measured surfaces rather than at guessed heights — see `topOf`.
+  place(root, candle.build({ seed: 7101 }), 2.35, topOf(board), 0.35, 0.6);
+  place(root, candle.build({ seed: 7102 }), -1.75, topOf(side), halfD - 0.95, -0.4);
+  // On a crate rather than beside it. A lantern on the floor of a room this
+  // size lights the boards and nothing else; up on a box it reaches the wall.
+  place(root, lantern.build({ seed: 7103 }), halfW - 0.95, topOf(crateA), -halfD + 1, 0.9);
+  // And one genuinely on the floor, by the bed, where somebody set it down.
+  place(root, lantern.build({ seed: 7104 }), -halfW + 0.55, 0, 0.15, -0.5);
 
   return markCollidable(root);
 }
@@ -560,45 +830,193 @@ function buildExampleInterior(): THREE.Group {
  */
 function buildFactory(): THREE.Group {
   const root = new THREE.Group();
-  root.add(buildInterior({ ...FACTORY, seed: 7700, style: WORKS_STYLE, planks: false, beams: 5 }));
+  // **No beams.** `buildInterior` puts timber joists across the ceiling, which
+  // is right for a dwelling and wrong here — a works is not roofed in wood, and
+  // a room dressed with steel plant under oak beams reads as a barn somebody
+  // put machinery in. The overhead structure is pipework instead, below.
+  root.add(buildInterior({ ...FACTORY, seed: 7700, style: WORKS_STYLE, planks: false, beams: 0 }));
+
+  const halfW = FACTORY.width / 2;
+  const halfD = FACTORY.depth / 2;
 
   // Laid out in three lanes across the width: engines west, an open aisle up
   // the middle where the door lets you in, and storage east. The door is in the
   // north wall at x = 0, so the strip around z = -4 is kept clear — the check
   // verifies the arrival marker itself is not inside anything, and separately
   // that you can walk forward off it, which is what this lane is for.
-  const engineX = -5.4;
-  const postX = 4;
+  const engineX = ENGINE_X;
 
+  // --- the plant -----------------------------------------------------------
+  //
   // A row of engines along the west wall, turned to face the aisle. Different
   // seeds, so they read as the same kind of machine rather than as three
   // copies of one.
-  place(root, machine.build({ seed: 3301 }), engineX, 0, -2.4, Math.PI / 2);
-  place(root, machine.build({ seed: 3302 }), engineX, 0, 1.1, Math.PI / 2);
-  place(root, machine.build({ seed: 3303 }), engineX, 0, 4.4, Math.PI / 2);
+  //
+  // Positions from `ENGINE_Z`, shared with `FACTORY_SOUND`. Typing them twice
+  // is how an engine ends up standing a metre from its own noise.
+  ENGINE_Z.forEach((z, index) => {
+    place(root, machine.build({ seed: 3301 + index }), engineX, 0, z, Math.PI / 2);
+  });
 
-  // And one pulled out into the open, at an angle, part-way through being
-  // worked on — the reason anyone would be in here.
-  place(root, machine.build({ seed: 3304 }), 1.5, 0, 1.9, -0.35);
-  place(root, crate.build({ seed: 71 }), 3.3, 0, 3.6, 0.3);
-  place(root, barrel.build({ seed: 74 }), -0.4, 0, 3.4, 0);
+  // The vessel along the east wall, lying across the room. The biggest single
+  // mass in here and the only thing that breaks the sightline down the hall,
+  // which is what stops a shed reading as one empty box.
+  place(root, tank.build({ seed: 4401 }), 5.1, 0, 2.1, Math.PI / 2);
 
-  // Roof posts down the east side only. They give the hall something to
-  // occlude sound with — the one thing in either interior that does — and a
-  // second row down the west would stand inside the engines.
-  for (const z of [-3, 0.5, 4]) {
-    place(root, post.build({ seed: 100 + z * 7 }), postX, 0, z, 0);
+  // And one engine pulled out into the open, at an angle, part-way through
+  // being worked on — the reason anyone would be in here, and what the clatter
+  // in `FACTORY_SOUND` is coming off.
+  place(root, machine.build({ seed: 3304 }), STRIPPED_AT[0], 0, STRIPPED_AT[2], -0.35);
+
+  // --- pipework, on the walls ---------------------------------------------
+  //
+  // Along the walls and not across the ceiling. Pipes overhead were standing in
+  // for the timber joists that were removed, and they were the wrong shape for
+  // the job — a pipe run is a *service*, something that goes from one machine
+  // to another at working height, and hanging four of them across a roof reads
+  // as decoration. The roof is carried by trusses below, which is what actually
+  // carries a roof.
+  //
+  // `pipes` builds its main at a fixed 2 m along +X, so a wall run is a
+  // rotation and a nudge and nothing else.
+  const wallRuns: [number, number, number][] = [
+    [-3.6, -halfD + 0.34, 0],
+    [3.6, -halfD + 0.34, 0],
+    // Shared with `FACTORY_SOUND`, which puts the air in this one. Same rule
+    // as the engines and the gantry: the emitter is derived from the object.
+    [PIPE_RUN[0], PIPE_RUN[2], Math.PI / 2],
+    [halfW - 0.34, -2.4, Math.PI / 2],
+  ];
+  for (let i = 0; i < wallRuns.length; i++) {
+    const [a, b, yaw] = wallRuns[i];
+    const run = pipes.build({ seed: 9101 + i });
+    run.position.set(yaw === 0 ? a : a, 0, yaw === 0 ? b : b);
+    run.rotation.y = yaw;
+    root.add(run);
   }
 
-  // Storage along the east wall, clear of the posts.
-  place(root, table.build({ seed: 7811 }), 6.2, 0, 0.6, -Math.PI / 2);
-  place(root, crate.build({ seed: 72 }), 6.3, 0, -3.4, 1.2);
-  place(root, crate.build({ seed: 73 }), 6, 0, 3.9, -0.6);
-  place(root, barrel.build({ seed: 75 }), 6.4, 0, -1.9, 0.9);
-  // Something growing where nothing should. The one soft thing in the room.
-  place(root, bush.build({ seed: 76, scale: 0.7 }), -6.4, 0, -4.6, 0);
+  // Extract high on the east wall. Vents build about a fixed 1.7 m sill, so
+  // this is lifted the same way a wall pipe run is turned.
+  const extract = vent.build({ seed: 9201 });
+  extract.position.set(halfW - 0.22, 1.4, -1.4);
+  extract.rotation.y = -Math.PI / 2;
+  root.add(extract);
+
+  // --- roof trusses --------------------------------------------------------
+  //
+  // Steel, and built here rather than by `buildInterior`, whose `beams` are
+  // timber joists — right for a dwelling, wrong for a works, and the reason
+  // they were turned off. But turning them off left the ceiling as one
+  // unbroken plane fifteen metres across, and an unbroken plane lit from a
+  // single direction is a flat field of one colour whatever that colour is.
+  // Pipes alone are too thin to break it.
+  //
+  // A truss is a top chord, a bottom chord and a zigzag of webs between them.
+  // That is three cheap boxes and a loop, and it is unmistakably industrial in
+  // a way a single beam is not — the diagonals are the whole read.
+  const truss = new THREE.MeshLambertMaterial({
+    color: shade(PALETTE.IRON, 0.92),
+    flatShading: true,
+  });
+  const trussTop = FACTORY.height - 0.12;
+  const trussDepth = 0.42;
+
+  for (const z of [-4.2, -1.4, 1.4, 4.2]) {
+    const bay = new THREE.Group();
+
+    for (const [y, thick] of [
+      [trussTop, 0.13],
+      [trussTop - trussDepth, 0.1],
+    ] as const) {
+      const chord = new THREE.Mesh(
+        new THREE.BoxGeometry(FACTORY.width, thick, thick * 1.25),
+        truss,
+      );
+      chord.position.set(0, y, 0);
+      bay.add(chord);
+    }
+
+    // The webs. Alternating lean, so consecutive panels form the W that says
+    // "this is carrying a load" rather than a ladder, which says nothing.
+    const panels = 9;
+    const pitch = FACTORY.width / panels;
+    for (let i = 0; i < panels; i++) {
+      const web = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, Math.hypot(pitch, trussDepth), 0.09),
+        truss,
+      );
+      web.position.set(-FACTORY.width / 2 + pitch * (i + 0.5), trussTop - trussDepth / 2, 0);
+      web.rotation.z = (i % 2 === 0 ? 1 : -1) * Math.atan2(pitch, trussDepth);
+      bay.add(web);
+    }
+
+    bay.position.z = z;
+    root.add(bay);
+  }
+
+  // --- keeping people out of the plant -------------------------------------
+  //
+  // A railing between the aisle and the engine row, and a fenced-off corner at
+  // the south end. Both are the cheapest way to say that this is a place with
+  // rules in it: a machine you can walk straight into is scenery, and one
+  // behind a rail is equipment.
+  place(root, railing.build({ seed: 9301 }), engineX + 1.9, 0, 1, Math.PI / 2);
+  place(root, chainlink.build({ seed: 9302 }), 2.4, 0, halfD - 0.7, 0);
+
+  // The wash-up, in the corner by the door. Every works has one and it is the
+  // one object in here at human scale.
+  place(root, sink.build({ seed: 9401 }), halfW - 0.55, 0, -halfD + 1.5, -Math.PI / 2);
+
+  // --- the gantry ----------------------------------------------------------
+  //
+  // Straddling the aisle rather than standing over the plant, because the
+  // point of a hoist is the empty floor underneath it: something gets lifted
+  // *off* a machine and set down where there is room to work on it, and the
+  // engine pulled out at an angle a couple of metres away is that job. Turned
+  // to run along the hall so the beam does not block the walk down it.
+  //
+  // **This is the object the creak comes from.** The friction emitter in the
+  // factory soundscape sits at the trolley, and it was placed here first — a
+  // rope groaning out of clear air in the middle of a room reads as a bug.
+  place(root, hoist.build({ seed: 8110 }), GANTRY_AT[0], 0, GANTRY_AT[2], Math.PI / 2);
+
+  // --- lit for work --------------------------------------------------------
+  //
+  // Aimed at things, not scattered. `floodlight` builds pointing +Z and takes
+  // no facing of its own, so the yaw here is the whole aim — which is the only
+  // reason it is possible to say "this one lights the engine row" and be right.
+  //
+  // Aimed *across* the hall rather than down it, for a second reason: the beam
+  // is visible geometry, and a beam pointing away from you is a bright disc
+  // while a beam crossing your view is a shaft. The shaft is the entire value
+  // of drawing the cone.
+  //
+  // Three, and not one per machine. Each carries a `SpotLight`, which is the
+  // most expensive light in the API — a cone test and a penumbra falloff for
+  // every lit fragment, on top of a shadow map when shadows are on.
+  //
+  // Onto the engine row from across the aisle, facing -X.
+  place(root, floodlight.build({ seed: 5501 }), -0.6, 0, -2.4, -Math.PI / 2);
+  place(root, floodlight.build({ seed: 5502 }), -0.6, 0, 4.4, -Math.PI / 2);
+  // And onto the tank from the aisle, facing +X.
+  place(root, floodlight.build({ seed: 5503 }), 1.2, 0, -0.6, Math.PI / 2);
+
 
   return markCollidable(root);
+}
+
+/**
+ * The height of the top of a placed prop, in its parent's space.
+ *
+ * Measured off the geometry rather than looked up. Every builder rolls its own
+ * dimensions from its seed — a table is between 0.68 and 0.78 m tall — so the
+ * only way to stand something *on* one and be right about it is to ask the mesh
+ * that was actually built. A constant here would be correct for one seed and
+ * put a candle through the boards or hovering above them for every other.
+ */
+function topOf(mesh: THREE.Mesh): number {
+  mesh.geometry.computeBoundingBox();
+  return (mesh.geometry.boundingBox?.max.y ?? 0) + mesh.position.y;
 }
 
 function place(

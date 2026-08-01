@@ -118,6 +118,8 @@ export class AudioEngine {
    */
   private faust: FaustNode | null = null;
   private faustWet: GainNode | null = null;
+  /** Built on demand by `analyser`. Nothing in the game proper asks for it. */
+  private tap: AnalyserNode | null = null;
 
   constructor() {
     // 'interactive' asks for the smallest buffer the device will give, because
@@ -249,6 +251,55 @@ export class AudioEngine {
   /** Which reverb is actually running, for the debug readout. */
   get reverbKind(): 'fdn' | 'convolution' {
     return this.faust ? 'fdn' : 'convolution';
+  }
+
+  /**
+   * The reverb's compiled module, for a generated tuning panel.
+   *
+   * `null` on the convolution fallback, which has nothing to expose — an
+   * impulse response is not adjustable, and that is the whole reason the
+   * network exists. **This is what it was worth building for.** `ROOM_PRESETS`
+   * are three fixed rooms and the way to arrive at a fourth is to hear the dial
+   * move, which an IR cannot do: changing one means rendering a new one, and
+   * the swap cuts the tail dead at the exact moment you would be listening.
+   *
+   * There was a `tuneRoom(rt60, damping, preDelay)` here, taking preset units
+   * and mapping them onto the module's controls. The generated panel covers
+   * strictly more — separate low and mid decay, and the crossover between
+   * them, which is most of what makes stone sound like stone and which a
+   * single RT60 cannot say — so the wrapper was two unit conversions guarding
+   * a narrower surface.
+   *
+   * `setRoom` rewrites all of these on every zone change, so a hand-set decay
+   * lasts until the next doorway. That is the intended lifetime: the panel is
+   * for finding a number, and the number's home is a room preset.
+   */
+  get reverbControls(): FaustNode | null {
+    return this.faust;
+  }
+
+  /**
+   * An analyser across the master bus, built the first time it is asked for.
+   *
+   * Tapped off `master` rather than off the destination, because the limiter
+   * sits after it and looking at a limited signal tells you what survived
+   * rather than what was sent. Never created unless something asks: an FFT per
+   * frame is not free, and nothing in the game proper wants one.
+   */
+  get analyser(): AnalyserNode {
+    if (!this.tap) {
+      const analyser = this.context.createAnalyser();
+      // 1024 bins over 24 kHz is about 23 Hz apiece — enough to see a
+      // fundamental at 40 Hz sit apart from its second harmonic, which is the
+      // resolution these models are actually judged at.
+      analyser.fftSize = 2048;
+      // Long enough that a band does not flicker between frames, short enough
+      // that a hammer still shows up as an event.
+      analyser.smoothingTimeConstant = 0.6;
+      this.master.connect(analyser);
+      this.tap = analyser;
+    }
+    return this.tap;
   }
 
   get room(): RoomName | null {

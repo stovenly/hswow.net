@@ -26,62 +26,140 @@ import { SWAY_ATTRIBUTE } from '../src/art/assemble';
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
 // directory so the two cannot drift apart unnoticed.
+import { anvil } from '../src/art/builders/anvil';
 import { archway } from '../src/art/builders/archway';
 import { barrel } from '../src/art/builders/barrel';
 import { bed } from '../src/art/builders/bed';
+import { bell } from '../src/art/builders/bell';
+import { bramble } from '../src/art/builders/bramble';
 import { bovine } from '../src/art/builders/bovine';
 import { bush } from '../src/art/builders/bush';
 import { cairn } from '../src/art/builders/cairn';
+import { candle } from '../src/art/builders/candle';
+import { chainlink } from '../src/art/builders/chainlink';
 import { chair } from '../src/art/builders/chair';
+import { cistern } from '../src/art/builders/cistern';
 import { crate } from '../src/art/builders/crate';
+import { daisy } from '../src/art/builders/daisy';
 import { door } from '../src/art/builders/door';
+import { sticks } from '../src/art/builders/sticks';
+import { dog } from '../src/art/builders/dog';
 import { equine } from '../src/art/builders/equine';
 import { fence } from '../src/art/builders/fence';
+import { fallenLog } from '../src/art/builders/fallen-log';
+import { fern } from '../src/art/builders/fern';
 import { figure } from '../src/art/builders/figure';
-import { grass } from '../src/art/builders/grass';
+import { floodlight } from '../src/art/builders/floodlight';
+import { smallGrassClump } from '../src/art/builders/small-grass-clump';
+import { largeGrassClump } from '../src/art/builders/large-grass-clump';
 import { hut } from '../src/art/builders/hut';
+import { lantern } from '../src/art/builders/lantern';
 import { machine } from '../src/art/builders/machine';
+import { moss } from '../src/art/builders/moss';
 import { mushroom } from '../src/art/builders/mushroom';
+import { nettle } from '../src/art/builders/nettle';
 import { ovine } from '../src/art/builders/ovine';
+import { pipes } from '../src/art/builders/pipes';
+import { pinecone } from '../src/art/builders/pinecone';
+import { poppy } from '../src/art/builders/poppy';
 import { porcine } from '../src/art/builders/porcine';
 import { post } from '../src/art/builders/post';
 import { poultry } from '../src/art/builders/poultry';
+import { railing } from '../src/art/builders/railing';
+import { reeds } from '../src/art/builders/reeds';
 import { rock } from '../src/art/builders/rock';
+import { smallTree } from '../src/art/builders/small-tree';
+import { sink } from '../src/art/builders/sink';
 import { stool } from '../src/art/builders/stool';
 import { streetlamp } from '../src/art/builders/streetlamp';
 import { stump } from '../src/art/builders/stump';
+import { sunflower } from '../src/art/builders/sunflower';
 import { table } from '../src/art/builders/table';
+import { tank } from '../src/art/builders/tank';
 import { tree } from '../src/art/builders/tree';
 import { trough } from '../src/art/builders/trough';
+import { vent } from '../src/art/builders/vent';
+import { wildflower } from '../src/art/builders/wildflower';
+import { forge } from '../src/art/builders/forge';
+import { hoist } from '../src/art/builders/hoist';
+import { hopper } from '../src/art/builders/hopper';
+import { ladder } from '../src/art/builders/ladder';
+import { panel } from '../src/art/builders/panel';
+import { stair } from '../src/art/builders/stair';
+import { workbench } from '../src/art/builders/workbench';
+import { bluebell } from '../src/art/builders/bluebell';
+import { cowparsley } from '../src/art/builders/cowparsley';
+import { foxglove } from '../src/art/builders/foxglove';
+import { lavender } from '../src/art/builders/lavender';
+import { thistle } from '../src/art/builders/thistle';
 
 const builders: MeshBuilder[] = [
+  bluebell,
+  cowparsley,
+  foxglove,
+  lavender,
+  thistle,
+  forge,
+  hoist,
+  hopper,
+  ladder,
+  panel,
+  stair,
+  workbench,
+  anvil,
   archway,
   barrel,
   bed,
+  bell,
   bovine,
+  bramble,
   bush,
   cairn,
+  candle,
+  chainlink,
   chair,
+  cistern,
   crate,
+  daisy,
+  sticks,
+  dog,
   door,
   equine,
+  fallenLog,
   fence,
+  fern,
   figure,
-  grass,
+  floodlight,
+  smallGrassClump,
+  largeGrassClump,
   hut,
+  lantern,
   machine,
+  moss,
   mushroom,
+  nettle,
   ovine,
+  pinecone,
+  pipes,
+  poppy,
   porcine,
   post,
   poultry,
+  railing,
+  reeds,
   rock,
+  smallTree,
+  sink,
   stool,
   streetlamp,
   stump,
+  sunflower,
   table,
+  tank,
   tree,
   trough,
+  vent,
+  wildflower,
 ];
 
 let failures = 0;
