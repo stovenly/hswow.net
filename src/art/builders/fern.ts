@@ -36,8 +36,21 @@ export const fern: MeshBuilder = {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
-    const fronds = rng.int(6, 9);
-    const reach = rng.range(0.42, 0.72);
+    // **Wider on both counts.** A rank of these came out as one plant at one
+    // size: six to nine fronds is a two-thirds spread at best, and 0.42–0.72
+    // means the largest is under twice the smallest — neither is enough to
+    // read as variety when eight of them stand side by side.
+    //
+    // A real stand of ferns is mostly *young* plants with a few big ones over
+    // them, so the size roll is skewed rather than flat: squaring a uniform
+    // draw puts twice as many at the small end, which is what a colony looks
+    // like. The frond count then follows the size, because a small fern is not
+    // a big fern shrunk — it is a big fern with fewer fronds on it, and letting
+    // the two vary independently is what produced dense little pincushions and
+    // sparse giants in the same row.
+    const vigour = rng() ** 2;
+    const reach = 0.3 + vigour * 0.62;
+    const fronds = Math.max(3, Math.round(4 + vigour * 8 + rng.around(0, 1.2)));
     const green = rng.chance(0.4) ? PALETTE.LEAF_DARK : PALETTE.LEAF;
 
     for (let f = 0; f < fronds; f++) {

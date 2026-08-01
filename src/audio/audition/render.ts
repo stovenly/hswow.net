@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { createNoiseBuffers } from '../noise';
@@ -78,6 +79,17 @@ export interface Subject {
 export const DEFAULT_SECONDS = 6;
 
 /**
+ * Where a subject is deemed to stand.
+ *
+ * Wind-driven models now sample the gust field at their own position, because
+ * the field travels. A bench has no geography, so everything is measured at
+ * the origin — where the lag is zero and the field reads exactly what the
+ * global `strength` used to. That keeps a rendered row comparable with the
+ * baselines captured before the field became positional.
+ */
+const ORIGIN = new THREE.Vector3();
+
+/**
  * A stand-in for `AudioEngine` around an offline context.
  *
  * Not an `AudioEngine`: that constructor opens a real `AudioContext`, listens
@@ -137,7 +149,7 @@ export async function render(
   for (let i = 1; i < pumps; i++) {
     void context.suspend((i * STEP_SAMPLES) / sampleRate).then(() => {
       engine.weather.update(step);
-      model.update?.(step, engine);
+      model.update?.(step, engine, ORIGIN);
       void context.resume();
     });
   }
@@ -146,7 +158,7 @@ export async function render(
   // schedules its opening events from `currentTime` gets them at zero rather
   // than one step in.
   engine.weather.update(step);
-  model.update?.(step, engine);
+  model.update?.(step, engine, ORIGIN);
 
   const rendered = await context.startRendering();
   return { signal: rendered.getChannelData(0), model, rate: sampleRate };

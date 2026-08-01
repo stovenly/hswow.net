@@ -51,8 +51,16 @@ import type { Collider } from '../player/Collider';
 
 export interface SoundModel {
   readonly output: AudioNode;
-  /** Called each frame while audible. */
-  update?(dt: number, engine: AudioEngine): void;
+  /**
+   * Called each frame while audible.
+   *
+   * `at` is where this model is standing, and models that care about wind
+   * should read `engine.weather.strengthAt(at.x, at.z)` rather than the global
+   * `strength`. The gust field travels, so the far treeline quickens before
+   * the near hedge — in the same order you watch it cross them. A bed has no
+   * position of its own and is handed the listener's.
+   */
+  update?(dt: number, engine: AudioEngine, at: THREE.Vector3): void;
   /** Told when the emitter goes virtual, so models can stop scheduling work. */
   setActive?(active: boolean): void;
   dispose(): void;
@@ -303,7 +311,7 @@ export class Emitter {
 
     const distance = this.position.distanceTo(this.engine.listenerPosition);
 
-    this.model.update?.(dt, this.engine);
+    this.model.update?.(dt, this.engine, this.position);
 
     if (retestOcclusion && !this.ignoreOcclusion) {
       this.occluded = this.testOcclusion(collider, distance);

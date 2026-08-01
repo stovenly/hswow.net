@@ -267,6 +267,52 @@ body.is-loading #capture-hint {
   opacity: 0;
 }
 
+/* --- zone transitions ----------------------------------------------------- */
+
+/* The same rule, the same width, the same place on screen as the boot bar
+   above — a doorway that takes a moment should look like this game loading and
+   not like a second piece of UI from a different game. It reuses the
+   `.loading-*` classes wholesale; all that is different is where the box sits
+   and that it fades rather than being removed.
+
+   No backdrop of its own. This only ever appears inside a transition that has
+   already faded to black, so a panel behind it would be a darker rectangle on
+   black. Under `#loading`, so the two can never fight during boot. */
+#building {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1.1rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms linear;
+}
+
+#building.is-shown {
+  opacity: 1;
+}
+
+/* The indeterminate sweep, for a step that cannot report its own progress.
+   **Animating `transform` is the whole trick**: a transform animation is handed
+   to the compositor, which runs on its own thread, so it keeps moving while the
+   main thread is blocked building a zone. Anything driven from JavaScript, or
+   animating a property that forces layout, would freeze at exactly the moment
+   it most needs to look alive. `.loading-track` clips it — without the
+   overflow the bar simply runs out past both ends and reads as wider than the
+   thing it is meant to be filling. */
+@keyframes building-sweep {
+  0% {
+    transform: translateX(-100%) scaleX(0.35);
+  }
+
+  100% {
+    transform: translateX(300%) scaleX(0.35);
+  }
+}
+
 /* --- interaction prompt -------------------------------------------------- */
 
 /* Sits above the crosshair, not beside it. The crosshair is the aiming point,

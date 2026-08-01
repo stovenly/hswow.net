@@ -220,7 +220,9 @@ export class Soundscape {
   update(dt: number, collider: Collider, retestOcclusion: boolean): void {
     if (!this.active) return;
     // Beds have no emitter, so nothing else would ever call them.
-    for (const bed of this.beds) bed.update?.(dt, this.engine);
+    // A bed is the air you are standing in, so it samples the field at the
+    // listener rather than at a position of its own — it has none.
+    for (const bed of this.beds) bed.update?.(dt, this.engine, this.engine.listenerPosition);
     for (const emitter of this.emitters) emitter.update(dt, collider, retestOcclusion);
     for (const field of this.scatter) field.update(dt, collider, retestOcclusion);
   }

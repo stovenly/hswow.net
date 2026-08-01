@@ -66,7 +66,13 @@ export const nettle: MeshBuilder = {
       const tiers = 2 + Math.floor(height * 2);
       for (let t = 1; t <= tiers; t++) {
         const up = (t / (tiers + 0.6)) * height;
-        const tier = height * rng.range(0.1, 0.16) * (1 - (t / tiers) * 0.35);
+        // **Shrinking hard toward the top.** This taper was 0.35, so the
+        // topmost leaves were still two thirds the size of the bottom ones and
+        // the stalk read as a ladder of near-identical pairs. A real nettle
+        // grades steeply — big coarse leaves at the base, and by the growing
+        // tip they are barely more than bracts. Steeper here also gives the
+        // plant a *point*, which is most of what says nettle in a silhouette.
+        const tier = height * rng.range(0.1, 0.16) * (1 - (t / tiers) * 0.72);
         for (const side of [-1, 1]) {
           // A per-leaf size rather than a per-pair one. Two blades built to
           // identical dimensions and merged occasionally land exactly on each
@@ -87,6 +93,35 @@ export const nettle: MeshBuilder = {
             sway: Math.max(0, up / height) ** 1.4,
           });
         }
+      }
+
+      // --- the crown ----------------------------------------------------------
+      //
+      // A tight rosette of very small leaves at the growing tip. A nettle does
+      // not simply stop at its last full-sized pair — the shoot finishes in a
+      // knot of half-made leaves crowded together, and that little dark cluster
+      // is the top of the plant's silhouette. Without it the stalk ends on a
+      // pair of leaves and a bare centimetre of stem, which reads as cut.
+      const crown = rng.int(3, 5);
+      for (let c = 0; c < crown; c++) {
+        const size = height * rng.range(0.022, 0.04);
+        const blade = new THREE.ConeGeometry(size * 0.5, size * 1.6, 3);
+        blade.translate(0, size * 0.8, 0);
+        blade.scale(1, 1, 0.3);
+        // Steeply up and barely out — the tip leaves are still folded against
+        // the shoot rather than opened away from it.
+        blade.rotateZ(rng.range(0.25, 0.6));
+        blade.rotateY(c * 2.399963 + rng.around(0, 0.4));
+        // Each to its own height in the last few centimetres, so the cluster is
+        // a spiral rather than a whorl and no two share a base point.
+        blade.translate(ox, height * (0.9 + c * 0.022), oz);
+        parts.push({
+          geometry: blade,
+          // Paler and yellower than the mature leaf. New growth on a nettle is
+          // visibly lighter, and it lifts the tip out of the mass below it.
+          color: shade(green, rng.range(1.1, 1.25)),
+          sway: 1,
+        });
       }
 
       // The flower spikes: thin trails hanging where the top leaves join. Dull

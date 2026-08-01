@@ -137,10 +137,10 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
       }
     },
 
-    update(_dt, audio) {
+    update(_dt, audio, at) {
       if (!active) return;
 
-      const strength = Math.max(audio.weather.strength, restlessness);
+      const strength = Math.max(audio.weather.strengthAt(at.x, at.z), restlessness);
       const now = context.currentTime;
 
       // The hush carries the level and brightens as the wind rises — a canopy

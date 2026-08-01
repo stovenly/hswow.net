@@ -1,4 +1,14 @@
 import type { GalleryPlan } from './layout';
+import { windowBuilder } from '../../art/builders/window';
+import { fireplace } from '../../art/builders/fireplace';
+import { stove } from '../../art/builders/stove';
+import { dresser } from '../../art/builders/dresser';
+import { chest } from '../../art/builders/chest';
+import { washtub } from '../../art/builders/washtub';
+import { broom } from '../../art/builders/broom';
+import { hangingHerbs } from '../../art/builders/hanging-herbs';
+import { spinningWheel } from '../../art/builders/spinning-wheel';
+import { wallPegs } from '../../art/builders/wall-pegs';
 import { hut } from '../../art/builders/hut';
 import { archway } from '../../art/builders/archway';
 import { fence } from '../../art/builders/fence';
@@ -91,6 +101,26 @@ const VILLAGE_BUILDERS = [
   chair,
   stool,
   bed,
+
+  // --- the inside of a hut, on the right as you come in ---------------------
+  //
+  // Everything above dresses a village from the outside; this is what is in it.
+  // Kept as one run at the far end rather than mixed through, because the
+  // question these answer is whether a *room* built from them hangs together —
+  // and that is only askable if they stand together.
+  //
+  // Tallest first again, and the fixed things before the loose ones: a room is
+  // read by what is against its walls before what is on its floor.
+  windowBuilder,
+  fireplace,
+  dresser,
+  stove,
+  spinningWheel,
+  wallPegs,
+  hangingHerbs,
+  washtub,
+  chest,
+  broom,
 ];
 
 export const villageGalleryPlan: GalleryPlan = {

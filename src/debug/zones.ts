@@ -25,6 +25,16 @@ import { tank } from '../art/builders/tank';
 import { vent } from '../art/builders/vent';
 import { railing } from '../art/builders/railing';
 import { chainlink } from '../art/builders/chainlink';
+import { fireplace } from '../art/builders/fireplace';
+import { stove } from '../art/builders/stove';
+import { windowBuilder } from '../art/builders/window';
+import { dresser } from '../art/builders/dresser';
+import { chest } from '../art/builders/chest';
+import { washtub } from '../art/builders/washtub';
+import { broom } from '../art/builders/broom';
+import { hangingHerbs } from '../art/builders/hanging-herbs';
+import { spinningWheel } from '../art/builders/spinning-wheel';
+import { wallPegs } from '../art/builders/wall-pegs';
 import { hoist } from '../art/builders/hoist';
 import { lantern } from '../art/builders/lantern';
 import { cistern, CISTERN_WATER_HEIGHT } from '../art/builders/cistern';
@@ -768,32 +778,88 @@ function buildExampleInterior(): THREE.Group {
   const halfW = EXAMPLE.width / 2;
   const halfD = EXAMPLE.depth / 2;
 
-  // Bed along the west wall. Beds are built lying along Z, so it needs no
-  // rotation — only pushing back until it nearly touches the wall.
-  place(root, bed.build({ seed: 3120 }), -halfW + 0.9, 0, -1.4, 0);
-  place(root, stool.build({ seed: 415 }), -halfW + 1.1, 0, 0.7, 0.6);
+  // --- a room somebody lives in --------------------------------------------
+  //
+  // Rearranged around the fireplace, because a hearth is not furniture — it is
+  // the thing a room is *organised by*. Everything here now answers to it: the
+  // seating faces it, the bed is out of its draught, the work that needs light
+  // is under the windows, and the storage is in the dead corner behind the
+  // door. Before this the pieces were spaced to be looked at individually,
+  // which is what a gallery is for.
+  //
+  // The door is in the north wall at x = 0, so the strip in front of it is kept
+  // clear — the world check verifies you can walk forward off the arrival
+  // marker, and it is also simply how a room works.
 
-  // Table and seating in the east half, clear of the door's approach.
+  // The hearth, central on the west wall and facing into the room. Built with
+  // its back at z = 0 projecting +Z, so a quarter turn puts it against −X.
+  place(root, fireplace.build({ seed: 8801 }), -halfW + 0.12, 0, 0.4, Math.PI / 2);
+
+  // Two windows in the south wall, either side of centre. Facing −Z, into the
+  // room. They are the reason the south half is where the daytime work happens.
+  place(root, windowBuilder.build({ seed: 8810 }), -2.6, 0, halfD - 0.1, Math.PI);
+  place(root, windowBuilder.build({ seed: 8811 }), 2.4, 0, halfD - 0.1, Math.PI);
+
+  // The stove on the east wall — a second, smaller heat source at the far end
+  // from the hearth, which is what a room this long would actually have.
+  place(root, stove.build({ seed: 8820 }), halfW - 0.35, 0, -1.6, -Math.PI / 2);
+
+  // Bed in the north-west corner: out of the hearth's radiant heat, out of the
+  // window light, and away from the door. Beds are built lying along Z, so the
+  // west wall needs no rotation.
+  place(root, bed.build({ seed: 3120 }), -halfW + 0.95, 0, -2.5, 0);
+  // The chest at its foot, which is where a chest goes.
+  const foot = chest.build({ seed: 8830 });
+  place(root, foot, -halfW + 1.0, 0, -1.0, 0.06);
+
+  // Table and seating pulled in toward the fire rather than pushed to the far
+  // wall. Two chairs and a stool round it, the chairs on the hearth side.
   const board = table.build({ seed: 2077 });
-  place(root, board, 2.2, 0, 0.6, 0.08);
-  place(root, chair.build({ seed: 411 }), 2.1, 0, 2.1, Math.PI);
-  place(root, chair.build({ seed: 412 }), 2.3, 0, -0.9, 0);
-  place(root, stool.build({ seed: 413 }), 3.6, 0, 1.8, 0.4);
+  place(root, board, 0.6, 0, 0.9, 0.08);
+  place(root, chair.build({ seed: 411 }), -0.5, 0, 1.5, Math.PI * 0.4);
+  place(root, chair.build({ seed: 412 }), 0.9, 0, -0.4, 0.1);
+  place(root, stool.build({ seed: 413 }), 1.7, 0, 0.4, 0.4);
+  // One drawn up to the fire itself, turned to face it.
+  place(root, stool.build({ seed: 415 }), -halfW + 1.6, 0, 0.2, -0.5);
 
-  // A side table against the south wall, with the clutter on it.
+  // The spinning wheel under the west window, because it is the piece that
+  // most needs light to work at — and putting it there is the cheapest way to
+  // say the windows are for something.
+  place(root, spinningWheel.build({ seed: 8840 }), -2.9, 0, halfD - 2.2, Math.PI * 0.85);
+
+  // A side table against the south wall between the windows, with the clutter.
   const side = table.build({ seed: 2078 });
-  place(root, side, -1.6, 0, halfD - 0.9, Math.PI);
+  place(root, side, -0.2, 0, halfD - 0.8, Math.PI);
+
+  // The dresser on the north wall, east of the door, facing into the room.
+  place(root, dresser.build({ seed: 8850 }), 2.6, 0, -halfD + 0.35, 0);
+
+  // Washing in the corner by the hearth, where the water would be heated.
+  place(root, washtub.build({ seed: 8860 }), -halfW + 0.75, 0, 3.3, 0.4);
+  // Herbs drying on the wall above it — the overhead register, and the only
+  // thing in the room whose geometry starts above head height.
+  place(root, hangingHerbs.build({ seed: 8870 }), -halfW + 0.16, 0, 2.4, Math.PI / 2);
+  // Pegs by the door, where coats come off.
+  place(root, wallPegs.build({ seed: 8880 }), -1.5, 0, -halfD + 0.14, 0);
+  // And the broom leaning beside them.
+  place(root, broom.build({ seed: 8890 }), -2.3, 0, -halfD + 0.45, 0.25);
 
   // Somebody home. Static — Phase 7 is where figures start moving — but a room
   // with a person standing in it reads completely differently from one without,
-  // and this is the fixture the animation work will be judged against.
-  place(root, figure.build({ seed: 6602 }), -0.2, 0, 2.4, Math.PI * 0.85);
+  // and this is the fixture the animation work will be judged against. Stood at
+  // the table rather than in open floor, which is where a person actually is.
+  place(root, figure.build({ seed: 6602 }), 0.4, 0, 2.1, Math.PI * 0.9);
 
+  // Storage in the dead corner behind the door, which is where it goes in a
+  // real room: the space nobody walks through and nobody sits in.
   const crateA = crate.build({ seed: 61 });
-  place(root, crateA, halfW - 0.9, 0, -halfD + 1, 0.4);
-  place(root, crate.build({ seed: 66 }), halfW - 1, 0, -halfD + 2.3, 1.1);
-  place(root, barrel.build({ seed: 63 }), -halfW + 0.7, 0, halfD - 0.9, -0.3);
-  place(root, barrel.build({ seed: 67 }), halfW - 0.8, 0, halfD - 1, 0.2);
+  place(root, crateA, halfW - 0.9, 0, -halfD + 1.0, 0.4);
+  // **The second crate is gone.** It rolls very nearly a metre across, and
+  // there is nowhere left in a ten-by-eight room with a hearth, a stove, a
+  // dresser and two windows in it that a metre-wide box can stand without
+  // fouling something — it was inside the dresser in one position and standing
+  // in the daylight from the south window in the next. One crate is enough.
+  place(root, barrel.build({ seed: 67 }), halfW - 0.7, 0, -0.2, 0.2);
 
   // --- light you can see ---------------------------------------------------
   //
@@ -809,13 +875,15 @@ function buildExampleInterior(): THREE.Group {
   // that reads as "the lights are on".
   //
   // Stood on measured surfaces rather than at guessed heights — see `topOf`.
-  place(root, candle.build({ seed: 7101 }), 2.35, topOf(board), 0.35, 0.6);
-  place(root, candle.build({ seed: 7102 }), -1.75, topOf(side), halfD - 0.95, -0.4);
+  place(root, candle.build({ seed: 7101 }), 0.75, topOf(board), 0.65, 0.6);
+  place(root, candle.build({ seed: 7102 }), -0.35, topOf(side), halfD - 0.85, -0.4);
   // On a crate rather than beside it. A lantern on the floor of a room this
   // size lights the boards and nothing else; up on a box it reaches the wall.
   place(root, lantern.build({ seed: 7103 }), halfW - 0.95, topOf(crateA), -halfD + 1, 0.9);
   // And one genuinely on the floor, by the bed, where somebody set it down.
-  place(root, lantern.build({ seed: 7104 }), -halfW + 0.55, 0, 0.15, -0.5);
+  // Standing *on* the chest at the foot of the bed, not inside it. Read off
+  // the chest's own geometry rather than assumed — the lid height is rolled.
+  place(root, lantern.build({ seed: 7104 }), -halfW + 1.05, topOf(foot), -1.05, -0.5);
 
   return markCollidable(root);
 }

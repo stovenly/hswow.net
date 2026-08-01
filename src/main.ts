@@ -25,6 +25,8 @@ import { createTestWorld, ZONE_EXTERIOR, ZONE_VILLAGE } from './debug/zones';
 import { STAGE_STATIONS } from './debug/SoundStage';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
+import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
+import { installReloadBanner } from './debug/HotReload';
 import { attachFaustPanel } from './debug/FaustPanel';
 import type { FrictionModel } from './audio/models/friction';
 import type { WaveguideModel } from './audio/models/waveguide';
@@ -45,6 +47,20 @@ const dev = createDevTools();
 
 // Created before PostFX, which owns the fog's colour and distances from here on.
 viewport.scene.fog = new THREE.Fog(0x0a0a0f, 20, 90);
+
+// Dev server only, and compiled out of the production build entirely. Cancels
+// Vite's full reload and shows a banner instead — a reload drops pointer lock
+// and sends you back to spawn, which is expensive at the exact moment you are
+// standing still looking at something.
+installReloadBanner();
+
+// **Before PostFX**, and that ordering is load-bearing rather than tidy. The
+// kit's shared material is patched in place, so a prop built later picks the
+// sway up without knowing about it — but `PostFX` reaches into its edge pass
+// and patches *that* material too, and it can only do so once the patch
+// exists. Constructed the other way round it silently did nothing, and the
+// symptom was a motionless outline around every swaying plant.
+patchArtMaterial();
 
 const postfx = new PostFX(viewport);
 const crosshair = new Crosshair(viewport.renderer);
@@ -204,13 +220,12 @@ if (dev.gui) {
   look.add(r, 'pixelSize', 1, 12, 1).onChange(refresh);
   look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'depthEdgeStrength', 0, 2, 0.05).onChange(refresh);
-  look.add(r, 'quantize', ['off', 'levels', 'palette']).onChange(refresh);
+  look.add(r, 'quantize', ['off', 'levels']).onChange(refresh);
   look.add(r, 'levels', 2, 16, 1).onChange(refresh);
   look.add(r, 'ditherScale', 0, 2, 0.05).name('dither (steps)').onChange(refresh);
-  look
-    .add(r, 'ditherPattern', { bayer: 'bayer', 'blue noise': 'blue', 'gradient noise': 'noise' })
-    .onChange(refresh);
-  look.add(r, 'ditherMatrix', { '2×2': 2, '4×4': 4, '8×8': 8 }).name('bayer size').onChange(refresh);
+  // Counted in chunky pixels, so this and `pixelSize` multiply — a period of 4
+  // at pixel size 3 is the same size on screen as 3 at pixel size 4.
+  look.add(r, 'screenPeriod', 2, 32, 1).name('screen period').onChange(refresh);
 
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
@@ -243,13 +258,6 @@ if (dev.gui) {
   fogFolder.addColor(r, 'fogColor').onChange(refresh);
   fogFolder.add(r, 'fogNear', 0, 200, 1).onChange(refresh);
   fogFolder.add(r, 'fogFar', 0, 400, 1).onChange(refresh);
-
-  // Sixteen colour pickers is a lot of panel, but a palette is not something
-  // that can be judged from a number — it has to be seen against the scene.
-  const paletteFolder = dev.gui.addFolder('palette').close();
-  r.palette.forEach((_, index) => {
-    paletteFolder.addColor(r.palette, index).name(`${index}`).onChange(refresh);
-  });
 
   // Surface colours, live. Contrast between the floor and everything standing
   // on it is a quantization question as much as an art one, so it wants to be
@@ -341,6 +349,20 @@ if (dev.gui) {
   weather.add(audio.weather.settings, 'windSpeed', 0, 1, 0.01).name('wind');
   weather.add(audio.weather.settings, 'gustDepth', 0, 1, 0.01).name('gust depth');
   weather.add(audio.weather.settings, 'gustRate', 0.01, 0.6, 0.01).name('gust rate');
+  weather
+    .add(audio.weather.settings, 'windDirection', 0, Math.PI * 2, 0.01)
+    .name('wind direction');
+  // How fast a gust crosses the world. The control that decides whether the
+  // wind reads as weather or as a global parameter being turned: at the top of
+  // this range the front is near enough instant and everything moves together,
+  // which is what it looked like before the field travelled at all.
+  weather
+    .add(audio.weather.settings, 'frontSpeed', 1, 60, 0.5)
+    .name('front speed (m/s)');
+  // One global scale over the vertex sway, so the whole world's motion can be
+  // judged — or turned off — without re-tuning seventy builders against each
+  // other. `art/flex.ts` holds the per-species part.
+  weather.add(windUniforms.swayAmount, 'value', 0, 2, 0.01).name('sway');
   // Bound through the active zone's soundscape rather than to a model directly.
   // A zone declares its sound as data and the models are built on entry, so a
   // panel that captured one at startup would be tuning the proving ground's
@@ -447,7 +469,7 @@ if (dev.gui) {
   // Also the only way into the sound stage, which deliberately has no door.
   const travel = dev.gui.addFolder('zones');
   for (const zone of zones.zones.values()) {
-    travel.add({ go: () => zones.enter(zone.id) }, 'go').name(zone.name);
+    travel.add({ go: () => void zones.enter(zone.id) }, 'go').name(zone.name);
   }
 
   // --- the sound stage ------------------------------------------------------
@@ -557,6 +579,13 @@ loop.add((dt, elapsed) => {
   // due this frame.
   const retestOcclusion = audio.update(dt, viewport.camera);
   zones.updateSound(dt, retestOcclusion);
+
+  // **After the audio, and that ordering is the point.** `audio.update` steps
+  // the gust field; this ships the *same* field to the vertex shader. Done the
+  // other way round the world would bend to one frame's weather while the
+  // rustle answered the next, which is a whole frame of drift between a sight
+  // and a sound that are meant to be one event.
+  updateWind(audio.weather, elapsed);
 
   // The proving ground's two test rooms are rooms *within* the exterior zone
   // rather than zones of their own — the Phase 3 acoustics fixture — so nothing
