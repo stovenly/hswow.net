@@ -382,8 +382,10 @@ Checked items are decided. Unchecked are open.
 ### Rendering
 - [x] Low-poly flat-shaded, vertex colors, no textures
 - [x] Pixelation via `RenderPixelatedPass` (depth/normal edge outlines included)
-- [x] Bayer ordered dithering, matrix size tunable
-- [x] 16-color palette quantization
+- [x] Clustered-dot halftone dithering, cell size tunable
+- [x] Per-channel level quantization, dithered in linear light
+- [ ] Dither density driven by surface normal — the texture substitute — **open**
+- [ ] ~~Fixed-palette quantization~~ — **cut.** Colour comes from the art, not the renderer
 - [x] Per-zone fog and vignette
 - [x] Live tuning panel for all of it
 - [ ] Scanlines / CRT curvature — **open**
@@ -489,29 +491,52 @@ scene ─► RenderPixelatedPass ─► OutputPass ─► RetroShader ─► scr
          depth/normal edges      and sRGB     dither, quantize
 ```
 
-`OutputPass` is where linear light becomes sRGB. Everything the retro pass does — matching
-a hex palette, spacing quantization steps evenly, dithering across those steps — is only
-correct on the display side of that conversion, so it runs last.
+`OutputPass` is where linear light becomes sRGB. Spacing quantization steps evenly is only
+correct on the display side of that conversion — in linear light every level would bunch
+into the shadows — so the pass runs last. The dither *within* a step is the opposite case
+and is resolved in linear light; see below.
+
+**The colour is the scene's.** There is no palette in the renderer and there is not going
+to be one. Every surface is flat-shaded vertex colour out of `art/palette.ts`, lit, fogged
+and tone-mapped; that is the colour set, it is continuous, and it changes when the art
+changes. The pass quantizes what it is handed. Nothing here decides what the game is
+allowed to look like.
+
+**The dither is the texture.** With no textures anywhere in this game the quantizer is the
+entire surface treatment, which is why the pattern list is long: a hatch across a flat
+face is the cheapest thing that reads as a material rather than as fill.
 
 Shipped:
 
-- `engine/RetroShader` — Bayer ordered dither at 2×2/4×4/8×8, per-channel level
-  quantization *or* nearest-match against a 16-colour palette, and vignette. The dither
-  grid is sized to the chunky pixel, not the screen pixel.
+- `engine/RetroShader` — a clustered-dot halftone screen, per-channel level quantization,
+  and vignette. The dot cell is measured in chunky pixels, not screen pixels: every device
+  pixel inside a block carries the same colour, so a threshold that varied within the block
+  would dither *inside* it and dissolve the pixelation.
 - `engine/PostFX` — owns the composer, the settings, and their persistence. Pixel size is
   authored in CSS pixels and applied in device pixels, so a look dialled in on a desktop
   reads the same on a phone at DPR 3.
 - `debug/presets` — localStorage, best-effort, separate from Phase 9's autosave.
-- Tuning panel folders: look, vignette, fog, palette (16 pickers), preset
-  (save / reset / copy JSON).
+- Tuning panel folders: look, vignette, fog, preset (save / reset / copy JSON).
 
-**The palette default is a placeholder.** Sixteen neutral greys and browns, there so
-palette mode does something the first time it is switched on. Quantize defaults to
-`levels` precisely so no art direction is imposed. Choosing the real palette is yours.
+**The dither is resolved in linear light, and this was wrong for a long time.** The old
+form added a threshold to the colour and rounded, in display-referred sRGB. But the eye
+and the display average two adjacent chunky pixels in *linear* light, so a half-and-half
+dither between two levels does not read as their midpoint — at five levels, the middle of
+the first band came out **41% too bright** (0.125 in, 0.177 perceived). The fix is to stop
+nudging and rounding: find the two levels the colour falls between, solve for the
+proportion of the brighter one whose linear average *is* the colour asked for, and compare
+that proportion against the threshold. Mean reproduction error over the range falls from
+0.0174 to 0.0013 and the worst case from 0.064 to 0.020.
 
-**Not verified visually.** Everything typechecks, builds, and the Bayer matrices were
-checked numerically against the canonical tables, but no one has looked at it yet. If it
-boots black, the shader is the first suspect.
+`ditherScale` is how much of one step the dither spreads across. At 1 every tone between
+two levels is reproduced exactly; the shipped 1.65 is deliberately over that, so the
+transition never fully resolves to flat colour and the dots stay visible as a texture
+rather than appearing only at band boundaries.
+
+**Bayer, blue noise, gradient noise and the line and crosshatch screens were all built and
+all removed** once the halftone was chosen, along with the per-channel decorrelation knob
+and `engine/blueNoise.ts`. Six selectable patterns is six ways to second-guess a decision
+that has been made. They are in the history.
 
 *Done when a look can be dialed in and persists.*
 
@@ -961,22 +986,46 @@ patched via `onBeforeCompile`, so it stays one draw call and costs nothing per i
 Moving objects on the CPU would mean a matrix update per prop per frame and no way to make
 a single tree's branches move differently from its trunk.
 
-The displacement has three parts, and all three are needed:
+The displacement has four parts:
 
 - **Weight.** The per-vertex sway weight authored in Phase 4. Everything else is multiplied
   by it, which is what pins roots and frees tips.
-- **Phase offset per instance.** Derived from world position, so no two trees move
-  together. Trees swaying in unison is worse than trees not swaying at all — it reads
-  immediately as a single mechanism rather than as many separate things in the same wind.
-- **Two frequencies.** A slow bend along the wind direction, plus a faster, smaller
-  perpendicular flutter. One frequency is a metronome; two that do not divide evenly never
-  visibly repeat.
+- **Stiffness per species.** `art/flex.ts`, applied to the weights when a builder finishes.
+  The vertex attribute says *where* a thing bends; it cannot say whether the species bends
+  at all, because that is a fact about the plant. Reeds thrash, a sunflower nods, a mushroom
+  is rigid. **Absent from the table means rigid** — an anvil that wobbles because somebody
+  forgot is a worse failure than a new plant that stands still until noticed. `check:art`
+  asserts every entry names a real builder, because a typo is otherwise silent: it is not an
+  error, it is a plant that has quietly gone stiff.
+- **A travelling front.** Not a phase offset per instance. See below.
+- **Two frequencies.** A slow bend along the wind, plus a faster, smaller perpendicular
+  flutter. One frequency is a metronome; two that do not divide evenly never visibly repeat.
 
-**Driven by the same `Weather` field as the audio.** This is the point of the whole idea.
-The gust that opens the wind's whistle and quickens the foliage grains is the same number
-that bends the trees, so what you see and what you hear are one event. Uncoupled, they are
-two ambiences that happen to share a room; coupled, they are weather. `Weather.strength`
-and `Weather.windDirection` go in as uniforms.
+**The gust travels, and that replaced the per-instance phase offset.** The original plan
+gave each tree a random offset so no two moved together. That is the right instinct and the
+wrong mechanism: wind has a current and a front, so a gust *arrives* somewhere and moves
+through, and what separates two trees is not a random number but where they stand. So the
+field gained a position argument — `strengthAt(x, z)` samples `fieldAt` at a phase lagged by
+how far downwind the point is, `frontSpeed` metres per second. Everything on a line across
+the wind receives it together, which is what a front is; everything downwind receives it
+later, which is what lets you watch it cross a valley. At 9 m/s that is about eleven seconds
+for Arkstin's bowl.
+
+**And it is the same field the audio reads.** Every wind-driven model — foliage, wind, fire,
+rain, the tree groan, the gate creak — samples at *its own position* rather than at the
+listener, so the far treeline quickens before the near hedge, in the order you watch the same
+gust reach them. That coupling is the entire point of having built a gust field.
+
+**Getting the shader to agree exactly is the one real engineering problem**, and the obvious
+answer is wrong. Reimplementing the noise in GLSL would differ in the last bits — integer
+hashing and float precision are not the same on both sides — and over a minute the picture
+and the sound drift apart. That failure is invisible in code and shows up only as a vague
+sense that something is off, which is worse than never having coupled them. So the CPU stays
+the single source of truth and *ships the answer*: the field depends on one scalar, so a
+rolling 256-texel `DataTexture` holds it across the window of phases the visible world can
+ask for, rebuilt each frame from `Weather.fieldAt`. Agreement by construction rather than by
+care. Eight bits is ample — a strength quantised to 1/255 is far finer than any displacement
+it drives.
 
 Candidates beyond trees: grass and bushes (higher frequency, smaller amplitude), hanging
 cloth and banners, water surfaces, smoke, chains and signs on pivots, reeds. Anything with

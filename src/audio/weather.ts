@@ -91,6 +91,21 @@ export interface WeatherSettings {
   gustRate: number;
   /** Compass direction the wind comes from, radians. Used for panning bias. */
   windDirection: number;
+  /**
+   * How fast a gust travels across the world, in metres per second.
+   *
+   * **This is what makes the wind a front rather than a switch.** Without it
+   * the whole world's strength is one number, so every tree in a valley starts
+   * moving on the same frame and every foliage emitter quickens together —
+   * which does not read as weather, it reads as a global parameter being
+   * turned, because that is exactly what it is.
+   *
+   * With it, the same gust reaches each point later the further downwind it
+   * stands, and you can watch it cross. At 9 m/s a gust takes about eleven
+   * seconds to cross Arkstin's bowl: slow enough to see coming, fast enough
+   * not to read as a wave effect rolling through.
+   */
+  frontSpeed: number;
 }
 
 export const DEFAULT_WEATHER: WeatherSettings = {
@@ -103,6 +118,7 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   gustDepth: 0.6,
   gustRate: 0.06,
   windDirection: 2.1,
+  frontSpeed: 9,
 };
 
 export class Weather {
@@ -121,13 +137,62 @@ export class Weather {
     this.time += dt * this.settings.gustRate;
     this.gust = fbm(this.time);
     this.swell = valueNoise(this.time * SWELL_RATIO + 91.7);
+    this.strength = this.fieldAt(this.time);
+  }
 
+  /**
+   * The field itself: strength at a point in gust-time.
+   *
+   * **A pure function of its argument, and that is the whole design.** It is
+   * evaluated three ways — here for the global reading, per emitter for the
+   * audio, and per vertex on the GPU through a lookup table sampled from this
+   * very method — and because it depends on nothing but the phase handed to
+   * it, all three agree exactly. What you see and what you hear are then the
+   * same event rather than two ambiences that happen to share a room.
+   */
+  fieldAt(phase: number): number {
     const { windSpeed, gustDepth } = this.settings;
+    const gust = fbm(phase);
+    const swell = valueNoise(phase * SWELL_RATIO + 91.7);
     // Three scales stacked: the setting is the climate, the swell is the hour,
     // the gust is the moment. Without the middle one the wind has no shape
     // over any span longer than about ten seconds, which is the difference
     // between weather and a texture that happens to wobble.
-    const baseline = windSpeed * (0.45 + this.swell * 1.1);
-    this.strength = Math.min(1, Math.max(0, baseline + (this.gust - 0.5) * gustDepth));
+    const baseline = windSpeed * (0.45 + swell * 1.1);
+    return Math.min(1, Math.max(0, baseline + (gust - 0.5) * gustDepth));
+  }
+
+  /**
+   * How far behind the leading edge a point in the world is, in gust-time.
+   *
+   * A gust travels along the wind, so somewhere downwind meets it later. The
+   * lag is the distance measured *along* the wind divided by how fast the
+   * front moves — and the projection is what makes it a front: everything on
+   * the same line across the wind receives it together, which is what a front
+   * is. Upwind points give a negative lag and are ahead of the reading here,
+   * which is fine, because the field is defined for any phase.
+   *
+   * `gustRate` converts seconds into the units `time` counts in.
+   */
+  lagAt(x: number, z: number): number {
+    const { windDirection, frontSpeed, gustRate } = this.settings;
+    const along = x * Math.cos(windDirection) + z * Math.sin(windDirection);
+    return (along / Math.max(frontSpeed, 0.5)) * gustRate;
+  }
+
+  /**
+   * Wind strength where something actually stands.
+   *
+   * What every emitter should use instead of `strength`. The far treeline
+   * quickens before the near hedge does, in the order you watch the same gust
+   * cross them.
+   */
+  strengthAt(x: number, z: number): number {
+    return this.fieldAt(this.time - this.lagAt(x, z));
+  }
+
+  /** Gust-time now. For the sway shader's lookup window. */
+  get phase(): number {
+    return this.time;
   }
 }

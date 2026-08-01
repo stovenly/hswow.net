@@ -350,7 +350,7 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
       return speed;
     },
 
-    update(dt, audio) {
+    update(dt, audio, at) {
       if (!active) return;
 
       if (override !== null) {
@@ -363,7 +363,7 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
         // groan proportionally to the wind — it does nothing at all until the
         // limb moves, and then it complains. Linear here gives a permanent
         // quiet creak, which is a drone.
-        const over = Math.max(0, audio.weather.strength - WEATHER_THRESHOLD);
+        const over = Math.max(0, audio.weather.strengthAt(at.x, at.z) - WEATHER_THRESHOLD);
         target = Math.min(1, (over / (1 - WEATHER_THRESHOLD)) ** 1.6) * topSpeed;
       }
 

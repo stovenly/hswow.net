@@ -195,13 +195,13 @@ export function createBird(engine: AudioEngine, options: BirdOptions = {}): Soun
       if (next) nextCall = 0;
     },
 
-    update(_dt, audio) {
+    update(_dt, audio, at) {
       if (!active) return;
       const now = context.currentTime;
       if (nextCall < now) nextCall = now + Math.random() * interval;
       if (nextCall > now + 0.2) return;
 
-      if (audio.weather.strength < shySpeed) {
+      if (audio.weather.strengthAt(at.x, at.z) < shySpeed) {
         const end = scheduleCall(nextCall);
         // Bouts. A third of the time the bird answers itself a beat later;
         // otherwise it goes quiet for a while. Calls spread evenly by a single
