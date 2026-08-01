@@ -2,32 +2,146 @@
   "_comment": [
     "What the library is allowed to sound like. Read by src/debug/Audition.ts.",
     "",
-    "`rules` are absolute and need no history: clipping, DC offset, a texture",
-    "fused into a drone or come apart into bubble wrap, a scheduler that has",
-    "quietly become a loop, and a loudness spread wider than the library can",
-    "be mixed out of. They apply to anything, including a model added today.",
+    "`rules` are absolute and need no history. `models` is recorded history and",
+    "catches drift — a change to a shared primitive that moves six models nobody",
+    "was thinking about. That is the case for having a row per model: `impact`",
+    "has nine consumers, `clock` seven, `modal` five, and a one-line change to",
+    "any of them is exactly the change where nobody re-listens to everything.",
     "",
-    "`models` is recorded history, and it catches drift — a change to a shared",
-    "primitive that moves six models nobody was thinking about. It can only be",
-    "produced by rendering, which only a browser can do, so it starts empty and",
-    "fills as rows are captured from a run that sounded right and committed.",
-    "Run the audition from the debug panel; it prints a paste-ready block.",
+    "Rows are produced by running the audition in a browser (?debug -> sound",
+    "stage -> audition the library) and pasting what it prints. Re-capture after",
+    "a change you meant; a drift you did not mean is what this is for.",
     "",
-    "An empty `models` is not a gap in the harness. Every rule below is live",
-    "from the first run."
+    "## What is deliberately NOT checked",
+    "",
+    "`bands` is recorded and printed and never asserted on. Eight numbers per",
+    "model is 120 tripwires that largely restate the centroid, and every honest",
+    "tuning change trips several of them. They are kept because reading them is",
+    "what caught the friction model coming out spectrally flat — a diagnostic,",
+    "not a gate.",
+    "",
+    "Loudness is not compared across the library either. The first version",
+    "required every model to sit within 3 units of every other, and the real",
+    "spread is 23: a wind bed renders at -47 and an engine at -27. That is",
+    "correct — a zone spec sets gain, refDistance and maxDistance, so the mixing",
+    "happens at placement and intrinsic loudness at defaults is not the thing",
+    "being mixed. The spread is reported for interest and asserted on never.",
+    "Per-model loudness drift is the check that survived, and it is the one that",
+    "was always doing the work."
   ],
   "rules": {
     "peak": 0.95,
     "dc": 0.01,
-    "crest": [4, 26],
-    "loudnessSpread": 3,
-    "periodicity": 0.35
+    "periodicity": 0.35,
+    "crest": {
+      "_comment": [
+        "Peak over average, in dB, and it means opposite things for the two",
+        "kinds of source — which is why there are two bands rather than one.",
+        "A continuous texture with a very high crest is bubble wrap: audible",
+        "individual grains. An impulsive source with a *low* one has lost its",
+        "transient and turned into a wash. Bounds are drawn wide around the",
+        "first captured run rather than derived; the drift check below is the",
+        "sharp instrument, and these only catch a model that has fallen over."
+      ],
+      "texture": [4, 26],
+      "event": [12, 36]
+    }
   },
   "drift": {
     "loudness": 1.5,
     "crest": 2.5,
-    "centroid": 0.5,
-    "band": 0.12
+    "centroid": 0.5
   },
-  "models": {}
+  "models": {
+    "wind": {
+      "loudness": -46.69,
+      "crest": 23.33,
+      "centroid": 121,
+      "bands": [0.6522, 0.2851, 0.0387, 0.012, 0.0116, 0.0005, 0, 0]
+    },
+    "foliage": {
+      "loudness": -41.22,
+      "crest": 15.96,
+      "centroid": 1230,
+      "bands": [0.0262, 0.0512, 0.1118, 0.3525, 0.2948, 0.1401, 0.0225, 0.0009]
+    },
+    "rain": {
+      "loudness": -37.53,
+      "crest": 14.73,
+      "centroid": 1062,
+      "bands": [0.0363, 0.1044, 0.1761, 0.253, 0.3241, 0.0975, 0.0082, 0.0004]
+    },
+    "water": {
+      "loudness": -38.89,
+      "crest": 15.12,
+      "centroid": 741,
+      "bands": [0.1976, 0.1233, 0.1289, 0.2884, 0.2154, 0.0417, 0.0047, 0.0001]
+    },
+    "fire": {
+      "loudness": -32.04,
+      "crest": 13.58,
+      "centroid": 558,
+      "bands": [0.2647, 0.5285, 0.0244, 0.0299, 0.0722, 0.0644, 0.0114, 0.0046]
+    },
+    "machine": {
+      "loudness": -26.53,
+      "crest": 11.53,
+      "centroid": 69,
+      "bands": [0.8421, 0.141, 0.0164, 0.0005, 0, 0, 0, 0]
+    },
+    "friction": {
+      "loudness": -30.89,
+      "crest": 6.46,
+      "centroid": 200,
+      "bands": [0.3474, 0.5838, 0.0541, 0.0094, 0.0042, 0.0011, 0, 0]
+    },
+    "waveguide": {
+      "loudness": -33.2,
+      "crest": 27.71,
+      "centroid": 857,
+      "bands": [0.0003, 0.0009, 0.5233, 0.2708, 0.1788, 0.0165, 0.0049, 0.0044]
+    },
+    "bird": {
+      "loudness": -29.91,
+      "crest": 16.97,
+      "centroid": 2340,
+      "bands": [0.0002, 0.0002, 0.0002, 0.0003, 0.0006, 0.9979, 0.0006, 0]
+    },
+    "crowd": {
+      "loudness": -37.17,
+      "crest": 17.34,
+      "centroid": 566,
+      "bands": [0.0078, 0.0791, 0.1582, 0.7432, 0.0115, 0.0002, 0, 0]
+    },
+    "hammer": {
+      "loudness": -37.04,
+      "crest": 26.58,
+      "centroid": 144,
+      "bands": [0.1803, 0.8117, 0.0051, 0.0001, 0.0022, 0.0005, 0, 0]
+    },
+    "clatter": {
+      "loudness": -50.07,
+      "crest": 26.39,
+      "centroid": 109,
+      "bands": [0.806, 0.1784, 0.0094, 0.0051, 0.0009, 0.0001, 0, 0]
+    },
+    "animal": {
+      "loudness": -36.57,
+      "crest": 22.36,
+      "centroid": 776,
+      "bands": [0, 0.0004, 0.1835, 0.7314, 0.0769, 0.0076, 0.0001, 0]
+    },
+    "drip": {
+      "loudness": -44.1,
+      "crest": 30.46,
+      "centroid": 600,
+      "bands": [0.171, 0.1695, 0.1649, 0.1835, 0.3106, 0.0005, 0.0001, 0]
+    },
+    "bell": {
+      "loudness": -33.5,
+      "crest": 19.34,
+      "centroid": 130,
+      "bands": [0.6331, 0.3079, 0.056, 0.0028, 0.0002, 0, 0, 0]
+    }
+  }
 }

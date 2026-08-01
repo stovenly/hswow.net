@@ -264,14 +264,40 @@ one where you walk the rack after every change hoping to notice by ear that some
 now three decibels louder than last week. Nobody notices that, and everybody notices the
 mix it eventually ruins.
 
-Two kinds of check, and the distinction is the design. **Rules** are absolute and need no
-history — clipping, DC offset, a texture fused into a drone or come apart into bubble wrap,
-a scheduler that has quietly become a loop, and the loudness spread across the library,
-which is the single commonest reason a procedural library sounds bad. **Baselines** are
-recorded measurements of a specific model and catch drift: a change to a shared primitive
-that moves six models nobody was thinking about. Baselines can only be produced by
-rendering, and rendering needs a browser, so `audio/baselines.json` ships with its rules
-live and its rows empty, and fills as runs that sounded right are captured and committed.
+Two kinds of check. **Rules** are absolute and need no history: clipping, DC offset, a
+scheduler that has quietly become a loop, and a crest factor outside what its kind of
+source should have. **Baselines** are recorded measurements of a specific model and catch
+drift — a change to a shared primitive that moves six models nobody was thinking about.
+That is the case for a row per model, and it is a strong one: `impact` has nine consumers,
+`clock` seven, `modal` five.
+
+> **The first cut of the rules was miscalibrated, and the first real run proved it.** Six
+> of fifteen rows flagged on a library that was fine. Both errors were the same mistake —
+> rules written for textures and applied to everything.
+>
+> **Crest factor means opposite things for the two kinds of source.** A continuous texture
+> with a high crest has come apart into audible grains; an impulsive one with a high crest
+> is doing its job. Judged by one band, the drip (30 dB), the hammer, the clatter and the
+> chime all failed for being correctly transient. There are two bands now, and a subject
+> declares which it is by what its *output* looks like rather than by what built it — the
+> bird is a continuous model judged as events, because that is what discrete calls with
+> silence between them are.
+>
+> **And loudness cannot be compared across the library.** The plan asked for every model
+> within 3 units of every other, on the reasoning that one model four times louder than its
+> neighbours is the commonest way a procedural library sounds bad. The reasoning is right
+> and the measurement does not test it: models render at their *defaults*, and a zone spec
+> sets `gain`, `refDistance` and `maxDistance`, so the mixing happens at placement. The real
+> spread is 23 — a wind bed at −47 against an engine at −27 — and both are correct, because
+> one is the air you are standing in and the other is a thing you walk toward. The number is
+> reported and asserted on never; per-model loudness *drift* is the check that survived, and
+> it was always the one doing the work.
+>
+> The band energies went the same way for a different reason: eight per model is 120
+> tripwires that mostly restate the centroid, and every honest re-tuning trips several. They
+> are recorded and printed, because reading them is what caught the friction model coming
+> out spectrally flat — a diagnostic, not a gate. A check that cries wolf trains you to stop
+> reading it, and then it cannot catch the one that mattered.
 
 Rendering a scheduled model offline needs `OfflineAudioContext.suspend`, and that is the
 whole trick: `startRendering()` is one call, so a naive render pumps the scheduler once and
