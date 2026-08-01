@@ -14,6 +14,21 @@
 
 import processorUrl from './processor.js?url';
 
+/**
+ * One control, as the `.dsp` declared it.
+ *
+ * The range travels with the offset so a panel can be generated rather than
+ * hand-written — see the note on `collect` in `tools/faust-build.ts`.
+ */
+export interface FaustControl {
+  /** Byte offset into the DSP struct. All the worklet needs. */
+  at: number;
+  init: number;
+  min: number;
+  max: number;
+  step: number;
+}
+
 /** Trimmed at build time out of Faust's much larger `dsp-meta.json`. */
 export interface FaustMeta {
   name: string;
@@ -21,14 +36,25 @@ export interface FaustMeta {
   outputs: number;
   /** DSP struct size in bytes. The audio buffers are laid out after it. */
   size: number;
-  /** Control label → byte offset into the DSP struct. */
-  params: Record<string, number>;
+  /** Control label → where it lives and what it accepts. */
+  params: Record<string, FaustControl>;
 }
 
 export interface FaustNode {
   readonly node: AudioWorkletNode;
+  /** What this module declares, for generated panels. */
+  readonly meta: FaustMeta;
   /** Controls are messaged, not automated. See the note in `processor.js`. */
   set(key: string, value: number): void;
+  /**
+   * The last value written, or the control's declared default.
+   *
+   * The DSP struct lives in the worklet's memory and is not readable from
+   * here without a round trip, so this mirrors what has been sent. That is
+   * enough for a panel to open showing what the model is actually doing
+   * rather than resetting it to defaults on the first drag.
+   */
+  get(key: string): number;
   dispose(): void;
 }
 
@@ -106,10 +132,20 @@ export async function createFaustNode(
       },
     });
 
+    // Mirrors what has been written, seeded from the declared defaults so a
+    // panel opened before anything has been set still shows the truth.
+    const values = new Map<string, number>();
+    for (const [key, control] of Object.entries(meta.params)) values.set(key, control.init);
+
     return {
       node,
+      meta,
       set(key, value) {
+        values.set(key, value);
         node.port.postMessage({ type: 'param', key, value });
+      },
+      get(key) {
+        return values.get(key) ?? 0;
       },
       dispose() {
         node.port.onmessage = null;

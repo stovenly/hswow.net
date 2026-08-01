@@ -36,6 +36,36 @@ export interface Hover {
   distance: number;
 }
 
+/**
+ * Marks an object as something the player can read but not use.
+ *
+ * A door is a *link*: hovering it offers a place to go, and pressing the key
+ * takes you there. A gallery sign is not — it is a caption on a row of props,
+ * and there is nothing to press. Both want the same tooltip, so the label is
+ * stored on the object rather than derived from the portal graph, and the zone
+ * manager falls back to it when the thing under the crosshair turns out not to
+ * be a door.
+ *
+ * This is also how the kit gets labels at all. There are no fonts in this
+ * project — the render pipeline chunks to three-pixel blocks and dithers, and
+ * text through that is illegible — so a sign in the world cannot say what it
+ * is. The tooltip layer sits above the canvas and stays sharp, which makes
+ * "walk up to it and read it" the only workable way to name anything.
+ */
+export function markLabelled<T extends THREE.Object3D>(object: T, label: string): T {
+  object.userData.label = label;
+  return object;
+}
+
+/** Reads a label off an object or the nearest ancestor carrying one. */
+export function labelOf(object: THREE.Object3D | null): string | null {
+  for (let node = object; node; node = node.parent) {
+    const label = node.userData.label;
+    if (typeof label === 'string') return label;
+  }
+  return null;
+}
+
 export class Interaction {
   reach = DEFAULT_REACH;
 

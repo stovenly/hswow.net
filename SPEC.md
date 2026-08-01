@@ -66,10 +66,24 @@ offsets and slight `playbackRate` variation so voices decorrelate. Character com
 cheap, hardware-accelerated `BiquadFilterNode`s and `GainNode`s. Worklets are reserved for
 models that genuinely need per-sample state.
 
+### Four tiers
+
+Phase 6 gave the library a shape. Tier 0 is the substrate that existed from Phase 3 — noise
+buffers, the gust field, the material tables. Tier 1 is `audio/dsp/`: primitives extracted
+from models that had already proved them, and the answer to the fact that Poisson
+scheduling had been written three times and modal resonance twice, disagreeing with itself
+both times. Tier 2 is the model library, native Web Audio node graphs. Tier 3 is
+`audio/faust/` — precompiled `.wasm` worklets.
+
+**Nothing in tier 3 is load-bearing.** Every Faust model has a native fallback or is
+optional dressing, so a wasm that does not load degrades the soundscape rather than
+breaking the game. It is used for the two things node graphs genuinely cannot do: a
+feedback delay network whose decay is a live parameter, and a per-sample friction loop.
+
 ### Synthesis models
 
-Each is a factory returning `{ input, output, params, update(dt) }`, so any model can drive
-any emitter.
+Each is a factory returning `{ output, update(dt), setActive(), dispose() }`, so any model
+can drive any emitter.
 
 **Wind** — three layered bands off the noise buffers:
 
@@ -101,14 +115,52 @@ machines can spin up, labor and stall.
 randomized per step, material read from the surface underfoot. Driven by head-bob phase so
 steps land with the camera.
 
-**Optional models, undecided:** water (bubble chirps at Poisson intervals over a filtered
-bed), fire (Poisson crackle over low rumble), bells, birds.
+**Friction** — stick-slip, and the only genuine per-sample case in the library. The
+friction force depends on the relative velocity, the relative velocity depends on how the
+body is already moving, and the body moves because of the force: a loop that has to close
+every sample. The shortest loop a node graph can express is one render quantum, 2.7 ms,
+which is longer than a whole slip cycle. Everything else follows from one fact — kinetic
+friction is lower than static and *falls* as speed rises — so the sliding speed is not a
+volume control but a walk across that curve, and groan, squeal and rub fall out of the
+physics rather than being three sounds crossfaded. Ropes, axles, hinges, chains, a tree
+under load. A native fallback schedules slip events into a modal bank; it creaks and rubs
+but cannot reach the sung tone at the top of the range, which is the boundary the loop
+exists to cross.
+
+**Waveguide** — a delay line that feeds itself: chimes, hanging wire, struck tubes, singing
+bowls, and air through pipework or an arrow slit. The second thing node graphs cannot do,
+and for a blunter reason than friction. A `DelayNode` in a Web Audio feedback loop is
+clamped by the spec to at least one render quantum — 128 samples, 2.67 ms — which resonates
+at 375 Hz, and that is the *ceiling*, because the delay cannot be made shorter. Every pitch
+above middle F# is unavailable by construction. The delay here is also fractional, which
+matters more than it sounds: at 2 kHz a whole-sample step is nearly a semitone, so a rank
+of chimes tuned in integers would be audibly sour.
+
+One sign controls whether the wave reflects in phase or inverted, which is the difference
+between all harmonics and odd ones an octave down — a flute and a clarinet, a struck wire
+and a stopped pipe, for one multiply. **It takes an audio input and makes no sound of its
+own**: the excitation is scheduled from TypeScript with `dsp/impact` and `dsp/clock`, so
+strikes stay sample-accurate. That split is the pattern for every module after this one —
+Faust does the part node graphs cannot, and the substrate does everything else.
+
+**Also built:** water, fire, rain, crowd, bird as continuous models; hammer, clatter,
+animal, drip and bell as one-shots fired by scatter fields.
 
 ### Spatialization
 
-Every emitter owns a `PannerNode` in `HRTF` mode with an inverse distance model and
-per-emitter `refDistance` / `maxDistance` / `rolloffFactor`. Web Audio is y-up, same as
-three.js, so positions map directly. On top of the panner:
+Every emitter owns a `PannerNode` with an inverse distance model and per-emitter
+`refDistance` / `maxDistance` / `rolloffFactor`. Web Audio is y-up, same as three.js, so
+positions map directly.
+
+**HRTF is the most expensive node in the API**, and it is also the one that makes a sound
+seem to be outside your head. The way to afford both is to pay for it only where it is
+audible, so the engine hands out three levels by rank: the nearest handful get `hrtf`, the
+rest get `equalpower`, and past `maxDistance` they go **virtual** — disconnected, not
+turned down, because a silent source still has every node processed each quantum. Swapping
+between the first two happens under a brief gain dip, because HRTF carries a delay that
+equal-power does not.
+
+On top of the panner:
 
 - **Air absorption** — a lowpass whose cutoff falls with distance. High frequencies are
   absorbed more by air; this is what makes far-off sounds read as far off rather than
@@ -119,13 +171,50 @@ three.js, so positions map directly. On top of the panner:
 - **Directionality** — `coneInnerAngle` / `coneOuterAngle` / `coneOuterGain` for emitters
   that face a direction.
 
+**And three switches that turn physics off.** `ignoreAbsorption`, `ignoreOcclusion` and
+`invertDistance`. The way to signal that something is not an ordinary object making an
+ordinary noise is to have it disobey the rules every other sound visibly obeys: a voice
+that does not dull with distance, or that walls do not muffle, is placed by the ear as
+"not here" long before the player could say why. Used sparingly they are uncanny; used
+often they are a mix with no depth in it.
+
 ### Per-zone acoustics
 
-Each zone declares RT60, pre-delay, damping and wetness. Impulse responses are **generated
-at boot** in an `OfflineAudioContext` — noise shaped by an exponential decay curve,
-filtered for damping, decorrelated per channel — and fed to a `ConvolverNode` per zone.
-Crossfading the wet bus on zone transitions means a doorway *sounds* like a doorway.
-`reverbGen` and Tone.js's `Reverb` both work this way and are worth reading first.
+Each zone declares RT60, pre-delay, damping and wetness. Two implementations, and exactly
+one is audible.
+
+**A feedback delay network**, compiled from `reverb.dsp` — Fons Adriaensen's `zita_rev1`,
+with separate decay times either side of a crossover because a stone room's bass rings far
+longer than its treble and a single RT60 cannot say so. The point of it is that changing a
+room changes *parameters*: the tail already ringing carries on and starts dying at the new
+rate, so walking out of a hall is the room changing size rather than a crossfade between
+two of them. It is also what makes a cave tunable with no cave to stand in.
+
+**The fallback** is the original design and still ships: impulse responses generated at
+boot in an `OfflineAudioContext` — noise shaped by an exponential decay, filtered for
+damping, decorrelated per channel — into two `ConvolverNode`s crossfaded past each other,
+because swapping a convolver's buffer cuts its tail dead. Built only if the wasm did not
+arrive; a `ConvolverNode` keeps convolving into a muted gain, and three of them running
+behind a fader for nothing was the first version's mistake.
+
+### Zone soundscapes
+
+A zone declares what it sounds like as data, the same way it declares its fog:
+
+- `bed` — non-positional models. The air you are standing in. Wind is not *somewhere*, so
+  spatialising it is not merely wasteful but wrong.
+- `emitters` — models at world positions.
+- `scatter` — one-shots fired at random points in a region at Poisson intervals. Continuous
+  sources establish that a place exists; scattered ones establish that somebody lives in it,
+  and that single primitive did more for ambience than any three synthesis models.
+
+Built on entry and **silenced, never torn down**, on exit. Zones are revisited constantly,
+granular models are not free to construct, and a gap where the wind should be is more
+noticeable than a few dozen dormant filters. Same reasoning as "never dispose materials per
+zone", in the other direction.
+
+**Placement runs object → sound, never the reverse.** Every emitter in the game has
+something visible standing at its position, and the coordinates come from the object.
 
 ### Graph and voice management
 
@@ -143,8 +232,53 @@ doubles as the autoplay-policy gesture, and suspends on `visibilitychange`.
 
 ### Audio tooling
 
-Live panel for every model parameter; solo/mute per emitter; emitter positions, radii and
-occlusion rays drawn in the debug view; a spectrum analyser. Presets saved as JSON.
+**The sound stage** — a room with one of everything in it, standing in a line on pedestals.
+Every station is identically configured, so the only difference between two of them is the
+model, which is what makes it a comparison rather than a demonstration. A rank and not a
+circle: half of what these models do is change with distance, and none of that is audible
+from a fixed radius. Reachable only from the zone jump list under `?debug`, because
+fifteen sources at once is a workbench and not a place.
+
+Alongside it in the panel: solo per emitter, a spectrum and level meter on the master bus,
+and **a generated control panel for every Faust module**. The meter earns its place on the
+narrowest ground — audio has no visible output at all, so a silent model and a muted bus
+are indistinguishable until something draws one of them.
+
+The generated panels are read, not written. Each `.dsp` already declares every control's
+range, step and default, and `tools/faust-build.ts` carries all three through to the
+runtime, so a folder builds itself from the module and is correct for a module nobody has
+written yet. This was worth doing on evidence rather than on principle: `friction` shipped
+with seven controls and no panel, and was tuned by instantiating the compiled wasm in Node
+and printing octave-band tables — which found two structural faults and is an absurd way to
+answer "is this a little too bright." Hand-writing sliders is the alternative, and it means
+the bounds are typed twice and agree until someone widens one.
+
+There was an `AudioEngine.tuneRoom(rt60, damping, preDelay)` behind three hand-written
+reverb sliders. The generated panel covers strictly more — separate low and mid decay, and
+the crossover between them, which is most of what makes stone sound like stone — so the
+wrapper was deleted rather than left as a narrower duplicate.
+
+**The audition harness** renders the whole library through an `OfflineAudioContext` and
+measures it. This does not replace listening; it replaces the *other* listening test, the
+one where you walk the rack after every change hoping to notice by ear that something is
+now three decibels louder than last week. Nobody notices that, and everybody notices the
+mix it eventually ruins.
+
+Two kinds of check, and the distinction is the design. **Rules** are absolute and need no
+history — clipping, DC offset, a texture fused into a drone or come apart into bubble wrap,
+a scheduler that has quietly become a loop, and the loudness spread across the library,
+which is the single commonest reason a procedural library sounds bad. **Baselines** are
+recorded measurements of a specific model and catch drift: a change to a shared primitive
+that moves six models nobody was thinking about. Baselines can only be produced by
+rendering, and rendering needs a browser, so `audio/baselines.json` ships with its rules
+live and its rows empty, and fills as runs that sounded right are captured and committed.
+
+Rendering a scheduled model offline needs `OfflineAudioContext.suspend`, and that is the
+whole trick: `startRendering()` is one call, so a naive render pumps the scheduler once and
+returns a lookahead window of sound followed by silence. Suspending at fixed intervals and
+pumping at each is the offline equivalent of a frame — and better than one, because the
+steps are exact, so a texture rendered twice is identical where the same model on
+`requestAnimationFrame` never is.
 
 ---
 
@@ -595,7 +729,7 @@ triangle count nor child count; the rim cannot be walked over at any of 240 spok
 valley is walkable; every prop stands on the ground; buildings stand level; detail boundaries
 sit on gentle ground; and variable density leaves no cracks.
 
-### Phase 6 — Procedural audio: the sound of places 🔨 in progress
+### Phase 6 — Procedural audio: the sound of places ✅ built
 
 The Phase 3 engine was good and nearly unused. Every model it built was wired into one
 debug object hardcoded to the Proving Ground's anchors, and Arkstin Village — the first
@@ -627,11 +761,51 @@ wasm load failure degrades the soundscape rather than breaking the game.
   water, crowd**. One-shots: **hammer, clatter, animal, drip, bell**.
 - `audition/measure.ts` — peak, RMS, DC, crest, centroid, band balance, loudness,
   periodicity. Self-tested in `check:audio` against signals with known answers.
+- **`friction.dsp`** and `models/friction.ts` — the second Faust module and the genuine
+  case for the tier. Sited on the objects that make the noise: the gantry in the factory
+  hall, the gate in Arkstin, a limb of the Proving Ground's tree. See the audio section
+  for what the model does and why nodes cannot.
+- **`debug/SoundStage.ts`** — one of everything, on pedestals, identically configured.
+- **`debug/Audition.ts`**, `audition/render.ts` and `audio/baselines.json` — the whole
+  library rendered offline and measured against absolute rules, plus recorded baselines
+  once a run has been captured.
+- **`debug/Meter.ts`** — spectrum and level on the master bus, and `Soundscape.setSolo`
+  and `AudioEngine.tuneRoom` behind the panel that drives them.
 
-**Remaining:** the friction family (`friction.dsp` — rope on a windlass, cart axles,
-portcullis chains, hinges, a tree groaning under load). Stick-slip needs a per-sample
-feedback loop and is the genuine Faust case. Then the sound stage and the rendering half
-of the audition harness.
+> **The friction model had to be given a rhythm before its parameters mattered.** The
+> first pass ran at a constant speed during each working burst, which puts the contact at
+> one fixed point on the friction curve — so the loop settled into one timbre and held it,
+> and a rough timbre held for four seconds is a buzz. It read, accurately, as television
+> static, and no amount of retuning `pitch` or `roughness` would have fixed it.
+>
+> Nothing hauls a chain at a constant speed. It is pulled in strokes, and each stroke
+> sweeps the speed from nothing up and back down — through the sticking region, through
+> the Stribeck dip, out into the rub and back. **That sweep is the creak.** Adding it took
+> the crest factor from 6.5 dB to 13, which is the difference between a drone and a
+> rhythm, and it is a property of the gesture rather than of the synthesis.
+>
+> A second lesson from the same pass, and a more portable one: `bright` and `roughness`
+> above about half put the energy into the upper modes and the contact noise between them,
+> and the octave-band measurement came out *flat*. A friction source with no peak anywhere
+> is hiss whatever its parameters claim. That was visible in a number and would have taken
+> an afternoon to find by ear — which is the argument for the audition harness in one line.
+
+> **Two of the model's own faults were structural, and the numbers found both.**
+>
+> **The upper modes were winning against their own levels.** A constant-Q resonator's
+> bandwidth is proportional to its centre frequency, so a mode at 4.17× collects four times
+> as much of a broadband force as the fundamental — the levels said the first mode was
+> twenty times the fourth and what came out was a thousand-hertz whistle with nothing under
+> it. Levels cannot fix that; a one-pole tilt inside the loop can, and `bright` now opens
+> the tilt rather than raising a level the bandwidth was going to undo.
+>
+> **And there is a corner at very low speed where it sings.** Down there the contact spends
+> nearly all its time in the steep regularised region around zero and what survives is a
+> thin high partial: four fifths of the energy above 5 kHz, crest factor 3 dB, which is a
+> sine. Every source crosses that range on its way into and out of a gust or a stroke, so
+> every one of them whistled at both ends. The fix is not a parameter — it is that a
+> contact creeping that slowly is *stuck*, and a stuck contact does not sing, so the output
+> is gated below it.
 
 > **The bell is not a Faust model, and that was a real decision.** The plan reserved
 > `pm.lib`'s physical bell for it. But `dsp/modal.ts`'s own argument rules modal synthesis
@@ -641,9 +815,9 @@ of the audition harness.
 > and it is cheaper, exactly controllable, and numerically safe where a biquad at Q ≈ 600
 > is not. Faust is worth spending on what nodes genuinely cannot do, not on what they can.
 
-### Phase 6b — Galleries, and objects for the sounds
+### Phase 6b — Galleries, and objects for the sounds ✅ built
 
-Sits before the Faust friction work that closes Phase 6.
+Sat before the Faust friction work that closed Phase 6.
 
 **Every sound gets a builder.** A forge fire at `[13, 1.2, 7]` with nothing standing there
 is not something you can walk up to and judge — it reads as a bug rather than as a thing.
@@ -655,8 +829,15 @@ The Proving Ground has meanwhile accumulated an object gallery it was never mean
 it was built as a movement and acoustics rig. So the objects move out to galleries of their
 own, split by kind with setting used only where it matters: **Animal, Foliage, Prop,
 Village Structures, Factory Structures**. Castle and Cave when those kits exist; an empty
-gallery is worse than none. Each gallery is a soundscape too — the anvil should ring when
-you walk up to it. A rank of portals stands in the Proving Ground where the gallery was.
+gallery is worse than none. A rank of portals stands in the Proving Ground, directly behind
+spawn.
+
+> **Galleries are silent.** They were built with emitters sited on their own rows, on the
+> theory that a sound is judged next to the thing making it. That holds in the *world* and
+> not in here: eight copies of a builder in a line is not a place, so a sound coming out of
+> one of them has nothing to be judged against — it is just noise over the thing you came to
+> look at. The objects these rooms exist to provide get their emitters where they are
+> actually placed.
 
 > **The "infinite floor" is a quad and some fog.** The instinct is a ground mesh that
 > recentres on the player; do not build it. The collider indexes each zone into an octree
@@ -669,16 +850,23 @@ you walk up to it. A rank of portals stands in the Proving Ground where the gall
 
 #### The galleries
 
+Four, not five. **Prop and Village Structures were the same room** and pretending otherwise
+meant deciding, per object, whether a trough is a prop or a fixture — a question with no
+answer that anyone would ask twice. What a village gallery is *for* is judging whether a
+settlement's kit hangs together, and a barrel belongs in that judgement.
+
 | Gallery | Contents |
 |---|---|
-| **Animal** | bovine, ovine, equine, porcine, poultry, **dog**, figure |
-| **Foliage** | tree, bush, grass, mushroom, stump, rock, cairn |
-| **Prop** | crate, barrel, table, trough, post, fence, **anvil**, **bell**, **sink** |
-| **Village Structures** | hut, archway, fence runs, and the forge when it lands |
-| **Factory Structures** | machine, flywheel, and the industrial kit as it lands |
+| **Animal** | bovine, ovine, equine, porcine, poultry, **dog** |
+| **Foliage** | the wood, the ground cover and the flowers, tallest first, plus rock and cairn |
+| **Village** | figure, hut, archway, door, fence, post, streetlamp, trough, cistern, **anvil**, **bell**, and the furniture |
+| **Factory** | machine, **forge**, tank, hopper, pipes, hoist, vent, workbench, panel, **sink**, stair, ladder, railing, chainlink, floodlight |
+
+Figure moved from Animal to Village: it is a person-shaped object standing in a settlement,
+and the question it answers is about the village's scale rather than about livestock.
 
 One file each, next to `debug/village.ts`, sharing a layout helper — the grid-with-labels
-logic is identical between them and should exist once.
+logic is identical between them and exists once. The sound stage reuses its sign posts.
 
 #### The floor
 
@@ -700,8 +888,10 @@ any form. A gallery is a dev room and should look like one.
 - **dog** — the only creature in the animal call table with no body.
 - **sink / cistern** — a stone basin for the standing water in the Proving Ground's cell.
 
-A forge or hearth is the obvious fifth, for the fire in Arkstin. It is a structure rather
-than a prop, so it waits for the Village Structures kit rather than being rushed in.
+A forge was the obvious fifth, for the fire in Arkstin, and it waited — a hearth is a
+structure rather than a prop, and rushing it in before the structure kit would have given
+Arkstin a brazier with a fire emitter tuned for a forge sitting on it. It landed with the
+factory kit and Arkstin has one now, with the anvil beside it.
 
 #### Work order
 
@@ -710,6 +900,17 @@ than a prop, so it waits for the Village Structures kit rather than being rushed
 3. The remaining four galleries, moving objects out of the Proving Ground as they land.
 4. Portals in the Proving Ground, standing where the vacated gallery was.
 5. Site the new builders in Arkstin and the Proving Ground, moving the emitters to them.
+
+All five steps are done. Arkstin's forge, anvil, bell and dog now stand at named anchors
+that the emitters are derived from, so neither can move without the other; the Proving
+Ground's sink and cistern were sited the same way; and the factory hall got a gantry before
+it got a creak.
+
+Two of those moved the *sound* rather than the object, which is the rule working. The bell
+was ringing from six and a half metres up, over a rooftop, from a tower that does not
+exist — the kit's bell brings its own two-post frame, so it now rings from head height by
+the lane. And the dog roamed the whole settlement on eleven metres of wander, which is a
+good argument with nothing standing under it; it has a yard now.
 
 *Done when every emitter in the game has something visible at its position.*
 
@@ -858,11 +1059,24 @@ npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
 npm run check:art       # builder determinism, sway weights, scale, watertightness
 npm run check:world     # portals, arrivals, sealing, crossing leaks, terrain, door cue
-npm run check           # all four
+npm run check:faust     # committed .wasm matches its .dsp, no shared memory, size budget
+npm run build:faust     # recompile the .dsp sources; the artifacts are committed
+npm run check           # all five
 ```
 
 The `tools/` suites are not covered by `tsc --noEmit` — `tools/` is outside the tsconfig
 `include`, which is what keeps Node globals out of the browser build's typecheck.
+
+`check:world` passes `--external:../faust/*` to esbuild, and it is load-bearing. `Zone.ts`
+imports `Soundscape` for `SILENCE`, which reaches every model, one of which reaches the
+Faust tier — and that tier resolves its wasm and worklet through Vite's `?url` imports,
+which nothing outside Vite can. The friction model defers its half behind a dynamic
+`import()`, and the flag is what stops esbuild bundling it anyway: a dynamic import stops
+the module *running*, not from being pulled in.
+
+The audition harness is deliberately **not** a `check:` script. It needs a real
+`OfflineAudioContext`, real biquads and a real worklet, and a reimplementation in Node
+would measure the reimplementation. It runs from the debug panel; see the audio section.
 
 ## Debug switches
 
@@ -871,7 +1085,7 @@ is tested on a phone against the live URL.
 
 | Flag | Effect |
 |---|---|
-| `?debug` | Frame stats, the live tuning panel, a movement/zone readout, and zone jumps |
+| `?debug` | Frame stats, the live tuning panel, a movement/zone readout, and zone jumps — including the sound stage, which has no door |
 | `?level=<name>` | Which level to boot into. Only `proving` exists so far |
 | `?touch` | Force the touch controls on, to test them with a mouse |
 

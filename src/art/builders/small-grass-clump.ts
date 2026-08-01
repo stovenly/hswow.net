@@ -14,9 +14,13 @@ import { PALETTE } from '../palette';
  *
  * This is the builder that most rewards the wind sway: grass is small enough
  * that nothing else sells motion, and numerous enough that it is everywhere.
+ *
+ * **The small one of a pair.** `large-grass-clump` covers about ten times the
+ * ground from one placement. This is the tuft you scatter to break up an edge
+ * or fill a gap; that is the one you lay a field with.
  */
-export const grass: MeshBuilder = {
-  name: 'grass',
+export const smallGrassClump: MeshBuilder = {
+  name: 'small-grass-clump',
   category: 'foliage',
   radius: 0.55,
   // Walk straight through it. A tuft that stops you is the fastest way to make
@@ -68,6 +72,6 @@ export const grass: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'grass', rng() * Math.PI * 2);
+    return finish(geometry, 'small-grass-clump', rng() * Math.PI * 2);
   },
 };

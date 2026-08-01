@@ -10,11 +10,41 @@ export const reverbMeta = {
   "outputs": 2,
   "size": 1982988,
   "params": {
-    "crossover": 36,
-    "damping": 16,
-    "decayLow": 24,
-    "decayMid": 28,
-    "preDelay": 327756
+    "crossover": {
+      "at": 36,
+      "init": 200,
+      "min": 50,
+      "max": 1000,
+      "step": 1
+    },
+    "damping": {
+      "at": 16,
+      "init": 6000,
+      "min": 700,
+      "max": 16000,
+      "step": 1
+    },
+    "decayLow": {
+      "at": 24,
+      "init": 2,
+      "min": 0.2,
+      "max": 12,
+      "step": 0.01
+    },
+    "decayMid": {
+      "at": 28,
+      "init": 2,
+      "min": 0.2,
+      "max": 12,
+      "step": 0.01
+    },
+    "preDelay": {
+      "at": 327756,
+      "init": 20,
+      "min": 0,
+      "max": 100,
+      "step": 1
+    }
   }
 } as const satisfies FaustMeta;
 

@@ -15,13 +15,19 @@ import type { MachineModel } from './audio/models/machine';
 import type { FireModel } from './audio/models/fire';
 import type { RainModel } from './audio/models/rain';
 import type { WaterModel } from './audio/models/water';
-import { createGallery, galleryOrder } from './debug/Gallery';
 import { AudioEngine } from './audio/AudioEngine';
 import { createDevTools } from './debug/DevPanel';
 import { ZoneManager } from './world/ZoneManager';
 import { Interaction } from './world/Interaction';
 import { Reticle, Fade } from './ui/Reticle';
+import { Crosshair } from './ui/Crosshair';
 import { createTestWorld, ZONE_EXTERIOR, ZONE_VILLAGE } from './debug/zones';
+import { STAGE_STATIONS } from './debug/SoundStage';
+import { auditionToConsole } from './debug/Audition';
+import { createMeter } from './debug/Meter';
+import { attachFaustPanel } from './debug/FaustPanel';
+import type { FrictionModel } from './audio/models/friction';
+import type { WaveguideModel } from './audio/models/waveguide';
 import { Loader } from './ui/Loader';
 
 const canvas = document.getElementById('viewport');
@@ -41,6 +47,7 @@ const dev = createDevTools();
 viewport.scene.fog = new THREE.Fog(0x0a0a0f, 20, 90);
 
 const postfx = new PostFX(viewport);
+const crosshair = new Crosshair(viewport.renderer);
 viewport.onResize = () => postfx.resize();
 
 const collider = new Collider();
@@ -63,11 +70,6 @@ const provingGround = await loader.step(
   () => new ProvingGround(),
 );
 
-// Built here rather than inside the zone builder so it gets its own step — it
-// is two dozen builders at eight instances each and the single heaviest thing
-// in the boot.
-const gallery = await loader.step('raising the props', 0.42, () => createGallery());
-
 // --- zones ------------------------------------------------------------------
 // Nothing is added to the scene or to the collider here. `ZoneManager.enter`
 // owns both, because exactly one zone is ever present in either, and having two
@@ -82,7 +84,13 @@ const zones = new ZoneManager({
   fade: new Fade(overlay),
 });
 
-const world = createTestWorld(provingGround, { gallery: () => gallery });
+// Kept out of `RenderSettings` on purpose. That is a saved preset, and a preset
+// written before shadows existed would load with the field missing — the same
+// trap the sky settings already carry a note about. One boolean here until
+// there is a reason for it to travel with the rest of the look.
+const lighting = { shadows: true };
+
+const world = createTestWorld(provingGround);
 for (const definition of world.zones) zones.register(definition);
 // Linked after every zone is registered — a portal to an unregistered zone
 // throws here rather than when somebody opens the door.
@@ -90,6 +98,11 @@ for (const portal of world.portals) zones.link(portal);
 
 // Builds the exterior's geometry and indexes all of it for collision, which on
 // a world this size is a couple of hundred milliseconds on its own.
+zones.setShadows(lighting.shadows);
+// The drawn sun and the shadow-casting one are the same direction by
+// construction. Static for now; when it moves, this call moves with it.
+postfx.aimSun(zones.sunDirection);
+
 await loader.step('settling the world', 0.6, () => zones.enter(ZONE_EXTERIOR));
 
 // Built now rather than on first entry. A zone this size takes longer to raise
@@ -184,6 +197,10 @@ if (dev.gui) {
   const refresh = (): void => postfx.apply();
 
   const look = dev.gui.addFolder('look');
+  look
+    .add(lighting, 'shadows')
+    .name('cast shadows')
+    .onChange((on: boolean) => zones.setShadows(on));
   look.add(r, 'pixelSize', 1, 12, 1).onChange(refresh);
   look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'depthEdgeStrength', 0, 2, 0.05).onChange(refresh);
@@ -396,7 +413,6 @@ if (dev.gui) {
     grounded: 'no',
     position: '',
     triangles: collider.triangles,
-    gallery: galleryOrder(),
     zone: '—',
     crossings: 0,
     room: '—',
@@ -424,15 +440,75 @@ if (dev.gui) {
   // Triangles change with the zone now, so this has to be watched rather than
   // read once — it is also the first place a collider leak would show up.
   state.add(readout, 'triangles').listen().disable();
-  state.add(readout, 'gallery').name('gallery order').disable();
   state.add({ respawn: () => zones.respawn() }, 'respawn');
 
   // Jumping straight to a zone, without walking to its door. Mostly for
   // getting back out of an interior after breaking the door that leads there.
+  // Also the only way into the sound stage, which deliberately has no door.
   const travel = dev.gui.addFolder('zones');
   for (const zone of zones.zones.values()) {
     travel.add({ go: () => zones.enter(zone.id) }, 'go').name(zone.name);
   }
+
+  // --- the sound stage ------------------------------------------------------
+  //
+  // Closed by default, and everything in it acts on whatever soundscape is
+  // current rather than on the stage specifically. Solo is as useful standing
+  // in Arkstin trying to work out which of six sources is the harsh one, and
+  // the room controls are the only way to tune an acoustic at all.
+  // Built here rather than at boot: it taps an analyser off the master bus,
+  // and nothing outside `?debug` should be paying for an FFT.
+  const meter = createMeter(audio);
+  loop.add(() => meter.update());
+
+  const stage = dev.gui.addFolder('sound stage').close();
+  const stageState = {
+    solo: 'all',
+    reverb: '—',
+    audition: () => {
+      void auditionToConsole();
+    },
+  };
+  stage
+    .add(stageState, 'solo', ['all', ...STAGE_STATIONS])
+    .name('solo')
+    .onChange((value: string) => {
+      zones.sound?.setSolo(value === 'all' ? null : value);
+    });
+  stage.add(stageState, 'reverb').listen().disable();
+  // Renders the whole library offline and prints the table. A few seconds, and
+  // it does not touch what you are listening to — a separate context entirely.
+  stage.add(stageState, 'audition').name('audition the library');
+  stage.add(meter, 'visible').name('spectrum');
+
+  // --- generated Faust panels ----------------------------------------------
+  //
+  // Not written, read. Every compiled module declares its controls' ranges and
+  // the build tool carries them through, so these folders build themselves —
+  // which is the whole return on that change: `friction` had seven controls
+  // and no panel, and the reverb had three hand-written sliders that covered
+  // less than the module actually exposes. The generated one has `decayLow`
+  // and `decayMid` separately, and the crossover between them, which is the
+  // control a stone room actually needs.
+  //
+  // Each follows its model through zone changes and disappears with it, so the
+  // panel always reflects what is currently audible rather than accumulating
+  // folders for rooms you have left.
+  const panels = [
+    attachFaustPanel(stage, 'reverb', () => audio.reverbControls),
+    // Every friction source in the game, by declared id. A lookup that finds
+    // nothing simply has no folder, so this list can name sources that only
+    // exist in one zone without the others carrying an empty control.
+    ...['gantry', 'gate', 'limb', 'friction'].map((id) =>
+      attachFaustPanel(stage, id, () => zones.sound?.find<FrictionModel>(id)?.loop ?? null),
+    ),
+    ...['pipe-air', 'waveguide'].map((id) =>
+      attachFaustPanel(stage, id, () => zones.sound?.find<WaveguideModel>(id)?.loop ?? null),
+    ),
+  ];
+  loop.add(() => {
+    for (const panel of panels) panel.sync();
+  });
 
   loop.add(() => {
     readout.speed = player.speed.toFixed(2);
@@ -443,6 +519,7 @@ if (dev.gui) {
     readout.crossings = zones.crossings;
     readout.triangles = collider.triangles;
     readout.room = audio.room ?? 'open';
+    stageState.reverb = audio.reverbKind === 'fdn' ? 'fdn — tunable' : 'convolution — fixed';
     readout.audio = footsteps === null ? 'rendering…' : audio.context.state;
     readout.gust = audio.weather.strength.toFixed(2);
     readout.swell = audio.weather.swell.toFixed(2);
@@ -502,6 +579,9 @@ loop.add((dt, elapsed) => {
   // at, phase cycle included, so it visibly labours and surges.
   provingGround.update(dt, zones.sound?.find<MachineModel>('mill')?.currentRpm ?? 0);
   postfx.render(elapsed);
+  // After the render, and in the same frame: the default framebuffer is only
+  // reliably readable before the browser composites it.
+  crosshair.update();
   dev.update();
 });
 

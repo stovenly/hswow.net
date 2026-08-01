@@ -1,0 +1,33 @@
+{
+  "_comment": [
+    "What the library is allowed to sound like. Read by src/debug/Audition.ts.",
+    "",
+    "`rules` are absolute and need no history: clipping, DC offset, a texture",
+    "fused into a drone or come apart into bubble wrap, a scheduler that has",
+    "quietly become a loop, and a loudness spread wider than the library can",
+    "be mixed out of. They apply to anything, including a model added today.",
+    "",
+    "`models` is recorded history, and it catches drift — a change to a shared",
+    "primitive that moves six models nobody was thinking about. It can only be",
+    "produced by rendering, which only a browser can do, so it starts empty and",
+    "fills as rows are captured from a run that sounded right and committed.",
+    "Run the audition from the debug panel; it prints a paste-ready block.",
+    "",
+    "An empty `models` is not a gap in the harness. Every rule below is live",
+    "from the first run."
+  ],
+  "rules": {
+    "peak": 0.95,
+    "dc": 0.01,
+    "crest": [4, 26],
+    "loudnessSpread": 3,
+    "periodicity": 0.35
+  },
+  "drift": {
+    "loudness": 1.5,
+    "crest": 2.5,
+    "centroid": 0.5,
+    "band": 0.12
+  },
+  "models": {}
+}
