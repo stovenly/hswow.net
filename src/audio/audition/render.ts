@@ -53,6 +53,13 @@ const STEP_SAMPLES = 1024;
  */
 export interface Subject {
   name: string;
+  /**
+   * Continuous texture, or discrete events.
+   *
+   * Not a label — it decides which crest-factor band the row is judged
+   * against, and the two are nearly disjoint. See `Audition.ts`.
+   */
+  kind?: 'texture' | 'event';
   /** How long to render. Long enough to contain the model's own rhythm. */
   seconds?: number;
   build(engine: AudioEngine): SoundModel;
