@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
-import type { Interaction } from './Interaction';
+import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/builders/door';
 import { markCollidable, type Collider } from '../player/Collider';
 import type { Controller } from '../player/Controller';
@@ -100,11 +100,99 @@ export class ZoneManager {
     // A direction, not a place. A directional light has no position in any
     // meaningful sense, and putting it inside a zone's group would mean its
     // angle changed when the zone did.
-    this.lights.sun.position.set(-8, 12, 6);
+    // About 45° up and well round to one side — mid-morning.
+    //
+    // Halfway to the zenith is the useful compromise. Overhead, shadows are
+    // puddles under things and every vertical face catches the same light; down
+    // at 25° the shadows are long and handsome and the disc sits in the haze
+    // band where the sky is palest, which is where a bright object is hardest
+    // to see. This is high enough to be plainly in open sky and low enough that
+    // the two lit walls of a building still differ.
+    //
+    // Set far out along that direction rather than at a handful of metres. A
+    // directional light's *direction* is all the shading uses, but its
+    // **position is where the shadow camera stands** — so a light at 25 units
+    // with the scene spanning 48 puts half the world behind its own shadow
+    // camera. Pushed out to about 125, everything is comfortably in front of
+    // it and `near`/`far` can be drawn tight around the scene, which is what
+    // makes the small bias below sufficient.
+    this.lights.sun.position.set(-70, 90, 50);
+
+    // Shadow setup, applied once. Whether it is *used* is `shadows`, below.
+    //
+    // A directional light's shadow camera is orthographic and has to be sized
+    // by hand: three defaults to a 10 m box, which for a zone 200 m across
+    // means everything past a few paces silently stops casting. Sized to the
+    // village instead, which is the largest place in the game.
+    //
+    // The cost of that is resolution — one map stretched over 120 m — so the
+    // map is large and the bias is generous. Shadow acne on flat-shaded
+    // low-poly geometry is far more conspicuous than a soft contact edge,
+    // because every facet is a single value and acne turns it into stripes.
+    const shadow = this.lights.sun.shadow;
+    // 4096 rather than 2048, and this is the fix for the gap that was showing
+    // under everything. A shadow needs some depth bias or a surface shadows
+    // itself in stripes; bias large enough to stop that at low resolution also
+    // slides the shadow *away* from whatever cast it, so objects float above
+    // their own contact point. The way out is not more bias tuning, it is more
+    // texels: at 4096 over 96 m one texel is 2.3 cm, which needs a fraction of
+    // the bias and closes the gap.
+    shadow.mapSize.set(4096, 4096);
+    const extent = 48;
+    shadow.camera.left = -extent;
+    shadow.camera.right = extent;
+    shadow.camera.top = extent;
+    shadow.camera.bottom = -extent;
+    // Tight around the scene. Depth precision — and therefore how little bias
+    // is needed — depends on this range and not on the map resolution, so the
+    // 170-unit span here is worth as much as the extra texels above. It was
+    // 1 to 260, and a bias small enough to keep a bush joined to its shadow
+    // could not survive that.
+    shadow.camera.near = 55;
+    shadow.camera.far = 225;
+    shadow.bias = -0.00008;
+    // **The one that was actually causing the gap.** `normalBias` moves the
+    // lookup along the surface normal, so it grows the shadow-free margin
+    // around every silhouette — at 0.05 that margin was centimetres wide and it
+    // is precisely the bright seam that appeared between a thing and its own
+    // shadow. Small enough here to be invisible.
+    shadow.normalBias = 0.006;
+    // How dark a shadow gets, 0..1. Not full strength: the sun is only part of
+    // the light in this world — there is a fill and a hemisphere too — and a
+    // shadow that removes all of it is a hole rather than shade. A third is
+    // enough to read as a shadow and leaves the material colour intact inside
+    // it, which matters more than usual here because the pipeline quantizes to
+    // a handful of levels and a dark shadow drives everything under it onto the
+    // bottom one.
+    shadow.intensity = 0.34;
     // Opposed on both horizontal axes but still above, so it lifts the walls
     // the sun misses without lighting the ceiling from underneath.
     this.lights.fill.position.set(9, 7, -7);
     options.scene.add(this.lights.sun, this.lights.fill, this.lights.ambient);
+  }
+
+  /**
+   * Which way the sun shines, normalised and pointing *toward* it.
+   *
+   * A directional light in three is aimed from its position at its target, so
+   * the direction the light arrives from is its position. Exposed so the sky
+   * can draw its disc in the same place — a painted sun that disagrees with the
+   * one casting the shadows makes every shadow in the world look wrong at once.
+   */
+  get sunDirection(): THREE.Vector3 {
+    return this.lights.sun.position;
+  }
+
+  /**
+   * Turns cast shadows on or off for the whole game.
+   *
+   * One switch rather than a per-zone setting. Shadows are a *look*, in the
+   * same sense the dither and the palette are — they belong with the render
+   * preset and not with the description of a place, and a zone that quietly
+   * turned them off would read as a bug the moment you walked back out of it.
+   */
+  setShadows(enabled: boolean): void {
+    this.lights.sun.castShadow = enabled;
   }
 
   register(definition: ZoneDefinition): Zone {
@@ -208,12 +296,19 @@ export class ZoneManager {
 
     this.applyAudio(zone);
 
-    interaction.setTargets(
-      this.portals
-        .in(zone.id)
-        .map((side) => side.door)
-        .filter((door): door is THREE.Mesh => door !== null),
-    );
+    // Doors, plus anything in the zone carrying a label. Collected by walking
+    // the zone once on entry rather than being registered by whoever built it:
+    // a builder deep inside a gallery has no handle on the interaction system,
+    // and making it acquire one would thread a dependency through every layer
+    // between them for the sake of a tooltip.
+    const targets: THREE.Object3D[] = this.portals
+      .in(zone.id)
+      .map((side) => side.door)
+      .filter((door): door is THREE.Mesh => door !== null);
+    root.traverse((object) => {
+      if (typeof object.userData.label === 'string') targets.push(object);
+    });
+    interaction.setTargets(targets);
 
     // Settled onto the zone's ground: an arrival is derived by stepping out
     // from a door, which keeps the door's height, and outdoors that is only
@@ -289,6 +384,23 @@ export class ZoneManager {
       this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
     }
 
+    // Every solid surface both casts and receives, decided once here rather
+    // than by each builder. Two exceptions, and both matter:
+    //
+    // - **Glow geometry never casts.** It is additive, unlit and has no
+    //   business occluding anything; a flame that threw a shadow would be
+    //   drawing the shape of the light source in darkness.
+    // - **Ground never casts.** A floor can only ever shadow itself, and
+    //   self-shadowing a vast flat plane is the classic source of acne — it is
+    //   pure cost for an effect that is at best invisible and at worst stripes.
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const glow = object.userData.noCollide === true;
+      const ground = object.name === 'flatGround' || object.name === 'terrain';
+      object.castShadow = !glow && !ground;
+      object.receiveShadow = !glow;
+    });
+
     return root;
   }
 
@@ -308,7 +420,16 @@ export class ZoneManager {
 
     const hover = interaction.probe(player.camera, collider);
     this.hovered = hover ? this.portals.sideOf(hover.object) : null;
-    reticle.set(this.hovered ? { title: this.hovered.title, target: this.hovered.label } : null);
+    if (this.hovered) {
+      reticle.set({ title: this.hovered.title, target: this.hovered.label });
+    } else {
+      // Not a door. It may still be something with a name on it — a sign — in
+      // which case the tooltip shows and `null` comes back, so the interact key
+      // does nothing. Readable and not usable is a real state, and the one a
+      // caption is in.
+      const label = labelOf(hover?.object ?? null);
+      reticle.set(label ? { title: label } : null);
+    }
     return this.hovered;
   }
 

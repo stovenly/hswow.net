@@ -25,6 +25,17 @@ export class Viewport {
     });
     this.renderer.setClearColor(0x0a0a0f, 1);
 
+    // On at the renderer, and gated at the light. `shadowMap.enabled` is a
+    // shader-compilation switch — flipping it invalidates every program in the
+    // scene and stalls for a frame or more — so the runtime toggle sets
+    // `castShadow` on the sun instead, which costs nothing to change.
+    //
+    // PCF soft rather than basic: the pipeline renders at a third of display
+    // resolution and then quantizes, so a hard shadow edge lands on a
+    // three-pixel block boundary and crawls as the camera moves.
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
 

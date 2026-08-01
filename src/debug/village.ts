@@ -8,7 +8,8 @@ import { createRng } from '../art/random';
 import type { MeshBuilder } from '../art/types';
 import { tree } from '../art/builders/tree';
 import { bush } from '../art/builders/bush';
-import { grass } from '../art/builders/grass';
+import { smallGrassClump } from '../art/builders/small-grass-clump';
+import { largeGrassClump } from '../art/builders/large-grass-clump';
 import { mushroom } from '../art/builders/mushroom';
 import { rock } from '../art/builders/rock';
 import { cairn } from '../art/builders/cairn';
@@ -27,6 +28,10 @@ import { porcine } from '../art/builders/porcine';
 import { poultry } from '../art/builders/poultry';
 import { figure } from '../art/builders/figure';
 import { archway } from '../art/builders/archway';
+import { forge, FORGE_FIRE_HEIGHT } from '../art/builders/forge';
+import { anvil, ANVIL_FACE_HEIGHT } from '../art/builders/anvil';
+import { bell, BELL_MOUTH_HEIGHT } from '../art/builders/bell';
+import { dog } from '../art/builders/dog';
 
 /**
  * Arkstin Village — the first zone that is a *place* rather than a fixture.
@@ -188,6 +193,41 @@ export const villageTerrain = terrain;
 export const VILLAGE_GATE = new THREE.Vector3(0, 0, 34);
 
 /**
+ * The four things in Arkstin that make a noise, and where they stand.
+ *
+ * **Placement runs object → sound.** The smithy, the bell and the dog were
+ * given coordinates before any of them existed as objects, chosen to get a
+ * model audible in the absence of anything to look at — the bell was ringing
+ * from six and a half metres above a rooftop, and the forge fire was burning
+ * in open ground behind a house. That reads as a fault rather than as a place,
+ * and the note against it always said the coordinates constrained nothing.
+ *
+ * So these are the positions of the *things*, and the emitters below are
+ * derived from them. Change one of these and the sound follows it, which is
+ * the whole point of naming them.
+ *
+ * The heights are the anchors the builders export — a hearth's coal bed, an
+ * anvil's face, a bell's mouth — because the sound of a bell comes from its
+ * mouth and not from the middle of the frame it hangs in.
+ */
+const SMITHY = { forge: [14.2, 5.6], anvil: [13, 3.8] } as const;
+/**
+ * Outside the ring of houses on the north lane, not on the green.
+ *
+ * A bell wants to be heard from everywhere and the green is the one place in
+ * the village that is deliberately kept clear — so it stands at the edge of it
+ * where the lane comes in, which is also where a village bell would be.
+ */
+const BELL_AT = [-5.4, 19.2] as const;
+/** Between two houses on the west side. A yard dog, not a wandering one. */
+const DOG_AT = [-8.5, 4.5] as const;
+
+/** World position of something standing on the terrain at (x, z). */
+function anchor(at: readonly [number, number], lift: number): [number, number, number] {
+  return [at[0], terrain.heightAt(at[0], at[1]) + lift, at[1]];
+}
+
+/**
  * What Arkstin sounds like.
  *
  * **The first zone in this game to have a voice of its own.** Everything before
@@ -289,7 +329,7 @@ const VILLAGE_SOUND: SoundscapeSpec = {
     {
       model: 'fire',
       id: 'forge',
-      at: [13, 1.2, 7],
+      at: anchor(SMITHY.forge, FORGE_FIRE_HEIGHT),
       // Bright and small — a charcoal hearth under a roof, not a bonfire.
       // Little draught response, because it is sheltered and half of what is
       // fanning it is a bellows rather than the weather.
@@ -298,6 +338,44 @@ const VILLAGE_SOUND: SoundscapeSpec = {
       maxDistance: 20,
       rolloff: 1.5,
       reverb: 0.35,
+    },
+    // The gate, on its hinges. An iron door in a stone arch, complaining when
+    // the wind gets under it — `'weather'` motion, so it is silent in still
+    // air and that is most of the time.
+    //
+    // Sited on the gate because the gate is standing there: the arch and the
+    // portal's door are both built from `VILLAGE_GATE`, so this is the third
+    // thing derived from the same number rather than a fourth set of
+    // coordinates that happen to agree with them today.
+    //
+    // Carried a long way for how quiet it is. A gate you can hear from inside
+    // the settlement is a settlement with a way out of it, and this is the
+    // only sound in the village that comes from its edge.
+    {
+      model: 'friction',
+      id: 'gate',
+      at: [VILLAGE_GATE.x + 0.9, 1.7, VILLAGE_GATE.z],
+      // **Low and dull, and both were arrived at the hard way.** Pitched at
+      // 320 and then at 240 this was a whistle rather than a gate: the model
+      // has a narrow low-speed regime where a high partial dominates, and a
+      // weather-driven source crosses it on every gust. The model now gates
+      // itself below that, and 150 keeps the whole range clear of it — which
+      // is also the right register. A village gate is a heavy iron thing in a
+      // stone arch, and heavy iron things groan.
+      options: {
+        motion: 'weather',
+        speed: 0.22,
+        force: 0.85,
+        pitch: 150,
+        decay: 1.1,
+        bright: 0.2,
+        roughness: 0.15,
+        gain: 0.3,
+      },
+      refDistance: 3,
+      maxDistance: 40,
+      rolloff: 1.4,
+      reverb: 0.5,
     },
     // People, on the far side of the green. Quiet, dull and deliberately never
     // close enough to make out — `refDistance` is short and the model's own
@@ -323,7 +401,7 @@ const VILLAGE_SOUND: SoundscapeSpec = {
     {
       sound: 'hammer',
       id: 'smith',
-      at: [13.5, 1.2, 5.5],
+      at: anchor(SMITHY.anvil, ANVIL_FACE_HEIGHT),
       // Tight: the smith is at the anvil, not wandering. The metre of wander
       // is the swing, not the man.
       spread: [0.7, 0.2, 0.7],
@@ -399,14 +477,21 @@ const VILLAGE_SOUND: SoundscapeSpec = {
       rolloff: 1.35,
       reverb: 0.35,
     },
-    // A dog, roaming the whole settled part of the village. Rare, carries a
-    // long way, and never twice from the same place — which between them do
-    // more work than the bark itself does.
+    // A dog in a yard between two houses on the west side. Rare, and carries a
+    // long way — a bark crossing a valley is the sound that says the place is
+    // lived in.
+    //
+    // **It used to roam the whole settlement**, on the argument that a source
+    // which never repeats its position does more work than the bark itself.
+    // That is true and it was standing on nothing: eleven metres of wander has
+    // no object it could belong to, and the rule is that a sound comes from a
+    // thing. So there is a dog now, and it moves about its own patch — which
+    // still varies the position, and can be walked up to.
     {
       sound: 'animal',
       id: 'dog',
-      at: [2, 1, 10],
-      spread: [11, 0.3, 10],
+      at: anchor(DOG_AT, 0.4),
+      spread: [2.2, 0.2, 2.2],
       every: 36,
       force: [0.45, 1],
       voices: 1,
@@ -416,17 +501,23 @@ const VILLAGE_SOUND: SoundscapeSpec = {
       rolloff: 1.15,
       reverb: 0.55,
     },
-    // A bell, rarely, from somewhere above the roofs. The longest reach and the
-    // longest tail of anything in the zone — it is the sound that tells you the
-    // valley has edges, because you hear it come back off them.
+    // A bell, rarely. The longest reach and the longest tail of anything in the
+    // zone — it is the sound that tells you the valley has edges, because you
+    // hear it come back off them.
     //
-    // A single fixed point with no spread: a bell hangs in a tower and does not
-    // move, and wandering it by even a metre would undo the one thing it is
-    // here to establish.
+    // A single fixed point with no spread: a bell is a mass hung from a frame
+    // and does not move, and wandering it by even a metre would undo the one
+    // thing it is here to establish.
+    //
+    // **It used to hang six and a half metres up, over a rooftop**, from a
+    // tower that does not exist. The bell in the kit brings its own two-post
+    // frame — a tower is a structure and the village structure kit is not that
+    // far along — so it now rings from about head height by the lane, which is
+    // lower than a bell ought to be and is a thing you can walk up to.
     {
       sound: 'bell',
       id: 'bell',
-      at: [-9, 6.5, 13],
+      at: anchor(BELL_AT, BELL_MOUTH_HEIGHT),
       spread: [0, 0, 0],
       every: 95,
       rhythm: 'periodic',
@@ -627,6 +718,23 @@ function buildVillage(): THREE.Group {
   place(root, post.build({ seed: 2216 }), -2, 11, 0);
 
   // Placeholders for the actors this level exists to test.
+  // --- the things that make the noise --------------------------------------
+  //
+  // Four sounds in this zone had nothing standing under them, which is the one
+  // thing a soundscape is not allowed to do. See the anchors above: these are
+  // placed from the same numbers the emitters are derived from, so neither can
+  // move without the other.
+  //
+  // The forge faces the green so its hood and the glow under it are read from
+  // the village side rather than from the hillside behind, and the anvil is
+  // turned across it — a smith stands between the two.
+  place(root, forge.build({ seed: 5401 }), SMITHY.forge[0], SMITHY.forge[1], Math.PI);
+  place(root, anvil.build({ seed: 5402 }), SMITHY.anvil[0], SMITHY.anvil[1], 0.6);
+  place(root, bell.build({ seed: 5403 }), BELL_AT[0], BELL_AT[1], -0.5);
+  // Not solid. A dog you cannot walk through is a bollard, and Phase 7 will
+  // want to move it anyway.
+  place(root, dog.build({ seed: 5404 }), DOG_AT[0], DOG_AT[1], 1.9, false);
+
   place(root, figure.build({ seed: 3301 }), 3, 7, 2.2);
   place(root, figure.build({ seed: 3302 }), -3, 9, 1.1);
   place(root, figure.build({ seed: 3303 }), 6, 3, -0.8);
@@ -642,7 +750,24 @@ function buildVillage(): THREE.Group {
     scale: [0.8, 1.35],
   });
   scatter(root, bush, { seed: 5002, count: 90, within: 42, maxSlope: 32, avoid: KEEP_CLEAR });
-  scatter(root, grass, { seed: 5003, count: 220, within: 42, maxSlope: 28, avoid: KEEP_CLEAR });
+  // Broad patches first, then tufts scattered through and around them. The
+  // large clump covers about ten times the ground of the small one, so forty of
+  // those and a hundred of these dress the valley for less than half the object
+  // count the tufts alone were costing.
+  scatter(root, largeGrassClump, {
+    seed: 5002,
+    count: 40,
+    within: 42,
+    maxSlope: 24,
+    avoid: KEEP_CLEAR,
+  });
+  scatter(root, smallGrassClump, {
+    seed: 5003,
+    count: 120,
+    within: 42,
+    maxSlope: 28,
+    avoid: KEEP_CLEAR,
+  });
   scatter(root, mushroom, { seed: 5004, count: 40, within: 36, maxSlope: 22, avoid: KEEP_CLEAR });
   scatter(root, stump, { seed: 5005, count: 16, within: 36, maxSlope: 24, avoid: KEEP_CLEAR });
 

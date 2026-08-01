@@ -22,16 +22,64 @@ const SOURCE = path.join(process.cwd(), 'src/audio/faust');
 const BUILT = path.join(SOURCE, 'built');
 
 interface FaustUiItem {
+  type?: string;
   label?: string;
   index?: number;
+  init?: number;
+  min?: number;
+  max?: number;
+  step?: number;
   items?: FaustUiItem[];
 }
 
-/** Faust nests controls in groups; the leaves are what carry an index. */
-function collect(items: FaustUiItem[] | undefined, into: Record<string, number>): void {
+/** What the runtime keeps about one control. See `collect`. */
+interface Control {
+  /** Byte offset into the DSP struct. The only field needed to *set* it. */
+  at: number;
+  init: number;
+  min: number;
+  max: number;
+  step: number;
+}
+
+/**
+ * Faust nests controls in groups; the leaves are what carry an index.
+ *
+ * **The range is kept as well as the offset, and that is the point of this
+ * pass.** The first version took the byte offset alone and discarded the rest,
+ * which meant every Faust control needed a hand-written slider with
+ * hand-copied bounds — and `friction` shipped with seven controls and no panel
+ * at all, so it was tuned by driving the compiled wasm in Node and reading
+ * octave-band tables. That found real faults and it is a ridiculous way to
+ * answer "is this slightly too bright".
+ *
+ * The `.dsp` already declares the bounds; they are the same numbers that would
+ * otherwise be typed into `lil-gui` twice and drift apart once. Carrying them
+ * through means any module, including ones not written yet, arrives with a
+ * correct panel for free.
+ *
+ * `button` and `checkbox` have no declared range — Faust omits the fields — so
+ * they fall back to a 0..1 step of 1, which is what they are.
+ */
+function collect(items: FaustUiItem[] | undefined, into: Record<string, Control>): void {
   for (const item of items ?? []) {
-    if (item.items) collect(item.items, into);
-    else if (item.label !== undefined && item.index !== undefined) into[item.label] = item.index;
+    if (item.items) {
+      collect(item.items, into);
+      continue;
+    }
+    if (item.label === undefined || item.index === undefined) continue;
+    const min = item.min ?? 0;
+    const max = item.max ?? 1;
+    into[item.label] = {
+      at: item.index,
+      init: item.init ?? min,
+      min,
+      max,
+      // Faust's own step is occasionally coarser than a control wants to be
+      // dragged; a hundredth of the range is the floor, which for a 0..1
+      // slider is 0.01 and for a 30..1400 Hz one is about 14.
+      step: Math.min(item.step ?? 0.01, (max - min) / 100 || 0.01),
+    };
   }
 }
 
@@ -66,7 +114,7 @@ export function buildFaust(): { name: string; bytes: number; params: string[] }[
     const wasm = fs.readFileSync(path.join(out, 'dsp-module.wasm'));
     const meta = JSON.parse(fs.readFileSync(path.join(out, 'dsp-meta.json'), 'utf8'));
 
-    const params: Record<string, number> = {};
+    const params: Record<string, Control> = {};
     collect(meta.ui, params);
 
     // Flattened next to the module rather than left in its own directory: one

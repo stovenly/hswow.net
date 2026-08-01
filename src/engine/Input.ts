@@ -14,6 +14,21 @@ const BACK_KEYS = ['KeyS', 'ArrowDown'];
 const LEFT_KEYS = ['KeyA', 'ArrowLeft'];
 const RIGHT_KEYS = ['KeyD', 'ArrowRight'];
 const SPRINT_KEYS = ['ShiftLeft', 'ShiftRight'];
+/**
+ * Crouch.
+ *
+ * Caps Lock, which is unusual and worth a note. It is a *locking* key: the
+ * browser reports `keydown` and `keyup` for it like any other, but on some
+ * platforms the physical key latches, and either way the operating system is
+ * also toggling a mode nobody asked it to. Held-to-crouch is still the right
+ * behaviour and it is what is implemented — the key is read as held, not as
+ * toggled, so a latched Caps Lock releases the moment it is pressed again.
+ *
+ * Left Control is the conventional alternative and is deliberately not bound:
+ * the browser hands most Ctrl combinations to the page or the OS, so a player
+ * crouching while doing anything else fires shortcuts.
+ */
+const CROUCH_KEYS = ['CapsLock'];
 const JUMP_KEYS = ['Space'];
 /**
  * Interact.
@@ -112,6 +127,11 @@ export class Input {
 
   get sprint(): boolean {
     return this.pressed(SPRINT_KEYS) || this.stickSprint;
+  }
+
+  /** True while crouch is held. Never latched — see `CROUCH_KEYS`. */
+  get crouching(): boolean {
+    return this.pressed(CROUCH_KEYS);
   }
 
   /** True while the jump control is held, for the bunny-hop option. */

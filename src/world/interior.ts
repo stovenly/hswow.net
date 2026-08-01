@@ -51,7 +51,12 @@ export const WORKS_STYLE: InteriorStyle = {
   floorSeam: 0x0e1012,
   wall: PALETTE.STONE,
   wallTrim: PALETTE.IRON,
-  ceiling: 0x1c1f22,
+  // Not near-black, which it was. A works has a high roof and nothing on it, so
+  // the ceiling is a large unbroken plane — and a large unbroken plane at
+  // 0x1c1f22 is below the bottom quantization level everywhere at once, which
+  // is not "dark" but *absent*: a void where the roof should be, with the walls
+  // stopping in mid-air. Lit sootty steel rather than shadow.
+  ceiling: 0x3d444a,
   beam: PALETTE.RUST,
 };
 

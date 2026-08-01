@@ -99,12 +99,48 @@ export const OUTDOOR_ENVIRONMENT: ZoneEnvironment = {
   fogFar: 140,
   sunIntensity: 2.2,
   sunColor: 0xfff2d8,
-  // Outdoors the sky *is* the fill, and it comes from every direction at once.
-  fillIntensity: 0,
-  fillColor: 0xbcd4e6,
-  ambientIntensity: 1.5,
+  // **Not zero, though it was.** The argument for zero was that outdoors the
+  // sky is the fill and it comes from every direction at once — which is true
+  // of the sky and false of a `HemisphereLight`, which is what actually stands
+  // in for it. A hemisphere light is a two-lobe gradient sampled by the surface
+  // normal, and *every vertical face gets the same value from it* regardless of
+  // which way it points. So the two walls of a building the sun reaches were
+  // lit and shaped, and the two it misses were flat and dark, with nothing
+  // distinguishing them from each other.
+  //
+  // That is also what made the palette lift look like it had only landed on
+  // half of every house: the change was there on all four walls and only
+  // legible on the lit two.
+  //
+  // Aimed from (9, 7, -7) against the sun's (-8, 12, 6), so it takes precisely
+  // the faces the sun cannot.
+  //
+  // **Warm, and not weak.** The first attempt was 0.55 of the sky's own pale
+  // blue, on the theory that a fill should stay well under the sun. Both halves
+  // were wrong, and together they turned every shaded wall into dirty grey:
+  //
+  // - *Colour.* Outdoor fill is not the sky, it is light that has bounced off
+  //   the ground — which is earth and grass and therefore warm. Lighting brown
+  //   timber with a cool blue at low intensity subtracts its own complement out
+  //   of the surface, and brown minus blue-ish light is exactly grey.
+  // - *Level.* The render pipeline quantizes to a handful of levels per
+  //   channel. A wall that lands in the bottom two collapses onto them, the
+  //   material colour stops being recoverable, and the dither pattern becomes
+  //   the only structure left in it — which is what "sloppy" is describing.
+  //   The fix is not a softer curve, it is landing the shaded side high enough
+  //   up the ramp that its colour still resolves.
+  //
+  // It still reads as shade because the sun is 2.2 against this and comes from
+  // the other side; what it no longer does is fall off a cliff.
+  fillIntensity: 1.15,
+  fillColor: 0xe0d6c0,
+  // Lifted with it, and for the second reason above. The downward lobe is the
+  // bounce off the ground, and vertical faces take roughly the average of the
+  // two lobes — so a near-black ground colour was dragging every wall in the
+  // game halfway to black before any directional light was added.
+  ambientIntensity: 1.8,
   ambientSky: 0x9dc4e8,
-  ambientGround: 0x4c4536,
+  ambientGround: 0x8a7f68,
   room: 'open',
   surface: 'earth',
   footstepReverb: 0.7,

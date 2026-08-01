@@ -21,6 +21,30 @@ import type { BuildOptions } from './types';
  * builder in its own right — only the species that use it are.
  */
 
+/**
+ * Everything a bespoke head needs to know about the animal it belongs to.
+ *
+ * Passed to `Species.head`, which exists because the shared plan genuinely
+ * cannot stretch far enough for every animal. A cow, a pig, a sheep and a horse
+ * are one head — a blob with a snout on the front — at different proportions,
+ * and that is a real observation rather than a shortcut. A dog is not: it has a
+ * *stop*, a hinge between skull and muzzle that none of the livestock has, and
+ * without it the head reads as a calf's however the numbers are set. Rather
+ * than push dog-shaped special cases into this file, a species that needs a
+ * different head brings one.
+ */
+export interface HeadContext {
+  /** Where the head sits, in the animal's own space. It faces +Z. */
+  at: THREE.Vector3;
+  /** The rolled `headSize`, which everything should be measured against. */
+  size: number;
+  /** The body's colour, so the head matches it. May be a marking function. */
+  coat: Part['color'];
+  /** The darker colour used for ears, muzzle and feet. */
+  extremity: number;
+  rng: Rng;
+}
+
 export interface Species {
   /** Nose to rump, in metres. */
   length: [number, number];
@@ -38,12 +62,29 @@ export interface Species {
   /** Extra cone on the front of the head. */
   snout: number;
   ears: 'none' | 'floppy' | 'perked' | 'side';
+  /**
+   * What the legs end in. Hooves unless stated.
+   *
+   * A hoof is a hard block narrower than the leg above it and set slightly
+   * forward; a paw is a soft pad *wider* than the leg, sitting flat and
+   * spreading in front of it. Every grazing animal here has the first and a dog
+   * has the second, and a dog on hooves is the sort of thing the eye catches
+   * long before it can say why.
+   */
+  feet?: 'hoof' | 'paw';
   horns: 'none' | 'stub' | 'curved';
-  tail: 'none' | 'switch' | 'curl' | 'flowing';
+  tail: 'none' | 'switch' | 'curl' | 'flowing' | 'carried';
   /** Lumps of fleece over the body. */
   woolly: boolean;
   hide: readonly number[];
   extremity: number;
+  /**
+   * Builds the head, replacing the shared blob-and-snout entirely.
+   *
+   * When present, `headStretch`, `snout` and `ears` are not consulted — the
+   * whole head including its ears is this function's business.
+   */
+  head?: (context: HeadContext) => Part[];
   /**
    * Second hide colour for markings, painted per face. Omit for a plain coat.
    * `patchCoverage` is the fraction of the body it takes, roughly.
@@ -189,6 +230,18 @@ export function buildQuadruped(
   );
 
   const headSize = range(rng, species.headSize);
+
+  if (species.head) {
+    parts.push(
+      ...species.head({
+        at: headAt,
+        size: headSize,
+        coat,
+        extremity: species.extremity,
+        rng,
+      }),
+    );
+  } else {
   const head = new THREE.IcosahedronGeometry(headSize, 0);
   head.scale(0.85, 0.9, species.headStretch);
   head.rotateY(rng.around(0, 0.2));
@@ -199,19 +252,35 @@ export function buildQuadruped(
   parts.push({ geometry: head, color: coat, sway: 0 });
 
   if (species.snout > 0) {
+    // **Smaller, and set back into the head.** Both numbers were wrong and in
+    // ways that compounded: the muzzle was as wide as the skull, and it was
+    // centred on the head's *front vertex* — so half its length stood out past
+    // the face and, because an icosahedron falls away sharply from that vertex,
+    // its sides met nothing at all. The result was a barrel floating a
+    // centimetre off the front of every cow, pig and horse.
+    //
+    // Two thirds of the width, and centred two thirds of the way out instead of
+    // at the tip, buries the back of it inside the skull where the join belongs.
     const snout = new THREE.CylinderGeometry(
-      headSize * species.snout * 0.8,
-      headSize * species.snout,
-      headSize * 0.5,
+      headSize * species.snout * 0.52,
+      headSize * species.snout * 0.66,
+      headSize * 0.62,
       6,
     );
     snout.rotateX(Math.PI / 2);
-    snout.translate(headAt.x, headAt.y - headSize * 0.15, headAt.z + headSize * species.headStretch);
+    snout.translate(
+      headAt.x,
+      headAt.y - headSize * 0.13,
+      headAt.z + headSize * species.headStretch * 0.66,
+    );
     parts.push({ geometry: snout, color: species.extremity, sway: 0 });
+  }
   }
 
   for (const side of [-1, 1]) {
-    if (species.ears !== 'none') {
+    // A bespoke head brings its own ears. The three rotations below are the
+    // livestock vocabulary and none of them is a dog's.
+    if (!species.head && species.ears !== 'none') {
       const ear = new THREE.ConeGeometry(headSize * 0.28, headSize * 0.85, 4);
       ear.translate(0, headSize * 0.42, 0);
       // Floppy hangs, perked stands, side sticks out level — three rotations
@@ -257,14 +326,32 @@ export function buildQuadruped(
       leg.translate(side * width * 0.34, 0, end * length * rng.range(0.26, 0.34));
       parts.push({ geometry: leg, color: hide, sway: 0 });
 
-      const hoof = new THREE.CylinderGeometry(
-        species.legThickness * 1.15,
-        species.legThickness * 1.05,
-        legLength * 0.13,
-        5,
-      );
-      hoof.translate(side * width * 0.34, legLength * 0.06, end * length * 0.3);
-      parts.push({ geometry: hoof, color: PALETTE_HOOF, sway: 0 });
+      if (species.feet === 'paw') {
+        // Wider than the leg and pushed forward of it, because a paw is a flat
+        // foot that the animal stands *on* rather than a nail it stands on the
+        // tip of. Low and squarish: at this scale toes are two triangles that
+        // nobody resolves, and the outline does the work.
+        const paw = new THREE.BoxGeometry(
+          species.legThickness * 2.4,
+          legLength * 0.11,
+          species.legThickness * 3.6,
+        );
+        paw.translate(
+          side * width * 0.34,
+          legLength * 0.055,
+          end * length * 0.3 + species.legThickness * 0.9,
+        );
+        parts.push({ geometry: paw, color: species.extremity, sway: 0 });
+      } else {
+        const hoof = new THREE.CylinderGeometry(
+          species.legThickness * 1.15,
+          species.legThickness * 1.05,
+          legLength * 0.13,
+          5,
+        );
+        hoof.translate(side * width * 0.34, legLength * 0.06, end * length * 0.3);
+        parts.push({ geometry: hoof, color: PALETTE_HOOF, sway: 0 });
+      }
     }
   }
 
@@ -274,7 +361,43 @@ export function buildQuadruped(
     // emerges from the body instead of being stuck to the back of it.
     const root = new THREE.Vector3(0, belly + girth * 0.16, -length * 0.42);
 
-    if (species.tail === 'curl') {
+    if (species.tail === 'carried') {
+      // Up and back, in a shallow arc, tapering to a point.
+      //
+      // Not `curl`, which is the pig's tight spiral and reads as a corkscrew on
+      // anything else; and not `switch`, which hangs. A dog carries its tail
+      // *above* the line of its back, and that is the single most recognisable
+      // thing about it from behind — which is the angle a dog in a village is
+      // most often seen from.
+      const segments = 4;
+      // A very wide range. A stump and a full plume are both dogs, and the
+      // difference between them is more visible from behind than anything else
+      // about the animal — so this is where the variety is worth spending.
+      const tailLength = length * rng.range(0.16, 0.6);
+      const step = tailLength / segments;
+      // Starts rising steeply and flattens off, so the arc is a sweep rather
+      // than a bend at one joint.
+      let angle = -rng.range(0.7, 1);
+      let x = root.x;
+      let y = root.y;
+      let z = root.z;
+      for (let i = 0; i < segments; i++) {
+        const thick = girth * 0.075 * (1 - i / (segments + 1));
+        const piece = new THREE.CylinderGeometry(thick * 0.7, thick, step * 1.15, 4);
+        piece.translate(0, step / 2, 0);
+        piece.rotateX(angle);
+        piece.translate(x, y, z);
+        // One weight for every segment, for the reason the switch has one:
+        // a graded weight shears a jointed tail apart in the wind.
+        parts.push({ geometry: piece, color: hide, sway: TAIL_SWAY });
+        // Advance to the end of the piece just placed. Rotating (0, step, 0)
+        // about X by `a` lands at (0, step·cos a, step·sin a) — taken from the
+        // transform rather than guessed, for the reason the flowers' heads are.
+        y += step * Math.cos(angle);
+        z += step * Math.sin(angle);
+        angle += rng.range(0.15, 0.35);
+      }
+    } else if (species.tail === 'curl') {
       // A tight spiral — unmistakably a pig from behind. Beads overlap by
       // design: spaced at their own diameter they read as a string of separate
       // balls, which is not a tail.
@@ -292,16 +415,31 @@ export function buildQuadruped(
         parts.push({ geometry: sphere, color: species.extremity, sway: 0 });
       }
     } else {
-      const tailLength = length * (species.tail === 'flowing' ? 0.55 : 0.42);
+      // Shorter than it was. A cow's tail reaches roughly to the hock, not to
+      // the ground, and at 0.42 of body length it was hanging past the hooves —
+      // which reads as a rope somebody tied on.
+      const tailLength = length * (species.tail === 'flowing' ? 0.4 : 0.3);
       // Down and *back*, never forward. The old range allowed negative angles,
       // which swung the tail under the animal and through its own hind legs.
       const angle = rng.range(0.08, 0.42);
 
-      const tail = new THREE.CylinderGeometry(girth * 0.035, girth * 0.06, tailLength, 4);
+      // **Thick at the root, thin at the tip**, which is the way round it was
+      // not. `CylinderGeometry` takes the top radius first and the geometry is
+      // then pushed down so its top is at the rump — so the first argument is
+      // the dock and the second is the end. They were 0.035 and 0.06, giving a
+      // tail that got fatter the further it went from the animal, and a tip
+      // wide enough to burst out through the sides of its own switch.
+      const tail = new THREE.CylinderGeometry(girth * 0.07, girth * 0.028, tailLength, 4);
       tail.translate(0, -tailLength / 2, 0);
       tail.rotateX(angle);
       tail.translate(root.x, root.y, root.z);
-      parts.push({ geometry: tail, color: hide, sway: 0.35 });
+      // **The same weight as the tuft below, and that is the point.** Sway is
+      // a per-vertex displacement applied in the shader, so two parts with
+      // different weights move by different amounts — the tail was at 0.35 and
+      // the switch at 0.6, so in any wind at all the tuft slid off the end of
+      // the tail it is supposed to be on. Anything that has to stay joined has
+      // to sway as one.
+      parts.push({ geometry: tail, color: hide, sway: TAIL_SWAY });
 
       // **The tuft follows the same rotation the tail did.**
       //
@@ -311,8 +449,17 @@ export function buildQuadruped(
       // (0, −L, 0) to (0, −L·cos a, −L·sin a) — so that is where the end of
       // the tail actually is, and 0.92 of the way along puts the tuft over the
       // join rather than balanced on the tip.
-      const along = tailLength * 0.92;
-      const tuft = new THREE.IcosahedronGeometry(girth * 0.09, 0);
+      // Just short of the tip, so the end of the tail sits *inside* the switch
+      // rather than being centred in it. Centred, half the cylinder projects
+      // out the far side; at 0.94 the join is buried and the fluff still reads
+      // as the end of the tail.
+      const along = tailLength * 0.94;
+      // Comfortably fatter than the tail it caps. An icosahedron's faces sit
+      // well inside its circumscribed radius — about 0.79 of it — so a switch
+      // whose nominal radius merely matches the tail is *narrower* than the
+      // tail everywhere except at its twelve points, and the cylinder shows
+      // through in between.
+      const tuft = new THREE.IcosahedronGeometry(girth * 0.115, 0);
       tuft.scale(0.75, species.tail === 'flowing' ? 1.7 : 1.05, 0.75);
       tuft.rotateX(angle);
       tuft.translate(
@@ -320,8 +467,7 @@ export function buildQuadruped(
         root.y - along * Math.cos(angle),
         root.z - along * Math.sin(angle),
       );
-      // The switch at the end is the part that moves.
-      parts.push({ geometry: tuft, color: PALETTE_HORN, sway: 0.6 });
+      parts.push({ geometry: tuft, color: PALETTE_HORN, sway: TAIL_SWAY });
     }
   }
 
@@ -336,3 +482,12 @@ export function buildQuadruped(
 const PALETTE_WOOL = 0xbdb6a4;
 const PALETTE_HORN = 0x8a8069;
 const PALETTE_HOOF = 0x3a332b;
+/**
+ * How much a tail moves in the wind.
+ *
+ * One number, shared by every part of every tail. A tail is several pieces that
+ * have to stay attached to each other, and sway is applied per vertex from a
+ * per-vertex weight — so any two pieces that disagree about their weight come
+ * apart under load. There is no mechanism keeping them together but this.
+ */
+const TAIL_SWAY = 0.4;

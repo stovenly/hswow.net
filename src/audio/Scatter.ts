@@ -116,7 +116,14 @@ export type ScatterSpec = OneShotSpec & {
   invertDistance?: boolean;
 };
 
-function buildOneShot(engine: AudioEngine, spec: OneShotSpec): OneShot {
+/**
+ * Builds a one-shot from its spec.
+ *
+ * Exported for the audition harness, which measures one-shots the same way it
+ * measures continuous models and would otherwise need a second copy of this
+ * switch — the exact duplication the discriminated union exists to avoid.
+ */
+export function buildOneShot(engine: AudioEngine, spec: OneShotSpec): OneShot {
   switch (spec.sound) {
     case 'hammer':
       return createHammer(engine, spec.options);

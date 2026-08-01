@@ -59,16 +59,31 @@ body {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 3px;
-  height: 3px;
-  margin: -1.5px 0 0 -1.5px;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
   border-radius: 50%;
-  background: var(--ink);
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms linear;
-  /* Rides on top of whatever it's over, dark ground or bright sky alike. */
-  mix-blend-mode: difference;
+  /* Two flat colours picked from what is actually behind it — see
+     `ui/Crosshair.ts`. Light by default, because the sky is the one background
+     you can be certain of before the first sample lands.
+
+     Not `mix-blend-mode: difference`, which this used to be. Difference is a
+     per-channel inversion: over a mid grey it returns a mid grey, so the dot
+     vanishes at exactly the luminance where it is hardest to see anyway.
+
+     A ring of the opposite colour rather than a second element. It costs
+     nothing, and it keeps the dot readable in the frames after the background
+     has changed and before the next sample. */
+  background: #f2f2ee;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 55%);
+}
+
+#crosshair.on-light {
+  background: #14161a;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 55%);
 }
 
 body.is-playing #crosshair {
@@ -268,8 +283,8 @@ body.is-loading #capture-hint {
   display: grid;
   justify-items: center;
   margin-bottom: 22px;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.78rem;
+  padding: 0.62rem 1.05rem;
+  font-size: 0.95rem;
   letter-spacing: 0.1em;
   color: var(--ink);
   white-space: nowrap;

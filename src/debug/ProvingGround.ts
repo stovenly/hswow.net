@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
+import { flatGround } from '../world/floor';
 // Imported directly rather than through `art/registry`, which uses
 // `import.meta.glob` and so only exists under Vite. The headless movement
 // check reaches this file through esbuild.
@@ -96,17 +97,7 @@ const GROUND = 208;
  */
 const GROUND_CELLS = 52;
 
-/**
- * Baked into geometry at construction, so these are not live-editable.
- *
- * Both are *darker* than the floor, because the floor is now the light surface
- * in the scene. Lines drawn lighter than what they sit on read as glow rather
- * than as a grid, and the metre lines in particular have to stay quiet enough
- * that a hundred of them across the view do not become the brightest thing in
- * it.
- */
-const GRID_MAJOR = 0x5a4f38;
-const GRID_MINOR = 0x9c8f72;
+/** Baked into geometry at construction, so these are not live-editable. */
 const BAND_LIGHT = 0xdcdcc8;
 const BAND_DARK = 0x5c3a2e;
 
@@ -291,20 +282,21 @@ export class ProvingGround {
   }
 
   private addGround(): void {
-    // Subdivided into metre cells rather than left as two enormous triangles:
-    // the collider's broad phase indexes by triangle, and a triangle spanning
-    // the whole level is a candidate for every query no matter where you are.
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(GROUND, GROUND, GROUND_CELLS, GROUND_CELLS),
-      this.materials.ground,
+    // Subdivided rather than left as two enormous triangles: the collider's
+    // broad phase indexes by triangle, and a triangle spanning the whole level
+    // is a candidate for every query no matter where you are.
+    //
+    // The grid used to be a `GridHelper` — 208 metre-spaced lines of geometry
+    // laid over the floor — and past about twenty metres it moiréd badly, the
+    // far lines resolving into smooth curves that swept across the ground as
+    // you turned. Line geometry has no mipmap chain and cannot be anisotropic-
+    // ally filtered, so there was nothing to turn on; drawn as a texture on the
+    // floor instead, the hardware handles both. See `world/floor.ts`.
+    this.root.add(
+      flatGround(GROUND, { segments: GROUND_CELLS, material: this.materials.ground }),
     );
-    plane.rotation.x = -Math.PI / 2;
-    // Nudged down so the grid lines sit clearly on top instead of z-fighting.
-    plane.position.y = -0.01;
-    this.root.add(markCollidable(plane));
 
-    // Helpers are line geometry, so the collider ignores them without being told.
-    this.root.add(new THREE.GridHelper(GROUND, GROUND, GRID_MAJOR, GRID_MINOR));
+    // Line geometry, so the collider ignores it without being told.
     this.root.add(new THREE.AxesHelper(2));
   }
 
