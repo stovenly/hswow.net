@@ -1,4 +1,4 @@
-# Heaven Sleeps Within Our Wounds — specification
+# Here Stands What Once Was — specification
 
 A first-person browser game served from GitHub Pages. three.js, TypeScript, Vite. No art
 or audio assets: every mesh and every sound is generated in code.
@@ -32,7 +32,7 @@ prior conversation context. Update it as decisions change.
 
 | | |
 |---|---|
-| **Title** | Heaven Sleeps Within Our Wounds (`hswow.net`) |
+| **Title** | Here Stands What Once Was (`hswow.net` — the initials are unchanged) |
 | **Camera** | First person, modern FPS — pointer lock, WASD, shift sprint, Escape releases |
 | **Art** | Procedural code-only meshes; glTF loader wired but unused |
 | **World** | Bounded, hand-authored exterior ringed by natural barriers. No noise terrain, no infinite streaming |
