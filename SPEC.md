@@ -376,7 +376,8 @@ Checked items are decided. Unchecked are open.
 - [x] WASD, shift sprint, gravity, jump, slope limit, step-up
 - [x] Head bob tied to speed, driving footstep timing
 - [x] Sprint FOV kick
-- [ ] Crouch — **open**
+- [x] Crouch — the capsule shrinks, with a headroom test before standing up, and
+      holds you at a flat edge so a drop can be leaned over rather than fallen off
 - [ ] Stamina limiting sprint — **open**
 
 ### Rendering
