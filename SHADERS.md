@@ -470,7 +470,7 @@ by the zone's actual fog (smoothstep, matching the material fog exactly).
 `ao: { strength, radius }` in `RenderSettings`, dev-panel folder, and the player
 option ("ambient occlusion", Video tab) all landed.
 
-Two notes for anyone tuning this, both learned by getting them wrong:
+Three notes for anyone tuning this, all learned by getting them wrong:
 
 - **The rotation must be IGN, not a hash.** White noise gives neighbouring pixels
   uncorrelated estimates, and a small blur cannot reconstruct anything from that —
@@ -480,6 +480,16 @@ Two notes for anyone tuning this, both learned by getting them wrong:
   metres-based threshold rejects every neighbour on a floor seen at a grazing
   angle — the blur switches itself off precisely on the surface the player looks
   at most, leaving raw noise there.
+- **Normalise against the unoccluded response, not the slice count.** An open
+  slice integrates to `cos(n) + n·sin(n)`, not to 1 — equal to 1 only when the
+  surface squarely faces the camera, and rising above it as the surface tilts.
+  Dividing by `SLICES` therefore darkens in proportion to viewing obliquity: 3%
+  at 40° off the view axis, 7% at 50°. That sounds negligible and is not, because
+  the contours of the error are *circles centred on the optical axis* and the
+  16-level quantizer turns a smooth 3% ramp into one hard ring that slides across
+  a near wall as the camera turns. Worth stating plainly: this is a normalisation
+  error, not a sampling one, so raising the slice count does nothing for it —
+  2 slices and 256 slices are wrong by exactly the same amount.
 
 Pending in-browser: the seated-props eyeball, the no-halo check, and the frame cost
 number for this section.

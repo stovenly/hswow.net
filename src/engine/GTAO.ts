@@ -217,6 +217,10 @@ function createAoMaterial(): THREE.ShaderMaterial {
         float stepJitter = fract(noise * 61.803);
 
         float visibility = 0.0;
+        // What the slices below would integrate to with nothing occluding
+        // them. Accumulated alongside, because it is the denominator — see
+        // the normalisation note after the loop.
+        float open = 0.0;
 
         for (int slice = 0; slice < SLICES; slice++) {
           float angle = baseAngle + float(slice) * (PI / float(SLICES));
@@ -269,11 +273,27 @@ function createAoMaterial(): THREE.ShaderMaterial {
           float arc1 = -cos(2.0 * h1 - n) + cosN + 2.0 * h1 * sin(n);
           float arc2 = -cos(2.0 * h2 - n) + cosN + 2.0 * h2 * sin(n);
           visibility += projLen * 0.25 * (arc1 + arc2);
+          // The same integral with both horizons on the tangent plane, which
+          // is what h1 and h2 collapse to when nothing occludes: substituting
+          // n ± HALF_PI above reduces the whole expression to this.
+          open += projLen * (cosN + n * sin(n));
         }
 
-        // The arc integral is normalised: an open hemisphere over a flat
-        // surface sums to exactly 1 per slice.
-        visibility = clamp(visibility / float(SLICES), 0.0, 1.0);
+        // **Normalised against the unoccluded response, not the slice count.**
+        // An open slice does not integrate to 1 — it integrates to
+        // cos(n) + n sin(n), which is 1 only when the surface faces the camera
+        // squarely and climbs above it as the surface tilts away. Dividing by
+        // SLICES therefore discards visibility in proportion to how obliquely
+        // the surface is seen: 3% at 40 degrees off the view axis. Small, but
+        // its contours are circles centred on the optical axis, and a 16-level
+        // quantizer downstream turns a smooth 3% ramp into one hard ring that
+        // slides across a near wall as the camera turns. Note this is a
+        // normalisation error, not a sampling one — more slices do not fix it.
+        //
+        // Dividing by the accumulated open response is exact for a flat
+        // surface at any angle, and it also drops the slices skipped above
+        // out of the denominator instead of counting them as fully occluded.
+        visibility = open > 1e-4 ? clamp(visibility / open, 0.0, 1.0) : 1.0;
         gl_FragColor = vec4(vec3(visibility), 1.0);
       }
     `,
