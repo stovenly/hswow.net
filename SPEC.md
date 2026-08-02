@@ -624,6 +624,35 @@ middle and a leaf cluster shears off its branch. This is cheap to do while the g
 being generated and effectively impossible to add afterwards, which is why it belongs here
 rather than there.
 
+**Builders must author collision.** A prop's collidable geometry should resemble only the
+part of it that can actually be collided with or stepped on — the branches and trunk of a
+tree, not its leaves; a door's leaf and frame, not its rivets, straps, hinges, handle or
+window bars. Embellishment and accessory detail are there to be looked at, and nothing
+that is only there to be looked at should be in the collision index.
+
+This is a performance rule and a feel rule at once. The collider indexes raw triangles, and
+cost rises faster than linearly with how *densely* they are packed — a hand-span of small
+detail is far worse than the same triangle count spread over a wall. Pressing the capsule
+against a signboard used to cost whole milliseconds a frame for the sake of its lettering,
+which is why `art/lettering` flags itself `noCollide` and why `signboard` and `banner` hang
+their words off the prop as a separate child mesh. The felt version is the same rule from
+the other side: catching on a rivet, a handle or a leaf reads as the world being made of
+invisible boxes.
+
+Today there are two ways to say it, and a third is planned:
+
+- `MeshBuilder.solid = false` for a prop that is soft the whole way through — the grasses,
+  flowers, moss and poultry already take this.
+- A child mesh flagged `userData.noCollide` for decoration inside an otherwise solid prop.
+  `signboard`, `banner`, `lettering` and `glow` all do this; it costs one extra draw call
+  and prunes the whole subtree.
+- Per-*part* collision, so a builder can mark a part decorative without splitting it into
+  its own mesh, and can give a part a simpler stand-in where the render geometry is
+  subdivided for shading rather than for form. Not built — see `COLLISION-FIX.md`.
+
+The default is solid, and stays solid, so a builder that says nothing behaves as it always
+has. Saying nothing is still a decision worth making on purpose.
+
 **Lessons worth not relearning.** Three of these cost real time:
 
 - **A box cannot lie on a curved surface.** Anything worn flat against a body — a sash, a

@@ -22,6 +22,38 @@ import { WEAR_ATTRIBUTE, WEAR_TINT_ATTRIBUTE } from './weathering';
  *
  * The cost is that colour becomes geometry: recolouring means rebuilding.
  * Since building is deterministic from a seed, that is cheap.
+ *
+ * ## Collision is a decision that has to be made here
+ *
+ * The merge is one-way. Once these parts are one buffer, nothing downstream can
+ * tell the rivets from the door they are driven into, and `markCollidable` can
+ * only take the prop whole or leave it whole. So which parts are *made of
+ * something* has to be said while they are still separate — the same argument
+ * that puts sway weights and the wear field in `Part` rather than inferring them
+ * afterwards from position.
+ *
+ * **The rule: a prop's collidable geometry should resemble only the part of it
+ * that can actually be collided with or stepped on.** A tree's branches and
+ * trunk, not its leaves. A door's leaf and frame, not its rivets, straps,
+ * hinges, handle or window bars. Embellishment and accessory detail are there to
+ * be looked at, and nothing that is only there to be looked at belongs in the
+ * collision index.
+ *
+ * It is not fussiness. The collider indexes raw triangles and its cost rises
+ * faster than linearly with how *densely* they are packed, so a hand-span of
+ * small detail hurts far more than the same triangle count spread across a wall
+ * — pressing the capsule against a signboard once cost whole milliseconds a
+ * frame for the sake of its lettering. And the feel argument points the same
+ * way: catching on a handle or a leaf reads as the world being made of invisible
+ * boxes.
+ *
+ * Until per-part collision exists (see `COLLISION-FIX.md`), a builder says this
+ * one of two ways: `MeshBuilder.solid = false` for something soft the whole way
+ * through, or — for decoration inside an otherwise solid prop — by keeping that
+ * decoration in its own child mesh flagged `userData.noCollide`, which is what
+ * `signboard` and `banner` do with their lettering. The default is solid, so a
+ * builder that says nothing behaves as it always has; that is a reason to decide
+ * on purpose rather than a reason not to decide.
  */
 
 /** Per-vertex sway weight, read by the Phase 7 wind shader. */
