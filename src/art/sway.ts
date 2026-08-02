@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
+import { applyWear } from './weathering';
 import type { Weather } from '../audio/weather';
 
 /**
@@ -232,6 +233,12 @@ export function patchArtMaterial(): void {
   swayPatch = patch;
   applySway(ART_MATERIAL);
   applySway(SWAY_DEPTH_MATERIAL);
+
+  // The weathering stage wraps the sway patch on the surface material only —
+  // the depth and normal materials read geometry, not colour. Applied here,
+  // after sway has claimed `onBeforeCompile`, because it composes by
+  // wrapping; see `applyWear`.
+  applyWear(ART_MATERIAL);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */
