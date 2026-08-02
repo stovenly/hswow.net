@@ -353,9 +353,6 @@ if (dev.gui) {
   const contact = dev.gui.addFolder('contact').close();
   contact.add(t, 'slopeLimitDeg', 5, 85, 1);
   contact.add(t, 'stepHeight', 0, 1, 0.01);
-  contact.add(t, 'edgeGuard').name('crouch holds edges');
-  contact.add(t, 'edgeGuardOverhang', 0, 1, 0.05).name('edge lean');
-  contact.add(t, 'edgeGuardTiltDeg', 0, 30, 0.5).name('edge tilt limit');
   contact.add(t, 'coyoteTime', 0, 0.5, 0.01);
   contact.add(t, 'jumpBuffer', 0, 0.5, 0.01);
 
