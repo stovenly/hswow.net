@@ -1,29 +1,43 @@
 import type { GalleryPlan } from './layout';
 import { foliageGalleryPlan } from './foliage';
 import { animalGalleryPlan } from './animal';
-import { villageGalleryPlan, factoryGalleryPlan } from './structures';
+import { textShowcaseGalleryPlan } from './text';
+import {
+  villageInteriorGalleryPlan,
+  villageExteriorGalleryPlan,
+  factoryInteriorGalleryPlan,
+  factoryExteriorGalleryPlan,
+} from './structures';
 
 /**
- * Every gallery, in the order their doors stand in the hub.
- *
- * Adding one is a file and a line here. The hub reads this list to build its
- * rank of doors, so a gallery cannot exist without being reachable — which is
- * the failure mode the old injected gallery had, where the only way in was to
- * already know where it was.
+ * Every gallery. The hub reads this list to build the zones; the doors to them
+ * stand in the two prop halls, one hall per setting — see `debug/props.ts`,
+ * which is where a new gallery also gets its door. `check:art` still fails on
+ * any builder that is in no gallery, so an unreachable gallery is caught from
+ * both sides.
  *
  * Castle and Cave are absent deliberately. Those kits do not exist yet, and an
  * empty gallery is worse than no gallery: it reads as a bug, and it takes a
- * door in the rank away from something that has contents.
+ * door in a hall away from something that has contents.
  */
 export const GALLERIES: readonly GalleryPlan[] = [
   foliageGalleryPlan,
   animalGalleryPlan,
-  villageGalleryPlan,
-  factoryGalleryPlan,
+  villageInteriorGalleryPlan,
+  villageExteriorGalleryPlan,
+  factoryInteriorGalleryPlan,
+  factoryExteriorGalleryPlan,
+  textShowcaseGalleryPlan,
 ];
 
 export { galleryZone, galleryDoor, galleryPortal, rowPosition } from './layout';
 export type { GalleryPlan } from './layout';
 export { ZONE_GALLERY_FOLIAGE } from './foliage';
 export { ZONE_GALLERY_ANIMAL } from './animal';
-export { ZONE_GALLERY_VILLAGE, ZONE_GALLERY_FACTORY } from './structures';
+export { ZONE_TEXT_SHOWCASE } from './text';
+export {
+  ZONE_GALLERY_VILLAGE_INTERIOR,
+  ZONE_GALLERY_VILLAGE_EXTERIOR,
+  ZONE_GALLERY_FACTORY_INTERIOR,
+  ZONE_GALLERY_FACTORY_EXTERIOR,
+} from './structures';

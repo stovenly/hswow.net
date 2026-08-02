@@ -98,6 +98,17 @@ export const PALETTE = {
   CLOTH: 0x8d8672,
   SKIN: 0xa8927a,
 
+  /**
+   * Lettering and painted marks — sign boards, banners, anything written.
+   *
+   * Very dark and slightly warm rather than black: pure black is the one
+   * value the quantizer cannot dither against anything, and lamp-black paint
+   * on timber was never black anyway. Legibility is carried by the luminance
+   * gap against whatever the letters sit on, which survives quantization
+   * where a hue difference alone would not.
+   */
+  INK: 0x2b2620,
+
   HIDE: 0x6d5641,
   HIDE_DARK: 0x413429,
   HIDE_PALE: 0xa29075,

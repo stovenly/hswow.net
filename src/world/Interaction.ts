@@ -46,11 +46,12 @@ export interface Hover {
  * manager falls back to it when the thing under the crosshair turns out not to
  * be a door.
  *
- * This is also how the kit gets labels at all. There are no fonts in this
- * project — the render pipeline chunks to three-pixel blocks and dithers, and
- * text through that is illegible — so a sign in the world cannot say what it
- * is. The tooltip layer sits above the canvas and stays sharp, which makes
- * "walk up to it and read it" the only workable way to name anything.
+ * This is also how most of the kit gets labels. The world *can* carry text
+ * now — `art/lettering` builds sign-scale geometric letters that survive the
+ * pipeline — but that works at sign scale and above, and a caption has to be
+ * readable at caption scale. The tooltip layer sits above the canvas and
+ * stays sharp, which keeps "walk up to it and read it" the right way to name
+ * anything smaller than a sign.
  */
 export function markLabelled<T extends THREE.Object3D>(object: T, label: string): T {
   object.userData.label = label;
