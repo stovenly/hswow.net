@@ -38,7 +38,8 @@ import { wallPegs } from '../art/builders/wall-pegs';
 import { hoist } from '../art/builders/hoist';
 import { lantern } from '../art/builders/lantern';
 import { villageZone, villageTerrain, VILLAGE_GATE, ZONE_VILLAGE } from './village';
-import { GALLERIES, galleryZone, galleryPortal } from './galleries';
+import { GALLERIES, galleryZone } from './galleries';
+import { propZones, propPortals } from './props';
 import { soundStageZone, soundStagePortal } from './SoundStage';
 import { chainZones, chainPortals } from './chains';
 
@@ -144,18 +145,12 @@ const GATE_AT = new THREE.Vector3(10, 0, 6);
 const GATE_YAW = 0;
 
 /**
- * The rank of gallery doors, directly behind spawn.
+ * The rank of prop hall doors, directly behind spawn.
  *
- * Standing where nothing was, rather than where the object gallery sprawled.
- * The gallery was rows of props accumulated by radius, so every builder added
- * made it longer — two dozen of them ran past ninety metres and forced the
- * floor to be widened three times. What replaced it is a fixed-width rank of
- * doors, because what grows now is the number of *rooms*, and a room is a door.
- *
- * Being fixed-width is what lets it sit this close in. You spawn looking at the
- * fixtures with every gallery one about-face away, which is the difference
- * between a room that gets looked at when something changes and one that gets
- * looked at once.
+ * This rank used to carry one door per gallery, and the galleries now hang off
+ * the prop halls instead — see `props.ts` for why. Three doors where four
+ * stood, in the same spots: the hub's job is unchanged, it is just no longer
+ * the place that grows when the kit does.
  *
  * Yaw π faces -Z, back toward spawn, so the rank is square-on when you turn.
  *
@@ -166,9 +161,9 @@ const GATE_YAW = 0;
  * arrival and walled a stride later. The parkour courses that replaced that
  * wall stop at z = 18 for the same reason.
  */
-const GALLERY_RANK = new THREE.Vector3(-10, 0, 22);
-const GALLERY_SPACING = 5;
-const GALLERY_YAW = Math.PI;
+const PROP_RANK = new THREE.Vector3(-10, 0, 22);
+const PROP_SPACING = 5;
+const PROP_YAW = Math.PI;
 
 /** Interior dimensions, shared by the zone builder and the portal placement. */
 // Roomy rather than snug. The first version was 6.4 x 5.2 and read as a
@@ -355,21 +350,21 @@ export interface TestWorld {
 }
 
 /**
- * Where the door to the nth gallery stands in the hub.
+ * Where the door to the nth prop hall stands in the hub.
  *
  * Shared by the portal definition and the arch built around it, so the two
  * cannot drift apart — the same trick the village gate uses.
  */
-function galleryHub(index: number): PortalEnd {
+function propHub(index: number, material: 'timber' | 'iron'): PortalEnd {
   return {
     zone: ZONE_EXTERIOR,
     position: new THREE.Vector3(
-      GALLERY_RANK.x + index * GALLERY_SPACING,
-      GALLERY_RANK.y,
-      GALLERY_RANK.z,
+      PROP_RANK.x + index * PROP_SPACING,
+      PROP_RANK.y,
+      PROP_RANK.z,
     ),
-    yaw: GALLERY_YAW,
-    material: 'timber',
+    yaw: PROP_YAW,
+    material,
     seed: 5200 + index * 17,
   };
 }
@@ -423,7 +418,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         // be coming out of something — so with the water gone there is nothing
         // for them to be the object of.
 
-        // No frames around the village gate or the gallery rank. An archway
+        // No frames around the village gate or the prop hall rank. An archway
         // reads as a threshold you walk *through*, and neither of these is —
         // both are doors you use and are teleported by. Ringing every one of
         // them in masonry made the Proving Ground look like a folly garden and
@@ -435,7 +430,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
 
     {
       id: ZONE_HUT,
-      name: 'Villager Hut',
+      name: 'Countryside Village Interior Demo',
       environment: {
         ...INDOOR_ENVIRONMENT,
         room: 'cell',
@@ -464,7 +459,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
 
     {
       id: ZONE_FACTORY,
-      name: 'The Factory',
+      name: 'Industrial Factory Interior Demo',
       environment: {
         ...INDOOR_ENVIRONMENT,
         room: 'hall',
@@ -573,12 +568,13 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     ...chainPortals(ZONE_FACTORY, ZONE_HUT),
   ];
 
-  // One zone and one portal per gallery, both derived from the same plan, so a
-  // gallery cannot exist without a way in.
-  GALLERIES.forEach((plan, index) => {
-    zones.push(galleryZone(plan));
-    portals.push(galleryPortal(plan, galleryHub(index)));
-  });
+  // One zone per gallery, as before — but the doors to them stand inside the
+  // two prop halls now, one hall per setting, and the hub carries a door per
+  // hall. `propPortals` owns every door in and out of the halls, including the
+  // gallery ends, so a gallery still cannot exist without a way in.
+  for (const plan of GALLERIES) zones.push(galleryZone(plan));
+  zones.push(...propZones());
+  portals.push(...propPortals(propHub(1, 'iron'), propHub(0, 'timber'), propHub(2, 'timber')));
 
   // The sound stage, and now a door to it — see `SOUND_DOOR_AT`. It is where
   // every model in the library is judged, and since the proving ground stopped
