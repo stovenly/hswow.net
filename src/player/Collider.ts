@@ -24,13 +24,6 @@ import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 /** Layer 0 stays enabled on every mesh, so this is additive and hides nothing. */
 export const COLLISION_LAYER = 1;
 
-export interface Surface {
-  /** Distance along the ray to the face. */
-  distance: number;
-  /** The face's own normal, vertical component — 1 is level, 0 is a wall. */
-  normalY: number;
-}
-
 export interface Contact {
   /** Unit vector pointing out of the surface, toward the capsule. */
   normal: THREE.Vector3;
@@ -71,11 +64,6 @@ const _closest = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _segment = new THREE.Line3();
 const _contact: Contact = { normal: new THREE.Vector3(), depth: 0 };
-const _faceNormal = new THREE.Vector3();
-const _surface: Surface = { distance: 0, normalY: 0 };
-const _sphere = new Capsule();
-/** See `nearGround`. Shorter than anything the collider has to tell apart. */
-const SPHERE_EXTENT = 0.01;
 
 interface Index {
   octree: Octree;
@@ -187,83 +175,6 @@ export class Collider {
       if (penetration(capsule, triangle) > 0) return true;
     }
     return false;
-  }
-
-  /**
-   * The nearest standable surface within `radius` of a point, written into
-   * `out`. Returns how far away it is **horizontally**, or null if there is
-   * none.
-   *
-   * **A point and a distance rather than a yes or no**, because the caller is
-   * building an invisible surface out of the answer and a surface needs a
-   * direction. Given the nearest ground, the direction away from it is the
-   * normal of the region "everywhere within arm's reach of something solid",
-   * and a player pressing against that region's boundary can be slid along it
-   * exactly as they are slid along a wall. A boolean can only ever say stop.
-   *
-   * Horizontal because the constraint is horizontal: the question is how far
-   * out over a drop somebody is, and a ledge half a metre lower is not half a
-   * metre further away for that purpose.
-   *
-   * Walkability is judged by the **face's own normal**, not by a push
-   * direction: this searches near edges almost exclusively, and the direction
-   * out of a contact there says more about which corner was closest than about
-   * what the surface is.
-   */
-  nearestGround(
-    point: THREE.Vector3,
-    radius: number,
-    minNormalY: number,
-    out: THREE.Vector3,
-  ): number | null {
-    // A hair of length rather than none: every closest-point-on-segment test
-    // divides by the segment's own length, so a true sphere comes back NaN,
-    // which compares false against everything and reads as touching nothing.
-    _sphere.start.copy(point);
-    _sphere.end.copy(point).setY(point.y + SPHERE_EXTENT);
-    _sphere.radius = radius;
-
-    _candidates.length = 0;
-    this.index.octree.getCapsuleTriangles(_sphere, _candidates);
-
-    let nearest = Infinity;
-    for (const triangle of _candidates) {
-      triangle.getNormal(_faceNormal);
-      if (_faceNormal.y < minNormalY) continue;
-      triangle.closestPointToPoint(point, _closest);
-      if (_closest.distanceTo(point) > radius) continue;
-      const distance = Math.hypot(_closest.x - point.x, _closest.z - point.z);
-      if (distance >= nearest) continue;
-      nearest = distance;
-      out.copy(_closest);
-    }
-
-    return nearest === Infinity ? null : nearest;
-  }
-
-  /**
-   * Nearest surface along a ray, with how flat the face it hit is.
-   *
-   * **A face, not a contact.** Every other question the controller asks about
-   * the ground comes back as a depenetration direction, which is the right
-   * answer for "which way am I being pushed" and the wrong one for "what am I
-   * standing on": a capsule on a beam narrower than itself rests on the beam's
-   * two top edges, and the direction it is pushed from either of them is tilted
-   * by thirty degrees even though the surface underfoot is dead level. Anything
-   * deciding whether a floor is flat has to look at the floor.
-   *
-   * The returned object is reused between calls.
-   */
-  probe(origin: THREE.Vector3, direction: THREE.Vector3): Surface | null {
-    const hit = this.index.octree.rayIntersect(new THREE.Ray(origin, direction)) as
-      | { distance: number; triangle: THREE.Triangle }
-      | false
-      | undefined;
-    if (!hit) return null;
-    hit.triangle.getNormal(_faceNormal);
-    _surface.distance = hit.distance;
-    _surface.normalY = _faceNormal.y;
-    return _surface;
   }
 
   /**

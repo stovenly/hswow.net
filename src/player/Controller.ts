@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import type { Input } from '../engine/Input';
-import type { Collider, Surface } from './Collider';
+import type { Collider } from './Collider';
 
 /**
  * First-person movement.
@@ -25,16 +25,6 @@ const MAX_SUB_STEPS = 16;
 const RESOLVE_PASSES = 4;
 /** Downward probe increments for the step-up landing sweep. */
 const STEP_DROP_SAMPLES = 6;
-/** How far above the feet a ground probe starts. See `groundUnder`. */
-const PROBE_LIFT = 0.05;
-/**
- * How far past the lean the edge guard looks for ground to slide along.
- *
- * Only has to cover one sub-step of movement — a centimetre and a half at
- * crouching pace — but it is the width of the band the guard can recover from,
- * so it is set well above that and costs a few more triangles in one query.
- */
-const EDGE_SEARCH_MARGIN = 0.15;
 
 /**
  * How soon after landing a jump counts as a continuation rather than a new
@@ -63,11 +53,12 @@ export interface PlayerTuning {
   /**
    * Eye height while crouched, as a fraction of the standing one.
    *
-   * Lower than `crouchHeight`, and deliberately: the eye drops further than the
-   * body does. Crouching is used to look at something properly as often as it
-   * is used to get under something, and a camera that only fell as far as the
-   * capsule did left the view hanging above a thing the player had just knelt
-   * to inspect.
+   * The camera moves and the capsule does not. That is a deliberate
+   * simplification and worth stating plainly: a shorter capsule would let the
+   * player crouch under things, which needs a headroom test before standing up
+   * again or they stand up inside geometry. Nothing in this world is low enough
+   * to crawl under yet, so crouch is a *viewpoint* — it lowers the eye to look
+   * at something properly — and the collision volume is unchanged.
    */
   crouchScale: number;
   /**
@@ -139,52 +130,6 @@ export interface PlayerTuning {
   slopeLimitDeg: number;
   /** Ledges up to this high are climbed rather than blocked. 0 disables it. */
   stepHeight: number;
-
-  /**
-   * Crouching refuses to walk off a flat ledge.
-   *
-   * Held down, the player can walk to the lip of a roof or a walkway and stop
-   * there rather than over it, which is what makes leaning out over a drop to
-   * look at something a move you can commit to instead of one you have to
-   * approach a centimetre at a time. It costs one downward ray per sub-step
-   * while crouched, grounded and moving, and nothing at all otherwise.
-   *
-   * The switch is here rather than being unconditional because it is a rule
-   * the world does not otherwise have — everywhere else, walking forward moves
-   * you forward — and anything that quietly refuses an input wants to be
-   * turnable off by whoever is judging the feel.
-   */
-  edgeGuard: boolean;
-  /**
-   * How far the ground under the player may tilt and still hold them, in
-   * degrees.
-   *
-   * **Small on purpose: the guard is for edges somebody built.** A walkway, a
-   * roof, a table — things with a flat top and a corner, where stopping at the
-   * corner is obviously what was wanted. Ground that is already sloping or
-   * curving away has no corner to stop at, and picking a point on it to call
-   * the edge would mean the player is caught by something they cannot see; on
-   * a rounded boulder the surface tilts under you well before the drop, so the
-   * guard lapses on the way to the rim and you can walk off it exactly as you
-   * would standing up. A heightfield is almost never this flat, which is the
-   * property being relied on.
-   */
-  edgeGuardTiltDeg: number;
-  /**
-   * How far past the lip a crouching player may stand, as a fraction of their
-   * own radius.
-   *
-   * 1 would be the geometric maximum — heels exactly on the edge, the whole
-   * body over the drop — and it is too much: it reads as standing on air rather
-   * than as leaning, because nothing of you is over the ledge any more. Half a
-   * radius is about a boot length past the lip, which is enough to put the
-   * ground below inside the view and still look like a person at an edge.
-   *
-   * 0 disables the overhang without disabling the guard: the player is stopped
-   * where the fall would have started, which is the conservative reading of the
-   * same feature.
-   */
-  edgeGuardOverhang: number;
 
   lookSensitivity: number;
   invertY: boolean;
@@ -321,10 +266,6 @@ export const DEFAULT_TUNING: PlayerTuning = {
   slopeLimitDeg: 50,
   stepHeight: 0.45,
 
-  edgeGuard: true,
-  edgeGuardTiltDeg: 6,
-  edgeGuardOverhang: 0.5,
-
   lookSensitivity: 0.0022,
   invertY: false,
   invertX: false,
@@ -363,9 +304,6 @@ const _position = new THREE.Vector3();
 const _probeStart = new THREE.Vector3();
 const _probeEnd = new THREE.Vector3();
 const _probe = new Capsule();
-const _foot = new THREE.Vector3();
-const _nearest = new THREE.Vector3();
-const _down = new THREE.Vector3(0, -1, 0);
 const _look = { x: 0, y: 0 };
 
 export class Controller {
@@ -446,9 +384,6 @@ export class Controller {
 
   /** Surface the player is standing on. Straight up whenever airborne. */
   private readonly groundNormal = new THREE.Vector3(0, 1, 0);
-  /** What the edge guard last saw underfoot: level or not, and at what height. */
-  private flatUnderfoot = false;
-  private floorY = 0;
   /** Horizontal unit direction the player is asking to go, world space. */
   private wishX = 0;
   private wishZ = 0;
@@ -504,9 +439,6 @@ export class Controller {
     this.crouch = 0;
     this.stepLag = 0;
     this.lastFeetY = null;
-    // Arriving somewhere else says nothing about what is underfoot there, and
-    // the remembered answer is only ever true of the ledge it was measured on.
-    this.flatUnderfoot = false;
   }
 
   /**
@@ -759,7 +691,6 @@ export class Controller {
   private move(dt: number): void {
     const t = this.tuning;
     _delta.copy(this.velocity).multiplyScalar(dt);
-    const guarded = this.holdEdge(_delta);
     _before.copy(this.capsule.start);
 
     const wasGrounded = this.grounded;
@@ -776,16 +707,6 @@ export class Controller {
     // within a step's reach and settle back onto it. Only an actual jump is
     // exempt; anything else that leaves the floor should be pulled back to it.
     if (wasGrounded && !this.grounded && !this.jumped) this.snapToGround();
-
-    // Out past the lip with part of the foot still over the ledge.
-    //
-    // **Tested at the axis rather than on `grounded`,** because the capsule
-    // does not simply let go at an edge — it catches the corner and rides it
-    // down, staying nominally grounded the whole way while the player sinks
-    // out of the world. Nothing under the axis and something under the rest of
-    // the foot is the actual shape of a lean, and it is also what tells one
-    // from a step down: a stair has a tread under the axis, so it descends.
-    if (guarded && !this.jumped && !this.groundAt(0, 0) && this.supported(0, 0)) this.cling();
 
     // Ledge climbing, when the player is asking to go somewhere and isn't.
     // Not gated on being grounded: catching a lip on the way down is the same
@@ -830,235 +751,6 @@ export class Controller {
     }
 
     if (!this.grounded) this.groundNormal.set(0, 1, 0);
-  }
-
-  /**
-   * Trims a step that would carry a crouching player off a flat edge.
-   *
-   * **Held, not toggled, and it only ever removes motion.** The step is tested
-   * before it is taken rather than undone afterwards, because undoing it means
-   * putting the capsule back where it was and re-resolving from there, and a
-   * player who is stopped by an edge is stopped every sub-step — the version
-   * that reverts does the collision work twice, a hundred and twenty times a
-   * second, for as long as they lean.
-   *
-   * **It is a wall, and it is slid along rather than stopped at.** The first
-   * version of this dropped whichever world axis of the step left the ledge,
-   * which is easy to write and feels awful: at any edge not running due north
-   * the axis that gets dropped is not the one pointing off it, so the player
-   * loses speed they should have kept, and around a corner — where the
-   * direction that leaves changes continuously — it stutters between dropping
-   * one axis and the other. Nothing else in the game moves like that, because
-   * nothing else is stopped that way; `resolve` slides the player along a wall
-   * by taking out the component going *into* it and leaving the rest.
-   *
-   * So this does the same thing to the same shape. The boundary is everywhere
-   * a lean from solid ground, its outward normal is the direction away from the
-   * nearest ground there is, and pressing into it takes out that component and
-   * no other. Round an outside corner the boundary is an arc, so the player
-   * curves round it at walking pace without ever being stopped — which is what
-   * a curved wall does, and it is the only part of this the player should be
-   * able to feel.
-   *
-   * Returns whether the guard is engaged, which is also the permission `cling`
-   * needs to keep the player up once they are out past the lip.
-   */
-  private holdEdge(delta: THREE.Vector3): boolean {
-    const t = this.tuning;
-    if (!t.edgeGuard || !this.input.crouching || !this.grounded) return false;
-    // Rising means a jump is in progress, and a jump off a ledge is a decision
-    // rather than a mistake. Crouch-jumping over a gap has to keep working.
-    if (this.velocity.y > 0.1) return false;
-    if (!this.onFlat()) return false;
-    if (delta.x === 0 && delta.z === 0) return true;
-
-    // Ground directly under where the step lands. Nearly every frame takes this
-    // exit, and it costs one ray.
-    if (this.groundAt(delta.x, delta.z)) return true;
-
-    const reach = t.radius * t.edgeGuardOverhang;
-    const distance = this.nearestGround(delta.x, delta.z, reach + EDGE_SEARCH_MARGIN);
-
-    // Nothing within reach of where the step lands, and no direction to slide
-    // along either. Only reachable by walking at a drop wider than the search,
-    // which the step before this one would already have refused.
-    if (distance === null) {
-      delta.x = 0;
-      delta.z = 0;
-      this.velocity.x = 0;
-      this.velocity.z = 0;
-      return true;
-    }
-
-    if (distance <= reach) return true;
-
-    // Out past the boundary: back onto it along the outward normal, and take
-    // the same component out of the velocity so it does not build up against a
-    // surface it can never cross.
-    const footX = this.capsule.start.x + delta.x;
-    const footZ = this.capsule.start.z + delta.z;
-    const nx = (footX - _nearest.x) / distance;
-    const nz = (footZ - _nearest.z) / distance;
-    const excess = distance - reach;
-    delta.x -= nx * excess;
-    delta.z -= nz * excess;
-
-    const into = this.velocity.x * nx + this.velocity.z * nz;
-    if (into > 0) {
-      this.velocity.x -= nx * into;
-      this.velocity.z -= nz * into;
-    }
-    return true;
-  }
-
-  /**
-   * Whether the floor under the player is level enough to have an edge.
-   *
-   * **Not `groundNormal`.** That is a depenetration direction, and on anything
-   * narrower than the capsule it is tilted by the geometry of the contact
-   * rather than by the surface: a 0.35 m balance beam is dead level underfoot
-   * and pushes back at thirty degrees, because the capsule is resting on its
-   * two top corners. Reading the normal would have switched the guard off on
-   * exactly the fixtures where walking off an edge is easiest to do by
-   * accident. So the face under the feet is asked directly.
-   *
-   * **The answer is remembered, and has to be.** Out in a lean there is no
-   * ground under the axis to ask about, and the last thing the player was
-   * standing on is the honest answer until they stand on something else. It
-   * cannot go stale: the guard only runs while grounded, and the moment they
-   * are back over anything the sample updates.
-   */
-  private onFlat(): boolean {
-    const under = this.groundUnder(0, 0);
-    if (under !== null) {
-      const tilt = this.tuning.edgeGuardTiltDeg;
-      this.flatUnderfoot = under.normalY >= Math.cos((tilt * Math.PI) / 180);
-      // Where the floor actually is, which is not the same as where the feet
-      // are: the capsule settles tangent to a surface and can sit a few
-      // centimetres clear of it. `supported` measures a horizontal distance
-      // from a sphere, so a vertical error there comes straight off the reach.
-      this.floorY = this.capsule.start.y - this.tuning.radius + PROBE_LIFT - under.distance;
-    }
-    return this.flatUnderfoot;
-  }
-
-  /**
-   * Holds a leaning player up while their feet are past the edge.
-   *
-   * **Without this the guard could only ever stop you at the lip**, because a
-   * capsule bears on the point under its axis: the moment that point clears the
-   * edge there is nothing in contact, and the player is falling however much of
-   * them is still over the ledge. Stopping there means standing with the drop
-   * directly below the camera and no way to look down it, which is most of what
-   * somebody crouches at an edge to do.
-   *
-   * So while the guard is engaged and any part of the footprint is still over
-   * ground, the ledge keeps them: the feet stay at the height they were
-   * standing at and the fall never starts. It is the same bargain the rest of
-   * the guard makes — crouch is a deliberate, held input, and this is what it
-   * buys.
-   *
-   * Let go of crouch out here and the ledge lets go too, which is the honest
-   * behaviour and worth knowing before you try it.
-   */
-  private cling(): void {
-    this.capsule.translate(_push.set(0, _before.y - this.capsule.start.y, 0));
-    this.velocity.y = 0;
-    this.grounded = true;
-    this.groundNormal.set(0, 1, 0);
-  }
-
-  /**
-   * Whether the player would still have ground under them a step away.
-   *
-   * **The footprint, not the axis.** A capsule bears on the single point under
-   * its axis, so a test at that point alone answers a narrower question than
-   * the one being asked — it says where the *fall* starts, and the player can
-   * plainly stand further out than that, with their toes over the drop, the
-   * same way anybody can stand at the edge of a roof. What holds somebody up is
-   * how much of them is over solid ground, so the rest of the foot is measured
-   * too: two more samples, `edgeGuardOverhang` of a radius out.
-   *
-   * **How near the ground is, rather than which way it lies.** Rays in a ring
-   * around the foot are the cheap version of this and they are wrong in a way
-   * that is only visible at corners: the region they describe is the union of
-   * a few offset copies of the floor, so its boundary scallops inward between
-   * the samples, and rounding a corner means the player is pushed back in and
-   * let out again as the supporting sample changes over. `nearGround` answers
-   * with a distance, so the region is the floor grown by exactly the lean, an
-   * outside corner is a clean arc of that radius, and a player leaning on one
-   * edge can slide round onto the next without ever coming back in.
-   *
-   * A consequence worth stating, because it is geometry rather than a choice:
-   * a uniform lean **rounds** corners. At a straight edge the player gets the
-   * whole lean past it; at a corner they get the same distance from the corner
-   * *point*, which is less far past either edge than a straight run would give.
-   * The alternative — full lean past both edges at once — would put them out
-   * where the nearest stone is a lean and a half away.
-   *
-   * The forward half of the same disc earns its keep separately: the capsule is
-   * 0.64 m across and crosses a floor grating or a gap between two boards
-   * without anyone thinking about it, so a guard that did not know would plant
-   * the player in front of one.
-   */
-  private supported(dx: number, dz: number): boolean {
-    if (this.groundAt(dx, dz)) return true;
-    const reach = this.tuning.radius * this.tuning.edgeGuardOverhang;
-    if (reach <= 0) return false;
-    const distance = this.nearestGround(dx, dz, reach + EDGE_SEARCH_MARGIN);
-    return distance !== null && distance <= reach;
-  }
-
-  /**
-   * Horizontal distance from the sole — offset by `dx`, `dz` — to the nearest
-   * standable ground within `radius`, or null. The point itself lands in
-   * `_nearest`.
-   *
-   * **Measured from the floor's own height, not the foot's.** A capsule settles
-   * *tangent* to what it stands on and can sit centimetres clear of it, and a
-   * search centred on the foot would spend that gap out of its radius — the
-   * lean would quietly shorten by however far the player happened to be
-   * floating. `floorY` is where the surface actually is, sampled by `onFlat`.
-   *
-   * The probe is then lifted clear of that plane rather than placed in it: a
-   * sphere centred exactly in a surface touches it edge-on, and a contact whose
-   * direction lies *in* the face is indistinguishable from one arriving through
-   * the back of it — which the collider rejects, correctly, leaving a player on
-   * obvious solid ground being told there is none.
-   */
-  private nearestGround(dx: number, dz: number, radius: number): number | null {
-    const t = this.tuning;
-    const lift = 0.02;
-    _foot.set(this.capsule.start.x + dx, this.floorY + lift, this.capsule.start.z + dz);
-    const slopeCos = Math.cos((t.slopeLimitDeg * Math.PI) / 180);
-    return this.collider.nearestGround(_foot, Math.hypot(radius, lift), slopeCos, _nearest);
-  }
-
-  /**
-   * The surface within a step below the feet, offset horizontally by `dx`,
-   * `dz`, or null if there is nothing that close.
-   *
-   * Reach is `stepHeight`, so this agrees with `snapToGround` by construction:
-   * a drop the controller would have stepped down counts as ground and is
-   * walked onto normally, and only one it would have fallen off is refused.
-   */
-  private groundUnder(dx: number, dz: number): Surface | null {
-    const t = this.tuning;
-    // Started just above the surface rather than on it: a ray that begins
-    // exactly on the face it is testing is a coin toss between distance zero
-    // and a miss.
-    _foot.set(
-      this.capsule.start.x + dx,
-      this.capsule.start.y - t.radius + PROBE_LIFT,
-      this.capsule.start.z + dz,
-    );
-    const surface = this.collider.probe(_foot, _down);
-    if (surface === null || surface.distance > t.stepHeight + PROBE_LIFT) return null;
-    return surface;
-  }
-
-  private groundAt(dx: number, dz: number): boolean {
-    return this.groundUnder(dx, dz) !== null;
   }
 
   /**
