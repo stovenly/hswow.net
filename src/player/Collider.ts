@@ -42,6 +42,13 @@ export interface Contact {
  *
  * Recursive rather than `traverse`, because `traverse` has no way to prune: it
  * would skip the flagged node and then carry on into its children anyway.
+ *
+ * **This can only take a prop whole or leave it whole**, which is why the rule
+ * about what a prop is made of lives with the builder rather than here — see the
+ * collision section of `art/assemble`. By the time a mesh reaches this function
+ * its parts have been merged into one buffer and nothing can tell a door's leaf
+ * from the rivets on it. A builder that wants only part of itself to be solid
+ * has to say so while it is still being built.
  */
 export function markCollidable<T extends THREE.Object3D>(object: T): T {
   mark(object);
