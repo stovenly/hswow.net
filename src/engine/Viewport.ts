@@ -36,6 +36,28 @@ export class Viewport {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+    // **The shadow map is drawn once a frame, not once a pass.**
+    // `WebGLRenderer.render` calls `shadowMap.render()` unconditionally, and
+    // the pipeline renders the scene twice — once for beauty and once with
+    // `overrideMaterial` set to a normal material for the edge detector. The
+    // second shadow render is pure waste: the shadow pass uses its own depth
+    // materials and ignores `overrideMaterial` entirely, so it redraws exactly
+    // the same map and throws the first one away.
+    //
+    // With `autoUpdate` off, `WebGLShadowMap` returns early unless `needsUpdate`
+    // is set, and clears the flag once it has drawn. `PostFX.render` sets it
+    // once per frame, so the first pass draws the map and the rest reuse it.
+    // Byte-identical output, half the shadow cost.
+    this.renderer.shadowMap.autoUpdate = false;
+
+    // **And the frame counters are reset once a frame, for the same reason.**
+    // `info.reset()` normally runs inside every `render()` call — *after* the
+    // shadow pass, and once per composer pass — so read at the end of a frame
+    // `info.render.calls` would report the last fullscreen quad and nothing
+    // else. Off, it accumulates across every pass and includes the shadow
+    // draws, which is the number the debug readout is actually asking for.
+    this.renderer.info.autoReset = false;
+
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
 
@@ -59,7 +81,19 @@ export class Viewport {
     this.onResize?.();
   }
 
+  /**
+   * Straight to the screen, with no post pipeline. Nothing calls this — the
+   * game renders through `PostFX` — and it is kept as the plain path for
+   * bisecting a problem down to "is it the pipeline or the scene".
+   *
+   * It carries the same per-frame bookkeeping `PostFX.render` does, because
+   * both switches above are off by default now: without the reset the counters
+   * would climb forever, and without `needsUpdate` the shadow map would be
+   * whatever the last full frame left behind.
+   */
   render(): void {
+    this.renderer.info.reset();
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
 

@@ -37,6 +37,9 @@ const STEP_DROP_SAMPLES = 6;
  */
 const HOP_CONTINUATION = 0.28;
 
+/** Which axis a field-of-view figure is measured along. See `fovScaling`. */
+export type FovScaling = 'horizontal' | 'vertical';
+
 export interface PlayerTuning {
   /** Capsule radius. Also, incidentally, how tight a gap the player fits through. */
   radius: number;
@@ -130,7 +133,25 @@ export interface PlayerTuning {
 
   lookSensitivity: number;
   invertY: boolean;
+  /**
+   * Reverses horizontal look.
+   *
+   * Rare, and worth having anyway: a player who inverts one axis on a flight
+   * stick often inverts both, and the alternative to an option is that the
+   * game is unplayable for them.
+   */
+  invertX: boolean;
 
+  /**
+   * Global scale over the head bob, 0..1.
+   *
+   * Separate from the three amplitudes rather than folded into them, and for
+   * the same reason `windUniforms.swayAmount` is separate from the per-species
+   * flex weights: turning the effect off must not destroy the tuning. A player
+   * who switches head bob off and back on gets the bob that was dialled in,
+   * not the defaults, and the debug sliders keep working underneath.
+   */
+  bobScale: number;
   bobAmount: number;
   bobSway: number;
   bobRoll: number;
@@ -177,7 +198,36 @@ export interface PlayerTuning {
   maxAirSpeed: number;
 
   fov: number;
-  sprintFov: number;
+  /**
+   * Which axis `fov` is measured along.
+   *
+   * The two behave differently only when the window is not 16:9, and the
+   * difference is what happens to the *other* axis as the shape changes:
+   *
+   * - `vertical` fixes the vertical angle, so a wider window shows more to
+   *   the sides. This is Hor+, it is what most PC games do, and it is what
+   *   three.js does natively — `PerspectiveCamera.fov` is a vertical angle.
+   * - `horizontal` fixes the horizontal angle, so a wider window loses height
+   *   instead. This is Vert−, and it is what a player usually means when they
+   *   type a number into an FOV box, because the numbers everyone quotes
+   *   (90, 103) are horizontal ones.
+   *
+   * Both are honest and neither is a hack; which one is wanted depends on
+   * whether the player is thinking about the number or about the window.
+   */
+  fovScaling: FovScaling;
+  /**
+   * How much wider the view goes while sprinting, in degrees **on top of**
+   * `fov`.
+   *
+   * A boost rather than a second absolute angle. Held absolutely, the two have
+   * to be kept in step by whoever moves either — a field-of-view slider that
+   * set one and forgot the other would silently turn the sprint zoom into a
+   * zoom *out*, and nothing in the code would look wrong. As a delta the
+   * relationship cannot come apart: the effect is this many degrees wherever
+   * the player puts their field of view, and 0 is no effect at all.
+   */
+  sprintFovBoost: number;
   /** Camera dip on landing, per m/s of impact speed. */
   landDip: number;
 }
@@ -218,7 +268,9 @@ export const DEFAULT_TUNING: PlayerTuning = {
 
   lookSensitivity: 0.0022,
   invertY: false,
+  invertX: false,
 
+  bobScale: 1,
   bobAmount: 0.02,
   bobSway: 0.012,
   bobRoll: 0.004,
@@ -228,8 +280,15 @@ export const DEFAULT_TUNING: PlayerTuning = {
 
   maxAirSpeed: 1.12,
 
-  fov: 74,
-  sprintFov: 82,
+  fov: 80,
+  // Vertical, which is also what this was implicitly before the option
+  // existed — `PerspectiveCamera.fov` is a vertical angle and the code set it
+  // straight. So 80 keeps meaning exactly what it meant while it was being
+  // tuned, and the option changes the framing only for somebody who asks it
+  // to. Read as horizontal it would be 50.5° vertical on a 16:9 screen, which
+  // is a considerably tighter game than the one that was dialled in.
+  fovScaling: 'vertical',
+  sprintFovBoost: 8,
   landDip: 0.02,
 };
 
@@ -274,8 +333,19 @@ export class Controller {
 
   private yaw = 0;
   private pitch = 0;
-  /** Latched, with hysteresis — see `applyCamera`. */
-  private sprintFov = false;
+  /** Whether the sprint widening is currently engaged. Latched, with
+   * hysteresis — see `applyCamera`. */
+  private zoomedOut = false;
+  /**
+   * The field of view **in the axis the player authored it in**, damped.
+   *
+   * Held separately from `camera.fov`, which is always vertical. Damping the
+   * camera's value directly would mean the sprint widening was smoothed in a
+   * different unit depending on the scaling option, and — worse — that a
+   * window resize under horizontal scaling would be *eased* into rather than
+   * simply being the correct angle for the new shape.
+   */
+  private authoredFov = DEFAULT_TUNING.fov;
   /**
    * How far into the crouch the camera is, 0..1.
    *
@@ -344,8 +414,8 @@ export class Controller {
     // because those are the frames boot work is stuttering through: `damp` fed
     // erratic deltas moves in lurches, and the whole thing reads as the camera
     // wobbling in and out as the page loads.
-    this.camera.fov = this.tuning.fov;
-    this.camera.updateProjectionMatrix();
+    this.authoredFov = this.tuning.fov;
+    this.applyProjection();
     this.teleport(new THREE.Vector3(0, 2, 6), 0);
   }
 
@@ -369,6 +439,59 @@ export class Controller {
     this.crouch = 0;
     this.stepLag = 0;
     this.lastFeetY = null;
+  }
+
+  /**
+   * Changes the field of view **at once**, rather than easing into it.
+   *
+   * The damp in `applyCamera` exists for the sprint zoom, where the whole
+   * effect is the widening — and it is exactly wrong for a settings slider,
+   * where every drag of the handle would chase a target it never reaches and
+   * the picture would lag a fraction of a second behind the number. Setting
+   * the camera here puts it already at the target, so the damp has nothing
+   * left to do and the next frame is drawn at the new angle.
+   *
+   * All three together, because whether the boost is currently applied depends
+   * on whether the player is sprinting, and only this class knows — and
+   * because changing the scaling without the angle would be read against the
+   * wrong axis for a frame.
+   */
+  setFieldOfView(fov: number, sprintBoost: number, scaling: FovScaling): void {
+    this.tuning.fov = fov;
+    this.tuning.sprintFovBoost = sprintBoost;
+    this.tuning.fovScaling = scaling;
+    this.authoredFov = fov + (this.zoomedOut ? sprintBoost : 0);
+    this.applyProjection();
+  }
+
+  /**
+   * Writes the camera's *vertical* angle from the authored one.
+   *
+   * The conversion is the only place the scaling option means anything, and it
+   * has to happen here rather than once when the option changes, because it
+   * depends on the aspect ratio — which moves whenever the window does. Run
+   * every frame from `applyCamera`, it costs a `tan` and an `atan` and it can
+   * never be stale.
+   *
+   * Guarded on an actual change: `updateProjectionMatrix` is not free, and the
+   * value is identical on the vast majority of frames.
+   */
+  private applyProjection(): void {
+    const authored = this.authoredFov;
+    const vertical =
+      this.tuning.fovScaling === 'vertical'
+        ? authored
+        : // Half-angles, because the tangent relationship holds on the half
+          // and not on the whole: the aspect ratio is width over height of the
+          // image plane, and each half-angle subtends half of one of those.
+          THREE.MathUtils.radToDeg(
+            2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(authored) / 2) / this.camera.aspect),
+          );
+
+    if (Math.abs(vertical - this.camera.fov) > 1e-3) {
+      this.camera.fov = vertical;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   /** Feet position — what autosave persists in Phase 9. Shared scratch; copy it. */
@@ -411,9 +534,9 @@ export class Controller {
 
   private applyLook(): void {
     this.input.drainLook(_look);
-    const { lookSensitivity, invertY } = this.tuning;
+    const { lookSensitivity, invertY, invertX } = this.tuning;
 
-    this.yaw -= _look.x * lookSensitivity;
+    this.yaw -= _look.x * lookSensitivity * (invertX ? -1 : 1);
     this.pitch -= _look.y * lookSensitivity * (invertY ? -1 : 1);
 
     // Just short of straight up and down. Exactly ±π/2 makes the yaw axis
@@ -823,7 +946,12 @@ export class Controller {
     // settles as you decelerate instead of cutting out. Capped at walking
     // pace: sprinting already quickens the cadence, and letting it deepen the
     // sway as well stacks two effects into a lurch.
-    const intensity = Math.min(this.speed / t.walkSpeed, 1);
+    //
+    // `bobScale` rides on the same term, so switching the bob off scales all
+    // three components at once and leaves the gait itself alone — footfalls are
+    // driven by distance covered in `advanceBob` and keep firing exactly as
+    // before, which is what stops "no head bob" also meaning "no footsteps".
+    const intensity = Math.min(this.speed / t.walkSpeed, 1) * t.bobScale;
 
     this.dip = Math.max(this.dip - this.dip * Math.min(dt * 9, 1), 0);
 
@@ -861,16 +989,13 @@ export class Controller {
     // between the two values whenever you happen to be moving at about that
     // speed with sprint held — which is a zoom oscillating at frame rate, and
     // reads as the camera wobbling in and out.
-    if (this.sprintFov) {
-      if (!this.input.sprint || this.speed < 0.4) this.sprintFov = false;
+    if (this.zoomedOut) {
+      if (!this.input.sprint || this.speed < 0.4) this.zoomedOut = false;
     } else if (this.input.sprint && this.speed > 1.2) {
-      this.sprintFov = true;
+      this.zoomedOut = true;
     }
-    const targetFov = this.sprintFov ? t.sprintFov : t.fov;
-    const fov = THREE.MathUtils.damp(this.camera.fov, targetFov, 6, dt);
-    if (Math.abs(fov - this.camera.fov) > 1e-3) {
-      this.camera.fov = fov;
-      this.camera.updateProjectionMatrix();
-    }
+    const targetFov = t.fov + (this.zoomedOut ? t.sprintFovBoost : 0);
+    this.authoredFov = THREE.MathUtils.damp(this.authoredFov, targetFov, 6, dt);
+    this.applyProjection();
   }
 }

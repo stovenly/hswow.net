@@ -22,6 +22,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { MeshBuilder } from '../src/art/types';
 import { SWAY_ATTRIBUTE } from '../src/art/assemble';
+import { CLUTTER } from '../src/art/clutter';
 import { FLEX } from '../src/art/flex';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
@@ -245,6 +246,21 @@ check(
   stale.length === 0
     ? `${Object.keys(FLEX).length} species bend, ${onDisk.length - Object.keys(FLEX).length} are rigid`
     : `no such builder: ${stale.join(', ')}`,
+);
+
+// --- the clutter table names real builders ---------------------------------
+//
+// Exactly the same trap as `FLEX`, one step quieter. A typo here does not make
+// a plant rigid, it makes a plant *keep a shadow it was meant to lose* — which
+// costs frame time and looks completely correct, so there is no symptom at all
+// beyond a draw call count slightly higher than the arithmetic said.
+const unknown = [...CLUTTER].filter((name) => !onDisk.includes(name));
+check(
+  'every clutter entry names a builder',
+  unknown.length === 0,
+  unknown.length === 0
+    ? `${CLUTTER.size} species drop their shadows`
+    : `no such builder: ${unknown.join(', ')}`,
 );
 
 console.log('');

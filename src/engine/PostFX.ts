@@ -4,7 +4,7 @@ import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPix
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { applySway } from '../art/sway';
-import { RetroShader } from './RetroShader';
+import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL } from '../art/glow';
@@ -159,6 +159,20 @@ export class PostFX {
   /** Null until a zone is entered, which on a real boot is immediately. */
   private air: ZoneAir | null = null;
 
+  /**
+   * The two halves of the look a player is allowed to turn off.
+   *
+   * Held here rather than written into `settings`, and for the same reason
+   * `ZoneAir` is: the settings are a *preset*, saved and reloaded, and a
+   * player switching the dither off must not silently overwrite a dither scale
+   * that took an afternoon to find. These sit on top and the tuned values stay
+   * underneath, so the switch is genuinely reversible.
+   */
+  private dither = true;
+  private pixelate = true;
+  private colorblind: ColorblindMode = 'off';
+  private colorblindStrength = 1;
+
   constructor(viewport: Viewport) {
     this.viewport = viewport;
     // Spread is shallow, so a preset saved before the sky existed would leave
@@ -217,6 +231,46 @@ export class PostFX {
     this.sky.aimAt(direction);
   }
 
+  /**
+   * Turns the halftone dither off without disturbing its tuning.
+   *
+   * The pattern is a texture in its own right rather than a way of hiding
+   * banding — see `ditherScale` — so this is a *look* option, and switching it
+   * off leaves the quantization visible as flat bands. That is the point: some
+   * people find a screen pattern over every surface hard to look at.
+   */
+  setDither(enabled: boolean): void {
+    this.dither = enabled;
+    this.apply();
+  }
+
+  /**
+   * Drops the chunky pixels to one device pixel.
+   *
+   * The edge detection stays. It is drawn by the same pass, it is most of what
+   * makes the world read as drawn rather than rendered, and it is not what
+   * anybody means when they ask to turn the pixelation off — they mean the
+   * blocks.
+   */
+  setPixelation(enabled: boolean): void {
+    this.pixelate = enabled;
+    this.apply();
+  }
+
+  /**
+   * Sets the colour vision correction and how strongly it is applied.
+   *
+   * `strength` is 0..1, and 0 is genuinely nothing rather than nearly nothing:
+   * the shader mixes between the original and the corrected colour, so the
+   * bottom of the slider is the untouched picture and every value above it is
+   * a proportion of the full correction.
+   */
+  setColorblind(mode: ColorblindMode, strength: number): void {
+    this.colorblind = mode;
+    this.colorblindStrength = Math.min(Math.max(strength, 0), 1);
+    this.apply();
+  }
+
   apply(): void {
     const s = this.settings;
 
@@ -224,7 +278,7 @@ export class PostFX {
     // look dialled in on a desktop reads the same on a phone at DPR 3 instead
     // of turning into a fine grain nobody can see.
     const scale = this.viewport.renderer.getPixelRatio();
-    const devicePixels = Math.max(1, Math.round(s.pixelSize * scale));
+    const devicePixels = this.pixelate ? Math.max(1, Math.round(s.pixelSize * scale)) : 1;
     if (this.pixelPass.pixelSize !== devicePixels) this.pixelPass.setPixelSize(devicePixels);
     this.pixelPass.normalEdgeStrength = s.normalEdgeStrength;
     this.pixelPass.depthEdgeStrength = s.depthEdgeStrength;
@@ -234,13 +288,15 @@ export class PostFX {
     // Passed through in steps rather than converted to absolute colour: the
     // shader now works inside one step, so it is the natural unit on both
     // sides and `levels` and the dither stay independent knobs.
-    u.uDitherScale.value = s.ditherScale;
+    u.uDitherScale.value = this.dither ? s.ditherScale : 0;
     u.uPeriod.value = s.screenPeriod;
     u.uQuantize.value = QUANTIZE_CODE[s.quantize];
     u.uLevels.value = s.levels;
     u.uVignette.value = s.vignetteStrength;
     u.uVignetteRadius.value = s.vignetteRadius;
     u.uVignetteSoftness.value = s.vignetteSoftness;
+    u.uColorblind.value = COLORBLIND_CODE[this.colorblind];
+    u.uColorblindStrength.value = this.colorblindStrength;
 
     this.sky.apply(s.sky);
     this.sky.mesh.visible = this.air === null || this.air.sky;
@@ -290,6 +346,15 @@ export class PostFX {
   }
 
   render(elapsed: number): void {
+    // Both of these are per-frame counterparts to switches turned off in
+    // `Viewport`, and both belong here rather than at the call site because
+    // this is the one place a frame is drawn — `main.ts` calls it from the loop
+    // and once more to prime the first frame, and a rule that has to be
+    // remembered at two call sites is a rule that will be missed at one.
+    const { renderer } = this.viewport;
+    renderer.info.reset();
+    renderer.shadowMap.needsUpdate = true;
+
     this.sky.follow(this.viewport.camera, elapsed);
     this.composer.render();
   }

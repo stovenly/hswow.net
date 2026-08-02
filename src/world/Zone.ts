@@ -320,7 +320,14 @@ export class Zone {
   dispose(): void {
     if (this.group === null) return;
     this.group.traverse((object) => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+      // `Points` as well as meshes and lines: the Proving Ground draws some of
+      // its fixtures that way, and a geometry missed here is a buffer that
+      // survives every release of the zone holding it.
+      if (
+        object instanceof THREE.Mesh ||
+        object instanceof THREE.LineSegments ||
+        object instanceof THREE.Points
+      ) {
         object.geometry.dispose();
       }
     });

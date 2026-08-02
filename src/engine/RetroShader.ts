@@ -34,6 +34,23 @@
  * one is ever wanted back.
  */
 
+/**
+ * Which colour deficiency the correction below is aimed at.
+ *
+ * Named for the condition rather than for the colours involved, because that
+ * is what somebody who has one knows it as — a player who has been told they
+ * have deuteranomaly will not find themselves under "red/green".
+ */
+export type ColorblindMode = 'off' | 'protanopia' | 'deuteranopia' | 'tritanopia';
+
+/** The shader takes an int; this is the only place the two agree. */
+export const COLORBLIND_CODE: Record<ColorblindMode, number> = {
+  off: 0,
+  protanopia: 1,
+  deuteranopia: 2,
+  tritanopia: 3,
+};
+
 export const RetroShader = {
   name: 'RetroShader',
 
@@ -51,6 +68,10 @@ export const RetroShader = {
     uVignette: { value: 0.35 },
     uVignetteRadius: { value: 0.55 },
     uVignetteSoftness: { value: 0.6 },
+    /** 0 off, 1 protanopia, 2 deuteranopia, 3 tritanopia. */
+    uColorblind: { value: 0 },
+    /** How much of the correction to apply, 0..1. */
+    uColorblindStrength: { value: 1 },
   },
 
   vertexShader: /* glsl */ `
@@ -72,8 +93,125 @@ export const RetroShader = {
     uniform float uVignette;
     uniform float uVignetteRadius;
     uniform float uVignetteSoftness;
+    uniform int uColorblind;
+    uniform float uColorblindStrength;
 
     varying vec2 vUv;
+
+    /**
+     * Colour vision deficiency **correction**, not simulation.
+     *
+     * The distinction matters and it is the whole design of this block. A
+     * simulation shows a player with normal vision what a player without it
+     * sees; it is a tool for the person making the game. What the person
+     * playing needs is the opposite — the information their eye cannot
+     * separate moved into channels it can — and that is what happens here.
+     * Turning it on should make more of the world legible, not less.
+     *
+     * Correction still needs simulation inside it, and that is the whole
+     * method: predict what the deficient eye receives, subtract it from what
+     * was sent, and the remainder is precisely the information that was lost.
+     * Push that into the channels that still work.
+     *
+     * ## Two things this gets right that most implementations do not
+     *
+     * (No backticks anywhere below: this is a template literal, and one would
+     * end it mid-GLSL. The same note is on the sway patch, for the same
+     * reason, after making the same mistake.)
+     *
+     * **It runs in linear light.** The widely-copied shader — Fidaner, Lin &
+     * Ozguven's, which is where the 17.8824 / 43.5161 cone matrix in every
+     * daltonize snippet comes from — applies those matrices straight to
+     * gamma-encoded values. Cone response is linear in light and sRGB is not,
+     * so the matrices are being fed numbers that are not what they describe;
+     * DaltonLens measured the result and a whole range of colours comes out
+     * far too dark. This pass runs *after* OutputPass, so it is handed sRGB
+     * and has to decode, work, and re-encode. Three pow calls each way, only
+     * when the filter is on.
+     *
+     * **Tritanopia uses two half-planes.** The single-matrix projection
+     * everyone uses is Viénot 1999, and its own authors say it is only valid
+     * for protanopia and deuteranopia — the blue axis needs Brettel 1997,
+     * where the surviving colours form *two* half-planes meeting along the
+     * neutral axis and which one a colour belongs to is decided per pixel.
+     * Using one plane for tritanopia is not a small error; it is wrong on
+     * roughly half the gamut. All three types use Brettel here, because once
+     * the branch exists there is no reason to keep a second code path that is
+     * only nearly as good.
+     *
+     * Constants are libDaltonLens's, which derive them from Smith & Pokorny
+     * cone fundamentals — the ones the original perceptual experiments were
+     * run against.
+     */
+    vec3 srgbToLinear(vec3 c) {
+      return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+    }
+
+    vec3 linearToSrgb(vec3 c) {
+      return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+    }
+
+    /**
+     * What a dichromat's eye receives, given linear RGB.
+     *
+     * The plane is chosen by which side of a separating plane the colour falls
+     * on — that is the sign test below, and it is the entire difference
+     * between Brettel and the single-matrix approximations.
+     */
+    vec3 simulate(vec3 c) {
+      vec3 normal;
+      mat3 planeA;
+      mat3 planeB;
+
+      // **Transposed from how they are published.** A mat3 built from nine
+      // floats fills its *columns* in order, and every source writes these
+      // out as rows — so each group of three below is one column of the
+      // published matrix, not one row of it. Getting this backwards still
+      // compiles and still produces a colour, which is the worst kind of
+      // wrong: it looks like a filter doing something.
+      if (uColorblind == 1) {
+        normal = vec3(0.00048, 0.00393, -0.00441);
+        planeA = mat3(0.14980, 0.10764, 0.00384, 1.19548, 0.84864, -0.00540, -0.34528, 0.04372, 1.00156);
+        planeB = mat3(0.14570, 0.10816, 0.00386, 1.16172, 0.85291, -0.00524, -0.30742, 0.03892, 1.00139);
+      } else if (uColorblind == 2) {
+        normal = vec3(-0.00281, -0.00611, 0.00892);
+        planeA = mat3(0.36477, 0.26294, -0.02006, 0.86381, 0.64245, 0.02728, -0.22858, 0.09462, 0.99278);
+        planeB = mat3(0.37298, 0.25954, -0.01980, 0.88166, 0.63506, 0.02784, -0.25464, 0.10540, 0.99196);
+      } else {
+        normal = vec3(0.03901, -0.02788, -0.01113);
+        planeA = mat3(1.01277, -0.01243, 0.07589, 0.13548, 0.86812, 0.80500, -0.14826, 0.14431, 0.11911);
+        planeB = mat3(0.93678, 0.06154, -0.37562, 0.18979, 0.81526, 1.12767, -0.12657, 0.12320, 0.24796);
+      }
+
+      return dot(c, normal) >= 0.0 ? planeA * c : planeB * c;
+    }
+
+    /**
+     * The corrected colour, given sRGB in and sRGB out.
+     */
+    vec3 correctColour(vec3 srgb) {
+      vec3 linear = srgbToLinear(clamp(srgb, 0.0, 1.0));
+      vec3 error = linear - simulate(linear);
+
+      // Where the lost information goes.
+      //
+      // There is no canonical answer to this half — the simulation is settled
+      // science and the redistribution is a design choice, since it is asking
+      // what to do with information the eye cannot receive at all. These are
+      // the long-standing daltonize weights: a red-green deficiency has its
+      // red error spread into green and blue, which are the axes still being
+      // read.
+      //
+      // Blue-yellow is the mirror, and has to be. The same matrix used for all
+      // three would push a blue error back into blue — handing it to the cone
+      // that cannot read it, so the correction corrects nothing while looking
+      // like it is doing something.
+      vec3 shift = uColorblind == 3
+        ? vec3(error.r + 0.7 * error.b, error.g + 0.7 * error.b, 0.0)
+        : vec3(0.0, 0.7 * error.r + error.g, 0.7 * error.r + error.b);
+
+      return linearToSrgb(clamp(linear + shift, 0.0, 1.0));
+    }
 
     /**
      * Clustered-dot halftone: the classic rotated cosine spot function, whose
@@ -154,6 +292,16 @@ export const RetroShader = {
         uVignetteRadius + uVignetteSoftness,
         radius
       );
+
+      // **Before the quantizer, not after.** The correction moves colours by
+      // small amounts, and doing it last would move them off the levels the
+      // dither is resolving between — the halftone would still be there but it
+      // would no longer be dithering toward anything, and flat faces would
+      // come back banded. Corrected first, the output is still exactly the
+      // sixteen levels per channel the look is built on.
+      if (uColorblind != 0) {
+        colour = mix(colour, correctColour(colour), clamp(uColorblindStrength, 0.0, 1.0));
+      }
 
       if (uQuantize == 1) {
         // One threshold value per chunky pixel, not per screen pixel. It has
