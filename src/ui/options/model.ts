@@ -48,6 +48,11 @@ export interface Options {
   dither: boolean;
   pixelation: boolean;
   /**
+   * Ambient occlusion. A player option by SHADERS.md's rule: real per-frame
+   * cost, purely additive shading — off, the world still reads as itself.
+   */
+  ambientOcclusion: boolean;
+  /**
    * Off by default. Grass is most of the object count in an outdoor zone and
    * almost none of the picture — see `art/clutter.ts` — so this is the one
    * graphics option here that buys back real frame time, and the one somebody
@@ -103,6 +108,7 @@ export const DEFAULT_OPTIONS: Options = {
   fovScaling: DEFAULT_TUNING.fovScaling,
   dither: true,
   pixelation: true,
+  ambientOcclusion: true,
   grassShadows: false,
   shadows: true,
   fpsCap: 'uncapped',
@@ -276,6 +282,7 @@ export const CATEGORIES: readonly Category[] = [
       },
       { kind: 'toggle', key: 'dither', label: 'dither' },
       { kind: 'toggle', key: 'pixelation', label: 'pixelation' },
+      { kind: 'toggle', key: 'ambientOcclusion', label: 'ambient occlusion' },
       { kind: 'toggle', key: 'shadows', label: 'shadows' },
       {
         kind: 'toggle',
