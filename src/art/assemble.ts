@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CLUTTER } from './clutter';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL } from './sway';
+import { WEAR_ATTRIBUTE, WEAR_TINT_ATTRIBUTE } from './weathering';
 
 /**
  * Turning a pile of primitives into one mesh.
@@ -54,6 +55,15 @@ export interface Part {
    * part from position alone — and by then they have all been merged.
    */
   sway?: number | ((x: number, y: number, z: number) => number);
+  /**
+   * How weathered this part is, 0..1 — the same shapes as `sway`, for the
+   * same reason. The fine speckle is generated per pixel by the wear stage in
+   * `art/weathering`; this is only the *field* it is thresholded against, so
+   * it needs just enough vertices to bend smoothly, not to draw patches.
+   */
+  wear?: number | ((x: number, y: number, z: number) => number);
+  /** What colour the part weathers toward — rust, moss, patina. sRGB hex. */
+  wearTint?: number;
 }
 
 export function assemble(parts: Part[]): THREE.BufferGeometry {
@@ -107,6 +117,27 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
       sway.fill(clamp01(part.sway));
     }
     geometry.setAttribute(SWAY_ATTRIBUTE, new THREE.BufferAttribute(sway, 1));
+
+    // Weathering, exactly as sway: a per-vertex field baked at build time,
+    // read by the one shared material's wear stage. Attributes exist on every
+    // part — zeroed where unused — because a merge requires every input to
+    // carry the same attribute set.
+    const wear = new Float32Array(count);
+    if (typeof part.wear === 'function') {
+      for (let i = 0; i < count; i++) {
+        wear[i] = clamp01(part.wear(position.getX(i), position.getY(i), position.getZ(i)));
+      }
+    } else if (part.wear) {
+      wear.fill(clamp01(part.wear));
+    }
+    geometry.setAttribute(WEAR_ATTRIBUTE, new THREE.BufferAttribute(wear, 1));
+
+    const tints = new Float32Array(count * 3);
+    if (part.wearTint !== undefined) {
+      color.set(part.wearTint);
+      for (let i = 0; i < count; i++) color.toArray(tints, i * 3);
+    }
+    geometry.setAttribute(WEAR_TINT_ATTRIBUTE, new THREE.BufferAttribute(tints, 3));
 
     // Normals must exist before merging: mergeGeometries requires every input
     // to carry the same attributes, and a missing one silently drops the lot.
