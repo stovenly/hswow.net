@@ -293,6 +293,7 @@ export function buildHutDoor(options: HutDoorOptions = {}): THREE.Mesh {
 
 export const hutDoor: MeshBuilder = {
   name: 'hut-door',
+  display: 'Wood Door',
   category: 'structures',
   radius: 0.9,
   build: buildHutDoor,

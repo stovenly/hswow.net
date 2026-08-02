@@ -57,6 +57,20 @@ export interface MeshBuilder {
    */
   readonly category: BuilderCategory;
   /**
+   * What the player is told this is, when it differs from `name`.
+   *
+   * The two are not the same job. `name` is the identifier content data uses,
+   * and it says which *builder* made the thing — `hut-door` and `factory-door`
+   * are named for where they belong, which is what someone placing them needs
+   * to know. A player standing in front of one has no idea what a hut door is;
+   * they can see that it is wood, and that is the word they would use.
+   *
+   * So this is only worth setting where the builder's own name would say
+   * something the player has no way to check. Most props leave it alone,
+   * because for most props the name already is the plain word for the thing.
+   */
+  readonly display?: string;
+  /**
    * Rough horizontal extent in metres.
    *
    * Used to space the gallery and, later, to keep placed props from growing

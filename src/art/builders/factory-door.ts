@@ -283,6 +283,7 @@ export function buildFactoryDoor(options: FactoryDoorOptions = {}): THREE.Mesh {
 
 export const factoryDoor: MeshBuilder = {
   name: 'factory-door',
+  display: 'Metal Door',
   category: 'structures',
   radius: 0.9,
   build: buildFactoryDoor,

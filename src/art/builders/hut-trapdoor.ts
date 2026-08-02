@@ -130,6 +130,7 @@ export function buildHutTrapdoor(options: HutTrapdoorOptions = {}): THREE.Mesh {
 
 export const hutTrapdoor: MeshBuilder = {
   name: 'hut-trapdoor',
+  display: 'Wood Trapdoor',
   category: 'structures',
   radius: 0.8,
   build: buildHutTrapdoor,

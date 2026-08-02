@@ -191,6 +191,7 @@ export function buildFactoryTrapdoor(options: FactoryTrapdoorOptions = {}): THRE
 
 export const factoryTrapdoor: MeshBuilder = {
   name: 'factory-trapdoor',
+  display: 'Metal Trapdoor',
   category: 'structures',
   radius: 0.8,
   build: buildFactoryTrapdoor,
