@@ -53,17 +53,33 @@ export const chair: MeshBuilder = {
     const halfW = seatWidth / 2 - legThickness * 0.7;
     const halfD = seatDepth / 2 - legThickness * 0.7;
 
-    // Front legs stop at the seat.
+    /**
+     * Where a leg stops: **inside** the seat, not flush with the top of it.
+     *
+     * A leg exactly `seatHeight` tall ends with its top cap at `y =
+     * seatHeight`, which is the same plane as the seat's own top surface — and
+     * because the legs are inset, that cap lies entirely *within* it. Two
+     * coplanar quads, and the depth buffer has no way to choose between them,
+     * so the top of every leg flickers through the seat at any distance where
+     * the two round to the same depth.
+     *
+     * Ending part-way into the thickness leaves the leg buried in solid timber
+     * with nothing coincident anywhere, which is also how the joint really
+     * works — a leg goes *into* a seat.
+     */
+    const legTop = seatHeight - seatThickness * 0.4;
+
+    // Front legs stop inside the seat.
     for (const sx of [-1, 1]) {
-      const leg = new THREE.BoxGeometry(legThickness, seatHeight, legThickness);
-      leg.translate(sx * halfW, seatHeight / 2, halfD);
+      const leg = new THREE.BoxGeometry(legThickness, legTop, legThickness);
+      leg.translate(sx * halfW, legTop / 2, halfD);
       parts.push({ geometry: leg, color: frame, sway: 0 });
     }
 
     // Back legs continue up through the seat and become the back uprights.
     for (const sx of [-1, 1]) {
-      const leg = new THREE.BoxGeometry(legThickness, seatHeight, legThickness);
-      leg.translate(sx * halfW, seatHeight / 2, -halfD);
+      const leg = new THREE.BoxGeometry(legThickness, legTop, legThickness);
+      leg.translate(sx * halfW, legTop / 2, -halfD);
       parts.push({ geometry: leg, color: frame, sway: 0 });
 
       // Dead vertical, continuing the line of the leg below it.
@@ -81,7 +97,13 @@ export const chair: MeshBuilder = {
       // and the mesh stops being watertight. With the old rake the joint was
       // at an angle and the question never came up. A few millimetres of
       // overlap is invisible and makes each box closed in its own right.
-      const overlap = 0.03;
+      //
+      // Measured down from `legTop` rather than fixed, because the leg now
+      // stops short of the seat by an amount that varies with the seat's
+      // thickness. A constant that happened to exceed it for most rolls would
+      // fail for the thick ones and put the two caps in the same plane —
+      // exactly the fault this overlap exists to avoid.
+      const overlap = seatThickness * 0.4 + 0.02;
       const upright = new THREE.BoxGeometry(legThickness, backHeight + overlap, legThickness);
       upright.translate(sx * halfW, seatHeight + backHeight / 2 - overlap / 2, -halfD);
       parts.push({ geometry: upright, color: frame, sway: 0 });

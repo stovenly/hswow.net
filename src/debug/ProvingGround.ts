@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
 import { flatGround } from '../world/floor';
-// Imported directly rather than through `art/registry`, which uses
-// `import.meta.glob` and so only exists under Vite. The headless movement
-// check reaches this file through esbuild.
-import { tree } from '../art/builders/tree';
-import { bush } from '../art/builders/bush';
 
 /**
  * The Proving Ground: a permanent debug level that accumulates test fixtures as
@@ -15,9 +10,19 @@ import { bush } from '../art/builders/bush';
  * Phase 0 fixtures: ground grid, a 1.8 m height reference, measured cubes, and
  * distance markers for judging fog and audio falloff later.
  *
- * Phase 1 adds the movement gym, west of the origin: ramps at four angles,
- * two stair pitches, kerbs at the step-up threshold, calibrated jump gaps, a
- * strafe wall with a corner, and a high walkway to fall off.
+ * Phase 1 adds the movement gym, west of the origin: ramps at four angles, two
+ * stair pitches, kerbs at the step-up threshold, calibrated jump gaps, a high
+ * walkway to fall off, and the parkour courses — stepping stones, a crouch
+ * tunnel, balance beams and a squeeze.
+ *
+ * **The audio fixtures are gone.** There was a sound garden here — a tree with
+ * a bird in it, two bushes, a mill — and a two-room stone building whose whole
+ * purpose was to have different acoustics on either side of a doorway. Both
+ * were Phase 3 scaffolding from before there was anywhere better to put a
+ * sound, and the Sound Stage supersedes them completely: every model in the
+ * library, in a row, at identical distances, with the room dialled live. Two
+ * places to judge a sound meant two places to tune one, and the worse of them
+ * was also the one standing in the middle of the movement fixtures.
  */
 
 export type SurfaceName =
@@ -27,9 +32,7 @@ export type SurfaceName =
   | 'ramp'
   | 'stair'
   | 'platform'
-  | 'wall'
-  | 'metal'
-  | 'creature';
+  | 'wall';
 
 /**
  * Warm ground, cool everything else.
@@ -56,8 +59,6 @@ const DEFAULT_SURFACES: Record<SurfaceName, string> = {
   stair: '#3d4b52',
   platform: '#46505c',
   wall: '#2e3640',
-  metal: '#6a6f74',
-  creature: '#b8a06a',
 };
 
 /**
@@ -198,29 +199,6 @@ export class ProvingGround {
   /** One material per surface family, shared by every fixture that uses it. */
   private readonly materials = {} as Record<SurfaceName, THREE.MeshLambertMaterial>;
 
-  /**
-   * Where the Phase 3 emitters live. Positions rather than objects, because a
-   * sound is attached to a place, not to a mesh — and Phase 5 will read these
-   * out of zone data rather than off the scene graph.
-   */
-  readonly anchors = {
-    tree: new THREE.Vector3(14, 3.6, 12),
-    bush: new THREE.Vector3(10.5, 0.5, 15.5),
-    bird: new THREE.Vector3(14.9, 4.1, 11.4),
-    machine: new THREE.Vector3(22, 1.1, -12),
-  };
-
-  /**
-   * The two rooms, for acoustics. Interiors only — the walls sit outside these
-   * bounds, so a listener inside the box is genuinely inside the room.
-   */
-  readonly rooms = [
-    { name: 'hall' as const, min: new THREE.Vector3(15, 0, -18), max: new THREE.Vector3(29, 7, -4) },
-    { name: 'cell' as const, min: new THREE.Vector3(19, 0, -4), max: new THREE.Vector3(27, 3, 4) },
-  ];
-
-  private wheel: THREE.Mesh | null = null;
-
   constructor() {
     this.root.name = 'ProvingGround';
 
@@ -232,40 +210,39 @@ export class ProvingGround {
       });
     }
 
-    // No lighting here. `ZoneManager` owns the sun and the hemisphere light for
-    // the whole game and drives them from the active zone's environment —
-    // lights parented into a zone would be removed with it, and the frame
-    // between one zone's lights leaving and the next zone's arriving is a
-    // frame of black that no fade is covering.
+    this.populate();
+  }
+
+  /**
+   * Fills `root` with the fixtures, or refills it after the zone was released.
+   *
+   * **This exists because the Proving Ground outlives its own zone.** The
+   * exterior's `build()` returns *this* group rather than making a new one —
+   * `main.ts` holds the instance to spin the mill wheel and to drive the colour
+   * pickers — so when residency drops the hub, `Zone.dispose` empties a group
+   * that nothing else would ever refill. Walking three doors away and back used
+   * to return you to bare ground with a hut on it.
+   *
+   * Idempotent by checking the group rather than a flag, because the emptying is
+   * done by somebody else: a flag here would say "populated" about a group that
+   * `Zone.dispose` had since cleared, which is exactly the state this is for.
+   *
+   * No lighting here. `ZoneManager` owns the sun and the hemisphere light for
+   * the whole game and drives them from the active zone's environment — lights
+   * parented into a zone would be removed with it, and the frame between one
+   * zone's lights leaving and the next zone's arriving is a frame of black that
+   * no fade is covering.
+   */
+  populate(): THREE.Group {
+    if (this.root.children.length > 0) return this.root;
+
     this.addGround();
     this.addHeightReference();
     this.addMeasuredCubes();
     this.addDistanceMarkers();
     this.addMovementGym();
     this.addCalibrationBoard();
-    this.addSoundGarden();
-    this.addRooms();
-  }
-
-  /** Spins the machine's wheel. Purely so the sound has something to belong to. */
-  update(dt: number, rpm: number): void {
-    if (this.wheel) this.wheel.rotation.z += (rpm / 60) * Math.PI * 2 * dt;
-  }
-
-  /** Which room's acoustics the listener is standing in, if any. */
-  roomAt(position: THREE.Vector3): 'hall' | 'cell' | null {
-    for (const room of this.rooms) {
-      if (
-        position.x > room.min.x &&
-        position.x < room.max.x &&
-        position.z > room.min.z &&
-        position.z < room.max.z &&
-        position.y < room.max.y
-      ) {
-        return room.name;
-      }
-    }
-    return null;
+    return this.root;
   }
 
   /** Pushes edited `colors` into the shared materials. */
@@ -352,8 +329,8 @@ export class ProvingGround {
     this.addStairs(gym);
     this.addKerbs(gym);
     this.addJumpGaps(gym);
-    this.addStrafeWall(gym);
     this.addFallWalkway(gym);
+    this.addParkour(gym);
 
     this.root.add(markCollidable(gym));
   }
@@ -442,16 +419,102 @@ export class ProvingGround {
   }
 
   /**
-   * A long face to slide along, and a corner to get caught on.
+   * Four courses testing the parts of the controller the ramps and stairs do
+   * not reach.
    *
-   * The corner is at the south end. It was at the north end, where it ran
-   * straight across the approach to the ramps — so walking at a ramp from the
-   * origin meant walking into a wall first, and the movement check was
-   * measuring the player climbing that instead of the slope.
+   * They stand in the ground the L-shaped strafe wall used to occupy — which
+   * was a sixteen-metre face with an arm across the end of it, and which had
+   * long since stopped earning that footprint. Sliding along a wall is one
+   * assertion; what it cost was the whole lane between the gym and the gallery
+   * rank, and it was close enough to the ramps that the movement check had to
+   * start its runs a metre and a half clear of it to avoid measuring the
+   * player climbing the wall instead of the slope.
+   *
+   * Each course below isolates one thing and grades it, so the answer is a
+   * *number* — which stone you fall at, which header stops you — rather than
+   * pass or fail. That is the same reasoning as the ramps being 10/20/30/45
+   * rather than one slope at the limit.
+   *
+   * Laid out west to east in one band at z 8..18, north of the kerbs and south
+   * of the gallery doors' arrival markers at z ≈ 20.9. Anything added here has
+   * to stay clear of those: the world check probes a stride forward off every
+   * marker and reports a door that opens into a wall.
    */
-  private addStrafeWall(parent: THREE.Group): void {
-    parent.add(box(0.4, 3, 16, this.materials.wall, -4, 0, 8));
-    parent.add(box(6, 3, 0.4, this.materials.wall, -7, 0, 15.8));
+  private addParkour(parent: THREE.Group): void {
+    const course = new THREE.Group();
+    course.name = 'Parkour';
+
+    // --- stepping stones, gaps widening ------------------------------------
+    //
+    // Pillar tops rather than platforms: at 0.7 m square there is no room to
+    // adjust after landing, so this tests the jump *and* the landing, which a
+    // wide platform lets you get away with separately. The gaps run 1.4 to
+    // 2.6 m, which brackets what a standing jump reaches, so the stone you
+    // fall at says which part of the tuning moved.
+    let z = 8;
+    for (const gap of [0, 1.4, 1.8, 2.2, 2.6]) {
+      z += gap;
+      course.add(box(0.7, 0.9, 0.7, this.materials.platform, -6, 0, z));
+    }
+
+    // --- the crouch tunnel --------------------------------------------------
+    //
+    // **The only fixture in the game that tests crouching at all.** The
+    // capsule really does shrink — see `crouchHeight` — and there has never
+    // been anything to shrink *under*, so the headroom test that stops a
+    // player standing up inside geometry has never been exercised by walking
+    // into it.
+    //
+    // Three headers at falling clearance: 1.6 stops a standing capsule (1.8)
+    // and passes a crouched one (1.04) easily, 1.3 is comfortable, and 1.1 is
+    // six centimetres of margin. Walk in, duck, and try to stand up under the
+    // last one — that is the case the headroom probe exists for.
+    const lane = -10;
+    for (const side of [-1, 1]) {
+      course.add(box(0.3, 2.2, 7, this.materials.wall, lane + side * 1.05, 0, 11.5));
+    }
+    for (const [clearance, at] of [
+      [1.6, 9],
+      [1.3, 11.5],
+      [1.1, 14],
+    ] as const) {
+      course.add(box(2.4, 0.3, 0.5, this.materials.wall, lane, clearance, at));
+    }
+
+    // --- balance beams, narrowing ------------------------------------------
+    //
+    // The capsule is 0.64 m across, so the last two beams are narrower than
+    // the player is. That is deliberate and it is the interesting part: the
+    // collider settles on whatever is under the capsule's *centre*, so a
+    // 0.35 m beam is walkable and feels like nothing else in the game. The
+    // step up onto the first one is there because a beam you cannot get onto
+    // tests nothing.
+    course.add(box(1.2, 0.6, 1.2, this.materials.platform, -14, 0, 7.4));
+    z = 8.4;
+    for (const width of [0.9, 0.7, 0.5, 0.35]) {
+      course.add(box(width, 1.2, 2.4, this.materials.platform, -14, 0, z));
+      // A metre of air between them, so each beam is arrived at rather than
+      // walked onto — landing on a narrow thing is the harder half.
+      z += 3.4;
+    }
+
+    // --- the squeeze --------------------------------------------------------
+    //
+    // Pairs of blocks with the gap between them stepped either side of the
+    // capsule's diameter. 0.55 must not admit you and 0.75 must, which makes
+    // this the one fixture that would notice a change to the player's radius —
+    // a number nothing else in the gym depends on.
+    z = 8;
+    for (const gap of [0.55, 0.65, 0.75, 0.9]) {
+      for (const side of [-1, 1]) {
+        course.add(
+          box(1.4, 2, 0.6, this.materials.wall, -18 + side * (gap / 2 + 0.7), 0, z),
+        );
+      }
+      z += 2.6;
+    }
+
+    parent.add(course);
   }
 
   /**
@@ -544,153 +607,6 @@ export class ProvingGround {
     board.add(markCollidable(rake));
 
     this.root.add(board);
-  }
-
-  /**
-   * Things for the Phase 3 emitters to be attached to.
-   *
-   * A sound with nothing where it is coming from does not read as a sound in
-   * the world, it reads as a fault. These are crude on purpose — Phase 4 is
-   * where meshes get built properly — but they are the difference between
-   * testing spatial audio and guessing at it.
-   */
-  private addSoundGarden(): void {
-    const garden = new THREE.Group();
-    garden.name = 'SoundGarden';
-
-    // Built by the Phase 4 art kit rather than by hand here. The emitters were
-    // placed against the old ad-hoc shapes, so the anchors stay put and the
-    // meshes move to them — a sound's position is a property of the world, not
-    // of whichever mesh happens to be standing there.
-    const canopy = tree.build({ seed: 4021 });
-    canopy.position.set(this.anchors.tree.x, 0, this.anchors.tree.z);
-    garden.add(markCollidable(canopy));
-
-    // The bird's perch is measured off the tree rather than written down.
-    //
-    // Hardcoded, it sat at 4.1 m — above a canopy whose actual top is 3.9, so
-    // the bird hovered in the air over the tree. Any change to the tree
-    // builder or its seed would put it somewhere else wrong again. Two thirds
-    // of the way up the crown, offset toward one side, is inside the leaves
-    // for any tree the builder can produce.
-    canopy.geometry.computeBoundingBox();
-    const crown = canopy.geometry.boundingBox;
-    if (crown) {
-      this.anchors.tree.setY(crown.max.y * 0.75);
-      this.anchors.bird.set(
-        this.anchors.tree.x + crown.max.x * 0.45,
-        crown.max.y * 0.66,
-        this.anchors.tree.z + crown.max.z * 0.3,
-      );
-    }
-
-    const shrub = bush.build({ seed: 771 });
-    shrub.position.set(this.anchors.bush.x, 0, this.anchors.bush.z);
-    garden.add(shrub);
-
-    const shrub2 = bush.build({ seed: 9114, scale: 0.8 });
-    shrub2.position.set(9.2, 0, 16.8);
-    garden.add(shrub2);
-
-    garden.add(this.bird());
-    garden.add(this.machine());
-
-    this.root.add(garden);
-  }
-
-  /** A small thing perched in the tree, to hang the birdsong on. */
-  private bird(): THREE.Group {
-    const group = new THREE.Group();
-    const at = this.anchors.bird;
-
-    const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), this.materials.creature);
-    body.position.copy(at);
-    body.scale.set(1, 0.85, 1.3);
-
-    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.14, 4), this.materials.marker);
-    beak.position.set(at.x, at.y + 0.02, at.z + 0.2);
-    beak.rotation.x = Math.PI / 2;
-
-    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 4), this.materials.creature);
-    tail.position.set(at.x, at.y + 0.03, at.z - 0.22);
-    tail.rotation.x = -Math.PI / 2;
-
-    group.add(body, beak, tail);
-    return group;
-  }
-
-  /** A machine, deliberately inside the hall so it can be heard through a wall. */
-  private machine(): THREE.Group {
-    const group = new THREE.Group();
-    const at = this.anchors.machine;
-
-    group.add(markCollidable(box(1.8, 1.6, 1.2, this.materials.metal, at.x, 0, at.z)));
-
-    // Exposed flywheel: what is actually making the noise, turning at the rate
-    // the clank fires.
-    this.wheel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.7, 0.7, 0.16, 12),
-      this.materials.metal,
-    );
-    this.wheel.position.set(at.x + 1.05, 1.2, at.z);
-    this.wheel.rotation.x = Math.PI / 2;
-    group.add(this.wheel);
-
-    for (let i = 0; i < 4; i++) {
-      const spoke = new THREE.Mesh(
-        new THREE.BoxGeometry(0.1, 1.3, 0.08),
-        this.materials.marker,
-      );
-      spoke.rotation.z = (i / 4) * Math.PI;
-      this.wheel.add(spoke);
-    }
-
-    const pipe = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.14, 0.14, 2.6, 8),
-      this.materials.metal,
-    );
-    pipe.position.set(at.x - 0.6, 2.4, at.z);
-    group.add(pipe);
-
-    return group;
-  }
-
-  /**
-   * Two rooms sharing a wall, with a doorway between them.
-   *
-   * They are as acoustically unalike as the presets allow — a low dead cell
-   * and a tall hard hall — because the Phase 3 acceptance test is whether
-   * walking through that doorway is *obviously* a different place, and a
-   * subtle difference proves nothing.
-   */
-  private addRooms(): void {
-    const rooms = new THREE.Group();
-    rooms.name = 'Rooms';
-    const t = 0.4;
-    const wall = this.materials.wall;
-
-    // --- hall: 14 x 14, seven metres to the ceiling ------------------------
-    rooms.add(box(14 + t * 2, 7, t, wall, 22, 0, -18 - t / 2));
-    rooms.add(box(t, 7, 14, wall, 15 - t / 2, 0, -11));
-    rooms.add(box(t, 7, 14, wall, 29 + t / 2, 0, -11));
-    rooms.add(box(14 + t * 2, t, 14 + t * 2, wall, 22, 7, -11));
-
-    // Shared wall at z = -4, with a 2 m doorway at x 22..24 and a lintel over it.
-    rooms.add(box(7, 7, t, wall, 18.5, 0, -4));
-    rooms.add(box(5, 7, t, wall, 26.5, 0, -4));
-    rooms.add(box(2, 4.6, t, wall, 23, 2.4, -4));
-
-    // --- cell: 8 x 8, three metres, and dead ------------------------------
-    rooms.add(box(t, 3, 8, wall, 19 - t / 2, 0, 0));
-    rooms.add(box(t, 3, 8, wall, 27 + t / 2, 0, 0));
-    rooms.add(box(8 + t * 2, t, 8, wall, 23, 3, 0));
-
-    // Outer door, so the pair can be walked into from the open ground.
-    rooms.add(box(3, 3, t, wall, 20.5, 0, 4));
-    rooms.add(box(3, 3, t, wall, 25.5, 0, 4));
-    rooms.add(box(2, 0.6, t, wall, 23, 2.4, 4));
-
-    this.root.add(markCollidable(rooms));
   }
 
   dispose(): void {

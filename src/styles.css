@@ -2,6 +2,26 @@
   color-scheme: dark;
   --ink: #dcdcc8;
   --void: #0a0a0f;
+  /* One stack, named once, so the accessibility option can swap it for the
+     whole interface by overriding a single property rather than by finding
+     every rule that sets a face. Everything else uses `font: inherit`. */
+  --type: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* Where the paused game's furniture starts, measured from the top.
+     Three elements share it: the options button, the controls panel beneath
+     it, and the options panel that replaces both. Sharing one value is what
+     makes pressing "options" read as the panel opening *where the button was*
+     rather than as a second piece of interface arriving from somewhere else. */
+  --pause-top: max(2.5rem, 9vh);
+}
+
+/* The dyslexia-friendly face, once it has arrived. The monospace stack stays
+   behind it as the fallback, so the interface is never unstyled while the file
+   is in flight — and stays readable if it never turns up at all.
+   Set on `body` rather than on `:root` so the class the loader adds is the
+   thing that switches it; see `ui/options/font.ts`. */
+body.is-dyslexic {
+  --type: "OpenDyslexic", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -19,7 +39,7 @@ body {
 }
 
 body {
-  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-family: var(--type);
   color: var(--ink);
   /* Kill pull-to-refresh, rubber-banding and double-tap zoom on touch devices. */
   overscroll-behavior: none;
@@ -98,15 +118,15 @@ body.is-playing #crosshair {
    time you look at a door is teaching something the player learned once. */
 #capture-hint {
   position: fixed;
-  /* Hangs *below* the crosshair, mirroring the interaction prompt above it.
-     Centred, the panel sat exactly where a door tooltip appears — the two are
-     never on screen together today, since one shows only while captured and the
-     other only while not, but sharing the middle of the screen makes that an
-     accident of state rather than a decision, and the middle is where the
-     player is looking. */
-  top: 50%;
+  /* Directly under the options button, as the second item of one stack.
+     It used to hang below the crosshair, in the middle of the screen — which
+     was fine while it was the only thing here, and stopped being fine once
+     there was a button to press as well: the two sat at opposite ends of the
+     screen and read as unrelated pieces of interface rather than as one pause
+     screen. The offset is the button's own height plus a gap, in `rem`, so it
+     follows the text-size option along with everything else. */
+  top: calc(var(--pause-top) + 3.2rem);
   left: 50%;
-  margin-top: 22px;
   transform: translateX(-50%);
   padding: 1.15rem 1.5rem 1.25rem;
   color: var(--ink);
@@ -207,6 +227,597 @@ body.is-touch #capture-hint {
   stroke: rgb(220 220 200 / 78%);
   stroke-width: 1.3;
   stroke-linecap: round;
+}
+
+/* --- options ------------------------------------------------------------- */
+
+/* The way in, and the top of the pause stack: this button, the controls panel
+   under it, and — once it is pressed — the options panel in place of both.
+   Shown whenever the game is not being played, which on desktop is exactly
+   when the capture hint is up, so the two are one screen without being one
+   element. */
+#options-open {
+  position: fixed;
+  /* Above the touch layer, which covers the whole screen to catch drags and
+     would otherwise swallow every tap aimed at this. Below the zone fade,
+     which is meant to cover everything. */
+  z-index: 15;
+  top: var(--pause-top);
+  left: 50%;
+  padding: 0.55rem 1.5rem;
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(10 10 15 / 86%);
+  border: 1px solid rgb(220 220 200 / 32%);
+  transform: translateX(-50%);
+  opacity: 0;
+  cursor: pointer;
+  pointer-events: none;
+  transition:
+    opacity 160ms linear,
+    color 120ms linear,
+    background-color 120ms linear;
+}
+
+#options-open:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+body:not(.is-playing) #options-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Both of these cover the screen themselves, and a button floating over either
+   is a button that does nothing useful. */
+body.is-loading #options-open,
+body.is-options #options-open {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Touch never leaves the playing state — there is no capture to lose — so the
+   button needs somewhere permanent. Out of the way of both thumbs: the stick
+   is the left half and the jump pad is bottom right. */
+body.is-touch #options-open {
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: auto;
+  left: auto;
+  opacity: 0.7;
+  pointer-events: auto;
+  transform: none;
+}
+
+body.is-touch.is-options #options-open {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Under the boot screen, over the zone fade and the touch controls. */
+#options {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+}
+
+/* **Invisible, and it has to exist anyway.** There is no dimming behind this
+   panel: the world is still running, half the settings are video settings, and
+   the point of dragging one is watching what it does to the scene — a modal
+   backdrop would hide the thing being adjusted. What this catches is clicks.
+   Without it, every click outside the box lands on the canvas, takes pointer
+   lock, and the menu vanishes mid-adjustment. */
+.options-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.options-panel {
+  position: absolute;
+  /* **Pinned by its top edge, not centred.** Centring means half of every
+     change in height is taken off the top, so switching from a short tab to a
+     tall one slides the whole panel — including the tab strip — upward out
+     from under the cursor. Moving between two tabs then takes two deliberate
+     aims instead of one, which is the opposite of what a tab strip is for.
+     Anchored, the strip never moves and the panel grows downward into the
+     empty half of the screen.
+
+     The same anchor the options button uses, so the panel opens exactly where
+     the button the player just pressed was standing. */
+  top: var(--pause-top);
+  left: 50%;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 1rem;
+  /* **Sized by its contents, between a floor and a ceiling.** A fixed width
+     was wrong in both directions at once: too narrow for the tab strip, which
+     put "Accessibility" hard against its neighbours, and unable to grow when
+     the dyslexia-friendly typeface is switched on — that face is
+     substantially wider than the monospace stack at the same size, so the
+     panel clipped its own contents.
+
+     `fit-content` between a `min` and a `max` lets the box follow whatever is
+     in it: the floor keeps a short tab from collapsing the panel, and the
+     ceiling keeps it on the screen. Every measurement here is in `rem`, so it
+     also follows the text-size option without a second rule. */
+  width: fit-content;
+  /* The floor is set past the widest page in the default face, so in ordinary
+     use every tab sits exactly on it and the panel does not change size as
+     tabs are switched. It only ever grows for a page that genuinely needs the
+     room — which, in practice, means the wider typeface. */
+  min-width: min(34rem, 92vw);
+  max-width: min(46rem, 92vw);
+  /* Leaves room for the offset above, so the tallest page still ends on the
+     screen rather than running off the bottom — past this the pages scroll
+     inside the panel instead of the panel growing. */
+  max-height: min(40rem, 82vh);
+  padding: 1.3rem 1.4rem 1.2rem;
+  background: rgb(10 10 15 / 94%);
+  border: 1px solid rgb(220 220 200 / 30%);
+  /* A hard border and nothing else. No drop shadow, and no scrim behind it
+     either: the game has no soft edges anywhere — every surface is flat colour
+     and hard quantized bands — so a blurred shadow under the one rectangle in
+     the interface reads as borrowed from a different program. */
+  transform: translateX(-50%);
+}
+
+.options-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 45%);
+}
+
+/* --- tabs ---------------------------------------------------------------- */
+
+/* One row, equal columns, sitting on a rule. The active tab covers its part of
+   that rule with a solid one, which is the whole indicator — no pill, no
+   background, nothing that has to be redrawn when the text size changes. */
+.options-tabs {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  border-bottom: 1px solid rgb(220 220 200 / 18%);
+}
+
+.options-tab {
+  /* Enough that the longest name is not touching its neighbours. The columns
+     are equal, so this is set by whichever label is widest. */
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 45%);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  /* Sits *on* the strip's rule rather than under it, so switching tabs moves
+     the line instead of stacking a second one below it. */
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 120ms linear;
+}
+
+.options-tab:hover {
+  color: rgb(220 220 200 / 78%);
+}
+
+.options-tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+/* --- pages --------------------------------------------------------------- */
+
+/* The scrolling happens here rather than on the panel, so the tabs and the
+   footer stay put while a long page moves under them. `min-height: 0` is
+   load-bearing in a grid: without it the row refuses to shrink below its
+   content and the panel grows past the viewport instead of scrolling. */
+.options-pages {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(220 220 200 / 30%) transparent;
+}
+
+/* **`display` beats `[hidden]`.** The browser hides a hidden element with a
+   `display: none` rule of its own, and a class that sets `display: grid` has
+   more specificity than it — so without these two, switching tabs would show
+   every page at once and a row meant to appear only sometimes would always be
+   there. Neither failure is subtle and both are easy to write. */
+.options-page[hidden],
+.options-row[hidden] {
+  display: none;
+}
+
+.options-page {
+  display: grid;
+  gap: 0.1rem;
+  /* Room for the scrollbar, so a long page's controls do not sit under it. */
+  padding-right: 0.4rem;
+}
+
+/* --- rows ---------------------------------------------------------------- */
+
+/* Three columns: the name, the value, and the control. Sliders break out of
+   that and take the whole width of the second line — see below — because a
+   track squeezed into a third of a narrow panel is not something anybody can
+   set a volume with. */
+.options-row {
+  display: grid;
+  /* Three columns: the changed-from-default marker, the name, the control.
+     The first is always present and only sometimes visible — see
+     `.options-revert` — so labels stay in one line down the panel. */
+  grid-template-columns: 0.9rem 1fr auto;
+  gap: 0.1rem 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgb(220 220 200 / 8%);
+}
+
+.options-page > .options-row:last-child {
+  border-bottom: 0;
+}
+
+.options-row-label {
+  color: rgb(220 220 200 / 82%);
+}
+
+.options-row-value {
+  font-variant-numeric: tabular-nums;
+  color: rgb(220 220 200 / 55%);
+}
+
+/* --- the changed marker -------------------------------------------------- */
+
+/* Hidden by `visibility`, so it keeps its column. Removing it or setting
+   `display: none` would let the labels slide left and right as settings are
+   changed, which is movement in a panel where nothing else moves. */
+.options-revert {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 0.9rem;
+  height: 1.1rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: rgb(220 220 200 / 55%);
+  background: none;
+  border: 0;
+  visibility: hidden;
+  cursor: pointer;
+}
+
+.options-row.is-changed .options-revert {
+  visibility: visible;
+}
+
+/* The two glyphs sit on top of each other in the same grid cell, so the swap
+   is a change of opacity rather than a change of size — an asterisk and an
+   arrow are different widths, and letting the box resize under the cursor
+   makes the mark flinch away from the pointer. */
+.options-revert-mark,
+.options-revert-icon {
+  grid-area: 1 / 1;
+}
+
+.options-revert-icon {
+  opacity: 0;
+}
+
+.options-revert:hover,
+.options-revert:focus-visible {
+  color: var(--ink);
+}
+
+.options-revert:hover .options-revert-mark,
+.options-revert:focus-visible .options-revert-mark {
+  opacity: 0;
+}
+
+.options-revert:hover .options-revert-icon,
+.options-revert:focus-visible .options-revert-icon {
+  opacity: 1;
+}
+
+/* Below the mark rather than above it, because the top row of the panel would
+   otherwise put the tooltip outside the box. Nothing here is interactive, so
+   it never has to be clicked through. */
+.options-revert-tip {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  white-space: nowrap;
+  background: var(--void);
+  border: 1px solid rgb(220 220 200 / 30%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms linear;
+  z-index: 1;
+}
+
+.options-revert:hover .options-revert-tip,
+.options-revert:focus-visible .options-revert-tip {
+  opacity: 1;
+}
+
+/* Sub-text: what a row is waiting on, or that it is not connected to anything
+   yet. Spans the full width on its own line so it never squeezes the control. */
+.options-row-note {
+  grid-column: 2 / -1;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: rgb(220 220 200 / 38%);
+}
+
+.options-row.is-disabled {
+  opacity: 0.4;
+}
+
+.options-row.is-disabled .options-switch,
+.options-row.is-disabled .options-select,
+.options-row.is-disabled .options-slider {
+  cursor: not-allowed;
+}
+
+/* --- sliders ------------------------------------------------------------- */
+
+.options-slider {
+  grid-row: 2;
+  /* From the label's column, not the marker's, so the track lines up with the
+     name above it. */
+  grid-column: 2 / -1;
+  width: 100%;
+  height: 1.1rem;
+  margin: 0.15rem 0 0;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* The filled part of the track. `--fill` is written by the menu on every sync,
+   because CSS cannot read an input's value — and a track that does not fill up
+   to the handle reads as a scrollbar rather than as a level. */
+.options-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--ink) 0 var(--fill, 0%),
+    rgb(220 220 200 / 22%) var(--fill, 0%) 100%
+  );
+}
+
+.options-slider::-moz-range-track {
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--ink) 0 var(--fill, 0%),
+    rgb(220 220 200 / 22%) var(--fill, 0%) 100%
+  );
+}
+
+/* A bar, not a dot. Round handles belong to a different game — everything in
+   this interface is a rectangle with a hard edge. */
+.options-slider::-webkit-slider-thumb {
+  width: 0.45rem;
+  height: 0.95rem;
+  margin-top: -0.475rem;
+  background: var(--ink);
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.options-slider::-moz-range-thumb {
+  width: 0.45rem;
+  height: 0.95rem;
+  background: var(--ink);
+  border: 0;
+  border-radius: 0;
+}
+
+/* --- switches and dropdowns ---------------------------------------------- */
+
+/* A sliding cap with the word beside it, so the state is readable twice: by
+   which side the block is on, and by what it says. One of those survives being
+   looked at out of the corner of an eye and the other survives a colourblind
+   filter, and there is no reason to pick. */
+.options-switch {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.45rem;
+  align-items: center;
+  width: 4.3rem;
+  padding: 0.28rem 0.32rem;
+  font: inherit;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 45%);
+  background: rgb(220 220 200 / 6%);
+  border: 1px solid rgb(220 220 200 / 26%);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    border-color 120ms linear;
+}
+
+.options-switch-knob {
+  width: 0.7rem;
+  height: 0.7rem;
+  background: rgb(220 220 200 / 38%);
+  transition:
+    transform 120ms ease-out,
+    background-color 120ms linear;
+}
+
+.options-switch.is-on {
+  color: var(--ink);
+  border-color: rgb(220 220 200 / 62%);
+}
+
+.options-switch.is-on .options-switch-knob {
+  background: var(--ink);
+  transform: translateX(0.9rem);
+}
+
+/* The word occupies the column the knob is not in, so it never moves. */
+.options-switch-word {
+  text-align: center;
+}
+
+.options-select {
+  padding: 0.3rem 0.45rem;
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: rgb(220 220 200 / 6%);
+  border: 1px solid rgb(220 220 200 / 26%);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+/* The list itself is drawn by the OS and cannot be styled, so at least give it
+   the right colours to draw with. */
+.options-select option {
+  color: var(--ink);
+  background: var(--void);
+}
+
+/* --- footer -------------------------------------------------------------- */
+
+.options-foot {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  padding-top: 0.2rem;
+}
+
+.options-button {
+  padding: 0.5rem 1.2rem;
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(220 220 200 / 6%);
+  border: 1px solid rgb(220 220 200 / 26%);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    background-color 120ms linear;
+}
+
+.options-button:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.options-button.is-primary {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* Every control in the panel gets the same focus ring, and it is the ink
+   colour rather than the browser's blue — the panel is keyboard-navigable and
+   a player who is tabbing through it needs to see where they are. */
+.options-panel :focus-visible,
+#options-open:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* One panel at a time. The capture hint teaches the controls and is exactly
+   what the options panel covers, so leaving it up would stack two boxes of
+   small text over each other. */
+body.is-options #capture-hint {
+  opacity: 0;
+}
+
+/* --- performance monitor -------------------------------------------------- */
+
+/* Top right, and above the touch layer for the same reason the options button
+   is. Not interactive at all — it is a readout, and a box that eats clicks in
+   the corner of the screen is a box that will eat one that mattered.
+
+   With `?debug` the tuning panel occupies this corner and covers it. That is
+   the right way round: everything here is in that panel already, in more
+   detail, and the player's readout is the one that gives way. */
+/* `display` beats `[hidden]`, and an id selector beats it comfortably — so
+   without this the readout is switched off by having its contents emptied and
+   stays on screen as a bordered rectangle around nothing. Same trap as
+   `.options-page`; worth stating at both. */
+#perf[hidden] {
+  display: none;
+}
+
+#perf {
+  position: fixed;
+  z-index: 15;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  display: grid;
+  gap: 0.1rem;
+  min-width: 4.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: rgb(10 10 15 / 62%);
+  border: 1px solid rgb(220 220 200 / 20%);
+  pointer-events: none;
+}
+
+/* The touch build keeps its options button in this corner, so the readout
+   moves down to sit under it rather than on top of it. */
+body.is-touch #perf {
+  top: calc(max(0.75rem, env(safe-area-inset-top)) + 2.6rem);
+}
+
+/* In frame-rate-only mode there is one number and it should read as one
+   number: no label, no columns, just the figure. */
+#perf:not(.is-full) {
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+}
+
+#perf:not(.is-full) .perf-label {
+  display: none;
+}
+
+.perf-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 0.9rem;
+}
+
+.perf-label {
+  color: rgb(220 220 200 / 45%);
+}
+
+.perf-value {
+  text-align: right;
 }
 
 /* --- boot ---------------------------------------------------------------- */

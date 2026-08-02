@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { CLUTTER } from './clutter';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL } from './sway';
 
@@ -148,6 +149,11 @@ export function finish(geometry: THREE.BufferGeometry, name: string, phase: numb
   const mesh = new THREE.Mesh(geometry, ART_MATERIAL);
   mesh.name = name;
   mesh.userData.swayPhase = phase;
+  // Stamped here rather than looked up in the zone manager, because by the time
+  // the manager walks a built zone all it has is a scene graph — the builder is
+  // long gone, and the name on the mesh is the only thing left that says what
+  // this is. `ZoneManager.prepare` reads it; see `art/clutter.ts`.
+  if (CLUTTER.has(name)) mesh.userData.clutter = true;
   // So the sun sees what the camera sees. Without it the shadow map is drawn
   // from undisplaced geometry and every swaying plant casts a still shadow of
   // where it is not — see `SWAY_DEPTH_MATERIAL`. Set on everything rather than

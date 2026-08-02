@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
+import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/builders/door';
 import { markCollidable, type Collider } from '../player/Collider';
@@ -95,6 +96,8 @@ export class ZoneManager {
   private active: Zone | null = null;
   /** Zones whose portal doors have been built into them. */
   private doored = new Set<ZoneId>();
+  /** Whether grass and small flowers cast. See `setClutterShadows`. */
+  private clutterShadows = false;
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -217,6 +220,33 @@ export class ZoneManager {
     this.lights.sun.castShadow = enabled;
   }
 
+  /**
+   * Whether grass and small flowers cast. Off by default — see `art/clutter.ts`.
+   *
+   * Applies to zones already standing, not only to ones built after the switch.
+   * Half the point of the control is watching the frame cost move while looking
+   * at the same field of grass, and a setting that only takes effect through a
+   * door is not a setting, it is a build flag with a dial on it.
+   */
+  setClutterShadows(enabled: boolean): void {
+    if (enabled === this.clutterShadows) return;
+    this.clutterShadows = enabled;
+
+    for (const zone of this.zones.values()) {
+      // Only what is already standing. Reading `root()` here would *build*
+      // every zone in the world to change a shadow flag on it.
+      if (!zone.isBuilt) continue;
+      zone.root().traverse((object) => {
+        if (object instanceof THREE.Mesh && object.userData.clutter === true) {
+          object.castShadow = enabled;
+        }
+      });
+    }
+
+    // The map is drawn from a `needsUpdate` set once a frame, so the next frame
+    // picks this up on its own — no invalidation needed here.
+  }
+
   register(definition: ZoneDefinition): Zone {
     const zone = new Zone(definition);
     this.zones.set(zone.id, zone);
@@ -252,6 +282,77 @@ export class ZoneManager {
     // Prebuilding pays the whole cost up front, so entering later must take the
     // silent path — that is the entire point of doing it at boot.
     this.warmed.add(zone.id);
+  }
+
+  /**
+   * Which zones are currently holding memory. For the readout and the checks.
+   *
+   * "Built" rather than "resident" is the honest word: this is what exists, not
+   * what policy says should exist, and the difference between the two is the
+   * bug this is here to make visible.
+   */
+  get builtZones(): ZoneId[] {
+    return [...this.zones.values()].filter((zone) => zone.isBuilt).map((zone) => zone.id);
+  }
+
+  /**
+   * Drops every zone further than `KEEP_WITHIN` doors from where the player is.
+   *
+   * **This is safe because builders are seeded.** A zone is a name and a list of
+   * seeds, and rebuilding one is guaranteed to give back the same world down to
+   * the position of every blade of grass — which is the return on banning
+   * `Math.random` from builders long before there was any thought of eviction.
+   * Nothing here would be defensible otherwise: dropping a room you cannot
+   * reconstruct exactly is dropping a room the player will notice changing.
+   *
+   * Everything the zone was costing has to go together, and the list is longer
+   * than the geometry:
+   *
+   * - **The geometry**, which is most of the memory — `Zone.dispose` frees the
+   *   buffers and leaves the shared materials alone.
+   * - **The collider's octree**, which is roughly a fifth as much again and is
+   *   held in a cache the zone knows nothing about.
+   * - **The doors**, which are built by the manager rather than by the zone, so
+   *   `dispose` cannot know about them. `doored` is cleared so the next entry
+   *   stands them again, and the portal graph is told to forget the meshes.
+   * - **The soundscape**, which is the one thing a dormant zone was already
+   *   paying almost nothing for — but "almost nothing" times a hundred and forty
+   *   rooms is worth collecting.
+   * - **The warm mark**, because the zone is now cold and its next entry should
+   *   show the indicator rather than hitching silently behind an instant fade.
+   *
+   * Called after an entry has fully settled, never during one: the active zone
+   * is exempt by construction, and releasing anything mid-transition would mean
+   * disposing geometry that the frame in flight is still holding a reference to.
+   */
+  private evict(): void {
+    if (!this.active) return;
+    const keep = residentZones(this.portals, this.active.id, KEEP_WITHIN);
+
+    for (const zone of this.zones.values()) {
+      if (!zone.isBuilt || keep.has(zone.id)) continue;
+
+      zone.dispose();
+      this.options.collider.invalidate(zone.id);
+      this.doored.delete(zone.id);
+      this.warmed.delete(zone.id);
+      for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
+
+      const soundscape = this.soundscapes.get(zone.id);
+      if (soundscape) {
+        soundscape.dispose();
+        this.soundscapes.delete(zone.id);
+      }
+
+      this.evicted++;
+    }
+  }
+
+  /** Counts releases, so the check suite can tell eviction from never-built. */
+  private evicted = 0;
+
+  get evictions(): number {
+    return this.evicted;
   }
 
   /**
@@ -392,6 +493,13 @@ export class ZoneManager {
     this.onZoneChange?.(zone);
     this.arrived = true;
     this.building.hide();
+
+    // **Last, and only once the arrival is complete.** Everything above this
+    // line holds live references into the zone being entered and, until
+    // `scene.remove` above, into the one being left — so releasing geometry any
+    // earlier means freeing buffers that the transition still has in hand. The
+    // player is standing still on their marker by the time this runs.
+    this.evict();
   }
 
   private applyAudio(zone: Zone): void {
@@ -464,11 +572,15 @@ export class ZoneManager {
     // - **Ground never casts.** A floor can only ever shadow itself, and
     //   self-shadowing a vast flat plane is the classic source of acne — it is
     //   pure cost for an effect that is at best invisible and at worst stripes.
+    // - **Clutter casts only when asked.** Grass and small flowers are the bulk
+    //   of the object count in an outdoor zone and a couple of pixels each on
+    //   screen. Off by default and switchable; see `art/clutter.ts`.
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const glow = object.userData.noCollide === true;
       const ground = object.name === 'flatGround' || object.name === 'terrain';
-      object.castShadow = !glow && !ground;
+      const clutter = object.userData.clutter === true;
+      object.castShadow = !glow && !ground && (!clutter || this.clutterShadows);
       object.receiveShadow = !glow;
     });
 

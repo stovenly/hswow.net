@@ -31,8 +31,26 @@ export const trough: MeshBuilder = {
     const stone = rng.chance(0.55);
     const shell = stone ? PALETTE.STONE : PALETTE.TIMBER;
 
-    const floor = new THREE.BoxGeometry(length, t, width);
-    floor.translate(0, t / 2, 0);
+    // **Set into the walls rather than flush with them**, in both directions.
+    //
+    // A floor the full outer size puts its own side faces at exactly ±length/2
+    // and ±width/2 — which is precisely where the walls' *outer* faces land,
+    // because each wall is positioned so its outside is the outside of the
+    // trough. That is a coplanar pair running the whole way round the base,
+    // and it flickers along the bottom edge from any distance where the two
+    // round to the same depth.
+    //
+    // A thickness smaller in each direction lands the floor's edge halfway
+    // into the wall it meets: outside the wall's inner face, inside its outer
+    // one, coincident with neither.
+    const floor = new THREE.BoxGeometry(length - t, t, width - t);
+    // Lifted clear of the ground for the same reason, in the one direction the
+    // inset cannot help with: sitting on y = 0 the floor's underside is
+    // coplanar with the four walls' undersides. That pair only shows from
+    // below, and the trough is on the ground — but it is the same defect, it
+    // costs a centimetre nobody can see, and the void it leaves underneath is
+    // sealed by the walls on every side.
+    floor.translate(0, t / 2 + 0.01, 0);
     parts.push({ geometry: floor, color: stone ? PALETTE.STONE_DARK : PALETTE.TIMBER_DARK, sway: 0 });
 
     // Each piece is a slightly different size from its neighbours on purpose.
@@ -57,7 +75,16 @@ export const trough: MeshBuilder = {
     }
 
     if (rng.chance(0.6)) {
-      const water = new THREE.BoxGeometry(length - t * 2, 0.03, width - t * 2);
+      // Wider than the cavity, so its edges disappear *into* the walls.
+      //
+      // Exactly `length - t*2` is the width of the opening — which means the
+      // water's four side faces sit in the same planes as the walls' inner
+      // faces. That is the pair you are looking straight at whenever you look
+      // into the trough, and it is the worst place in the object to have one.
+      // Sinking the surface a fifth of a wall's thickness into each side also
+      // removes the hairline of background that a perfectly fitted panel shows
+      // at grazing angles.
+      const water = new THREE.BoxGeometry(length - t * 1.6, 0.03, width - t * 1.6);
       water.translate(0, height * rng.range(0.55, 0.78), 0);
       parts.push({ geometry: water, color: 0x2c3f46, sway: 0 });
     }

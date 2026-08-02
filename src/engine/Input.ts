@@ -58,6 +58,15 @@ const RELOCK_WINDOW = 3000;
 /** Gap between attempts. Short enough to feel immediate once the gate lifts. */
 const RELOCK_INTERVAL = 120;
 
+/**
+ * Whether a control acts while held, or latches on each press.
+ *
+ * A player option rather than a constant: held is what most first-person games
+ * do and is the default, and toggled is what makes a long walk or a long look
+ * at something bearable if holding a key hurts.
+ */
+export type HoldMode = 'hold' | 'toggle';
+
 export class Input {
   /** Raw look delta in device pixels, accumulated between frames. */
   lookX = 0;
@@ -83,6 +92,12 @@ export class Input {
   private stickX = 0;
   private stickZ = 0;
   private stickSprint = false;
+
+  private sprintMode: HoldMode = 'hold';
+  private crouchMode: HoldMode = 'hold';
+  /** Only read while the matching mode is `toggle`. */
+  private sprintLatch = false;
+  private crouchLatch = false;
 
   /** `performance.now()` of the most recent jump press, or 0 if consumed. */
   private jumpPressedAt = 0;
@@ -126,12 +141,41 @@ export class Input {
   }
 
   get sprint(): boolean {
-    return this.pressed(SPRINT_KEYS) || this.stickSprint;
+    const keyed = this.sprintMode === 'toggle' ? this.sprintLatch : this.pressed(SPRINT_KEYS);
+    // The stick is always a hold. A thumb at full deflection *is* the sprint,
+    // and there is no key to press twice.
+    return keyed || this.stickSprint;
   }
 
-  /** True while crouch is held. Never latched — see `CROUCH_KEYS`. */
+  /**
+   * True while crouch is held — or until the key is pressed again, if the
+   * player has asked for that. See `CROUCH_KEYS` for why the physical latching
+   * of Caps Lock is not what decides this.
+   */
   get crouching(): boolean {
-    return this.pressed(CROUCH_KEYS);
+    return this.crouchMode === 'toggle' ? this.crouchLatch : this.pressed(CROUCH_KEYS);
+  }
+
+  /**
+   * Switches sprint between held and latched, dropping any latch.
+   *
+   * Clearing matters: leaving a latch set while switching back to hold would
+   * strand the player sprinting with nothing to release, and the only way out
+   * would be to change the option back.
+   */
+  setSprintMode(mode: HoldMode): void {
+    // Only on a real change. Every option the player touches re-applies all of
+    // them, and dropping the latch each time would mean adjusting a volume
+    // slider silently cancels a sprint.
+    if (mode === this.sprintMode) return;
+    this.sprintMode = mode;
+    this.sprintLatch = false;
+  }
+
+  setCrouchMode(mode: HoldMode): void {
+    if (mode === this.crouchMode) return;
+    this.crouchMode = mode;
+    this.crouchLatch = false;
   }
 
   /** True while the jump control is held, for the bunny-hop option. */
@@ -203,6 +247,20 @@ export class Input {
     this.interactPressed = true;
   }
 
+  /**
+   * Asks for capture from somewhere other than a click on the canvas.
+   *
+   * The options menu's resume button, specifically: it sits above the canvas
+   * and swallows the click that would otherwise have taken the lock, so
+   * pressing "resume" and then having to click again to actually play would be
+   * a button that does not do what it says. A click is a user gesture, which
+   * is all `requestPointerLock` needs.
+   */
+  capture(): void {
+    if (this.locked || !this.needsCapture) return;
+    void this.requestLock();
+  }
+
   // --- internals ----------------------------------------------------------
 
   private pressed(codes: readonly string[]): boolean {
@@ -224,16 +282,34 @@ export class Input {
     }
 
     if (event.repeat) return;
+
+    // **Nothing on the keyboard reaches the player while the mouse is free.**
+    // Interact was already gated this way; now the whole keyboard is, because
+    // there is a menu out there to be typed into. Without it, tabbing to a
+    // slider and nudging it with the arrow keys walks the player forwards
+    // through whatever is behind the panel, and Space presses the focused
+    // button *and* jumps.
+    //
+    // Only where capture is a concept. On touch `locked` is permanently true
+    // and this is a no-op, which is correct: there is no unlocked state there.
+    if (this.needsCapture && !this.locked) return;
+
     this.keys.add(event.code);
     if (JUMP_KEYS.includes(event.code)) {
       // Space scrolls the page otherwise, which is a very ugly way to jump.
       event.preventDefault();
       this.pressJump();
     }
-    // Only while captured. With the cursor free the player is using the tuning
-    // panel, and typing an `e` into a numeric field should not open a door
-    // behind them.
-    if (INTERACT_KEYS.includes(event.code) && this.locked) this.pressInteract();
+    // Latched on the press rather than tracked as held. `keys` still records
+    // the physical state either way — `pressed` simply is not what the getters
+    // read in this mode.
+    if (this.sprintMode === 'toggle' && SPRINT_KEYS.includes(event.code)) {
+      this.sprintLatch = !this.sprintLatch;
+    }
+    if (this.crouchMode === 'toggle' && CROUCH_KEYS.includes(event.code)) {
+      this.crouchLatch = !this.crouchLatch;
+    }
+    if (INTERACT_KEYS.includes(event.code)) this.pressInteract();
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
