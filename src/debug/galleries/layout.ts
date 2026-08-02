@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OUTDOOR_ENVIRONMENT, type ZoneDefinition, type ZoneId } from '../../world/Zone';
 import { SILENCE, type SoundscapeSpec } from '../../audio/Soundscape';
 import type { PortalDefinition, PortalEnd } from '../../world/Portal';
+import type { DoorMaterial } from '../../audio/models/door';
 import type { MeshBuilder } from '../../art/types';
 import { markCollidable } from '../../player/Collider';
 import { markLabelled } from '../../world/Interaction';
@@ -85,8 +86,10 @@ const SIGN_INK = new THREE.MeshLambertMaterial({ color: 0x2b2620, flatShading: t
 /**
  * Marks on a board that read as writing without being any.
  *
- * There are no fonts here — the pipeline chunks to three-pixel blocks,
- * quantizes and dithers, and real lettering comes back as noise. But a blank
+ * Real lettering exists now — `art/lettering`, judged in the Text Showcase —
+ * but it earns its keep at sign scale, and these boards are caption scale: a
+ * name on a 26 cm plank would need to be read from a metre away, which is
+ * exactly the reach at which the tooltip already does it better. But a blank
  * board is furniture: nobody walks up to a plank to see what it says. So the
  * board gets a few rows of short dark bars at irregular lengths with gaps
  * between them, which is what text looks like once it is too small to read —
@@ -150,11 +153,10 @@ function scribble(name: string, width: number, height: number): THREE.Mesh[] {
  * it, so it reads as a label from down the rank rather than from directly
  * above it.
  *
- * The board is blank, and has to be. There are no fonts in this project: the
- * render pipeline chunks to three-pixel blocks, quantizes and dithers, and
- * anything written on a surface comes out as noise. So the board says what a
- * sign *is* and the tooltip says what it *reads* — walk within reach and the
- * name appears over the crosshair, exactly as a door's does.
+ * The board is blank on purpose — see `scribble` for why caption-scale text
+ * stays in the tooltip even now that `art/lettering` exists. The board says
+ * what a sign *is* and the tooltip says what it *reads* — walk within reach
+ * and the name appears over the crosshair, exactly as a door's does.
  *
  * Exported because the sound stage labels its stations the same way, and a
  * second implementation of "a post with a caption on it" would drift from this
@@ -230,6 +232,13 @@ export interface GalleryPlan {
   /** What the door's tooltip says. */
   readonly name: string;
   readonly builders: readonly MeshBuilder[];
+  /**
+   * What the door home is made of — and therefore which builder makes it and
+   * how it sounds. Timber unless the gallery says otherwise; the industrial
+   * rooms say `iron`, because a hut door standing inside a works gallery is
+   * the kit contradicting itself at its own front door.
+   */
+  readonly door?: DoorMaterial;
   /** What the room sounds like. Silent unless it has something in it that makes noise. */
   readonly soundscape?: SoundscapeSpec;
   /** Anything not built from a builder — a fixture the gallery needs to make sense. */
@@ -354,11 +363,20 @@ export function galleryDoor(plan: GalleryPlan): PortalEnd {
     // Faces -Z, into the room. See `DOOR_Z` — this is what puts the rank in
     // front of you on arrival rather than behind you.
     yaw: Math.PI,
-    material: 'timber',
+    material: plan.door ?? 'timber',
     // Derived from the id so two galleries never share a door, and so a door
-    // does not change when a gallery is added beside it.
-    seed: 3300 + plan.id.length * 137,
+    // does not change when a gallery is added beside it. Folded from the
+    // characters rather than the length, which collided the moment the village
+    // split into interior and exterior — two ids of exactly equal length.
+    seed: 3300 + doorSalt(plan.id),
   };
+}
+
+/** A small stable hash of a gallery id, for seeding its door. */
+function doorSalt(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 7919;
+  return hash;
 }
 
 export function galleryZone(plan: GalleryPlan): ZoneDefinition {

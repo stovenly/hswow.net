@@ -34,7 +34,7 @@ import { Zone } from '../src/world/Zone';
 import { PortalGraph, arrivalFor, doorFacing, ARRIVAL_STANDOFF } from '../src/world/Portal';
 import { residentZones, KEEP_WITHIN } from '../src/world/residency';
 import { DEFAULT_REACH } from '../src/world/Interaction';
-import { buildDoor, doorMetrics, doorName } from '../src/art/builders/door';
+import { buildDoor, doorMetrics, doorName } from '../src/art/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
 import { ProvingGround } from '../src/debug/ProvingGround';
