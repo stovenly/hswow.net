@@ -162,7 +162,7 @@ function scribble(name: string, width: number, height: number): THREE.Mesh[] {
  * second implementation of "a post with a caption on it" would drift from this
  * one within a phase.
  */
-export function signPost(name: string): THREE.Group {
+export function signPost(name: string, display?: string): THREE.Group {
   const group = new THREE.Group();
   group.name = `sign:${name}`;
 
@@ -209,7 +209,12 @@ export function signPost(name: string): THREE.Group {
 
   // Labelled on the group: the interaction raycast reports whichever child it
   // hit, and `labelOf` walks up to find this.
-  return markLabelled(group, signName(name));
+  //
+  // The board and the tooltip are allowed to disagree, and for a few props they
+  // should. The board is the catalogue and teaches the identifier, which is the
+  // point of a gallery. The tooltip is the game speaking to the player, and it
+  // uses the player's word for the thing. See `display` on `MeshBuilder`.
+  return markLabelled(group, display ?? signName(name));
 }
 
 /**
@@ -304,7 +309,7 @@ export function galleryRows(builders: readonly MeshBuilder[]): THREE.Group {
     row.name = `row:${builder.name}`;
 
     // A sign at the near end of each row, facing back toward the door.
-    const sign = signPost(builder.name);
+    const sign = signPost(builder.name, builder.display);
     sign.position.set(x, 0, DEPTH);
     // Not collidable. A rank of sixteen posts you can walk into turns browsing
     // a gallery into an obstacle course, and there is nothing to be gained by

@@ -40,11 +40,17 @@ export function doorMetrics(mesh: THREE.Mesh): DoorMetrics {
  *
  * Both wooden voices answer to the same name — the timber/plank split is an
  * acoustic and finish distinction, not one the player needs a word for.
+ *
+ * Named for what it is made of rather than for the builder that made it. The
+ * builders are `hut-door` and `factory-door`, which say where a door belongs —
+ * the right words for placing one and the wrong ones for standing in front of
+ * one, since a player cannot see that a door is a hut's. They can see that it
+ * is wood. Matches `display` on the builders themselves.
  */
 const NAMES: Record<DoorMaterial, string> = {
-  timber: 'Hut Door',
-  plank: 'Hut Door',
-  iron: 'Factory Door',
+  timber: 'Wood Door',
+  plank: 'Wood Door',
+  iron: 'Metal Door',
 };
 
 export function doorName(material: DoorMaterial): string {
