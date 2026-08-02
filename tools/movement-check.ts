@@ -25,6 +25,13 @@ class FakeInput {
   moveX = 0;
   moveZ = 0;
   sprint = false;
+  /**
+   * Held, like the real one. Added so the crouch tunnel can be walked: the
+   * capsule genuinely shrinks and there was no fixture to shrink under, so
+   * every line of that code and the headroom probe that guards standing back
+   * up had never been exercised by anything but hand.
+   */
+  crouching = false;
   jumping = false;
   private jump = false;
   press(): void {
@@ -68,6 +75,7 @@ function reset(x: number, y: number, z: number, yaw: number): void {
   input.moveX = 0;
   input.moveZ = 0;
   input.sprint = false;
+  input.crouching = false;
   player.teleport(new THREE.Vector3(x, y, z), yaw);
   run(0.6);
 }
@@ -97,15 +105,66 @@ check(
   `drift ${idleStart.distanceTo(player.position).toFixed(4)} m`,
 );
 
-// --- blocked by a wall ----------------------------------------------------
-// yaw = pi/2 faces -X; the strafe wall's near face is at x = -3.8.
-reset(0, 0.1, 8, Math.PI / 2);
+// --- the squeeze ----------------------------------------------------------
+//
+// **The only thing in the world that depends on the player's radius.** The
+// capsule is 0.64 m across, so a 0.55 m gap must refuse it and a 0.75 m gap
+// must not — which brackets the number from both sides, where one wall it
+// bumps into would only ever have told you it was not zero.
+//
+// yaw = 0 faces -Z. Started between two pairs rather than in front of one, so
+// the run is a metre and a bit and there is no chance of arriving with the
+// capsule already touching something.
+reset(-18, 0.1, 9.4, 0);
+input.moveZ = 1;
+run(2);
+// The pair spans z 7.7..8.3, so anything north of 8.3 never got through it.
+// It stops a little short of the 0.62 a flat face would give, because a
+// capsule wedged between two opposing walls resolves against a *corner* — the
+// two side pushes cancel and what finally arrests it is the front edge.
+check(
+  'a 0.55 m gap refuses the player',
+  player.position.z > 8.3,
+  `z=${player.position.z.toFixed(2)}, expected > 8.3 (the near face)`,
+);
+
+// Started north of the 0.9 pair and walked the whole rank. Getting past 12.9
+// is the 0.75 pair cleared; where it ends up is the 0.55 pair above stopping
+// it, which is the same assertion from the other direction.
+reset(-18, 0.1, 14.4, 0);
+input.moveZ = 1;
+run(2);
+check(
+  'a 0.75 m gap admits the player',
+  player.position.z < 12.9,
+  `z=${player.position.z.toFixed(2)}, expected < 12.9 (past the far face)`,
+);
+
+// --- the crouch tunnel ----------------------------------------------------
+//
+// Three headers over one lane at 1.6, 1.3 and 1.1 m. Approached from the north
+// the first one met is the 1.1, whose underside is at exactly the height a
+// standing 1.8 m capsule cannot pass and a crouched 1.04 m one clears with six
+// centimetres to spare.
+reset(-10, 0.1, 16, 0);
 input.moveZ = 1;
 run(3);
 check(
-  'strafe wall blocks',
-  player.position.x > -4.4 && player.position.x < -3.3,
-  `x=${player.position.x.toFixed(2)}, expected ~-3.5`,
+  'a header stops a standing player',
+  player.position.z > 14.2,
+  `z=${player.position.z.toFixed(2)}, expected > 14.2`,
+);
+
+// The same walk, crouched. Slower — `crouchDrag` is 0.45 — so this is given
+// the time to cover eight metres at walking pace times that.
+reset(-10, 0.1, 16, 0);
+input.crouching = true;
+input.moveZ = 1;
+run(6);
+check(
+  'crouching clears every header',
+  player.position.z < 8.5,
+  `z=${player.position.z.toFixed(2)}, expected < 8.5`,
 );
 
 // --- stairs ---------------------------------------------------------------
@@ -122,10 +181,10 @@ check('climbs 0.30 m stairs', peak > 2.1, `peak y=${peak.toFixed(2)} of 2.40`);
 // --- ramps ----------------------------------------------------------------
 for (const [index, degrees] of [10, 20, 30, 45].entries()) {
   const rise = 4 * Math.tan((degrees * Math.PI) / 180);
-  // Started at z = 1.5, not 0: the strafe wall's arm occupies z 0..0.4 across
-  // this whole lane, so spawning at the origin put the capsule inside it and
-  // let the step-up carry the player onto the wall before the ramp was even
-  // reached. The measurement was of the wrong thing entirely.
+  // Started at z = 1.5 rather than at the foot of the slope, so the run has a
+  // moment to reach walking pace before it meets the ramp — a climb measured
+  // from a standing start is measuring the acceleration curve as much as the
+  // slope.
   reset(-6 - index * 4, 0.1, 1.5, 0);
   input.moveZ = 1;
   const peak = run(3);

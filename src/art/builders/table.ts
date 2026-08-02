@@ -77,6 +77,23 @@ export const table: MeshBuilder = {
 
     const legHeight = height - topThickness;
 
+    /**
+     * Where anything standing under the top actually stops.
+     *
+     * Not `legHeight`, which is where the underside of the top *is* — and a
+     * leg ending exactly there puts its top cap in the same plane as the board
+     * above it. Coplanar quads, and the depth buffer cannot choose between
+     * them, so the top of every leg flickers through the table whenever it is
+     * seen from below or at a grazing angle.
+     *
+     * The boards make it worse rather than better: each is rolled between 93%
+     * and 100% of the nominal thickness, so on the thin rolls the leg does not
+     * reach its board at all and hangs a couple of millimetres short. One
+     * value fixes both — run everything a little way *into* the top, which is
+     * inside every board however it was rolled.
+     */
+    const legTop = height - topThickness * 0.6;
+
     if (trestle) {
       // Two end frames: a foot on the floor, a post, and a cross-piece under
       // the top. Set in from the ends so the top overhangs them, which is what
@@ -95,7 +112,7 @@ export const table: MeshBuilder = {
         parts.push({ geometry: upright, color: frame, sway: 0 });
 
         const cap = new THREE.BoxGeometry(0.09, 0.06, depth * 0.8);
-        cap.translate(x, legHeight - 0.03, 0);
+        cap.translate(x, legTop - 0.03, 0);
         parts.push({ geometry: cap, color: frame, sway: 0 });
       }
 
@@ -110,8 +127,8 @@ export const table: MeshBuilder = {
 
       for (const sx of [-1, 1]) {
         for (const sz of [-1, 1]) {
-          const leg = new THREE.BoxGeometry(legThickness, legHeight, legThickness);
-          leg.translate(sx * halfW, legHeight / 2, sz * halfD);
+          const leg = new THREE.BoxGeometry(legThickness, legTop, legThickness);
+          leg.translate(sx * halfW, legTop / 2, sz * halfD);
           parts.push({ geometry: leg, color: frame, sway: 0 });
         }
       }

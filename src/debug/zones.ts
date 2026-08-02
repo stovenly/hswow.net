@@ -37,10 +37,10 @@ import { spinningWheel } from '../art/builders/spinning-wheel';
 import { wallPegs } from '../art/builders/wall-pegs';
 import { hoist } from '../art/builders/hoist';
 import { lantern } from '../art/builders/lantern';
-import { cistern, CISTERN_WATER_HEIGHT } from '../art/builders/cistern';
 import { villageZone, villageTerrain, VILLAGE_GATE, ZONE_VILLAGE } from './village';
 import { GALLERIES, galleryZone, galleryPortal } from './galleries';
-import { soundStageZone } from './SoundStage';
+import { soundStageZone, soundStagePortal } from './SoundStage';
+import { chainZones, chainPortals } from './chains';
 
 /**
  * The test world: one exterior and two interiors, joined by two portals.
@@ -69,7 +69,7 @@ import { soundStageZone } from './SoundStage';
  */
 
 export const ZONE_EXTERIOR = 'exterior';
-export const ZONE_EXAMPLE = 'example';
+export const ZONE_HUT = 'villager-hut';
 export const ZONE_FACTORY = 'factory';
 export { ZONE_VILLAGE } from './village';
 
@@ -97,15 +97,30 @@ const HUT_YAW = 0;
  *
  * The building comes back when there is an industrial structure kit to build it
  * from, at which point it is content rather than a prop whittled in this file.
- *
- * The machine hall at x 15..29 is deliberately still not its exterior: that is
- * the Phase 3 acoustics fixture, two rooms you *walk* between through an open
- * doorway, and putting a portal on it would replace the walk with a teleport
- * and destroy the only test that proves the reverb crossfade works.
  */
 const FACTORY_DOOR_AT = new THREE.Vector3(14, 0, 6);
 /** Faces +Z, back toward spawn, square-on beside the gate. */
 const FACTORY_YAW = 0;
+
+/**
+ * The door to the sound stage, at the east end of the same row.
+ *
+ * Standing in ground the two-room acoustics building used to occupy — it ran
+ * from x = 15 to x = 29 — which is the neatest possible outcome: the fixture
+ * that was there is gone, the room that replaced it is through a door on the
+ * same spot, and the walk to it is four paces from spawn rather than a jump
+ * from a debug menu.
+ *
+ * **The stage used to have no door on purpose.** Its header argues that
+ * fifteen simultaneous sources are a workbench rather than a place and should
+ * take a deliberate act to reach. That was the right call while the proving
+ * ground had its own sound garden to wander into; with that gone this is the
+ * only place in the hub where a model can be heard at all, and friction in
+ * front of the only door is just friction.
+ */
+const SOUND_DOOR_AT = new THREE.Vector3(18, 0, 6);
+/** Faces +Z with the rest of the row. */
+const SOUND_YAW = 0;
 
 /**
  * How far a portal door stands out from the wall it is set into.
@@ -144,10 +159,12 @@ const GATE_YAW = 0;
  *
  * Yaw π faces -Z, back toward spawn, so the rank is square-on when you turn.
  *
- * Clear of the movement gym's strafe wall, which runs along z = 15.8 from
- * x = -10 to -4. The first two doors sat directly behind it at z = 18 and the
- * arrival check caught it as "boxed in 0.5 m from the door" — walkable on
- * arrival, and walled a stride later.
+ * **Everything in the gym has to stay south of the arrival markers**, which
+ * sit a stride in front of these doors at z ≈ 20.9. The rank was moved out to
+ * z = 22 because the first two doors opened straight onto the old strafe wall
+ * and the check caught it as "boxed in 0.5 m from the door" — walkable on
+ * arrival and walled a stride later. The parkour courses that replaced that
+ * wall stop at z = 18 for the same reason.
  */
 const GALLERY_RANK = new THREE.Vector3(-10, 0, 22);
 const GALLERY_SPACING = 5;
@@ -157,37 +174,10 @@ const GALLERY_YAW = Math.PI;
 // Roomy rather than snug. The first version was 6.4 x 5.2 and read as a
 // cupboard the moment there was furniture in it — at eye height a room needs
 // enough floor that you can walk *around* something, not just past it.
-const EXAMPLE = { width: 10, depth: 8, height: 3.4 };
+const HUT_ROOM_SHELL = { width: 10, depth: 8, height: 3.4 };
 const FACTORY = { width: 15, depth: 11, height: 5.6 };
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-/**
- * The wet corner of the Proving Ground's cell.
- *
- * Standing water and dripping have been audible in this room since the water
- * models landed, coming out of bare flagstones — which reads as a fault rather
- * than as a place. **Placement runs object → sound**, so these are the
- * positions of the things, and the emitters below are moved to them rather than
- * the other way round.
- *
- * The cell interior is x 19..27, z -4..4. The sink stands against the west
- * wall, turned a quarter so its splashback is against the stone; the cistern
- * sits out in the room where something can drip into it from the ceiling.
- */
-const SINK_AT = new THREE.Vector3(19.7, 0, 0);
-const SINK_YAW = Math.PI / 2;
-const CISTERN_AT = new THREE.Vector3(25.5, 0, 2.4);
-
-/**
- * Where the sink's spout actually is, in world space.
- *
- * The tap is on the far side of the basin from the room, so rotating the sink
- * moves it — and a drip placed at the sink's *origin* would be coming from the
- * middle of the bowl. Derived rather than typed: `rotateY` maps local (x, z) to
- * (z, −x) at a quarter turn, and the spout sits at local z ≈ −0.14.
- */
-const SPOUT_AT: readonly [number, number, number] = [SINK_AT.x - 0.14, 1.2, SINK_AT.z];
 
 /**
  * Where the plant in the factory hall actually stands.
@@ -408,193 +398,30 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         // back up leaves every fixture's underside reading as dirt. Local to
         // the proving ground — the village floor did not change.
         ambientGround: 0xbfb298,
-        // The Phase 3 emitter garden, now declared rather than hand-wired.
-        //
-        // Positions come from `ground.anchors` rather than from the meshes
-        // standing on them, because **a sound belongs to a place, not to
-        // whichever prop happens to be there** — the props were replaced with
-        // art-kit builders in Phase 4 and the anchors deliberately did not move.
-        soundscape: {
-          bed: { model: 'wind', id: 'wind', options: { gain: 0.17, tone: 3400 } },
-          emitters: [
-            // A big canopy: tuned down for broad heavy leaves, articulated very
-            // lightly. Pulled in hard, because wind in a tree is a *local*
-            // sound — at 34 m the whole field sounded like it had a tree in the
-            // middle of it.
-            {
-              model: 'foliage',
-              id: 'canopy',
-              at: [ground.anchors.tree.x, ground.anchors.tree.y, ground.anchors.tree.z],
-              options: { density: 240, tone: 0.8, gain: 0.42, articulation: 0.22 },
-              refDistance: 2.5,
-              maxDistance: 20,
-              rolloff: 1.7,
-              reverb: 0.35,
-            },
-            // The same tree, from underneath. Foliage is the leaves; this is
-            // the timber taking the load — a limb turning against the one it
-            // is resting on when a gust gets into the crown.
-            //
-            // Silent almost all the time, and that is the design. `'weather'`
-            // motion has a threshold under it, so this says nothing at all
-            // until the wind is actually up, and then it complains once and
-            // stops. A tree that groaned continuously would be a drone with a
-            // creak in it, and the ear would file it away inside ten seconds.
-            {
-              model: 'friction',
-              id: 'limb',
-              at: [ground.anchors.tree.x - 0.4, ground.anchors.tree.y - 1.2, ground.anchors.tree.z],
-              // Low, short-ringing and dull: green timber is a poor resonator,
-              // which is exactly why a tree groans rather than sings.
-              //
-              // No stroke cycle here and none needed: the gust field is doing
-              // that job. `'weather'` motion tracks `strength`, which rises
-              // and falls over seconds, so the speed sweeps across the
-              // friction curve on its own and the groan changes shape as the
-              // wind does. That is the whole reason to drive it from the
-              // weather rather than to schedule it.
-              options: {
-                motion: 'weather',
-                speed: 0.22,
-                force: 0.7,
-                pitch: 78,
-                decay: 0.35,
-                bright: 0.2,
-                roughness: 0.4,
-                gain: 0.4,
-              },
-              refDistance: 2,
-              maxDistance: 22,
-              rolloff: 1.6,
-              reverb: 0.3,
-            },
-            // The bushes are small, dry and quiet, with a much shorter reach —
-            // they only exist when you are beside them.
-            {
-              model: 'foliage',
-              id: 'shrub-a',
-              at: [ground.anchors.bush.x, ground.anchors.bush.y, ground.anchors.bush.z],
-              options: { density: 160, tone: 1.45, gain: 0.26, articulation: 0.34 },
-              refDistance: 1.4,
-              maxDistance: 14,
-              reverb: 0.25,
-            },
-            {
-              model: 'foliage',
-              id: 'shrub-b',
-              at: [9.2, 0.5, 16.8],
-              options: { density: 160, tone: 1.45, gain: 0.26, articulation: 0.34 },
-              refDistance: 1.4,
-              maxDistance: 14,
-              reverb: 0.25,
-            },
-            // Quiet, dull and wet: three things together read as "over there"
-            // where any one of them alone reads as "turned down".
-            {
-              model: 'bird',
-              id: 'bird',
-              at: [ground.anchors.bird.x, ground.anchors.bird.y, ground.anchors.bird.z],
-              options: { pitch: 2600, interval: 6, gain: 0.075, tone: 2800 },
-              refDistance: 4,
-              maxDistance: 38,
-              rolloff: 1.4,
-              reverb: 0.85,
-            },
-            // Heavy, slow and worn. The longest reach of anything here — the
-            // point of it is to be heard through the hall wall before you find
-            // it — but it carries across the yard, not across the map.
-            {
-              model: 'machine',
-              id: 'mill',
-              at: [ground.anchors.machine.x, ground.anchors.machine.y, ground.anchors.machine.z],
-              options: { rpm: 52, fundamental: 42, gain: 0.4 },
-              refDistance: 2.5,
-              maxDistance: 34,
-              rolloff: 1.8,
-              reverb: 0.9,
-              // The one sound in the zone the player is meant to walk toward,
-              // so it holds a voice when the budget is tight.
-              importance: 1.6,
-            },
-            // Standing water in the cell, which is the small sealed stone box
-            // at x 19–27, z −4–4. Two reasons it lives there rather than out
-            // in the open: a cistern is what a room like that would actually
-            // contain, and the drips below need a long hard tail to be
-            // anything at all.
-            {
-              model: 'water',
-              id: 'cistern',
-              // The surface of the water in the basin, not the middle of it.
-              at: [CISTERN_AT.x, CISTERN_WATER_HEIGHT, CISTERN_AT.z],
-              options: { flow: 'cistern', gain: 0.4, tone: 0.9 },
-              refDistance: 1.5,
-              maxDistance: 12,
-              rolloff: 1.6,
-              reverb: 1,
-            },
-          ],
-          scatter: [
-            // **The reason the room reads as a room.** Nearly all of what you
-            // hear is the tail, so this runs almost no dry signal and a full
-            // reverb send. Periodic rather than Poisson: water collects at a
-            // fixed rate and falls at a fixed volume, and a drip scattered
-            // randomly reads as several leaks instead of one.
-            {
-              sound: 'drip',
-              id: 'seep',
-              // The tap, which is now a tap.
-              at: SPOUT_AT,
-              spread: [0.3, 0, 0.3],
-              every: 3.6,
-              rhythm: 'periodic',
-              force: [0.7, 1],
-              voices: 1,
-              options: { gain: 0.5, radius: [0.0019, 0.0027], cycles: 32 },
-              refDistance: 2,
-              maxDistance: 16,
-              rolloff: 1.4,
-              reverb: 1,
-            },
-            // A second, slower one across the room at an interval that shares
-            // no factor with the first. Two independent drips never settle into
-            // a pattern; one drip twice as fast is just a faster drip.
-            {
-              sound: 'drip',
-              id: 'seep-far',
-              // Off the ceiling into the cistern. Left up high on purpose —
-              // this one is falling water rather than a leaking fitting, and
-              // the drop is most of what tells the two apart.
-              at: [CISTERN_AT.x, 1.4, CISTERN_AT.z],
-              spread: [0.3, 0, 0.3],
-              every: 7.1,
-              rhythm: 'periodic',
-              force: [0.5, 0.8],
-              voices: 1,
-              options: { gain: 0.4, radius: [0.0031, 0.0042], cycles: 26 },
-              refDistance: 2,
-              maxDistance: 16,
-              rolloff: 1.4,
-              reverb: 1,
-            },
-          ],
-        } satisfies SoundscapeSpec,
       },
       spawn: { position: SPAWN.clone(), yaw: 0 },
       floor: -20,
       build() {
-        const root = ground.root;
-        root.add(markCollidable(hutMesh));
+        // Refilled rather than merely fetched: this group belongs to the
+        // `ProvingGround`, which outlives the zone, so after residency releases
+        // the hub it comes back empty. See `ProvingGround.populate`.
+        const root = ground.populate();
 
-        // The wet corner of the cell. See `SINK_AT` — these exist so the
-        // water you can hear has something to be coming out of.
-        const basin = sink.build({ seed: 8811 });
-        basin.position.copy(SINK_AT);
-        basin.rotation.y = SINK_YAW;
-        root.add(markCollidable(basin));
+        // **Built fresh here, not the mesh measured above.** `hutMesh` exists
+        // only so the portal placement can read the doorway off it before any
+        // zone is built; adding *that* instance would put a mesh in the scene
+        // whose geometry is released the first time the hub is dropped, and it
+        // would come back invisible. The seed is fixed, so this is the same hut.
+        const shed = hut.build({ seed: 5511 });
+        shed.position.copy(HUT_AT);
+        shed.rotation.y = HUT_YAW;
+        root.add(markCollidable(shed));
 
-        const tank = cistern.build({ seed: 8812 });
-        tank.position.copy(CISTERN_AT);
-        root.add(markCollidable(tank));
+        // The sink and the cistern stood in the cell, which is gone with the
+        // rest of the acoustics fixture. They were there for one reason —
+        // "every sound needs an object", and the water you could hear had to
+        // be coming out of something — so with the water gone there is nothing
+        // for them to be the object of.
 
         // No frames around the village gate or the gallery rank. An archway
         // reads as a threshold you walk *through*, and neither of these is —
@@ -607,8 +434,8 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     },
 
     {
-      id: ZONE_EXAMPLE,
-      name: 'Example Interior',
+      id: ZONE_HUT,
+      name: 'Villager Hut',
       environment: {
         ...INDOOR_ENVIRONMENT,
         room: 'cell',
@@ -632,7 +459,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       // The floor is at y = 0 and the room is sealed, so anything below this is
       // a bug rather than a fall — but the recovery still has to exist.
       floor: -5,
-      build: () => buildExampleInterior(),
+      build: () => buildVillagerHut(),
     },
 
     {
@@ -680,11 +507,15 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     },
 
     villageZone(),
+    // Two chains of rooms hung off the hut and the factory, three deep. They
+    // exist so that somewhere in the world is more than two doors from the hub
+    // — see `chains.ts`, and the residency check in `check:world`.
+    ...chainZones(),
   ];
 
   const portals: PortalDefinition[] = [
     {
-      id: 'example-door',
+      id: 'hut-door',
       a: {
         zone: ZONE_EXTERIOR,
         position: hutDoor,
@@ -693,10 +524,10 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         seed: 8801,
       },
       b: {
-        zone: ZONE_EXAMPLE,
+        zone: ZONE_HUT,
         // Set into the north wall, facing back into the room. This is the way
         // out — the same portal read from the other end.
-        position: new THREE.Vector3(0, 0, -EXAMPLE.depth / 2 + DOOR_PROUD),
+        position: new THREE.Vector3(0, 0, -HUT_ROOM_SHELL.depth / 2 + DOOR_PROUD),
         yaw: 0,
         material: 'timber',
         seed: 8802,
@@ -739,6 +570,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         seed: 4713,
       },
     },
+    ...chainPortals(ZONE_FACTORY, ZONE_HUT),
   ];
 
   // One zone and one portal per gallery, both derived from the same plan, so a
@@ -748,11 +580,20 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     portals.push(galleryPortal(plan, galleryHub(index)));
   });
 
-  // **A zone with no portal, on purpose.** The sound stage runs every model in
-  // the library at once, which is a workbench and not a place — the only way
-  // in is the jump list under `?debug`. See its header for why that is the
-  // right amount of friction rather than an oversight.
+  // The sound stage, and now a door to it — see `SOUND_DOOR_AT`. It is where
+  // every model in the library is judged, and since the proving ground stopped
+  // carrying a sound garden of its own it is the only place in the hub where
+  // one can be heard.
   zones.push(soundStageZone());
+  portals.push(
+    soundStagePortal({
+      zone: ZONE_EXTERIOR,
+      position: SOUND_DOOR_AT,
+      yaw: SOUND_YAW,
+      material: 'iron',
+      seed: 6600,
+    }),
+  );
 
   return { zones, portals };
 }
@@ -769,14 +610,14 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
  * editor or a JSON file would be doing exactly this from data — the point is
  * that the placement is the only thing that would move.
  */
-function buildExampleInterior(): THREE.Group {
+function buildVillagerHut(): THREE.Group {
   const root = new THREE.Group();
   root.add(
-    buildInterior({ ...EXAMPLE, seed: 4400, style: HOUSE_STYLE, planks: true, beams: 3 }),
+    buildInterior({ ...HUT_ROOM_SHELL, seed: 4400, style: HOUSE_STYLE, planks: true, beams: 3 }),
   );
 
-  const halfW = EXAMPLE.width / 2;
-  const halfD = EXAMPLE.depth / 2;
+  const halfW = HUT_ROOM_SHELL.width / 2;
+  const halfD = HUT_ROOM_SHELL.depth / 2;
 
   // --- a room somebody lives in --------------------------------------------
   //

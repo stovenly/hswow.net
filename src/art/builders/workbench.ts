@@ -59,12 +59,18 @@ export const workbench: MeshBuilder = {
     // --- frame ---------------------------------------------------------------
     const legR = rng.range(0.032, 0.045);
     const inset = 0.1;
+    // Into the boards, not flush with their underside. `top - slab` is exactly
+    // where the boards begin, so a leg that tall ends with its cap in the same
+    // plane as the board above it — two coplanar quads that flicker against
+    // each other from underneath. Buried a little way into the slab there is
+    // nothing coincident, and a bench leg does go into its top.
+    const legTop = top - slab * 0.4;
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
-        const leg = new THREE.BoxGeometry(legR * 2, top - slab, legR * 2);
+        const leg = new THREE.BoxGeometry(legR * 2, legTop, legR * 2);
         leg.translate(
           (sx * (length - inset * 2)) / 2,
-          (top - slab) / 2,
+          legTop / 2,
           (sz * (depth - inset * 2)) / 2,
         );
         parts.push({ geometry: leg, color: iron, sway: 0 });

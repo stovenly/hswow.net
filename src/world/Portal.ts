@@ -163,6 +163,23 @@ export class PortalGraph {
     this.byDoor.set(door, side);
   }
 
+  /**
+   * Forgets a side's door mesh, because the zone holding it has been released.
+   *
+   * **The lookup table is the reason this has to exist.** `bind` puts the mesh
+   * into `byDoor`, which is a strong reference held by the graph for the life
+   * of the session — so a zone that is torn down and rebuilt would leave its
+   * old door in there forever, one per crossing, each keeping a disposed
+   * geometry's wrapper alive. That is a leak whose whole symptom is a number
+   * climbing slowly in a heap profile, which is exactly the kind nobody finds.
+   *
+   * Idempotent, so releasing a zone whose doors were never built is fine.
+   */
+  unbind(side: PortalSide): void {
+    if (side.door) this.byDoor.delete(side.door);
+    side.door = null;
+  }
+
   /** What a raycast hit means, if anything. Walks up to the owning mesh. */
   sideOf(object: THREE.Object3D | null): PortalSide | null {
     let node = object;

@@ -32,6 +32,7 @@ import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import { Collider } from '../src/player/Collider';
 import { Zone } from '../src/world/Zone';
 import { PortalGraph, arrivalFor, doorFacing, ARRIVAL_STANDOFF } from '../src/world/Portal';
+import { residentZones, KEEP_WITHIN } from '../src/world/residency';
 import { DEFAULT_REACH } from '../src/world/Interaction';
 import { buildDoor, doorMetrics, doorName } from '../src/art/builders/door';
 import { markCollidable } from '../src/player/Collider';
@@ -52,6 +53,28 @@ function check(name: string, ok: boolean, detail = ''): void {
 /** Matches the controller's capsule: 0.35 m radius, 1.8 m tall. */
 const RADIUS = 0.35;
 const HEIGHT = 1.8;
+
+/**
+ * Triangles and meshes under a node, for comparing a zone with its own rebuild.
+ *
+ * Counted rather than hashed: two builds that agree on both numbers and differ
+ * in vertex positions would be a seeded builder reading a moving value, which
+ * `check:art` already covers from the other side. This is here to catch the
+ * blunt failure — a zone that comes back with different *contents* — and a
+ * count is enough to see it.
+ */
+function countGeometry(root: THREE.Object3D): { triangles: number; meshes: number } {
+  let triangles = 0;
+  let meshes = 0;
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    meshes++;
+    const position = object.geometry.getAttribute('position');
+    const index = object.geometry.getIndex();
+    triangles += index ? index.count / 3 : (position?.count ?? 0) / 3;
+  });
+  return { triangles, meshes };
+}
 
 function capsuleAt(position: THREE.Vector3): Capsule {
   return new Capsule(
@@ -76,10 +99,32 @@ for (const portal of world.portals) {
   portals.add(portal, (id) => zones.get(id)?.name ?? id);
 }
 
-// Build every zone and stand its doors in it, exactly as the manager does.
-for (const zone of zones.values()) {
+/**
+ * Builds a zone and stands its doors in it, exactly as `ZoneManager.prepare`
+ * does.
+ *
+ * A function rather than a loop body because the residency check releases zones
+ * and walks back into them, and a rebuilt zone has to get its doors back — the
+ * manager re-stands them by clearing `doored`, and a check that did not would be
+ * comparing a zone against a doorless copy of itself and calling the difference
+ * a drift. It is also the honest shape: doors belong to the manager, not to the
+ * zone, so anything simulating the manager owes them.
+ */
+function standDoors(zone: Zone): THREE.Group {
   const root = zone.root();
   for (const side of portals.in(zone.id)) {
+    // **Take down whatever is already standing there first.** The manager gets
+    // this free from its `doored` set — it stands a zone's doors exactly once
+    // per build. Here it has to be explicit, and without it re-standing a zone
+    // that was never released leaves two doors in one doorway, which reads back
+    // as a zone that grew seven meshes since the last time it was measured.
+    if (side.door) {
+      side.door.removeFromParent();
+      side.door.geometry.dispose();
+    }
+    // Unbound as well, so a rebuild does not leave the previous door in the
+    // graph's lookup table — the same leak `PortalGraph.unbind` exists for.
+    portals.unbind(side);
     const mesh = buildDoor({ seed: side.end.seed ?? 1, material: side.end.material });
     mesh.position.copy(side.end.position);
     mesh.rotation.y = side.end.yaw;
@@ -88,7 +133,10 @@ for (const zone of zones.values()) {
     portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
   }
   root.updateWorldMatrix(true, true);
+  return root;
 }
+
+for (const zone of zones.values()) standDoors(zone);
 
 // --- portals are two-way ---------------------------------------------------
 {
@@ -256,6 +304,119 @@ for (const zone of zones.values()) {
     `triangles ${triangleCounts[0]} → ${triangleCounts[triangleCounts.length - 1]}, ` +
       `children ${childCounts[0]} → ${childCounts[childCounts.length - 1]}`,
   );
+}
+
+// --- residency is bounded --------------------------------------------------
+//
+// **The leak canary for a long session.** Zones build lazily and used to be kept
+// for the whole session, which is correct at nine zones and about a gigabyte at
+// the hundred-and-forty the finished world is aimed at. Eviction keys residency
+// to the portal graph; this asserts that the policy actually bounds the set, and
+// — more importantly — that a zone dropped and walked back into comes back the
+// same, which is the whole reason dropping it is allowed.
+//
+// `ZoneManager` cannot be constructed here: it wants a renderer, an interaction
+// system and a DOM. So this drives `residentZones` — the same function the
+// manager evicts by — over the same portal graph, and performs the build and
+// dispose itself. What it cannot see is the manager's bookkeeping around the
+// release, which is why that code is small and stated in one place.
+{
+  const walk = [ZONE_EXTERIOR, 'villager-hut', 'hut-room', 'hut-room-2'];
+  const missing = walk.filter((id) => !zones.has(id));
+
+  if (missing.length > 0) {
+    check('the residency walk exists', false, `no such zone: ${missing.join(', ')}`);
+  } else {
+    // Standing at the end of a three-deep chain, the hub must have fallen out.
+    // This is the assertion that distinguishes "eviction is implemented" from
+    // "eviction is implemented and never fires" — every earlier layout of this
+    // world had its whole contents within two doors of the hub, so the policy
+    // would have been satisfied by keeping everything.
+    const far = residentZones(portals, 'hut-room-2', KEEP_WITHIN);
+    check(
+      'the hub is released from three doors away',
+      !far.has(ZONE_EXTERIOR),
+      `${far.size} zones resident from hut-room-2: ${[...far].sort().join(', ')}`,
+    );
+
+    // And the set is bounded everywhere, not merely at the end of one chain.
+    let worst = 0;
+    let worstAt = '';
+    for (const id of zones.keys()) {
+      const size = residentZones(portals, id, KEEP_WITHIN).size;
+      if (size > worst) {
+        worst = size;
+        worstAt = id;
+      }
+    }
+    check(
+      'the resident set is bounded from every zone',
+      worst < zones.size,
+      `worst ${worst}/${zones.size} zones, standing in ${worstAt}`,
+    );
+
+    // Now actually walk it, twice, building on arrival and disposing anything
+    // outside the resident set — and assert the built count settles rather than
+    // climbing. Two laps because a leak that takes one crossing to appear is
+    // invisible in a single pass.
+    const collider = new Collider();
+    const builtCounts: number[] = [];
+    const route = [...walk, ...[...walk].reverse(), ...walk, ...[...walk].reverse()];
+
+    for (const id of route) {
+      const zone = zones.get(id);
+      if (!zone) continue;
+      const root = standDoors(zone);
+      collider.build(root, id);
+
+      const keep = residentZones(portals, id, KEEP_WITHIN);
+      for (const other of zones.values()) {
+        if (other.isBuilt && !keep.has(other.id)) {
+          other.dispose();
+          collider.invalidate(other.id);
+        }
+      }
+      builtCounts.push([...zones.values()].filter((z) => z.isBuilt).length);
+    }
+
+    const peak = Math.max(...builtCounts);
+    const settled = builtCounts.slice(-walk.length);
+    const stable = settled.every((n) => n <= peak);
+    check(
+      'walking the chain settles at a bounded resident set',
+      stable && peak < zones.size,
+      `peak ${peak}/${zones.size} built, ${builtCounts[0]} → ${builtCounts[builtCounts.length - 1]}`,
+    );
+
+    // **The property that makes eviction safe at all.** Builders are seeded, so
+    // a rebuilt zone is supposed to be identical down to the last vertex. If it
+    // is not, eviction is not a memory policy — it is a world that quietly
+    // changes behind the player, which is far worse than the leak it fixes.
+    let drifted = '';
+    for (const id of walk) {
+      const zone = zones.get(id);
+      if (!zone) continue;
+      const before = countGeometry(standDoors(zone));
+      zone.dispose();
+      // Re-stood, because that is what the manager does on the next entry —
+      // doors are half of a link between zones and are not the zone's to build.
+      const after = countGeometry(standDoors(zone));
+      if (before.triangles !== after.triangles || before.meshes !== after.meshes) {
+        drifted = `${id}: ${before.triangles}/${before.meshes} → ${after.triangles}/${after.meshes}`;
+        break;
+      }
+    }
+    check(
+      'a released zone rebuilds identically',
+      drifted === '',
+      drifted === '' ? `${walk.length} zones dropped and rebuilt` : drifted,
+    );
+
+    // Put the world back. Later checks read zone roots directly and would
+    // otherwise be handed whatever this block happened to leave standing —
+    // which is a check that passes or fails depending on what ran before it.
+    for (const zone of zones.values()) standDoors(zone);
+  }
 }
 
 // ---------------------------------------------------------------------------

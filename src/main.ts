@@ -31,6 +31,8 @@ import { attachFaustPanel } from './debug/FaustPanel';
 import type { FrictionModel } from './audio/models/friction';
 import type { WaveguideModel } from './audio/models/waveguide';
 import { Loader } from './ui/Loader';
+import { installOptions, loadOptions } from './ui/options';
+import { PerformanceHud } from './ui/Performance';
 
 const canvas = document.getElementById('viewport');
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -100,11 +102,14 @@ const zones = new ZoneManager({
   fade: new Fade(overlay),
 });
 
-// Kept out of `RenderSettings` on purpose. That is a saved preset, and a preset
-// written before shadows existed would load with the field missing — the same
-// trap the sky settings already carry a note about. One boolean here until
-// there is a reason for it to travel with the rest of the look.
-const lighting = { shadows: true };
+// The player's settings, read before anything they govern is built.
+//
+// Kept out of `RenderSettings` on purpose. That is a saved *preset* — the look,
+// dialled in and shared between machines — and these are one player's
+// preferences on one machine; a shadow switch that travelled with a preset
+// would arrive turned off on somebody else's computer for no reason they could
+// see. Separate store, separate lifetime. See `ui/options/`.
+const options = loadOptions();
 
 const world = createTestWorld(provingGround);
 for (const definition of world.zones) zones.register(definition);
@@ -114,7 +119,12 @@ for (const portal of world.portals) zones.link(portal);
 
 // Builds the exterior's geometry and indexes all of it for collision, which on
 // a world this size is a couple of hundred milliseconds on its own.
-zones.setShadows(lighting.shadows);
+// Ahead of the first build rather than in `applyOptions` below, which cannot
+// run until the audio engine exists. Both of these are read as a zone's meshes
+// are prepared, so setting them afterwards would raise the exterior with the
+// wrong casters and then walk all of it again to correct them.
+zones.setShadows(options.shadows);
+zones.setClutterShadows(options.grassShadows);
 // The drawn sun and the shadow-casting one are the same direction by
 // construction. Static for now; when it moves, this call moves with it.
 postfx.aimSun(zones.sunDirection);
@@ -143,21 +153,19 @@ const audio = new AudioEngine();
 let footsteps: Footsteps | null = null;
 
 /**
- * Which of the proving ground's test rooms the listener is standing in.
- *
- * `undefined` rather than `null` to start, so the first frame applies whatever
- * it finds — `null` is a legitimate value here and means "outdoors".
- */
-let lastRoom: string | null | undefined = undefined;
-
-/**
  * Base leaf articulation per foliage emitter, so one slider can scale them all.
  *
  * Read off the specs rather than guessed: a hedge ticks where a canopy hushes,
  * and a single absolute value applied to both flattens that distinction.
+ *
+ * Looked up by id against whatever zone is current, so entries for a zone you
+ * are not standing in simply find nothing. `canopy` and the two shrubs were
+ * the proving ground's sound garden and are kept: the sound stage declares a
+ * `foliage` station, and the village its own hedgerows.
  */
 const FOLIAGE_BASE = new Map<string, number>([
   ['canopy', 0.22],
+  ['foliage', 0.4],
   ['shrub-a', 0.34],
   ['shrub-b', 0.34],
   ['wood-north', 0.2],
@@ -208,15 +216,42 @@ if (isTouchDevice()) {
   input.onLockChange = (locked) => document.body.classList.toggle('is-playing', locked);
 }
 
+// --- options ----------------------------------------------------------------
+//
+// Installed here rather than at load because half of what they touch — the
+// audio engine most of all — does not exist until boot has finished. Everything
+// they govern has a sensible value in the meantime, and the two that have to be
+// right *before* the world is raised are set above.
+// Named `perfHud` rather than `performance`, which is a global this file
+// already reads for the heap size — shadowing it here would break that at a
+// distance, in a readout, silently.
+const perfHud = new PerformanceHud(overlay, viewport.renderer);
+const settings = installOptions(options, overlay, {
+  audio,
+  postfx,
+  zones,
+  player,
+  input,
+  loop,
+  performance: perfHud,
+});
+
 if (dev.gui) {
   const r = postfx.settings;
   const refresh = (): void => postfx.apply();
 
   const look = dev.gui.addFolder('look');
+  // The same two booleans the options menu edits, not a parallel pair. Bound
+  // with `.listen()` so a change made in the menu moves the control here, and
+  // routed through `commit` so it lands in the engine and in storage the same
+  // way the menu's would.
+  look.add(options, 'shadows').name('cast shadows').listen().onChange(settings.commit);
   look
-    .add(lighting, 'shadows')
-    .name('cast shadows')
-    .onChange((on: boolean) => zones.setShadows(on));
+    .add(options, 'grassShadows')
+    .name('grass casts shadows')
+    .listen()
+    .onChange(settings.commit);
+  look.add({ open: settings.open }, 'open').name("open the player's menu");
   look.add(r, 'pixelSize', 1, 12, 1).onChange(refresh);
   look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'depthEdgeStrength', 0, 2, 0.05).onChange(refresh);
@@ -326,7 +361,7 @@ if (dev.gui) {
   view.add(t, 'invertY');
   view.add(t, 'eyeHeight', 1, 2, 0.01);
   view.add(t, 'fov', 50, 110, 1);
-  view.add(t, 'sprintFov', 50, 120, 1);
+  view.add(t, 'sprintFovBoost', 0, 30, 1).name('sprint fov +');
 
   const bob = dev.gui.addFolder('head bob').close();
   bob.add(t, 'bobAmount', 0, 0.15, 0.001);
@@ -435,6 +470,19 @@ if (dev.gui) {
     grounded: 'no',
     position: '',
     triangles: collider.triangles,
+    // What the frame actually costs, as opposed to what the arithmetic in
+    // SCALING.md predicts it costs. Accumulated across every composer pass and
+    // including the shadow draws — see `Viewport`, which turns `autoReset` off
+    // to make that true.
+    draws: 0,
+    drawn: '0',
+    heap: '—',
+    // Zones currently holding memory, and how many have been released. Together
+    // these are the readable form of the residency policy: the first should
+    // settle rather than climb across a long session, and the second proves the
+    // first is settling because eviction is *working* rather than because
+    // nowhere new has been visited.
+    resident: '—',
     zone: '—',
     crossings: 0,
     room: '—',
@@ -459,9 +507,18 @@ if (dev.gui) {
   state.add(readout, 'swell').listen().disable();
   state.add(readout, 'machine').listen().disable();
   state.add(readout, 'emitters').name('hrtf / panned / virtual').listen().disable();
+  state.add(readout, 'draws').name('draw calls').listen().disable();
+  state.add(readout, 'drawn').name('drawn tris').listen().disable();
+  state.add(readout, 'heap').listen().disable();
+  state.add(readout, 'resident').name('zones built / evicted').listen().disable();
   // Triangles change with the zone now, so this has to be watched rather than
   // read once — it is also the first place a collider leak would show up.
-  state.add(readout, 'triangles').listen().disable();
+  //
+  // Named rather than left as `triangles`: sat next to the renderer's count it
+  // is two numbers of the same name measuring different things, and the one
+  // that matters here is *collision* geometry — a number that is usually a
+  // fraction of what is drawn and grows for entirely different reasons.
+  state.add(readout, 'triangles').name('collider tris').listen().disable();
   state.add({ respawn: () => zones.respawn() }, 'respawn');
 
   // Jumping straight to a zone, without walking to its door. Mostly for
@@ -540,6 +597,18 @@ if (dev.gui) {
     readout.zone = zones.current?.name ?? '—';
     readout.crossings = zones.crossings;
     readout.triangles = collider.triangles;
+    // Read here rather than after the render: this runs at the top of the
+    // frame, so it reports the frame just drawn. `info.reset()` happens inside
+    // `postfx.render`, which is later in the same loop.
+    const info = viewport.renderer.info.render;
+    readout.draws = info.calls;
+    readout.drawn = info.triangles.toLocaleString();
+    // Chrome only, and behind a flag on some builds. Absent is a normal answer
+    // rather than an error — this is the one number in the panel that says
+    // whether a long session is leaking, and it is worth showing when it exists.
+    const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory;
+    readout.heap = memory ? `${(memory.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'unavailable';
+    readout.resident = `${zones.builtZones.length} / ${zones.evictions}`;
     readout.room = audio.room ?? 'open';
     stageState.reverb = audio.reverbKind === 'fdn' ? 'fdn — tunable' : 'convolution — fixed';
     readout.audio = footsteps === null ? 'rendering…' : audio.context.state;
@@ -587,30 +656,22 @@ loop.add((dt, elapsed) => {
   // and a sound that are meant to be one event.
   updateWind(audio.weather, elapsed);
 
-  // The proving ground's two test rooms are rooms *within* the exterior zone
-  // rather than zones of their own — the Phase 3 acoustics fixture — so nothing
-  // in the zone system knows about them and this has to be driven by hand.
-  if (zones.current?.id === ZONE_EXTERIOR) {
-    const room = provingGround.roomAt(audio.listenerPosition);
-    if (room !== lastRoom) {
-      lastRoom = room;
-      audio.setRoom(room ?? 'open');
-      // Inside one of the rooms the wind bed drops away and loses its top end:
-      // you are hearing it through a wall, and the whistle is the first thing
-      // a wall takes.
-      zones.sound?.setBedLevel(room === null ? 1 : 0.22);
-      zones.sound?.find<WindModel>('wind')?.setTone(room === null ? 3400 : 900);
-      if (footsteps) footsteps.surface = room === null ? 'earth' : 'stone';
-    }
-  }
-
-  // The wheel you can see turns at the speed the clank you can hear is firing
-  // at, phase cycle included, so it visibly labours and surges.
-  provingGround.update(dt, zones.sound?.find<MachineModel>('mill')?.currentRpm ?? 0);
+  // **The hand-driven room switching is gone with the rooms.** The proving
+  // ground used to contain a two-room stone building that was not a zone, so
+  // nothing in the zone system knew about it and the acoustic, the wind bed
+  // and the footstep surface all had to be swapped from here by testing the
+  // listener's position against two boxes. Every one of those is a property of
+  // a *zone*, and the sound stage is one — so all of it is declared now, and
+  // the loop no longer has an opinion about where in a zone you are standing.
   postfx.render(elapsed);
   // After the render, and in the same frame: the default framebuffer is only
   // reliably readable before the browser composites it.
   crosshair.update();
+  // After the render, so `renderer.info` describes the frame just drawn rather
+  // than the one before it — `PostFX.render` resets those counters on its way
+  // in. The debug readout reads them at the *top* of the frame and is a frame
+  // behind for exactly that reason; this one does not have to be.
+  perfHud.update(dt);
   dev.update();
 });
 
