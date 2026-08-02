@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { applySway } from '../art/sway';
+import { PixelStage } from './PixelStage';
+import { GTAOEffect } from './GTAO';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
@@ -14,10 +15,15 @@ import type { Viewport } from './Viewport';
  * The render pipeline.
  *
  * ```
- * scene ─► RenderPixelatedPass ─► OutputPass ─► RetroShader ─► screen
- *          chunky pixels,          tone map     vignette,
- *          depth/normal edges      and sRGB     dither, quantize
+ * scene ─► PixelStage ─────────► OutputPass ─► RetroShader ─► screen
+ *          chunky pixels,         tone map     vignette,
+ *          effects (GTAO…),       and sRGB     dither, quantize
+ *          depth/normal edges
  * ```
+ *
+ * `PixelStage` is ours (SHADERS.md, R0): it renders at chunky resolution,
+ * runs screen-space effects there, and upscales with the edge lines — the
+ * job `RenderPixelatedPass` used to do, plus the effect slot it did not have.
  *
  * The order is load-bearing. `OutputPass` is where linear light becomes sRGB,
  * and spacing quantization steps evenly is only correct on the display side of
@@ -73,6 +79,13 @@ export interface RenderSettings {
   /** Levels per channel. 2 is one bit; 8 is generous. */
   levels: number;
 
+  /**
+   * Ambient occlusion (SHADERS.md §1). `strength` is how dark full occlusion
+   * gets, 0..1; `radius` is the world-space reach in metres — how far apart
+   * two surfaces can be and still shade each other.
+   */
+  ao: { strength: number; radius: number };
+
   vignetteStrength: number;
   vignetteRadius: number;
   vignetteSoftness: number;
@@ -115,6 +128,11 @@ export const DEFAULT_RENDER: RenderSettings = {
   // halftone doing the work instead of fighting the banding.
   levels: 16,
 
+  // Strength short of full black: GTAO's corners should read as seated, not
+  // sooted, and the halftone will texture whatever gradient this produces.
+  // Radius from the plan — under a metre is contact shadow, not room gloom.
+  ao: { strength: 0.85, radius: 0.8 },
+
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
   // there in case a zone ever wants to close in around you; nothing uses it.
@@ -153,7 +171,8 @@ export class PostFX {
 
   private readonly viewport: Viewport;
   private readonly composer: EffectComposer;
-  private readonly pixelPass: RenderPixelatedPass;
+  private readonly pixelStage: PixelStage;
+  private readonly gtao: GTAOEffect;
   private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
@@ -170,6 +189,7 @@ export class PostFX {
    */
   private dither = true;
   private pixelate = true;
+  private occlusion = true;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -179,7 +199,12 @@ export class PostFX {
     // `sky` undefined and take the whole pipeline down. Nested groups get
     // merged a level deeper.
     const saved = loadPreset<RenderSettings>(PRESET) ?? {};
-    this.settings = { ...DEFAULT_RENDER, ...saved, sky: { ...DEFAULT_SKY, ...saved.sky } };
+    this.settings = {
+      ...DEFAULT_RENDER,
+      ...saved,
+      sky: { ...DEFAULT_SKY, ...saved.sky },
+      ao: { ...DEFAULT_RENDER.ao, ...saved.ao },
+    };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
     // down. Anything that is not a mode any more falls back to `levels`.
@@ -189,17 +214,23 @@ export class PostFX {
     this.hideGlowFromEdges(viewport.scene);
 
     this.composer = new EffectComposer(viewport.renderer);
-    this.pixelPass = new RenderPixelatedPass(1, viewport.scene, viewport.camera);
+    this.pixelStage = new PixelStage(1, viewport.scene, viewport.camera);
     // **The edge detector re-renders the whole scene with its own material.**
-    // `RenderPixelatedPass` swaps in a `MeshNormalMaterial` as
-    // `scene.overrideMaterial` to build the normal buffer its outlines come
-    // from — which bypassed the wind displacement entirely, so every swaying
-    // plant was outlined at the position it would have had standing still. A
-    // motionless ghost of its own shape, and the reason this line exists.
-    applySway(this.pixelPass.normalMaterial);
+    // `PixelStage` swaps in a `MeshNormalMaterial` as `scene.overrideMaterial`
+    // to build the normal buffer its outlines come from — which bypassed the
+    // wind displacement entirely, so every swaying plant was outlined at the
+    // position it would have had standing still. A motionless ghost of its
+    // own shape, and the reason this line exists.
+    applySway(this.pixelStage.normalMaterial);
+
+    // The first occupant of the effect slot. Registered once; on/off is the
+    // effect's own flag, set in `apply`.
+    this.gtao = new GTAOEffect();
+    this.pixelStage.effects.push(this.gtao);
+
     this.retroPass = new ShaderPass(RetroShader);
 
-    this.composer.addPass(this.pixelPass);
+    this.composer.addPass(this.pixelStage);
     this.composer.addPass(new OutputPass());
     this.composer.addPass(this.retroPass);
 
@@ -258,6 +289,19 @@ export class PostFX {
   }
 
   /**
+   * Turns ambient occlusion off without disturbing its tuning.
+   *
+   * A player option — see SHADERS.md's line on which effects cross into the
+   * options screen: it is the most measurable per-frame cost in the pipeline
+   * and purely additive shading, so off, the world is exactly the pre-AO
+   * picture.
+   */
+  setAmbientOcclusion(enabled: boolean): void {
+    this.occlusion = enabled;
+    this.apply();
+  }
+
+  /**
    * Sets the colour vision correction and how strongly it is applied.
    *
    * `strength` is 0..1, and 0 is genuinely nothing rather than nearly nothing:
@@ -279,9 +323,13 @@ export class PostFX {
     // of turning into a fine grain nobody can see.
     const scale = this.viewport.renderer.getPixelRatio();
     const devicePixels = this.pixelate ? Math.max(1, Math.round(s.pixelSize * scale)) : 1;
-    if (this.pixelPass.pixelSize !== devicePixels) this.pixelPass.setPixelSize(devicePixels);
-    this.pixelPass.normalEdgeStrength = s.normalEdgeStrength;
-    this.pixelPass.depthEdgeStrength = s.depthEdgeStrength;
+    if (this.pixelStage.pixelSize !== devicePixels) this.pixelStage.setPixelSize(devicePixels);
+    this.pixelStage.normalEdgeStrength = s.normalEdgeStrength;
+    this.pixelStage.depthEdgeStrength = s.depthEdgeStrength;
+
+    this.gtao.enabled = this.occlusion && s.ao.strength > 0;
+    this.gtao.strength = s.ao.strength;
+    this.gtao.radius = s.ao.radius;
 
     const u = this.retroPass.uniforms;
     u.uPixelSize.value = devicePixels;
@@ -319,6 +367,9 @@ export class PostFX {
       // dome off that is every pixel the geometry does not cover, so it has to
       // be the fog colour or an interior is a lit room floating in blue.
       this.viewport.renderer.setClearColor(fog.color, 1);
+      // AO fades against the fog the zone actually has — set here, after the
+      // air has had its say, so an interior's short fog shortens the AO too.
+      this.gtao.setFog(fog.near, fog.far);
     }
   }
 
@@ -385,6 +436,7 @@ export class PostFX {
     GLOW_MATERIAL.visible = true;
     this.viewport.scene.remove(this.sky.mesh);
     this.sky.dispose();
+    this.pixelStage.dispose();
     this.composer.dispose();
   }
 }

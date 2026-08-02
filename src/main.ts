@@ -262,6 +262,13 @@ if (dev.gui) {
   // at pixel size 3 is the same size on screen as 3 at pixel size 4.
   look.add(r, 'screenPeriod', 2, 32, 1).name('screen period').onChange(refresh);
 
+  // The same switch the options menu edits, plus the tuning the menu does not
+  // show — the shadows/grass-shadows pattern, for a render feature.
+  const ao = dev.gui.addFolder('ambient occlusion');
+  ao.add(options, 'ambientOcclusion').name('enabled').listen().onChange(settings.commit);
+  ao.add(r.ao, 'strength', 0, 1, 0.05).onChange(refresh);
+  ao.add(r.ao, 'radius', 0.1, 2, 0.05).name('radius (m)').onChange(refresh);
+
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
   vignette.add(r, 'vignetteRadius', 0, 1.5, 0.01).onChange(refresh);
