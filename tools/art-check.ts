@@ -30,6 +30,7 @@ import { FLEX } from '../src/art/flex';
 // directory so the two cannot drift apart unnoticed.
 import { anvil } from '../src/art/builders/anvil';
 import { archway } from '../src/art/builders/archway';
+import { banner } from '../src/art/builders/banner';
 import { barrel } from '../src/art/builders/barrel';
 import { bed } from '../src/art/builders/bed';
 import { bell } from '../src/art/builders/bell';
@@ -43,7 +44,10 @@ import { chair } from '../src/art/builders/chair';
 import { cistern } from '../src/art/builders/cistern';
 import { crate } from '../src/art/builders/crate';
 import { daisy } from '../src/art/builders/daisy';
-import { door } from '../src/art/builders/door';
+import { hutDoor } from '../src/art/builders/hut-door';
+import { hutTrapdoor } from '../src/art/builders/hut-trapdoor';
+import { factoryDoor } from '../src/art/builders/factory-door';
+import { factoryTrapdoor } from '../src/art/builders/factory-trapdoor';
 import { sticks } from '../src/art/builders/sticks';
 import { dog } from '../src/art/builders/dog';
 import { equine } from '../src/art/builders/equine';
@@ -95,6 +99,7 @@ import { oak } from '../src/art/builders/oak';
 import { smallOak } from '../src/art/builders/small-oak';
 import { spruce } from '../src/art/builders/spruce';
 import { smallSpruce } from '../src/art/builders/small-spruce';
+import { signboard } from '../src/art/builders/signboard';
 import { sink } from '../src/art/builders/sink';
 import { stool } from '../src/art/builders/stool';
 import { streetlamp } from '../src/art/builders/streetlamp';
@@ -134,6 +139,7 @@ const builders: MeshBuilder[] = [
   workbench,
   anvil,
   archway,
+  banner,
   barrel,
   bed,
   bell,
@@ -149,7 +155,10 @@ const builders: MeshBuilder[] = [
   daisy,
   sticks,
   dog,
-  door,
+  hutDoor,
+  hutTrapdoor,
+  factoryDoor,
+  factoryTrapdoor,
   equine,
   fallenLog,
   fence,
@@ -196,6 +205,7 @@ const builders: MeshBuilder[] = [
   smallOak,
   spruce,
   smallSpruce,
+  signboard,
   sink,
   stool,
   streetlamp,
