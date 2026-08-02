@@ -3,7 +3,7 @@ import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
-import { buildDoor, doorMetrics, doorName } from '../art/builders/door';
+import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';

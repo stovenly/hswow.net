@@ -2,11 +2,19 @@ import * as THREE from 'three';
 import type { MeshBuilder, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE } from '../palette';
+import { PALETTE, shade } from '../palette';
 import type { DoorMaterial } from '../../audio/models/door';
+import type { DoorMetrics } from '../door';
 
 /**
- * A door in its frame.
+ * A village door in its frame: wooden, always.
+ *
+ * This was `door`, and it carried the iron look too — which meant the door on
+ * a works was a village door painted grey, and the door on a hut competed
+ * with it for variants. Split: the industrial leaf lives in `factory-door`,
+ * and what is left here is entirely carpentry, with the variety spent where
+ * wood actually varies — the stain. Same boards, same ledges, same ironwork;
+ * a hamlet's doors differ by what was in the pot that year.
  *
  * Built facing **+Z**, standing on y = 0, centred on x. Portals place it by
  * position and yaw, so every door in the game agrees about which way "out of
@@ -21,92 +29,127 @@ import type { DoorMaterial } from '../../audio/models/door';
  * shares a plane with anything else. Coincident faces cost nothing to avoid
  * here and z-fight visibly at every distance if you don't.
  *
- * The leaf is inset into the frame and never opens — Phase 5 portals are a
- * click and a fade, not a swing. `audio/models/door` carries the swing instead,
- * as a synthetic gesture, which is why nothing here has a hinge axis.
+ * The leaf is inset into the frame and never opens — portals are a click and
+ * a fade, not a swing. `audio/models/door` carries the swing instead, as a
+ * synthetic gesture, which is why nothing here has a hinge axis.
  */
 
-interface DoorOptions extends BuildOptions {
-  /** Chooses both the look and the voice. Rolled from the seed if omitted. */
-  material?: DoorMaterial;
+/** The two wooden voices. The iron one belongs to `factory-door`. */
+export type HutDoorMaterial = Extract<DoorMaterial, 'timber' | 'plank'>;
+
+export interface HutDoorOptions extends BuildOptions {
+  /** Chooses the voice and the family of stains. Rolled from the seed if omitted. */
+  material?: HutDoorMaterial;
 }
 
-interface Palette {
+export interface WoodStain {
   leaf: number;
   ledge: number;
   iron: number;
   frame: number;
 }
 
-const LOOKS: Record<DoorMaterial, Palette> = {
-  timber: {
-    leaf: PALETTE.TIMBER,
-    ledge: PALETTE.TIMBER_DARK,
-    iron: PALETTE.IRON,
-    frame: PALETTE.STONE_DARK,
-  },
-  iron: {
-    leaf: PALETTE.IRON,
-    ledge: PALETTE.STONE_DARK,
-    iron: PALETTE.RUST,
-    frame: PALETTE.STONE,
-  },
-  // Rough sawn boards, and the pale one of the three. It used to take
-  // `TIMBER_DARK` for both leaf and frame, which made the door whose entire
-  // idea is *visible planks* the one door you could not see the planks on —
-  // the gaps between boards are read by the shadow between them, and there is
-  // no shadow to see against near-black wood.
-  plank: {
-    leaf: PALETTE.TIMBER_PALE,
-    ledge: PALETTE.TIMBER,
-    iron: PALETTE.RUST,
-    frame: PALETTE.TIMBER_DARK,
-  },
-};
-
-const MATERIALS: readonly DoorMaterial[] = ['timber', 'iron', 'plank'];
-
 /**
- * What a door is called when the player looks at it.
+ * The stains, by voice.
  *
- * Descriptive rather than evocative, on purpose. This is the top line of the
- * tooltip and it names the *object*; the line beneath it names the place, and
- * that one is content. A door that called itself something atmospheric would be
- * competing with the destination for the one thing the player is reading.
+ * `timber` is the fitted, oiled door of a house — darker, denser finishes on
+ * a stone frame. `plank` is rough sawn boards on an outbuilding — paler,
+ * weathered finishes on a timber frame. The split matters acoustically as
+ * much as visually: the voice a portal plays is chosen by material, and a
+ * near-black tarred door with a thin rattly plank knock would read as the
+ * wrong sound coming out of the right object.
+ *
+ * Within a family the stains differ in *hue*, not only value, because the
+ * quantizer collapses colours that differ only in brightness — the same rule
+ * the palette header teaches. The ironwork darkens or rusts with the wood, so
+ * a weathered door is weathered all over rather than wearing new hinges.
  */
-const NAMES: Record<DoorMaterial, string> = {
-  timber: 'Wooden Door',
-  iron: 'Iron Door',
-  plank: 'Plank Door',
+// Exported for `hut-trapdoor`, which is joinery from the same yard: a hatch
+// in a hamlet is stained with whatever the doors were.
+export const HUT_STAINS: Record<HutDoorMaterial, readonly WoodStain[]> = {
+  timber: [
+    // Oiled oak. The old default look, kept: it is what a cared-for door is.
+    {
+      leaf: PALETTE.TIMBER,
+      ledge: PALETTE.TIMBER_DARK,
+      iron: PALETTE.IRON,
+      frame: PALETTE.STONE_DARK,
+    },
+    // Honey — freshly finished, the brightest a house door gets.
+    {
+      leaf: shade(PALETTE.TIMBER, 1.18),
+      ledge: PALETTE.TIMBER,
+      iron: PALETTE.IRON_DARK,
+      frame: PALETTE.STONE,
+    },
+    // Walnut — dark-stained, the formal one. Ledges darker still, so the
+    // shadow gaps between boards stay legible against near-dark wood.
+    {
+      leaf: PALETTE.TIMBER_DARK,
+      ledge: shade(PALETTE.TIMBER_DARK, 0.78),
+      iron: PALETTE.IRON_DARK,
+      frame: PALETTE.STONE_DARK,
+    },
+    // Russet — a red-brown stain, the one colour in the family that is a
+    // pigment rather than a depth of the same brown.
+    {
+      leaf: 0x7d4f36,
+      ledge: 0x5c3a28,
+      iron: PALETTE.IRON_DARK,
+      frame: PALETTE.STONE_DARK,
+    },
+    // Tarred — pitch-blacked against weather, with rusted straps. As dark as
+    // the family goes; the ledges are *lighter* than the leaf here, because
+    // this is the one stain where the boards are darker than their braces.
+    {
+      leaf: 0x453c33,
+      ledge: 0x57493c,
+      iron: PALETTE.RUST,
+      frame: PALETTE.STONE_DARK,
+    },
+  ],
+  plank: [
+    // Sun-bleached softwood on a timber frame. The old plank look, kept — see
+    // the palette note on `TIMBER_PALE`: the door whose whole idea is visible
+    // boards needs pale wood for the gaps to shadow against.
+    {
+      leaf: PALETTE.TIMBER_PALE,
+      ledge: PALETTE.TIMBER,
+      iron: PALETTE.RUST,
+      frame: PALETTE.TIMBER_DARK,
+    },
+    // Silvered — decades of weather, no finish left at all. Grey, but a warm
+    // grey; true neutral reads as primed metal, which is the other builder.
+    {
+      leaf: 0x968d7c,
+      ledge: 0x736b5c,
+      iron: PALETTE.RUST,
+      frame: PALETTE.TIMBER_DARK,
+    },
+    // Tan — worked but unfinished, between the bleached and the silvered.
+    {
+      leaf: 0x9c8261,
+      ledge: 0x7a654b,
+      iron: PALETTE.IRON,
+      frame: shade(PALETTE.TIMBER_DARK, 0.88),
+    },
+  ],
 };
 
-export function doorName(material: DoorMaterial): string {
-  return NAMES[material];
-}
+const MATERIALS: readonly HutDoorMaterial[] = ['timber', 'plank'];
 
-/** What a portal needs to know about the door it just built. */
-export interface DoorMetrics {
-  width: number;
-  height: number;
-  /** How far the leaf's face stands out from the wall behind it. */
-  depth: number;
-  material: DoorMaterial;
-}
-
-/** Reads the metrics back off a mesh built by this builder. */
-export function doorMetrics(mesh: THREE.Mesh): DoorMetrics {
-  return mesh.userData.door as DoorMetrics;
-}
-
-export function buildDoor(options: DoorOptions = {}): THREE.Mesh {
+export function buildHutDoor(options: HutDoorOptions = {}): THREE.Mesh {
   const { seed = 1, scale = 1 } = options;
   const rng = createRng(seed);
   const parts: Part[] = [];
 
   // Rolled first, so a given seed keeps its material no matter what is added
-  // to the builder below it.
+  // to the builder below it. The stain rolls second, under the same rule.
   const material = options.material ?? rng.pick(MATERIALS);
-  const look = LOOKS[material];
+  const look = rng.pick(HUT_STAINS[material]);
+  // A few percent of per-door drift on top of the stain, so two doors in the
+  // same stain still are not the same door.
+  const leafTone = shade(look.leaf, rng.range(0.94, 1.06));
 
   const width = rng.range(0.94, 1.16);
   const height = rng.range(2.0, 2.28);
@@ -145,7 +188,9 @@ export function buildDoor(options: DoorOptions = {}): THREE.Mesh {
   const plankWidth = width / plankCount;
   for (let i = 0; i < plankCount; i++) {
     // Each plank slightly narrower than its share, leaving a shadow gap, and
-    // each at its own thickness so the face is not perfectly flat.
+    // each at its own thickness so the face is not perfectly flat — and each
+    // at its own few percent of the stain, which is what stops five boards
+    // reading as one board with grooves cut in it.
     const thickness = leafThickness * rng.range(0.88, 1);
     const plank = new THREE.BoxGeometry(plankWidth * 0.94, height * rng.range(0.985, 1), thickness);
     plank.translate(
@@ -153,7 +198,7 @@ export function buildDoor(options: DoorOptions = {}): THREE.Mesh {
       height / 2,
       thickness / 2,
     );
-    parts.push({ geometry: plank, color: look.leaf, sway: 0 });
+    parts.push({ geometry: plank, color: shade(leafTone, rng.range(0.95, 1.05)), sway: 0 });
   }
 
   // --- ledges -------------------------------------------------------------
@@ -235,7 +280,7 @@ export function buildDoor(options: DoorOptions = {}): THREE.Mesh {
   const geometry = assemble(parts);
   if (scale !== 1) geometry.scale(scale, scale, scale);
 
-  const mesh = finish(geometry, 'door', 0);
+  const mesh = finish(geometry, 'hut-door', 0);
   const metrics: DoorMetrics = {
     width: (width + jamb * 2) * scale,
     height: (height + jamb) * scale,
@@ -246,9 +291,9 @@ export function buildDoor(options: DoorOptions = {}): THREE.Mesh {
   return mesh;
 }
 
-export const door: MeshBuilder = {
-  name: 'door',
+export const hutDoor: MeshBuilder = {
+  name: 'hut-door',
   category: 'structures',
   radius: 0.9,
-  build: buildDoor,
+  build: buildHutDoor,
 };
