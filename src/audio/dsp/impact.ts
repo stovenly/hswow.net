@@ -133,15 +133,51 @@ export function crush(
      * peaks in the first tenth and the rest is tail.
      */
     rise?: number;
+    /**
+     * How irregular the flow is, 0..1. Defaults to smooth.
+     *
+     * **A smooth envelope over a smooth sweep is the sound of a synthesiser**,
+     * and it is why filtered noise so reliably reads as static or as cloth. Real
+     * flow does not decay evenly: it surges and catches, and both the level and
+     * the spectrum wander while it does. A handful of irregular waypoints on
+     * each is the difference between a filter sweep and something moving.
+     *
+     * Wanted most by anything thick — mud, a bog, a leg dragging through water.
+     * Left at zero for granular packing, which really is smooth.
+     */
+    rough?: number;
   },
 ): void {
   if (level <= 0.0005) return;
+
+  const fraction = shape.rise ?? 0.45;
+  const rough = shape.rough ?? 0;
+  const peak = at + shape.duration * fraction;
+  const fall = shape.duration * (1 - fraction);
+  const tau = fall * 0.55;
+  // Enough to read as unsteady, few enough that each is a surge rather than a
+  // flutter. Above about eight this turns into tremolo.
+  const STEPS = 6;
 
   const band = context.createBiquadFilter();
   band.type = shape.band === 'ceiling' ? 'lowpass' : 'bandpass';
   band.Q.value = shape.q;
   band.frequency.setValueAtTime(shape.from, at);
-  band.frequency.linearRampToValueAtTime(shape.to, at + shape.duration);
+  if (rough > 0) {
+    // The sweep wanders on its way rather than travelling in a straight line,
+    // which is what turns a glide into a gurgle.
+    for (let i = 1; i <= STEPS; i++) {
+      const t = i / STEPS;
+      const along = shape.from + (shape.to - shape.from) * t;
+      const wander = 1 + rough * 0.5 * (Math.random() * 2 - 1);
+      band.frequency.linearRampToValueAtTime(
+        Math.max(30, along * (i === STEPS ? 1 : wander)),
+        at + shape.duration * t,
+      );
+    }
+  } else {
+    band.frequency.linearRampToValueAtTime(shape.to, at + shape.duration);
+  }
   band.connect(target);
 
   const source = context.createBufferSource();
@@ -150,13 +186,21 @@ export function crush(
   // Peaks part-way through rather than at the start — see `rise`. Cosine-free
   // because a bandpass this narrow smooths the corners itself.
   const envelope = context.createGain();
-  const fraction = shape.rise ?? 0.45;
-  const peak = at + shape.duration * fraction;
   envelope.gain.setValueAtTime(0, at);
   envelope.gain.linearRampToValueAtTime(level, peak);
   // The fall is what is left of the duration, so an early peak buys a long
   // tail rather than an abrupt stop.
-  envelope.gain.setTargetAtTime(0, peak, shape.duration * (1 - fraction) * 0.55);
+  if (rough > 0) {
+    let t = peak;
+    for (let i = 1; i <= STEPS; i++) {
+      t = peak + (fall * i) / STEPS;
+      const settled = level * Math.exp(-(t - peak) / tau);
+      envelope.gain.linearRampToValueAtTime(settled * (1 - rough + rough * Math.random()), t);
+    }
+    envelope.gain.setTargetAtTime(0, t, tau * 0.5);
+  } else {
+    envelope.gain.setTargetAtTime(0, peak, tau);
+  }
 
   source.connect(envelope).connect(band);
   const window = shape.duration * 2.2 + 0.03;
