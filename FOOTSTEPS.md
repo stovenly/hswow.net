@@ -1,7 +1,8 @@
 # Footsteps — direction, stance, and character
 
-Not built. Researched and specified. Extends `audio/models/footsteps.ts`, which
-already has the hard parts.
+**Part built.** F1, F2, M2 and M4 have landed; see the phase table in §14 for
+what that means and what is still owed. Extends `audio/models/footsteps.ts`,
+which already had the hard parts.
 
 **Short answer: yes to all three, and the file is already shaped for it.**
 `strike()` takes a `shape` argument precisely so that a step, a landing and a
@@ -693,20 +694,44 @@ Two kinds of gate, and the distinction is what makes this pickup-able:
 `npm run check` runs movement, audio, art, world and faust suites. `docs/` is
 the built site and is rebuilt and committed alongside source.
 
-| | Phase | Touches | Gate |
-|---|---|---|---|
-| **F1** | Contact refactor | `footsteps.ts` | check |
-| **F2** | Forward toe-off | `footsteps.ts` | **ear** |
-| **F3** | Direction and stance plumbing | `Controller.ts`, `main.ts`, `footsteps.ts` | check |
-| **F4** | Crouch | `footsteps.ts` | **ear** |
-| **F5** | Backward and lateral gaits | `footsteps.ts` | check + **ear** |
-| **F6** | Landings | `footsteps.ts`, `Controller.ts` | check + **ear** |
-| **F7** | Per-foot character, pivot scuff | `footsteps.ts`, `Controller.ts` | **ear** |
-| **M1** | Audition baseline | `tools/`, `audition/` | check |
-| **M2** | Bank correction | `footsteps.ts` | check + **ear** |
-| **M3** | Material retune | `footsteps.ts` | **ear** |
-| **M4** | New surfaces | `footsteps.ts`, `ground.ts`, a debug zone | **ear** |
-| **M5** | Surface derivation table | `ground.ts`, `ZoneManager.ts`, `Zone.ts` | check |
+| | Phase | Touches | Gate | Status |
+|---|---|---|---|---|
+| **F1** | Contact refactor | `footsteps.ts` | check | ✅ built, checked |
+| **F2** | Forward toe-off | `footsteps.ts` | **ear** | built, **unheard** |
+| **F3** | Direction and stance plumbing | `Controller.ts`, `main.ts`, `footsteps.ts` | check | |
+| **F4** | Crouch | `footsteps.ts` | **ear** | |
+| **F5** | Backward and lateral gaits | `footsteps.ts` | check + **ear** | |
+| **F6** | Landings | `footsteps.ts`, `Controller.ts` | check + **ear** | |
+| **F7** | Per-foot character, pivot scuff | `footsteps.ts`, `Controller.ts` | **ear** | |
+| **M1** | Audition baseline | `tools/`, `audition/` | check | **skipped** — see below |
+| **M2** | Bank correction | `footsteps.ts` | check + **ear** | built, **unheard** |
+| **M3** | Material retune | `footsteps.ts` | **ear** | |
+| **M4** | New surfaces | `footsteps.ts`, `ground.ts`, a debug zone | **ear** | built, **unheard** |
+| **M5** | Surface derivation table | `ground.ts`, `ZoneManager.ts`, `Zone.ts` | check | |
+
+### Deviations from the order above
+
+**M4 was pulled forward, ahead of F3–F7.** It brought the Footsteps Showcase
+with it — twelve strips of ground you can run down — and that room is the
+listening harness every remaining ear gate needs. Building it last would have
+meant signing off F2 through F7 by walking round the village.
+
+**M1 was skipped.** Its purpose was to make M2's before-and-after exact, and M2
+instead landed a `check:audio` assertion that its level transform is
+loudness-neutral to a hundredth of a decibel across all twelve modes. That is a
+stronger statement than comparing two renders by ear, and it is the only claim
+M1's renders were there to support. If M3 turns out to want a baseline, it can
+have one then, against a bank that works.
+
+**The `stretch` clamp is 3.2, not the 3.0 in §2.** The push-off is authored at
+3.2 and has been signed off by ear there, so 3.0 would have made F1 — a phase
+whose whole gate is "nothing sounds different" — quietly change how a jump
+sounds.
+
+**Three surfaces had no ground before M4**, which §11 did not notice: `leaves`
+and `metal` were in `SURFACES` with nothing in `GROUND` playing them, so neither
+could be heard anywhere in the world. `check:world` now asserts the two tables
+cover each other.
 
 ### F1 — Contact refactor · *check*
 
