@@ -261,8 +261,14 @@ function settle(contact: Contact): Contact {
 /** The material exactly as authored. */
 const PLAIN: Contact = { at: 0, level: 1, stretch: 1, modes: 1, grit: 1, tone: 1 };
 
-/** Heel, then toe. The toe's level comes from the surface's own `toe`. */
-const WALK: Gait = [PLAIN, { ...PLAIN, at: 1 }];
+/**
+ * Heel, then toe. The toe's level comes from the surface's own `toe`.
+ *
+ * A toe-off is a push, not a hit: more scuff, less ring, slightly duller. As an
+ * exact copy of the heel strike at a lower level it was the same event twice,
+ * which is what gave quick walking its faintly doubled, clicky quality.
+ */
+const WALK: Gait = [PLAIN, { at: 1, level: 1, stretch: 1.15, modes: 0.7, grit: 1.25, tone: 0.9 }];
 
 /** Both feet, a few milliseconds apart. */
 const LANDING: Gait = [PLAIN, { ...PLAIN, at: 1, level: 0.5 }];
