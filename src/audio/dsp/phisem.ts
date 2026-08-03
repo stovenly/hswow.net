@@ -35,39 +35,73 @@ export interface Particles {
   over: number;
   /** Time constant of the energy decay. Short is a scuff, long is a spill. */
   energyDecay: number;
-  /** Centre of the shared resonance — what the particles are made of. */
+  /** Centre of the resonance — what the particles are made of. */
   hz: number;
   /** Broad. These are small irregular objects, not tuned ones. */
   q: number;
   level: number;
+  /**
+   * How many distinct sizes of thing are in the pile. Defaults to one.
+   *
+   * **One resonance means every stone is the same stone.** Cook's model shares
+   * a single resonator across the whole population, which is right for a maraca
+   * — the beans really are identical — and audibly wrong for gravel, where the
+   * pieces range from sand to knuckle-sized. Over a short scuff nobody notices;
+   * over a long scatter it reads as a loop, because it is one.
+   *
+   * A handful of voices spread around `hz`, one picked per collision, is enough
+   * to break that up completely, and it costs a few filters built once.
+   */
+  voices?: number;
+  /**
+   * How far apart those sizes are, as a fraction either way. 0.7 spans from
+   * about six-tenths of `hz` to about one and seven-tenths of it.
+   */
+  spread?: number;
+}
+
+export interface ParticleBed {
+  /** One per voice. Each collision goes into exactly one of them. */
+  readonly inputs: GainNode[];
+  dispose(): void;
 }
 
 /**
- * The material the particles are made of: one resonance they all excite.
+ * The material the particles are made of: the resonances they excite.
  *
- * Built once and kept. A handful of gravel does not acquire a new resonance
- * each time it is disturbed, and rebuilding filters per event is both slower
- * and less true.
+ * Built once and kept. A handful of gravel does not acquire new resonances each
+ * time it is disturbed, and rebuilding filters per event is both slower and
+ * less true.
  */
 export function createParticleBed(
   context: BaseAudioContext,
   particles: Particles,
   destination: AudioNode,
-): { input: GainNode; dispose(): void } {
-  const input = context.createGain();
-  const filter = context.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = particles.hz;
-  // Deliberately low. A sharp filter here would give every stone the same
-  // pitch, which is the one thing a pile of loose material never has.
-  filter.Q.value = particles.q;
-  input.connect(filter).connect(destination);
+): ParticleBed {
+  const voices = Math.max(1, Math.round(particles.voices ?? 1));
+  const spread = particles.spread ?? 0;
+  const nodes: AudioNode[] = [];
+
+  const inputs = Array.from({ length: voices }, (_, i) => {
+    const input = context.createGain();
+    const filter = context.createBiquadFilter();
+    filter.type = 'bandpass';
+    // Geometric, because size maps to pitch reciprocally: spacing evenly in Hz
+    // would crowd every large piece into the bottom of the range.
+    const offset = voices === 1 ? 0 : (i / (voices - 1) - 0.5) * 2;
+    filter.frequency.value = particles.hz * Math.pow(1 + spread, offset);
+    // Deliberately low. A sharp filter here would give every stone a definite
+    // note, which is the one thing a pile of loose material never has.
+    filter.Q.value = particles.q;
+    input.connect(filter).connect(destination);
+    nodes.push(input, filter);
+    return input;
+  });
 
   return {
-    input,
+    inputs,
     dispose() {
-      input.disconnect();
-      filter.disconnect();
+      for (const node of nodes) node.disconnect();
     },
   };
 }
@@ -81,7 +115,7 @@ export function createParticleBed(
 export function scatterParticles(
   context: BaseAudioContext,
   noise: AudioBuffer,
-  target: AudioNode,
+  bed: ParticleBed,
   particles: Particles,
   at: number,
   force: number,
@@ -110,8 +144,13 @@ export function scatterParticles(
 
     const envelope = context.createGain();
     const when = at + t;
-    strike(envelope.gain, when, level, 0.0008, 0.012);
+    // Varied per collision, like the pitch and the level. A fixed ring-down
+    // makes every piece the same weight, and weight is most of what separates
+    // a chip from a cobble.
+    strike(envelope.gain, when, level, 0.0008, 0.006 + Math.random() * 0.022);
 
+    // One voice, chosen per collision — see `Particles.voices`.
+    const target = bed.inputs[(Math.random() * bed.inputs.length) | 0];
     source.connect(envelope).connect(target);
     source.start(when, Math.random() * Math.max(noise.duration - 0.2, 0), 0.06);
     source.stop(when + 0.07);

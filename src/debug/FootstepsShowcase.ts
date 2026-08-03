@@ -35,10 +35,12 @@ import { signboard, type SignboardOptions } from '../art/builders/signboard';
  * - `moss | turf | leaflitter | snow` — soft, in ascending order of noise. Moss
  *   should be very nearly silent without being absent; snow should compress
  *   rather than crunch.
- * - `boards | plate | grating | hollowmetal` — the four that ring, and the only
- *   four that are allowed to. Wood hollow, plate dead, grating clanging, drum
- *   booming. If any of the twelve to their left sounds like a board, the fault
- *   is in that surface and not in this one.
+ * - `boards | plate | grating | pipework | hollowmetal` — the five that ring,
+ *   and the only five allowed to. Wood hollow, sheet metal bright and dead,
+ *   grating clanging, pipe knocking, tank booming. The last two are the same
+ *   box at two sizes, which in a hollow body is almost entirely pitch and
+ *   ring-down. If any of the twelve to their left sounds like a board, the
+ *   fault is in that surface and not in this one.
  *
  * Nothing stands on the ground and nothing is emitted in the air. A prop here
  * would be something to look at while listening, which is the opposite of what
@@ -74,11 +76,12 @@ const STRIPS: readonly GroundName[] = [
   'boards',
   'plate',
   'grating',
+  'pipework',
   'hollowmetal',
 ];
 
 /** Wide enough to run down without steering into the neighbour. */
-const STRIP_WIDTH = 4.5;
+const STRIP_WIDTH = 4;
 /** Half the run. A sprint covers this in three seconds. */
 const HALF_LENGTH = 22;
 const HALF_FIELD = (STRIPS.length * STRIP_WIDTH) / 2;

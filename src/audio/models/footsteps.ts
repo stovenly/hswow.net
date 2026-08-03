@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { Footfall } from '../../player/Controller';
 import { createModalBank, type ModalBank, type ModalOptions } from '../dsp/modal';
-import { createParticleBed, scatterParticles, type Particles } from '../dsp/phisem';
+import { createParticleBed, scatterParticles, type Particles, type ParticleBed } from '../dsp/phisem';
 import { excite, crush } from '../dsp/impact';
 import { popBubble, bubbleRadius } from '../dsp/bubble';
 
@@ -189,8 +189,19 @@ export const RINGS: readonly string[] = [
   'wood',
   'metal-solid',
   'metal-ring',
-  'metal-hollow',
+  'metal-hollow-small',
+  'metal-hollow-big',
 ];
+
+/**
+ * The surfaces allowed to be *boxy* — a mode low enough and long enough to be
+ * a resonant cavity rather than a knock.
+ *
+ * Two things a person walks on qualify: a board over a void, and a steel
+ * container with air in it. Anywhere else it is the plank fault under another
+ * surface's name, which is why this is a licence and not an accident.
+ */
+export const HOLLOW: readonly string[] = ['wood', 'metal-hollow-small', 'metal-hollow-big'];
 
 /**
  * How the modal bank is built, and it used to be built wrong both ways.
@@ -229,24 +240,26 @@ const MODE_EXCITATION = 0.625;
  * last is the one that goes wrong.
  *
  * 1. **How fast does the contact arrive?** `impact.attack`. A millisecond is a
- *    strike; thirty is a foot decelerating into something that gives. This is
- *    the difference between two *events*, not between two colours of the same
- *    event, and getting it wrong is why every surface once sounded like the
- *    same tap with different things glued on top.
+ *    strike; fifty is a foot decelerating into something that gives. This is
+ *    the difference between two *events*, not two colours of one, and getting
+ *    it wrong is why every surface once read as the same tap with things glued
+ *    on top.
  * 2. **What band does the contact occupy?** `impact.low` to `impact.tone`.
- *    Grass lives from 420 Hz up and has no thump available to it; earth lives
- *    from 90 up and is nearly all thump.
+ *    Grass lives from 450 Hz up and has no thump available to it; earth lives
+ *    from 100 up and is nearly all thump.
  * 3. **Does it give under you?** `crush`. Anything a foot sinks into makes most
  *    of its noise *after* contact, packing rather than being struck.
- * 4. **Is it made of loose pieces, and how big?** `grit`, and `scuff` for how
- *    much of that answers to speed rather than to weight.
+ * 4. **Is it made of loose pieces, how big, and how varied?** `grit` — and
+ *    `voices`, because one resonance means every piece is the same piece, which
+ *    reads as a loop over any window long enough to hear. `scuff` says how much
+ *    of it answers to speed rather than to weight.
  * 5. **Is it a solid body free to vibrate?** `modes` — and only then. See
  *    `RINGS`.
  *
  * **The impact is the contact, not the sound.** On anything soft or loose it
- * should be barely audible by itself; the engine that carries the material's
- * identity should be several times louder than it. Where a surface reads as
- * "the standard footstep with an effect on it", this balance is the fault.
+ * should be barely audible by itself; the engine carrying the material's
+ * identity should be several times louder. Where a surface reads as "the
+ * standard footstep with an effect on it", this balance is the fault.
  *
  * Realism is not the standard; **distinction is**. Moss underfoot is inaudible
  * in a field and has a voice here, because a surface the player cannot hear is
@@ -255,18 +268,18 @@ const MODE_EXCITATION = 0.625;
  */
 export const SURFACES = {
   /**
-   * Flagstone. A flat slab takes the whole foot at once, which is what makes it
-   * the most *defined* surface in the table — one contact, one crack, a
-   * definite pitch to it. Everything else is either several contacts or none.
+   * Flagstone. A flat slab takes the whole foot at once, which makes it the most
+   * *defined* surface in the table — one contact, one crack, a definite pitch.
+   * Everything else is either several contacts or none.
    */
   stone: {
-    level: 0.5,
-    impact: { level: 0.9, duration: 0.012, low: 220, tone: 2800, q: 1.1, attack: 0.0012 },
+    level: 0.48,
+    impact: { level: 0.75, duration: 0.014, low: 200, tone: 2400, q: 1, attack: 0.0016 },
     modes: [
-      { hz: 620, decay: 0.032, level: 0.13 },
-      { hz: 1420, decay: 0.018, level: 0.07 },
+      { hz: 600, decay: 0.034, level: 0.12 },
+      { hz: 1380, decay: 0.019, level: 0.06 },
     ],
-    grit: { count: 4, over: 0.05, energyDecay: 0.02, hz: 2200, q: 1.2, level: 0.1 },
+    grit: { count: 4, over: 0.05, energyDecay: 0.02, hz: 2200, q: 1.2, level: 0.09 },
     scuff: 0.25,
     toe: 0.45,
     roll: 0.075,
@@ -277,245 +290,260 @@ export const SURFACES = {
    *
    * **Blunter than a flagstone, not brighter**, which is the opposite of the
    * obvious guess. A cobbled road never takes the whole sole: the foot bridges
-   * across two or three stones and the gaps between them stay empty, so instead
-   * of one clean contact you get several small ones a few milliseconds apart
-   * and nothing crisp. The grit here is not loose material — there is none — it
-   * is those partial contacts, pitched where small stones knock.
+   * two or three stones and the joints between them stay empty, so instead of
+   * one clean contact there are several small ones a few milliseconds apart and
+   * nothing crisp. The grit here is not loose material — there is none — it is
+   * those partial contacts, pitched where small stones knock.
    */
   'cobble-fixed': {
-    level: 0.46,
-    impact: { level: 0.6, duration: 0.02, low: 170, tone: 1800, q: 0.8, attack: 0.0035 },
-    modes: [{ hz: 820, decay: 0.02, level: 0.085 }],
-    grit: { count: 7, over: 0.055, energyDecay: 0.022, hz: 1700, q: 1.6, level: 0.3 },
+    level: 0.44,
+    impact: { level: 0.5, duration: 0.022, low: 160, tone: 1650, q: 0.75, attack: 0.0045 },
+    modes: [{ hz: 790, decay: 0.021, level: 0.08 }],
+    grit: { count: 7, over: 0.055, energyDecay: 0.022, hz: 1700, q: 1.6, level: 0.28, voices: 3, spread: 0.35 },
     scuff: 0.25,
     toe: 0.5,
     roll: 0.08,
   },
 
   /**
-   * Broken stone, loose — a track rather than a road.
-   *
-   * Nearly all particle bed, like gravel, and only the size of the pieces
-   * separates the two: fewer, bigger, lower and spread further, because a large
-   * stone takes longer to stop moving.
+   * Broken stone, loose — a track rather than a road. Nearly all particle bed,
+   * and only the size of the pieces separates it from gravel: fewer, bigger,
+   * lower and spread further, because a large stone takes longer to stop.
    */
   'cobble-loose': {
     level: 0.5,
     impact: { level: 0.3, duration: 0.015, low: 210, tone: 2200, q: 0.9, attack: 0.005 },
     modes: [],
-    grit: { count: 13, over: 0.19, energyDecay: 0.07, hz: 1500, q: 1.9, level: 0.95 },
+    grit: { count: 13, over: 0.19, energyDecay: 0.07, hz: 1500, q: 1.9, level: 0.95, voices: 4, spread: 0.6 },
     scuff: 0.9,
     toe: 0.6,
     roll: 0.085,
   },
 
-  /** Loose stones, and the reference the rest of the aggregate family is sized against. */
+  /**
+   * Loose stones, and the reference the rest of the aggregate family is sized
+   * against.
+   *
+   * **Five voices, spread wide.** A gravel path is not one grade of stone; it
+   * runs from grit to knuckle-sized, and a single shared resonance made every
+   * piece the same piece — fine over a short scuff and unmistakably a loop over
+   * the long scatter this surface wants. The scatter itself stretches further
+   * the faster you are going. See `scuff`.
+   */
   gravel: {
     level: 0.5,
-    impact: { level: 0.28, duration: 0.012, low: 260, tone: 2400, q: 0.9, attack: 0.004 },
+    impact: { level: 0.26, duration: 0.012, low: 260, tone: 2400, q: 0.9, attack: 0.004 },
     modes: [],
-    // Spread wide on purpose: stones keep moving after the foot has stopped,
-    // and the tail of that is the whole character. It stretches further again
-    // the faster you are going — see `scuff`.
-    grit: { count: 26, over: 0.22, energyDecay: 0.075, hz: 3000, q: 1.4, level: 0.8 },
+    grit: { count: 28, over: 0.22, energyDecay: 0.075, hz: 2800, q: 1.5, level: 0.8, voices: 5, spread: 0.75 },
     scuff: 0.95,
     toe: 0.7,
     roll: 0.09,
   },
 
   /**
-   * Dry sand. The fine end of the same family, and it packs as well as scatters.
+   * Dry sand. The fine end of the family, and it packs as well as it scatters.
    *
-   * A swish rather than a crunch: many tiny grains, a broad resonance because a
-   * grain of sand has no note of its own, and a slow arrival because the foot
-   * keeps sinking.
+   * A swish, not a crunch: a great many tiny grains, a broad resonance because
+   * a grain of sand has no note of its own, and a slow arrival because the foot
+   * keeps sinking. Nothing here is solid.
    */
   sand: {
-    level: 0.34,
-    impact: { level: 0.16, duration: 0.028, low: 300, tone: 3200, q: 0.6, attack: 0.018 },
-    crush: { level: 0.24, duration: 0.09, from: 700, to: 1050, q: 0.9 },
+    level: 0.3,
+    impact: { level: 0.1, duration: 0.035, low: 350, tone: 2800, q: 0.5, attack: 0.024 },
+    crush: { level: 0.26, duration: 0.1, from: 650, to: 950, q: 0.8 },
     modes: [],
-    grit: { count: 46, over: 0.1, energyDecay: 0.032, hz: 3800, q: 0.55, level: 0.55 },
+    grit: { count: 54, over: 0.11, energyDecay: 0.034, hz: 3400, q: 0.5, level: 0.5, voices: 3, spread: 0.5 },
     scuff: 0.8,
     toe: 0.55,
     roll: 0.09,
   },
 
   /**
-   * Packed earth — soft, muffled, and deafened.
+   * Packed earth — soft, muffled, and coarse.
    *
-   * Nothing arrives. The attack is twenty-eight milliseconds, which is not a
-   * strike by any measure, and what you hear is the ground absorbing a foot
-   * rather than resisting it. Closer to moss and snow than to anything hard,
-   * with a few dry crumbs to say it is soil and not a cushion.
+   * Built on snow rather than on anything hard: nothing arrives, the ground
+   * absorbs a foot instead of resisting it, and the pack closes afterwards.
+   * What separates it is the crumbs, which are bigger and drier than snow's
+   * grains and sit low enough to read as soil.
    */
   earth: {
     level: 0.42,
-    impact: { level: 0.2, duration: 0.045, low: 90, tone: 800, q: 0.6, attack: 0.028 },
-    crush: { level: 0.3, duration: 0.1, from: 220, to: 340, q: 1.3 },
+    impact: { level: 0.14, duration: 0.05, low: 100, tone: 900, q: 0.55, attack: 0.03 },
+    crush: { level: 0.3, duration: 0.11, from: 260, to: 400, q: 1.2 },
     modes: [],
-    grit: { count: 8, over: 0.05, energyDecay: 0.02, hz: 1500, q: 1.2, level: 0.16 },
-    scuff: 0.45,
+    grit: { count: 16, over: 0.075, energyDecay: 0.028, hz: 1700, q: 1.6, level: 0.34, voices: 3, spread: 0.55 },
+    scuff: 0.5,
     toe: 0.4,
     roll: 0.085,
   },
 
   /**
-   * Churned wet ground. A squelch, which is a slow arrival and a long give.
+   * Churned wet ground. **A squelch, which is almost entirely give.**
    *
-   * The bubbles are mid-sized and few — big ones read as a drain rather than as
-   * ground — and they sit under a wet spatter rather than over a thump. What
-   * separates this from `water` is entirely arrival speed and band: mud takes
-   * thirty-five milliseconds to happen and lives below 1.4 kHz; water happens
-   * in six and lives above 700 Hz.
+   * The contact is a tenth of the crush and takes thirty-five milliseconds to
+   * happen, so there is nothing to tap. What you hear is the ground closing
+   * around a foot, a wet spatter through it, and a handful of mid-sized bubbles
+   * — mid, because big ones read as a drain and small ones read as water.
+   *
+   * `water` is the same three engines with every setting at the other end, and
+   * the pair only works if both stay there: mud is slow, low and long, water is
+   * fast, high and short.
    */
   mud: {
     level: 0.5,
-    impact: { level: 0.28, duration: 0.05, low: 120, tone: 1400, q: 0.7, attack: 0.035 },
-    crush: { level: 0.38, duration: 0.14, from: 260, to: 480, q: 2 },
+    impact: { level: 0.12, duration: 0.055, low: 90, tone: 1100, q: 0.55, attack: 0.036 },
+    crush: { level: 0.5, duration: 0.17, from: 240, to: 460, q: 2.6 },
     modes: [],
-    grit: { count: 9, over: 0.08, energyDecay: 0.03, hz: 1900, q: 1.4, level: 0.3 },
-    splash: { count: 5, over: 0.1, radius: [0.0018, 0.005], level: 0.12 },
+    grit: { count: 12, over: 0.1, energyDecay: 0.035, hz: 2200, q: 1.2, level: 0.34, voices: 2, spread: 0.4 },
+    splash: { count: 8, over: 0.13, radius: [0.0015, 0.0045], level: 0.22 },
     scuff: 0.5,
     toe: 0.3,
-    roll: 0.1,
+    roll: 0.11,
   },
 
   /**
-   * Ankle-deep water. Light, fast and thin.
+   * An inch of standing water. **Light, bright and fast.**
    *
-   * The band starts at 700 Hz, so there is no thump available at all, and the
-   * impact is a sixth of the level of the spray over it — a step into water is
-   * mostly air being dragged under and droplets thrown, and hardly at all a
-   * contact with anything. How much of both depends heavily on how fast you are
-   * going through it.
+   * Nothing below 900 Hz, a contact at a fifth of the spray over it, and twenty
+   * small bubbles — small means high, so these are plinks rather than gloops.
+   * A step into shallow water is spray thrown and air dragged under, and only
+   * incidentally a contact with the ground beneath it.
+   *
+   * There is no `crush` here on purpose. Water does not pack; it gets out of
+   * the way, and a give on this is the single thing that makes it read as mud.
    */
   water: {
     level: 0.5,
-    impact: { level: 0.3, duration: 0.012, low: 700, tone: 8000, q: 0.6, attack: 0.006 },
+    impact: { level: 0.18, duration: 0.008, low: 900, tone: 9000, q: 0.5, attack: 0.0025 },
     modes: [],
-    grit: { count: 26, over: 0.07, energyDecay: 0.025, hz: 5600, q: 0.7, level: 0.4 },
-    splash: { count: 14, over: 0.09, radius: [0.0004, 0.002], level: 0.26 },
+    grit: { count: 34, over: 0.055, energyDecay: 0.02, hz: 6500, q: 0.55, level: 0.5, voices: 3, spread: 0.45 },
+    splash: { count: 20, over: 0.07, radius: [0.0003, 0.0015], level: 0.4 },
     scuff: 0.95,
-    toe: 0.55,
-    roll: 0.095,
+    toe: 0.6,
+    roll: 0.08,
   },
 
   /**
    * Moss. The quietest thing in the table and still unmistakably itself.
    *
-   * A dry cushion: forty milliseconds to arrive, no loose material, nothing
-   * underneath that rings, and a squeeze that barely moves its band because
-   * moss packs evenly rather than shearing. Very nearly all crush.
+   * A dry cushion: fifty milliseconds to arrive, nothing loose in it, nothing
+   * underneath that rings, and a squeeze so broad it has no texture at all —
+   * moss packs evenly rather than shearing, so the band barely moves and the
+   * filter is well under any resonance. Very nearly all crush, and the model
+   * `snow` is built on.
    */
   moss: {
-    level: 0.24,
-    impact: { level: 0.16, duration: 0.06, low: 200, tone: 950, q: 0.55, attack: 0.04 },
-    crush: { level: 0.3, duration: 0.13, from: 300, to: 520, q: 1 },
+    level: 0.22,
+    impact: { level: 0.09, duration: 0.07, low: 160, tone: 800, q: 0.5, attack: 0.05 },
+    crush: { level: 0.3, duration: 0.16, from: 240, to: 380, q: 0.7 },
     modes: [],
     grit: null,
     scuff: 0.3,
-    toe: 0.45,
-    roll: 0.1,
+    toe: 0.4,
+    roll: 0.105,
   },
 
   /**
-   * Turf. Soft, high, and mostly a brush rather than a contact.
+   * Turf. Soft, high, and a brush rather than a contact.
    *
-   * The band starts at 420 Hz, which is what keeps any board out of it, and the
-   * grit is many small events in a tight window — the difference between a
-   * brush and a crunch is spread, not level.
+   * The band starts at 450 Hz, which keeps any board out of it, and the grit is
+   * many small events in a tight window — the difference between a brush and a
+   * crunch is spread, not level.
    */
   grass: {
-    level: 0.34,
-    impact: { level: 0.2, duration: 0.034, low: 420, tone: 2400, q: 0.6, attack: 0.012 },
-    crush: { level: 0.18, duration: 0.08, from: 600, to: 950, q: 1 },
+    level: 0.3,
+    impact: { level: 0.12, duration: 0.04, low: 450, tone: 2200, q: 0.5, attack: 0.018 },
+    crush: { level: 0.2, duration: 0.09, from: 550, to: 850, q: 0.9 },
     modes: [],
-    grit: { count: 26, over: 0.075, energyDecay: 0.026, hz: 3600, q: 0.9, level: 0.5 },
+    grit: { count: 28, over: 0.08, energyDecay: 0.028, hz: 3200, q: 0.8, level: 0.45, voices: 3, spread: 0.4 },
     scuff: 0.6,
     toe: 0.6,
     roll: 0.085,
   },
 
   /**
-   * Dry leaf litter. The crunch is the whole thing and the contact under it is
-   * almost nothing — leaves are a layer of air and paper over the ground, so a
-   * foot arriving on them meets nothing solid for eight milliseconds and then
-   * meets a great many small dry things at once.
+   * Dry leaf litter. **Squishy and crisp, in that order.**
+   *
+   * A leaf layer is mostly air, so a foot meets nothing solid for sixteen
+   * milliseconds, then compresses the whole depth of it — that is the squish —
+   * and the crackle rides on top rather than underneath. Sharper voices than
+   * anything else in the table, because a dry leaf really does have a note, and
+   * several of them at once because a leaf layer is not one size of leaf.
    */
   leaves: {
-    level: 0.44,
-    impact: { level: 0.22, duration: 0.026, low: 320, tone: 3400, q: 0.7, attack: 0.008 },
+    level: 0.46,
+    impact: { level: 0.11, duration: 0.03, low: 400, tone: 3600, q: 0.6, attack: 0.016 },
+    crush: { level: 0.2, duration: 0.09, from: 900, to: 1500, q: 1.2 },
     modes: [],
-    grit: { count: 32, over: 0.1, energyDecay: 0.032, hz: 4200, q: 2.2, level: 0.68 },
+    grit: { count: 36, over: 0.09, energyDecay: 0.028, hz: 4600, q: 2.6, level: 0.75, voices: 4, spread: 0.5 },
     scuff: 0.75,
     toe: 0.7,
     roll: 0.09,
   },
 
   /**
-   * Lying snow, trodden.
+   * Lying snow — soft, deep and cold.
    *
-   * **Compaction, not a sweep.** A wide slow climb through a sharp filter is a
-   * whistle, which is what this was; snow packing is a dense granular crackle
-   * that stops. So the crunch does the work — forty small collisions in a tenth
-   * of a second, low enough to read as packed rather than as leaves — and the
-   * crush is short, gentle and barely moves, the sound of the pack closing at
-   * the end of it. The contact itself is thirty milliseconds and inaudible on
-   * its own, because snow is the one surface that genuinely stops nothing.
+   * Built on moss, which is what it should always have been: a long soft pack
+   * with almost no arrival. The grains are many, fine and broad, so they read
+   * as compaction rather than as a crunch, and the crush underneath them is the
+   * whole depth closing. A swept sharp filter was tried here for the squeak and
+   * it is a whistle, not snow.
    */
   snow: {
-    level: 0.44,
-    impact: { level: 0.16, duration: 0.055, low: 150, tone: 900, q: 0.6, attack: 0.03 },
-    crush: { level: 0.3, duration: 0.085, from: 700, to: 1150, q: 2.2 },
+    level: 0.36,
+    impact: { level: 0.1, duration: 0.06, low: 140, tone: 850, q: 0.5, attack: 0.038 },
+    crush: { level: 0.34, duration: 0.15, from: 420, to: 760, q: 1 },
     modes: [],
-    grit: { count: 40, over: 0.11, energyDecay: 0.04, hz: 1900, q: 1.5, level: 0.6 },
+    grit: { count: 52, over: 0.1, energyDecay: 0.03, hz: 2400, q: 0.9, level: 0.38, voices: 3, spread: 0.4 },
     scuff: 0.5,
-    toe: 0.45,
-    roll: 0.105,
+    toe: 0.4,
+    roll: 0.11,
   },
 
   /**
    * A boarded floor — **a thick plank over a void, not a stack of ply**.
    *
-   * That distinction is entirely in the fundamental and the decay. Thin sheets
-   * ring high and briefly and buzz against each other; a heavy board carries a
-   * low, long, woody note and its upper partials die away fast. So the
-   * fundamental comes down to 118 Hz and its ring-down goes up to a third of a
-   * second, while the top mode is cut short.
-   *
-   * The only soft-footed surface in the table that is supposed to be hollow.
+   * The difference is where the energy sits. Thin sheets ring high and briefly
+   * and buzz against each other; a heavy board carries a low, long, woody
+   * fundamental with its partials dying away fast. So the fundamental is strong
+   * and at 132 Hz for a third of a second, everything above it falls away
+   * quickly, and the contact is a quarter of the ring rather than the other way
+   * round — a plank is heard through the board, not on top of it.
    */
   wood: {
-    level: 0.6,
-    impact: { level: 0.5, duration: 0.024, low: 90, tone: 1500, q: 0.9, attack: 0.003 },
+    level: 0.58,
+    impact: { level: 0.24, duration: 0.026, low: 80, tone: 1100, q: 0.8, attack: 0.004 },
     modes: [
-      { hz: 118, decay: 0.34, level: 0.16 },
-      { hz: 295, decay: 0.22, level: 0.09 },
-      { hz: 560, decay: 0.11, level: 0.035 },
+      { hz: 132, decay: 0.32, level: 0.26 },
+      { hz: 268, decay: 0.24, level: 0.17 },
+      { hz: 505, decay: 0.13, level: 0.075 },
+      { hz: 940, decay: 0.06, level: 0.03 },
     ],
-    grit: { count: 4, over: 0.045, energyDecay: 0.018, hz: 1200, q: 0.9, level: 0.07 },
+    grit: { count: 4, over: 0.045, energyDecay: 0.018, hz: 1200, q: 0.9, level: 0.06 },
     scuff: 0.2,
     toe: 0.6,
     roll: 0.085,
   },
 
   /**
-   * Steel plate, bedded on something solid.
+   * Sheet metal, bedded — an aluminium plate or a tread panel.
    *
-   * **The metal is in the modes, not in the contact.** This was a broadband
-   * tap with a faint ring under it, which is a footstep on anything at all; the
-   * balance is now the other way round, so what you hear first is a pitched
-   * metallic knock and the noise is only the sole hitting it. Short decays,
-   * because the plate is held and cannot ring — a bonk rather than a clang.
+   * **High and inharmonic, not low and dull.** A sheet is thin and stiff: it
+   * has no deep tone in it at all, and what it does have sits in the upper
+   * midrange and above, ringing briefly and slightly out of tune with itself.
+   * That inharmonicity is most of what says metal rather than tile. The
+   * contact is resonant on its own filter too, so even the first four
+   * milliseconds are pitched.
    */
   'metal-solid': {
-    level: 0.45,
-    impact: { level: 0.35, duration: 0.005, low: 300, tone: 6500, q: 1.4, attack: 0.0007 },
+    level: 0.46,
+    impact: { level: 0.2, duration: 0.004, low: 500, tone: 8000, q: 1.8, attack: 0.0006 },
     modes: [
-      { hz: 700, decay: 0.05, level: 0.32 },
-      { hz: 1650, decay: 0.035, level: 0.2 },
-      { hz: 3300, decay: 0.02, level: 0.1 },
+      { hz: 1180, decay: 0.09, level: 0.34 },
+      { hz: 2450, decay: 0.07, level: 0.26 },
+      { hz: 4300, decay: 0.045, level: 0.16 },
+      { hz: 6800, decay: 0.028, level: 0.09 },
     ],
     grit: null,
     scuff: 0.15,
@@ -525,13 +553,7 @@ export const SURFACES = {
 
   /**
    * Grating, catwalk, ductwork — fixed at its ends, so the vibration runs away
-   * along it and comes back.
-   *
-   * High and long. A walkway is stiff, so its modes sit well up and stay up for
-   * a third to half a second. The contact is a thin bright metallic tick with a
-   * resonance on its own filter, so even the strike is pitched rather than
-   * broadband — it should not be possible to hear the first four milliseconds
-   * of this and think it was a footstep on anything else.
+   * along it and comes back. High and long.
    */
   'metal-ring': {
     level: 0.42,
@@ -549,22 +571,48 @@ export const SURFACES = {
   },
 
   /**
-   * An empty drum, a tank top, a hollow hatch cover. **One big hollow clang.**
+   * A pipe, a duct, a small drum — hollow, but not much of a volume.
    *
-   * The low fundamental carries several times the energy of the contact and
-   * rings for three quarters of a second, which is the one place in this file a
-   * mode under 500 Hz with a long decay is correct rather than a mistake: the
-   * container really is a box with air in it. The strike is barely there at
-   * all — a drum being hit is not a tap with a boom afterwards, it is a boom.
+   * The same box as its big brother an octave and a half up and half as long.
+   * Size in a hollow body reads almost entirely as pitch and ring-down, which
+   * is why these are worth having as a pair: a bang that says *small container*
+   * is a completely different piece of information from one that says *tank*,
+   * and nothing else in the kit carries it.
    */
-  'metal-hollow': {
-    level: 0.45,
-    impact: { level: 0.3, duration: 0.006, low: 120, tone: 5200, q: 1.2, attack: 0.0008 },
+  'metal-hollow-small': {
+    level: 0.46,
+    impact: { level: 0.16, duration: 0.005, low: 200, tone: 6000, q: 1.2, attack: 0.0008 },
     modes: [
-      { hz: 105, decay: 0.75, level: 0.35 },
-      { hz: 262, decay: 0.6, level: 0.22 },
-      { hz: 518, decay: 0.45, level: 0.13 },
-      { hz: 1150, decay: 0.28, level: 0.07 },
+      { hz: 290, decay: 0.42, level: 0.4 },
+      { hz: 660, decay: 0.34, level: 0.26 },
+      { hz: 1240, decay: 0.24, level: 0.15 },
+      { hz: 2500, decay: 0.15, level: 0.08 },
+    ],
+    grit: null,
+    scuff: 0.15,
+    toe: 0.5,
+    roll: 0.072,
+  },
+
+  /**
+   * An empty tank, a hopper, a container roof. **One big hollow boom.**
+   *
+   * The fundamental is at 88 Hz and carries five times the energy of the
+   * contact, ringing for very nearly a second, because the box really is large
+   * and full of air. A drum being hit is not a tap with a boom afterwards; it
+   * is a boom, and the strike is only how it started.
+   *
+   * The one place in this file a mode under 500 Hz with a long decay is correct
+   * rather than the plank fault under another name.
+   */
+  'metal-hollow-big': {
+    level: 0.46,
+    impact: { level: 0.14, duration: 0.007, low: 90, tone: 4200, q: 1.2, attack: 0.0009 },
+    modes: [
+      { hz: 88, decay: 0.95, level: 0.5 },
+      { hz: 218, decay: 0.78, level: 0.32 },
+      { hz: 452, decay: 0.58, level: 0.19 },
+      { hz: 1010, decay: 0.34, level: 0.1 },
     ],
     grit: null,
     scuff: 0.15,
@@ -907,7 +955,7 @@ function scatterBubbles(
 
 interface Chain {
   bank: ModalBank;
-  gritInput: GainNode | null;
+  gritBed: ParticleBed | null;
 }
 
 export class Footsteps {
@@ -1240,7 +1288,7 @@ export class Footsteps {
     // is how many of them move and how far they scatter before stopping — so
     // most of the variation goes into `count` and `over`, and the level barely
     // moves at all.
-    if (surface.grit && chain.gritInput) {
+    if (surface.grit && chain.gritBed) {
       const thrown: Grit = {
         ...surface.grit,
         count: Math.max(1, Math.round(surface.grit.count * (0.35 + 0.65 * scuffing))),
@@ -1249,7 +1297,7 @@ export class Footsteps {
       scatterParticles(
         context,
         noise.white,
-        chain.gritInput,
+        chain.gritBed,
         thrown,
         at,
         level * contact.grit * (0.75 + 0.25 * scuffing),
@@ -1279,12 +1327,12 @@ export class Footsteps {
 
     const bank = createModalBank(context, surface.modes, this.output, BANK);
 
-    let gritInput: GainNode | null = null;
+    let gritBed: ParticleBed | null = null;
     if (surface.grit) {
-      gritInput = createParticleBed(context, surface.grit, this.output).input;
+      gritBed = createParticleBed(context, surface.grit, this.output);
     }
 
-    const chain: Chain = { bank, gritInput };
+    const chain: Chain = { bank, gritBed };
     this.chains.set(name, chain);
     return chain;
   }
