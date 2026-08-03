@@ -1,4 +1,4 @@
-import { PALETTE } from '../art/palette';
+import { PALETTE, shade } from '../art/palette';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
@@ -45,8 +45,12 @@ export const GROUND = {
   dirt: { color: PALETTE.EARTH, variation: 0.09, step: 'earth' },
   /** Loose stone. A made road rather than a worn one. */
   gravel: { color: 0x6e6656, variation: 0.16, step: 'gravel' },
-  /** Set stone. A yard, a market floor, the ground inside a gate. */
-  cobble: { color: PALETTE.STONE, variation: 0.19, step: 'cobble' },
+  /** Set stone, bedded and pointed. A yard, a market floor, a made road. */
+  cobble: { color: PALETTE.STONE, variation: 0.19, step: 'cobble-fixed' },
+  /** Broken stone, loose. A track rather than a road — the coarse aggregate. */
+  rubble: { color: shade(PALETTE.STONE, 0.86), variation: 0.22, step: 'cobble-loose' },
+  /** Fine and dry. A shore, a pit, a yard nobody has swept. */
+  sand: { color: 0xc4ad84, variation: 0.08, step: 'sand' },
   /** Big flat slabs. Formal, and quieter than cobble to look at. */
   flagstone: { color: PALETTE.STONE_PALE, variation: 0.08, step: 'stone' },
   /** Planked walkway over soft ground. */
@@ -59,8 +63,12 @@ export const GROUND = {
   rock: { color: PALETTE.STONE_DARK, variation: 0.13, step: 'stone' },
   /** Fallen leaves, under trees and banked in corners. */
   leaflitter: { color: PALETTE.LEAF_DRY, variation: 0.17, step: 'leaves' },
-  /** Walkway plate or grating. A gantry, a bridge deck, a factory floor. */
-  grating: { color: PALETTE.IRON, variation: 0.15, step: 'metal' },
+  /** Catwalk, grating, ductwork. Fixed at its ends, so the clang travels. */
+  grating: { color: PALETTE.IRON, variation: 0.15, step: 'metal-ring' },
+  /** Steel bedded on something solid. Dull, and the only quiet metal. */
+  plate: { color: shade(PALETTE.IRON, 0.88), variation: 0.11, step: 'metal-solid' },
+  /** A tank top, a drum, a hatch cover. There is air under it. */
+  hollowmetal: { color: PALETTE.IRON_DARK, variation: 0.13, step: 'metal-hollow' },
   /** Lying snow, trodden. Almost no face variation — snow is famously even. */
   snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
   /** Ankle-deep water: a ford, a puddled yard, the edge of a pool. */

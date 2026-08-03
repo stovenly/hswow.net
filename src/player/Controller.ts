@@ -312,14 +312,24 @@ export class Controller {
 
   /** Fires on each footfall, with the speed it happened at. Phase 3 listens. */
   onFootstep: ((speed: number) => void) | null = null;
-  /** Fires on touchdown, with impact speed in m/s. */
-  onLand: ((impact: number) => void) | null = null;
   /**
-   * Fires on a jump that is a fresh push-off rather than a continued hop.
+   * Fires on touchdown, with the vertical impact speed and the horizontal
+   * speed it arrived carrying, both in m/s.
+   *
+   * **Two numbers, because a landing is two events.** Vertical is what gets
+   * arrested and it sets the weight. Horizontal carries on, and it is the shear
+   * — the skid, the gravel thrown forward, the difference between dropping onto
+   * a spot and sliding into it. Total speed would merge them and get both
+   * wrong: a fast shallow skim would read as heavier than a long drop.
+   */
+  onLand: ((impact: number, horizontal: number) => void) | null = null;
+  /**
+   * Fires on a jump that is a fresh push-off rather than a continued hop, with
+   * the horizontal speed it was taken at.
    *
    * Suppressed within `HOP_CONTINUATION` of landing — see that constant.
    */
-  onJump: (() => void) | null = null;
+  onJump: ((speed: number) => void) | null = null;
 
   /**
    * Public so systems that need the player's *view* can read it — the
@@ -568,6 +578,9 @@ export class Controller {
 
     const wasGrounded = this.grounded;
     const impact = -this.velocity.y;
+    // Read before `move`, which cancels velocity into whatever it hits — after
+    // it, the horizontal speed at touchdown is already partly scrubbed.
+    const horizontal = this.speed;
 
     this.move(dt);
 
@@ -575,7 +588,7 @@ export class Controller {
       this.timeSinceLand = 0;
       if (impact > 1) {
         this.dip += Math.min(impact, 18) * t.landDip;
-        this.onLand?.(impact);
+        this.onLand?.(impact, horizontal);
       }
     }
 
@@ -682,7 +695,7 @@ export class Controller {
     this.jumped = true;
     // Only when this is a push-off in its own right, not the second half of a
     // hop that has just landed.
-    if (this.timeSinceLand > HOP_CONTINUATION) this.onJump?.();
+    if (this.timeSinceLand > HOP_CONTINUATION) this.onJump?.(this.speed);
     this.timeSinceLand = 0;
     // Spent, so the coyote window cannot be used twice for one jump.
     this.timeOffGround = t.coyoteTime;

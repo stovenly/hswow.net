@@ -687,7 +687,7 @@ console.log('\n--- surfaces underfoot --------------------------------------\n')
     const heard = new Set<string>();
     // Across the field at half-strip resolution, so a boundary off by half a
     // strip shows up as a material sampled twice and another not at all.
-    for (let x = -35; x <= 35; x += 2.5) heard.add(surfaceAt(x, 0));
+    for (let x = -40; x <= 40; x += 1) heard.add(surfaceAt(x, 0));
     const missing = Object.keys(SURFACES).filter((name) => !heard.has(name));
     check(
       'the footsteps showcase presents every surface',
