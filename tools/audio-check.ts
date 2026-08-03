@@ -14,7 +14,7 @@ import { Weather } from '../src/audio/weather';
 import { measure, periodicity } from '../src/audio/audition/measure';
 import { bubbleHz, bubbleRadius } from '../src/audio/dsp/bubble';
 import { derivedQ } from '../src/audio/dsp/modal';
-import { SURFACES, BANK, RINGS } from '../src/audio/models/footsteps';
+import { SURFACES, BANK, RINGS, gaitFor, panFor } from '../src/audio/models/footsteps';
 
 let failures = 0;
 
@@ -414,6 +414,87 @@ for (const [mm, hz] of [
     .filter(([, surface]) => (surface.impact.low ?? 0) >= surface.impact.tone * 0.8)
     .map(([name]) => name);
   check('every impact band has room in it', wrong.length === 0, wrong.join(', ') || '16 bands, all open');
+}
+
+// --- the gait blend --------------------------------------------------------
+//
+// FOOTSTEPS.md §3: **if the gait were chosen by branching on direction, this
+// would ship worse than having no gaits at all.** Strafing while walking
+// forward is most real movement and `wasd` gives eight directions, so a player
+// drifting across a boundary would hear their footsteps flip character
+// mid-corridor — far more noticeable than the missing detail it was added to
+// fix. The blend is the whole design, and its continuity is arithmetic rather
+// than something to be judged from a listening chair.
+{
+  const KEYS = ['at', 'level', 'stretch', 'modes', 'grit', 'tone'] as const;
+  // Both feet independently: which one is leading flips as `right` crosses
+  // zero, and the claim is that it is inaudible there because the lateral
+  // weight is zero at exactly that point. If it were not, this is where it
+  // would show.
+  for (const foot of [-1, 1] as const) {
+    let worst = 0;
+    let where = '';
+    let previous = gaitFor(0, 1, foot, 0.5);
+    for (let degrees = 1; degrees <= 360; degrees++) {
+      const angle = (degrees * Math.PI) / 180;
+      const current = gaitFor(Math.sin(angle), Math.cos(angle), foot, 0.5);
+      for (let c = 0; c < 2; c++) {
+        for (const key of KEYS) {
+          const jump = Math.abs(current[c][key] - previous[c][key]);
+          if (jump > worst) {
+            worst = jump;
+            where = `${key} at ${degrees}°`;
+          }
+        }
+      }
+      previous = current;
+    }
+    // A degree of turn moves any parameter by well under a hundredth. Anything
+    // above that is a branch that got in.
+    check(
+      `the gait blend is continuous (${foot === 1 ? 'right' : 'left'} foot)`,
+      worst < 0.05,
+      `largest step ${worst.toFixed(4)} per degree, at ${where}`,
+    );
+  }
+
+  // And that it is actually doing something — a blend that returns the same
+  // gait everywhere would pass the continuity test perfectly.
+  const ahead = gaitFor(0, 1, 1, 0.5);
+  const side = gaitFor(1, 0, 1, 0.5);
+  const back = gaitFor(0, -1, 1, 0.5);
+  check(
+    'a sidestep is not a heel-to-toe roll',
+    // The second contact lands at 0.4 of the gap rather than 1.0, because
+    // rolling across the width of a foot is a third of rolling along it.
+    side[1].at < ahead[1].at * 0.55,
+    `second contact at ${side[1].at.toFixed(2)} against a walk's ${ahead[1].at.toFixed(2)}`,
+  );
+  check(
+    'walking backwards sets the foot down rather than pushing off',
+    // **Not "quieter".** Forward gait peaks halfway through the cycle and
+    // backward peaks at 15% of it, so the load is on the *first* contact and
+    // what follows is body weight being lowered onto a flat foot — which is
+    // substantial. What makes it a lowering rather than a push is that it
+    // arrives later, lasts far longer, is much duller, and scuffs almost
+    // nothing, because nothing is driving off the ground.
+    back[1].at > ahead[1].at &&
+      back[1].stretch > ahead[1].stretch * 1.4 &&
+      back[1].tone < ahead[1].tone * 0.75 &&
+      back[1].grit < ahead[1].grit * 0.5 &&
+      back[0].stretch < ahead[0].stretch,
+    `at ${back[1].at.toFixed(2)}, stretch ${back[1].stretch.toFixed(2)}, tone ${back[1].tone.toFixed(2)}, grit ${back[1].grit.toFixed(2)}`,
+  );
+  check(
+    'the two feet of a sidestep do different things',
+    gaitFor(1, 0, 1, 0.5)[0].level !== gaitFor(1, 0, -1, 0.5)[0].level,
+    `lead ${gaitFor(1, 0, 1, 0.5)[0].level.toFixed(2)}, trail ${gaitFor(1, 0, -1, 0.5)[0].level.toFixed(2)}`,
+  );
+  check(
+    'the lead foot lands wider than the trail foot',
+    panFor(1, 1) > panFor(1, -1) && Math.abs(panFor(0, 1) - 0.2) < 1e-9,
+    `lead ${panFor(1, 1).toFixed(2)}, trail ${panFor(1, -1).toFixed(2)}, walk ${panFor(0, 1).toFixed(2)}`,
+  );
 }
 
 // **Shear has to do something on the materials it is claimed for.** The point

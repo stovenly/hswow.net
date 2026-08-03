@@ -1,4 +1,5 @@
 import type { AudioEngine } from '../AudioEngine';
+import type { Footfall } from '../../player/Controller';
 import { createModalBank, type ModalBank, type ModalOptions } from '../dsp/modal';
 import { createParticleBed, scatterParticles, type Particles } from '../dsp/phisem';
 import { excite, crush } from '../dsp/impact';
@@ -561,7 +562,7 @@ export type SurfaceName = keyof typeof SURFACES;
  * differs is how the contact is made. Every field is a multiplier, so a gesture
  * never carries a surface's numbers around with it.
  */
-interface Contact {
+export interface Contact {
   /** When, as a multiple of the gesture's gap. The first is always 0. */
   at: number;
   /** Level, as a multiple of the gesture's force. */
@@ -577,7 +578,7 @@ interface Contact {
 }
 
 /** Two contacts to a footfall: something lands, something follows it down. */
-type Gait = readonly [Contact, Contact];
+export type Gait = readonly [Contact, Contact];
 
 /**
  * Bounds on a *composed* contact.
@@ -624,8 +625,150 @@ const PLAIN: Contact = { at: 0, level: 1, stretch: 1, modes: 1, grit: 1, tone: 1
  */
 const WALK: Gait = [PLAIN, { at: 1, level: 1, stretch: 1.15, modes: 0.7, grit: 1.25, tone: 0.9 }];
 
+/**
+ * Going backwards, which is a mirror and **not a symmetric one**.
+ *
+ * The contact order genuinely reverses — `heel off` replaces `toe off` as the
+ * transition event, so the forefoot lands first — but the weights do not
+ * mirror with it. Forward gait peaks around halfway through the cycle;
+ * backward peaks at 15% of it, at 118% of body weight. The *first* contact
+ * carries the load.
+ *
+ * So this is not the walk swapped over. It is a firm, slightly bright tap,
+ * followed by a heel **lowering under control** — which is not a strike at all
+ * but a flat pad being set down: long, dull, almost no ring, and barely any
+ * scuff, because nothing is pushing off. The two together are what makes
+ * walking backwards audibly a thing people are bad at.
+ *
+ * Grit is up on the first contact and down on the second. Backward walking
+ * shows a larger medial force than forward — 7.3% of body weight against 4.6%
+ * — so it is the sideways-scuffier event, and that shows up in what gets moved
+ * rather than in how loud it is.
+ */
+const BACKWARD: Gait = [
+  { at: 0, level: 1, stretch: 0.85, modes: 0.9, grit: 1.25, tone: 1.08 },
+  { at: 1.35, level: 0.62, stretch: 1.9, modes: 0.35, grit: 0.35, tone: 0.55 },
+];
+
+/**
+ * Stepping sideways, lead foot — the one that reaches out to where you are
+ * going.
+ *
+ * **There is no heel-to-toe roll in a sidestep**, because the foot's long axis
+ * is perpendicular to travel: there is nothing to roll *along*. The contact
+ * rolls across the foot instead — the outer border catches your weight, then
+ * the sole flattens onto it — and the width of a foot is about a third of its
+ * length, which is why the second contact lands at 0.4 of the gap where a walk
+ * puts it at 1.0. **That timing is most of what says sideways.**
+ *
+ * Broad and dull rather than sharp. Side-step cutting studies find forefoot
+ * and lateral contacts produce a lower peak force and a lower loading rate
+ * than a rearfoot strike, so this is genuinely softer than a heel landing and
+ * not merely different.
+ */
+const LATERAL_LEAD: Gait = [
+  { at: 0, level: 1, stretch: 1.3, modes: 0.8, grit: 0.9, tone: 0.7 },
+  { at: 0.4, level: 0.55, stretch: 1.5, modes: 0.45, grit: 1.3, tone: 0.6 },
+];
+
+/**
+ * Stepping sideways, trail foot — and it does something else entirely.
+ *
+ * Unlike a walk, where both feet do the same thing half a cycle apart, a
+ * sidestep is **asymmetric between the feet**. The trailing one never strikes
+ * anything: it pushes off medially and is dragged in to close the gap. A scuff
+ * and a placement, which is very nearly the shape the push-off already uses.
+ *
+ * The alternation comes free. `takeFoot` returns −1 or +1, so the foot matching
+ * the direction of travel is the lead one, and a held strafe therefore produces
+ * lead, trail, lead, trail — step out, drag in, step out, drag in. Which is
+ * what sidestepping is.
+ */
+const LATERAL_TRAIL: Gait = [
+  { at: 0, level: 0.5, stretch: 2.4, modes: 0.3, grit: 1.8, tone: 0.75 },
+  { at: 0.5, level: 0.4, stretch: 1.4, modes: 0.5, grit: 0.7, tone: 0.7 },
+];
+
 /** Both feet, a few milliseconds apart. */
 const LANDING: Gait = [PLAIN, { ...PLAIN, at: 1, level: 0.5 }];
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function mixContacts(parts: readonly (readonly [Contact, number])[]): Contact {
+  const at = (key: keyof Contact): number =>
+    parts.reduce((sum, [contact, weight]) => sum + contact[key] * weight, 0);
+  return {
+    at: at('at'),
+    level: at('level'),
+    stretch: at('stretch'),
+    modes: at('modes'),
+    grit: at('grit'),
+    tone: at('tone'),
+  };
+}
+
+/**
+ * The gait for a direction, blended rather than chosen.
+ *
+ * **If this branched, it would ship worse than having no gaits at all.**
+ * Strafing while walking forward is most real movement, and `wasd` gives eight
+ * directions, so a player drifting across the boundary between "forward" and
+ * "lateral" would hear their footsteps flip character mid-corridor. That hard
+ * switch would be far more noticeable than the missing detail it was added to
+ * fix.
+ *
+ * So the *parameters* interpolate. Every gait is two contacts of six numbers,
+ * which makes a diagonal genuinely half a sidestep — which is what it
+ * physically is — with no branch and no discontinuity anywhere. `check:audio`
+ * sweeps the full circle and asserts it.
+ *
+ * @param right  +1 travelling to the player's right, in their own frame.
+ * @param forward +1 straight ahead.
+ * @param foot   Which foot this footfall is, from `takeFoot`.
+ * @param toe    The material's own toe-off level, for the forward gait.
+ */
+export function gaitFor(right: number, forward: number, foot: -1 | 1, toe: number): Gait {
+  const lateral = Math.abs(right);
+  const backward = Math.max(0, -forward);
+  const ahead = Math.max(0, 1 - Math.max(lateral, backward));
+  const total = lateral + backward + ahead || 1;
+
+  // The foot travelling toward where you are going reaches out; the other is
+  // dragged in after it.
+  const sideways = right >= 0 ? (foot === 1 ? LATERAL_LEAD : LATERAL_TRAIL)
+                              : (foot === -1 ? LATERAL_LEAD : LATERAL_TRAIL);
+
+  const weights = [ahead / total, backward / total, lateral / total] as const;
+  const walk: Gait = [WALK[0], { ...WALK[1], level: toe }];
+
+  return [
+    mixContacts([
+      [walk[0], weights[0]],
+      [BACKWARD[0], weights[1]],
+      [sideways[0], weights[2]],
+    ]),
+    mixContacts([
+      [walk[1], weights[0]],
+      [BACKWARD[1], weights[1]],
+      [sideways[1], weights[2]],
+    ]),
+  ];
+}
+
+/**
+ * How wide the two feet sit, for a direction.
+ *
+ * The lead foot lands out to the side you are travelling toward and the trail
+ * foot is dragged in near the midline, so they are genuinely not the same
+ * distance from you. Costs nothing and is most of what sells the asymmetry.
+ */
+export function panFor(right: number, foot: -1 | 1): number {
+  const lateral = Math.abs(right);
+  const lead = right >= 0 ? foot === 1 : foot === -1;
+  return lerp(0.2, lead ? 0.28 : 0.1, lateral);
+}
 
 /**
  * The push-off — one contact, and it leaves rather than arrives. The transient
@@ -738,6 +881,8 @@ export class Footsteps {
   private readonly chains = new Map<SurfaceName, Chain>();
   /** Which foot the *next* footfall belongs to. Toggled as each one is used. */
   private left = false;
+  /** Last footfall's sideways component, for spotting a strafe starting. */
+  private lastLateral = 0;
 
   constructor(engine: AudioEngine, gain = 0.55) {
     this.engine = engine;
@@ -795,13 +940,14 @@ export class Footsteps {
    *
    * @param speed Metres per second, for weight.
    */
-  step(speed: number): void {
+  step(step: Footfall): void {
     const context = this.engine.context;
     if (context.state !== 'running' || !this.engine.noise) return;
 
     const surface = SURFACES[this.surface];
     const chain = this.chainFor(this.surface);
     const at = context.currentTime + 0.004;
+    const { speed, right, forward } = step;
 
     // Saturating rather than linear. Loudness is perceived logarithmically, so
     // a linear map on speed overshoots badly at the top end.
@@ -809,23 +955,35 @@ export class Footsteps {
       SOFTEST + (1 - SOFTEST) * (1 - Math.exp(-speed / (FULL_WEIGHT_SPEED * 0.45)));
     const force = surface.level * Math.min(weight, 1);
 
-    // Alternate feet. Steps dead centre sound like one foot hopping.
-    this.panner.pan.setValueAtTime(this.takeFoot() * 0.2, at);
+    // **Entering a strafe, start on the foot that reaches out.** Otherwise the
+    // first sidestep is a trail-foot drag with nothing to drag toward, which
+    // is audibly the wrong way round for exactly one step and impossible to
+    // place.
+    const lateral = Math.abs(right);
+    if (lateral > 0.5 && this.lastLateral <= 0.5 && right !== 0) {
+      this.left = right < 0;
+    }
+    this.lastLateral = lateral;
 
-    // Heel then toe. The gap closes as you speed up, until at a sprint the two
-    // are close enough to fuse into a single heavier event — which is what
-    // running actually sounds like.
+    // Alternate feet. Steps dead centre sound like one foot hopping.
+    const foot = this.takeFoot();
+    this.panner.pan.setValueAtTime(foot * panFor(right, foot), at);
+
+    // The gap closes as you speed up, until at a sprint the two contacts are
+    // close enough to fuse into a single heavier event — which is what running
+    // actually sounds like. Sideways it is already short, because the gait puts
+    // its second contact at 0.4 of this rather than at 1.
     const gesture: Gesture = {
       at,
       gap: surface.roll * Math.max(0.35, 1 - speed / 12),
       force,
       drag: dragFor(speed),
     };
-    const [heel, toe] = WALK;
+    const [first, second] = gaitFor(right, forward, foot, surface.toe);
 
-    this.strike(chain, surface, gesture, { ...heel, level: heel.level * rand(0.9, 1.1) });
-    if (surface.toe > 0) {
-      this.strike(chain, surface, gesture, { ...toe, level: surface.toe * rand(0.8, 1.1) });
+    this.strike(chain, surface, gesture, { ...first, level: first.level * rand(0.9, 1.1) });
+    if (second.level > 0) {
+      this.strike(chain, surface, gesture, { ...second, level: second.level * rand(0.8, 1.1) });
     }
   }
 
