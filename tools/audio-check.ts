@@ -537,7 +537,6 @@ for (const [mm, hz] of [
   const at = (name: string) => SURFACES[name as keyof typeof SURFACES];
   const puddle = at('water-puddle').splash;
   const pond = at('water-pond').splash;
-  const mud = at('mud').splash;
 
   // **Depth is the cavity.** A puddle traps no column of air at all; a pond
   // traps one the size of a leg, which — since a bubble sings at 3.26/r — is
@@ -551,24 +550,32 @@ for (const [mm, hz] of [
       : 'the pond has no cavity',
   );
 
-  // **Medium is the damping.** Water and mud are the same engine, and what
-  // separates them is that one rings its bubbles out and the other does not.
-  // Mud also traps pockets no water surface here does — thickness holds bigger
-  // air — so the two ranges should not even overlap.
+  // **Medium is which way the bulk moves.** Water spreads and thins, so its
+  // rush is a ceiling falling; mud packs around the foot, so its shear is a
+  // window climbing. That claim survived being tested by ear where a neater one
+  // — mud simply damps its bubbles dead — did not, because the wet spatter in
+  // churned ground is free water and rings like it.
+  const pondCrush = at('water-pond').crush;
+  const mudCrush = at('mud').crush;
   check(
-    'medium is the damping',
-    !!pond && !!mud && mud.damping >= pond.damping * 3 && mud.radius[0] >= pond.radius[1],
-    pond && mud
-      ? `damping ${pond.damping} against ${mud.damping}, pockets from ${(mud.radius[0] * 1000).toFixed(0)} mm where water stops at ${(pond.radius[1] * 1000).toFixed(0)}`
-      : 'missing a liquid',
+    'water spreads and mud packs',
+    !!pondCrush && !!mudCrush &&
+      pondCrush.band === 'ceiling' && pondCrush.to < pondCrush.from &&
+      mudCrush.band !== 'ceiling' && mudCrush.to > mudCrush.from,
+    pondCrush && mudCrush
+      ? `pond ${pondCrush.from}->${pondCrush.to} Hz falling, mud ${mudCrush.from}->${mudCrush.to} Hz climbing`
+      : 'missing a bulk',
   );
 
-  // And the whole family runs on bubbles. A particle bed here is small hard
-  // things colliding, which is what made every earlier attempt read as static.
+  // **Water runs on bubbles alone.** A particle bed is small hard things
+  // colliding, and standing one in for spray is what made every earlier attempt
+  // read as static — spray is bubbles, just very small ones. Mud is exempt and
+  // it is not a loophole: churned ground really does throw wet lumps, and that
+  // spatter is the squelch.
   const gritty = Object.entries(SURFACES)
-    .filter(([, surface]) => surface.splash && surface.grit)
+    .filter(([name, surface]) => surface.splash && surface.grit && name !== 'mud')
     .map(([name]) => name);
-  check('no liquid uses a particle bed', gritty.length === 0, gritty.join(', ') || '3 liquids, all bubbles');
+  check('water is bubbles and nothing else', gritty.length === 0, gritty.join(', ') || 'both waters clean');
 }
 
 // **Soft materials must not have hard grains.**

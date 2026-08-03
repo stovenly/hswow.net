@@ -96,14 +96,17 @@ interface Splash {
   bias?: number;
   level: number;
   /**
-   * Viscous damping relative to water: 1 is water, 4 is thick mud.
+   * Viscous damping relative to water. Physical; see `dsp/bubble.ts`.
    *
-   * **This is the single number that separates the two liquids**, and it is not
-   * a stylisation — it is the medium. Water lets a bubble ring for its full
-   * ten-odd oscillations; mud kills it in two or three, so the same pocket of
-   * air that sings in a puddle goes *blup* in a bog.
+   * Right for a population of clean water bubbles spanning several octaves,
+   * where holding the ring-down to a fixed number of oscillations makes the
+   * spray hang and the gloops die. Leave it off and the fixed-cycle model
+   * applies instead, which is what anything tuned by ear against that model
+   * should keep using — the two are alternatives, not a correction.
    */
-  damping: number;
+  damping?: number;
+  /** Oscillations before one is gone. Ignored when `damping` is set. */
+  cycles?: number;
   /**
    * The cavity dragged down behind the foot, if the water is deep enough to
    * make one.
@@ -487,10 +490,13 @@ export const SURFACES = {
    * tuned water and mud as separate objects, and they kept drifting into each
    * other because nothing said what actually distinguishes them.
    *
-   * - **Medium is `splash.damping`.** Water lets a bubble ring its full ten-odd
-   *   oscillations; mud kills it in two or three. The same pocket of air sings
-   *   in a puddle and goes *blup* in a bog, and that is not a stylisation, it
-   *   is viscosity — one number, and the only one that separates the two.
+   * - **Medium is which way the bulk moves.** Water spreads and thins, so its
+   *   rush is a ceiling *falling* — everything at once, losing the top first.
+   *   Mud packs around the foot, so its shear is a window *climbing*. That is
+   *   the difference, and it survived being tested by ear where a neater theory
+   *   did not: killing mud's bubbles to a dead *blup* is defensible physics and
+   *   sounds nothing like mud, because the wet spatter in churned ground is
+   *   free water and rings like it.
    * - **Depth is `splash.cavity`.** Spray says a surface was broken; a cavity
    *   says how far in you went. Anything entering water drags a column of air
    *   down behind it, and once that column pinches off it oscillates as one
@@ -508,9 +514,10 @@ export const SURFACES = {
    * *struck* in a couple of milliseconds; in a pond there is a foot of water in
    * the way and there is very nearly nothing to hear.
    *
-   * **No `grit` anywhere in the family.** A particle bed is small hard things
-   * colliding, and it stood in for spray for far too long — which is how this
-   * kept arriving as static. Spray is bubbles too, just very small ones.
+   * **No `grit` in either water.** A particle bed is small hard things
+   * colliding, and it stood in for spray for far too long — which is how water
+   * kept arriving as static. Spray is bubbles, just very small ones. Mud keeps
+   * a bed because mud genuinely throws lumps.
    */
 
   /**
@@ -518,20 +525,25 @@ export const SURFACES = {
    *
    * The one member of the family that is mostly a *footstep*: there are a
    * couple of centimetres between the sole and something hard, so the contact
-   * is real, sharp and bright, and the water is the splash thrown off it.
-   * Plenty of air goes under for that — forty-odd bubbles running from fine
-   * spray up to a millimetre and a half — but no *column* of it, because there
-   * is no depth to drag one down into. That absence is the whole difference
-   * from the pond.
+   * is real, sharp and bright, and the water is the splash thrown off it. Sixty
+   * bubbles go under for that — but no *column* of air, because there is no
+   * depth to drag one down into, and that absence is the whole difference from
+   * the pond.
+   *
+   * **Splashier and thinner**, which pull in opposite directions and both come
+   * from the cloud rather than from the contact: more of them, skewed finer,
+   * and the ceiling pulled down from a millimetre and a half to one. A puddle
+   * is a couple of centimetres deep and cannot hold a pocket big enough to
+   * plink; everything it throws is spray.
    */
   'water-puddle': {
     level: 0.46,
-    impact: { level: 0.3, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
+    impact: { level: 0.28, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
     modes: [],
     grit: null,
     splash: {
-      count: 46, over: 0.1, decay: 0.042,
-      radius: [0.00015, 0.0022], bias: 0.35, damping: 1, level: 0.46,
+      count: 62, over: 0.11, decay: 0.045,
+      radius: [0.00015, 0.001], bias: 0.45, damping: 1, level: 0.54,
     },
     scuff: 0.95,
     toe: 0.6,
@@ -541,32 +553,38 @@ export const SURFACES = {
   /**
    * A pond. Half a foot of water up to knee deep.
    *
-   * **Deep, and deliberately not thick.** The damping stays at water's, so
-   * every bubble rings out in full; what makes this read as depth rather than
-   * as syrup is a cavity at 72 Hz arriving a beat late, and a bulk rush as the
-   * leg drags a mass of water aside. That rush is *bright* — turbulent water is
-   * a hiss falling from two and a half kilohertz, not a low churn — and it is
-   * kept well under the cloud, because a broad noise bed loud enough to notice
-   * is the exact thing that has read as static every previous time.
+   * **Deep, and deliberately not thick.** The damping stays at water's, so every
+   * bubble rings out in full; depth comes from a cavity arriving a beat late and
+   * from a bulk rush as the leg drags a mass of water aside.
    *
-   * There is a contact in here, at a twentieth of the splash and eighteen
+   * **The cavity is a bloop, not a thump.** At four and a half centimetres it
+   * sat at 72 Hz and rang for a quarter of a second, which is a body going in
+   * rather than a leg, and it made the whole surface bottom-heavy. Half that
+   * radius is 148 Hz and about a tenth of a second — still unmistakably the
+   * depth tell, still four times lower than anything in the spray above it, and
+   * no longer the loudest thing you hear. The level came down with it, the
+   * cloud's floor came up off five millimetres, and the rush now bottoms out at
+   * 900 Hz instead of 500. Every one of those was contributing bass that a foot
+   * of clear water has no business making.
+   *
+   * There is a contact in here, at a fifteenth of the splash and eighteen
    * milliseconds late. At this depth you can feel the bottom and barely hear
    * it. The cadence is part of it too: the roll is the longest of any surface
    * that is not mud, because you cannot walk quickly through this.
    */
   'water-pond': {
-    level: 0.54,
-    impact: { level: 0.07, duration: 0.04, low: 140, tone: 1200, q: 0.5, attack: 0.018 },
+    level: 0.5,
+    impact: { level: 0.06, duration: 0.036, low: 260, tone: 1600, q: 0.5, attack: 0.018 },
     crush: {
-      level: 0.24, duration: 0.26, from: 2600, to: 500, q: 0.7,
+      level: 0.26, duration: 0.26, from: 3000, to: 900, q: 0.7,
       rise: 0.1, band: 'ceiling', rough: 0.4,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 85, over: 0.28, decay: 0.1,
-      radius: [0.0003, 0.005], bias: 0.35, damping: 1, level: 0.44,
-      cavity: { radius: 0.045, level: 0.5, delay: 0.03 },
+      count: 88, over: 0.28, decay: 0.1,
+      radius: [0.0003, 0.0035], bias: 0.42, damping: 1, level: 0.46,
+      cavity: { radius: 0.022, level: 0.3, delay: 0.03 },
     },
     scuff: 1,
     toe: 0.65,
@@ -576,29 +594,36 @@ export const SURFACES = {
   /**
    * Churned wet ground. The squelch.
    *
-   * Water's engine at four times the damping, which does nearly all the work:
-   * the few large pockets mud traps do not ring, they collapse. Over them a slow
-   * viscous shear, rough rather than smooth, sweeping *upward* as the mud packs
-   * around the foot — the opposite direction from a pond, where the water
-   * spreads and thins.
+   * A slow viscous shear sweeping *upward* as the mud packs around the foot —
+   * the opposite direction from a pond, where the water spreads and thins —
+   * with a wet spatter riding in it and a handful of bubbles through that.
    *
-   * **The release matters more than the arrival**, which is unique in the table
-   * and is why the toe sits well above where a wet surface would normally put
-   * it. Pulling out of mud is the schlorp; pushing into it is nearly silent.
+   * **The spatter is the squelch and it is a particle bed**, which makes mud the
+   * one liquid here that keeps one. That looks like the fault every other wet
+   * surface had, and it is the opposite: a bed standing in for *spray* is what
+   * made water read as static, because spray is bubbles. Churned ground genuinely
+   * does throw small wet lumps, and they collide.
+   *
+   * The bubbles keep the fixed-cycle ring-down rather than the physical damping
+   * the pond uses. Dialled in by ear, and the ear was right: killing them to a
+   * dead *blup* is defensible viscosity and sounds nothing like mud, because
+   * what is bubbling in churned ground is the free water in it.
    */
   mud: {
-    level: 0.5,
-    impact: { level: 0.1, duration: 0.05, low: 80, tone: 800, q: 0.6, attack: 0.035 },
-    crush: { level: 0.5, duration: 0.2, from: 180, to: 420, q: 2.4, rough: 0.6 },
+    level: 0.4,
+    impact: { level: 0.09, duration: 0.055, low: 90, tone: 1050, q: 0.55, attack: 0.038 },
+    crush: { level: 0.4, duration: 0.18, from: 240, to: 460, q: 2.6 },
     modes: [],
-    grit: null,
+    grit: {
+      count: 12, over: 0.1, energyDecay: 0.035, hz: 2200, q: 1.2, level: 0.26,
+      voices: 2, spread: 0.4, grain: 0.02, attack: 0.0012,
+    },
     splash: {
-      count: 6, over: 0.16, decay: 0.09,
-      radius: [0.005, 0.011], bias: 0.2, damping: 4, level: 0.24,
+      count: 8, over: 0.13, decay: 0.09, radius: [0.0015, 0.0045], level: 0.17,
     },
     scuff: 0.5,
-    toe: 0.55,
-    roll: 0.12,
+    toe: 0.3,
+    roll: 0.11,
   },
 
   /**
@@ -1137,6 +1162,7 @@ function scatterBubbles(
       radius: splash.cavity.radius,
       level: splash.cavity.level * force,
       damping: splash.damping,
+      cycles: splash.cycles,
       // Barely climbs. A big slow pocket changes size by very little over its
       // ring, and a cavity that swoops is a cartoon.
       rise: 0.06,
@@ -1161,7 +1187,12 @@ function scatterBubbles(
     const level = splash.level * force * energy * rand(0.35, 1) * (0.75 + 0.25 * size);
     if (level < 0.0015) continue;
 
-    popBubble(context, target, at + t, { radius, level, damping: splash.damping });
+    popBubble(context, target, at + t, {
+      radius,
+      level,
+      damping: splash.damping,
+      cycles: splash.cycles,
+    });
   }
 }
 
