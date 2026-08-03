@@ -42,7 +42,7 @@ export const GROUND = {
   /** Long, dry, unmown. Verges and neglected corners. */
   meadow: { color: PALETTE.GRASS_DRY, variation: 0.13, step: 'grass' },
   /** Bare earth: a track people have walked flat. */
-  dirt: { color: PALETTE.EARTH, variation: 0.09, step: 'earth' },
+  dirt: { color: PALETTE.EARTH, variation: 0.09, step: 'soil' },
   /** Loose stone. A made road rather than a worn one. */
   gravel: { color: 0x6e6656, variation: 0.16, step: 'gravel' },
   /** Set stone, bedded and pointed. A yard, a market floor, a made road. */

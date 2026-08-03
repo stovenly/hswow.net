@@ -143,7 +143,7 @@ export const OUTDOOR_ENVIRONMENT: ZoneEnvironment = {
   ambientSky: 0x9dc4e8,
   ambientGround: 0x8a7f68,
   room: 'open',
-  surface: 'earth',
+  surface: 'soil',
   footstepReverb: 0.7,
   // Wind and nothing else. A zone that wants trees or a mill declares them;
   // this is only what every outdoor place has in common.
