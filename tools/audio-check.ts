@@ -587,6 +587,23 @@ for (const [mm, hz] of [
     longest.map(([n, o]) => `${n} ${o}s`).join(', ') || 'nothing over 0.18s',
   );
 
+  // **The cloud sits where a recording puts it.** Four steps through a puddle,
+  // banded: 47% of the energy between 900 Hz and 2 kHz, 13.6% below 900, and
+  // two per cent above 8 kHz. So a water cloud belongs roughly between half a
+  // kilohertz and four, and every time this drifted upward chasing "airier" it
+  // came back sounding like foil — which is what a bandful of sub-millisecond
+  // pings is.
+  for (const name of ['water-puddle', 'water-pond'] as const) {
+    const cloud = SURFACES[name].splash!;
+    const low = bubbleHz(cloud.radius[1]);
+    const high = bubbleHz(cloud.radius[0]);
+    check(
+      `${name} sits in the measured band`,
+      low >= 400 && high <= 4500,
+      `${low.toFixed(0)} to ${high.toFixed(0)} Hz`,
+    );
+  }
+
   // **Water runs on bubbles alone.** A particle bed is small hard things
   // colliding, and standing one in for spray is what made every earlier attempt
   // read as static — spray is bubbles, just very small ones. Mud is exempt and

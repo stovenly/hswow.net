@@ -91,21 +91,26 @@ interface Splash {
    * 3.26/r hertz. A millimetre is 3.3 kHz of spray; a centimetre is a 326 Hz
    * gloop.
    *
-   * **Go wide, and especially go high.** Everything here leaves through the body
-   * lowpass at 5.2 kHz, which invites the conclusion that finer than about two
-   * thirds of a millimetre is wasted — and that conclusion is wrong and cost
-   * two rounds. It is a biquad at twelve decibels an octave, not a wall: 10 kHz
-   * comes through about twelve down and 20 kHz about twenty-four, quiet but
-   * unmistakably there, and there are dozens of them.
+   * **Measured, finally, rather than argued about.** A recording of four steps
+   * through a puddle, banded and averaged across all eight contacts in it:
    *
-   * That fine end is the **air** in a splash. It carries no pitch worth the
-   * name — a fifth of a millimetre rings for a fifth of a millisecond, three or
-   * four cycles — but collectively it is the sizzle that makes a splash sound
-   * wide rather than thick. Trimming the top of the range to "what survives" is
-   * what turned a puddle into a gloop.
+   * ```
+   *     60-150 Hz    0.1%     900-2000    47.0%      <- where it lives
+   *    150-400       1.5%    2000-4000    21.1%
+   *    400-900      13.6%    4000-8000    14.7%
+   *                          8000-16000    2.0%
+   * ```
    *
-   * Keep the bottom off five millimetres unless the liquid is meant to be
-   * heavy, and take the top as high as the sample rate allows.
+   * Two thirds of everything sits between 900 Hz and 4 kHz, and **two per cent
+   * of it is above 8 kHz.** Which means the fine spray I kept reaching for is
+   * not the airiness of a splash; it is not really there at all. Every round of
+   * "wider, finer, higher" pushed the cloud further into a band that carries
+   * almost nothing, and what comes back from a bandful of sub-millisecond pings
+   * is aluminium foil.
+   *
+   * Minnaert turns that into radii directly: **0.8 to 3.6 millimetres**, centred
+   * near two. Anything under half a millimetre is out of the picture, and so is
+   * anything over five.
    */
   radius: readonly [number, number];
   /** How far the draw is skewed toward the fine end. See `bubbleRadius`. */
@@ -560,30 +565,38 @@ export const SURFACES = {
    * depth to drag one down into, and that absence is the whole difference from
    * the pond.
    *
-   * **The slap is the splash.** Round after round of this went into the bubble
-   * cloud — wider, finer, denser, differently weighted, and eventually a layer
-   * of noise for the spray too small to count — and every one of them made it
-   * worse, because the loud part of a step into a puddle is the *water being
-   * hit*, not the droplets afterwards. So the contact is half again as long and
-   * reaches down to 220 Hz for body, and the cloud went back to being what it
-   * was when this last worked: forty-odd droplets, over a tenth of a second,
-   * gone.
+   * **Built against a recording rather than against a theory**, and the
+   * recording overturns most of what the theory had me doing. Four steps
+   * through a puddle, eight contacts, averaged:
    *
-   * Short and punchy. A puddle is a slap and a scatter, and the scatter is the
-   * garnish.
+   * - **The cloud is a midrange event.** Forty-seven per cent of the energy is
+   *   between 900 Hz and 2 kHz and two per cent is above 8 kHz. All the fine
+   *   spray I kept adding lives where the real thing is silent. Bubbles run 815
+   *   Hz to 3.6 kHz now — 0.9 to 4 mm — and nothing above that.
+   * - **The slap is broadband and brief.** Across the first 25 ms the energy is
+   *   near flat from 150 Hz to 8 kHz; by 80 ms everything under 400 Hz is gone
+   *   and the midrange has taken over. So: a wide short contact, then a cloud.
+   * - **It runs longer than I had it.** Twenty-six decibels down by about 170
+   *   milliseconds on average, and the tail of that is almost entirely the
+   *   900–2 kHz band — bubbles still ringing. Ninety milliseconds was cutting
+   *   it off mid-splash.
+   * - **It stays spiky.** Around 20 dB of crest over the first quarter second,
+   *   so the droplets are discrete events and not a wash. Fewer and louder.
    */
   'water-puddle': {
     level: 0.5,
-    impact: { level: 0.44, duration: 0.02, low: 220, tone: 7000, q: 0.7, attack: 0.0022 },
+    impact: { level: 0.44, duration: 0.02, low: 180, tone: 7000, q: 0.7, attack: 0.0022 },
     modes: [],
     grit: null,
     splash: {
-      count: 44, over: 0.09, decay: 0.038,
-      radius: [0.00015, 0.0022], bias: 0.3, damping: 1, level: 0.62,
+      count: 34, over: 0.14, decay: 0.055,
+      radius: [0.0009, 0.004], damping: 1, level: 0.72,
     },
     scuff: 0.95,
     toe: 0.6,
-    roll: 0.078,
+    // The recording pairs its contacts about 160 ms apart at a slow walk, which
+    // is twice what this had. Water is not a surface anyone crosses briskly.
+    roll: 0.1,
   },
 
   /**
@@ -602,11 +615,13 @@ export const SURFACES = {
    * as another droplet, and quiet enough that the splash is what you hear
    * first.
    *
-   * Same shape as the puddle, scaled up: a broad wet **whoomph** as a foot goes
-   * through the surface, a scatter behind it, and the cavity underneath. The
-   * contact here is the *water* being struck rather than the ground — there is
-   * half a foot of it in the way — which is why it is broader, longer and duller
-   * than the puddle's, and why it is still the loudest thing in the surface.
+   * Same shape as the puddle and on the same measured band, moved down: more
+   * water traps bigger pockets, so this runs 543 Hz to 2.5 kHz where the puddle
+   * runs 815 to 3.6. A broad wet **whoomph** as a foot goes through the surface,
+   * a scatter behind it, and the cavity underneath. The contact here is the
+   * *water* being struck rather than the ground — there is half a foot of it in
+   * the way — which is why it is broader, longer and duller than the puddle's,
+   * and why it is still the loudest thing in the surface.
    *
    * The bulk rush is short. That is the whole difference between a rush and a
    * mush: at a quarter of a second it is a wash sitting under everything, and at
@@ -622,8 +637,8 @@ export const SURFACES = {
     modes: [],
     grit: null,
     splash: {
-      count: 58, over: 0.15, decay: 0.055,
-      radius: [0.0002, 0.0035], bias: 0.3, damping: 1, level: 0.6,
+      count: 46, over: 0.18, decay: 0.07,
+      radius: [0.0013, 0.006], damping: 1, level: 0.68,
       cavity: { radius: 0.013, level: 0.24, delay: 0.026 },
     },
     scuff: 1,
@@ -1240,7 +1255,10 @@ function scatterBubbles(
     // up on top of that leaves a cloud that is four fifths fine spray and
     // sounds like half a dozen gloops, which is exactly the thickness that
     // would not go away however far the distribution was skewed.
-    const level = splash.level * force * energy * rand(0.35, 1) * (0.95 + 0.1 * size);
+    // Tilted very slightly toward the larger end, because that is where the
+    // measurement puts the energy — and left nearly flat, because the longer
+    // ring-down of a big bubble is already most of a fortyfold advantage.
+    const level = splash.level * force * energy * rand(0.35, 1) * (0.88 + 0.24 * size);
     if (level < 0.0015) continue;
 
     popBubble(context, target, at + t, {
