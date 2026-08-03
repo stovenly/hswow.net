@@ -12,16 +12,20 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
  * ```
  * scene ─► colour target (chunky, half-float, depth texture)
  *       ─► normal target  (chunky, override material)
+ *       ─► edges          (the outline, onto the surfaces)
  *       ─► [effects…]     (chunky → chunky, ping-pong)
- *       ─► upscale        (edge detection + nearest-neighbour blit)
+ *       ─► upscale        (nearest-neighbour blit)
  * ```
  *
- * The upscale's edge shader is lifted verbatim from the upstream pass — same
- * maths, same output — because R0's exit criterion is that nothing changes on
- * screen. Differences from upstream are structural only: the colour target
- * keeps its depth texture bound and hands it, with the normals, to whoever
- * asks; and effects run between render and upscale, each reading the chain's
- * colour so far and writing the next link.
+ * The edge shader is lifted verbatim from the upstream pass — same maths, same
+ * output — because R0's exit criterion is that nothing changes on screen.
+ * Differences from upstream are structural only: the colour target keeps its
+ * depth texture bound and hands it, with the normals, to whoever asks; effects
+ * run between render and upscale, each reading the chain's colour so far and
+ * writing the next link; and the outline is drawn *before* those effects
+ * rather than fused to the upscale after them, so that fog and bloom cover it
+ * instead of it multiplying them. See `render` for what that cost and did not
+ * cost.
  *
  * Half-float colour is deliberate and inherited from upstream: at this
  * resolution it costs nothing, and it is the headroom bloom and god rays
@@ -32,8 +36,14 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 export interface EffectContext {
   /** The scene colour as accumulated so far — read this, never write it. */
   colour: THREE.Texture;
-  /** The scene's depth texture, from the colour render. */
-  depth: THREE.Texture;
+  /**
+   * The scene's depth texture, from the colour render.
+   *
+   * Typed as what it is rather than as a plain texture, because bloom binds it
+   * as the *depth attachment* of its own target so that a lamp inside a hut is
+   * occluded by the hut. That needs the concrete type.
+   */
+  depth: THREE.DepthTexture;
   /** View-space normals, packed 0..1, from the override render. */
   normal: THREE.Texture;
   /** Where this effect's output goes. Becomes the next effect's `colour`. */
@@ -41,6 +51,21 @@ export interface EffectContext {
   camera: THREE.PerspectiveCamera;
   /** Chunky resolution in pixels. */
   size: THREE.Vector2;
+  /**
+   * The scene itself, for the one effect that draws rather than filters.
+   *
+   * Bloom renders the emitters again on their own layer; everything else here
+   * is a texture-to-texture filter and has no business touching this.
+   */
+  scene: THREE.Scene;
+  /**
+   * Seconds since start-up — the same clock the sky and the wind read.
+   *
+   * Effects are spatial-only by ground rule 3, which forbids *accumulating*
+   * across frames. It does not forbid knowing what time it is: fog that drifts
+   * is a function of the clock, not a history of previous frames.
+   */
+  time: number;
 }
 
 /**
@@ -60,6 +85,8 @@ export class PixelStage extends Pass {
   pixelSize: number;
   normalEdgeStrength = 0.3;
   depthEdgeStrength = 0.4;
+  /** Seconds since start-up, pushed from `PostFX.render`. See `EffectContext`. */
+  time = 0;
 
   /**
    * The effect slot. Enabled effects run in array order, each reading the
@@ -87,7 +114,8 @@ export class PixelStage extends Pass {
    */
   private readonly ping: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
 
-  private readonly upscaleMaterial: THREE.ShaderMaterial;
+  private readonly edgeMaterial: THREE.ShaderMaterial;
+  private readonly blitMaterial: THREE.ShaderMaterial;
   private readonly fsQuad: FullScreenQuad;
 
   constructor(pixelSize: number, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
@@ -110,8 +138,9 @@ export class PixelStage extends Pass {
     this.normalTarget = chunky();
     this.ping = [chunky(), chunky()];
 
-    this.upscaleMaterial = createUpscaleMaterial();
-    this.fsQuad = new FullScreenQuad(this.upscaleMaterial);
+    this.edgeMaterial = createEdgeMaterial();
+    this.blitMaterial = createBlitMaterial();
+    this.fsQuad = new FullScreenQuad(this.edgeMaterial);
   }
 
   override setSize(width: number, height: number): void {
@@ -122,7 +151,7 @@ export class PixelStage extends Pass {
     this.normalTarget.setSize(x, y);
     for (const target of this.ping) target.setSize(x, y);
     for (const effect of this.effects) effect.setSize(x, y);
-    this.upscaleMaterial.uniforms.resolution.value.set(x, y, 1 / x, 1 / y);
+    this.edgeMaterial.uniforms.resolution.value.set(x, y, 1 / x, 1 / y);
   }
 
   setPixelSize(pixelSize: number): void {
@@ -141,9 +170,41 @@ export class PixelStage extends Pass {
     renderer.render(this.scene, this.camera);
     this.scene.overrideMaterial = priorOverride;
 
-    // --- the effect chain ---------------------------------------------------
+    // --- the edge lines, before anything is put in front of them ------------
+    // **The outline belongs to the surface, so it is drawn onto the surface.**
+    // It used to be applied at the very end, over the finished effect chain,
+    // and a normal edge *brightens* — so it multiplied whatever was standing in
+    // front of the geometry rather than the geometry itself. Pale fog came back
+    // 1.5× and clipped to white, and a lamp's bloom halo arrived wearing an
+    // outline of its own. Neither is a fog bug or a bloom bug; both are this
+    // multiply happening a stage too late.
+    //
+    // Moved here, mist covers an outline exactly as it covers the wall the
+    // outline is on, and a halo washes its own outline out. No special case in
+    // either effect.
+    //
+    // This is not the visual change it sounds like. GTAO's composite is a pure
+    // multiply, and multiplication commutes — `colour × ao × edge` and
+    // `colour × edge × ao` are the same number — so the picture only moves
+    // where an effect *adds* light or veils it, which is precisely the case
+    // being fixed.
     let colour: THREE.Texture = this.colourTarget.texture;
     let next = 0;
+    if (this.normalEdgeStrength > 0 || this.depthEdgeStrength > 0) {
+      const edges = this.edgeMaterial.uniforms;
+      edges.tDiffuse.value = colour;
+      edges.tDepth.value = this.depthTexture;
+      edges.tNormal.value = this.normalTarget.texture;
+      edges.normalEdgeStrength.value = this.normalEdgeStrength;
+      edges.depthEdgeStrength.value = this.depthEdgeStrength;
+      this.fsQuad.material = this.edgeMaterial;
+      renderer.setRenderTarget(this.ping[0]);
+      this.fsQuad.render(renderer);
+      colour = this.ping[0].texture;
+      next = 1;
+    }
+
+    // --- the effect chain ---------------------------------------------------
     for (const effect of this.effects) {
       if (!effect.enabled) continue;
       const write = this.ping[next];
@@ -154,18 +215,19 @@ export class PixelStage extends Pass {
         write,
         camera: this.camera,
         size: this.renderResolution,
+        scene: this.scene,
+        time: this.time,
       });
       colour = write.texture;
       next = 1 - next;
     }
 
-    // --- upscale, with the edge lines --------------------------------------
-    const uniforms = this.upscaleMaterial.uniforms;
-    uniforms.tDiffuse.value = colour;
-    uniforms.tDepth.value = this.depthTexture;
-    uniforms.tNormal.value = this.normalTarget.texture;
-    uniforms.normalEdgeStrength.value = this.normalEdgeStrength;
-    uniforms.depthEdgeStrength.value = this.depthEdgeStrength;
+    // --- upscale ------------------------------------------------------------
+    // A nearest blit and nothing else now that the edges are drawn upstream.
+    // Nearest is the whole of the pixelation: one chunky texel becomes a block
+    // of identical device pixels, with no filtering to soften the step.
+    this.blitMaterial.uniforms.tDiffuse.value = colour;
+    this.fsQuad.material = this.blitMaterial;
 
     if (this.renderToScreen) {
       renderer.setRenderTarget(null);
@@ -182,18 +244,23 @@ export class PixelStage extends Pass {
     for (const target of this.ping) target.dispose();
     for (const effect of this.effects) effect.dispose();
     this.normalMaterial.dispose();
-    this.upscaleMaterial.dispose();
+    this.edgeMaterial.dispose();
+    this.blitMaterial.dispose();
     this.fsQuad.dispose();
   }
 }
 
 /**
- * The upscale shader: nearest-neighbour blit plus the depth/normal edge
- * lines. Lifted from `RenderPixelatedPass` unchanged — the point of R0 is
- * that this stage produces the same picture the upstream pass did, and the
- * edge look is tuned; nothing here is ours to improve.
+ * The edge shader: the depth/normal outline, applied to the chunky colour.
+ *
+ * The detection maths is lifted from `RenderPixelatedPass` unchanged — R0's
+ * point was that this stage produces the same picture the upstream pass did,
+ * and the edge look is tuned; nothing in here is ours to improve. What did
+ * change is *when* it runs. Upstream it was fused to the upscale and therefore
+ * ran last, over everything; here it runs on the surfaces alone, before any
+ * effect puts fog or bloom in front of them. See the note in `render`.
  */
-function createUpscaleMaterial(): THREE.ShaderMaterial {
+function createEdgeMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
@@ -283,6 +350,37 @@ function createUpscaleMaterial(): THREE.ShaderMaterial {
         float strength = dei > 0.0 ? (1.0 - depthEdgeStrength * dei) : (1.0 + normalEdgeStrength * nei);
 
         gl_FragColor = texel * strength;
+      }
+    `,
+  });
+}
+
+/**
+ * The upscale: a nearest-neighbour blit, and deliberately nothing else.
+ *
+ * Everything this pass used to do besides the blit now happens upstream at
+ * chunky resolution. What is left is the pixelation itself — one chunky texel
+ * spread across a block of device pixels with no filtering, which is the only
+ * step in the pipeline that has to happen at device resolution and the only
+ * reason there is a pass here at all.
+ */
+function createBlitMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D tDiffuse;
+      varying vec2 vUv;
+
+      void main() {
+        gl_FragColor = texture2D(tDiffuse, vUv);
       }
     `,
   });

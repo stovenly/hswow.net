@@ -5,6 +5,8 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { applySway } from '../art/sway';
 import { PixelStage } from './PixelStage';
 import { GTAOEffect } from './GTAO';
+import { FogVolumesEffect, type FogVolume } from './FogVolumes';
+import { BloomEffect } from './Bloom';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
@@ -15,10 +17,9 @@ import type { Viewport } from './Viewport';
  * The render pipeline.
  *
  * ```
- * scene ─► PixelStage ─────────► OutputPass ─► RetroShader ─► screen
- *          chunky pixels,         tone map     vignette,
- *          effects (GTAO…),       and sRGB     dither, quantize
- *          depth/normal edges
+ * scene ─► PixelStage ──────────────────► OutputPass ─► RetroShader ─► screen
+ *          chunky pixels, edge lines,      tone map     vignette,
+ *          GTAO ─► fog ─► bloom, upscale   and sRGB     dither, quantize
  * ```
  *
  * `PixelStage` is ours (SHADERS.md, R0): it renders at chunky resolution,
@@ -86,6 +87,16 @@ export interface RenderSettings {
    */
   ao: { strength: number; radius: number };
 
+  /**
+   * Bloom (SHADERS.md §3). `strength` is how much of the blurred emitters is
+   * added back; `radius` is the spread, as a multiple of the blur chain's
+   * own texel offsets.
+   *
+   * There is no threshold, and there is deliberately nowhere to put one — see
+   * `Bloom.ts`. What blooms is what is made of `GLOW_MATERIAL`.
+   */
+  bloom: { strength: number; radius: number };
+
   vignetteStrength: number;
   vignetteRadius: number;
   vignetteSoftness: number;
@@ -133,6 +144,13 @@ export const DEFAULT_RENDER: RenderSettings = {
   // Radius from the plan — under a metre is contact shadow, not room gloom.
   ao: { strength: 0.85, radius: 0.8 },
 
+  // Restrained, and then halved again after looking at it. Every emitter in the
+  // game is a small flame or a lit window against a dim surround, and anything
+  // near 1 puts a halo across half a hut — which reads as a bug in the lamp
+  // rather than as light. Radius 1 is the chain's natural spread; wider starts
+  // detaching the glow from the thing making it.
+  bloom: { strength: 0.28, radius: 1 },
+
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
   // there in case a zone ever wants to close in around you; nothing uses it.
@@ -164,6 +182,15 @@ export interface ZoneAir {
   fogColor: string;
   fogNear: number;
   fogFar: number;
+  /**
+   * Placed fog volumes for this zone (SHADERS.md §2), in its world space.
+   *
+   * Distinct from the three fields above, and not a refinement of them: those
+   * are the haze of *distance*, which every zone wears everywhere. These are
+   * objects made of air, standing in particular places. A zone can have either,
+   * both or neither.
+   */
+  fogVolumes?: readonly FogVolume[];
 }
 
 export class PostFX {
@@ -173,6 +200,8 @@ export class PostFX {
   private readonly composer: EffectComposer;
   private readonly pixelStage: PixelStage;
   private readonly gtao: GTAOEffect;
+  private readonly fog: FogVolumesEffect;
+  private readonly bloom: BloomEffect;
   private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
@@ -190,6 +219,9 @@ export class PostFX {
   private dither = true;
   private pixelate = true;
   private occlusion = true;
+  /** Dev-only, unlike the others here. See `setFogVolumes`. */
+  private volumetrics = true;
+  private glow = true;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -204,6 +236,7 @@ export class PostFX {
       ...saved,
       sky: { ...DEFAULT_SKY, ...saved.sky },
       ao: { ...DEFAULT_RENDER.ao, ...saved.ao },
+      bloom: { ...DEFAULT_RENDER.bloom, ...saved.bloom },
     };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
@@ -223,10 +256,21 @@ export class PostFX {
     // own shape, and the reason this line exists.
     applySway(this.pixelStage.normalMaterial);
 
-    // The first occupant of the effect slot. Registered once; on/off is the
-    // effect's own flag, set in `apply`.
+    // The effect slot, in order. Registered once each; on/off is the effect's
+    // own flag, set in `apply`.
+    //
+    // **Order is the design, not an accident of construction.** AO is shading
+    // and belongs on the surfaces themselves, so it runs while the colour is
+    // still only surfaces. Fog is what stands *between* the camera and those
+    // surfaces, so it goes over the top of them — occluding shaded geometry
+    // exactly as it occludes unshaded geometry, which is what stops mist
+    // reading as a decal on the wall behind it. The slots after this one are
+    // spoken for in the same way: DoF after fog, bloom after DoF so a blurred
+    // lamp still blooms, god rays last.
     this.gtao = new GTAOEffect();
-    this.pixelStage.effects.push(this.gtao);
+    this.fog = new FogVolumesEffect();
+    this.bloom = new BloomEffect();
+    this.pixelStage.effects.push(this.gtao, this.fog, this.bloom);
 
     this.retroPass = new ShaderPass(RetroShader);
 
@@ -247,6 +291,12 @@ export class PostFX {
    */
   setEnvironment(air: ZoneAir | null): void {
     this.air = air;
+    // Swapped at the same instant as the fog colour and for the same reason:
+    // this runs at full black mid-crossing, so the volumes of the room being
+    // left are gone before the room being entered is visible. A volume that
+    // survived a threshold would be a pool of mist hanging in the wrong
+    // building, at coordinates that mean nothing there.
+    this.fog.setVolumes(air?.fogVolumes ?? []);
     this.apply();
   }
 
@@ -302,6 +352,34 @@ export class PostFX {
   }
 
   /**
+   * Turns placed fog volumes off. **Dev-facing only.**
+   *
+   * Deliberately not a player option, by SHADERS.md's line on which effects
+   * cross into the options screen: a volume is not a flourish over the world,
+   * it is part of the world. A dungeon dressed in mist is a different room
+   * without it and a rim wrapped in cloud is a backdrop with a visible edge, so
+   * switching these off is a thing to do while looking at the effect, not a
+   * setting to ship. Their cost is carried in the zone budgets, like a prop's.
+   */
+  setFogVolumes(enabled: boolean): void {
+    this.volumetrics = enabled;
+    this.apply();
+  }
+
+  /**
+   * Turns bloom off without disturbing its tuning.
+   *
+   * A player option, by SHADERS.md's rule: it is taste as much as performance —
+   * some people find glow bleed distracting — and switching it off loses
+   * nothing but the bleed. The emitters still glow, because the geometry *is*
+   * the glow; what goes is the light spreading off it.
+   */
+  setBloom(enabled: boolean): void {
+    this.glow = enabled;
+    this.apply();
+  }
+
+  /**
    * Sets the colour vision correction and how strongly it is applied.
    *
    * `strength` is 0..1, and 0 is genuinely nothing rather than nearly nothing:
@@ -330,6 +408,15 @@ export class PostFX {
     this.gtao.enabled = this.occlusion && s.ao.strength > 0;
     this.gtao.strength = s.ao.strength;
     this.gtao.radius = s.ao.radius;
+
+    // A zone with no volumes skips the pass entirely rather than running a
+    // march that finds nothing — which is most zones, so the effect costs
+    // exactly nothing everywhere it is not used.
+    this.fog.enabled = this.volumetrics && this.fog.hasVolumes;
+
+    this.bloom.enabled = this.glow && s.bloom.strength > 0;
+    this.bloom.strength = s.bloom.strength;
+    this.bloom.radius = s.bloom.radius;
 
     const u = this.retroPass.uniforms;
     u.uPixelSize.value = devicePixels;
@@ -407,6 +494,10 @@ export class PostFX {
     renderer.shadowMap.needsUpdate = true;
 
     this.sky.follow(this.viewport.camera, elapsed);
+    // The same clock the sky drifts on, handed to the effect chain. Fog volumes
+    // are the only reader today; see `EffectContext.time` on why knowing the
+    // time is not the temporal accumulation the ground rules forbid.
+    this.pixelStage.time = elapsed;
     this.composer.render();
   }
 

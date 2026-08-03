@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { NOISE_GLSL } from './noise';
 
 /**
  * A procedural sky: vertical gradient plus a drifting cloud layer.
@@ -105,37 +106,10 @@ const SkyShader = {
 
     varying vec3 vDirection;
 
-    float hash(vec2 p) {
-      p = fract(p * vec2(123.34, 456.21));
-      p += dot(p, p + 45.32);
-      return fract(p.x * p.y);
-    }
-
-    float valueNoise(vec2 p) {
-      vec2 cell = floor(p);
-      vec2 f = fract(p);
-      // Smoothstep on the interpolant: linear blending between cells leaves
-      // visible creases along every cell boundary.
-      vec2 blend = f * f * (3.0 - 2.0 * f);
-      return mix(
-        mix(hash(cell), hash(cell + vec2(1.0, 0.0)), blend.x),
-        mix(hash(cell + vec2(0.0, 1.0)), hash(cell + vec2(1.0, 1.0)), blend.x),
-        blend.y
-      );
-    }
-
-    // Five octaves, each half the amplitude and twice the frequency. The big
-    // ones are the cloud masses, the small ones are their ragged edges.
-    float fbm(vec2 p) {
-      float sum = 0.0;
-      float amplitude = 0.5;
-      for (int i = 0; i < 5; i++) {
-        sum += amplitude * valueNoise(p);
-        p *= 2.0;
-        amplitude *= 0.5;
-      }
-      return sum;
-    }
+    // Lifted into engine/noise when the fog volumes wanted the same functions.
+    // Verbatim, so the clouds are the clouds they were tuned to be. (No
+    // backticks in this comment either, for the reason given below.)
+    ${NOISE_GLSL}
 
     void main() {
       vec3 direction = normalize(vDirection);

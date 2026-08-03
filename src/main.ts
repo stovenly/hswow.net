@@ -269,6 +269,12 @@ if (dev.gui) {
   ao.add(r.ao, 'strength', 0, 1, 0.05).onChange(refresh);
   ao.add(r.ao, 'radius', 0.1, 2, 0.05).name('radius (m)').onChange(refresh);
 
+  // The same switch the options menu edits, plus the tuning it does not show.
+  const bloom = dev.gui.addFolder('bloom');
+  bloom.add(options, 'bloom').name('enabled').listen().onChange(settings.commit);
+  bloom.add(r.bloom, 'strength', 0, 2, 0.05).onChange(refresh);
+  bloom.add(r.bloom, 'radius', 0.25, 4, 0.05).onChange(refresh);
+
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
   vignette.add(r, 'vignetteRadius', 0, 1.5, 0.01).onChange(refresh);
@@ -294,6 +300,17 @@ if (dev.gui) {
   const lights = dev.gui.addFolder('light').close();
   lights.add(zones.lights.sun, 'intensity', 0, 5, 0.1).name('sun');
   lights.add(zones.lights.ambient, 'intensity', 0, 5, 0.1).name('ambient');
+
+  // Placed volumes, as opposed to the distance fog below — see SHADERS.md §2.
+  // Only a switch, and deliberately: a volume's density, tint and size belong
+  // to the zone that placed it, so there is nothing global here to tune. Not in
+  // the player's menu either; see `PostFX.setFogVolumes`.
+  const volumetric = { enabled: true };
+  const fogVolumes = dev.gui.addFolder('fog volumes');
+  fogVolumes
+    .add(volumetric, 'enabled')
+    .name('enabled')
+    .onChange(() => postfx.setFogVolumes(volumetric.enabled));
 
   const fogFolder = dev.gui.addFolder('fog').close();
   fogFolder.add(r, 'linkFogToSky').name('match horizon').onChange(refresh);

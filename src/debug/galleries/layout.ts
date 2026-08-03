@@ -4,6 +4,7 @@ import { SILENCE, type SoundscapeSpec } from '../../audio/Soundscape';
 import type { PortalDefinition, PortalEnd } from '../../world/Portal';
 import type { DoorMaterial } from '../../audio/models/door';
 import type { MeshBuilder } from '../../art/types';
+import type { FogVolume } from '../../engine/FogVolumes';
 import { markCollidable } from '../../player/Collider';
 import { markLabelled } from '../../world/Interaction';
 import { createRng } from '../../art/random';
@@ -248,6 +249,14 @@ export interface GalleryPlan {
   readonly soundscape?: SoundscapeSpec;
   /** Anything not built from a builder — a fixture the gallery needs to make sense. */
   readonly extras?: () => THREE.Object3D[];
+  /**
+   * Placed fog volumes (SHADERS.md §2), in the gallery's own space.
+   *
+   * Here rather than only on the Fog gallery, because a gallery is a room and
+   * any room may want air in it — and threading it through the plan means the
+   * one place that turns a plan into a zone stays the one place that knows how.
+   */
+  readonly fogVolumes?: readonly FogVolume[];
 }
 
 /**
@@ -409,6 +418,7 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
     // the least surprising place for it to be. Yaw 0 faces -Z: the controller's
     // forward is `(-sin yaw, 0, -cos yaw)`, so zero looks the way the rows run.
     spawn: { position: new THREE.Vector3(0, 0.1, DOOR_Z - 2), yaw: 0 },
+    fogVolumes: plan.fogVolumes,
     floor: -20,
     // Flat by construction. Portal arrivals are derived by stepping out from a
     // door and keep the door's height, which is correct here and stated anyway
