@@ -482,126 +482,111 @@ export const SURFACES = {
   /**
    * ## The liquids
    *
-   * Five of them, and they are **three parameters of one model** rather than
-   * five recipes. Getting that stated is what took so long: every earlier
-   * attempt tuned water and mud as separate objects, and they kept drifting
-   * into each other because nothing said what actually distinguishes them.
+   * Three of them, and they are **two parameters of one model** rather than
+   * three recipes. Stating that is what took the longest: every earlier attempt
+   * tuned water and mud as separate objects, and they kept drifting into each
+   * other because nothing said what actually distinguishes them.
    *
-   * - **Medium** is `splash.damping`. Water lets a bubble ring its full ten-odd
+   * - **Medium is `splash.damping`.** Water lets a bubble ring its full ten-odd
    *   oscillations; mud kills it in two or three. The same pocket of air sings
-   *   in a puddle and goes *blup* in a bog, and that is not a stylisation, it is
-   *   viscosity.
-   * - **Depth** is `splash.cavity`, and almost nothing else. Spray says a
-   *   surface was broken; a cavity says how far in you went. Anything entering
-   *   water drags a column of air down and that column pinches off behind it
-   *   and rings as one enormous bubble — five centimetres across is 65 Hz for a
-   *   quarter of a second. Thin films have none. Knee-deep has a big one.
-   * - **Bulk** is `crush`, and only the deep ones have it: a leg dragging
-   *   through half a metre of anything is a sustained low rush, which a cloud
-   *   of bubbles cannot produce and which nothing shallow does.
+   *   in a puddle and goes *blup* in a bog, and that is not a stylisation, it
+   *   is viscosity — one number, and the only one that separates the two.
+   * - **Depth is `splash.cavity`.** Spray says a surface was broken; a cavity
+   *   says how far in you went. Anything entering water drags a column of air
+   *   down behind it, and once that column pinches off it oscillates as one
+   *   enormous bubble — four and a half centimetres across is 72 Hz for a
+   *   quarter of a second, arriving a beat *after* the contact rather than with
+   *   it. A puddle has none. A pond has the big low one, and that single event
+   *   is what depth sounds like; no amount of extra spray substitutes for it.
    *
-   * The contact underneath goes the other way from all three. In a film you hit
-   * the ground hard and hear it; in an inch it is late and damped; at the knee
-   * there is no audible contact at all, because there is half a metre of water
-   * between your foot and anything solid.
+   * `crush` appears only where there is a *mass* of something to move — a leg
+   * through a pond, a foot pulled out of mud. It is a bulk rush, and shallow
+   * water has no bulk.
+   *
+   * The contact underneath runs the other way from the depth. In a puddle you
+   * hit the ground hard and hear it, which is why that one is genuinely
+   * *struck* in a couple of milliseconds; in a pond there is a foot of water in
+   * the way and there is very nearly nothing to hear.
    *
    * **No `grit` anywhere in the family.** A particle bed is small hard things
-   * colliding, and it was standing in for spray for a long time — which is how
-   * this kept arriving as static. Spray is bubbles too, just very small ones.
+   * colliding, and it stood in for spray for far too long — which is how this
+   * kept arriving as static. Spray is bubbles too, just very small ones.
    */
 
   /**
-   * A film of water — a wet floor, the skin of a puddle, rain-soaked stone.
+   * A puddle. Shallow enough that the ground is part of the sound.
    *
-   * The one member of the family that is mostly a *footstep*: there are only
-   * millimetres between the sole and the ground, so the contact is real, sharp
-   * and bright, and the water is an edge on it rather than the event. Barely
-   * any air goes under, and what does is fine enough to be over 2 kHz and gone
-   * inside a couple of milliseconds.
+   * The one member of the family that is mostly a *footstep*: there are a
+   * couple of centimetres between the sole and something hard, so the contact
+   * is real, sharp and bright, and the water is the splash thrown off it.
+   * Plenty of air goes under for that — forty-odd bubbles running from fine
+   * spray up to a millimetre and a half — but no *column* of it, because there
+   * is no depth to drag one down into. That absence is the whole difference
+   * from the pond.
    */
-  'water-thin': {
-    level: 0.42,
-    impact: { level: 0.34, duration: 0.012, low: 400, tone: 6000, q: 0.8, attack: 0.002 },
+  'water-puddle': {
+    level: 0.46,
+    impact: { level: 0.3, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
     modes: [],
     grit: null,
     splash: {
-      count: 26, over: 0.07, decay: 0.03,
-      radius: [0.00015, 0.0012], bias: 0.4, damping: 1, level: 0.34,
-    },
-    scuff: 0.9,
-    toe: 0.6,
-    roll: 0.075,
-  },
-
-  /**
-   * An inch or two — a ford, a flooded yard, the edge of a pool.
-   *
-   * The classic splash, and the balance point of the family: enough depth to
-   * entrain a real cloud and start a small cavity, not enough to stop you
-   * feeling the ground. Seventy bubbles skewed fine, and a cavity a centimetre
-   * across that arrives twenty milliseconds late at 272 Hz.
-   */
-  'water-thick': {
-    level: 0.5,
-    impact: { level: 0.12, duration: 0.024, low: 260, tone: 2600, q: 0.6, attack: 0.011 },
-    modes: [],
-    grit: null,
-    splash: {
-      count: 72, over: 0.18, decay: 0.06,
-      radius: [0.0002, 0.0028], bias: 0.5, damping: 1, level: 0.44,
-      cavity: { radius: 0.012, level: 0.3, delay: 0.02 },
+      count: 46, over: 0.1, decay: 0.042,
+      radius: [0.00015, 0.0022], bias: 0.35, damping: 1, level: 0.46,
     },
     scuff: 0.95,
-    toe: 0.55,
-    roll: 0.085,
+    toe: 0.6,
+    roll: 0.078,
   },
 
   /**
-   * Knee deep. Wading rather than walking.
+   * A pond. Half a foot of water up to knee deep.
    *
-   * **There is no footstep in this at all.** Half a metre of water separates the
-   * foot from anything solid, so what is left is the water itself: a long low
-   * rush as the leg drags a mass of it aside, a cavity five centimetres across
-   * booming at 65 Hz a beat after the leg goes in, and a wide slow cloud that
-   * runs lower than the shallow ones because deep water traps bigger pockets.
+   * **Deep, and deliberately not thick.** The damping stays at water's, so
+   * every bubble rings out in full; what makes this read as depth rather than
+   * as syrup is a cavity at 72 Hz arriving a beat late, and a bulk rush as the
+   * leg drags a mass of water aside. That rush is *bright* — turbulent water is
+   * a hiss falling from two and a half kilohertz, not a low churn — and it is
+   * kept well under the cloud, because a broad noise bed loud enough to notice
+   * is the exact thing that has read as static every previous time.
    *
-   * The cadence is part of it — the roll is the longest in the table by half
-   * again, because you cannot walk quickly through this and the sound should
-   * not let you pretend otherwise.
+   * There is a contact in here, at a twentieth of the splash and eighteen
+   * milliseconds late. At this depth you can feel the bottom and barely hear
+   * it. The cadence is part of it too: the roll is the longest of any surface
+   * that is not mud, because you cannot walk quickly through this.
    */
-  'water-knee': {
-    level: 0.55,
-    impact: { level: 0.05, duration: 0.05, low: 90, tone: 700, q: 0.5, attack: 0.03 },
+  'water-pond': {
+    level: 0.54,
+    impact: { level: 0.07, duration: 0.04, low: 140, tone: 1200, q: 0.5, attack: 0.018 },
     crush: {
-      level: 0.3, duration: 0.28, from: 900, to: 260, q: 0.8,
-      rise: 0.14, band: 'ceiling', rough: 0.5,
+      level: 0.24, duration: 0.26, from: 2600, to: 500, q: 0.7,
+      rise: 0.1, band: 'ceiling', rough: 0.4,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 90, over: 0.3, decay: 0.11,
-      radius: [0.0004, 0.006], bias: 0.3, damping: 1, level: 0.42,
-      cavity: { radius: 0.05, level: 0.55, delay: 0.035 },
+      count: 85, over: 0.28, decay: 0.1,
+      radius: [0.0003, 0.005], bias: 0.35, damping: 1, level: 0.44,
+      cavity: { radius: 0.045, level: 0.5, delay: 0.03 },
     },
     scuff: 1,
-    toe: 0.7,
-    roll: 0.13,
+    toe: 0.65,
+    roll: 0.115,
   },
 
   /**
-   * Churned wet ground, ankle deep. The squelch.
+   * Churned wet ground. The squelch.
    *
-   * Water's engine at four times the damping, which does all the work: the few
-   * large pockets it traps do not ring, they collapse. Over them a slow viscous
-   * shear, rough rather than smooth, sweeping *upward* as the mud packs around
-   * the foot — which is the opposite direction from water, where the sheet
+   * Water's engine at four times the damping, which does nearly all the work:
+   * the few large pockets mud traps do not ring, they collapse. Over them a slow
+   * viscous shear, rough rather than smooth, sweeping *upward* as the mud packs
+   * around the foot — the opposite direction from a pond, where the water
    * spreads and thins.
    *
    * **The release matters more than the arrival**, which is unique in the table
-   * and is why the toe is well up from where a wet surface would normally put
+   * and is why the toe sits well above where a wet surface would normally put
    * it. Pulling out of mud is the schlorp; pushing into it is nearly silent.
    */
-  'mud-thick': {
+  mud: {
     level: 0.5,
     impact: { level: 0.1, duration: 0.05, low: 80, tone: 800, q: 0.6, attack: 0.035 },
     crush: { level: 0.5, duration: 0.2, from: 180, to: 420, q: 2.4, rough: 0.6 },
@@ -614,36 +599,6 @@ export const SURFACES = {
     scuff: 0.5,
     toe: 0.55,
     roll: 0.12,
-  },
-
-  /**
-   * A bog. Knee deep in it, and the slowest, lowest thing in the file.
-   *
-   * Everything the thick layer does, an octave down and half again as long: a
-   * shear starting at 120 Hz, pockets between one and three centimetres across
-   * that are killed almost as fast as they form, and a cavity at 59 Hz that
-   * lasts about sixty milliseconds — a heavy *bloop* rather than a boom,
-   * because mud damps the cavity as thoroughly as it damps everything else.
-   *
-   * That last part is the pair worth hearing back to back: `water-knee` and
-   * this have cavities within a few hertz of each other, and one rings for a
-   * quarter of a second while the other is gone almost at once. The pitch says
-   * how deep; the damping says what you are in.
-   */
-  'mud-knee': {
-    level: 0.55,
-    impact: { level: 0.06, duration: 0.07, low: 60, tone: 500, q: 0.5, attack: 0.05 },
-    crush: { level: 0.55, duration: 0.34, from: 120, to: 300, q: 2.2, rough: 0.7 },
-    modes: [],
-    grit: null,
-    splash: {
-      count: 5, over: 0.26, decay: 0.14,
-      radius: [0.012, 0.03], bias: 0.2, damping: 5, level: 0.32,
-      cavity: { radius: 0.055, level: 0.4, delay: 0.05 },
-    },
-    scuff: 0.4,
-    toe: 0.7,
-    roll: 0.16,
   },
 
   /**
