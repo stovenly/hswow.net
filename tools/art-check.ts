@@ -75,8 +75,6 @@ import { railing } from '../src/art/builders/railing';
 import { reeds } from '../src/art/builders/reeds';
 import { rock } from '../src/art/builders/rock';
 import { smallTree } from '../src/art/builders/small-tree';
-import { rowan } from '../src/art/builders/rowan';
-import { smallRowan } from '../src/art/builders/small-rowan';
 // Interior. `window` is declared as `windowBuilder` in its own file because a
 // module-scope `const window` shadows the DOM global for the whole file; it is
 // re-exported under the bare name too, and the builder's `name` is 'window'.
@@ -184,8 +182,6 @@ const builders: MeshBuilder[] = [
   reeds,
   rock,
   smallTree,
-  rowan,
-  smallRowan,
   windowBuilder,
   fireplace,
   stove,

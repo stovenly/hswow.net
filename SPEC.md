@@ -778,11 +778,21 @@ means the two cannot drift apart. Painted with placed shapes (`path`, `blot`, `f
 layered so later wins. Edges are hard, not blended: a gradient between two materials survives
 the pixelation and quantization as a band of dither and reads as a mistake.
 
-#### Arkstin Village
+#### Countryside Exterior Demo
 
-`debug/village.ts`. The first zone that is a place rather than a fixture: a 96 m bowl with a
-settlement on a level shelf, streets between the houses, fields and a paddock, and clear
-ground left deliberately open for the Phase 7 actors.
+`debug/countryside.ts`, with its interiors in `debug/countryside-homes.ts`. The first zone
+that is a place rather than a fixture: a 96 m bowl with a settlement on a level shelf,
+streets between the houses, fields and a paddock, and clear ground left deliberately open
+for the Phase 7 actors. Was *Arkstin Village*, and is now the exterior half of the
+countryside kit standing at real densities — every outdoor builder in the palette, placed by
+the ground it belongs in, with three of the houses open. A gallery answers "does this row of
+props hang together"; this answers "does the kit make a place", which is a different question
+and the only one that catches a palette with a hole in it.
+
+**It is also the zone that costs something.** 364k triangles across 420 props, against 130k
+before — deliberate, because `main.ts` prebuilds it at boot and the checks measure it, so it
+is the one place where the price of the art kit is visible. The expensive builders are named
+where they are placed.
 
 #### Lessons worth not relearning
 
