@@ -482,7 +482,7 @@ check` passes untouched.
 
 **Status: built** — `src/engine/PixelStage.ts`, wired in `PostFX`; the edge
 shader is lifted verbatim so the maths matches. Visual indistinguishability and
-the readout comparison still need an eyeball pass in the browser.
+the readout comparison were signed off in the browser alongside R2 and R3.
 
 **Amended during R2/R3: the outline is drawn before the effect slot, not after
 it.** The upstream pass fused edge detection to the upscale, so the outline ran
@@ -544,8 +544,9 @@ Three notes for anyone tuning this, all learned by getting them wrong:
   error, not a sampling one, so raising the slice count does nothing for it —
   2 slices and 256 slices are wrong by exactly the same amount.
 
-Pending in-browser: the seated-props eyeball, the no-halo check, and the frame cost
-number for this section.
+Looked at and signed off. Still owed is a *number*: the frame cost for this
+section, read off the existing readout. That is a measurement, not a judgement —
+see the note at the end of R3.
 
 ### R2 — Fog volumes *(wants R0)*
 
@@ -581,8 +582,8 @@ Two notes for anyone tuning this:
   you can see the shape of the volume, which is the one thing a volume must never
   show. The gallery's three sit at 0.75, 0.85 and 0.9.
 
-Pending in-browser: all three eyeball checks, and the 8-volume worst-case cost for
-§2.
+All three fixtures looked at and signed off. Still owed is the 8-volume worst-case
+cost for §2 — a measurement, not a judgement.
 
 ### R3 — Bloom *(wants R0)*
 
@@ -642,8 +643,15 @@ Three further notes, all about state that is shared and easy to leave dirty:
   through walls, and nothing anywhere reports a problem. Disposing the target forces
   the rebuild.
 
-Pending in-browser: the sunlit-wall check, the draw-call readout, and the
-toggled-off comparison.
+Looked at and signed off, and the sign-off is what produced both fixes above: the
+flicker and the strength were reported from the running game, not found here.
+Strength settled at 0.28.
+
+**What is left across R0–R3 is measurement, not looking.** Three numbers, all read
+off the draw-call and frame readouts that already exist: R1's frame cost, R2's
+8-volume worst case, and the emitters pass's draw-call count. They are worth
+writing down because the phases after this one are budgeted against them, and
+nobody can judge a budget by eye.
 
 ### R4 — Day/night *(independent of R0; the largest phase — sub-phased)*
 
