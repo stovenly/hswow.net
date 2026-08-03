@@ -573,6 +573,27 @@ for (const [mm, hz] of [
       : 'missing a bulk',
   );
 
+  // **The fine end has to be the loud end.** Damping is superlinear in
+  // frequency, so a low bubble rings tens of times longer than a high one at
+  // the same peak — weight the big ones up as well and a cloud that is four
+  // fifths spray comes out sounding like half a dozen gloops. Both waters carry
+  // a fizz for the same reason: the population below a quarter of a millimetre
+  // is too dense to resolve, and it is where airiness lives.
+  const airless = ['water-puddle', 'water-pond'].filter(
+    (name) => !SURFACES[name as keyof typeof SURFACES].splash?.fizz,
+  );
+  check('every water has spray it cannot count', airless.length === 0, airless.join(', ') || 'both fizz');
+
+  // And a puddle cannot hold a pocket that gloops. Two centimetres of water has
+  // nowhere to keep one, and a single coarse bubble ringing forty times longer
+  // than its neighbours is audible over the entire cloud.
+  const coarse = puddle ? bubbleHz(puddle.radius[1]) : 0;
+  check(
+    'a puddle has no coarse end',
+    coarse >= 1500,
+    `largest bubble ${coarse.toFixed(0)} Hz`,
+  );
+
   // **Water runs on bubbles alone.** A particle bed is small hard things
   // colliding, and standing one in for spray is what made every earlier attempt
   // read as static — spray is bubbles, just very small ones. Mud is exempt and

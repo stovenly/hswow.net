@@ -142,6 +142,31 @@ interface Splash {
     /** Seconds after contact that the column pinches off. */
     delay: number;
   };
+  /**
+   * The unresolvable end of the cloud, as noise.
+   *
+   * **A real splash throws thousands of bubbles and this file can afford
+   * eighty.** That is fine for the ones you can hear individually and hopeless
+   * for the rest, and the rest are not a rounding error — below about a quarter
+   * of a millimetre they are so numerous, so brief and so close together that
+   * they stop being events at all and become a continuous hiss. Modelling that
+   * population as noise is not an approximation of last resort; it is what it
+   * *is*, and it is the airiness that no number of discrete pings supplies.
+   *
+   * **This is the one place noise belongs in water, and the band is why.** Every
+   * earlier attempt reached for a broad bed running down into the low mids, and
+   * a broad bed in the low mids is static — that is not a description, it is
+   * the definition. Kept above about three kilohertz and under a tenth of a
+   * second it is sizzle instead, and sizzle is what a splash is made of.
+   */
+  fizz?: {
+    level: number;
+    duration: number;
+    /** Band, and it starts high and falls. Nothing here goes near the mids. */
+    from: number;
+    to: number;
+    q: number;
+  };
 }
 
 /**
@@ -552,9 +577,16 @@ export const SURFACES = {
    * each trim made this thicker. The fine spray above 5 kHz carries no pitch and
    * is not supposed to — it is the *air*, and without it a puddle is a gloop.
    *
-   * So the range is wider than it has ever been, 1.2 kHz up to 18, skewed hard
-   * toward the top where the sizzle is, and there are more of them. The contact
-   * is exactly what it was when this last worked: sharp, bright and untouched.
+   * Three things carry that now. The cloud runs 1.8 to 18 kHz with **no coarse
+   * end at all** — a puddle is two centimetres deep and cannot hold a pocket
+   * that gloops, and every one of those it had was dominating the sound by
+   * ringing forty times longer than its neighbours. The per-bubble level is
+   * tilted *up* toward the fine end to undo the same imbalance. And under both,
+   * the fizz: the spray too small to count, which is where the air actually
+   * comes from.
+   *
+   * The contact is exactly what it was when this last worked: sharp, bright and
+   * untouched.
    */
   'water-puddle': {
     level: 0.48,
@@ -563,7 +595,8 @@ export const SURFACES = {
     grit: null,
     splash: {
       count: 58, over: 0.1, decay: 0.042,
-      radius: [0.00018, 0.0026], bias: 0.4, damping: 1, level: 0.5,
+      radius: [0.00018, 0.0018], bias: 0.35, damping: 1, level: 0.5,
+      fizz: { level: 0.5, duration: 0.075, from: 9500, to: 3600, q: 0.4 },
     },
     scuff: 0.95,
     toe: 0.6,
@@ -586,15 +619,15 @@ export const SURFACES = {
    * as another droplet, and quiet enough that the splash is what you hear
    * first.
    *
-   * The cloud is wide for the same reason the puddle's is: cut the fine end off
-   * and a body of water goes muffled, because that end is the air in it. It
-   * runs 652 Hz to 16 kHz, skewed toward the top, and it is the loudest thing
-   * in the surface as it should be.
+   * The cloud runs 930 Hz to 16 kHz and carries a fizz under it, exactly as the
+   * puddle does and for the same reason: the spray too fine to resolve is where
+   * airiness lives, and without it a body of water is muffled however many
+   * discrete bubbles are thrown at it. A pond's fizz is longer than a puddle's
+   * because there is more water to keep breaking.
    *
-   * The bulk rush is barely there, and starts high. It is the layer that turns
-   * into mush the moment it is loud enough to notice, and it does not need to
-   * be noticed — it only needs to fill the gaps between droplets so the cloud
-   * reads as a body of water rather than as a scatter of separate ones.
+   * The bulk rush is nearly gone — a twentieth of the cloud. It is the layer
+   * that turns into mush the moment it is loud enough to notice, and it does not
+   * need to be noticed; it only has to say that something heavy moved.
    *
    * There is a contact in here, a fifteenth of the splash and eighteen
    * milliseconds late. At this depth you feel the bottom and barely hear it.
@@ -603,15 +636,16 @@ export const SURFACES = {
     level: 0.5,
     impact: { level: 0.05, duration: 0.034, low: 300, tone: 2200, q: 0.5, attack: 0.018 },
     crush: {
-      level: 0.14, duration: 0.24, from: 5000, to: 1600, q: 0.7,
+      level: 0.08, duration: 0.24, from: 5200, to: 1800, q: 0.7,
       rise: 0.09, band: 'ceiling', rough: 0.4,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 110, over: 0.24, decay: 0.09,
-      radius: [0.0002, 0.005], bias: 0.35, damping: 1, level: 0.6,
-      cavity: { radius: 0.013, level: 0.22, delay: 0.028 },
+      count: 105, over: 0.22, decay: 0.085,
+      radius: [0.0002, 0.0035], bias: 0.3, damping: 1, level: 0.58,
+      cavity: { radius: 0.013, level: 0.2, delay: 0.028 },
+      fizz: { level: 0.44, duration: 0.13, from: 8500, to: 3000, q: 0.4 },
     },
     scuff: 1,
     toe: 0.65,
@@ -649,7 +683,7 @@ export const SURFACES = {
     // Barely a twentieth of the shear. There *is* ground under mud and you feel
     // it arrive, but hearing it is the surface reverting to a footstep with a
     // squelch attached, which is the wrong way round.
-    impact: { level: 0.05, duration: 0.06, low: 80, tone: 950, q: 0.5, attack: 0.042 },
+    impact: { level: 0.028, duration: 0.065, low: 80, tone: 900, q: 0.5, attack: 0.05 },
     crush: { level: 0.54, duration: 0.21, from: 220, to: 440, q: 2.6, rough: 0.45 },
     modes: [],
     grit: {
@@ -1184,11 +1218,25 @@ function rand(min: number, max: number): number {
  */
 function scatterBubbles(
   context: BaseAudioContext,
+  noise: AudioBuffer,
   target: AudioNode,
   splash: Splash,
   at: number,
   force: number,
 ): void {
+  // The spray that cannot be counted. First, because it is the sheet breaking
+  // and everything below is what comes out of it.
+  if (splash.fizz) {
+    crush(context, noise, target, at, splash.fizz.level * force, {
+      duration: splash.fizz.duration,
+      from: splash.fizz.from,
+      to: splash.fizz.to,
+      q: splash.fizz.q,
+      // Almost no rise. A sheet of water breaking is not a swell.
+      rise: 0.05,
+    });
+  }
+
   const rate = splash.count / Math.max(splash.over, 1e-3);
   const [small, big] = splash.radius;
 
@@ -1220,9 +1268,14 @@ function scatterBubbles(
     // Bigger bubbles carry more air and more energy, so the low ones lead and
     // the spray rides on top rather than the other way round.
     const size = (radius - small) / Math.max(big - small, 1e-9);
-    // Bigger bubbles carry more air, but only a little more level — leaning on
-    // this is how a thin liquid acquires a syrupy bottom end.
-    const level = splash.level * force * energy * rand(0.35, 1) * (0.75 + 0.25 * size);
+    // **The fine end needs *more* level, not less, and this took embarrassingly
+    // long to see.** Damping is superlinear in frequency, so a 1.2 kHz bubble
+    // rings for eight milliseconds and an 18 kHz one for a quarter of one —
+    // roughly forty times the energy at the same peak. Weighting the big ones
+    // up on top of that leaves a cloud that is four fifths fine spray and
+    // sounds like half a dozen gloops, which is exactly the thickness that
+    // would not go away however far the distribution was skewed.
+    const level = splash.level * force * energy * rand(0.35, 1) * (1.15 - 0.3 * size);
     if (level < 0.0015) continue;
 
     popBubble(context, target, at + t, {
@@ -1610,7 +1663,14 @@ export class Footsteps {
         ),
         over: surface.splash.over * (0.6 + 0.4 * scuffing),
       };
-      scatterBubbles(context, this.output, thrown, at, level * contact.grit * (0.75 + 0.25 * scuffing));
+      scatterBubbles(
+        context,
+        noise.white,
+        this.output,
+        thrown,
+        at,
+        level * contact.grit * (0.75 + 0.25 * scuffing),
+      );
     }
   }
 
