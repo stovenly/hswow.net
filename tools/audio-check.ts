@@ -534,6 +534,29 @@ for (const [mm, hz] of [
   check('only hard surfaces are struck', wrong.length === 0, wrong.join(', ') || `${RINGS.length} may be`);
 }
 
+// **Soft materials must not have hard grains.**
+//
+// Cook's particle model assumes the pieces are hard, because his were — beans,
+// coins, gravel — so a collision opens in under a millisecond and the click is
+// the point. A snow crystal shearing or a leaf folding does not, and a burst of
+// instant clicks reads as *ball bearings* whatever the pitch and count are.
+//
+// The exemption is derived rather than listed: a surface with `splash` is a
+// liquid, and a droplet striking water really is a click.
+{
+  const soft = Object.entries(SURFACES).filter(
+    ([, surface]) => surface.crush && surface.grit && !surface.splash,
+  );
+  const clicky = soft
+    .filter(([, surface]) => (surface.grit?.attack ?? 0.0008) < 0.0015)
+    .map(([name]) => name);
+  check(
+    'nothing that gives has grains that click',
+    clicky.length === 0,
+    clicky.join(', ') || `${soft.length} granular surfaces, none of them hard`,
+  );
+}
+
 // **The impact is the contact, not the sound.** On a loose or soft surface the
 // engine carrying the material has to be the thing you hear; where the contact
 // competes with it, the surface reads as "the standard footstep with an effect
