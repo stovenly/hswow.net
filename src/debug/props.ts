@@ -18,6 +18,8 @@ import {
 import { foliageGalleryPlan } from './galleries/foliage';
 import { animalGalleryPlan } from './galleries/animal';
 import { textShowcaseGalleryPlan } from './galleries/text';
+import { fogShowcasePlan } from './galleries/fog';
+import { soundStagePortal } from './SoundStage';
 
 /**
  * The prop halls: one antechamber per setting, with the setting's galleries
@@ -290,6 +292,36 @@ export function propPortals(
       yaw: 0,
       material: 'timber',
       seed: 6431,
+    }),
+    // Fog hangs off the general hall for the same reason: air belongs to no
+    // setting either. Eight metres west of the Text Showcase's door and facing
+    // the same way, so the two read as a rank rather than as one door and a
+    // stray — and eight rather than the halls' six, because out here there is
+    // no wall making the spacing mean anything and a pair standing closer than
+    // their own arrival sweeps would look like one door with a spare.
+    galleryPortal(fogShowcasePlan, {
+      zone: ZONE_GENERAL_PROPS,
+      position: new THREE.Vector3(-8, 0, 0),
+      yaw: 0,
+      material: 'timber',
+      seed: 6432,
+    }),
+    // The Sound Showcase completes the rank. It stood in the exterior, four
+    // paces from spawn, on the argument that it was the only place in the hub
+    // where a model could be heard and friction in front of the only door is
+    // just friction. That argument was about *reachability*, and it is answered
+    // as well by a door in the room the other showcases open off — while a
+    // workbench standing in the village street was always the odd thing out in
+    // a zone that is meant to read as a place.
+    //
+    // Iron rather than timber: what is behind it is a rack of machinery, and
+    // the door is the first thing that says so.
+    soundStagePortal({
+      zone: ZONE_GENERAL_PROPS,
+      position: new THREE.Vector3(8, 0, 0),
+      yaw: 0,
+      material: 'iron',
+      seed: 6433,
     }),
   ];
 }

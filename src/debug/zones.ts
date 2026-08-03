@@ -40,7 +40,7 @@ import { lantern } from '../art/builders/lantern';
 import { villageZone, villageTerrain, VILLAGE_GATE, ZONE_VILLAGE } from './village';
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
-import { soundStageZone, soundStagePortal } from './SoundStage';
+import { soundStageZone } from './SoundStage';
 import { chainZones, chainPortals } from './chains';
 
 /**
@@ -102,26 +102,6 @@ const HUT_YAW = 0;
 const FACTORY_DOOR_AT = new THREE.Vector3(14, 0, 6);
 /** Faces +Z, back toward spawn, square-on beside the gate. */
 const FACTORY_YAW = 0;
-
-/**
- * The door to the sound stage, at the east end of the same row.
- *
- * Standing in ground the two-room acoustics building used to occupy — it ran
- * from x = 15 to x = 29 — which is the neatest possible outcome: the fixture
- * that was there is gone, the room that replaced it is through a door on the
- * same spot, and the walk to it is four paces from spawn rather than a jump
- * from a debug menu.
- *
- * **The stage used to have no door on purpose.** Its header argues that
- * fifteen simultaneous sources are a workbench rather than a place and should
- * take a deliberate act to reach. That was the right call while the proving
- * ground had its own sound garden to wander into; with that gone this is the
- * only place in the hub where a model can be heard at all, and friction in
- * front of the only door is just friction.
- */
-const SOUND_DOOR_AT = new THREE.Vector3(18, 0, 6);
-/** Faces +Z with the rest of the row. */
-const SOUND_YAW = 0;
 
 /**
  * How far a portal door stands out from the wall it is set into.
@@ -576,20 +556,10 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   zones.push(...propZones());
   portals.push(...propPortals(propHub(1, 'iron'), propHub(0, 'timber'), propHub(2, 'timber')));
 
-  // The sound stage, and now a door to it — see `SOUND_DOOR_AT`. It is where
-  // every model in the library is judged, and since the proving ground stopped
-  // carrying a sound garden of its own it is the only place in the hub where
-  // one can be heard.
+  // The Sound Showcase. Its door stands in the general props hall with the
+  // other showcases rather than in the village street — see `propPortals`,
+  // which is where every door in that room is placed.
   zones.push(soundStageZone());
-  portals.push(
-    soundStagePortal({
-      zone: ZONE_EXTERIOR,
-      position: SOUND_DOOR_AT,
-      yaw: SOUND_YAW,
-      material: 'iron',
-      seed: 6600,
-    }),
-  );
 
   return { zones, portals };
 }

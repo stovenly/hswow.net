@@ -454,6 +454,10 @@ export class ZoneManager {
       fogColor: env.fogColor,
       fogNear: env.fogNear,
       fogFar: env.fogFar,
+      // Off the definition rather than the environment, because a volume has
+      // coordinates and an environment is shared between zones. See
+      // `ZoneDefinition.fogVolumes`.
+      fogVolumes: zone.fogVolumes,
     });
 
     this.lights.sun.intensity = env.sunIntensity;

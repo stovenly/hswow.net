@@ -53,6 +53,13 @@ export interface Options {
    */
   ambientOcclusion: boolean;
   /**
+   * Bloom. A player option for the same reason ambient occlusion is, plus one
+   * of its own: glow bleed is taste, and some people find it distracting. Off,
+   * the emitters still glow — the geometry is the glow — and only the bleed
+   * goes.
+   */
+  bloom: boolean;
+  /**
    * Off by default. Grass is most of the object count in an outdoor zone and
    * almost none of the picture — see `art/clutter.ts` — so this is the one
    * graphics option here that buys back real frame time, and the one somebody
@@ -109,6 +116,7 @@ export const DEFAULT_OPTIONS: Options = {
   dither: true,
   pixelation: true,
   ambientOcclusion: true,
+  bloom: true,
   grassShadows: false,
   shadows: true,
   fpsCap: 'uncapped',
@@ -283,6 +291,7 @@ export const CATEGORIES: readonly Category[] = [
       { kind: 'toggle', key: 'dither', label: 'dither' },
       { kind: 'toggle', key: 'pixelation', label: 'pixelation' },
       { kind: 'toggle', key: 'ambientOcclusion', label: 'ambient occlusion' },
+      { kind: 'toggle', key: 'bloom', label: 'bloom' },
       { kind: 'toggle', key: 'shadows', label: 'shadows' },
       {
         kind: 'toggle',
