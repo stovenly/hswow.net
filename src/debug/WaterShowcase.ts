@@ -975,6 +975,7 @@ export function waterShowcaseZone(): ZoneDefinition {
   return {
     id: ZONE_WATER_SHOWCASE,
     name: 'Water Showcase',
+    group: 'general',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       // Opened well out compared with a gallery's. The still pool is

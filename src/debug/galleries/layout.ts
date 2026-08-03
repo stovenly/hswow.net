@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { OUTDOOR_ENVIRONMENT, type ZoneDefinition, type ZoneId } from '../../world/Zone';
+import {
+  OUTDOOR_ENVIRONMENT,
+  type ZoneDefinition,
+  type ZoneId,
+  type ZoneGroup,
+} from '../../world/Zone';
 import { SILENCE, type SoundscapeSpec } from '../../audio/Soundscape';
 import type { PortalDefinition, PortalEnd } from '../../world/Portal';
 import type { DoorMaterial } from '../../audio/models/door';
@@ -237,6 +242,15 @@ export interface GalleryPlan {
   readonly id: ZoneId;
   /** What the door's tooltip says. */
   readonly name: string;
+  /**
+   * Which family the room belongs to — the same three the halls are split into.
+   *
+   * Stated here rather than derived from which hall `propPortals` happens to
+   * hang the door in. That placement is a fact about reachability; this is a
+   * fact about kind, and a gallery that moved doors would otherwise silently
+   * change what it *is*.
+   */
+  readonly group?: ZoneGroup;
   readonly builders: readonly MeshBuilder[];
   /**
    * What the door home is made of — and therefore which builder makes it and
@@ -397,6 +411,7 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
   return {
     id: plan.id,
     name: plan.name,
+    group: plan.group,
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       // A gallery is a void with a floor in it, and the fog is what makes that

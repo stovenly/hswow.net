@@ -181,6 +181,7 @@ function charsetBoard(): THREE.Object3D {
 
 export const textShowcaseGalleryPlan: GalleryPlan = {
   id: ZONE_TEXT_SHOWCASE,
+  group: 'general',
   name: 'Text Showcase',
   builders: BUILDERS,
 

@@ -204,6 +204,23 @@ export interface Placement {
   yaw: number;
 }
 
+/**
+ * Which family of rooms a zone belongs to.
+ *
+ * The same three the prop halls are split into, and deliberately so: the halls
+ * are already the world's answer to "what setting is this", and a second
+ * grouping that disagreed with them would be a second answer. `general` is the
+ * one with no setting — lettering, air, water, ground, a rack of machinery.
+ *
+ * Declared on the zone rather than derived from which hall its door happens to
+ * stand in. Door topology is a fact about *reachability* and this is a fact
+ * about *kind*, and the two only coincide today by luck.
+ */
+export type ZoneGroup = 'countryside' | 'industrial' | 'general';
+
+/** In the order they are worth reading. Ungrouped zones come before all of them. */
+export const ZONE_GROUPS: readonly ZoneGroup[] = ['countryside', 'industrial', 'general'];
+
 export interface ZoneDefinition {
   readonly id: ZoneId;
   /**
@@ -214,6 +231,11 @@ export interface ZoneDefinition {
    * deliberately plain until the fiction says otherwise.
    */
   readonly name: string;
+  /**
+   * Which family this belongs to, for anything that lists zones. See
+   * `ZoneGroup`. The hub has none, because it is what the families hang off.
+   */
+  readonly group?: ZoneGroup;
   readonly environment: ZoneEnvironment;
   /** Where you arrive with no portal to derive it from — a fresh boot. */
   readonly spawn: Placement;

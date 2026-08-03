@@ -114,6 +114,7 @@ const BUILDERS = [
 
 export const foliageGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_FOLIAGE,
+  group: 'countryside',
   name: 'Countryside Forest Clutter',
   builders: BUILDERS,
 };

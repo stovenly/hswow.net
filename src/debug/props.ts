@@ -166,6 +166,7 @@ export function propZones(): ZoneDefinition[] {
     {
       id: ZONE_INDUSTRIAL_PROPS,
       name: 'Industrial Props',
+      group: 'industrial',
       environment: INDUSTRIAL_ENVIRONMENT,
       spawn: { position: new THREE.Vector3(0, 0.1, -INDUSTRIAL.depth / 2 + 2), yaw: Math.PI },
       floor: -5,
@@ -181,6 +182,7 @@ export function propZones(): ZoneDefinition[] {
     {
       id: ZONE_COUNTRYSIDE_PROPS,
       name: 'Countryside Props',
+      group: 'countryside',
       environment: COUNTRYSIDE_ENVIRONMENT,
       spawn: { position: new THREE.Vector3(0, 0.1, -COUNTRYSIDE.depth / 2 + 2), yaw: Math.PI },
       floor: -5,
@@ -196,6 +198,7 @@ export function propZones(): ZoneDefinition[] {
     {
       id: ZONE_GENERAL_PROPS,
       name: 'General Props',
+      group: 'general',
       environment: {
         ...OUTDOOR_ENVIRONMENT,
         // The same numbers a gallery derives for a floor this size: fog closing

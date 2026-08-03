@@ -35,6 +35,7 @@ const BUILDERS = [figure, bovine, ovine, equine, porcine, poultry, dog];
 
 export const animalGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_ANIMAL,
+  group: 'countryside',
   name: 'Countryside Village Life',
   builders: BUILDERS,
 };

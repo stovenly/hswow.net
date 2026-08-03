@@ -420,6 +420,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     {
       id: ZONE_HUT,
       name: 'Countryside Village Interior Demo',
+      group: 'countryside',
       environment: {
         ...INDOOR_ENVIRONMENT,
         room: 'cell',
@@ -449,6 +450,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     {
       id: ZONE_FACTORY,
       name: 'Industrial Factory Interior Demo',
+      group: 'industrial',
       environment: {
         ...INDOOR_ENVIRONMENT,
         room: 'hall',

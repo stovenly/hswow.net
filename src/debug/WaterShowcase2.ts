@@ -210,6 +210,7 @@ export function waterShowcase2Zone(): ZoneDefinition {
   return {
     id: ZONE_WATER_SHOWCASE_2,
     name: 'Water Showcase 2',
+    group: 'general',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       // **Opened right out, which is part of the test.** Fog is what usually
