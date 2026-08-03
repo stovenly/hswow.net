@@ -85,9 +85,18 @@ export interface Options {
   crouchMode: HoldMode;
 
   // --- accessibility -------------------------------------------------------
-  /** The umbrella switch over the three motion effects below. See `effective`. */
+  /** The umbrella switch over the four motion effects below. See `effective`. */
   reducedMotion: boolean;
   windSway: boolean;
+  /**
+   * Waves, and the foam lapping the shore with them.
+   *
+   * Separate from `windSway` even though the two answer the same gust field,
+   * because they are separate things to be bothered by: a pond rocking in the
+   * corner of the eye is not grass moving. Off, every body of water in the game
+   * goes glass-still and its waterline stops creeping.
+   */
+  waterMotion: boolean;
   headBob: boolean;
   /** The field of view widening while sprinting. */
   sprintZoom: boolean;
@@ -130,6 +139,7 @@ export const DEFAULT_OPTIONS: Options = {
 
   reducedMotion: false,
   windSway: true,
+  waterMotion: true,
   headBob: true,
   sprintZoom: true,
   colorblind: 'off',
@@ -156,6 +166,7 @@ export function effective(options: Options): Options {
     ...options,
     grassShadows: options.grassShadows && options.shadows,
     windSway: options.windSway && motion,
+    waterMotion: options.waterMotion && motion,
     headBob: options.headBob && motion,
     sprintZoom: options.sprintZoom && motion,
   };
@@ -371,6 +382,13 @@ export const CATEGORIES: readonly Category[] = [
         kind: 'toggle',
         key: 'windSway',
         label: 'wind sway',
+        enabledWhen: motionAllowed,
+        note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
+      },
+      {
+        kind: 'toggle',
+        key: 'waterMotion',
+        label: 'water motion',
         enabledWhen: motionAllowed,
         note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
       },

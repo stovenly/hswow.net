@@ -458,6 +458,9 @@ export class ZoneManager {
       // coordinates and an environment is shared between zones. See
       // `ZoneDefinition.fogVolumes`.
       fogVolumes: zone.fogVolumes,
+      // Read off what was actually built rather than off a declaration, which
+      // is why this is safe to ask here: `root()` ran a few lines up.
+      water: zone.hasWater,
     });
 
     this.lights.sun.intensity = env.sunIntensity;
@@ -576,13 +579,19 @@ export class ZoneManager {
     // - **Ground never casts.** A floor can only ever shadow itself, and
     //   self-shadowing a vast flat plane is the classic source of acne — it is
     //   pure cost for an effect that is at best invisible and at worst stripes.
+    //   Recognised by name for the two floors that predate the flag, and by
+    //   `userData.ground` for anything else that is a large near-horizontal
+    //   surface — a pond bed is one, and is not called either of those things.
     // - **Clutter casts only when asked.** Grass and small flowers are the bulk
     //   of the object count in an outdoor zone and a couple of pixels each on
     //   screen. Off by default and switchable; see `art/clutter.ts`.
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const glow = object.userData.noCollide === true;
-      const ground = object.name === 'flatGround' || object.name === 'terrain';
+      const ground =
+        object.name === 'flatGround' ||
+        object.name === 'terrain' ||
+        object.userData.ground === true;
       const clutter = object.userData.clutter === true;
       object.castShadow = !glow && !ground && (!clutter || this.clutterShadows);
       object.receiveShadow = !glow;

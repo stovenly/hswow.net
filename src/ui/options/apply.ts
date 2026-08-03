@@ -117,6 +117,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
 
   // --- accessibility -------------------------------------------------------
   windUniforms.swayAmount.value = options.windSway ? 1 : 0;
+  postfx.setWaterMotion(options.waterMotion);
   tuning.bobScale = options.headBob ? 1 : 0;
   setDyslexicFont(options.dyslexicFont);
   // The root size, so every `rem` in the interface follows it. Nothing in the
