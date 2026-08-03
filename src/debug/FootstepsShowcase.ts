@@ -24,17 +24,21 @@ import { signboard, type SignboardOptions } from '../art/builders/signboard';
  * **The order is the set of comparisons worth making.** Neighbours are the pairs
  * that are hard to tell apart or that ought to be obvious and are not:
  *
- * - `flagstone | cobble` — the split M4 introduced. A slab is one contact; a
- *   sett is a small stone with sand in the joint. If these are the same sound
- *   the split was not worth making.
- * - `boards | grating` — the two that lean hardest on the modal bank, which is
- *   the thing M2 corrected. Wood should be hollow and metal should ring.
+ * - `flagstone | cobble | rubble | gravel | sand` — **one axis, five points.**
+ *   The aggregate family is a single question — how big are the pieces, and are
+ *   they fixed — asked at five grain sizes from a slab down to dust. Adjacent
+ *   pairs should be tellable apart; the ends should not be comparable.
  * - `dirt | mire | shallows` — dry, wet, and under water. Mud was the wet slap
  *   for the whole project's life; the question is whether the shallows are
- *   audibly a *splash* rather than a louder one.
- * - `gravel | snow` — two aggregates. Snow is the one with a squeak in it.
- * - `leaflitter | turf | moss` — three soft surfaces in descending order of
- *   noise. Moss should be very nearly silent without being absent.
+ *   audibly a *splash* rather than a louder one, and whether mud gloops where
+ *   water plinks.
+ * - `moss | turf | leaflitter | snow` — soft, in ascending order of noise. Moss
+ *   should be very nearly silent without being absent; snow should compress
+ *   rather than crunch.
+ * - `boards | plate | grating | hollowmetal` — the four that ring, and the only
+ *   four that are allowed to. Wood hollow, plate dead, grating clanging, drum
+ *   booming. If any of the twelve to their left sounds like a board, the fault
+ *   is in that surface and not in this one.
  *
  * Nothing stands on the ground and nothing is emitted in the air. A prop here
  * would be something to look at while listening, which is the opposite of what
@@ -48,24 +52,33 @@ import { signboard, type SignboardOptions } from '../art/builders/signboard';
 
 export const ZONE_FOOTSTEPS_SHOWCASE = 'footsteps-showcase';
 
-/** Ground materials, left to right. See the header for why this order. */
+/**
+ * Ground materials, left to right. See the header for why this order.
+ *
+ * Read as a walk: hard stone down through the aggregate family by grain size,
+ * then wet, then soft, then the two things that genuinely ring.
+ */
 const STRIPS: readonly GroundName[] = [
   'flagstone',
   'cobble',
-  'boards',
-  'grating',
+  'rubble',
+  'gravel',
+  'sand',
   'dirt',
   'mire',
   'shallows',
-  'gravel',
-  'snow',
-  'leaflitter',
-  'turf',
   'moss',
+  'turf',
+  'leaflitter',
+  'snow',
+  'boards',
+  'plate',
+  'grating',
+  'hollowmetal',
 ];
 
 /** Wide enough to run down without steering into the neighbour. */
-const STRIP_WIDTH = 5;
+const STRIP_WIDTH = 4.5;
 /** Half the run. A sprint covers this in three seconds. */
 const HALF_LENGTH = 22;
 const HALF_FIELD = (STRIPS.length * STRIP_WIDTH) / 2;
@@ -148,10 +161,12 @@ export function footstepsShowcaseZone(): ZoneDefinition {
       ambientGround: 0xbfb298,
       surface: APRON,
       room: 'open',
-      // **Drier than outdoors, deliberately.** A tail on your own boots is what
-      // tells you which room you are in, and in here it is the one thing that
-      // would blur the comparison this zone exists to make.
-      footstepReverb: 0.3,
+      // **Nearly dry, deliberately.** A tail on your own boots is what tells you
+      // which room you are in, and in here it is the one thing that would blur
+      // the comparison this zone exists to make — a reverb tail on a footstep
+      // is itself a hollow ring, and telling it apart from the material's own
+      // is the whole task.
+      footstepReverb: 0.12,
       soundscape: SILENCE,
     },
     spawn: { position: new THREE.Vector3(0, 0.1, DOOR_Z - 2), yaw: Math.PI },

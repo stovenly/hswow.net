@@ -64,6 +64,67 @@ export function excite(
 }
 
 /**
+ * A material compressing under load, rather than being struck.
+ *
+ * The third gesture, and the one every impact model leaves out. An impact is
+ * energy arriving and leaving — fast in, exponential out. Snow, moss, deep
+ * earth, sand and mud do not do that: the foot keeps going after contact, and
+ * the sound is the material *packing* over a tenth of a second. It swells
+ * rather than decays, and it has no strike in it at all.
+ *
+ * Two things make it read as compression rather than as a long soft noise:
+ *
+ * - **The envelope rises.** A percussive envelope on this sounds like a muffled
+ *   hit; a rise-and-fall sounds like weight going into something.
+ * - **The band climbs.** As a granular material packs, the voids close and the
+ *   noise it makes shifts up. That climb is snow's squeak — literally, crystals
+ *   shearing against each other — and at a lower ratio it is the squish of moss
+ *   and the suck of mud. Zero climb sounds like a filter sweep somebody forgot
+ *   to set.
+ */
+export function crush(
+  context: BaseAudioContext,
+  noise: AudioBuffer,
+  target: AudioNode,
+  at: number,
+  level: number,
+  shape: {
+    /** Seconds the material takes to pack. Tens of times an impact. */
+    duration: number;
+    /** Band centre at first contact, and where it has climbed to by the end. */
+    from: number;
+    to: number;
+    /** Sharpness. Above about 4 the climb reads as a squeak. */
+    q: number;
+  },
+): void {
+  if (level <= 0.0005) return;
+
+  const band = context.createBiquadFilter();
+  band.type = 'bandpass';
+  band.Q.value = shape.q;
+  band.frequency.setValueAtTime(shape.from, at);
+  band.frequency.linearRampToValueAtTime(shape.to, at + shape.duration);
+  band.connect(target);
+
+  const source = context.createBufferSource();
+  source.buffer = noise;
+
+  // Peaks part-way through rather than at the start: the load is still going
+  // on. Cosine-free because a bandpass this narrow smooths the corners itself.
+  const envelope = context.createGain();
+  const peak = at + shape.duration * 0.45;
+  envelope.gain.setValueAtTime(0, at);
+  envelope.gain.linearRampToValueAtTime(level, peak);
+  envelope.gain.setTargetAtTime(0, peak, shape.duration * 0.25);
+
+  source.connect(envelope).connect(band);
+  const window = shape.duration * 2.2 + 0.03;
+  source.start(at, Math.random() * Math.max(noise.duration - window, 0), window);
+  source.stop(at + window + 0.01);
+}
+
+/**
  * A tonal thump: a sine falling in pitch, felt more than heard.
  *
  * The weight of a thing. Modal banks carry material and excitation carries

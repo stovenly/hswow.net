@@ -13,8 +13,8 @@
 import { Weather } from '../src/audio/weather';
 import { measure, periodicity } from '../src/audio/audition/measure';
 import { bubbleHz, bubbleRadius } from '../src/audio/dsp/bubble';
-import { derivedQ, trimFor } from '../src/audio/dsp/modal';
-import { SURFACES, BANK } from '../src/audio/models/footsteps';
+import { derivedQ } from '../src/audio/dsp/modal';
+import { SURFACES, BANK, RINGS } from '../src/audio/models/footsteps';
 
 let failures = 0;
 
@@ -338,43 +338,60 @@ for (const [mm, hz] of [
 // The pre-correction levels are recorded here because that is the only place
 // left that knows them. A single mistyped constant in `SURFACES` is otherwise
 // a surface that is quietly wrong and nothing says so.
-const OLD_BANK = { ring: 'filter', compensation: 'inverse' } as const;
-const OLD_LEVELS: Record<string, readonly number[]> = {
-  stone: [0.6, 0.32, 0.12],
-  wood: [1, 0.6, 0.22],
-  earth: [0.55],
-  metal: [0.5, 0.45, 0.3, 0.2],
-  mud: [0.35],
-};
+// M2's loudness-neutral transform is deliberately no longer asserted: M3
+// retuned every surface by ear, which is exactly what that transform existed
+// to make safe to do. What survives it are the two structural rules, and both
+// encode a fault that was actually shipped rather than one that was imagined.
 
-let worstDrift = 0;
-let modeCount = 0;
-for (const [name, levels] of Object.entries(OLD_LEVELS)) {
-  const modes = SURFACES[name as keyof typeof SURFACES].modes;
+// **A loose or soft material does not ring.** Earth had a mode at 120 Hz
+// ringing for 50 ms, mud one at 240, snow one at 2100 — none of the three is a
+// body free to vibrate, and all three read as a boarded floor. This is the
+// single assertion that keeps the whole table from sounding like planks.
+{
+  const wrong = Object.entries(SURFACES)
+    .filter(([name, surface]) => surface.modes.length > 0 && !RINGS.includes(name))
+    .map(([name]) => name);
   check(
-    `${name} still has ${levels.length} mode${levels.length > 1 ? 's' : ''}`,
-    modes.length === levels.length,
-    `${modes.length} in the table`,
+    'only solid bodies have modes',
+    wrong.length === 0,
+    wrong.length === 0
+      ? `${RINGS.length} of ${Object.keys(SURFACES).length} surfaces ring`
+      : `should not ring: ${wrong.join(', ')}`,
   );
-  for (let i = 0; i < Math.min(modes.length, levels.length); i++) {
-    const mode = modes[i];
-    const before = levels[i] * trimFor(derivedQ(mode, OLD_BANK), OLD_BANK.compensation);
-    const after = mode.level * trimFor(derivedQ(mode, BANK), BANK.compensation);
-    worstDrift = Math.max(worstDrift, Math.abs(20 * Math.log10(after / before)));
-    modeCount += 1;
-  }
+  // And the converse, so `RINGS` cannot rot into a list of names nothing checks.
+  const silent = RINGS.filter(
+    (name) => (SURFACES[name as keyof typeof SURFACES]?.modes.length ?? 0) === 0,
+  );
+  check('every ringing surface actually has modes', silent.length === 0, silent.join(', ') || 'all present');
 }
-check(
-  'the bank correction is loudness-neutral',
-  // Under a tenth of a decibel across every mode. The levels are written to
-  // four figures, so the residual is rounding and nothing else.
-  worstDrift < 0.1,
-  `worst drift ${worstDrift.toFixed(3)} dB across ${modeCount} modes`,
-);
 
-// Every surface that leans on the bank must now sit under the threshold
-// `modal.ts` names — above `π·f·decay ≈ 40` a bandpass has no timbre left, and
-// that is precisely the fault M2 exists to fix.
+// **Hollowness is a licence, not an accident.** A mode low enough and long
+// enough to be a boxy resonance belongs to exactly two things a player walks
+// on: a board over a void, and an empty steel container. Anywhere else it is
+// the plank fault coming back under a different surface's name.
+{
+  const HOLLOW_HZ = 500;
+  const HOLLOW_DECAY = 0.15;
+  const ALLOWED = ['wood', 'metal-hollow'];
+  const wrong = Object.entries(SURFACES)
+    .filter(
+      ([name, surface]) =>
+        !ALLOWED.includes(name) &&
+        surface.modes.some((mode) => mode.hz < HOLLOW_HZ && mode.decay > HOLLOW_DECAY),
+    )
+    .map(([name]) => name);
+  check(
+    'only wood and hollow metal are hollow',
+    wrong.length === 0,
+    wrong.length === 0
+      ? `nothing else rings below ${HOLLOW_HZ} Hz for over ${HOLLOW_DECAY} s`
+      : `boxy: ${wrong.join(', ')}`,
+  );
+}
+
+// Every surface that leans on the bank must sit under the threshold `modal.ts`
+// names — above `π·f·decay ≈ 40` a bandpass has no timbre left, which is
+// precisely the fault M2 existed to fix.
 {
   let worstQ = 0;
   let worst = '';
@@ -388,6 +405,24 @@ check(
     }
   }
   check('no mode is sharper than a bandpass can carry', worstQ <= 14, `${worst} at Q ${worstQ.toFixed(1)}`);
+}
+
+// **A band with no width is a filter somebody typed backwards**, and it is
+// silent rather than wrong-sounding, which is the worst way for it to fail.
+{
+  const wrong = Object.entries(SURFACES)
+    .filter(([, surface]) => (surface.impact.low ?? 0) >= surface.impact.tone * 0.8)
+    .map(([name]) => name);
+  check('every impact band has room in it', wrong.length === 0, wrong.join(', ') || '16 bands, all open');
+}
+
+// **Shear has to do something on the materials it is claimed for.** The point
+// of `scuff` is that creeping over gravel and sprinting over it are different
+// events, so a loose surface that ignores speed is the feature not working.
+{
+  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'leaves', 'water'];
+  const deaf = LOOSE.filter((name) => SURFACES[name as keyof typeof SURFACES].scuff < 0.7);
+  check('loose surfaces answer to speed', deaf.length === 0, deaf.join(', ') || `${LOOSE.length} checked`);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
