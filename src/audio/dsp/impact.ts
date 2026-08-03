@@ -36,17 +36,30 @@ export function excite(
   at: number,
   level: number,
   duration: number,
+  /**
+   * Rise time in seconds. **This is the hardness control, and leaving it at a
+   * constant is how everything ends up sounding like the same tap.**
+   *
+   * A millisecond is a strike: steel, stone, a resonator being rung. Thirty is
+   * not a strike at all — it is a foot decelerating into snow or moss, where
+   * nothing arrives suddenly because nothing stops suddenly. Between the two
+   * the ear hears a completely different *event*, not a differently coloured
+   * one, and no filtering downstream can convert one into the other.
+   *
+   * Defaults to the old behaviour: as fast as the duration allows, capped at
+   * 1.2 ms, which is right for anything being genuinely struck.
+   */
+  attack?: number,
 ): void {
   if (level <= 0.0005) return;
 
   const source = context.createBufferSource();
   source.buffer = noise;
 
+  const rise = Math.min(attack ?? Math.min(0.0012, duration * 0.3), duration * 2);
+
   const envelope = context.createGain();
-  // The attack is capped as well as scaled: below about a millisecond the ramp
-  // is short enough to be a click in its own right, and above it the burst
-  // stops being an impulse and starts being a note.
-  strike(envelope.gain, at, level, Math.min(0.0012, duration * 0.3), duration * 1.6);
+  strike(envelope.gain, at, level, rise, duration * 1.6);
 
   source.connect(envelope).connect(target);
 
@@ -55,7 +68,7 @@ export function excite(
   // window of `duration` cuts a long excitation while it is still a tenth up —
   // which for a modal bank driven in excitation mode is most of its ring. Two
   // and a half times over is four time constants, and by then it is silent.
-  const window = duration * 2.5 + 0.05;
+  const window = rise + duration * 2.5 + 0.05;
   // A random offset into the buffer, so a hundred impacts are a hundred
   // different noises rather than the same click a hundred times. Without this
   // repeated strikes phase together and start to sound sampled.
