@@ -509,29 +509,71 @@ for (const [mm, hz] of [
 // every surface read as the same tap with effects on top. A material a foot
 // sinks into cannot have a transient, because nothing stops suddenly.
 {
-  // Anything that packs under a foot has to arrive over tens of milliseconds,
-  // because the foot is still moving through it. `crush` is exactly the
-  // declaration that a material does that, so the two cannot disagree.
-  const gives = Object.entries(SURFACES).filter(([, surface]) => surface.crush);
-  const rushed = gives.filter(([, surface]) => (surface.impact.attack ?? 0) < 0.01).map(([n]) => n);
-  const slowest = Math.max(...gives.map(([, s]) => s.impact.attack ?? 0));
+  // **Depth is the predicate, not softness.** A foot is decelerated gradually
+  // only when there is a depth of something for it to go through — and a
+  // surface says so by declaring either a `crush` (it packs) or a `cavity` (it
+  // is deep enough to drag air under). Anything with neither has something hard
+  // within a few millimetres and is genuinely struck, which is why a *film* of
+  // water over stone arrives in two milliseconds and is right to.
+  const deep = Object.entries(SURFACES).filter(
+    ([, surface]) => surface.crush || surface.splash?.cavity,
+  );
+  const rushed = deep.filter(([, surface]) => (surface.impact.attack ?? 0) < 0.01).map(([n]) => n);
+  const slowest = Math.max(...deep.map(([, s]) => s.impact.attack ?? 0));
   check(
-    'anything that gives arrives slowly',
+    'anything with depth arrives slowly',
     rushed.length === 0,
     rushed.length === 0
-      ? `${gives.length} surfaces give, slowest ${(slowest * 1000).toFixed(0)} ms`
+      ? `${deep.length} surfaces have depth, slowest ${(slowest * 1000).toFixed(0)} ms`
       : `struck anyway: ${rushed.join(', ')}`,
   );
+}
 
-  // And the converse: a millisecond rise is a *strike*, which belongs to things
-  // that are struck and to nothing else. Shallow water counts as giving rather
-  // than being struck — the ground under it is reached late and damped, and the
-  // loud part is the water being pushed aside on the way down.
-  const wrong = Object.entries(SURFACES)
-    .filter(([name]) => !RINGS.includes(name))
-    .filter(([, surface]) => (surface.impact.attack ?? 0) < 0.0035)
+// --- the liquids -----------------------------------------------------------
+//
+// Five surfaces, three parameters: medium, depth, bulk. The whole design lives
+// or dies on those staying separable, and two of them are checkable.
+{
+  const at = (name: string) => SURFACES[name as keyof typeof SURFACES];
+  const cavity = (name: string) => at(name).splash?.cavity;
+
+  // **Depth is the cavity.** A film traps no column of air at all; an inch
+  // traps a small one; knee-deep traps one the size of your leg, which is both
+  // bigger and — since a bubble sings at 3.26/r — lower.
+  const thin = cavity('water-thin');
+  const thick = cavity('water-thick');
+  const knee = cavity('water-knee');
+  check(
+    'depth is the cavity',
+    !thin && !!thick && !!knee && knee.radius > thick.radius * 2,
+    thick && knee
+      ? `film none, inch ${bubbleHz(thick.radius).toFixed(0)} Hz, knee ${bubbleHz(knee.radius).toFixed(0)} Hz`
+      : 'missing a cavity',
+  );
+
+  // **Medium is the damping**, and the pair at one depth is where that has to
+  // show. Their cavities sit close in pitch on purpose — what separates them is
+  // that one rings and the other does not.
+  const wet = at('water-knee').splash;
+  const bog = at('mud-knee').splash;
+  const wetCavity = wet?.cavity;
+  const bogCavity = bog?.cavity;
+  const ratio =
+    wetCavity && bogCavity ? bubbleHz(bogCavity.radius) / bubbleHz(wetCavity.radius) : 0;
+  check(
+    'medium is the damping, not the pitch',
+    !!wet && !!bog && bog.damping >= wet.damping * 3 && ratio > 0.5 && ratio < 2,
+    wet && bog
+      ? `damping ${wet.damping} against ${bog.damping}, cavities ${ratio.toFixed(2)}x apart`
+      : 'missing a liquid',
+  );
+
+  // And the whole family runs on bubbles. A particle bed here is small hard
+  // things colliding, which is what made every earlier attempt read as static.
+  const gritty = Object.entries(SURFACES)
+    .filter(([, surface]) => surface.splash && surface.grit)
     .map(([name]) => name);
-  check('only hard surfaces are struck', wrong.length === 0, wrong.join(', ') || `${RINGS.length} may be`);
+  check('no liquid uses a particle bed', gritty.length === 0, gritty.join(', ') || '5 liquids, all bubbles');
 }
 
 // **Soft materials must not have hard grains.**
@@ -570,7 +612,9 @@ for (const [mm, hz] of [
 {
   const DENSE = 200;
   const wrong = Object.entries(SURFACES)
-    .filter(([name]) => name !== 'water')
+    // Liquids are exempt, and derived rather than listed: a bubble cloud is
+    // meant to be countable, and none of them uses a particle bed anyway.
+    .filter(([, surface]) => !surface.splash)
     .filter(([, surface]) => {
       const grit = surface.grit;
       if (!grit) return false;
@@ -637,7 +681,7 @@ for (const name of ['metal-solid', 'metal-ring', 'metal-hollow-small', 'metal-ho
 // of `scuff` is that creeping over gravel and sprinting over it are different
 // events, so a loose surface that ignores speed is the feature not working.
 {
-  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'water'];
+  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'water-thin', 'water-thick'];
   const deaf = LOOSE.filter((name) => SURFACES[name as keyof typeof SURFACES].scuff < 0.7);
   check('loose surfaces answer to speed', deaf.length === 0, deaf.join(', ') || `${LOOSE.length} checked`);
 }
