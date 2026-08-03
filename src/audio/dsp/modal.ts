@@ -87,18 +87,35 @@ export function qForDecay(hz: number, decay: number): number {
   return Math.PI * hz * decay;
 }
 
+/**
+ * The Q a mode actually ends up with under a set of options.
+ *
+ * Exported so a check can ask without building a bank, which needs a context.
+ * In excitation mode Q is colour rather than pitch: enough to say "this
+ * frequency matters" and wide enough to still carry noise, scaled gently with
+ * the decay so longer modes are a little more focused.
+ */
+export function derivedQ(mode: Mode, options: ModalOptions = {}): number {
+  if (mode.q !== undefined) return mode.q;
+  const ring = options.ring ?? 'excitation';
+  const maxQ = options.maxQ ?? (ring === 'filter' ? 220 : 14);
+  return ring === 'filter'
+    ? Math.min(maxQ, Math.max(1, qForDecay(mode.hz, mode.decay)))
+    : Math.min(maxQ, Math.max(4, 4 + mode.decay * 24));
+}
+
+/** How `level` is scaled for the filter's bandwidth. See `compensation`. */
+export function trimFor(q: number, compensation: ModalOptions['compensation']): number {
+  return compensation === 'inverse' ? 1 / Math.sqrt(q) : Math.sqrt(q);
+}
+
 export function createModalBank(
   context: BaseAudioContext,
   modes: readonly Mode[],
   destination: AudioNode,
   options: ModalOptions = {},
 ): ModalBank {
-  const ring = options.ring ?? 'excitation';
   const compensation = options.compensation ?? 'energy';
-  // 220 is the historical value from `footsteps.ts`. It is far too high to
-  // keep a timbre, which is exactly why `'excitation'` exists — but raising
-  // the default ceiling for `'filter'` mode would change existing sounds.
-  const maxQ = options.maxQ ?? (ring === 'filter' ? 220 : 14);
 
   const nodes: AudioNode[] = [];
   const qs: number[] = [];
@@ -110,19 +127,12 @@ export function createModalBank(
     filter.type = 'bandpass';
     filter.frequency.value = mode.hz;
 
-    const q =
-      mode.q ??
-      (ring === 'filter'
-        ? Math.min(maxQ, Math.max(1, qForDecay(mode.hz, mode.decay)))
-        : // In excitation mode Q is colour, not pitch: enough to say "this
-          // frequency matters" and wide enough to still carry noise. Scaled
-          // gently with the decay so longer modes are a little more focused.
-          Math.min(maxQ, Math.max(4, 4 + mode.decay * 24)));
+    const q = derivedQ(mode, options);
     filter.Q.value = q;
     qs.push(q);
 
     const trim = context.createGain();
-    trim.gain.value = compensation === 'energy' ? Math.sqrt(q) : 1 / Math.sqrt(q);
+    trim.gain.value = trimFor(q, compensation);
 
     input.connect(filter).connect(trim).connect(destination);
     nodes.push(input, filter, trim);

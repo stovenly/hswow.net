@@ -13,6 +13,8 @@
 import { Weather } from '../src/audio/weather';
 import { measure, periodicity } from '../src/audio/audition/measure';
 import { bubbleHz, bubbleRadius } from '../src/audio/dsp/bubble';
+import { derivedQ, trimFor } from '../src/audio/dsp/modal';
+import { SURFACES, BANK } from '../src/audio/models/footsteps';
 
 let failures = 0;
 
@@ -322,6 +324,70 @@ for (const [mm, hz] of [
     draws[0] >= low - 1e-9 && draws[draws.length - 1] <= high + 1e-9,
     `${(draws[0] * 1000).toFixed(2)}–${(draws[draws.length - 1] * 1000).toFixed(2)} mm`,
   );
+}
+
+// --- the footstep modal bank ----------------------------------------------
+//
+// FOOTSTEPS.md M2. The bank moved from `ring: 'filter'` / `compensation:
+// 'inverse'` to `'excitation'` / `'energy'`, which corrects the timbre and
+// would have changed every level in the table by 26 to 47 dB if the levels had
+// not moved with it. They were put through `level × (1/√Q_old) / √Q_new`, which
+// is loudness-neutral by construction — so the claim "this changed how the
+// surfaces sound and not how loud they are" is arithmetic, and checkable.
+//
+// The pre-correction levels are recorded here because that is the only place
+// left that knows them. A single mistyped constant in `SURFACES` is otherwise
+// a surface that is quietly wrong and nothing says so.
+const OLD_BANK = { ring: 'filter', compensation: 'inverse' } as const;
+const OLD_LEVELS: Record<string, readonly number[]> = {
+  stone: [0.6, 0.32, 0.12],
+  wood: [1, 0.6, 0.22],
+  earth: [0.55],
+  metal: [0.5, 0.45, 0.3, 0.2],
+  mud: [0.35],
+};
+
+let worstDrift = 0;
+let modeCount = 0;
+for (const [name, levels] of Object.entries(OLD_LEVELS)) {
+  const modes = SURFACES[name as keyof typeof SURFACES].modes;
+  check(
+    `${name} still has ${levels.length} mode${levels.length > 1 ? 's' : ''}`,
+    modes.length === levels.length,
+    `${modes.length} in the table`,
+  );
+  for (let i = 0; i < Math.min(modes.length, levels.length); i++) {
+    const mode = modes[i];
+    const before = levels[i] * trimFor(derivedQ(mode, OLD_BANK), OLD_BANK.compensation);
+    const after = mode.level * trimFor(derivedQ(mode, BANK), BANK.compensation);
+    worstDrift = Math.max(worstDrift, Math.abs(20 * Math.log10(after / before)));
+    modeCount += 1;
+  }
+}
+check(
+  'the bank correction is loudness-neutral',
+  // Under a tenth of a decibel across every mode. The levels are written to
+  // four figures, so the residual is rounding and nothing else.
+  worstDrift < 0.1,
+  `worst drift ${worstDrift.toFixed(3)} dB across ${modeCount} modes`,
+);
+
+// Every surface that leans on the bank must now sit under the threshold
+// `modal.ts` names — above `π·f·decay ≈ 40` a bandpass has no timbre left, and
+// that is precisely the fault M2 exists to fix.
+{
+  let worstQ = 0;
+  let worst = '';
+  for (const [name, surface] of Object.entries(SURFACES)) {
+    for (const mode of surface.modes) {
+      const q = derivedQ(mode, BANK);
+      if (q > worstQ) {
+        worstQ = q;
+        worst = `${name} ${mode.hz} Hz`;
+      }
+    }
+  }
+  check('no mode is sharper than a bandpass can carry', worstQ <= 14, `${worst} at Q ${worstQ.toFixed(1)}`);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);

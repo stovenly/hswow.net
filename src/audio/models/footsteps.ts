@@ -1,5 +1,5 @@
 import type { AudioEngine } from '../AudioEngine';
-import { createModalBank, type ModalBank } from '../dsp/modal';
+import { createModalBank, type ModalBank, type ModalOptions } from '../dsp/modal';
 import { createParticleBed, scatterParticles, type Particles } from '../dsp/phisem';
 import { excite } from '../dsp/impact';
 
@@ -17,10 +17,10 @@ import { excite } from '../dsp/impact';
  *
  * - **Impact.** A very short filtered noise transient. The strike itself. Its
  *   brightness and length are the material's hardness.
- * - **Modal ring** (solid). Parallel high-Q bandpasses excited by that
- *   impulse, each ringing down at its own rate. This is what makes wood sound
- *   hollow and stone sound dead; a resonator's decay time follows from its Q,
- *   so `decay` is specified and Q is derived rather than guessed.
+ * - **Modal ring** (solid). Parallel bandpasses excited by that impulse, each
+ *   ringing down at its own rate. This is what makes wood sound hollow and
+ *   stone sound dead. The ring-down lives in the excitation envelope rather
+ *   than in the filter's Q — see `BANK`, which is where that was corrected.
  * - **Grit** (aggregate), which is PhISEM. A stone or a leaf underfoot is not
  *   one event but dozens of tiny collisions, and the system's energy decays
  *   exponentially while collisions keep happening at random intervals within
@@ -73,6 +73,34 @@ export interface Surface {
   roll: number;
 }
 
+/**
+ * How the modal bank is built, and it used to be built wrong both ways.
+ *
+ * `'filter'` spent each mode's decay in the resonator's Q, which for metal's
+ * half-second modes wants 750 and clamped at 220 — a bandpass two hertz wide,
+ * which is a sine with a rumour of noise in it and carries no material
+ * information at all. Every mode in the table but earth's was past the
+ * threshold `modal.ts` names. And `'inverse'` divided by `sqrt(Q)` where the
+ * physics calls for multiplying by it, so the sharpest modes came out quietest.
+ *
+ * Both corrected together, because they have to move together: the ratio
+ * between the two compensations is Q itself, and switching one alone is 41 dB
+ * on stone. The `level` figures in `SURFACES` were then put through the
+ * loudness-neutral transform `level × (1/√Q_old) / √Q_new`, so the bank comes
+ * out where it already sat with the timbre corrected — which is the change that
+ * was actually wanted. `check:audio` asserts that transform still holds.
+ */
+export const BANK: ModalOptions = { ring: 'excitation', compensation: 'energy' };
+
+/**
+ * Excitation length per mode, as a fraction of its decay.
+ *
+ * `excite` stretches its envelope to 1.6× the duration it is given, so this
+ * lands the audible tail on the mode's own decay. A flat click here — which is
+ * what a filter-mode bank wants — produces a bank with no ring at all.
+ */
+const MODE_EXCITATION = 0.625;
+
 export const SURFACES = {
   /**
    * Flagstone. Hard and dead, with a little grit on top.
@@ -93,9 +121,9 @@ export const SURFACES = {
     level: 0.5,
     impact: { level: 0.9, duration: 0.011, tone: 3800 },
     modes: [
-      { hz: 620, decay: 0.06, level: 0.6 },
-      { hz: 1450, decay: 0.03, level: 0.32 },
-      { hz: 2600, decay: 0.018, level: 0.12 },
+      { hz: 620, decay: 0.06, level: 0.0238 },
+      { hz: 1450, decay: 0.03, level: 0.0126 },
+      { hz: 2600, decay: 0.018, level: 0.0047 },
     ],
     grit: { count: 5, over: 0.06, energyDecay: 0.025, hz: 2600, q: 1.2, level: 0.12 },
     toe: 0.45,
@@ -121,9 +149,9 @@ export const SURFACES = {
     level: 0.6,
     impact: { level: 0.7, duration: 0.018, tone: 1700 },
     modes: [
-      { hz: 155, decay: 0.22, level: 1 },
-      { hz: 390, decay: 0.15, level: 0.6 },
-      { hz: 720, decay: 0.075, level: 0.22 },
+      { hz: 155, decay: 0.22, level: 0.0317 },
+      { hz: 390, decay: 0.15, level: 0.0161 },
+      { hz: 720, decay: 0.075, level: 0.007 },
     ],
     // A trace of grit — dust and grain underfoot. Low and sparse, so it softens
     // the attack rather than adding a crunch.
@@ -136,7 +164,7 @@ export const SURFACES = {
   earth: {
     level: 0.5,
     impact: { level: 1, duration: 0.022, tone: 900 },
-    modes: [{ hz: 120, decay: 0.05, level: 0.55 }],
+    modes: [{ hz: 120, decay: 0.05, level: 0.0556 }],
     grit: { count: 9, over: 0.07, energyDecay: 0.028, hz: 1600, q: 1, level: 0.22 },
     toe: 0.4,
     roll: 0.085,
@@ -177,10 +205,10 @@ export const SURFACES = {
     level: 0.45,
     impact: { level: 0.9, duration: 0.004, tone: 9000 },
     modes: [
-      { hz: 480, decay: 0.5, level: 0.5 },
-      { hz: 1270, decay: 0.42, level: 0.45 },
-      { hz: 2340, decay: 0.3, level: 0.3 },
-      { hz: 4100, decay: 0.18, level: 0.2 },
+      { hz: 480, decay: 0.5, level: 0.009 },
+      { hz: 1270, decay: 0.42, level: 0.0081 },
+      { hz: 2340, decay: 0.3, level: 0.006 },
+      { hz: 4100, decay: 0.18, level: 0.0047 },
     ],
     grit: null,
     toe: 0.5,
@@ -191,7 +219,7 @@ export const SURFACES = {
   mud: {
     level: 0.5,
     impact: { level: 1, duration: 0.05, tone: 700 },
-    modes: [{ hz: 240, decay: 0.06, level: 0.35 }],
+    modes: [{ hz: 240, decay: 0.06, level: 0.0223 }],
     grit: { count: 6, over: 0.09, energyDecay: 0.03, hz: 900, q: 3.2, level: 0.3 },
     toe: 0.3,
     roll: 0.1,
@@ -540,17 +568,18 @@ export class Footsteps {
       surface.impact.duration * contact.stretch,
     );
 
-    // Resonators need only a click — their ring-down is the filter's own, not
-    // an envelope's, which is what makes it sound like a body rather than a
-    // fade.
+    // Each mode is fed a burst its own length: in excitation mode the ring-down
+    // lives here rather than in the filter, so a flat click would leave the
+    // bank with no ring at all. See `MODE_EXCITATION`.
     for (let i = 0; i < surface.modes.length; i++) {
+      const mode = surface.modes[i];
       excite(
         context,
         noise.white,
         chain.bank.inputs[i],
         at,
-        level * surface.modes[i].level * 0.5 * contact.modes,
-        0.002,
+        level * mode.level * 0.5 * contact.modes,
+        mode.decay * MODE_EXCITATION,
       );
     }
 
@@ -567,24 +596,7 @@ export class Footsteps {
     const context = this.engine.context;
     const surface: Surface = SURFACES[name];
 
-    // **Both options here are the historical ones, and both are wrong.**
-    //
-    // `'filter'` lets the resonator carry the ring-down, which for metal's
-    // half-second modes wants a Q of 750 and clamps at 220 — far past the point
-    // a bandpass keeps any timbre. And `'inverse'` divides by `sqrt(Q)` where
-    // the physics calls for multiplying by it, so the sharpest modes come out
-    // quietest, exactly backwards. `door.ts` diagnosed both and fixed them;
-    // this file predates that and still has them.
-    //
-    // They are preserved verbatim because `SURFACES` above was tuned by ear
-    // *against* them, and correcting the bank without re-tuning the table would
-    // change how every surface in the game sounds. That is an audible change
-    // and it belongs in its own commit where it can be heard before and after —
-    // not smuggled in under a refactor that promises to change nothing.
-    const bank = createModalBank(context, surface.modes, this.output, {
-      ring: 'filter',
-      compensation: 'inverse',
-    });
+    const bank = createModalBank(context, surface.modes, this.output, BANK);
 
     let gritInput: GainNode | null = null;
     if (surface.grit) {
