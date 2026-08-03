@@ -40,6 +40,36 @@ const HOP_CONTINUATION = 0.28;
 /** Which axis a field-of-view figure is measured along. See `fovScaling`. */
 export type FovScaling = 'horizontal' | 'vertical';
 
+/**
+ * One footfall, and which way it was going.
+ *
+ * **The direction comes from input, not from velocity**, and the two genuinely
+ * differ. Sliding sideways down a slope while pressing forward is still forward
+ * walking: your feet do what you are asking them to, whatever the ground is
+ * doing to you afterwards. This is the same reasoning that keeps `wishX/wishZ`
+ * on the near side of the slope projection in `applyWish`.
+ *
+ * A landing is the opposite case and reads velocity instead — in the air you
+ * have limited authority over where your body goes, so the shear at touchdown
+ * is set by where you are actually travelling. Both rules are right for their
+ * own event, and they are stated together because this is exactly the kind of
+ * inconsistency that gets tidied into agreement later and quietly breaks one.
+ */
+export interface Footfall {
+  /** Metres per second. */
+  speed: number;
+  /**
+   * Where the player is asking to go, in their own frame — +1 is to their
+   * right, +1 is straight ahead. Unit length while a direction is held.
+   *
+   * **Latched.** Input can drop to zero while the player is still decelerating,
+   * and a step that fires during that should keep the gait it was travelling
+   * with rather than snapping to forward on the last footfall of every stop.
+   */
+  right: number;
+  forward: number;
+}
+
 export interface PlayerTuning {
   /** Capsule radius. Also, incidentally, how tight a gap the player fits through. */
   radius: number;
@@ -310,8 +340,8 @@ export class Controller {
   readonly tuning: PlayerTuning = { ...DEFAULT_TUNING };
   readonly velocity = new THREE.Vector3();
 
-  /** Fires on each footfall, with the speed it happened at. Phase 3 listens. */
-  onFootstep: ((speed: number) => void) | null = null;
+  /** Fires on each footfall. Phase 3 listens. */
+  onFootstep: ((step: Footfall) => void) | null = null;
   /**
    * Fires on touchdown, with the vertical impact speed and the horizontal
    * speed it arrived carrying, both in m/s.
@@ -397,6 +427,12 @@ export class Controller {
   /** Horizontal unit direction the player is asking to go, world space. */
   private wishX = 0;
   private wishZ = 0;
+  /**
+   * The same wish in the player's *own* frame, latched at its last non-zero
+   * value. See `Footfall`.
+   */
+  private headingRight = 0;
+  private headingForward = 1;
   private grounded = false;
   /** Set for the one sub-step a jump is launched on, so it isn't snapped back. */
   private jumped = false;
@@ -630,6 +666,12 @@ export class Controller {
     // Velocity is not — a wall zeroes it, and then nothing looks obstructed.
     this.wishX = _wish.x;
     this.wishZ = _wish.z;
+    // The same thing in the player's own frame, and no transformation is
+    // needed: `moveX` and `moveZ` already *are* right and forward. Latched
+    // here, inside the guard, so releasing the keys mid-stride leaves the last
+    // real direction standing rather than zeroing it.
+    this.headingRight = moveX / magnitude;
+    this.headingForward = moveZ / magnitude;
 
     if (this.grounded) {
       // Steer along the surface rather than into it. Walking up a slope is
@@ -935,7 +977,11 @@ export class Controller {
 
     while (this.strideProgress >= 1) {
       this.strideProgress -= 1;
-      this.onFootstep?.(speed);
+      this.onFootstep?.({
+        speed,
+        right: this.headingRight,
+        forward: this.headingForward,
+      });
     }
   }
 
