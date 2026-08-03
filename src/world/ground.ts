@@ -67,8 +67,10 @@ export const GROUND = {
   grating: { color: PALETTE.IRON, variation: 0.15, step: 'metal-ring' },
   /** Steel bedded on something solid. Dull, and the only quiet metal. */
   plate: { color: shade(PALETTE.IRON, 0.88), variation: 0.11, step: 'metal-solid' },
-  /** A tank top, a drum, a hatch cover. There is air under it. */
-  hollowmetal: { color: PALETTE.IRON_DARK, variation: 0.13, step: 'metal-hollow' },
+  /** A pipe run, a duct, a small drum. Hollow, but not much of a volume. */
+  pipework: { color: shade(PALETTE.IRON, 0.78), variation: 0.14, step: 'metal-hollow-small' },
+  /** A tank top, a hopper, a container roof. There is a great deal of air under it. */
+  hollowmetal: { color: PALETTE.IRON_DARK, variation: 0.13, step: 'metal-hollow-big' },
   /** Lying snow, trodden. Almost no face variation — snow is famously even. */
   snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
   /** Ankle-deep water: a ford, a puddled yard, the edge of a pool. */
