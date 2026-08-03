@@ -93,6 +93,36 @@ const GENERAL_DOOR_Z = 16;
 const DOOR_SLOTS = [-9, -3, 3, 9] as const;
 
 /**
+ * Where the showcase doors stand on the general hall's grid, west to east.
+ *
+ * Five metres apart, and it was eight. The argument for eight was that two
+ * doors closer than their own arrival sweeps would read as one door with a
+ * spare — which is true of doors facing *each other* and false of these: they
+ * all face +Z, so their walk-offs run parallel and never meet. A frame is about
+ * a metre and a half, so this still leaves three and a half metres of clear
+ * grid between neighbours.
+ *
+ * What eight actually bought was a rank forty metres wide. That is most of the
+ * way to the fog, and a long walk between two rooms whose whole purpose is to
+ * be compared with each other.
+ *
+ * Centred on the arrival rather than running east from it, so walking in from
+ * the hub puts the whole rank in one look instead of trailing off to one side.
+ */
+const SHOWCASE_SLOTS = [-12.5, -7.5, -2.5, 2.5, 7.5, 12.5] as const;
+
+/** A showcase door standing free on the grid, facing the way home. */
+function gridDoor(slot: number, material: 'timber' | 'iron', seed: number): PortalEnd {
+  return {
+    zone: ZONE_GENERAL_PROPS,
+    position: new THREE.Vector3(SHOWCASE_SLOTS[slot], 0, 0),
+    yaw: 0,
+    material,
+    seed,
+  };
+}
+
+/**
  * A works and a dwelling, in the same registers as the demo interiors they sit
  * beside — these halls are the *lobby* of their setting, so they borrow its
  * light and its acoustics rather than inventing their own. Fog pulled in the
@@ -285,76 +315,35 @@ export function propPortals(
     ),
     galleryPortal(animalGalleryPlan, wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 2, 'timber', 6423)),
     galleryPortal(foliageGalleryPlan, wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 3, 'timber', 6424)),
-    // The Text Showcase hangs off the general hall: lettering belongs to no
-    // setting, which is exactly what that room is for. Its door stands free on
-    // the grid facing the way home, so walking in from the hub you see it
-    // fifteen metres ahead down the aisle.
-    galleryPortal(textShowcaseGalleryPlan, {
-      zone: ZONE_GENERAL_PROPS,
-      position: new THREE.Vector3(0, 0, 0),
-      yaw: 0,
-      material: 'timber',
-      seed: 6431,
-    }),
-    // Fog hangs off the general hall for the same reason: air belongs to no
-    // setting either. Eight metres west of the Text Showcase's door and facing
-    // the same way, so the two read as a rank rather than as one door and a
-    // stray — and eight rather than the halls' six, because out here there is
-    // no wall making the spacing mean anything and a pair standing closer than
-    // their own arrival sweeps would look like one door with a spare.
-    galleryPortal(fogShowcasePlan, {
-      zone: ZONE_GENERAL_PROPS,
-      position: new THREE.Vector3(-8, 0, 0),
-      yaw: 0,
-      material: 'timber',
-      seed: 6432,
-    }),
-    // The Sound Showcase completes the rank. It stood in the exterior, four
-    // paces from spawn, on the argument that it was the only place in the hub
-    // where a model could be heard and friction in front of the only door is
-    // just friction. That argument was about *reachability*, and it is answered
-    // as well by a door in the room the other showcases open off — while a
-    // workbench standing in the village street was always the odd thing out in
-    // a zone that is meant to read as a place.
+    // --- the showcase rank, west to east ------------------------------------
+    //
+    // Everything here hangs off the general hall because it belongs to no
+    // setting, which is exactly what that room is for: lettering, air, a rack
+    // of machinery, a pond, the sea, and the ground.
+    //
+    // Fog first, at the west end. Air belongs to no setting either.
+    galleryPortal(fogShowcasePlan, gridDoor(0, 'timber', 6432)),
+    // Lettering, which was the first door out here and the reason the rank
+    // exists.
+    galleryPortal(textShowcaseGalleryPlan, gridDoor(1, 'timber', 6431)),
+    // The Sound Showcase. It stood in the exterior, four paces from spawn, on
+    // the argument that it was the only place in the hub where a model could be
+    // heard and friction in front of the only door is just friction. That
+    // argument was about *reachability*, and it is answered as well by a door
+    // in the room the other showcases open off — while a workbench standing in
+    // the village street was always the odd thing out in a zone that is meant
+    // to read as a place.
     //
     // Iron rather than timber: what is behind it is a rack of machinery, and
     // the door is the first thing that says so.
-    soundStagePortal({
-      zone: ZONE_GENERAL_PROPS,
-      position: new THREE.Vector3(8, 0, 0),
-      yaw: 0,
-      material: 'iron',
-      seed: 6433,
-    }),
-    // Water joins the rank at the east end, on the same eight-metre spacing.
-    // It belongs out here for the reason the other three do: a pond is not
-    // industrial and it is not countryside, it is a surface, and the room the
-    // showcases open off is the one with no setting to contradict.
-    waterShowcasePortal({
-      zone: ZONE_GENERAL_PROPS,
-      position: new THREE.Vector3(16, 0, 0),
-      yaw: 0,
-      material: 'timber',
-      seed: 6434,
-    }),
+    soundStagePortal(gridDoor(2, 'iron', 6433)),
+    // A pond is not industrial and it is not countryside; it is a surface.
+    waterShowcasePortal(gridDoor(3, 'timber', 6434)),
     // And the open sea beside it, which is the same subject at a size nothing
     // else in the rank is — see `WaterShowcase2`.
-    waterShowcase2Portal({
-      zone: ZONE_GENERAL_PROPS,
-      position: new THREE.Vector3(24, 0, 0),
-      yaw: 0,
-      material: 'timber',
-      seed: 6435,
-    }),
-    // Footsteps close the rank. The ground belongs to no setting either, and
-    // what is behind this door is a test rig rather than a place — hence iron,
-    // the same signal the Sound Showcase's door gives.
-    footstepsShowcasePortal({
-      zone: ZONE_GENERAL_PROPS,
-      position: new THREE.Vector3(32, 0, 0),
-      yaw: 0,
-      material: 'iron',
-      seed: 6436,
-    }),
+    waterShowcase2Portal(gridDoor(4, 'timber', 6435)),
+    // Footsteps close the rank. Iron again: what is behind it is a test rig
+    // rather than a place.
+    footstepsShowcasePortal(gridDoor(5, 'iron', 6436)),
   ];
 }
