@@ -21,7 +21,7 @@ import { ZoneManager } from './world/ZoneManager';
 import { Interaction } from './world/Interaction';
 import { Reticle, Fade } from './ui/Reticle';
 import { Crosshair } from './ui/Crosshair';
-import { createTestWorld, ZONE_EXTERIOR, ZONE_VILLAGE } from './debug/zones';
+import { createTestWorld, ZONE_EXTERIOR, ZONE_COUNTRYSIDE } from './debug/zones';
 import { STAGE_STATIONS } from './debug/SoundStage';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
@@ -134,7 +134,7 @@ await loader.step('settling the world', 0.6, () => zones.enter(ZONE_EXTERIOR));
 // Built now rather than on first entry. A zone this size takes longer to raise
 // than the transition fade is black for, so paying it here keeps the doorway
 // instant — and the collider caches it, so it is paid exactly once.
-await loader.step('raising arkstin', 0.78, () => zones.prebuild(ZONE_VILLAGE));
+await loader.step('raising the countryside', 0.78, () => zones.prebuild(ZONE_COUNTRYSIDE));
 
 // --- audio ----------------------------------------------------------------
 // The context is suspended until a gesture, but the noise buffers and the room
@@ -161,7 +161,7 @@ let footsteps: Footsteps | null = null;
  * Looked up by id against whatever zone is current, so entries for a zone you
  * are not standing in simply find nothing. `canopy` and the two shrubs were
  * the proving ground's sound garden and are kept: the sound stage declares a
- * `foliage` station, and the village its own hedgerows.
+ * `foliage` station, and the countryside demo its own hedgerows.
  */
 const FOLIAGE_BASE = new Map<string, number>([
   ['canopy', 0.22],
@@ -436,7 +436,7 @@ if (dev.gui) {
   // Bound through the active zone's soundscape rather than to a model directly.
   // A zone declares its sound as data and the models are built on entry, so a
   // panel that captured one at startup would be tuning the proving ground's
-  // tree while the player stands in Arkstin. `find` looks it up by the `id` the
+  // tree while the player stands in the countryside. `find` looks it up by the `id` the
   // spec declared, every time the slider moves.
   const tuning = {
     windTone: 3400,
@@ -568,7 +568,7 @@ if (dev.gui) {
   //
   // Closed by default, and everything in it acts on whatever soundscape is
   // current rather than on the stage specifically. Solo is as useful standing
-  // in Arkstin trying to work out which of six sources is the harsh one, and
+  // in the countryside trying to work out which of six sources is the harsh one, and
   // the room controls are the only way to tune an acoustic at all.
   // Built here rather than at boot: it taps an analyser off the master bus,
   // and nothing outside `?debug` should be paying for an FFT.

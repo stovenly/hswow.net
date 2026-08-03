@@ -62,12 +62,6 @@ export const FLEX: Record<string, number> = {
   'small-oak': 0.5,
   oak: 0.35,
 
-  // Light, open and pinnate — a rowan's leaves are small and its branches are
-  // thin, so the whole crown stirs where an oak's only nods. Between the birch
-  // and the oak, which is where the tree sits in every other respect too.
-  'small-rowan': 0.7,
-  rowan: 0.6,
-
   // A spruce is the stiffest. Short horizontal boughs on a thick straight
   // leader barely move; what you actually see is the top nodding. Below the
   // bushes on purpose.

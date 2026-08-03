@@ -368,8 +368,23 @@ const windowBuilder: MeshBuilder = {
         ? shade(PALETTE.CLOTH, rng.range(0.85, 1.05))
         : shade(PALETTE.WOOL, rng.range(0.85, 1.05));
       const poleY = sillY + openH + rng.range(0.04, 0.09);
-      const poleZ = rng.range(0.05, 0.08);
-      const drop = openH * rng.range(0.94, 1.06);
+      // **Derived from `reveal`, not rolled on its own.** The curtain's depth
+      // used to be an independent 0.05..0.08 while the frame's ran 0.1..0.16,
+      // so on all but the shallowest window the glazing bars and stop beads sat
+      // in front of the cloth and a drawn panel came out with the muntins
+      // buried in it. A curtain hangs on the room side of the joinery, so it is
+      // the frame's front face plus a gap for the brackets.
+      const poleZ = reveal + rng.range(0.035, 0.06);
+      // Sill-length, measured to the sill rather than scaled off the opening —
+      // and clearing its top face, which the tilt lifts about 16 mm proud of
+      // `sillY` at the nose. The sill projects further into the room than the
+      // cloth does, so a hem level with it would cut through it.
+      const drop = poleY - (sillY + rng.range(0.04, 0.1));
+      // **One height for both tie-backs**, rolled here rather than inside the
+      // loop below — where each side drew its own and the pair came out at
+      // visibly different heights. A tie-back is a hook driven into the jamb,
+      // and a joiner setting two of them sets them level.
+      const tieY = poleY - drop * rng.range(0.45, 0.6);
 
       // The pole, run past the opening on both sides so its ends are visible.
       const pole = new THREE.CylinderGeometry(0.016, 0.016, openW + jambW * 2.2, 6);
@@ -398,10 +413,11 @@ const windowBuilder: MeshBuilder = {
 
         // A tie-back on the open ones only, which is what holds a curtain
         // against the jamb and is most of why an open curtain reads as open
-        // rather than as a narrow one.
+        // rather than as a narrow one. Its width and depth follow the panel it
+        // is wrapped round; only the height is shared.
         if (!shut) {
           const tie = new THREE.BoxGeometry(panelW * 1.15, 0.05, panelD * 1.2);
-          tie.translate(centreX, poleY - drop * rng.range(0.45, 0.6), poleZ + panelD * 0.5);
+          tie.translate(centreX, tieY, poleZ + panelD * 0.5);
           parts.push({ geometry: tie, color: shade(cloth, 0.78), sway: 0 });
         }
       }

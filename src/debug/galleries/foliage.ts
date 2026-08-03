@@ -4,8 +4,6 @@ import { smallOak } from '../../art/builders/small-oak';
 import { birch } from '../../art/builders/birch';
 import { smallBirch } from '../../art/builders/small-birch';
 import { spruce } from '../../art/builders/spruce';
-import { rowan } from '../../art/builders/rowan';
-import { smallRowan } from '../../art/builders/small-rowan';
 import { smallSpruce } from '../../art/builders/small-spruce';
 import { elder } from '../../art/builders/elder';
 import { hazel } from '../../art/builders/hazel';
@@ -50,8 +48,8 @@ import { sunflower } from '../../art/builders/sunflower';
  *
  * - **Species, rather than categories.** There was one `tree` and one `bush`,
  *   and a wood built from two shapes reads as wallpaper however good the two
- *   shapes are. Now: oak, birch, spruce and rowan, each with its own sapling,
- *   and elder, hazel and gorse under them. Chosen for silhouette rather than
+ *   shapes are. Now: oak, birch and spruce, each with its own sapling, and
+ *   elder, hazel and gorse under them. Chosen for silhouette rather than
  *   for botany — the pipeline chunks to three-pixel blocks and destroys
  *   everything except outline and proportion, so a tree that cannot be told
  *   from its neighbour at thirty metres is not a second tree.
@@ -86,8 +84,6 @@ const BUILDERS = [
   smallBirch,
   spruce,
   smallSpruce,
-  rowan,
-  smallRowan,
   elder,
   hazel,
   gorse,
