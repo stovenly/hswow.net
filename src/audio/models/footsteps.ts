@@ -88,8 +88,16 @@ interface Splash {
   decay: number;
   /**
    * Radius bounds in metres, and therefore the pitch range: a bubble sings at
-   * 3.26/r hertz. A fifth of a millimetre is 16 kHz of fine spray; a centimetre
-   * is a 326 Hz gloop.
+   * 3.26/r hertz. A millimetre is 3.3 kHz of spray; a centimetre is a 326 Hz
+   * gloop.
+   *
+   * **There is a floor on how fine this is worth going, and it is nearer than
+   * it looks.** Everything here passes the body lowpass at 5.2 kHz on its way
+   * out, so a bubble much under two thirds of a millimetre is rolled off before
+   * it is heard — and physical damping kills it inside a millisecond anyway. A
+   * cloud skewed past that point has more bubbles in it and *less splash*,
+   * which is a genuinely counter-intuitive way to lose the sound. Roughly 0.6
+   * to 5 mm is the band that survives; thin means the top of it, not past it.
    */
   radius: readonly [number, number];
   /** How far the draw is skewed toward the fine end. See `bubbleRadius`. */
@@ -530,20 +538,22 @@ export const SURFACES = {
    * depth to drag one down into, and that absence is the whole difference from
    * the pond.
    *
-   * **Splashier and thinner**, which pull in opposite directions and both come
-   * from the cloud rather than from the contact: more of them, skewed finer,
-   * and the ceiling pulled down from a millimetre and a half to one. A puddle
-   * is a couple of centimetres deep and cannot hold a pocket big enough to
-   * plink; everything it throws is spray.
+   * **Chasing "thinner" by going finer took the splash out of it**, which is
+   * worth recording because it is so counter-intuitive: the cloud ran from a
+   * fifth of a millimetre up to one, which is 3.3 to 16 kHz, and almost all of
+   * that is above the body lowpass and gone in under a millisecond. Sixty-two
+   * bubbles, most of them inaudible. Thin has to mean the *top of the band that
+   * survives*, not past it — so this now runs 1.3 to 5.4 kHz, barely skewed,
+   * ninety of them, and half again as loud.
    */
   'water-puddle': {
     level: 0.46,
-    impact: { level: 0.28, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
+    impact: { level: 0.26, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
     modes: [],
     grit: null,
     splash: {
-      count: 62, over: 0.11, decay: 0.045,
-      radius: [0.00015, 0.001], bias: 0.45, damping: 1, level: 0.54,
+      count: 90, over: 0.13, decay: 0.06,
+      radius: [0.0006, 0.0025], bias: 0.15, damping: 1, level: 0.68,
     },
     scuff: 0.95,
     toe: 0.6,
@@ -557,34 +567,37 @@ export const SURFACES = {
    * bubble rings out in full; depth comes from a cavity arriving a beat late and
    * from a bulk rush as the leg drags a mass of water aside.
    *
-   * **The cavity is a bloop, not a thump.** At four and a half centimetres it
-   * sat at 72 Hz and rang for a quarter of a second, which is a body going in
-   * rather than a leg, and it made the whole surface bottom-heavy. Half that
-   * radius is 148 Hz and about a tenth of a second — still unmistakably the
-   * depth tell, still four times lower than anything in the spray above it, and
-   * no longer the loudest thing you hear. The level came down with it, the
-   * cloud's floor came up off five millimetres, and the rush now bottoms out at
-   * 900 Hz instead of 500. Every one of those was contributing bass that a foot
-   * of clear water has no business making.
+   * **The cavity is a bloop, not a thump, and it kept getting bigger than the
+   * water is deep.** At four and a half centimetres it sang at 72 Hz for a
+   * quarter of a second, which is a body going in rather than a leg; at two and
+   * a bit it was still leading the whole surface. Thirteen millimetres is
+   * 251 Hz and about seventy milliseconds — an octave and a half below the
+   * cloud, which is all the separation it needs to read as *depth* rather than
+   * as another droplet, and quiet enough that the splash is what you hear
+   * first.
    *
-   * There is a contact in here, at a fifteenth of the splash and eighteen
-   * milliseconds late. At this depth you can feel the bottom and barely hear
-   * it. The cadence is part of it too: the roll is the longest of any surface
-   * that is not mud, because you cannot walk quickly through this.
+   * The cloud went the same way as the puddle's: skewed so fine that most of it
+   * sat above the body lowpass. It runs 724 Hz to 4.7 kHz now, a hundred
+   * strong, and it is the loudest thing in the surface as it should be. The
+   * bulk rush is pulled back under it — that is the part that turns into static
+   * the moment it is loud enough to notice.
+   *
+   * There is a contact in here, a fifteenth of the splash and eighteen
+   * milliseconds late. At this depth you feel the bottom and barely hear it.
    */
   'water-pond': {
     level: 0.5,
     impact: { level: 0.06, duration: 0.036, low: 260, tone: 1600, q: 0.5, attack: 0.018 },
     crush: {
-      level: 0.26, duration: 0.26, from: 3000, to: 900, q: 0.7,
+      level: 0.2, duration: 0.26, from: 3200, to: 1000, q: 0.7,
       rise: 0.1, band: 'ceiling', rough: 0.4,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 88, over: 0.28, decay: 0.1,
-      radius: [0.0003, 0.0035], bias: 0.42, damping: 1, level: 0.46,
-      cavity: { radius: 0.022, level: 0.3, delay: 0.03 },
+      count: 100, over: 0.26, decay: 0.095,
+      radius: [0.0007, 0.0045], bias: 0.15, damping: 1, level: 0.6,
+      cavity: { radius: 0.013, level: 0.22, delay: 0.028 },
     },
     scuff: 1,
     toe: 0.65,
@@ -608,18 +621,26 @@ export const SURFACES = {
    * the pond uses. Dialled in by ear, and the ear was right: killing them to a
    * dead *blup* is defensible viscosity and sounds nothing like mud, because
    * what is bubbling in churned ground is the free water in it.
+   *
+   * **`bounce: 0` is what stops the spatter reading as sand.** The particle bed
+   * shortens each collision as the burst runs down, which is right for stones
+   * losing height and wrong for wet lumps, and it had quietly been drying mud
+   * out ever since it was added for gravel. Under it the shear is longer,
+   * louder and now *rough*, because irregular flow is the whole of squelch, and
+   * the lumps came down in pitch to where wet things sit rather than where
+   * grains do.
    */
   mud: {
-    level: 0.4,
+    level: 0.42,
     impact: { level: 0.09, duration: 0.055, low: 90, tone: 1050, q: 0.55, attack: 0.038 },
-    crush: { level: 0.4, duration: 0.18, from: 240, to: 460, q: 2.6 },
+    crush: { level: 0.48, duration: 0.2, from: 220, to: 440, q: 2.6, rough: 0.4 },
     modes: [],
     grit: {
-      count: 12, over: 0.1, energyDecay: 0.035, hz: 2200, q: 1.2, level: 0.26,
-      voices: 2, spread: 0.4, grain: 0.02, attack: 0.0012,
+      count: 12, over: 0.11, energyDecay: 0.04, hz: 1500, q: 1.4, level: 0.3,
+      voices: 2, spread: 0.4, grain: 0.026, attack: 0.0016, bounce: 0,
     },
     splash: {
-      count: 8, over: 0.13, decay: 0.09, radius: [0.0015, 0.0045], level: 0.17,
+      count: 9, over: 0.14, decay: 0.12, radius: [0.002, 0.006], level: 0.24,
     },
     scuff: 0.5,
     toe: 0.3,

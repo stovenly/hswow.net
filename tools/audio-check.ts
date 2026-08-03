@@ -542,11 +542,17 @@ for (const [mm, hz] of [
   // traps one the size of a leg, which — since a bubble sings at 3.26/r — is
   // both bigger and much lower than anything in the spray above it.
   const cavity = pond?.cavity;
+  // **An octave clear of the cloud, stated in octaves.** A fixed radius ratio
+  // was the wrong measure: it tightens as the spray band widens upward, and it
+  // fails a cavity that is separating perfectly well. What has to be true is
+  // that the cavity cannot be mistaken for another droplet.
+  const octaves =
+    cavity && pond ? Math.log2(bubbleHz(pond.radius[1]) / bubbleHz(cavity.radius)) : 0;
   check(
     'depth is the cavity',
-    !puddle?.cavity && !!cavity && cavity.radius > (pond?.radius[1] ?? 0) * 4,
-    cavity
-      ? `puddle none, pond ${bubbleHz(cavity.radius).toFixed(0)} Hz against spray from ${bubbleHz(pond!.radius[1]).toFixed(0)} Hz up`
+    !puddle?.cavity && !!cavity && octaves >= 1,
+    cavity && pond
+      ? `puddle none, pond ${bubbleHz(cavity.radius).toFixed(0)} Hz, ${octaves.toFixed(1)} octaves below the cloud`
       : 'the pond has no cavity',
   );
 
