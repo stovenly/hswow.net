@@ -188,20 +188,20 @@ await loader.step('tuning the air', 0.96, () => {
   };
   // Landing is part of the same system — same surface, same models, different
   // gesture. Without this, jumping on the spot is completely silent.
-  player.onLand = (impact) => {
+  player.onLand = (impact, horizontal) => {
     if (!footsteps) return;
     const at = player.position;
     footsteps.surface = zones.surfaceAt(at.x, at.z);
-    footsteps.land(impact);
+    footsteps.land(impact, horizontal);
   };
   // The push-off. The controller decides whether this one counts — a hop
   // chained straight off a landing does not, because the landing was the same
   // contact with the ground.
-  player.onJump = () => {
+  player.onJump = (speed) => {
     if (!footsteps) return;
     const at = player.position;
     footsteps.surface = zones.surfaceAt(at.x, at.z);
-    footsteps.jump();
+    footsteps.jump(speed);
   };
   // Attaching builds the current zone's soundscape, including the one the
   // player was already standing in before the audio existed.
