@@ -270,6 +270,8 @@ export interface ZoneDefinition {
 export class Zone {
   readonly definition: ZoneDefinition;
   private group: THREE.Group | null = null;
+  /** Set when the zone is built, by looking. See `hasWater`. */
+  private water = false;
 
   constructor(definition: ZoneDefinition) {
     this.definition = definition;
@@ -294,6 +296,25 @@ export class Zone {
   /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
   get fogVolumes(): readonly FogVolume[] {
     return this.definition.fogVolumes ?? EMPTY_FOG;
+  }
+
+  /**
+   * Whether anything in this zone is water (SHADERS.md §7).
+   *
+   * **Observed rather than declared, unlike `fogVolumes` above**, and the
+   * difference is that a fog volume has no geometry while water is nothing but
+   * geometry. A `water: true` on the definition would be a second statement
+   * about the same fact, and the two would eventually disagree — a pond moved
+   * out of a zone leaves a flag behind that costs a whole-scene walk every
+   * frame for nothing, and one added without the flag is a pond that never
+   * draws. So `waterPlane` marks what it makes and this counts them.
+   *
+   * Read after `root()` has run, which every entry guarantees. Deliberately
+   * does *not* build the zone to answer: asking whether a place has water in it
+   * is not a reason to construct the place.
+   */
+  get hasWater(): boolean {
+    return this.water;
   }
 
   get floor(): number {
@@ -323,6 +344,12 @@ export class Zone {
       // World matrices have to be current before the collider reads triangles
       // out of the graph, and this subtree has never been rendered.
       this.group.updateWorldMatrix(true, true);
+      // Once, here, rather than on every crossing: the answer cannot change
+      // without the geometry being rebuilt, and this is where that happens.
+      this.water = false;
+      this.group.traverse((object) => {
+        if (object.userData.water === true) this.water = true;
+      });
     }
     return this.group;
   }
@@ -359,5 +386,8 @@ export class Zone {
     });
     this.group.clear();
     this.group = null;
+    // Recomputed on the next build. Left true, a released zone would have the
+    // water pass running in whatever room the player walked into instead.
+    this.water = false;
   }
 }

@@ -352,10 +352,22 @@ body.is-touch.is-options #options-open {
      room — which, in practice, means the wider typeface. */
   min-width: min(34rem, 92vw);
   max-width: min(46rem, 92vw);
-  /* Leaves room for the offset above, so the tallest page still ends on the
-     screen rather than running off the bottom — past this the pages scroll
-     inside the panel instead of the panel growing. */
-  max-height: min(40rem, 82vh);
+  /* **All the height there is, less a margin to sit on.** Past this the pages
+     scroll inside the panel instead of the panel growing.
+
+     This was `min(40rem, 82vh)`, and the `40rem` half of it was doing the work
+     on any window taller than about 780 px: the Video tab scrolled inside its
+     own panel with a third of the screen empty underneath it. The panel is
+     pinned by its top edge, so what is genuinely available is everything from
+     that edge down, and that is what this says — no second number to be wrong
+     at some other window size.
+
+     `dvh` rather than `vh`, with `vh` beneath it as the fallback. On a phone
+     `vh` is the viewport at its *largest*, with the address bar rolled away —
+     so a panel sized in `vh` is sized for a screen that is not currently
+     there, and its bottom row sits under the browser's own furniture. */
+  max-height: calc(100vh - var(--pause-top) - 2rem);
+  max-height: calc(100dvh - var(--pause-top) - 2rem);
   padding: 1.3rem 1.4rem 1.2rem;
   background: rgb(10 10 15 / 94%);
   border: 1px solid rgb(220 220 200 / 30%);

@@ -20,6 +20,8 @@ import { animalGalleryPlan } from './galleries/animal';
 import { textShowcaseGalleryPlan } from './galleries/text';
 import { fogShowcasePlan } from './galleries/fog';
 import { soundStagePortal } from './SoundStage';
+import { waterShowcasePortal } from './WaterShowcase';
+import { waterShowcase2Portal } from './WaterShowcase2';
 
 /**
  * The prop halls: one antechamber per setting, with the setting's galleries
@@ -322,6 +324,26 @@ export function propPortals(
       yaw: 0,
       material: 'iron',
       seed: 6433,
+    }),
+    // Water joins the rank at the east end, on the same eight-metre spacing.
+    // It belongs out here for the reason the other three do: a pond is not
+    // industrial and it is not countryside, it is a surface, and the room the
+    // showcases open off is the one with no setting to contradict.
+    waterShowcasePortal({
+      zone: ZONE_GENERAL_PROPS,
+      position: new THREE.Vector3(16, 0, 0),
+      yaw: 0,
+      material: 'timber',
+      seed: 6434,
+    }),
+    // And the open sea beside it, which is the same subject at a size nothing
+    // else in the rank is — see `WaterShowcase2`.
+    waterShowcase2Portal({
+      zone: ZONE_GENERAL_PROPS,
+      position: new THREE.Vector3(24, 0, 0),
+      yaw: 0,
+      material: 'timber',
+      seed: 6435,
     }),
   ];
 }

@@ -275,6 +275,17 @@ if (dev.gui) {
   bloom.add(r.bloom, 'strength', 0, 2, 0.05).onChange(refresh);
   bloom.add(r.bloom, 'radius', 0.25, 4, 0.05).onChange(refresh);
 
+  // Not in the player's menu, and not because it was forgotten: a pond is part
+  // of the place, by SHADERS.md's line on what crosses into the options screen.
+  // Both of these are global because water is one material — how rough a
+  // particular pool is rides on the geometry. See `art/water.ts`.
+  const water = dev.gui.addFolder('water');
+  water.add(r.water, 'waves', 0, 2, 0.05).onChange(refresh);
+  water
+    .add(r.water, 'reflections')
+    .name('screen-space reflections')
+    .onChange(refresh);
+
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
   vignette.add(r, 'vignetteRadius', 0, 1.5, 0.01).onChange(refresh);

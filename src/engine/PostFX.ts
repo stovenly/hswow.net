@@ -6,6 +6,9 @@ import { applySway } from '../art/sway';
 import { PixelStage } from './PixelStage';
 import { GTAOEffect } from './GTAO';
 import { FogVolumesEffect, type FogVolume } from './FogVolumes';
+import { WaterEffect } from './Water';
+import { UnderwaterEffect } from './Underwater';
+import { WATER_MATERIAL } from '../art/water';
 import { BloomEffect } from './Bloom';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
@@ -17,9 +20,9 @@ import type { Viewport } from './Viewport';
  * The render pipeline.
  *
  * ```
- * scene ─► PixelStage ──────────────────► OutputPass ─► RetroShader ─► screen
- *          chunky pixels, edge lines,      tone map     vignette,
- *          GTAO ─► fog ─► bloom, upscale   and sRGB     dither, quantize
+ * scene ─► PixelStage ──────────────────────────► OutputPass ─► RetroShader ─► screen
+ *          chunky pixels, edge lines,              tone map     vignette,
+ *          GTAO ─► water ─► fog ─► bloom, upscale  and sRGB     dither, quantize
  * ```
  *
  * `PixelStage` is ours (SHADERS.md, R0): it renders at chunky resolution,
@@ -97,6 +100,18 @@ export interface RenderSettings {
    */
   bloom: { strength: number; radius: number };
 
+  /**
+   * Water (SHADERS.md §7). `waves` scales the wave amplitude for every body of
+   * water in the game; `reflections` runs the screen-space march, and off it
+   * falls back to the analytic sky alone — which is the same colour, minus the
+   * huts and banks that would have been in it.
+   *
+   * There is nothing per-pond here on purpose. Colour is global because water
+   * is one material, and how rough a particular pool is rides on a per-vertex
+   * attribute placed with the geometry. See `art/water.ts`.
+   */
+  water: { waves: number; reflections: boolean };
+
   vignetteStrength: number;
   vignetteRadius: number;
   vignetteSoftness: number;
@@ -151,6 +166,12 @@ export const DEFAULT_RENDER: RenderSettings = {
   // detaching the glow from the thing making it.
   bloom: { strength: 0.28, radius: 1 },
 
+  // Full amplitude and reflections on. Both are here to be turned *down* while
+  // looking at water rather than to be lived at some other value — the wave
+  // heights are authored in metres in `art/water.ts` against a pond you stand
+  // beside, and this is the multiplier for asking what half of that looks like.
+  water: { waves: 1, reflections: true },
+
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
   // there in case a zone ever wants to close in around you; nothing uses it.
@@ -191,6 +212,15 @@ export interface ZoneAir {
    * both or neither.
    */
   fogVolumes?: readonly FogVolume[];
+  /**
+   * Whether this zone has any water in it (SHADERS.md §7).
+   *
+   * A fact about the geometry rather than about the air, and it is here for the
+   * same reason `fogVolumes` is: this is the one call that fires at every
+   * threshold, and the water pass costs a whole-scene walk that must not happen
+   * in a room with no pond. Observed, not declared — see `Zone.hasWater`.
+   */
+  water?: boolean;
 }
 
 export class PostFX {
@@ -200,6 +230,8 @@ export class PostFX {
   private readonly composer: EffectComposer;
   private readonly pixelStage: PixelStage;
   private readonly gtao: GTAOEffect;
+  private readonly water: WaterEffect;
+  private readonly underwater: UnderwaterEffect;
   private readonly fog: FogVolumesEffect;
   private readonly bloom: BloomEffect;
   private readonly retroPass: ShaderPass;
@@ -222,6 +254,8 @@ export class PostFX {
   /** Dev-only, unlike the others here. See `setFogVolumes`. */
   private volumetrics = true;
   private glow = true;
+  /** The accessibility switch, not a look setting. See `setWaterMotion`. */
+  private waves = true;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -237,6 +271,7 @@ export class PostFX {
       sky: { ...DEFAULT_SKY, ...saved.sky },
       ao: { ...DEFAULT_RENDER.ao, ...saved.ao },
       bloom: { ...DEFAULT_RENDER.bloom, ...saved.bloom },
+      water: { ...DEFAULT_RENDER.water, ...saved.water },
     };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
@@ -261,16 +296,29 @@ export class PostFX {
     //
     // **Order is the design, not an accident of construction.** AO is shading
     // and belongs on the surfaces themselves, so it runs while the colour is
-    // still only surfaces. Fog is what stands *between* the camera and those
-    // surfaces, so it goes over the top of them — occluding shaded geometry
-    // exactly as it occludes unshaded geometry, which is what stops mist
-    // reading as a decal on the wall behind it. The slots after this one are
-    // spoken for in the same way: DoF after fog, bloom after DoF so a blurred
-    // lamp still blooms, god rays last.
+    // still only surfaces. Water is a surface too, but one that has to read
+    // everything already drawn, so it comes next — over the shaded bed it lets
+    // you see through, and under everything that stands between you and it.
+    // Fog is what stands *between* the camera and all of that, so it goes over
+    // the top — occluding shaded geometry exactly as it occludes unshaded
+    // geometry, which is what stops mist reading as a decal on the wall behind
+    // it. The slots after this one are spoken for in the same way: DoF after
+    // fog, bloom after DoF so a blurred lamp still blooms, god rays last.
     this.gtao = new GTAOEffect();
+    this.water = new WaterEffect();
+    // Immediately after the surface, and on its own: this is the *volume* of
+    // water rather than its boundary, so it runs over every pixel in the frame
+    // rather than over the pixels a pond covers. See `Underwater.ts`.
+    this.underwater = new UnderwaterEffect();
     this.fog = new FogVolumesEffect();
     this.bloom = new BloomEffect();
-    this.pixelStage.effects.push(this.gtao, this.fog, this.bloom);
+    this.pixelStage.effects.push(
+      this.gtao,
+      this.water,
+      this.underwater,
+      this.fog,
+      this.bloom,
+    );
 
     this.retroPass = new ShaderPass(RetroShader);
 
@@ -297,6 +345,9 @@ export class PostFX {
     // survived a threshold would be a pool of mist hanging in the wrong
     // building, at coordinates that mean nothing there.
     this.fog.setVolumes(air?.fogVolumes ?? []);
+    // Same instant, same reason. A pass that walks the scene graph looking for
+    // water must not be running in a room that has none.
+    this.water.setActive(air?.water ?? false);
     this.apply();
   }
 
@@ -380,6 +431,24 @@ export class PostFX {
   }
 
   /**
+   * Stops the water moving, without disturbing its tuning.
+   *
+   * **An accessibility switch, not a graphics one.** Water is not a player
+   * video option — a pond is part of the place, by SHADERS.md's rule — but its
+   * *motion* is one of the effects under reduced motion, beside wind sway and
+   * head bob. The distinction is real: turning this off does not remove any
+   * water from the world, it holds every surface of it still.
+   *
+   * It stops the waves and the drifting foam together. Foam creeping along a
+   * shoreline is motion whatever the surface underneath it is doing, and
+   * leaving that running would be the switch doing most of its job.
+   */
+  setWaterMotion(enabled: boolean): void {
+    this.waves = enabled;
+    this.apply();
+  }
+
+  /**
    * Sets the colour vision correction and how strongly it is applied.
    *
    * `strength` is 0..1, and 0 is genuinely nothing rather than nearly nothing:
@@ -413,6 +482,21 @@ export class PostFX {
     // march that finds nothing — which is most zones, so the effect costs
     // exactly nothing everywhere it is not used.
     this.fog.enabled = this.volumetrics && this.fog.hasVolumes;
+
+    // Water is not a player option and is not a switch here either — a pond is
+    // part of the place, by SHADERS.md's line on what crosses into the options
+    // screen. The pass runs wherever there is water and nowhere else.
+    this.water.enabled = this.water.hasWater;
+    const w = WATER_MATERIAL.uniforms;
+    w.uWaveScale.value = s.water.waves;
+    // Layered over the tuning rather than written into it, exactly as the
+    // dither switch is: a player asking for stillness must not overwrite a wave
+    // scale somebody dialled in.
+    w.uWaterMotion.value = this.waves ? 1 : 0;
+    // A real switch, not a strength of zero: off, the march does not run and
+    // every reflection is the analytic sky, which is what a miss would have
+    // returned anyway.
+    w.uReflections.value = s.water.reflections ? 1 : 0;
 
     this.bloom.enabled = this.glow && s.bloom.strength > 0;
     this.bloom.strength = s.bloom.strength;
@@ -494,6 +578,11 @@ export class PostFX {
     renderer.shadowMap.needsUpdate = true;
 
     this.sky.follow(this.viewport.camera, elapsed);
+    // Asked before the frame is drawn rather than during it, because the pass
+    // that needs the answer runs inside the composer and cannot go and look.
+    // Costs a handful of box tests in a zone with water and nothing at all
+    // anywhere else — see `WaterEffect.submersion`.
+    this.underwater.setDepth(this.water.submersion(this.viewport.scene, this.viewport.camera));
     // The same clock the sky drifts on, handed to the effect chain. Fog volumes
     // are the only reader today; see `EffectContext.time` on why knowing the
     // time is not the temporal accumulation the ground rules forbid.
