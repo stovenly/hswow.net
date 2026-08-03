@@ -37,7 +37,13 @@ import { spinningWheel } from '../art/builders/spinning-wheel';
 import { wallPegs } from '../art/builders/wall-pegs';
 import { hoist } from '../art/builders/hoist';
 import { lantern } from '../art/builders/lantern';
-import { villageZone, villageTerrain, VILLAGE_GATE, ZONE_VILLAGE } from './village';
+import {
+  countrysideZone,
+  countrysideTerrain,
+  COUNTRYSIDE_GATE,
+  ZONE_COUNTRYSIDE,
+} from './countryside';
+import { countrysideHomeZones, countrysideHomePortals } from './countryside-homes';
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
@@ -74,7 +80,7 @@ import { chainZones, chainPortals } from './chains';
 export const ZONE_EXTERIOR = 'exterior';
 export const ZONE_HUT = 'villager-hut';
 export const ZONE_FACTORY = 'factory';
-export { ZONE_VILLAGE } from './village';
+export { ZONE_COUNTRYSIDE } from './countryside';
 
 /**
  * The near hut: just off spawn, facing back at it.
@@ -483,7 +489,9 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       build: () => buildFactory(),
     },
 
-    villageZone(),
+    countrysideZone(),
+    // The three houses in it you can go into — see `countryside-homes.ts`.
+    ...countrysideHomeZones(),
     // Two chains of rooms hung off the hut and the factory, three deep. They
     // exist so that somewhere in the world is more than two doors from the hub
     // — see `chains.ts`, and the residency check in `check:world`.
@@ -528,7 +536,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       },
     },
     {
-      id: 'village-gate',
+      id: 'countryside-gate',
       a: {
         zone: ZONE_EXTERIOR,
         position: GATE_AT,
@@ -537,16 +545,22 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         seed: 4712,
       },
       b: {
-        zone: ZONE_VILLAGE,
+        zone: ZONE_COUNTRYSIDE,
         // On the lane at the north end of the valley, dropped onto the ground.
         // The arrival marker is derived a stride in front of this, which the
         // check confirms is walkable rather than halfway up the rim.
-        position: VILLAGE_GATE.clone().setY(villageTerrain.heightAt(VILLAGE_GATE.x, VILLAGE_GATE.z)),
+        position: COUNTRYSIDE_GATE.clone().setY(
+          countrysideTerrain.heightAt(COUNTRYSIDE_GATE.x, COUNTRYSIDE_GATE.z),
+        ),
         yaw: Math.PI,
         material: 'timber',
         seed: 4713,
       },
     },
+    // The doors in the three open houses. The exterior owns where they stand
+    // and the homes own what is behind them, so neither can be authored without
+    // the other agreeing.
+    ...countrysideHomePortals(),
     ...chainPortals(ZONE_FACTORY, ZONE_HUT),
   ];
 

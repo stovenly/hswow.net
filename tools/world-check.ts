@@ -38,7 +38,7 @@ import { buildDoor, doorMetrics, doorName } from '../src/art/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
 import { ProvingGround } from '../src/debug/ProvingGround';
-import { villageTerrain, ZONE_VILLAGE } from '../src/debug/village';
+import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
 import { DEFAULT_TUNING } from '../src/player/Controller';
 import { doorDuration, DOOR_SPECS, type DoorMaterial } from '../src/audio/models/door';
 
@@ -423,7 +423,7 @@ for (const zone of zones.values()) {
 console.log('\n--- terrain -------------------------------------------------\n');
 
 {
-  const t = villageTerrain;
+  const t = countrysideTerrain;
   const limit = DEFAULT_TUNING.slopeLimitDeg;
   const half = t.size / 2;
 
@@ -490,12 +490,12 @@ console.log('\n--- terrain -------------------------------------------------\n')
   );
 
   // --- props sit on the ground ---------------------------------------------
-  // Everything in the village is placed by sampling `heightAt`, so a prop that
+  // Everything in the countryside demo is placed by sampling `heightAt`, so a prop that
   // floats or is buried means the placement and the mesh disagree about where
   // the ground is — which would silently break every future zone built this way.
-  const zone = zones.get(ZONE_VILLAGE);
+  const zone = zones.get(ZONE_COUNTRYSIDE);
   if (!zone) {
-    check('village zone exists', false);
+    check('the countryside zone exists', false);
   } else {
     const collider = new Collider();
     collider.build(zone.root());
@@ -564,7 +564,7 @@ console.log('\n--- terrain -------------------------------------------------\n')
     // The spawn has to be somewhere you can stand, not on a slope you slide off.
     const spawn = zone.spawn.position;
     check(
-      'the village spawn is on walkable ground',
+      'the countryside spawn is on walkable ground',
       t.slopeAt(spawn.x, spawn.z) <= limit,
       `${t.slopeAt(spawn.x, spawn.z).toFixed(0)}° at the spawn`,
     );
