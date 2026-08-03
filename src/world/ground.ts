@@ -46,7 +46,7 @@ export const GROUND = {
   /** Loose stone. A made road rather than a worn one. */
   gravel: { color: 0x6e6656, variation: 0.16, step: 'gravel' },
   /** Set stone. A yard, a market floor, the ground inside a gate. */
-  cobble: { color: PALETTE.STONE, variation: 0.19, step: 'stone' },
+  cobble: { color: PALETTE.STONE, variation: 0.19, step: 'cobble' },
   /** Big flat slabs. Formal, and quieter than cobble to look at. */
   flagstone: { color: PALETTE.STONE_PALE, variation: 0.08, step: 'stone' },
   /** Planked walkway over soft ground. */
@@ -57,6 +57,16 @@ export const GROUND = {
   mire: { color: 0x453a2c, variation: 0.12, step: 'mud' },
   /** Exposed bedrock. Also what steep faces fall back to. */
   rock: { color: PALETTE.STONE_DARK, variation: 0.13, step: 'stone' },
+  /** Fallen leaves, under trees and banked in corners. */
+  leaflitter: { color: PALETTE.LEAF_DRY, variation: 0.17, step: 'leaves' },
+  /** Walkway plate or grating. A gantry, a bridge deck, a factory floor. */
+  grating: { color: PALETTE.IRON, variation: 0.15, step: 'metal' },
+  /** Lying snow, trodden. Almost no face variation — snow is famously even. */
+  snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
+  /** Ankle-deep water: a ford, a puddled yard, the edge of a pool. */
+  shallows: { color: PALETTE.WATER, variation: 0.07, step: 'water' },
+  /** Damp shade under a canopy, or the north side of a stone. */
+  moss: { color: 0x455c31, variation: 0.14, step: 'moss' },
 } as const satisfies Record<string, GroundMaterial>;
 
 export type GroundName = keyof typeof GROUND;
