@@ -99,6 +99,15 @@ interface Crush {
   to: number;
   /** Sharpness. Above about 4 the movement reads as a squeak or a whistle. */
   q: number;
+  /**
+   * Where the peak sits, 0..1 of the duration. Defaults to 0.45.
+   *
+   * Packing builds while the load goes on and peaks near the middle. A liquid
+   * is displaced almost at once and spends the rest of the time falling back,
+   * so it peaks in the first tenth — which is the whole difference between a
+   * foot sinking into snow and a foot going into water.
+   */
+  rise?: number;
 }
 
 export interface Surface {
@@ -345,7 +354,7 @@ export const SURFACES = {
     modes: [],
     grit: {
       count: 28, over: 0.22, energyDecay: 0.075, hz: 2800, q: 1.2, level: 0.8,
-      voices: 5, spread: 0.75, grain: 0.009,
+      voices: 5, spread: 0.75, grain: 0.011, attack: 0.0009,
     },
     scuff: 0.95,
     toe: 0.7,
@@ -364,13 +373,13 @@ export const SURFACES = {
    * Sixty grains, very fine, very dry, and low enough not to read as spray.
    */
   sand: {
-    level: 0.32,
-    impact: { level: 0.06, duration: 0.05, low: 200, tone: 1600, q: 0.45, attack: 0.038 },
-    crush: { level: 0.42, duration: 0.15, from: 500, to: 900, q: 0.8 },
+    level: 0.28,
+    impact: { level: 0.06, duration: 0.05, low: 200, tone: 1500, q: 0.45, attack: 0.04 },
+    crush: { level: 0.36, duration: 0.15, from: 480, to: 820, q: 0.75 },
     modes: [],
     grit: {
-      count: 60, over: 0.13, energyDecay: 0.04, hz: 2600, q: 0.45, level: 0.5,
-      voices: 3, spread: 0.35, grain: 0.005,
+      count: 62, over: 0.13, energyDecay: 0.04, hz: 2400, q: 0.4, level: 0.42,
+      voices: 3, spread: 0.35, grain: 0.008, attack: 0.0028,
     },
     scuff: 0.8,
     toe: 0.5,
@@ -388,12 +397,12 @@ export const SURFACES = {
    */
   soil: {
     level: 0.42,
-    impact: { level: 0.13, duration: 0.05, low: 100, tone: 900, q: 0.55, attack: 0.03 },
-    crush: { level: 0.24, duration: 0.09, from: 260, to: 400, q: 1.2 },
+    impact: { level: 0.13, duration: 0.05, low: 90, tone: 750, q: 0.55, attack: 0.03 },
+    crush: { level: 0.26, duration: 0.095, from: 240, to: 360, q: 1.1 },
     modes: [],
     grit: {
-      count: 22, over: 0.075, energyDecay: 0.028, hz: 2000, q: 1.5, level: 0.42,
-      voices: 3, spread: 0.55, grain: 0.009,
+      count: 22, over: 0.08, energyDecay: 0.03, hz: 1300, q: 1, level: 0.34,
+      voices: 3, spread: 0.55, grain: 0.011, attack: 0.0022,
     },
     scuff: 0.5,
     toe: 0.4,
@@ -419,7 +428,7 @@ export const SURFACES = {
     modes: [],
     grit: {
       count: 12, over: 0.1, energyDecay: 0.035, hz: 2200, q: 1.2, level: 0.28,
-      voices: 2, spread: 0.4, grain: 0.02,
+      voices: 2, spread: 0.4, grain: 0.02, attack: 0.0012,
     },
     splash: { count: 8, over: 0.13, radius: [0.0015, 0.0045], level: 0.18 },
     scuff: 0.5,
@@ -430,34 +439,35 @@ export const SURFACES = {
   /**
    * An inch of standing water.
    *
-   * **A step into shallow water is a rush, not a splat**, and getting that
-   * backwards is why this kept coming out as a wet slap. Four things happen and
-   * only one of them is a contact:
+   * **Rebuilt around the observation that a splash is a burst, not a swell.**
+   * Every previous attempt shaped this like the granular surfaces — energy
+   * building over forty or fifty milliseconds — and that is a whoosh. Water
+   * does not build. It is thrown aside almost instantly and then spends a
+   * quarter of a second falling back, which is the opposite envelope, and it
+   * is the entire character.
    *
-   * - The foot **displaces water**, which is a broad bright swell that falls in
-   *   pitch as it spreads out. That is the loudest thing here by some way, and
-   *   it uses `crush` — not because water packs, but because the *shape* is the
-   *   same: noise that swells and dies rather than arriving.
-   * - The ground underneath is reached late and **damped**: quiet, dull, and
-   *   twenty milliseconds in, which is why this passes the rule that nothing
-   *   soft is struck.
-   * - **Spray falls back** afterwards, over a window twice the length of the
-   *   contact, ringing on because droplets do.
-   * - A few small bubbles **plink** in it. Small means high, which is the whole
-   *   difference from mud's gloop.
+   * So the displacement peaks at a tenth of its duration and the rest is tail,
+   * sweeping downward from 3.2 kHz as the sheet spreads out and thins. Under it
+   * the bed is reached late and heavily damped — quiet, dull, and no more than
+   * a tenth of the splash, because in an inch of water you barely hear the
+   * ground at all. Over it, droplets patter down across a window twice as long
+   * again, and a few small bubbles plink in what is left.
+   *
+   * Against `mud`, which is the same engines run the other way: mud builds
+   * slowly, sits low, and gloops; water bursts, sits high, and patters.
    */
   water: {
-    level: 0.46,
-    impact: { level: 0.14, duration: 0.04, low: 180, tone: 1800, q: 0.6, attack: 0.02 },
-    crush: { level: 0.5, duration: 0.1, from: 2600, to: 1300, q: 0.7 },
+    level: 0.5,
+    impact: { level: 0.1, duration: 0.03, low: 150, tone: 1400, q: 0.5, attack: 0.012 },
+    crush: { level: 0.62, duration: 0.22, from: 3200, to: 900, q: 0.5, rise: 0.1 },
     modes: [],
     grit: {
-      count: 30, over: 0.14, energyDecay: 0.055, hz: 5200, q: 0.9, level: 0.42,
-      voices: 4, spread: 0.6, grain: 0.022,
+      count: 18, over: 0.2, energyDecay: 0.09, hz: 3600, q: 1.6, level: 0.3,
+      voices: 4, spread: 0.7, grain: 0.016, attack: 0.001,
     },
-    splash: { count: 12, over: 0.13, radius: [0.0004, 0.0018], level: 0.3 },
+    splash: { count: 10, over: 0.16, radius: [0.0005, 0.0025], level: 0.28 },
     scuff: 0.95,
-    toe: 0.55,
+    toe: 0.6,
     roll: 0.09,
   },
 
@@ -466,15 +476,24 @@ export const SURFACES = {
    *
    * A dry cushion, and a *high* one — the squeeze sits well above the bottom of
    * the range, because moss is a thin mat and there is no depth in it to boom.
-   * Nothing loose, nothing underneath that rings, and a band so broad it has no
-   * texture at all. The model `snow` is built on.
+   *
+   * **A smooth swept band on its own is cloth**, which is what this had become:
+   * a broad filter moving evenly across a noise swell is exactly how a linen
+   * swish is made, and nothing about it says anything grew there. So a handful
+   * of very soft, very slow, very quiet compressions ride in it — not a crunch,
+   * there is nothing brittle in moss, but enough irregularity that the swell has
+   * a grain rather than a curve. Eight of them, opening over four milliseconds
+   * each, which is far too slow to click.
    */
   moss: {
     level: 0.2,
-    impact: { level: 0.07, duration: 0.07, low: 220, tone: 900, q: 0.5, attack: 0.05 },
-    crush: { level: 0.26, duration: 0.16, from: 380, to: 560, q: 0.7 },
+    impact: { level: 0.07, duration: 0.07, low: 200, tone: 850, q: 0.5, attack: 0.05 },
+    crush: { level: 0.26, duration: 0.14, from: 340, to: 500, q: 0.65 },
     modes: [],
-    grit: null,
+    grit: {
+      count: 8, over: 0.1, energyDecay: 0.05, hz: 620, q: 0.7, level: 0.16,
+      voices: 2, spread: 0.4, grain: 0.016, attack: 0.004,
+    },
     scuff: 0.3,
     toe: 0.4,
     roll: 0.105,
@@ -490,8 +509,8 @@ export const SURFACES = {
     crush: { level: 0.18, duration: 0.09, from: 550, to: 800, q: 0.8 },
     modes: [],
     grit: {
-      count: 30, over: 0.085, energyDecay: 0.03, hz: 2800, q: 0.6, level: 0.36,
-      voices: 3, spread: 0.4, grain: 0.005,
+      count: 30, over: 0.085, energyDecay: 0.03, hz: 2600, q: 0.5, level: 0.32,
+      voices: 3, spread: 0.4, grain: 0.009, attack: 0.0026,
     },
     scuff: 0.6,
     toe: 0.6,
@@ -513,8 +532,8 @@ export const SURFACES = {
     crush: { level: 0.18, duration: 0.09, from: 900, to: 1500, q: 1.1 },
     modes: [],
     grit: {
-      count: 38, over: 0.09, energyDecay: 0.028, hz: 4400, q: 1.5, level: 0.75,
-      voices: 4, spread: 0.5, grain: 0.005,
+      count: 38, over: 0.095, energyDecay: 0.03, hz: 3800, q: 1.3, level: 0.7,
+      voices: 4, spread: 0.5, grain: 0.013, attack: 0.0016,
     },
     scuff: 0.75,
     toe: 0.7,
@@ -535,8 +554,8 @@ export const SURFACES = {
     crush: { level: 0.3, duration: 0.15, from: 420, to: 700, q: 0.9 },
     modes: [],
     grit: {
-      count: 52, over: 0.1, energyDecay: 0.03, hz: 2400, q: 0.75, level: 0.3,
-      voices: 3, spread: 0.4, grain: 0.005,
+      count: 56, over: 0.11, energyDecay: 0.034, hz: 1900, q: 0.55, level: 0.28,
+      voices: 3, spread: 0.4, grain: 0.01, attack: 0.0035,
     },
     scuff: 0.5,
     toe: 0.4,
@@ -620,13 +639,13 @@ export const SURFACES = {
    * is completely different information from one that says *tank*.
    */
   'metal-hollow-small': {
-    level: 0.46,
-    impact: { level: 0.16, duration: 0.005, low: 200, tone: 6000, q: 1.2, attack: 0.0008 },
+    level: 0.6,
+    impact: { level: 0.1, duration: 0.005, low: 200, tone: 6000, q: 1.2, attack: 0.0008 },
     modes: [
-      { hz: 290, decay: 0.42, level: 0.4 },
-      { hz: 660, decay: 0.34, level: 0.26 },
-      { hz: 1240, decay: 0.24, level: 0.15 },
-      { hz: 2500, decay: 0.15, level: 0.08 },
+      { hz: 268, decay: 0.62, level: 0.56 },
+      { hz: 615, decay: 0.5, level: 0.36 },
+      { hz: 1180, decay: 0.36, level: 0.2 },
+      { hz: 2400, decay: 0.22, level: 0.1 },
     ],
     grit: null,
     scuff: 0.15,
@@ -651,13 +670,13 @@ export const SURFACES = {
    * rather than the plank fault under another name.
    */
   'metal-hollow-big': {
-    level: 0.55,
-    impact: { level: 0.1, duration: 0.008, low: 60, tone: 3400, q: 1.2, attack: 0.001 },
+    level: 0.68,
+    impact: { level: 0.08, duration: 0.008, low: 60, tone: 3400, q: 1.2, attack: 0.001 },
     modes: [
-      { hz: 74, decay: 1.3, level: 0.55 },
-      { hz: 162, decay: 1.05, level: 0.36 },
-      { hz: 355, decay: 0.8, level: 0.2 },
-      { hz: 790, decay: 0.45, level: 0.1 },
+      { hz: 74, decay: 1.65, level: 0.66 },
+      { hz: 162, decay: 1.3, level: 0.44 },
+      { hz: 355, decay: 0.95, level: 0.25 },
+      { hz: 790, decay: 0.5, level: 0.12 },
     ],
     grit: null,
     scuff: 0.15,
@@ -1309,6 +1328,7 @@ export class Footsteps {
         from: surface.crush.from,
         to: surface.crush.to,
         q: surface.crush.q,
+        rise: surface.crush.rise,
       });
     }
 

@@ -69,6 +69,19 @@ export interface Particles {
    * nothing but this.
    */
   grain?: number;
+  /**
+   * How sharply one collision starts, in seconds. Defaults to 0.8 ms.
+   *
+   * **Cook's model assumes the pieces are hard**, because his were: beans in a
+   * gourd, coins, gravel. A hard piece arrives instantly and the click is the
+   * point. A snow crystal shearing past another, or a dry leaf folding under a
+   * boot, does not — and a burst of instant clicks reads unmistakably as **ball
+   * bearings**, whatever the pitch and the count are set to.
+   *
+   * A few milliseconds is enough to turn the same burst from a rattle of small
+   * hard things into a texture, and it is the only control here that does.
+   */
+  attack?: number;
 }
 
 export interface ParticleBed {
@@ -159,7 +172,8 @@ export function scatterParticles(
     // makes every piece the same weight — but around the material's own figure
     // rather than around a constant. See `grain`.
     const grain = particles.grain ?? 0.012;
-    strike(envelope.gain, when, level, 0.0008, grain * (0.6 + Math.random() * 0.8));
+    const rise = Math.min(particles.attack ?? 0.0008, grain * 0.6);
+    strike(envelope.gain, when, level, rise, grain * (0.6 + Math.random() * 0.8));
 
     // One voice, chosen per collision — see `Particles.voices`.
     const target = bed.inputs[(Math.random() * bed.inputs.length) | 0];
