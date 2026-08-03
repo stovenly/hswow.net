@@ -61,8 +61,6 @@ export const GROUND = {
   mire: { color: 0x453a2c, variation: 0.12, step: 'mud' },
   /** Exposed bedrock. Also what steep faces fall back to. */
   rock: { color: PALETTE.STONE_DARK, variation: 0.13, step: 'stone' },
-  /** Fallen leaves, under trees and banked in corners. */
-  leaflitter: { color: PALETTE.LEAF_DRY, variation: 0.17, step: 'leaves' },
   /** Catwalk, grating, ductwork. Fixed at its ends, so the clang travels. */
   grating: { color: PALETTE.IRON, variation: 0.15, step: 'metal-ring' },
   /** Steel bedded on something solid. Dull, and the only quiet metal. */

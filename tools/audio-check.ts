@@ -637,7 +637,7 @@ for (const name of ['metal-solid', 'metal-ring', 'metal-hollow-small', 'metal-ho
 // of `scuff` is that creeping over gravel and sprinting over it are different
 // events, so a loose surface that ignores speed is the feature not working.
 {
-  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'leaves', 'water'];
+  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'water'];
   const deaf = LOOSE.filter((name) => SURFACES[name as keyof typeof SURFACES].scuff < 0.7);
   check('loose surfaces answer to speed', deaf.length === 0, deaf.join(', ') || `${LOOSE.length} checked`);
 }
