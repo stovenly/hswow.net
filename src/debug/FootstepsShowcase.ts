@@ -28,14 +28,14 @@ import { signboard, type SignboardOptions } from '../art/builders/signboard';
  *   The aggregate family is a single question — how big are the pieces, and are
  *   they fixed — asked at five grain sizes from a slab down to dust. Adjacent
  *   pairs should be tellable apart; the ends should not be comparable.
- * - `puddle | shallows | wading` — **one liquid at three depths**, and depth is
- *   almost entirely the cavity: none, a small one, a big low one. If these three
- *   only differ in level, the model has failed.
- * - `wading | bog` — **two liquids at one depth**, which is the pair that
- *   matters most in the whole room. Their cavities are within a few hertz of
- *   each other; one rings for a quarter of a second and the other is gone
- *   almost at once. Pitch says how deep, damping says what you are in.
- * - `bog | mire` — the mud depths, the other way up.
+ * - `puddle | shallows` — **one liquid at two depths**, and depth is almost
+ *   entirely the cavity: the puddle has none and the pond has a big low one
+ *   arriving a beat after the step. If these two differ only in level, the model
+ *   has failed.
+ * - `shallows | mire` — **two liquids at one depth**, and the pair worth
+ *   hearing back to back in the whole room. Identical engine; one rings its
+ *   bubbles out in full and the other kills them in two oscillations. That is
+ *   viscosity and it is one number.
  * - `moss | turf | snow` — soft, in ascending order of noise. Moss should be
  *   very nearly silent without being absent; snow should compress rather than
  *   crunch.
@@ -73,8 +73,6 @@ const STRIPS: readonly GroundName[] = [
   'dirt',
   'puddle',
   'shallows',
-  'wading',
-  'bog',
   'mire',
   'moss',
   'turf',
@@ -87,7 +85,7 @@ const STRIPS: readonly GroundName[] = [
 ];
 
 /** Wide enough to run down without steering into the neighbour. */
-const STRIP_WIDTH = 3.6;
+const STRIP_WIDTH = 4;
 /** Half the run. A sprint covers this in three seconds. */
 const HALF_LENGTH = 22;
 const HALF_FIELD = (STRIPS.length * STRIP_WIDTH) / 2;
