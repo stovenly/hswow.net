@@ -142,31 +142,6 @@ interface Splash {
     /** Seconds after contact that the column pinches off. */
     delay: number;
   };
-  /**
-   * The unresolvable end of the cloud, as noise.
-   *
-   * **A real splash throws thousands of bubbles and this file can afford
-   * eighty.** That is fine for the ones you can hear individually and hopeless
-   * for the rest, and the rest are not a rounding error — below about a quarter
-   * of a millimetre they are so numerous, so brief and so close together that
-   * they stop being events at all and become a continuous hiss. Modelling that
-   * population as noise is not an approximation of last resort; it is what it
-   * *is*, and it is the airiness that no number of discrete pings supplies.
-   *
-   * **This is the one place noise belongs in water, and the band is why.** Every
-   * earlier attempt reached for a broad bed running down into the low mids, and
-   * a broad bed in the low mids is static — that is not a description, it is
-   * the definition. Kept above about three kilohertz and under a tenth of a
-   * second it is sizzle instead, and sizzle is what a splash is made of.
-   */
-  fizz?: {
-    level: number;
-    duration: number;
-    /** Band, and it starts high and falls. Nothing here goes near the mids. */
-    from: number;
-    to: number;
-    q: number;
-  };
 }
 
 /**
@@ -179,13 +154,27 @@ interface Splash {
  */
 interface Crush {
   level: number;
-  /** Seconds. An order of magnitude longer than an impact. */
+  /**
+   * Seconds. An order of magnitude longer than an impact — **and the single
+   * number most likely to turn this into a wash.** Anything past about a fifth
+   * of a second stops reading as something moving and starts reading as a bed
+   * sitting underneath everything else.
+   */
   duration: number;
   /** Band at first contact, and where it has moved to by the end. Either way. */
   from: number;
   to: number;
   /** Sharpness. Above about 4 the movement reads as a squeak or a whistle. */
   q: number;
+  /**
+   * How irregular the flow is, 0..1. Smooth by default.
+   *
+   * A smooth envelope over a smooth sweep is a *filter sweep*, which is why
+   * noise so reliably reads as static or as cloth. Anything thick wants this —
+   * mud, a foot pulled out of it. Granular packing does not, because packing
+   * really is smooth.
+   */
+  rough?: number;
   /**
    * A window that moves, or a ceiling that falls. See `dsp/impact.ts`.
    *
@@ -202,15 +191,6 @@ interface Crush {
    * foot sinking into snow and a foot going into water.
    */
   rise?: number;
-  /**
-   * How irregular the flow is, 0..1. Smooth by default.
-   *
-   * A smooth envelope over a smooth sweep is a *filter sweep*, which is why
-   * noise so reliably reads as static or as cloth. Anything thick wants this —
-   * mud, a bog, a leg dragging through water. Granular packing does not,
-   * because packing really is smooth.
-   */
-  rough?: number;
 }
 
 export interface Surface {
@@ -550,6 +530,15 @@ export const SURFACES = {
    * through a pond, a foot pulled out of mud. It is a bulk rush, and shallow
    * water has no bulk.
    *
+   * **And all of it is short.** This is the thing worth writing down above every
+   * spectral argument in this file, because it cost the most to learn: a splash
+   * is a *brief* event, and every version of these that went wrong went wrong by
+   * being longer or denser than the last. Forty-six droplets over a tenth of a
+   * second reads as a splash; ninety over an eighth reads as thick; a sustained
+   * bright layer over either of them reads as aluminium foil. Length and density
+   * are the controls that decide whether this sounds like water at all — the
+   * band and the distribution only decide *which* water once it does.
+   *
    * The contact underneath runs the other way from the depth. In a puddle you
    * hit the ground hard and hear it, which is why that one is genuinely
    * *struck* in a couple of milliseconds; in a pond there is a foot of water in
@@ -571,32 +560,26 @@ export const SURFACES = {
    * depth to drag one down into, and that absence is the whole difference from
    * the pond.
    *
-   * **Splashy is wide, and wide means the top end.** Two rounds went the other
-   * way: I trimmed the cloud to the band that comfortably survives the body
-   * lowpass, on reasoning that was sound and a conclusion that was wrong, and
-   * each trim made this thicker. The fine spray above 5 kHz carries no pitch and
-   * is not supposed to — it is the *air*, and without it a puddle is a gloop.
+   * **The slap is the splash.** Round after round of this went into the bubble
+   * cloud — wider, finer, denser, differently weighted, and eventually a layer
+   * of noise for the spray too small to count — and every one of them made it
+   * worse, because the loud part of a step into a puddle is the *water being
+   * hit*, not the droplets afterwards. So the contact is half again as long and
+   * reaches down to 220 Hz for body, and the cloud went back to being what it
+   * was when this last worked: forty-odd droplets, over a tenth of a second,
+   * gone.
    *
-   * Three things carry that now. The cloud runs 1.8 to 18 kHz with **no coarse
-   * end at all** — a puddle is two centimetres deep and cannot hold a pocket
-   * that gloops, and every one of those it had was dominating the sound by
-   * ringing forty times longer than its neighbours. The per-bubble level is
-   * tilted *up* toward the fine end to undo the same imbalance. And under both,
-   * the fizz: the spray too small to count, which is where the air actually
-   * comes from.
-   *
-   * The contact is exactly what it was when this last worked: sharp, bright and
-   * untouched.
+   * Short and punchy. A puddle is a slap and a scatter, and the scatter is the
+   * garnish.
    */
   'water-puddle': {
-    level: 0.48,
-    impact: { level: 0.3, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
+    level: 0.5,
+    impact: { level: 0.44, duration: 0.02, low: 220, tone: 7000, q: 0.7, attack: 0.0022 },
     modes: [],
     grit: null,
     splash: {
-      count: 58, over: 0.1, decay: 0.042,
-      radius: [0.00018, 0.0018], bias: 0.35, damping: 1, level: 0.5,
-      fizz: { level: 0.5, duration: 0.075, from: 9500, to: 3600, q: 0.4 },
+      count: 44, over: 0.09, decay: 0.038,
+      radius: [0.00015, 0.0022], bias: 0.3, damping: 1, level: 0.62,
     },
     scuff: 0.95,
     toe: 0.6,
@@ -619,33 +602,29 @@ export const SURFACES = {
    * as another droplet, and quiet enough that the splash is what you hear
    * first.
    *
-   * The cloud runs 930 Hz to 16 kHz and carries a fizz under it, exactly as the
-   * puddle does and for the same reason: the spray too fine to resolve is where
-   * airiness lives, and without it a body of water is muffled however many
-   * discrete bubbles are thrown at it. A pond's fizz is longer than a puddle's
-   * because there is more water to keep breaking.
+   * Same shape as the puddle, scaled up: a broad wet **whoomph** as a foot goes
+   * through the surface, a scatter behind it, and the cavity underneath. The
+   * contact here is the *water* being struck rather than the ground — there is
+   * half a foot of it in the way — which is why it is broader, longer and duller
+   * than the puddle's, and why it is still the loudest thing in the surface.
    *
-   * The bulk rush is nearly gone — a twentieth of the cloud. It is the layer
-   * that turns into mush the moment it is loud enough to notice, and it does not
-   * need to be noticed; it only has to say that something heavy moved.
-   *
-   * There is a contact in here, a fifteenth of the splash and eighteen
-   * milliseconds late. At this depth you feel the bottom and barely hear it.
+   * The bulk rush is short. That is the whole difference between a rush and a
+   * mush: at a quarter of a second it is a wash sitting under everything, and at
+   * half that it is a leg going through water.
    */
   'water-pond': {
-    level: 0.5,
-    impact: { level: 0.05, duration: 0.034, low: 300, tone: 2200, q: 0.5, attack: 0.018 },
+    level: 0.52,
+    impact: { level: 0.3, duration: 0.045, low: 200, tone: 4800, q: 0.5, attack: 0.011 },
     crush: {
-      level: 0.08, duration: 0.24, from: 5200, to: 1800, q: 0.7,
-      rise: 0.09, band: 'ceiling', rough: 0.4,
+      level: 0.18, duration: 0.12, from: 6000, to: 2200, q: 0.6,
+      rise: 0.06, band: 'ceiling', rough: 0.3,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 105, over: 0.22, decay: 0.085,
-      radius: [0.0002, 0.0035], bias: 0.3, damping: 1, level: 0.58,
-      cavity: { radius: 0.013, level: 0.2, delay: 0.028 },
-      fizz: { level: 0.44, duration: 0.13, from: 8500, to: 3000, q: 0.4 },
+      count: 58, over: 0.15, decay: 0.055,
+      radius: [0.0002, 0.0035], bias: 0.3, damping: 1, level: 0.6,
+      cavity: { radius: 0.013, level: 0.24, delay: 0.026 },
     },
     scuff: 1,
     toe: 0.65,
@@ -1218,25 +1197,11 @@ function rand(min: number, max: number): number {
  */
 function scatterBubbles(
   context: BaseAudioContext,
-  noise: AudioBuffer,
   target: AudioNode,
   splash: Splash,
   at: number,
   force: number,
 ): void {
-  // The spray that cannot be counted. First, because it is the sheet breaking
-  // and everything below is what comes out of it.
-  if (splash.fizz) {
-    crush(context, noise, target, at, splash.fizz.level * force, {
-      duration: splash.fizz.duration,
-      from: splash.fizz.from,
-      to: splash.fizz.to,
-      q: splash.fizz.q,
-      // Almost no rise. A sheet of water breaking is not a swell.
-      rise: 0.05,
-    });
-  }
-
   const rate = splash.count / Math.max(splash.over, 1e-3);
   const [small, big] = splash.radius;
 
@@ -1275,7 +1240,7 @@ function scatterBubbles(
     // up on top of that leaves a cloud that is four fifths fine spray and
     // sounds like half a dozen gloops, which is exactly the thickness that
     // would not go away however far the distribution was skewed.
-    const level = splash.level * force * energy * rand(0.35, 1) * (1.15 - 0.3 * size);
+    const level = splash.level * force * energy * rand(0.35, 1) * (0.95 + 0.1 * size);
     if (level < 0.0015) continue;
 
     popBubble(context, target, at + t, {
@@ -1663,14 +1628,7 @@ export class Footsteps {
         ),
         over: surface.splash.over * (0.6 + 0.4 * scuffing),
       };
-      scatterBubbles(
-        context,
-        noise.white,
-        this.output,
-        thrown,
-        at,
-        level * contact.grit * (0.75 + 0.25 * scuffing),
-      );
+      scatterBubbles(context, this.output, thrown, at, level * contact.grit * (0.75 + 0.25 * scuffing));
     }
   }
 
