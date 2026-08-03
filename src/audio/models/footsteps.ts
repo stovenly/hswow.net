@@ -100,6 +100,13 @@ interface Crush {
   /** Sharpness. Above about 4 the movement reads as a squeak or a whistle. */
   q: number;
   /**
+   * A window that moves, or a ceiling that falls. See `dsp/impact.ts`.
+   *
+   * Packing is a window — the voids are a size and they close. A splash is a
+   * ceiling: everything at once, losing the top first.
+   */
+  band?: 'window' | 'ceiling';
+  /**
    * Where the peak sits, 0..1 of the duration. Defaults to 0.45.
    *
    * Packing builds while the load goes on and peaks near the middle. A liquid
@@ -343,18 +350,22 @@ export const SURFACES = {
   /**
    * Loose stones, and the reference the aggregate family is sized against.
    *
-   * Five voices across nearly two octaves, because a gravel path runs from grit
-   * to knuckle-sized and one shared resonance made every piece the same piece.
-   * **Dry**, which is `grain`: at twenty milliseconds a stone rings on like a
-   * droplet and the whole path sounds wet.
+   * **Barely spread at all**, and that was the mistake. Five voices across two
+   * octaves broke up the repetition and broke up the *material* with it: at a
+   * hundred and thirty collisions a second, pitches that far apart stop fusing
+   * and the ear starts counting them, which is indistinguishable from rain.
+   * Three voices a fraction apart thicken the band without segregating it. The
+   * variety that keeps it from sounding looped comes from the timing, the
+   * levels, the per-stone ring-downs and the noise itself — none of which the
+   * ear can group by.
    */
   gravel: {
     level: 0.5,
     impact: { level: 0.26, duration: 0.012, low: 260, tone: 2400, q: 0.9, attack: 0.004 },
     modes: [],
     grit: {
-      count: 28, over: 0.22, energyDecay: 0.075, hz: 2800, q: 1.2, level: 0.8,
-      voices: 5, spread: 0.75, grain: 0.011, attack: 0.0009,
+      count: 28, over: 0.22, energyDecay: 0.075, hz: 2800, q: 1.3, level: 0.8,
+      voices: 3, spread: 0.16, grain: 0.009, attack: 0.0009,
     },
     scuff: 0.95,
     toe: 0.7,
@@ -379,7 +390,7 @@ export const SURFACES = {
     modes: [],
     grit: {
       count: 62, over: 0.13, energyDecay: 0.04, hz: 2400, q: 0.4, level: 0.42,
-      voices: 3, spread: 0.35, grain: 0.008, attack: 0.0028,
+      grain: 0.008, attack: 0.0028,
     },
     scuff: 0.8,
     toe: 0.5,
@@ -402,7 +413,7 @@ export const SURFACES = {
     modes: [],
     grit: {
       count: 22, over: 0.08, energyDecay: 0.03, hz: 1300, q: 1, level: 0.34,
-      voices: 3, spread: 0.55, grain: 0.011, attack: 0.0022,
+      voices: 2, spread: 0.15, grain: 0.011, attack: 0.0022,
     },
     scuff: 0.5,
     toe: 0.4,
@@ -446,12 +457,18 @@ export const SURFACES = {
    * quarter of a second falling back, which is the opposite envelope, and it
    * is the entire character.
    *
-   * So the displacement peaks at a tenth of its duration and the rest is tail,
-   * sweeping downward from 3.2 kHz as the sheet spreads out and thins. Under it
-   * the bed is reached late and heavily damped — quiet, dull, and no more than
-   * a tenth of the splash, because in an inch of water you barely hear the
-   * ground at all. Over it, droplets patter down across a window twice as long
-   * again, and a few small bubbles plink in what is left.
+   * **And it is broadband, not a moving window.** A swept bandpass is a whoosh
+   * however it is enveloped, which is what every earlier version of this was. A
+   * splash starts with everything in it and loses the top first, because that
+   * is where the energy goes — so the filter here is a *ceiling* falling from
+   * 7 kHz to 1.1, not a band travelling between them.
+   *
+   * Under it the bed is reached late and heavily damped: quiet, dull, and a
+   * tenth of the splash, because in an inch of water you barely hear the ground
+   * at all. Over it, droplets patter down across a window twice as long again —
+   * **the one place in the table where grains are meant to be countable**, so
+   * they keep their spread of pitches — and a few small bubbles plink in what
+   * is left.
    *
    * Against `mud`, which is the same engines run the other way: mud builds
    * slowly, sits low, and gloops; water bursts, sits high, and patters.
@@ -459,11 +476,14 @@ export const SURFACES = {
   water: {
     level: 0.5,
     impact: { level: 0.1, duration: 0.03, low: 150, tone: 1400, q: 0.5, attack: 0.012 },
-    crush: { level: 0.62, duration: 0.22, from: 3200, to: 900, q: 0.5, rise: 0.1 },
+    crush: {
+      level: 0.55, duration: 0.26, from: 7000, to: 1100, q: 0.6,
+      rise: 0.06, band: 'ceiling',
+    },
     modes: [],
     grit: {
-      count: 18, over: 0.2, energyDecay: 0.09, hz: 3600, q: 1.6, level: 0.3,
-      voices: 4, spread: 0.7, grain: 0.016, attack: 0.001,
+      count: 16, over: 0.22, energyDecay: 0.1, hz: 3200, q: 1.8, level: 0.28,
+      voices: 4, spread: 0.7, grain: 0.014, attack: 0.001,
     },
     splash: { count: 10, over: 0.16, radius: [0.0005, 0.0025], level: 0.28 },
     scuff: 0.95,
@@ -510,7 +530,7 @@ export const SURFACES = {
     modes: [],
     grit: {
       count: 30, over: 0.085, energyDecay: 0.03, hz: 2600, q: 0.5, level: 0.32,
-      voices: 3, spread: 0.4, grain: 0.009, attack: 0.0026,
+      grain: 0.009, attack: 0.0026,
     },
     scuff: 0.6,
     toe: 0.6,
@@ -522,9 +542,12 @@ export const SURFACES = {
    *
    * A leaf layer is mostly air, so a foot meets nothing solid for sixteen
    * milliseconds and then compresses the whole depth of it; the crackle rides
-   * on top rather than underneath. The sharpness came down and the grain came
-   * right down with it: a leaf that rings for twenty milliseconds is a drip,
-   * and a burst of them is a puddle, which is exactly what this had become.
+   * on top rather than underneath.
+   *
+   * **One resonance for the whole layer.** Four hundred collisions a second at
+   * four different pitches is a bag of marbles, not a crunch — dense grains only
+   * fuse into a material when they share a spectrum. The variety is in the
+   * timing and the levels, where the ear cannot use it to count objects.
    */
   leaves: {
     level: 0.46,
@@ -532,8 +555,8 @@ export const SURFACES = {
     crush: { level: 0.18, duration: 0.09, from: 900, to: 1500, q: 1.1 },
     modes: [],
     grit: {
-      count: 38, over: 0.095, energyDecay: 0.03, hz: 3800, q: 1.3, level: 0.7,
-      voices: 4, spread: 0.5, grain: 0.013, attack: 0.0016,
+      count: 38, over: 0.095, energyDecay: 0.03, hz: 4100, q: 2, level: 0.7,
+      grain: 0.011, attack: 0.0016,
     },
     scuff: 0.75,
     toe: 0.7,
@@ -555,7 +578,7 @@ export const SURFACES = {
     modes: [],
     grit: {
       count: 56, over: 0.11, energyDecay: 0.034, hz: 1900, q: 0.55, level: 0.28,
-      voices: 3, spread: 0.4, grain: 0.01, attack: 0.0035,
+      grain: 0.01, attack: 0.0035,
     },
     scuff: 0.5,
     toe: 0.4,
@@ -590,21 +613,26 @@ export const SURFACES = {
   /**
    * Sheet metal, bedded — an aluminium plate or a tread panel.
    *
-   * **Inharmonic, and with a low partial to twang against.** A sheet is thin
-   * and stiff, so most of it sits well up; but pitched entirely up there it
-   * reads as a tile rather than as metal, because what says metal is the
-   * *interval* between a body note and a bright one that do not belong to the
-   * same series. So the bottom mode came down to give the top something to be
-   * out of tune with.
+   * Inharmonic, with a body note for the bright partials to be out of tune
+   * against — what says metal is the *interval* between notes that belong to no
+   * common series.
+   *
+   * **But the decays were the fault.** At a tenth of a second and under, a
+   * pitched inharmonic knock is a woodblock: a stick, which is exactly what it
+   * sounded like. Metal is not defined by its spectrum alone, it is defined by
+   * *sustain* — even a plate held down rings a quarter of a second, and that is
+   * the shortest a thing can ring and still be heard as metal at all. Roughly
+   * doubled across the board, and still less than half of `metal-ring`, which
+   * is what keeps it the dead one.
    */
   'metal-solid': {
     level: 0.46,
     impact: { level: 0.16, duration: 0.005, low: 320, tone: 5200, q: 1.6, attack: 0.0007 },
     modes: [
-      { hz: 520, decay: 0.14, level: 0.3 },
-      { hz: 1180, decay: 0.1, level: 0.24 },
-      { hz: 2380, decay: 0.06, level: 0.14 },
-      { hz: 4200, decay: 0.035, level: 0.07 },
+      { hz: 660, decay: 0.26, level: 0.3 },
+      { hz: 1520, decay: 0.2, level: 0.24 },
+      { hz: 2980, decay: 0.13, level: 0.14 },
+      { hz: 5200, decay: 0.075, level: 0.07 },
     ],
     grit: null,
     scuff: 0.15,
@@ -1329,6 +1357,7 @@ export class Footsteps {
         to: surface.crush.to,
         q: surface.crush.q,
         rise: surface.crush.rise,
+        band: surface.crush.band,
       });
     }
 

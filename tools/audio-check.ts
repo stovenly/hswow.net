@@ -557,6 +557,33 @@ for (const [mm, hz] of [
   );
 }
 
+// **A dense bed of pitched grains is a bag of marbles, not a material.**
+//
+// Grains sharing one resonance fuse into a texture; grains at clearly different
+// pitches segregate into separate small objects. Sparse and spread is a handful
+// of distinguishable stones, which is what rubble should be. Dense and spread is
+// a shimmer of blips — marbles, or rain — and gravel, leaves and snow each
+// acquired exactly that from a `spread` set for the wrong reason.
+//
+// Water is the deliberate exception, and it is the one surface where the ear
+// *should* be able to count what it hears.
+{
+  const DENSE = 200;
+  const wrong = Object.entries(SURFACES)
+    .filter(([name]) => name !== 'water')
+    .filter(([, surface]) => {
+      const grit = surface.grit;
+      if (!grit) return false;
+      return grit.count / Math.max(grit.over, 1e-3) > DENSE && (grit.spread ?? 0) > 0.2;
+    })
+    .map(([name]) => name);
+  check(
+    'dense grains share a resonance',
+    wrong.length === 0,
+    wrong.join(', ') || `nothing above ${DENSE}/s is spread`,
+  );
+}
+
 // **The impact is the contact, not the sound.** On a loose or soft surface the
 // engine carrying the material has to be the thing you hear; where the contact
 // competes with it, the surface reads as "the standard footstep with an effect
