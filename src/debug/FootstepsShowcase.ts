@@ -32,9 +32,9 @@ import { signboard, type SignboardOptions } from '../art/builders/signboard';
  *   for the whole project's life; the question is whether the shallows are
  *   audibly a *splash* rather than a louder one, and whether mud gloops where
  *   water plinks.
- * - `moss | turf | leaflitter | snow` — soft, in ascending order of noise. Moss
- *   should be very nearly silent without being absent; snow should compress
- *   rather than crunch.
+ * - `moss | turf | snow` — soft, in ascending order of noise. Moss should be
+ *   very nearly silent without being absent; snow should compress rather than
+ *   crunch.
  * - `boards | plate | grating | pipework | hollowmetal` — the five that ring,
  *   and the only five allowed to. Wood hollow, sheet metal bright and dead,
  *   grating clanging, pipe knocking, tank booming. The last two are the same
@@ -71,7 +71,6 @@ const STRIPS: readonly GroundName[] = [
   'shallows',
   'moss',
   'turf',
-  'leaflitter',
   'snow',
   'boards',
   'plate',
