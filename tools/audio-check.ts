@@ -524,16 +524,14 @@ for (const [mm, hz] of [
   );
 
   // And the converse: a millisecond rise is a *strike*, which belongs to things
-  // that are struck. **Water is the one exception and it is a real one** — a
-  // liquid does not decelerate a foot, it gets out of the way, so the ground
-  // under an inch of it arrives almost at once. That is why water has no
-  // `crush`: a give on it is the single thing that makes it read as mud.
-  const STRUCK = [...RINGS, 'water'];
+  // that are struck and to nothing else. Shallow water counts as giving rather
+  // than being struck — the ground under it is reached late and damped, and the
+  // loud part is the water being pushed aside on the way down.
   const wrong = Object.entries(SURFACES)
-    .filter(([name]) => !STRUCK.includes(name))
+    .filter(([name]) => !RINGS.includes(name))
     .filter(([, surface]) => (surface.impact.attack ?? 0) < 0.0035)
     .map(([name]) => name);
-  check('only hard surfaces are struck', wrong.length === 0, wrong.join(', ') || `${STRUCK.length} may be`);
+  check('only hard surfaces are struck', wrong.length === 0, wrong.join(', ') || `${RINGS.length} may be`);
 }
 
 // **The impact is the contact, not the sound.** On a loose or soft surface the
