@@ -177,14 +177,14 @@ await loader.step('rendering the rooms', 0.86, () => audio.ready);
 
 await loader.step('tuning the air', 0.96, () => {
   footsteps = new Footsteps(audio, 0.55);
-  player.onFootstep = (speed) => {
+  player.onFootstep = (step) => {
     if (!footsteps) return;
     // Sampled per step rather than per zone: outdoors the ground cover changes
     // under you, and a cobbled lane that sounds like the grass beside it is
     // only paint.
     const at = player.position;
     footsteps.surface = zones.surfaceAt(at.x, at.z);
-    footsteps.step(speed);
+    footsteps.step(step);
   };
   // Landing is part of the same system — same surface, same models, different
   // gesture. Without this, jumping on the spot is completely silent.
