@@ -22,6 +22,7 @@ import { fogShowcasePlan } from './galleries/fog';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
+import { footstepsShowcasePortal } from './FootstepsShowcase';
 
 /**
  * The prop halls: one antechamber per setting, with the setting's galleries
@@ -344,6 +345,16 @@ export function propPortals(
       yaw: 0,
       material: 'timber',
       seed: 6435,
+    }),
+    // Footsteps close the rank. The ground belongs to no setting either, and
+    // what is behind this door is a test rig rather than a place — hence iron,
+    // the same signal the Sound Showcase's door gives.
+    footstepsShowcasePortal({
+      zone: ZONE_GENERAL_PROPS,
+      position: new THREE.Vector3(32, 0, 0),
+      yaw: 0,
+      material: 'iron',
+      seed: 6436,
     }),
   ];
 }

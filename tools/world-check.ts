@@ -37,6 +37,9 @@ import { DEFAULT_REACH } from '../src/world/Interaction';
 import { buildDoor, doorMetrics, doorName } from '../src/art/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
+import { ZONE_FOOTSTEPS_SHOWCASE } from '../src/debug/FootstepsShowcase';
+import { GROUND } from '../src/world/ground';
+import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
 import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
 import { DEFAULT_TUNING } from '../src/player/Controller';
@@ -649,6 +652,51 @@ console.log('\n--- terrain -------------------------------------------------\n')
     found.size >= 5,
     `${found.size} materials on the ground: ${[...found].sort().join(', ')}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n--- surfaces underfoot --------------------------------------\n');
+
+/**
+ * Every footstep model has ground somewhere that uses it.
+ *
+ * FOOTSTEPS.md M4: a surface with no ground that plays it cannot be heard, and
+ * an unhearable sound is an unfinished one. This is the assertion that keeps
+ * the two tables from drifting — adding a `SurfaceName` and forgetting to give
+ * it any ground is otherwise completely silent, in both senses.
+ */
+{
+  const played = new Set<string>(Object.values(GROUND).map((material) => material.step));
+  const orphans = Object.keys(SURFACES).filter((name) => !played.has(name));
+  check(
+    'every surface has ground that uses it',
+    orphans.length === 0,
+    orphans.length === 0
+      ? `${played.size} surfaces reachable through ${Object.keys(GROUND).length} ground materials`
+      : `nothing plays: ${orphans.join(', ')}`,
+  );
+
+  // And that the showcase actually presents them. Its strips are the only
+  // place all of them stand side by side, so a strip whose paint and footfall
+  // disagree would be invisible everywhere else.
+  const showcase = zones.get(ZONE_FOOTSTEPS_SHOWCASE);
+  const surfaceAt = showcase?.definition.surfaceAt;
+  if (!surfaceAt) {
+    check('the footsteps showcase paints what it plays', false, 'no surfaceAt on the zone');
+  } else {
+    const heard = new Set<string>();
+    // Across the field at half-strip resolution, so a boundary off by half a
+    // strip shows up as a material sampled twice and another not at all.
+    for (let x = -35; x <= 35; x += 2.5) heard.add(surfaceAt(x, 0));
+    const missing = Object.keys(SURFACES).filter((name) => !heard.has(name));
+    check(
+      'the footsteps showcase presents every surface',
+      missing.length === 0,
+      missing.length === 0
+        ? `${heard.size} distinct surfaces across the strips`
+        : `not on any strip: ${missing.join(', ')}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

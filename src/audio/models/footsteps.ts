@@ -2,6 +2,7 @@ import type { AudioEngine } from '../AudioEngine';
 import { createModalBank, type ModalBank, type ModalOptions } from '../dsp/modal';
 import { createParticleBed, scatterParticles, type Particles } from '../dsp/phisem';
 import { excite } from '../dsp/impact';
+import { popBubble, bubbleRadius } from '../dsp/bubble';
 
 /**
  * Footsteps, after Cook's physically informed models.
@@ -53,6 +54,24 @@ interface Mode {
  */
 type Grit = Particles;
 
+/**
+ * Air dragged under by a foot going into water. See `dsp/bubble.ts`.
+ *
+ * A fourth engine, and only the shallows use it. A bubble's pitch *rises* as it
+ * collapses, and that climb is the whole difference between water and a blip —
+ * neither the impact nor the particle bed can produce it, which is why `mud`
+ * has never been a splash.
+ */
+interface Splash {
+  /** Bubbles entrained. */
+  count: number;
+  /** Seconds they are spread over. */
+  over: number;
+  /** Radius bounds in metres. 0.3 mm is spray, 8 mm the bottom of a pour. */
+  radius: readonly [number, number];
+  level: number;
+}
+
 export interface Surface {
   /** Overall level, before the speed curve. */
   level: number;
@@ -67,6 +86,8 @@ export interface Surface {
   modes: readonly Mode[];
   /** Aggregate materials crunch. Solid ones do not. */
   grit: Grit | null;
+  /** Standing water. Nothing else has it. */
+  splash?: Splash;
   /** Level of the toe-off relative to the heel strike. */
   toe: number;
   /** Seconds between heel and toe at walking pace. Shrinks as you speed up. */
@@ -224,6 +245,83 @@ export const SURFACES = {
     toe: 0.3,
     roll: 0.1,
   },
+
+  /**
+   * Cobbles, split off from flagstone.
+   *
+   * A slab is one contact and a cobbled lane is several small ones with joints
+   * between them, which puts it much closer to a sparse aggregate over a solid
+   * than to `stone`. So: the same crack, but higher and shorter — a fist-sized
+   * sett rings well above a slab and dies almost at once — over real grit,
+   * because the sand between the stones is the other half of the sound.
+   */
+  cobble: {
+    level: 0.5,
+    impact: { level: 0.85, duration: 0.013, tone: 3400 },
+    modes: [
+      { hz: 880, decay: 0.035, level: 0.021 },
+      { hz: 1900, decay: 0.022, level: 0.011 },
+    ],
+    grit: { count: 9, over: 0.09, energyDecay: 0.035, hz: 2800, q: 1.3, level: 0.26 },
+    toe: 0.5,
+    roll: 0.08,
+  },
+
+  /**
+   * Compacted snow.
+   *
+   * The aggregate the engine most obviously ought to be able to make, and the
+   * only one with a **squeak**: below about −5 °C the crystals shear against
+   * each other rather than melting, and that produces a short mid-high creak on
+   * top of the crunch that no other surface here has. It is the mode, and it is
+   * the whole identity — a snow without it is quiet gravel.
+   *
+   * Quiet, dull and slow. The foot sinks, so the contact is long and the roll
+   * is the longest in the table.
+   */
+  snow: {
+    level: 0.4,
+    impact: { level: 0.55, duration: 0.045, tone: 900 },
+    modes: [{ hz: 2100, decay: 0.07, level: 0.019 }],
+    grit: { count: 22, over: 0.14, energyDecay: 0.05, hz: 3400, q: 1.6, level: 0.5 },
+    toe: 0.5,
+    roll: 0.1,
+  },
+
+  /**
+   * Ankle-deep water.
+   *
+   * `mud` is the wet slap and it is not a splash — the difference is entrained
+   * air, which rings and *climbs* as it collapses. The impact is broad and
+   * brighter than mud's, because this is water rather than clay; the grit is
+   * spatter rather than crunch; and the bubbles are what say water.
+   */
+  water: {
+    level: 0.55,
+    impact: { level: 0.9, duration: 0.035, tone: 1600 },
+    modes: [],
+    grit: { count: 14, over: 0.13, energyDecay: 0.05, hz: 2600, q: 1.1, level: 0.34 },
+    splash: { count: 9, over: 0.12, radius: [0.0008, 0.005], level: 0.16 },
+    toe: 0.55,
+    roll: 0.1,
+  },
+
+  /**
+   * Moss over stone or earth.
+   *
+   * Nothing like turf. It is a damp mat with no loose material in it at all and
+   * nothing underneath it that rings, so it is impact and only impact — the
+   * quietest surface in the table by some way, and the one that makes a wood
+   * floor feel like a wood floor by contrast.
+   */
+  moss: {
+    level: 0.22,
+    impact: { level: 0.55, duration: 0.04, tone: 700 },
+    modes: [],
+    grit: null,
+    toe: 0.5,
+    roll: 0.095,
+  },
 } as const satisfies Record<string, Surface>;
 
 export type SurfaceName = keyof typeof SURFACES;
@@ -324,6 +422,32 @@ const LANDING_FULL = 9;
 /** Audio needs no determinism — unlike the art kit, nothing is stored by seed. */
 function rand(min: number, max: number): number {
   return min + Math.random() * (max - min);
+}
+
+/**
+ * A burst of entrained air, Poisson-spaced the way the particle bed is.
+ *
+ * Straight to the output rather than through a bed: a bubble is already a tuned
+ * oscillator and has no shared body to resonate in, which is exactly what makes
+ * it unlike grit.
+ */
+function scatterBubbles(
+  context: BaseAudioContext,
+  target: AudioNode,
+  splash: Splash,
+  at: number,
+  force: number,
+): void {
+  const rate = splash.count / Math.max(splash.over, 1e-3);
+  let t = 0;
+  for (let i = 0; i < splash.count; i++) {
+    t += -Math.log(1 - Math.random() * 0.999 - 0.001) / rate;
+    if (t > splash.over * 2.5) return;
+    popBubble(context, target, at + t, {
+      radius: bubbleRadius(splash.radius[0], splash.radius[1]),
+      level: splash.level * force * rand(0.5, 1),
+    });
+  }
 }
 
 interface Chain {
@@ -585,6 +709,12 @@ export class Footsteps {
 
     if (surface.grit && chain.gritInput) {
       scatterParticles(context, noise.white, chain.gritInput, surface.grit, at, level * contact.grit);
+    }
+
+    // Scaled by `grit` for the same reason it exists: how much loose stuff a
+    // contact throws up. Water is the wet case of the same question.
+    if (surface.splash) {
+      scatterBubbles(context, this.output, surface.splash, at, level * contact.grit);
     }
   }
 
