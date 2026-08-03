@@ -41,6 +41,8 @@ import { villageZone, villageTerrain, VILLAGE_GATE, ZONE_VILLAGE } from './villa
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
+import { waterShowcaseZone } from './WaterShowcase';
+import { waterShowcase2Zone } from './WaterShowcase2';
 import { chainZones, chainPortals } from './chains';
 
 /**
@@ -560,6 +562,9 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   // other showcases rather than in the village street — see `propPortals`,
   // which is where every door in that room is placed.
   zones.push(soundStageZone());
+  // The Water Showcase, whose door stands in the same rank — see `propPortals`.
+  zones.push(waterShowcaseZone());
+  zones.push(waterShowcase2Zone());
 
   return { zones, portals };
 }

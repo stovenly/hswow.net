@@ -42,3 +42,33 @@ export const COLLISION_LAYER = 1;
  * lights and nothing else.
  */
 export const GLOW_LAYER = 2;
+
+/**
+ * Water surfaces, and **the one exception to the additive rule above.**
+ *
+ * Everything else here is enabled alongside layer 0, so it adds a way to select
+ * a mesh without changing what draws it. `waterPlane` calls `layers.set`, which
+ * clears layer 0 — a water plane is on this layer and *only* this layer, so it
+ * is invisible to every pass that does not name it.
+ *
+ * That is not an optimisation, it is the whole design (SHADERS.md §7). Water has
+ * to read the colour and the depth of everything behind it, and nothing can
+ * sample the buffer it is rendering into — so water cannot be in the opaque
+ * pass. Being off layer 0 removes it from that pass, from the normal pass the
+ * outline is differenced out of, and from the shadow map, in one line and with
+ * no per-pass exclusion lists to keep in step.
+ *
+ * Three consequences, all of them wanted:
+ *
+ * - **No outline on the water.** The edge detector never sees it. The foam line
+ *   is what draws the shore instead, which is the right line to draw.
+ * - **No shadow cast, and no self-shadowing of a surface that has no thickness.**
+ * - **The reflection ray cannot hit the water it left.** Water is absent from
+ *   the depth buffer entirely, so the screen-space march has nothing of its own
+ *   to intersect — the failure that needs a start-offset hack in most SSR
+ *   implementations simply does not arise here.
+ *
+ * The collision layer is not involved: water is `noCollide`, so `markCollidable`
+ * stops at it and never enables anything.
+ */
+export const WATER_LAYER = 3;

@@ -367,11 +367,28 @@ surface. The design is a third shared material, standing beside `ART_MATERIAL` a
      a ray hits (§8), from the *analytic sky evaluated in the reflected direction*
      where it misses. That fallback is the quiet advantage of a procedural sky: the
      miss case of SSR, which is where every SSR implementation looks broken, here
-     returns exactly the correct sky gradient at zero cost.
-- **Draw order:** `PixelStage` renders opaques, keeps its colour+depth, then draws
-  water (and glow) into the same colour target with those textures bound as uniforms
-  — the standard second-stage arrangement, and the R0 restructure is what makes the
-  targets ours to bind.
+     returns exactly the correct sky gradient at zero cost. It also means **there is
+     no specular highlight anywhere in the water shader** and none is wanted: the
+     sky's own sun disc and halo are in what gets reflected, so the glitter on a
+     choppy pool is the wave normals catching the drawn sun — and it will follow the
+     sun for free when R4 lands.
+- **Draw order:** `PixelStage` renders opaques and keeps its colour+depth; water then
+  draws in the effect slot, into the *next* link of the chain, with those textures
+  bound as uniforms — the standard second-stage arrangement, and the R0 restructure is
+  what makes the targets ours to bind. It is a link rather than the same target
+  because nothing may sample the buffer it is rendering into: the pass copies the
+  frame forward and draws over the copy.
+- **Water is on a layer of its own, exclusively** (`WATER_LAYER`, set rather than
+  enabled), which is what takes it out of the opaque pass, the normal pass and the
+  shadow map in one line. Three consequences, all wanted: no outline on the water —
+  the foam line is the shore line, and it is the right line to draw; no shadow from a
+  surface with no thickness; and, because water is absent from the depth buffer
+  altogether, **the reflection ray has nothing of its own to intersect**, which is the
+  self-intersection problem most SSR implementations spend a hack on.
+- **The depth test is done in the shader**, not by the hardware. The fragment has to
+  sample the scene's depth anyway for the shore shading, so discarding where the scene
+  is nearer costs nothing extra — and it means the target water draws into never has
+  the scene's depth texture attached, so there is no read-and-write feedback on it.
 
 ---
 
@@ -389,13 +406,17 @@ Ordered by cost, and each usable without the ones above it.
   surfaces that want it (display windows, tanks). Note the existing windows are
   *emissive by design* (`builders/window.ts` documents this); glass is for new
   surfaces, not a retrofit.
-- **Tier 2 — SSR for water.** Computed inside the water shader (§7), since water
-  already has the colour and depth targets bound: reflect the view ray about the
-  wave normal, march the depth buffer — 16 coarse steps, 4 binary-refine — with the
-  chunky-cell hash jittering the start. Hit → colour buffer read; miss → analytic
-  sky. Water is near-planar and its rays leave upward, which is SSR's best case:
-  short marches, high hit rate on banks and huts, and the halftone eats the edge
-  artifacts that plague full-res SSR.
+- **Tier 2 — SSR for water.** *(Built with R6.)* Computed inside the water shader
+  (§7), since water already has the colour and depth targets bound: reflect the view
+  ray about the wave normal, march the depth buffer — 16 coarse steps, 4
+  binary-refine — with the chunky-cell hash jittering the start. Hit → colour buffer
+  read; miss → analytic sky. Water is near-planar and its rays leave upward, which is
+  SSR's best case: short marches, high hit rate on banks and huts, and the halftone
+  eats the edge artifacts that plague full-res SSR. Two details settled in the
+  building: the march runs in *world* space, because the depth here is a distance and
+  metres are the unit everything else is authored in; and a hit is faded out toward
+  the frame edge into the sky, which is a crossfade between two correct colours
+  rather than the hard cut that makes SSR obvious elsewhere.
 - **Tier 3 — general SSR (wet stone, polished floors) — deliberately parked.** It
   needs per-surface roughness/mask data the vertex-colour format does not carry, and
   flat-shaded Lambert does not read specularity anyway. If rain (a Weather visual)
@@ -427,6 +448,11 @@ toggle layers over the preset and never overwrites tuning:
 
 Each is one honest switch that turns the effect on and off — not a quality ladder,
 not a master "effects" group that gates them behind each other.
+
+One more crosses the line by a different door: **water motion** is an *accessibility*
+option, under reduced motion beside wind sway and head bob. The water itself is not
+optional and never will be — it is the place. Whether the surface moves is the same
+kind of ask as whether the grass does.
 
 Deliberately **not** options:
 
@@ -698,6 +724,158 @@ far as the checks need.
 reflection shows huts where SSR hits and correct sky where it misses, wind roughens
 the surface in the same gusts that bend the reeds. Water is `noCollide` and
 `world-check`'s prop-grounding and interior-leak checks still pass.
+
+**Status: built** — `src/art/water.ts` (the material and the plane builder),
+`src/engine/Water.ts` (the pass), `src/debug/WaterShowcase.ts` (the room). The pass
+sits between GTAO and the fog volumes: after AO so the bed showing through shallow
+water is a shaded bed, before fog so mist hangs over a pond rather than under it,
+before bloom so a lamp's halo lies over the surface. `water: { waves, reflections }`
+in `RenderSettings` and a dev-panel folder; **no player option**, by the rule above —
+a pond is part of the place.
+
+Three decisions worth keeping written down, because each replaced an obvious
+alternative that does not work here:
+
+- **One material, per-vertex variation.** A still pool and a wind-whipped one differ
+  by an `aChop` attribute, exactly as species stiffness differs by `SWAY_ATTRIBUTE` —
+  so the Water Showcase's four pools are four numbers rather than four materials.
+  Colour stays global: every body of water in the game is the same water, which is the
+  call `ART_MATERIAL` already makes about surfaces.
+- **Flow is a second attribute, `aFlow`, and that is what buys the corner.** A pond
+  answers the wind; a race goes somewhere, at its own speed, and the flow velocity
+  rotates the wave trains, adds itself to their phase speed, and carries the surface
+  noise along with it. Held per *vertex* rather than as a uniform because a uniform
+  cannot turn: the L-shaped channel is one plane whose flow field rotates through the
+  elbow, and the surface pattern turns with it. The constraint on that is worth
+  stating — wave *phase* depends on flow direction, so a flow field that turns
+  sharply shears the height field between neighbouring vertices. Keep the turn gentle
+  or the chop low. The noise shears cleanly at any rate, and the noise is most of what
+  reads as flow.
+- **Plain summed sines, not Gerstner.** Gerstner looks better in a screenshot and
+  needs a finite difference or a second evaluation for its normal. The derivative of a
+  sine is a cosine, and the surface normal is most of what water looks like — so the
+  slope is exact for free, and the fine detail that Gerstner would have bought is
+  bought more cheaply as a normal perturbation in the fragment shader.
+- **The march is in world space.** The depth texture is read as a *distance* (the
+  same unprojection the fog volumes use), so a metre-sized stride is expressible and
+  the hit-acceptance band is in metres — the only unit anything else in the file is
+  authored in. Stride grows geometrically to reach ~50 m in 16 steps, then four
+  halvings refine. Hits fade out toward the frame edge, and what they fade *into* is
+  the analytic sky — a crossfade between two right answers rather than between an
+  answer and a hole.
+
+**The pass must not run in a zone with no water**, because it costs a scene-graph
+walk. Which zones those are is *observed* rather than declared — `waterPlane` marks
+what it builds and `Zone.hasWater` counts them on the one traversal that already
+happens at build. A `water: true` on the zone definition would be a second statement
+of the same fact, and the two would eventually disagree: a pond moved out leaves a
+flag that costs a walk a frame forever, and one added without the flag never draws.
+
+Two things the shader shares rather than copies, both for the same reason two copies
+of a number drift: `windUniforms`, so the gust that bends the reeds is the gust that
+roughens the pond; and `skyUniforms` plus a `skyColour()` chunk lifted out of the sky
+dome's `main` unchanged, so a reflection cannot part company with the sky it is
+reflecting. That extraction is the only edit to `Sky.ts` and moves no arithmetic.
+
+**Verified headless**, which for once is possible: a throwaway probe compiled the
+material and drew it under SwiftShader with a wall standing in the water. Across four
+cases — mirror-still, full chop, a straight race at 2.5 m/s, and a turning flow field
+— 3.3–3.6k water pixels carried the wall's colour with the march on and exactly zero
+with it off, with no shader log and no NaN in the alpha. That is the one part of this
+that cannot be judged by looking, because a plausible-looking reflection and a correct
+one are the same picture. Everything else here wants eyes.
+
+**Three things the room found that the probe could not**, all reported from the
+running game and all worth keeping written down, because each is a class of bug rather
+than a number:
+
+- **Anything hung over water owes a clearance sum.** The jetty's boards were 30 cm
+  thick, putting their underside 10 cm above the surface — and wave crests reach
+  8.5 cm. The shader's depth test has 2 cm of slack, so along the whole strip under
+  the overhang the water flickered in and out. It reads exactly like z-fighting and
+  there is no depth buffer involved. Boards are 15 cm now; the underside clears a
+  full-amplitude crest by eight times the slack.
+- **Water seen from below is a different shader, not the same one.** Wade in and
+  every term inverts at once: `dot(normal, view)` goes negative and clamps, so fresnel
+  returns a flat 1 and the surface becomes a total mirror; the reflected ray is forced
+  back above the horizon by the guard that keeps it out of the ground; and the column
+  thickness is measured to the *sky*, so the water reads as infinitely deep. An opaque
+  warped ceiling with no sky in it. **The first fix overshot** — a faint tint over
+  whatever was behind, which at 18 per cent is no surface at all, and swimming under
+  it looked like swimming under nothing. The back face is now built properly, and it
+  is one of the few things in optics that is both famous and cheap: **Snell's window**
+  (light from the whole sky reaches an eye in water only through a cone about 49°
+  wide; the constant is `sqrt(1 - 1/1.333²)` = 0.661) ringed by **total internal
+  reflection**, which is the same screen-space march pointed *down* at the bed instead
+  of up at the sky. A bright disc of sky in a mirror of the bottom, rippling with the
+  same normal the top side uses. Reflections from below are **absorbed with
+  distance**, which the top side is not: a ray leaving the surface upward travels
+  through air and loses nothing, while one reflected downward is in water the whole
+  way — and without that, grazing TIR marches twenty metres along the underside and
+  returns a crisp picture of bright sand, which is the one thing an underwater
+  ceiling never looks like.
+- **The volume is a separate pass** (`engine/Underwater.ts`). Water shading runs on
+  the pixels a water plane covers; being *under* the water runs on every pixel in the
+  frame, because everything you can see is now being seen through it. Beer-Lambert
+  murk against the scene depth is nearly the whole effect — a diver sees their hand
+  and not the far end of the pool — with a flat cast, a dimming and a two-pixel
+  wobble on top. Enabled per frame from the camera's depth below the nearest surface,
+  ramped over the first 35 cm so a bobbing head at the waterline does not strobe the
+  whole screen.
+
+  **One pixel in the frame is exempt and has to ask for it.** The depth buffer has no
+  water in it, so where you are looking up through the ceiling the depth is whatever
+  is *beyond* it — the sky, at the far plane — and murk by distance would dissolve the
+  surface above your head. The water shader writes alpha 0 on its back face to mark
+  those pixels; nothing else in the pipeline touches alpha.
+- **Two crossed sine trains are a grid, and a threshold on them is a lattice.** Crest
+  foam put a white speck at every node, which slid across the pool as a repeating
+  pattern rather than as water breaking. The threshold is now lowered by a drifting
+  noise field instead of being constant — foam is possible where the noise is high and
+  even there only the tallest crests reach it.
+- **An effect nobody can see the cause of reads as a bug.** A submerged sill across a
+  race foams into a bright bar, exactly as intended — and then hides under the very
+  foam it is causing, leaving a line painted across the water for no visible reason.
+  It is a weir now: abutments at both ends stand clear of the surface, so the white
+  water is plainly the gap in a structure. The same rule caught the jetty standing in
+  the shore pool, and it is worth stating generally — in a room built to demonstrate
+  an effect, the *cause* has to be as visible as the effect.
+
+**Advected noise moves; streaked noise flows.** The first cut carried isotropic noise
+downstream, and it read as texture sliding about — nothing in the pattern said which
+way. Sampling that noise in a frame *squeezed along the flow* stretches every feature
+out along it, and what comes back is streaklines, which is the shape water draws on
+itself. Three things fall out of it for free:
+
+- The stretch scales with speed, so a slow channel is faintly combed and a fast one is
+  drawn in long lines — a speed cue with nothing else different between them.
+- Still water gets a stretch of exactly one, so a pond is never combed downwind.
+- **It is the whole answer to a bend.** The frame is built from a varying, so it
+  rotates across the surface exactly as the flow does, and the streaks curve round the
+  corner because they are drawn in the water's frame rather than the world's. A height
+  field cannot do this: wave phase is measured from the world origin, so a direction
+  changing by a few degrees between neighbouring vertices moves the phase by whole
+  radians and the trains decorrelate. The corner therefore runs at low chop and lets
+  the streaklines carry the turn. Flow speed also varies across the sweep — faster
+  outside, slower inside — which is most of what makes a bend read as a bend rather
+  than as a channel that happens to point somewhere else.
+
+**Two rooms, and the second one is the cost.** The Water Showcase is a bench — five
+basins and five races, each sized to the one claim it settles, and no view in it is
+more than a third water. Water Showcase 2 is a hundred and seventy metres of open
+coast with the horizon most of the way up the frame: nearly every pixel is water,
+nearly every one of them marches (a grazing angle is where fresnel is high, so the
+reflection is *not* skipped), and the sea is a single 126k-triangle draw call. Fog is
+pushed out to 300 m rather than hiding it. If this pass costs frames anywhere, it
+costs them there.
+
+**Water motion is an accessibility option**, under reduced motion beside wind sway
+and head bob. Not a video option: a pond is part of the place, but whether it *moves*
+is the same kind of ask as whether the grass does. It has its own uniform rather than
+riding on `swayAmount`, so that turning wind sway off does not silently stop the ponds
+and leave the water switch doing nothing. It stops the waves **and the noise scroll**
+together — a waterline undulating around an otherwise dead pond is precisely what
+somebody turning the option on is asking to be rid of.
 
 ### R7 — Garnish *(each independent; any time after its named parent)*
 
