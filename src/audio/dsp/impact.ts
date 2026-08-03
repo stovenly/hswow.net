@@ -110,6 +110,20 @@ export function crush(
     /** Sharpness. Above about 4 the climb reads as a squeak. */
     q: number;
     /**
+     * Whether the band is a window or a ceiling. Defaults to a window.
+     *
+     * **A swept bandpass is a whoosh, whatever envelope you put on it**, and no
+     * amount of shaping turns one into a splash. A splash is *broadband* — it
+     * starts with everything in it and loses the top first, because that is
+     * where the energy dissipates fastest. That is a lowpass falling, not a
+     * window moving, and the two are not interchangeable however similar the
+     * numbers look.
+     *
+     * Granular packing genuinely is a window: the voids are a size, and they
+     * close. Liquid displacement is not.
+     */
+    band?: 'window' | 'ceiling';
+    /**
      * Where the peak sits, as a fraction of the duration. Defaults to 0.45.
      *
      * **This is the difference between a swell and a burst**, and it is what
@@ -124,7 +138,7 @@ export function crush(
   if (level <= 0.0005) return;
 
   const band = context.createBiquadFilter();
-  band.type = 'bandpass';
+  band.type = shape.band === 'ceiling' ? 'lowpass' : 'bandpass';
   band.Q.value = shape.q;
   band.frequency.setValueAtTime(shape.from, at);
   band.frequency.linearRampToValueAtTime(shape.to, at + shape.duration);

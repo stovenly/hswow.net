@@ -56,6 +56,17 @@ export interface Particles {
   /**
    * How far apart those sizes are, as a fraction either way. 0.7 spans from
    * about six-tenths of `hz` to about one and seven-tenths of it.
+   *
+   * **Wide spread makes the ear count objects instead of hearing a material,
+   * and how wide is too wide depends entirely on density.** Grains sharing one
+   * resonance fuse into a texture; grains at clearly different pitches
+   * segregate into separate little things. Sparse and spread is a handful of
+   * distinguishable stones, which is right for rubble. *Dense* and spread is a
+   * shimmer of pitched blips — marbles, or rain — and it is wrong for every
+   * material that is supposed to be one substance.
+   *
+   * Above roughly two hundred collisions a second, keep this under 0.2 or
+   * leave it alone entirely. `check:audio` enforces it.
    */
   spread?: number;
   /**
