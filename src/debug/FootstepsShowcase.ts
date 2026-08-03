@@ -155,6 +155,7 @@ export function footstepsShowcaseZone(): ZoneDefinition {
   return {
     id: ZONE_FOOTSTEPS_SHOWCASE,
     name: 'Footsteps Showcase',
+    group: 'general',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       // Closing well inside the floor's half-width, so the edge never shows,

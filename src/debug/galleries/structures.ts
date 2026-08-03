@@ -131,12 +131,14 @@ const VILLAGE_INTERIOR_BUILDERS = [
 
 export const villageExteriorGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_VILLAGE_EXTERIOR,
+  group: 'countryside',
   name: 'Countryside Village Exterior Clutter',
   builders: VILLAGE_EXTERIOR_BUILDERS,
 };
 
 export const villageInteriorGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_VILLAGE_INTERIOR,
+  group: 'countryside',
   name: 'Countryside Village Interior Clutter',
   builders: VILLAGE_INTERIOR_BUILDERS,
 };
@@ -169,6 +171,7 @@ const FACTORY_EXTERIOR_BUILDERS = [chainlink, factoryDoor, factoryTrapdoor];
 
 export const factoryInteriorGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_FACTORY_INTERIOR,
+  group: 'industrial',
   name: 'Industrial Factory Interior Clutter',
   builders: FACTORY_INTERIOR_BUILDERS,
   door: 'iron',
@@ -176,6 +179,7 @@ export const factoryInteriorGalleryPlan: GalleryPlan = {
 
 export const factoryExteriorGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_FACTORY_EXTERIOR,
+  group: 'industrial',
   name: 'Industrial Factory Exterior Clutter',
   builders: FACTORY_EXTERIOR_BUILDERS,
   door: 'iron',

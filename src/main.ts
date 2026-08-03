@@ -9,6 +9,7 @@ import { Controller } from './player/Controller';
 import { TouchControls } from './ui/TouchControls';
 import { ProvingGround, type SurfaceName } from './debug/ProvingGround';
 import { Footsteps } from './audio/models/footsteps';
+import { ZONE_GROUPS } from './world/Zone';
 import type { WindModel } from './audio/models/wind';
 import type { FoliageModel } from './audio/models/foliage';
 import type { MachineModel } from './audio/models/machine';
@@ -559,9 +560,27 @@ if (dev.gui) {
   // Jumping straight to a zone, without walking to its door. Mostly for
   // getting back out of an interior after breaking the door that leads there.
   // Also the only way into the sound stage, which deliberately has no door.
+  //
+  // Grouped the way the world is: a family per hall, with the hub and anything
+  // else that belongs to no setting sitting loose at the top. A flat list was
+  // fine at six zones and is not at twenty-six — and the grouping is the zone's
+  // own (`ZoneDefinition.group`) rather than a second list maintained here,
+  // which would be the sort that drifts a room at a time.
   const travel = dev.gui.addFolder('zones');
-  for (const zone of zones.zones.values()) {
-    travel.add({ go: () => void zones.enter(zone.id) }, 'go').name(zone.name);
+  const all = [...zones.zones.values()];
+  const go = (folder: typeof travel, id: string, name: string): void => {
+    folder.add({ go: () => void zones.enter(id) }, 'go').name(name);
+  };
+
+  for (const zone of all) {
+    if (!zone.definition.group) go(travel, zone.id, zone.name);
+  }
+  for (const group of ZONE_GROUPS) {
+    const members = all.filter((zone) => zone.definition.group === group);
+    if (members.length === 0) continue;
+    const folder = travel.addFolder(group);
+    folder.close();
+    for (const zone of members) go(folder, zone.id, zone.name);
   }
 
   // --- the sound stage ------------------------------------------------------

@@ -654,6 +654,23 @@ console.log('\n--- terrain -------------------------------------------------\n')
   );
 }
 
+// --- zones know which family they belong to --------------------------------
+//
+// The dev panel lists zones by group, so a zone that declares none sits loose
+// at the top with the hub. That is correct for exactly one zone and a silent
+// omission for every other — nothing breaks, the room is simply filed in the
+// wrong place, which is the sort of thing that is noticed months later.
+{
+  const loose = [...zones.values()].filter((zone) => !zone.definition.group);
+  check(
+    'every zone but the hub declares a family',
+    loose.length === 1 && loose[0].id === ZONE_EXTERIOR,
+    loose.length === 1 && loose[0].id === ZONE_EXTERIOR
+      ? `${zones.size - 1} grouped, ${loose[0].name} loose`
+      : `ungrouped: ${loose.map((zone) => zone.id).join(', ') || 'none, not even the hub'}`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 console.log('\n--- surfaces underfoot --------------------------------------\n');
 

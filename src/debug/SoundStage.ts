@@ -301,6 +301,7 @@ export function soundStageZone(): ZoneDefinition {
   return {
     id: ZONE_SOUND_STAGE,
     name: 'Sound Showcase',
+    group: 'general',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       fogNear: floorSize() * 0.2,
