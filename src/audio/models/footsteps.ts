@@ -366,22 +366,29 @@ export const SURFACES = {
   /**
    * Loose stones, and the reference the aggregate family is sized against.
    *
-   * **Barely spread at all**, and that was the mistake. Five voices across two
-   * octaves broke up the repetition and broke up the *material* with it: at a
-   * hundred and thirty collisions a second, pitches that far apart stop fusing
-   * and the ear starts counting them, which is indistinguishable from rain.
-   * Three voices a fraction apart thicken the band without segregating it. The
-   * variety that keeps it from sounding looped comes from the timing, the
-   * levels, the per-stone ring-downs and the noise itself — none of which the
-   * ear can group by.
+   * **Barely spread at all, and barely resonant either.**
+   *
+   * Spread was the first mistake: five voices across two octaves broke up the
+   * repetition and broke up the *material* with it, because at a hundred and
+   * thirty collisions a second, pitches that far apart stop fusing and the ear
+   * begins counting them. Three voices a fraction apart thicken the band
+   * without segregating it.
+   *
+   * Sharpness was the second, and it survived the first fix. **A small stone
+   * has no note.** Its own resonances are up in the kilohertz and damp inside a
+   * millisecond, so a struck pebble is a broadband tick and nothing else — give
+   * the grains a Q much above one and each becomes a tuned blip at the same
+   * pitch as every other, which is a bag of ball bearings. Broad and short
+   * here; the material comes from where the band sits and how thickly the
+   * collisions fall, not from any of them having a pitch.
    */
   gravel: {
     level: 0.5,
     impact: { level: 0.26, duration: 0.012, low: 260, tone: 2400, q: 0.9, attack: 0.004 },
     modes: [],
     grit: {
-      count: 28, over: 0.22, energyDecay: 0.075, hz: 2800, q: 1.3, level: 0.8,
-      voices: 3, spread: 0.16, grain: 0.009, attack: 0.0009,
+      count: 28, over: 0.22, energyDecay: 0.075, hz: 3200, q: 0.7, level: 0.8,
+      voices: 3, spread: 0.16, grain: 0.007, attack: 0.0009,
     },
     scuff: 0.95,
     toe: 0.7,
@@ -400,7 +407,7 @@ export const SURFACES = {
    * Sixty grains, very fine, very dry, and low enough not to read as spray.
    */
   sand: {
-    level: 0.28,
+    level: 0.24,
     impact: { level: 0.06, duration: 0.05, low: 200, tone: 1500, q: 0.45, attack: 0.04 },
     crush: { level: 0.36, duration: 0.15, from: 480, to: 820, q: 0.75 },
     modes: [],
@@ -441,23 +448,25 @@ export const SURFACES = {
    *
    * The contact is a tenth of the crush and takes thirty-six milliseconds, so
    * there is nothing to tap. What is left is the ground closing around a foot,
-   * a wet spatter through it, and a few mid-sized bubbles — mid, because big
-   * ones read as a drain and small ones read as water.
+   * a wet spatter through it, and a very few **large, slow, long-ringing**
+   * bubbles.
    *
-   * `water` is the same engines with every setting at the other end, and the
-   * pair only works if both stay there: mud is slow, low and long; water is
-   * fast, high and short.
+   * That last part is the whole of viscosity. `water` runs the identical engine
+   * with each of those three pushed the other way — eighty small fast ones
+   * against five big lazy ones — and the pair only works if both stay at their
+   * ends. Drifting mud toward more and smaller bubbles is drifting it toward
+   * water, which is exactly what happened to it once already.
    */
   mud: {
     level: 0.44,
     impact: { level: 0.1, duration: 0.055, low: 90, tone: 1100, q: 0.55, attack: 0.036 },
-    crush: { level: 0.42, duration: 0.17, from: 240, to: 460, q: 2.6 },
+    crush: { level: 0.5, duration: 0.2, from: 200, to: 400, q: 2.8 },
     modes: [],
     grit: {
       count: 12, over: 0.1, energyDecay: 0.035, hz: 2200, q: 1.2, level: 0.28,
       voices: 2, spread: 0.4, grain: 0.02, attack: 0.0012,
     },
-    splash: { count: 14, over: 0.15, decay: 0.06, radius: [0.0018, 0.006], level: 0.2, cycles: 20 },
+    splash: { count: 5, over: 0.17, decay: 0.1, radius: [0.004, 0.009], level: 0.17, cycles: 28 },
     scuff: 0.5,
     toe: 0.3,
     roll: 0.11,
@@ -474,11 +483,18 @@ export const SURFACES = {
    * noise and every one of them sounded like an untuned television, because
    * that is exactly what it was.
    *
-   * So: seventy bubbles over a fifth of a second, thinning as the water falls
-   * back, drawn log-uniform from a quarter of a millimetre — 13 kHz of fine
-   * spray — down to five, which gloops at 650 Hz. Dense enough to read as a
-   * rush, pitched enough that no part of it is noise. The big ones lead and the
-   * spray rides on top.
+   * So: eighty bubbles over a fifth of a second, thinning as the water falls
+   * back, drawn log-uniform from a fifth of a millimetre — 16 kHz of fine spray
+   * — down to two and a half, which is a 1.3 kHz plink. Dense enough to read as
+   * a rush, pitched enough that no part of it is noise.
+   *
+   * **Viscosity is bubble size, and very nearly nothing else.** A thick liquid
+   * traps big slow pockets that ring low and long; a thin one throws small fast
+   * ones. So the ceiling came down by half, the ring came down to a dozen
+   * oscillations, and the weighting that let the low end lead was pulled back
+   * — the big bubbles are the ones that read as *syrup*, and clear water should
+   * barely have any. `mud` is this same engine with all three pushed the other
+   * way.
    *
    * The only other thing here is the bed underneath, reached late through the
    * water and heavily damped: quiet, dull, and the one part of this that is a
@@ -487,11 +503,11 @@ export const SURFACES = {
    */
   water: {
     level: 0.5,
-    impact: { level: 0.11, duration: 0.03, low: 150, tone: 1200, q: 0.5, attack: 0.012 },
+    impact: { level: 0.09, duration: 0.026, low: 300, tone: 1400, q: 0.5, attack: 0.012 },
     modes: [],
     grit: null,
     splash: {
-      count: 70, over: 0.2, decay: 0.075, radius: [0.00025, 0.005], level: 0.5, cycles: 15,
+      count: 80, over: 0.2, decay: 0.07, radius: [0.0002, 0.0025], level: 0.46, cycles: 12,
     },
     scuff: 0.95,
     toe: 0.55,
@@ -598,22 +614,29 @@ export const SURFACES = {
    * against — what says metal is the *interval* between notes that belong to no
    * common series.
    *
-   * **But the decays were the fault.** At a tenth of a second and under, a
-   * pitched inharmonic knock is a woodblock: a stick, which is exactly what it
-   * sounded like. Metal is not defined by its spectrum alone, it is defined by
-   * *sustain* — even a plate held down rings a quarter of a second, and that is
-   * the shortest a thing can ring and still be heard as metal at all. Roughly
-   * doubled across the board, and still less than half of `metal-ring`, which
-   * is what keeps it the dead one.
+   * Sustain says metal — at a tenth of a second and under, a pitched inharmonic
+   * knock is a woodblock, which is what this was for a while.
+   *
+   * **But its modes have to be a different object's, not the catwalk's played
+   * shorter.** Same four frequencies at half the decay is a grating heard
+   * through a wall, and the ear files it as the same thing rather than as
+   * another one. A plate lying on something genuinely is a different resonator:
+   * the substrate drains its low end fast and takes the shimmer off the top,
+   * leaving the midrange, which is where the whole character sits.
+   *
+   * So the bottom mode is short and dull, because that energy is going into
+   * whatever it is bedded on; the two mid modes are the loudest and longest and
+   * land nowhere near `metal-ring`'s; and the top dies almost at once rather
+   * than hanging on for a seventh of a second.
    */
   'metal-solid': {
     level: 0.46,
-    impact: { level: 0.16, duration: 0.005, low: 320, tone: 5200, q: 1.6, attack: 0.0007 },
+    impact: { level: 0.2, duration: 0.007, low: 180, tone: 4200, q: 1.1, attack: 0.0009 },
     modes: [
-      { hz: 660, decay: 0.26, level: 0.3 },
-      { hz: 1520, decay: 0.2, level: 0.24 },
-      { hz: 2980, decay: 0.13, level: 0.14 },
-      { hz: 5200, decay: 0.075, level: 0.07 },
+      { hz: 340, decay: 0.1, level: 0.22 },
+      { hz: 1050, decay: 0.24, level: 0.3 },
+      { hz: 2140, decay: 0.17, level: 0.2 },
+      { hz: 4600, decay: 0.06, level: 0.08 },
     ],
     grit: null,
     scuff: 0.15,
@@ -1031,7 +1054,9 @@ function scatterBubbles(
     // Bigger bubbles carry more air and more energy, so the low ones lead and
     // the spray rides on top rather than the other way round.
     const size = (radius - small) / Math.max(big - small, 1e-9);
-    const level = splash.level * force * energy * rand(0.35, 1) * (0.45 + 0.55 * size);
+    // Bigger bubbles carry more air, but only a little more level — leaning on
+    // this is how a thin liquid acquires a syrupy bottom end.
+    const level = splash.level * force * energy * rand(0.35, 1) * (0.75 + 0.25 * size);
     if (level < 0.0015) continue;
 
     popBubble(context, target, at + t, { radius, level, cycles: splash.cycles ?? 15 });

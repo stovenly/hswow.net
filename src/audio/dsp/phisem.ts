@@ -182,7 +182,13 @@ export function scatterParticles(
     // Varied per collision, like the pitch and the level — a fixed ring-down
     // makes every piece the same weight — but around the material's own figure
     // rather than around a constant. See `grain`.
-    const grain = particles.grain ?? 0.012;
+    //
+    // **And it shortens as the burst runs down.** A stone bouncing loses height
+    // every time, so its later contacts are not merely quieter, they are
+    // *briefer*; holding the contact time constant while the level falls leaves
+    // the tail as a thin sequence of identical little rings, which is what a
+    // long scatter sounds like when it is wrong.
+    const grain = (particles.grain ?? 0.012) * (0.5 + 0.5 * energy);
     const rise = Math.min(particles.attack ?? 0.0008, grain * 0.6);
     strike(envelope.gain, when, level, rise, grain * (0.6 + Math.random() * 0.8));
 
