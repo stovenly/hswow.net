@@ -58,6 +58,17 @@ export interface Particles {
    * about six-tenths of `hz` to about one and seven-tenths of it.
    */
   spread?: number;
+  /**
+   * How long one collision rings, in seconds. Defaults to 12 ms.
+   *
+   * **This is the dry/wet control and it is easy to miss.** A piece that stops
+   * dead is dry — a leaf, a grain of sand, a chip of slate. A piece that rings
+   * on for twenty or thirty milliseconds through a resonant filter is a
+   * *droplet*, and a burst of them is unmistakably water however the rest of
+   * the material is set up. Leaves and gravel both acquired a wet quality from
+   * nothing but this.
+   */
+  grain?: number;
 }
 
 export interface ParticleBed {
@@ -144,10 +155,11 @@ export function scatterParticles(
 
     const envelope = context.createGain();
     const when = at + t;
-    // Varied per collision, like the pitch and the level. A fixed ring-down
-    // makes every piece the same weight, and weight is most of what separates
-    // a chip from a cobble.
-    strike(envelope.gain, when, level, 0.0008, 0.006 + Math.random() * 0.022);
+    // Varied per collision, like the pitch and the level — a fixed ring-down
+    // makes every piece the same weight — but around the material's own figure
+    // rather than around a constant. See `grain`.
+    const grain = particles.grain ?? 0.012;
+    strike(envelope.gain, when, level, 0.0008, grain * (0.6 + Math.random() * 0.8));
 
     // One voice, chosen per collision — see `Particles.voices`.
     const target = bed.inputs[(Math.random() * bed.inputs.length) | 0];

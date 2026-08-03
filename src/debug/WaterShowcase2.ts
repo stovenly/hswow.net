@@ -220,7 +220,7 @@ export function waterShowcase2Zone(): ZoneDefinition {
       fogFar: 300,
       // Pale bounce off wet sand.
       ambientGround: 0xa3937a,
-      surface: 'earth',
+      surface: 'sand',
       room: 'open',
       soundscape: SEA_SOUND,
     },

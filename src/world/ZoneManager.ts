@@ -364,7 +364,7 @@ export class ZoneManager {
    */
   surfaceAt(x: number, z: number): SurfaceName {
     const zone = this.active;
-    if (!zone) return 'earth';
+    if (!zone) return 'soil';
     return zone.definition.surfaceAt?.(x, z) ?? zone.environment.surface;
   }
 
