@@ -49,6 +49,7 @@ import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
 import { waterShowcaseZone } from './WaterShowcase';
 import { waterShowcase2Zone } from './WaterShowcase2';
+import { footstepsShowcaseZone } from './FootstepsShowcase';
 import { chainZones, chainPortals } from './chains';
 
 /**
@@ -579,6 +580,8 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   // The Water Showcase, whose door stands in the same rank — see `propPortals`.
   zones.push(waterShowcaseZone());
   zones.push(waterShowcase2Zone());
+  // And the Footsteps Showcase, whose door completes that rank.
+  zones.push(footstepsShowcaseZone());
 
   return { zones, portals };
 }
