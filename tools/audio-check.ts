@@ -531,40 +531,35 @@ for (const [mm, hz] of [
 
 // --- the liquids -----------------------------------------------------------
 //
-// Five surfaces, three parameters: medium, depth, bulk. The whole design lives
-// or dies on those staying separable, and two of them are checkable.
+// Three surfaces, two parameters: medium and depth. The design lives or dies on
+// those staying separable, and both are checkable.
 {
   const at = (name: string) => SURFACES[name as keyof typeof SURFACES];
-  const cavity = (name: string) => at(name).splash?.cavity;
+  const puddle = at('water-puddle').splash;
+  const pond = at('water-pond').splash;
+  const mud = at('mud').splash;
 
-  // **Depth is the cavity.** A film traps no column of air at all; an inch
-  // traps a small one; knee-deep traps one the size of your leg, which is both
-  // bigger and — since a bubble sings at 3.26/r — lower.
-  const thin = cavity('water-thin');
-  const thick = cavity('water-thick');
-  const knee = cavity('water-knee');
+  // **Depth is the cavity.** A puddle traps no column of air at all; a pond
+  // traps one the size of a leg, which — since a bubble sings at 3.26/r — is
+  // both bigger and much lower than anything in the spray above it.
+  const cavity = pond?.cavity;
   check(
     'depth is the cavity',
-    !thin && !!thick && !!knee && knee.radius > thick.radius * 2,
-    thick && knee
-      ? `film none, inch ${bubbleHz(thick.radius).toFixed(0)} Hz, knee ${bubbleHz(knee.radius).toFixed(0)} Hz`
-      : 'missing a cavity',
+    !puddle?.cavity && !!cavity && cavity.radius > (pond?.radius[1] ?? 0) * 4,
+    cavity
+      ? `puddle none, pond ${bubbleHz(cavity.radius).toFixed(0)} Hz against spray from ${bubbleHz(pond!.radius[1]).toFixed(0)} Hz up`
+      : 'the pond has no cavity',
   );
 
-  // **Medium is the damping**, and the pair at one depth is where that has to
-  // show. Their cavities sit close in pitch on purpose — what separates them is
-  // that one rings and the other does not.
-  const wet = at('water-knee').splash;
-  const bog = at('mud-knee').splash;
-  const wetCavity = wet?.cavity;
-  const bogCavity = bog?.cavity;
-  const ratio =
-    wetCavity && bogCavity ? bubbleHz(bogCavity.radius) / bubbleHz(wetCavity.radius) : 0;
+  // **Medium is the damping.** Water and mud are the same engine, and what
+  // separates them is that one rings its bubbles out and the other does not.
+  // Mud also traps pockets no water surface here does — thickness holds bigger
+  // air — so the two ranges should not even overlap.
   check(
-    'medium is the damping, not the pitch',
-    !!wet && !!bog && bog.damping >= wet.damping * 3 && ratio > 0.5 && ratio < 2,
-    wet && bog
-      ? `damping ${wet.damping} against ${bog.damping}, cavities ${ratio.toFixed(2)}x apart`
+    'medium is the damping',
+    !!pond && !!mud && mud.damping >= pond.damping * 3 && mud.radius[0] >= pond.radius[1],
+    pond && mud
+      ? `damping ${pond.damping} against ${mud.damping}, pockets from ${(mud.radius[0] * 1000).toFixed(0)} mm where water stops at ${(pond.radius[1] * 1000).toFixed(0)}`
       : 'missing a liquid',
   );
 
@@ -573,7 +568,7 @@ for (const [mm, hz] of [
   const gritty = Object.entries(SURFACES)
     .filter(([, surface]) => surface.splash && surface.grit)
     .map(([name]) => name);
-  check('no liquid uses a particle bed', gritty.length === 0, gritty.join(', ') || '5 liquids, all bubbles');
+  check('no liquid uses a particle bed', gritty.length === 0, gritty.join(', ') || '3 liquids, all bubbles');
 }
 
 // **Soft materials must not have hard grains.**
@@ -681,7 +676,7 @@ for (const name of ['metal-solid', 'metal-ring', 'metal-hollow-small', 'metal-ho
 // of `scuff` is that creeping over gravel and sprinting over it are different
 // events, so a loose surface that ignores speed is the feature not working.
 {
-  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'water-thin', 'water-thick'];
+  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'water-puddle', 'water-pond'];
   const deaf = LOOSE.filter((name) => SURFACES[name as keyof typeof SURFACES].scuff < 0.7);
   check('loose surfaces answer to speed', deaf.length === 0, deaf.join(', ') || `${LOOSE.length} checked`);
 }

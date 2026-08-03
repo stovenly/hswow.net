@@ -57,10 +57,8 @@ export const GROUND = {
   boards: { color: PALETTE.TIMBER, variation: 0.11, step: 'wood' },
   /** Something growing in rows. */
   crop: { color: PALETTE.LEAF_DRY, variation: 0.15, step: 'grass' },
-  /** Churned and wet, where animals stand. Ankle deep in it. */
-  mire: { color: 0x453a2c, variation: 0.12, step: 'mud-thick' },
-  /** A bog. Knee deep, and not somewhere anyone crosses twice. */
-  bog: { color: 0x2f2a1f, variation: 0.1, step: 'mud-knee' },
+  /** Churned and wet, where animals stand. */
+  mire: { color: 0x453a2c, variation: 0.12, step: 'mud' },
   /** Exposed bedrock. Also what steep faces fall back to. */
   rock: { color: PALETTE.STONE_DARK, variation: 0.13, step: 'stone' },
   /** Catwalk, grating, ductwork. Fixed at its ends, so the clang travels. */
@@ -73,12 +71,10 @@ export const GROUND = {
   hollowmetal: { color: PALETTE.IRON_DARK, variation: 0.13, step: 'metal-hollow-big' },
   /** Lying snow, trodden. Almost no face variation — snow is famously even. */
   snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
-  /** A film of it: a wet floor, rain-soaked stone, the skin of a puddle. */
-  puddle: { color: shade(PALETTE.WATER, 1.18), variation: 0.05, step: 'water-thin' },
-  /** Ankle-deep: a ford, a flooded yard, the edge of a pool. */
-  shallows: { color: PALETTE.WATER, variation: 0.07, step: 'water-thick' },
-  /** Knee-deep. Wading rather than walking. */
-  wading: { color: shade(PALETTE.WATER, 0.7), variation: 0.06, step: 'water-knee' },
+  /** A puddle: a flooded yard, a rut after rain, the edge of a ford. */
+  puddle: { color: shade(PALETTE.WATER, 1.18), variation: 0.05, step: 'water-puddle' },
+  /** Half a foot of it up to knee deep. Wading rather than walking. */
+  shallows: { color: PALETTE.WATER, variation: 0.07, step: 'water-pond' },
   /** Damp shade under a canopy, or the north side of a stone. */
   moss: { color: 0x455c31, variation: 0.14, step: 'moss' },
 } as const satisfies Record<string, GroundMaterial>;
