@@ -573,25 +573,18 @@ for (const [mm, hz] of [
       : 'missing a bulk',
   );
 
-  // **The fine end has to be the loud end.** Damping is superlinear in
-  // frequency, so a low bubble rings tens of times longer than a high one at
-  // the same peak — weight the big ones up as well and a cloud that is four
-  // fifths spray comes out sounding like half a dozen gloops. Both waters carry
-  // a fizz for the same reason: the population below a quarter of a millimetre
-  // is too dense to resolve, and it is where airiness lives.
-  const airless = ['water-puddle', 'water-pond'].filter(
-    (name) => !SURFACES[name as keyof typeof SURFACES].splash?.fizz,
-  );
-  check('every water has spray it cannot count', airless.length === 0, airless.join(', ') || 'both fizz');
-
-  // And a puddle cannot hold a pocket that gloops. Two centimetres of water has
-  // nowhere to keep one, and a single coarse bubble ringing forty times longer
-  // than its neighbours is audible over the entire cloud.
-  const coarse = puddle ? bubbleHz(puddle.radius[1]) : 0;
+  // **Short is the whole of it.** Every version of these that went wrong went
+  // wrong by being longer or denser than the one before, whatever the spectrum
+  // was doing. A splash is a brief event; a tenth of a second of droplets is a
+  // splash and a quarter of a second of them is a wash.
+  const longest = Object.entries(SURFACES)
+    .filter(([, surface]) => surface.splash)
+    .map(([name, surface]) => [name, surface.splash!.over] as const)
+    .filter(([, over]) => over > 0.18);
   check(
-    'a puddle has no coarse end',
-    coarse >= 1500,
-    `largest bubble ${coarse.toFixed(0)} Hz`,
+    'a splash is a short event',
+    longest.length === 0,
+    longest.map(([n, o]) => `${n} ${o}s`).join(', ') || 'nothing over 0.18s',
   );
 
   // **Water runs on bubbles alone.** A particle bed is small hard things
@@ -662,11 +655,19 @@ for (const [mm, hz] of [
 // competes with it, the surface reads as "the standard footstep with an effect
 // on it", which is exactly the complaint this whole pass answers.
 {
-  const wrong = Object.entries(SURFACES)
-    .filter(([name]) => !RINGS.includes(name))
-    .filter(([, surface]) => surface.impact.level > 0.35)
-    .map(([name]) => name);
-  check('soft contacts stay under their material', wrong.length === 0, wrong.join(', ') || `${Object.keys(SURFACES).length - RINGS.length} soft surfaces, all quiet`);
+  // Exempt for the same reason the strike rule exempts them: this is about
+  // there being a *depth* of material to be the sound. A puddle has none — two
+  // centimetres of water over stone, where the contact genuinely is the event
+  // and the droplets are the garnish — so it is allowed to lead with it.
+  const layered = Object.entries(SURFACES).filter(
+    ([name, surface]) => !RINGS.includes(name) && (surface.crush || surface.splash?.cavity),
+  );
+  const wrong = layered.filter(([, surface]) => surface.impact.level > 0.35).map(([n]) => n);
+  check(
+    'contacts stay under the material that has depth',
+    wrong.length === 0,
+    wrong.join(', ') || `${layered.length} layered surfaces, all quiet`,
+  );
 }
 
 // And the metals specifically: a plate that taps louder than it rings is not
