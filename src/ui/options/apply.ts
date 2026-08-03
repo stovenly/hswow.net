@@ -96,6 +96,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   postfx.setDither(options.dither);
   postfx.setPixelation(options.pixelation);
   postfx.setAmbientOcclusion(options.ambientOcclusion);
+  postfx.setBloom(options.bloom);
   postfx.setColorblind(options.colorblind, options.colorblindStrength / 100);
   zones.setShadows(options.shadows);
   zones.setClutterShadows(options.grassShadows);

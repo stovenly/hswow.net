@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { RoomName } from '../audio/reverb';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
+import type { FogVolume } from '../engine/FogVolumes';
 
 /**
  * A zone is a place: one contiguous piece of world you can walk around in.
@@ -194,6 +195,9 @@ export const INDOOR_ENVIRONMENT: ZoneEnvironment = {
  */
 const SETTLE_CLEARANCE = 0.12;
 
+/** Shared, so the common case of no fog allocates nothing on every crossing. */
+const EMPTY_FOG: readonly FogVolume[] = [];
+
 /** Where the player stands, and which way they look. */
 export interface Placement {
   position: THREE.Vector3;
@@ -232,6 +236,23 @@ export interface ZoneDefinition {
    * placement is dropped onto it.
    */
   readonly groundAt?: (x: number, z: number) => number;
+  /**
+   * Placed fog volumes, in this zone's world space (SHADERS.md §2).
+   *
+   * **On the definition rather than in `ZoneEnvironment`, and the reason is
+   * positions.** Everything in the environment is a property a place can share
+   * with every other place of its kind — which is why `OUTDOOR_ENVIRONMENT`
+   * and `INDOOR_ENVIRONMENT` exist and why most zones spread one and override
+   * two fields. A volume has a centre and a size, so it cannot be shared by
+   * anything: a mist pool declared in a constant that forty zones spread would
+   * put the same pool at the same coordinates in all forty. It belongs here,
+   * beside `spawn` and `groundAt` — the other facts that are about *this*
+   * place's geometry rather than about its kind.
+   *
+   * Authored data, never scene objects: they are pushed to the fog pass as
+   * uniforms on entry, the way the air is. At most eight are live at once.
+   */
+  readonly fogVolumes?: readonly FogVolume[];
   /** Builds the zone's geometry. Called once, lazily, on first entry. */
   build(): THREE.Group;
 }
@@ -268,6 +289,11 @@ export class Zone {
 
   get spawn(): Placement {
     return this.definition.spawn;
+  }
+
+  /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
+  get fogVolumes(): readonly FogVolume[] {
+    return this.definition.fogVolumes ?? EMPTY_FOG;
   }
 
   get floor(): number {

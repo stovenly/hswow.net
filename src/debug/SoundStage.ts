@@ -300,7 +300,7 @@ function floorSize(): number {
 export function soundStageZone(): ZoneDefinition {
   return {
     id: ZONE_SOUND_STAGE,
-    name: 'Sound Stage',
+    name: 'Sound Showcase',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       fogNear: floorSize() * 0.2,

@@ -15,10 +15,13 @@ Written to be read cold. Update it as decisions land.
 The pipeline today (`src/engine/PostFX.ts`):
 
 ```
-scene ─► RenderPixelatedPass ─► OutputPass ─► RetroShader ─► screen
-         chunky pixels,          tone map     halftone dither,
-         depth/normal edges      and sRGB     quantize, vignette
+scene ─► PixelStage ──────────────────► OutputPass ─► RetroShader ─► screen
+         chunky pixels, edge lines,      tone map     halftone dither,
+         effect slot, upscale            and sRGB     quantize, vignette
 ```
+
+(That was `RenderPixelatedPass` when this document was written. R0 replaced it;
+the shape is otherwise the same.)
 
 Five constraints fall out of it, and every section below is written against them.
 
@@ -153,18 +156,36 @@ mountain illusion leans on it (below).
 
 **The volume.** A `FogVolume` is authored data, no scene object:
 `{ shape: ellipsoid | box, center, size, density, tint, softness, noiseScale,
-drift }` — registered per zone the way props are and pushed to the pass on entry
-like `ZoneAir` (it belongs to the place, not the look). Up to 8 active as a uniform
-array; if a zone ever wants more, the nearest 8 by screen coverage win.
+turbulence, drift }` — pushed to the pass on entry alongside `ZoneAir`, because it
+belongs to the place rather than to the look. Up to 8 active as a uniform array; if
+a zone ever wants more, the nearest 8 by screen coverage win.
+
+It is declared on `ZoneDefinition`, **not in `ZoneEnvironment`**, and the reason is
+positions. Everything in the environment is a property a place shares with every
+other place of its kind — which is what `OUTDOOR_ENVIRONMENT` and
+`INDOOR_ENVIRONMENT` are for, and most zones spread one and override two fields. A
+volume has a centre, so it can be shared by nothing: a mist pool declared in a
+constant that forty zones spread would put the same pool at the same coordinates in
+all forty. It sits beside `spawn` and `groundAt`, which are the other facts about
+*this* place's geometry rather than about its kind.
 
 **The pass**, at chunky resolution, in the effect slot:
 
 - Reconstruct the world-space ray per chunky pixel from depth + inverse
   view-projection.
 - Per volume: analytic ray/shape intersection; on hit, march the interior in 8
-  steps, density shaped by the fbm value noise already in the sky shader (lifted
-  into a shared GLSL chunk) and feathered toward the shell by `softness` so no
-  volume ever shows its geometric edge.
+  steps, density shaped by fractal noise and feathered toward the shell by
+  `softness` so no volume ever shows its geometric edge.
+- **The noise is a texture, not the sky's fbm.** The plan said to lift the sky's
+  chunk, and the sky's chunk is two-dimensional — sampled on the xz plane it gives
+  a volume no vertical structure at all, which turns the plume into a column of
+  even haze. Extending it to 3D is eight hashes per octave, and this is sampled
+  eight times per volume per pixel rather than once. So `engine/noise` builds a
+  small tileable noise texture at boot (ground rule 5's second clause; the wind
+  field is the precedent) and fakes the third axis by quantizing it into slices
+  and offsetting the lookup per slice — two hardware-filtered fetches per octave,
+  three octaves, and the vertical structure is real. The sky's chunk did move into
+  the same module, verbatim, and the sky still uses it.
 - Accumulate front-to-back across volumes, early-out near full opacity, depth-tested
   against the scene — so a pillar stands *in* the dungeon mist and the player walks
   *into* the bank, rather than either being a backdrop.
@@ -204,11 +225,19 @@ But everything that *means* to emit already shares one material — `GLOW_MATERI
 and `hideGlowFromEdges` (`PostFX.ts`) already demonstrates the trick this design
 turns into a feature:
 
-- **Emitters-only pass:** render the scene into a small chunky-res target with
-  `ART_MATERIAL.visible = false` and the glow material left on (the exact inverse of
-  the edge-detector trick; both are shared materials, so it is two flags). Sky off,
-  clear to black. Cost is the glow draw calls only — tens, not hundreds — because
-  three skips invisible materials while building the render list.
+- **Emitters-only pass:** render the scene into a chunky-res target with the camera
+  restricted to a glow layer. Cost is the glow draw calls only — tens, not hundreds
+  — because three culls by layer while building the render list. (The plan said to
+  do this by hiding `ART_MATERIAL`, the exact inverse of the edge-detector trick.
+  A layer turned out cleaner: it excludes the sky dome as well, which the material
+  flag does not, and it is one call on the camera rather than a flag on each of the
+  two shared materials plus a handle on the sky.)
+- **It borrows the scene's depth buffer**, and this is the detail the plan missed.
+  Rendered against black with no opaque geometry in the pass, a lantern inside a hut
+  has nothing to occlude it and blooms through the wall. Binding the depth texture
+  the colour pass already filled fixes it exactly — `GLOW_MATERIAL` is already
+  `depthTest: true, depthWrite: false` — and the pass therefore clears colour only,
+  since the upscale still needs that depth for its edge lines.
 - **Blur:** dual-Kawase (or a 3-level mip chain), down and up, all at chunky
   resolution and below. Six or eight fullscreen passes over tiny targets.
 - **Composite:** additive onto the scene colour, before `OutputPass`, in linear light
@@ -451,9 +480,33 @@ bitten before, see `PostFX.ts`). Draw-call and frame readouts match today's with
 noise. Every existing toggle (dither, pixelation, colorblind) still works. `npm run
 check` passes untouched.
 
-**Status: built** — `src/engine/PixelStage.ts`, wired in `PostFX`; the upscale
+**Status: built** — `src/engine/PixelStage.ts`, wired in `PostFX`; the edge
 shader is lifted verbatim so the maths matches. Visual indistinguishability and
 the readout comparison still need an eyeball pass in the browser.
+
+**Amended during R2/R3: the outline is drawn before the effect slot, not after
+it.** The upstream pass fused edge detection to the upscale, so the outline ran
+last, over the finished chain — and a *normal* edge brightens by
+`×(1 + normalEdgeStrength)`. Applied last, that multiplies whatever is standing in
+front of the geometry rather than the geometry itself: pale fog came back 1.5× and
+clipped to white, and a lamp's bloom halo arrived wearing an outline of its own.
+Both look like bugs in the new effects and neither is; it is one multiply happening
+a stage too late.
+
+So `PixelStage` now runs the edge shader onto the chunky colour and the upscale is a
+bare nearest blit. Mist covers an outline exactly as it covers the wall the outline
+is on, and a halo washes its own out — with no fog-aware or bloom-aware special case
+in either effect.
+
+Cheaper than it sounds, and *less* of a visual change than it sounds:
+
+- One extra fullscreen pass at chunky resolution, ~9 texture reads over half a
+  million pixels, and the upscale gets simpler by exactly what the edge pass gained.
+- Skipped entirely when both edge strengths are zero.
+- **With multiplicative effects the picture is unchanged, exactly.** GTAO's composite
+  is a pure multiply and multiplication commutes: `colour × ao × edge` and
+  `colour × edge × ao` are the same number. The output only moves where an effect
+  *adds* light or veils it — which is the case being fixed.
 
 ### R1 — GTAO *(wants R0; first because it pays the most, everywhere, immediately)*
 
@@ -500,11 +553,36 @@ number for this section.
 8-volume uniform array. Test placements only — real dressing waits for the zones
 that want it.
 
-**Exit criteria.** Three rough fixtures prove the three uses: a mist pool in a test
-interior that a pillar stands in and the player walks through; a bank on the village
-rim that wraps the horizon silhouette and grades into the distance fog; a plume that
-drifts with the wind. Zone crossings swap the volume set at full black like fog
-today; the 8-volume worst case is measured and recorded in §2.
+**Exit criteria.** Three rough fixtures prove the three uses: a mist pool that a
+pillar stands in and the player walks through; a bank that wraps a silhouette and
+grades into the distance fog; a plume that drifts with the wind. Zone crossings swap
+the volume set at full black like fog today; the 8-volume worst case is measured and
+recorded in §2.
+
+**Status: built** — `src/engine/FogVolumes.ts`, third in the effect chain after
+GTAO. Ellipsoid and box, 8 steps, IGN-offset ray starts, front-to-back accumulation
+with early-out, depth-tested against the scene. `ZoneDefinition.fogVolumes` →
+`ZoneManager` → `PostFX.setEnvironment`, swapped at full black with the air.
+Dev-panel toggle only, per *Player options*.
+
+The three fixtures live in a **Fog Showcase** rather than in real zones — a pillar in
+a pool, a ridge with its ends deliberately showing under a bank, and a chimney with
+a plume. Its door stands in the general props hall eight metres west of the Text
+Showcase's, air belonging to no setting for the same reason lettering does not. Real
+dressing still waits for the zones that want it.
+
+Two notes for anyone tuning this:
+
+- **A volume needs geometry to be judged against.** Mist with nothing in it is a
+  grey patch, and the depth test — the thing that separates this from a decal — is
+  only visible when something is half in it. That is why each station in the gallery
+  is a fixture *and* a volume, and why the ridge's ends are left showing.
+- **`softness` is not a detail.** Below about 0.5 an ellipsoid reads as a balloon:
+  you can see the shape of the volume, which is the one thing a volume must never
+  show. The gallery's three sit at 0.75, 0.85 and 0.9.
+
+Pending in-browser: all three eyeball checks, and the 8-volume worst-case cost for
+§2.
 
 ### R3 — Bloom *(wants R0)*
 
@@ -514,6 +592,58 @@ dual-Kawase chain, the additive linear-light composite.
 **Exit criteria.** Lanterns, windows and the forge bloom; nothing else does — a
 sunlit wall must not. The emitters pass costs only the glow draw calls (verify in the
 readout). Toggled off, output matches R1/R2 exactly.
+
+**Status: built** — `src/engine/Bloom.ts`, last in the effect chain. Emitters pass on
+`GLOW_LAYER` (set in `finishGlow`, the one place a glow mesh is made) against the
+scene's own depth; dual-Kawase, three levels down and two back up; additive composite
+in linear light. `bloom: { strength, radius }` in `RenderSettings`, dev-panel folder,
+and the player option ("bloom", Video tab) all landed. Default strength 0.55 rather
+than 1 — every emitter in this game is a small flame against a dim surround, and at
+full strength a street lamp haloes half a hut.
+
+**Bloom flickered as the camera moved**, and it took two fixes, both in the blur
+rather than in the emitters pass. Worth stating together, because this world is
+close to the worst case for a bloom chain: its lights are single-texel flames, and
+by the third level down a flame *is* one texel.
+
+- **Taps must sit half a texel off centre, not a whole one.** At a whole texel every
+  bilinear tap lands dead on a texel centre and interpolates nothing, so each tap
+  returns one texel — and since the target is half the size, most source texels are
+  never read at all. An emitter's contribution jumps as it crosses a boundary and
+  the halo pulses in step with the camera. At half a texel each tap sits at a corner
+  between four texels and comes back as their average.
+- **Karis average on the first level.** A blur is a mean and a mean is dominated by
+  its largest term, so one texel far brighter than its neighbours decides every
+  downsample it survives into — and whether it survives depends on where it lands on
+  the next grid down. Weighting each tap by `1/(1 + luma)` lets the neighbourhood
+  decide instead of the outlier. First level only; after it the fireflies are already
+  averaged away and repeating it would just flatten the falloff.
+
+Note the two interact with the strength knob: the Karis average deliberately takes
+energy out of exactly the small bright emitters this game is made of, so a strength
+tuned before it was in place will read differently after.
+
+Three further notes, all about state that is shared and easy to leave dirty:
+
+- **Layers are a global namespace addressed by bare integers.** The emitters pass
+  took layer 1 for the glow. Layer 1 was already the *collision* layer, which
+  `markCollidable` enables and the collider's octree filters on — so every flame,
+  lamp shaft and lit window in the game became solid. Nothing failed to compile and
+  nothing near bloom misbehaved; what happened was four portal arrivals reporting
+  `ARRIVES INSIDE GEOMETRY` in three zones with no emitters involved, because a
+  lantern beside a door is a wall you cannot see. The fix is `src/layers.ts`, which
+  now hands out every layer number, so picking one means reading the list.
+- **The emitters pass must clear colour only.** An automatic clear takes the depth
+  buffer with it, and that buffer is the stage's — the upscale still has edge lines
+  to draw from it and the fog volumes have already marched against it.
+- **A depth texture assigned after a target's first render does nothing.** Three
+  builds the framebuffer once and never revisits its attachments, so the field is set
+  and the attachment is not: bloom goes on ignoring depth, lamps go on shining
+  through walls, and nothing anywhere reports a problem. Disposing the target forces
+  the rebuild.
+
+Pending in-browser: the sunlit-wall check, the draw-call readout, and the
+toggled-off comparison.
 
 ### R4 — Day/night *(independent of R0; the largest phase — sub-phased)*
 

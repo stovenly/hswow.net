@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLOW_LAYER } from '../layers';
 
 /**
  * Light you can see, as opposed to light that lands on things.
@@ -49,5 +50,14 @@ export function finishGlow(geometry: THREE.BufferGeometry, name: string): THREE.
   mesh.name = name;
   mesh.userData.noCollide = true;
   mesh.renderOrder = 2;
+  // Bloom's emitters pass selects the lights with this and nothing else. The
+  // one place a glow mesh is made is the one place it has to be said: a glow
+  // built by hand elsewhere would render normally and simply never bloom, which
+  // is the kind of silent omission a single constructor makes impossible.
+  //
+  // *Enabled*, not set — layer 0 stays on, so ordinary rendering is untouched.
+  // And the number comes from `src/layers.ts` rather than from here, which is a
+  // rule this file learned the hard way; that file says how.
+  mesh.layers.enable(GLOW_LAYER);
   return mesh;
 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { COLLISION_LAYER } from '../layers';
 import { Octree } from 'three/examples/jsm/math/Octree.js';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 
@@ -21,8 +22,12 @@ import { Capsule } from 'three/examples/jsm/math/Capsule.js';
  * debug fixtures out of the collision set without a parallel scene graph.
  */
 
-/** Layer 0 stays enabled on every mesh, so this is additive and hides nothing. */
-export const COLLISION_LAYER = 1;
+/**
+ * Re-exported so the collider's own callers need not know where layer numbers
+ * live; the number itself belongs to `src/layers.ts`, which is the one place
+ * they are handed out. See that file for why it is not defined here any more.
+ */
+export { COLLISION_LAYER };
 
 export interface Contact {
   /** Unit vector pointing out of the surface, toward the capsule. */
