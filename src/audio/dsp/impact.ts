@@ -49,11 +49,18 @@ export function excite(
   strike(envelope.gain, at, level, Math.min(0.0012, duration * 0.3), duration * 1.6);
 
   source.connect(envelope).connect(target);
+
+  // **The noise has to outlast the envelope, not match it.** `strike` ends in a
+  // `setTargetAtTime` whose time constant is about half the duration, so a
+  // window of `duration` cuts a long excitation while it is still a tenth up —
+  // which for a modal bank driven in excitation mode is most of its ring. Two
+  // and a half times over is four time constants, and by then it is silent.
+  const window = duration * 2.5 + 0.05;
   // A random offset into the buffer, so a hundred impacts are a hundred
   // different noises rather than the same click a hundred times. Without this
   // repeated strikes phase together and start to sound sampled.
-  source.start(at, Math.random() * Math.max(noise.duration - 0.5, 0), duration + 0.05);
-  source.stop(at + duration + 0.06);
+  source.start(at, Math.random() * Math.max(noise.duration - window, 0), window);
+  source.stop(at + window + 0.01);
 }
 
 /**
