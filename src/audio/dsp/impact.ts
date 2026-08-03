@@ -109,6 +109,16 @@ export function crush(
     to: number;
     /** Sharpness. Above about 4 the climb reads as a squeak. */
     q: number;
+    /**
+     * Where the peak sits, as a fraction of the duration. Defaults to 0.45.
+     *
+     * **This is the difference between a swell and a burst**, and it is what
+     * separates a foot sinking into snow from a foot going into water. Packing
+     * builds while the load goes on, so it peaks near the middle; a liquid is
+     * displaced almost at once and then takes a long time to fall back, so it
+     * peaks in the first tenth and the rest is tail.
+     */
+    rise?: number;
   },
 ): void {
   if (level <= 0.0005) return;
@@ -123,13 +133,16 @@ export function crush(
   const source = context.createBufferSource();
   source.buffer = noise;
 
-  // Peaks part-way through rather than at the start: the load is still going
-  // on. Cosine-free because a bandpass this narrow smooths the corners itself.
+  // Peaks part-way through rather than at the start — see `rise`. Cosine-free
+  // because a bandpass this narrow smooths the corners itself.
   const envelope = context.createGain();
-  const peak = at + shape.duration * 0.45;
+  const fraction = shape.rise ?? 0.45;
+  const peak = at + shape.duration * fraction;
   envelope.gain.setValueAtTime(0, at);
   envelope.gain.linearRampToValueAtTime(level, peak);
-  envelope.gain.setTargetAtTime(0, peak, shape.duration * 0.25);
+  // The fall is what is left of the duration, so an early peak buys a long
+  // tail rather than an abrupt stop.
+  envelope.gain.setTargetAtTime(0, peak, shape.duration * (1 - fraction) * 0.55);
 
   source.connect(envelope).connect(band);
   const window = shape.duration * 2.2 + 0.03;
