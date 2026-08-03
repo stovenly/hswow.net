@@ -136,6 +136,7 @@ export function chainZones(): ZoneDefinition[] {
     {
       id: ZONE_FACTORY_2,
       name: 'Factory 2',
+      group: 'industrial',
       environment: {
         ...WORKS_ENVIRONMENT,
         // Long, so the far end has to actually be far. Fog that closes at 48 m
@@ -151,6 +152,7 @@ export function chainZones(): ZoneDefinition[] {
     {
       id: ZONE_FACTORY_3,
       name: 'Factory 3',
+      group: 'industrial',
       environment: {
         ...WORKS_ENVIRONMENT,
         // Tall rather than long, so the fog is set to leave the roof visible.
@@ -169,6 +171,7 @@ export function chainZones(): ZoneDefinition[] {
     {
       id: ZONE_HUT_ROOM,
       name: 'Villager Hut Room',
+      group: 'countryside',
       environment: {
         ...HOUSE_ENVIRONMENT,
         // A store room, and stores are dim. Also the smallest space in the
@@ -186,6 +189,7 @@ export function chainZones(): ZoneDefinition[] {
     {
       id: ZONE_HUT_ROOM_2,
       name: 'Villager Hut Room 2',
+      group: 'countryside',
       environment: {
         ...HOUSE_ENVIRONMENT,
         fogNear: 6,

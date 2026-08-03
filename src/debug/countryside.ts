@@ -586,6 +586,7 @@ export function countrysideZone(): ZoneDefinition {
   return {
     id: ZONE_COUNTRYSIDE,
     name: 'Countryside Exterior Demo',
+    group: 'countryside',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       // Further sight lines than the proving ground — the point of a place this

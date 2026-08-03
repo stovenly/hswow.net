@@ -101,6 +101,7 @@ export function countrysideHomeZones(): ZoneDefinition[] {
     {
       id: ZONE_COTTAGE,
       name: 'Countryside Cottage Demo',
+      group: 'countryside',
       environment: COTTAGE_ENVIRONMENT,
       // Only reached if something goes wrong — arriving through the door puts
       // you on the portal's marker instead. In the middle of the floor, so it
@@ -112,6 +113,7 @@ export function countrysideHomeZones(): ZoneDefinition[] {
     {
       id: ZONE_WORKSHOP,
       name: 'Countryside Workshop Demo',
+      group: 'countryside',
       environment: COTTAGE_ENVIRONMENT,
       spawn: { position: new THREE.Vector3(0, 0.1, 0.5), yaw: Math.PI },
       floor: -5,
@@ -120,6 +122,7 @@ export function countrysideHomeZones(): ZoneDefinition[] {
     {
       id: ZONE_STORE,
       name: 'Countryside Store Demo',
+      group: 'countryside',
       environment: STORE_ENVIRONMENT,
       spawn: { position: new THREE.Vector3(0, 0.1, 0.4), yaw: Math.PI },
       floor: -5,

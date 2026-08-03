@@ -103,6 +103,7 @@ function chimney(): THREE.Group {
 
 export const fogShowcasePlan: GalleryPlan = {
   id: ZONE_FOG_SHOWCASE,
+  group: 'general',
   name: 'Fog Showcase',
   // No builder rank. Nothing in the art kit makes fog — the whole subject of
   // this room is a pass, not a prop — and `check:art` only ever complains
