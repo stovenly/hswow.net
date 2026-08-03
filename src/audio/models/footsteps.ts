@@ -65,21 +65,37 @@ interface Mode {
 type Grit = Particles;
 
 /**
- * Air dragged under by a foot going into water. See `dsp/bubble.ts`.
+ * Air entrained by a foot going into water. See `dsp/bubble.ts`.
  *
- * A fourth engine, and only the shallows use it. A bubble's pitch *rises* as it
- * collapses, and that climb is the whole difference between water and a blip —
- * neither the impact nor the particle bed can produce it, which is why `mud`
- * has never been a splash.
+ * **This is not a garnish on a noise burst — for water it is the whole sound.**
+ * Almost everything audible about water is bubble oscillation: a volume of
+ * trapped air ringing at Minnaert's frequency and climbing in pitch as it
+ * collapses. A splash is not a hiss with a few plinks in it, it is *hundreds of
+ * those events at once*, dense enough to read as a rush and pitched enough
+ * never to read as noise. Every attempt at water that led with filtered noise
+ * came out as static, and it came out as static because that is what it was.
  */
 interface Splash {
-  /** Bubbles entrained. */
+  /**
+   * Bubbles entrained. **Tens, not a handful.** A drip is one; a boot going
+   * into standing water is a cloud, and the density is most of the difference
+   * between water and a wet click.
+   */
   count: number;
   /** Seconds they are spread over. */
   over: number;
-  /** Radius bounds in metres. 0.3 mm is spray, 8 mm the bottom of a pour. */
+  /** Time constant of the energy decay, as the particle bed has. */
+  decay: number;
+  /**
+   * Radius bounds in metres, and therefore the pitch range: a bubble sings at
+   * 3.26/r hertz. A quarter of a millimetre is 13 kHz of fine spray; five
+   * millimetres is a 650 Hz gloop. Drawn log-uniform, so the spread is even
+   * across pitch rather than piled into the bottom octave.
+   */
   radius: readonly [number, number];
   level: number;
+  /** Oscillations before one is gone. Fewer is punchier; 20 is a lazy drip. */
+  cycles?: number;
 }
 
 /**
@@ -441,7 +457,7 @@ export const SURFACES = {
       count: 12, over: 0.1, energyDecay: 0.035, hz: 2200, q: 1.2, level: 0.28,
       voices: 2, spread: 0.4, grain: 0.02, attack: 0.0012,
     },
-    splash: { count: 8, over: 0.13, radius: [0.0015, 0.0045], level: 0.18 },
+    splash: { count: 14, over: 0.15, decay: 0.06, radius: [0.0018, 0.006], level: 0.2, cycles: 20 },
     scuff: 0.5,
     toe: 0.3,
     roll: 0.11,
@@ -450,44 +466,35 @@ export const SURFACES = {
   /**
    * An inch of standing water.
    *
-   * **Rebuilt around the observation that a splash is a burst, not a swell.**
-   * Every previous attempt shaped this like the granular surfaces — energy
-   * building over forty or fifty milliseconds — and that is a whoosh. Water
-   * does not build. It is thrown aside almost instantly and then spends a
-   * quarter of a second falling back, which is the opposite envelope, and it
-   * is the entire character.
+   * **Water is bubbles.** Not "bubbles on top of a splash" — bubbles are what a
+   * splash *is*. Nearly everything audible about disturbed water is trapped air
+   * ringing at Minnaert's frequency and climbing as it collapses; the broadband
+   * component people reach for is a small part of it and, on its own, is
+   * indistinguishable from static. Four attempts at this led with filtered
+   * noise and every one of them sounded like an untuned television, because
+   * that is exactly what it was.
    *
-   * **And it is broadband, not a moving window.** A swept bandpass is a whoosh
-   * however it is enveloped, which is what every earlier version of this was. A
-   * splash starts with everything in it and loses the top first, because that
-   * is where the energy goes — so the filter here is a *ceiling* falling from
-   * 7 kHz to 1.1, not a band travelling between them.
+   * So: seventy bubbles over a fifth of a second, thinning as the water falls
+   * back, drawn log-uniform from a quarter of a millimetre — 13 kHz of fine
+   * spray — down to five, which gloops at 650 Hz. Dense enough to read as a
+   * rush, pitched enough that no part of it is noise. The big ones lead and the
+   * spray rides on top.
    *
-   * Under it the bed is reached late and heavily damped: quiet, dull, and a
-   * tenth of the splash, because in an inch of water you barely hear the ground
-   * at all. Over it, droplets patter down across a window twice as long again —
-   * **the one place in the table where grains are meant to be countable**, so
-   * they keep their spread of pitches — and a few small bubbles plink in what
-   * is left.
-   *
-   * Against `mud`, which is the same engines run the other way: mud builds
-   * slowly, sits low, and gloops; water bursts, sits high, and patters.
+   * The only other thing here is the bed underneath, reached late through the
+   * water and heavily damped: quiet, dull, and the one part of this that is a
+   * footstep at all. There is no `crush` and no `grit`, and their absence is
+   * the whole design rather than an omission.
    */
   water: {
     level: 0.5,
-    impact: { level: 0.1, duration: 0.03, low: 150, tone: 1400, q: 0.5, attack: 0.012 },
-    crush: {
-      level: 0.55, duration: 0.26, from: 7000, to: 1100, q: 0.6,
-      rise: 0.06, band: 'ceiling',
-    },
+    impact: { level: 0.11, duration: 0.03, low: 150, tone: 1200, q: 0.5, attack: 0.012 },
     modes: [],
-    grit: {
-      count: 16, over: 0.22, energyDecay: 0.1, hz: 3200, q: 1.8, level: 0.28,
-      voices: 4, spread: 0.7, grain: 0.014, attack: 0.001,
+    grit: null,
+    splash: {
+      count: 70, over: 0.2, decay: 0.075, radius: [0.00025, 0.005], level: 0.5, cycles: 15,
     },
-    splash: { count: 10, over: 0.16, radius: [0.0005, 0.0025], level: 0.28 },
     scuff: 0.95,
-    toe: 0.6,
+    toe: 0.55,
     roll: 0.09,
   },
 
@@ -535,32 +542,6 @@ export const SURFACES = {
     scuff: 0.6,
     toe: 0.6,
     roll: 0.085,
-  },
-
-  /**
-   * Dry leaf litter. **Squishy and crisp, in that order — and dry.**
-   *
-   * A leaf layer is mostly air, so a foot meets nothing solid for sixteen
-   * milliseconds and then compresses the whole depth of it; the crackle rides
-   * on top rather than underneath.
-   *
-   * **One resonance for the whole layer.** Four hundred collisions a second at
-   * four different pitches is a bag of marbles, not a crunch — dense grains only
-   * fuse into a material when they share a spectrum. The variety is in the
-   * timing and the levels, where the ear cannot use it to count objects.
-   */
-  leaves: {
-    level: 0.46,
-    impact: { level: 0.11, duration: 0.03, low: 400, tone: 3600, q: 0.6, attack: 0.016 },
-    crush: { level: 0.18, duration: 0.09, from: 900, to: 1500, q: 1.1 },
-    modes: [],
-    grit: {
-      count: 38, over: 0.095, energyDecay: 0.03, hz: 4100, q: 2, level: 0.7,
-      grain: 0.011, attack: 0.0016,
-    },
-    scuff: 0.75,
-    toe: 0.7,
-    roll: 0.09,
   },
 
   /**
@@ -1020,11 +1001,13 @@ function rand(min: number, max: number): number {
 }
 
 /**
- * A burst of entrained air, Poisson-spaced the way the particle bed is.
+ * A burst of entrained air, Poisson-spaced and decaying the way the particle
+ * bed is.
  *
  * Straight to the output rather than through a bed: a bubble is already a tuned
  * oscillator and has no shared body to resonate in, which is exactly what makes
- * it unlike grit.
+ * it unlike grit — and why, unlike grit, a wide spread of pitches here is
+ * correct rather than a fault. Water is *supposed* to be countable.
  */
 function scatterBubbles(
   context: BaseAudioContext,
@@ -1034,14 +1017,24 @@ function scatterBubbles(
   force: number,
 ): void {
   const rate = splash.count / Math.max(splash.over, 1e-3);
+  const [small, big] = splash.radius;
   let t = 0;
   for (let i = 0; i < splash.count; i++) {
     t += -Math.log(1 - Math.random() * 0.999 - 0.001) / rate;
-    if (t > splash.over * 2.5) return;
-    popBubble(context, target, at + t, {
-      radius: bubbleRadius(splash.radius[0], splash.radius[1]),
-      level: splash.level * force * rand(0.5, 1),
-    });
+    if (t > splash.over * 1.8) return;
+
+    // The cloud thins as the water falls back, exactly as a scatter of stones
+    // runs down. Without it a splash is a uniform wash for its whole length,
+    // which is the other way to arrive at static.
+    const energy = Math.exp(-t / splash.decay);
+    const radius = bubbleRadius(small, big);
+    // Bigger bubbles carry more air and more energy, so the low ones lead and
+    // the spray rides on top rather than the other way round.
+    const size = (radius - small) / Math.max(big - small, 1e-9);
+    const level = splash.level * force * energy * rand(0.35, 1) * (0.45 + 0.55 * size);
+    if (level < 0.0015) continue;
+
+    popBubble(context, target, at + t, { radius, level, cycles: splash.cycles ?? 15 });
   }
 }
 
@@ -1409,9 +1402,15 @@ export class Footsteps {
     // standing in one does, and the tell is the number of droplets rather than
     // how loud any of them is.
     if (surface.splash) {
+      // Count follows the contact as well as the speed: a toe-off trailing
+      // through water throws a fraction of what a heel landing in it does, and
+      // it is the number of droplets rather than their level that says so.
       const thrown: Splash = {
         ...surface.splash,
-        count: Math.max(1, Math.round(surface.splash.count * (0.35 + 0.65 * scuffing))),
+        count: Math.max(
+          1,
+          Math.round(surface.splash.count * (0.35 + 0.65 * scuffing) * Math.min(contact.level, 1)),
+        ),
         over: surface.splash.over * (0.6 + 0.4 * scuffing),
       };
       scatterBubbles(context, this.output, thrown, at, level * contact.grit * (0.75 + 0.25 * scuffing));
