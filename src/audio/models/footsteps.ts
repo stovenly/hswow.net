@@ -201,6 +201,80 @@ export const SURFACES = {
 export type SurfaceName = keyof typeof SURFACES;
 
 /**
+ * One contact of a foot with the ground, relative to the material.
+ *
+ * A step, a landing and a push-off are the same foot on the same ground; what
+ * differs is how the contact is made. Every field is a multiplier, so a gesture
+ * never carries a surface's numbers around with it.
+ */
+interface Contact {
+  /** When, as a multiple of the gesture's gap. The first is always 0. */
+  at: number;
+  /** Level, as a multiple of the gesture's force. */
+  level: number;
+  /** Contact time, as a multiple of `impact.duration`. Softness. */
+  stretch: number;
+  /** How hard the body is rung. */
+  modes: number;
+  /** How much loose material is scuffed up. */
+  grit: number;
+  /** Brightness, as a multiple of `impact.tone`. */
+  tone: number;
+}
+
+/** Two contacts to a footfall: something lands, something follows it down. */
+type Gait = readonly [Contact, Contact];
+
+/**
+ * Bounds on a *composed* contact.
+ *
+ * Every field above is a multiplier and they stack, so the worst case is a
+ * product nobody authored. Clamping once at the end keeps the tables readable
+ * as physics rather than shaved down to survive combinations that never occur.
+ */
+const LIMITS = {
+  level: [0, 1.4],
+  // 3.2 rather than 3.0, because the push-off is authored at 3.2 and has been
+  // signed off by ear there.
+  stretch: [0.5, 3.2],
+  modes: [0, 1.2],
+  grit: [0, 2.5],
+  tone: [0.35, 1.3],
+} as const satisfies Record<string, readonly [number, number]>;
+
+function bound(value: number, [min, max]: readonly [number, number]): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+/** Composed multipliers, bounded once. See `LIMITS`. */
+function settle(contact: Contact): Contact {
+  return {
+    at: Math.max(0, contact.at),
+    level: bound(contact.level, LIMITS.level),
+    stretch: bound(contact.stretch, LIMITS.stretch),
+    modes: bound(contact.modes, LIMITS.modes),
+    grit: bound(contact.grit, LIMITS.grit),
+    tone: bound(contact.tone, LIMITS.tone),
+  };
+}
+
+/** The material exactly as authored. */
+const PLAIN: Contact = { at: 0, level: 1, stretch: 1, modes: 1, grit: 1, tone: 1 };
+
+/** Heel, then toe. The toe's level comes from the surface's own `toe`. */
+const WALK: Gait = [PLAIN, { ...PLAIN, at: 1 }];
+
+/** Both feet, a few milliseconds apart. */
+const LANDING: Gait = [PLAIN, { ...PLAIN, at: 1, level: 0.5 }];
+
+/**
+ * The push-off — one contact, and it leaves rather than arrives. The transient
+ * stretches into a scrape, nothing strikes the body, and pushing is what
+ * scuffs a surface.
+ */
+const PUSH: Contact = { at: 0, level: 1, stretch: 3.2, modes: 0.28, grit: 1.7, tone: 1 };
+
+/**
  * Speed at which footsteps reach full weight.
  *
  * Above this they stop getting louder. Real footfalls do keep gaining energy
@@ -219,7 +293,6 @@ function rand(min: number, max: number): number {
 }
 
 interface Chain {
-  impactInput: GainNode;
   bank: ModalBank;
   gritInput: GainNode | null;
 }
@@ -311,14 +384,15 @@ export class Footsteps {
     // Alternate feet. Steps dead centre sound like one foot hopping.
     this.panner.pan.setValueAtTime(this.takeFoot() * 0.2, at);
 
-    this.strike(chain, surface, at, force * rand(0.9, 1.1));
-
     // Heel then toe. The gap closes as you speed up, until at a sprint the two
     // are close enough to fuse into a single heavier event — which is what
     // running actually sounds like.
+    const gap = surface.roll * Math.max(0.35, 1 - speed / 12);
+    const [heel, toe] = WALK;
+
+    this.strike(chain, surface, at, gap, force, { ...heel, level: heel.level * rand(0.9, 1.1) });
     if (surface.toe > 0) {
-      const roll = surface.roll * Math.max(0.35, 1 - speed / 12);
-      this.strike(chain, surface, at + roll, force * surface.toe * rand(0.8, 1.1));
+      this.strike(chain, surface, at, gap, force, { ...toe, level: surface.toe * rand(0.8, 1.1) });
     }
   }
 
@@ -348,11 +422,16 @@ export class Footsteps {
 
     // Centred: you land on both feet.
     this.panner.pan.setValueAtTime(0, at);
-    this.strike(chain, surface, at, force);
 
     // Feet never quite arrive together, and the few milliseconds between them
     // are most of what stops a landing sounding like a single synthetic event.
-    this.strike(chain, surface, at + rand(0.012, 0.03), force * rand(0.4, 0.6));
+    const gap = rand(0.012, 0.03);
+    const [first, second] = LANDING;
+    this.strike(chain, surface, at, gap, force, first);
+    this.strike(chain, surface, at, gap, force, {
+      ...second,
+      level: second.level * rand(0.8, 1.2),
+    });
 
     // The foot cycle is deliberately left alone. You land on both feet, so a
     // landing belongs to neither — and the jump before it already advanced the
@@ -395,11 +474,7 @@ export class Footsteps {
     const at = context.currentTime + 0.004;
 
     this.panner.pan.setValueAtTime(this.takeFoot() * 0.12, at);
-    this.strike(chain, surface, at, surface.level * rand(0.42, 0.55), {
-      stretch: 3.2,
-      modes: 0.28,
-      grit: 1.7,
-    });
+    this.strike(chain, surface, at, 0, surface.level * rand(0.42, 0.55), PUSH);
   }
 
   /**
@@ -416,41 +491,47 @@ export class Footsteps {
     return foot;
   }
 
-  /** One impact: transient, modal ring, and a burst of grit. */
+  /**
+   * One contact: transient, modal ring, and a burst of grit.
+   *
+   * @param base Audio-clock time of the gesture's first contact.
+   * @param gap Seconds that the contact's `at` is measured in.
+   * @param force The gesture's weight, before the contact's own `level`.
+   */
   private strike(
     chain: Chain,
     surface: Surface,
-    at: number,
+    base: number,
+    gap: number,
     force: number,
-    /**
-     * Reshapes the contact without changing the material.
-     *
-     * A step, a landing and a push-off are the same foot on the same ground —
-     * what differs is how the contact is made. `stretch` lengthens the
-     * transient (a scrape rather than a strike), `modes` scales the body's
-     * ring, and `grit` scales the loose material scuffed up. Giving each
-     * gesture its own surface table instead would mean three copies of every
-     * material that could drift apart.
-     */
-    shape?: { stretch?: number; modes?: number; grit?: number },
+    shape: Contact,
   ): void {
     const context = this.engine.context;
     const noise = this.engine.noise;
     if (!noise) return;
 
-    const stretch = shape?.stretch ?? 1;
-    const modeScale = shape?.modes ?? 1;
-    const gritScale = shape?.grit ?? 1;
+    const contact = settle(shape);
+    const at = base + contact.at * gap;
+    const level = force * contact.level;
+
+    // **The impact filter is part of the step, not the ground**, so it is built
+    // per contact and brightness can follow the gesture. The resonators below
+    // stay cached: their ring-down is state, and the ground does not get new
+    // resonances every time it is stepped on.
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = surface.impact.tone * contact.tone;
+    filter.connect(this.output);
 
     // A single short excitation feeds both the transient and every resonator,
     // exactly as one physical impact would.
     excite(
       context,
       noise.white,
-      chain.impactInput,
+      filter,
       at,
-      force * surface.impact.level,
-      surface.impact.duration * stretch,
+      level * surface.impact.level,
+      surface.impact.duration * contact.stretch,
     );
 
     // Resonators need only a click — their ring-down is the filter's own, not
@@ -462,13 +543,13 @@ export class Footsteps {
         noise.white,
         chain.bank.inputs[i],
         at,
-        force * surface.modes[i].level * 0.5 * modeScale,
+        level * surface.modes[i].level * 0.5 * contact.modes,
         0.002,
       );
     }
 
     if (surface.grit && chain.gritInput) {
-      scatterParticles(context, noise.white, chain.gritInput, surface.grit, at, force * gritScale);
+      scatterParticles(context, noise.white, chain.gritInput, surface.grit, at, level * contact.grit);
     }
   }
 
@@ -479,12 +560,6 @@ export class Footsteps {
 
     const context = this.engine.context;
     const surface: Surface = SURFACES[name];
-
-    const impactInput = context.createGain();
-    const impactFilter = context.createBiquadFilter();
-    impactFilter.type = 'lowpass';
-    impactFilter.frequency.value = surface.impact.tone;
-    impactInput.connect(impactFilter).connect(this.output);
 
     // **Both options here are the historical ones, and both are wrong.**
     //
@@ -510,7 +585,7 @@ export class Footsteps {
       gritInput = createParticleBed(context, surface.grit, this.output).input;
     }
 
-    const chain: Chain = { impactInput, bank, gritInput };
+    const chain: Chain = { bank, gritInput };
     this.chains.set(name, chain);
     return chain;
   }
