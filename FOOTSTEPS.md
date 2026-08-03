@@ -1,8 +1,8 @@
 # Footsteps — direction, stance, and character
 
-**Part built.** F1, F2, M2 and M4 have landed; see the phase table in §14 for
-what that means and what is still owed. Extends `audio/models/footsteps.ts`,
-which already had the hard parts.
+**Part built.** F1, F2, F3, F5, M2, M3, M4 and a new M6 have landed; see the
+phase table in §14 for what that means and what is still owed. Extends
+`audio/models/footsteps.ts`, which already had the hard parts.
 
 **Short answer: yes to all three, and the file is already shaped for it.**
 `strike()` takes a `shape` argument precisely so that a step, a landing and a
@@ -697,17 +697,63 @@ the built site and is rebuilt and committed alongside source.
 | | Phase | Touches | Gate | Status |
 |---|---|---|---|---|
 | **F1** | Contact refactor | `footsteps.ts` | check | ✅ built, checked |
-| **F2** | Forward toe-off | `footsteps.ts` | **ear** | built, **unheard** |
-| **F3** | Direction and stance plumbing | `Controller.ts`, `main.ts`, `footsteps.ts` | check | |
+| **F2** | Forward toe-off | `footsteps.ts` | **ear** | built, heard, kept |
+| **F3** | Direction plumbing | `Controller.ts`, `main.ts`, `footsteps.ts` | check | ✅ **partial** — direction yes, stance no |
 | **F4** | Crouch | `footsteps.ts` | **ear** | |
-| **F5** | Backward and lateral gaits | `footsteps.ts` | check + **ear** | |
-| **F6** | Landings | `footsteps.ts`, `Controller.ts` | check + **ear** | |
+| **F5** | Backward and lateral gaits | `footsteps.ts` | check + **ear** | built, **unheard** |
+| **F6** | Landings | `footsteps.ts`, `Controller.ts` | check + **ear** | **partial** — shear yes, `glance` no |
 | **F7** | Per-foot character, pivot scuff | `footsteps.ts`, `Controller.ts` | **ear** | |
 | **M1** | Audition baseline | `tools/`, `audition/` | check | **skipped** — see below |
-| **M2** | Bank correction | `footsteps.ts` | check + **ear** | built, **unheard** |
-| **M3** | Material retune | `footsteps.ts` | **ear** | |
+| **M2** | Bank correction | `footsteps.ts` | check + **ear** | built, heard |
+| **M3** | Material retune | `footsteps.ts` | **ear** | built, **unheard** |
 | **M4** | New surfaces | `footsteps.ts`, `ground.ts`, a debug zone | **ear** | built, **unheard** |
 | **M5** | Surface derivation table | `ground.ts`, `ZoneManager.ts`, `Zone.ts` | check | |
+| **M6** | Movement drives the material | `footsteps.ts`, `Controller.ts` | **ear** | built, **unheard** — new, see below |
+
+### M6 — movement drives the material
+
+Not in the original document, and it belongs in it: **a footfall is two forces,
+not one.** A normal force arrives and sets the weight; a tangential one shears
+along the ground and decides how much of the ground comes with you. Only the
+first was modelled, so creeping across gravel threw exactly as much stone as
+sprinting across it, only quieter.
+
+`Surface.scuff` says how much of a material's loose behaviour follows shear
+rather than weight — 0.95 for gravel, 0.15 for a bedded steel plate — and
+`dragFor` derives shear from speed on a curve that deliberately does **not**
+saturate, unlike the weight curve. Walk to sprint is under a decibel of level
+by design; it should be a great deal more than a decibel of kicked gravel.
+
+This is also the honest first half of F6. `onLand` now carries horizontal speed
+beside vertical impact, and `onJump` the speed it was taken at, so a running
+landing skids and a sprinting take-off throws. The full `glance` treatment in §4
+— the widened foot gap, the direction blend weighted by it, the foot handoff —
+is still owed.
+
+### A fourth engine, and the reason the materials sounded wrong
+
+§9 diagnosed thin materials as a modal-bank problem, and it was half the story.
+The other half only became visible once M2 made the bank ring honestly:
+
+- **Half the table had modes and had no business having any.** Earth at 120 Hz
+  for 50 ms, mud at 240, snow at 2100. A loose or soft material does not ring,
+  and a low mode with a slow decay *is* a hollow box — which is why nearly every
+  surface read as a boarded floor and wood was being out-planked by mud.
+  `RINGS` now lists the six allowed to have modes and `check:audio` enforces it.
+- **The impact had no bottom to its band.** A lowpass alone says "everything
+  below X", including a thump that grass and moss physically cannot make.
+  `impact.low` is the largest single lever in the file.
+- **Nothing compressed.** Snow, moss, mud, sand and earth are not struck, they
+  are squashed: the foot keeps going after contact and the sound is the material
+  packing over a tenth of a second, swelling rather than decaying, with the band
+  climbing as the voids close. That climb is literally snow's squeak. New
+  `crush` in `dsp/impact.ts`; no combination of the other engines approximates
+  it.
+
+**§11's list was also short by two.** `leaves` and `metal` were surfaces with no
+ground material anywhere that played them. Metal has since split three ways —
+solid, ringing, hollow — which is the same steel mounted differently, and cobble
+two ways on the same principle.
 
 ### Deviations from the order above
 
