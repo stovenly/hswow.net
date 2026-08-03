@@ -91,13 +91,21 @@ interface Splash {
    * 3.26/r hertz. A millimetre is 3.3 kHz of spray; a centimetre is a 326 Hz
    * gloop.
    *
-   * **There is a floor on how fine this is worth going, and it is nearer than
-   * it looks.** Everything here passes the body lowpass at 5.2 kHz on its way
-   * out, so a bubble much under two thirds of a millimetre is rolled off before
-   * it is heard — and physical damping kills it inside a millisecond anyway. A
-   * cloud skewed past that point has more bubbles in it and *less splash*,
-   * which is a genuinely counter-intuitive way to lose the sound. Roughly 0.6
-   * to 5 mm is the band that survives; thin means the top of it, not past it.
+   * **Go wide, and especially go high.** Everything here leaves through the body
+   * lowpass at 5.2 kHz, which invites the conclusion that finer than about two
+   * thirds of a millimetre is wasted — and that conclusion is wrong and cost
+   * two rounds. It is a biquad at twelve decibels an octave, not a wall: 10 kHz
+   * comes through about twelve down and 20 kHz about twenty-four, quiet but
+   * unmistakably there, and there are dozens of them.
+   *
+   * That fine end is the **air** in a splash. It carries no pitch worth the
+   * name — a fifth of a millimetre rings for a fifth of a millisecond, three or
+   * four cycles — but collectively it is the sizzle that makes a splash sound
+   * wide rather than thick. Trimming the top of the range to "what survives" is
+   * what turned a puddle into a gloop.
+   *
+   * Keep the bottom off five millimetres unless the liquid is meant to be
+   * heavy, and take the top as high as the sample rate allows.
    */
   radius: readonly [number, number];
   /** How far the draw is skewed toward the fine end. See `bubbleRadius`. */
@@ -538,22 +546,24 @@ export const SURFACES = {
    * depth to drag one down into, and that absence is the whole difference from
    * the pond.
    *
-   * **Chasing "thinner" by going finer took the splash out of it**, which is
-   * worth recording because it is so counter-intuitive: the cloud ran from a
-   * fifth of a millimetre up to one, which is 3.3 to 16 kHz, and almost all of
-   * that is above the body lowpass and gone in under a millisecond. Sixty-two
-   * bubbles, most of them inaudible. Thin has to mean the *top of the band that
-   * survives*, not past it — so this now runs 1.3 to 5.4 kHz, barely skewed,
-   * ninety of them, and half again as loud.
+   * **Splashy is wide, and wide means the top end.** Two rounds went the other
+   * way: I trimmed the cloud to the band that comfortably survives the body
+   * lowpass, on reasoning that was sound and a conclusion that was wrong, and
+   * each trim made this thicker. The fine spray above 5 kHz carries no pitch and
+   * is not supposed to — it is the *air*, and without it a puddle is a gloop.
+   *
+   * So the range is wider than it has ever been, 1.2 kHz up to 18, skewed hard
+   * toward the top where the sizzle is, and there are more of them. The contact
+   * is exactly what it was when this last worked: sharp, bright and untouched.
    */
   'water-puddle': {
-    level: 0.46,
-    impact: { level: 0.26, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
+    level: 0.48,
+    impact: { level: 0.3, duration: 0.012, low: 380, tone: 6000, q: 0.8, attack: 0.002 },
     modes: [],
     grit: null,
     splash: {
-      count: 90, over: 0.13, decay: 0.06,
-      radius: [0.0006, 0.0025], bias: 0.15, damping: 1, level: 0.68,
+      count: 58, over: 0.1, decay: 0.042,
+      radius: [0.00018, 0.0026], bias: 0.4, damping: 1, level: 0.5,
     },
     scuff: 0.95,
     toe: 0.6,
@@ -576,27 +586,31 @@ export const SURFACES = {
    * as another droplet, and quiet enough that the splash is what you hear
    * first.
    *
-   * The cloud went the same way as the puddle's: skewed so fine that most of it
-   * sat above the body lowpass. It runs 724 Hz to 4.7 kHz now, a hundred
-   * strong, and it is the loudest thing in the surface as it should be. The
-   * bulk rush is pulled back under it — that is the part that turns into static
-   * the moment it is loud enough to notice.
+   * The cloud is wide for the same reason the puddle's is: cut the fine end off
+   * and a body of water goes muffled, because that end is the air in it. It
+   * runs 652 Hz to 16 kHz, skewed toward the top, and it is the loudest thing
+   * in the surface as it should be.
+   *
+   * The bulk rush is barely there, and starts high. It is the layer that turns
+   * into mush the moment it is loud enough to notice, and it does not need to
+   * be noticed — it only needs to fill the gaps between droplets so the cloud
+   * reads as a body of water rather than as a scatter of separate ones.
    *
    * There is a contact in here, a fifteenth of the splash and eighteen
    * milliseconds late. At this depth you feel the bottom and barely hear it.
    */
   'water-pond': {
     level: 0.5,
-    impact: { level: 0.06, duration: 0.036, low: 260, tone: 1600, q: 0.5, attack: 0.018 },
+    impact: { level: 0.05, duration: 0.034, low: 300, tone: 2200, q: 0.5, attack: 0.018 },
     crush: {
-      level: 0.2, duration: 0.26, from: 3200, to: 1000, q: 0.7,
-      rise: 0.1, band: 'ceiling', rough: 0.4,
+      level: 0.14, duration: 0.24, from: 5000, to: 1600, q: 0.7,
+      rise: 0.09, band: 'ceiling', rough: 0.4,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 100, over: 0.26, decay: 0.095,
-      radius: [0.0007, 0.0045], bias: 0.15, damping: 1, level: 0.6,
+      count: 110, over: 0.24, decay: 0.09,
+      radius: [0.0002, 0.005], bias: 0.35, damping: 1, level: 0.6,
       cavity: { radius: 0.013, level: 0.22, delay: 0.028 },
     },
     scuff: 1,
@@ -632,8 +646,11 @@ export const SURFACES = {
    */
   mud: {
     level: 0.42,
-    impact: { level: 0.09, duration: 0.055, low: 90, tone: 1050, q: 0.55, attack: 0.038 },
-    crush: { level: 0.48, duration: 0.2, from: 220, to: 440, q: 2.6, rough: 0.4 },
+    // Barely a twentieth of the shear. There *is* ground under mud and you feel
+    // it arrive, but hearing it is the surface reverting to a footstep with a
+    // squelch attached, which is the wrong way round.
+    impact: { level: 0.05, duration: 0.06, low: 80, tone: 950, q: 0.5, attack: 0.042 },
+    crush: { level: 0.54, duration: 0.21, from: 220, to: 440, q: 2.6, rough: 0.45 },
     modes: [],
     grit: {
       count: 12, over: 0.11, energyDecay: 0.04, hz: 1500, q: 1.4, level: 0.3,
