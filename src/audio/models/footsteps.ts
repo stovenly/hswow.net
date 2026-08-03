@@ -702,7 +702,7 @@ export const SURFACES = {
    * rather than the plank fault under another name.
    */
   'metal-hollow-big': {
-    level: 0.68,
+    level: 0.82,
     impact: { level: 0.08, duration: 0.008, low: 60, tone: 3400, q: 1.2, attack: 0.001 },
     modes: [
       { hz: 74, decay: 1.65, level: 0.66 },
