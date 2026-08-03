@@ -81,6 +81,16 @@ export interface Particles {
    */
   grain?: number;
   /**
+   * How much a collision shortens as the burst runs down, 0..1. Defaults to 1.
+   *
+   * **A stone bouncing loses height, so its later contacts are briefer as well
+   * as quieter** — that is what stops a long scatter reading as a thin run of
+   * identical little rings. A *wet* lump does not bounce. It arrives, spreads
+   * and stays, and shortening its contacts as the burst decays is precisely how
+   * a spatter of mud comes out sounding like dry sand.
+   */
+  bounce?: number;
+  /**
    * How sharply one collision starts, in seconds. Defaults to 0.8 ms.
    *
    * **Cook's model assumes the pieces are hard**, because his were: beans in a
@@ -188,7 +198,8 @@ export function scatterParticles(
     // *briefer*; holding the contact time constant while the level falls leaves
     // the tail as a thin sequence of identical little rings, which is what a
     // long scatter sounds like when it is wrong.
-    const grain = (particles.grain ?? 0.012) * (0.5 + 0.5 * energy);
+    const bounce = particles.bounce ?? 1;
+    const grain = (particles.grain ?? 0.012) * (1 - bounce * 0.5 * (1 - energy));
     const rise = Math.min(particles.attack ?? 0.0008, grain * 0.6);
     strike(envelope.gain, when, level, rise, grain * (0.6 + Math.random() * 0.8));
 
