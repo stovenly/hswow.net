@@ -75,7 +75,7 @@ export function createClatter(engine: AudioEngine, options: ClatterOptions = {})
       // The contact that starts it. Longer excitation than a hammer blow by an
       // order of magnitude — this is a wooden thing landing on a soft surface,
       // not steel on steel, and the contact time is the whole difference.
-      excite(context, noise.white, bed.input, at, force * 1.4, 0.012 + Math.random() * 0.01);
+      excite(context, noise.white, bed.inputs[0], at, force * 1.4, 0.012 + Math.random() * 0.01);
       thump(
         context,
         output,
@@ -90,7 +90,7 @@ export function createClatter(engine: AudioEngine, options: ClatterOptions = {})
       // Everything else settling. Offset slightly, because the second contact
       // cannot precede the first — a burst starting at exactly `at` puts half
       // its collisions before the strike that caused them.
-      scatterParticles(context, noise.white, bed.input, particles, at + 0.02, force);
+      scatterParticles(context, noise.white, bed, particles, at + 0.02, force);
 
       return particles.over * 1.4 + 0.15;
     },

@@ -14,7 +14,15 @@ import { Weather } from '../src/audio/weather';
 import { measure, periodicity } from '../src/audio/audition/measure';
 import { bubbleHz, bubbleRadius } from '../src/audio/dsp/bubble';
 import { derivedQ, trimFor } from '../src/audio/dsp/modal';
-import { SURFACES, BANK, RINGS, gaitFor, panFor, lateralWeight } from '../src/audio/models/footsteps';
+import {
+  SURFACES,
+  BANK,
+  RINGS,
+  HOLLOW,
+  gaitFor,
+  panFor,
+  lateralWeight,
+} from '../src/audio/models/footsteps';
 
 let failures = 0;
 
@@ -372,16 +380,15 @@ for (const [mm, hz] of [
 {
   const HOLLOW_HZ = 500;
   const HOLLOW_DECAY = 0.15;
-  const ALLOWED = ['wood', 'metal-hollow'];
   const wrong = Object.entries(SURFACES)
     .filter(
       ([name, surface]) =>
-        !ALLOWED.includes(name) &&
+        !HOLLOW.includes(name) &&
         surface.modes.some((mode) => mode.hz < HOLLOW_HZ && mode.decay > HOLLOW_DECAY),
     )
     .map(([name]) => name);
   check(
-    'only wood and hollow metal are hollow',
+    'only wood and hollow metal are boxy',
     wrong.length === 0,
     wrong.length === 0
       ? `nothing else rings below ${HOLLOW_HZ} Hz for over ${HOLLOW_DECAY} s`
@@ -413,7 +420,7 @@ for (const [mm, hz] of [
   const wrong = Object.entries(SURFACES)
     .filter(([, surface]) => (surface.impact.low ?? 0) >= surface.impact.tone * 0.8)
     .map(([name]) => name);
-  check('every impact band has room in it', wrong.length === 0, wrong.join(', ') || '16 bands, all open');
+  check('every impact band has room in it', wrong.length === 0, wrong.join(', ') || `${Object.keys(SURFACES).length} bands, all open`);
 }
 
 // --- the gait blend --------------------------------------------------------
@@ -502,16 +509,31 @@ for (const [mm, hz] of [
 // every surface read as the same tap with effects on top. A material a foot
 // sinks into cannot have a transient, because nothing stops suddenly.
 {
-  const FAST = 0.0035;
-  const wrong = Object.entries(SURFACES)
-    .filter(([name]) => !RINGS.includes(name))
-    .filter(([, surface]) => (surface.impact.attack ?? 0) < FAST)
-    .map(([name]) => name);
+  // Anything that packs under a foot has to arrive over tens of milliseconds,
+  // because the foot is still moving through it. `crush` is exactly the
+  // declaration that a material does that, so the two cannot disagree.
+  const gives = Object.entries(SURFACES).filter(([, surface]) => surface.crush);
+  const rushed = gives.filter(([, surface]) => (surface.impact.attack ?? 0) < 0.01).map(([n]) => n);
+  const slowest = Math.max(...gives.map(([, s]) => s.impact.attack ?? 0));
   check(
-    'nothing soft arrives like a strike',
-    wrong.length === 0,
-    wrong.length === 0 ? `10 soft surfaces, slowest 40 ms` : `too fast: ${wrong.join(', ')}`,
+    'anything that gives arrives slowly',
+    rushed.length === 0,
+    rushed.length === 0
+      ? `${gives.length} surfaces give, slowest ${(slowest * 1000).toFixed(0)} ms`
+      : `struck anyway: ${rushed.join(', ')}`,
   );
+
+  // And the converse: a millisecond rise is a *strike*, which belongs to things
+  // that are struck. **Water is the one exception and it is a real one** — a
+  // liquid does not decelerate a foot, it gets out of the way, so the ground
+  // under an inch of it arrives almost at once. That is why water has no
+  // `crush`: a give on it is the single thing that makes it read as mud.
+  const STRUCK = [...RINGS, 'water'];
+  const wrong = Object.entries(SURFACES)
+    .filter(([name]) => !STRUCK.includes(name))
+    .filter(([, surface]) => (surface.impact.attack ?? 0) < 0.0035)
+    .map(([name]) => name);
+  check('only hard surfaces are struck', wrong.length === 0, wrong.join(', ') || `${STRUCK.length} may be`);
 }
 
 // **The impact is the contact, not the sound.** On a loose or soft surface the
@@ -523,13 +545,13 @@ for (const [mm, hz] of [
     .filter(([name]) => !RINGS.includes(name))
     .filter(([, surface]) => surface.impact.level > 0.35)
     .map(([name]) => name);
-  check('soft contacts stay under their material', wrong.length === 0, wrong.join(', ') || 'all 10 quiet');
+  check('soft contacts stay under their material', wrong.length === 0, wrong.join(', ') || `${Object.keys(SURFACES).length - RINGS.length} soft surfaces, all quiet`);
 }
 
 // And the metals specifically: a plate that taps louder than it rings is not
 // metal, it is a footstep. Compared as delivered — a mode's level is scaled by
 // the bank's `sqrt(Q)` trim before it reaches the output.
-for (const name of ['metal-solid', 'metal-ring', 'metal-hollow'] as const) {
+for (const name of ['metal-solid', 'metal-ring', 'metal-hollow-small', 'metal-hollow-big'] as const) {
   const surface = SURFACES[name];
   const loudest = Math.max(
     ...surface.modes.map((mode) => mode.level * trimFor(derivedQ(mode, BANK), BANK.compensation)),
