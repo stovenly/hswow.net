@@ -13,8 +13,8 @@
 import { Weather } from '../src/audio/weather';
 import { measure, periodicity } from '../src/audio/audition/measure';
 import { bubbleHz, bubbleRadius } from '../src/audio/dsp/bubble';
-import { derivedQ } from '../src/audio/dsp/modal';
-import { SURFACES, BANK, RINGS, gaitFor, panFor } from '../src/audio/models/footsteps';
+import { derivedQ, trimFor } from '../src/audio/dsp/modal';
+import { SURFACES, BANK, RINGS, gaitFor, panFor, lateralWeight } from '../src/audio/models/footsteps';
 
 let failures = 0;
 
@@ -492,8 +492,74 @@ for (const [mm, hz] of [
   );
   check(
     'the lead foot lands wider than the trail foot',
-    panFor(1, 1) > panFor(1, -1) && Math.abs(panFor(0, 1) - 0.2) < 1e-9,
-    `lead ${panFor(1, 1).toFixed(2)}, trail ${panFor(1, -1).toFixed(2)}, walk ${panFor(0, 1).toFixed(2)}`,
+    panFor(1, 0, 1) > panFor(1, 0, -1) && Math.abs(panFor(0, 1, 1) - 0.2) < 1e-9,
+    `lead ${panFor(1, 0, 1).toFixed(2)}, trail ${panFor(1, 0, -1).toFixed(2)}, walk ${panFor(0, 1, 1).toFixed(2)}`,
+  );
+}
+
+// **Nothing soft is struck.** The rise time was fixed at 1.2 ms for every
+// material, so mud's 45 ms contact was a click with a long tail glued on and
+// every surface read as the same tap with effects on top. A material a foot
+// sinks into cannot have a transient, because nothing stops suddenly.
+{
+  const FAST = 0.0035;
+  const wrong = Object.entries(SURFACES)
+    .filter(([name]) => !RINGS.includes(name))
+    .filter(([, surface]) => (surface.impact.attack ?? 0) < FAST)
+    .map(([name]) => name);
+  check(
+    'nothing soft arrives like a strike',
+    wrong.length === 0,
+    wrong.length === 0 ? `10 soft surfaces, slowest 40 ms` : `too fast: ${wrong.join(', ')}`,
+  );
+}
+
+// **The impact is the contact, not the sound.** On a loose or soft surface the
+// engine carrying the material has to be the thing you hear; where the contact
+// competes with it, the surface reads as "the standard footstep with an effect
+// on it", which is exactly the complaint this whole pass answers.
+{
+  const wrong = Object.entries(SURFACES)
+    .filter(([name]) => !RINGS.includes(name))
+    .filter(([, surface]) => surface.impact.level > 0.35)
+    .map(([name]) => name);
+  check('soft contacts stay under their material', wrong.length === 0, wrong.join(', ') || 'all 10 quiet');
+}
+
+// And the metals specifically: a plate that taps louder than it rings is not
+// metal, it is a footstep. Compared as delivered — a mode's level is scaled by
+// the bank's `sqrt(Q)` trim before it reaches the output.
+for (const name of ['metal-solid', 'metal-ring', 'metal-hollow'] as const) {
+  const surface = SURFACES[name];
+  const loudest = Math.max(
+    ...surface.modes.map((mode) => mode.level * trimFor(derivedQ(mode, BANK), BANK.compensation)),
+  );
+  check(
+    `${name} rings louder than it taps`,
+    loudest > surface.impact.level * 1.5,
+    `ring ${loudest.toFixed(2)} against contact ${surface.impact.level.toFixed(2)}`,
+  );
+}
+
+// **A forward diagonal is not half a strafe and a backward one very nearly is.**
+// Moving forward-and-right you are still walking, with your feet turned a few
+// degrees and still rolling; behind you there is no turning a foot into the
+// direction of travel, so it is genuinely placed.
+{
+  const d = Math.SQRT1_2;
+  const ahead = lateralWeight(d, d);
+  const behind = lateralWeight(d, -d);
+  check(
+    'a forward diagonal keeps more of its roll than a backward one',
+    // Discounted going forward, undiscounted going back, and still clearly a
+    // diagonal rather than a walk with a lean.
+    ahead < behind * 0.85 && ahead > 0.35,
+    `forward ${ahead.toFixed(2)} lateral against backward ${behind.toFixed(2)}`,
+  );
+  check(
+    'a true strafe is not discounted',
+    Math.abs(lateralWeight(1, 0) - 1) < 1e-9 && Math.abs(lateralWeight(0, 1)) < 1e-9,
+    'sideways 1.00, straight ahead 0.00',
   );
 }
 
