@@ -171,6 +171,6 @@ export const tank: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'tank', 0, 'metal-solid');
+    return finish(geometry, 'tank', 0, 'metal-hollow-big');
   },
 };
