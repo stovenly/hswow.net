@@ -399,65 +399,89 @@ function tuftGeometry(sink: TuftSink): THREE.BufferGeometry {
 }
 
 /**
- * A pampas stalk: a stiff crossed-quad stem, then six fins of plume — three
- * solid ones carrying the shape and three hazier ones between them carrying
- * the fluff. Solidity falls from each spine outward and from base to tip, and
- * the stipple discard turns both gradients into the feathery rim. Tips run
- * brighter than the base, which is most of what reads as soft.
+ * One fin of plume: a lance whose width and solidity both taper to nothing at
+ * its base and its tip, so it grows out of whatever it stands on instead of
+ * sitting on it. `haze` fades the whole fin toward stipple.
+ */
+function plumeFin(
+  sink: TuftSink,
+  angle: number,
+  y0: number,
+  y1: number,
+  reach: number,
+  widest: number,
+  haze: number,
+  uvOff: number,
+): void {
+  const ROWS = 5;
+  const dx = Math.cos(angle);
+  const dz = Math.sin(angle);
+  const px = -dz;
+  const pz = dx;
+  const bright = new THREE.Color();
+  const rows: [number, number, number][] = [];
+  for (let r = 0; r <= ROWS; r++) {
+    const s = r / ROWS;
+    const y = y0 + (y1 - y0) * s;
+    const out = 0.008 + reach * s ** 0.9;
+    const lance = Math.max(0, 1 - Math.abs(s - 0.45) / 0.55) ** 0.9;
+    const halfW = 0.006 + widest * lance;
+    const puff = 0.4 + 0.45 * Math.min(1, Math.max(0, (y - 0.9) / 0.9));
+    const spine = (1.05 - 0.45 * s) * lance * (1 - 0.55 * haze) + 0.12;
+    const rim = (0.3 - 0.3 * s) * lance * (1 - 0.6 * haze);
+    bright.setScalar(0.72 + 0.28 * Math.min(1, Math.max(0, (y - 0.95) / 0.85)));
+    const left = tuftVertex(
+      sink, out * dx - halfW * px, y, out * dz - halfW * pz, bright, uvOff, s, puff, rim,
+    );
+    const mid = tuftVertex(sink, out * dx, y, out * dz, bright, uvOff + 0.5, s, puff, spine);
+    const right = tuftVertex(
+      sink, out * dx + halfW * px, y, out * dz + halfW * pz, bright, uvOff + 1, s, puff, rim,
+    );
+    rows.push([left, mid, right]);
+  }
+  for (let r = 0; r < ROWS; r++) {
+    const [a0, a1, a2] = rows[r];
+    const [b0, b1, b2] = rows[r + 1];
+    tuftQuad(sink, a0, a1, b0, b1);
+    tuftQuad(sink, a1, a2, b1, b2);
+  }
+}
+
+/**
+ * A pampas stalk, and a plume built in tiers rather than as one tuft: wisps
+ * hugging the stem from partway down, a body of solid fins with hazier ones
+ * between, and a narrower crown reaching past them. Every fin tapers into the
+ * stalk at its base, which is what keeps the fluff from reading as a blob
+ * balanced on a stick.
  */
 function plumeGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
   const straw = new THREE.Color(0x8a8050);
-  const bright = new THREE.Color();
 
   for (const angle of [0, Math.PI / 2]) {
     const dx = Math.cos(angle);
     const dz = Math.sin(angle);
     const b0 = tuftVertex(sink, -0.016 * dx, 0, -0.016 * dz, straw, 0, 0, 0.05, 1);
     const b1 = tuftVertex(sink, 0.016 * dx, 0, 0.016 * dz, straw, 1, 0, 0.05, 1);
-    const t0 = tuftVertex(sink, -0.007 * dx, 1.45, -0.007 * dz, straw, 0, 1, 0.4, 1);
-    const t1 = tuftVertex(sink, 0.007 * dx, 1.45, 0.007 * dz, straw, 1, 1, 0.4, 1);
+    const t0 = tuftVertex(sink, -0.007 * dx, 1.3, -0.007 * dz, straw, 0, 1, 0.4, 1);
+    const t1 = tuftVertex(sink, 0.007 * dx, 1.3, 0.007 * dz, straw, 1, 1, 0.4, 1);
     tuftQuad(sink, b0, b1, t0, t1);
   }
 
-  const ROWS = 6;
-  const SKEW = [0.12, -0.08, 0.05, 0.15, -0.12, 0.02];
-  for (let f = 0; f < 6; f++) {
-    const haze = f % 2 === 1;
-    const angle = (f / 6) * Math.PI * 2 + SKEW[f];
-    const grow = haze ? 1.18 : 1;
-    const dx = Math.cos(angle);
-    const dz = Math.sin(angle);
-    const px = -dz;
-    const pz = dx;
-    const rows: [number, number, number][] = [];
-    for (let r = 0; r <= ROWS; r++) {
-      const s = r / ROWS;
-      const y = 1.4 + (s * 0.66 - s * s * 0.16) * grow;
-      const reach = (0.04 + s * 0.2) * grow;
-      const halfW = (0.03 + 0.1 * Math.max(0, 1 - Math.abs(s - 0.38) / 0.62)) * grow;
-      const puff = 0.55 + 0.45 * s;
-      const spine = haze ? 0.5 - 0.38 * s : 1.08 - 0.5 * s;
-      const rim = haze ? 0.12 - 0.25 * s : 0.32 - 0.42 * s;
-      bright.setScalar(0.8 + 0.2 * s);
-      const left = tuftVertex(
-        sink, reach * dx - halfW * px, y, reach * dz - halfW * pz,
-        bright, f * 1.7, s, puff, rim,
-      );
-      const mid = tuftVertex(sink, reach * dx, y, reach * dz, bright, f * 1.7 + 0.5, s, puff, spine);
-      const right = tuftVertex(
-        sink, reach * dx + halfW * px, y, reach * dz + halfW * pz,
-        bright, f * 1.7 + 1, s, puff, rim,
-      );
-      rows.push([left, mid, right]);
-    }
-    for (let r = 0; r < ROWS; r++) {
-      const [a0, a1, a2] = rows[r];
-      const [b0, b1, b2] = rows[r + 1];
-      tuftQuad(sink, a0, a1, b0, b1);
-      tuftQuad(sink, a1, a2, b1, b2);
-    }
-  }
+  // Wisps: where the plume starts leaving the stem.
+  plumeFin(sink, 0.7, 0.92, 1.25, 0.1, 0.05, 0.75, 0);
+  plumeFin(sink, 3.6, 0.96, 1.28, 0.1, 0.05, 0.75, 1.7);
+  // The body, and the haze between its fins.
+  plumeFin(sink, 0.0, 1.08, 1.55, 0.16, 0.11, 0, 3.4);
+  plumeFin(sink, 2.09, 1.1, 1.52, 0.16, 0.11, 0, 5.1);
+  plumeFin(sink, 4.19, 1.06, 1.56, 0.16, 0.11, 0, 6.8);
+  plumeFin(sink, 1.05, 1.05, 1.6, 0.2, 0.13, 0.6, 8.5);
+  plumeFin(sink, 3.14, 1.08, 1.58, 0.2, 0.13, 0.6, 10.2);
+  plumeFin(sink, 5.24, 1.02, 1.62, 0.2, 0.13, 0.6, 11.9);
+  // The crown, narrower and highest.
+  plumeFin(sink, 0.5, 1.3, 1.82, 0.1, 0.085, 0.25, 13.6);
+  plumeFin(sink, 2.6, 1.32, 1.8, 0.1, 0.085, 0.25, 15.3);
+  plumeFin(sink, 4.7, 1.28, 1.84, 0.1, 0.085, 0.25, 17);
 
   return tuftGeometry(sink);
 }

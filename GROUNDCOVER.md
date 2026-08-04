@@ -77,9 +77,10 @@ A cover type is up to two layers, both optional (`world/ground.ts`):
   pitch; crop stubble actually grows in rows). Grass, tussock, stubble, weeds, moss,
   sedge and heather's scrub are all this one ribbon with different numbers.
 - **`props`** — a small authored mesh scattered among the blades: `plume` (a pampas
-  stalk under six stippled fins), `bloom` (a stem and a flower head, tinted per
-  instance from the type's own `tints` palette), or `leaf` (a clover stalk with
-  three round leaflets). `flowers` is grass plus a mixed stand of blooms; `heather`
+  stalk whose plume is built in tiers — wisps hugging the stem, a body of solid and
+  haze fins, a narrow crown — every fin tapering into the stalk at its base),
+  `bloom` (a stem and a flower head, tinted per instance from the type's own `tints`
+  palette), or `leaf` (a clover stalk with three round leaflets). `flowers` is grass plus a mixed stand of blooms; `heather`
   is woody scrub hazed with purple ones; `clover` is a short nap under leaf props;
   `plume` is long dry grass plus pampas. Adding a type is a table row; adding a prop
   kind is a builder function and a table row.
@@ -101,12 +102,14 @@ the line on the showcase bank is not authored anywhere.
 ## The player controls
 
 **A toggle, and a density tier when it is on: low, medium, high, ultra.** Off skips
-every cover draw outright. The type table is authored at **ultra**; each tier below
-draws a fraction of the same sampled pool (0.18 / 0.4 / 0.6 / 1) — and because every
-chunk's instances are shuffled at build, a fraction is a prefix, so switching tiers
-is an instance count and costs nothing. Medium is an ordinary field; the default is
-high. Props thin on a square-root curve rather than the tier's own, because they are
-the accents — a plume field thinned as hard as its grass is a field with no plumes.
+every cover draw outright. The type table is authored at **ultra**, which is twice a
+thick field; each tier below draws a fraction of the same sampled pool
+(0.09 / 0.2 / 0.3 / 1) — and because every chunk's instances are shuffled at build, a
+fraction is a prefix, so switching tiers is an instance count and costs nothing.
+Medium is an ordinary field, high (the default) a thick one, and ultra is every blade
+there is. Props thin on a square-root curve rather than the tier's own, because they
+are the accents — a plume field thinned as hard as its grass is a field with no
+plumes.
 
 Tuning multipliers over the table (`cover.density`, `cover.height`, `cover.width`)
 live in the render preset and the debug folder, never in the player's menu.
@@ -118,9 +121,9 @@ interact.
 ## Cost
 
 - **Vertex** — 9 verts × blades drawn. The budget check holds every zone at or
-  under **500k blades sampled at ultra** (the countryside sits at ~417k); the
-  default high tier draws 0.6 of that and chunk culling carries roughly a third of
-  what remains in a frame. Desktop-only makes this fine, and ultra is opt-in.
+  under **1M blades sampled at ultra** (the countryside sits at ~830k); the default
+  high tier draws 0.3 of that and chunk culling carries roughly a third of what
+  remains in a frame. Desktop-only makes this fine, and ultra is opt-in.
 - **Fragment** — trivial: no discard on blades, flat Lambert, one varying tint.
 - **CPU** — the sampler runs once per zone build, a few tens of ms behind the
   transition fade. Per frame: four uniforms.
@@ -151,10 +154,10 @@ interact.
 - **Blade width against the pixel clamp.** If distant fields read as uniformly thick
   thatch, widths are hitting the clamp everywhere and the table's widths only matter
   up close. That may be fine; it may want narrower far tint instead.
-- **The plume mesh.** Authored blind: stalk height, the droop and reach of the six
-  fins (three solid, three haze), the stipple grain (32 cells along a fin) and the
-  backlight strength all want looking at, ideally at a low sun angle. The clover
-  leaflets and the heather bloom haze are the same kind of guess.
+- **The plume mesh.** Authored blind: the tier heights, each fin's reach and lance
+  shape, the stipple grain (32 cells along a fin) and the backlight strength all
+  want looking at, ideally at a low sun angle. The clover leaflets and the heather
+  bloom haze are the same kind of guess.
 - **Depth-edge speckle.** Blades write depth and the edge pass fires on depth steps,
   so every blade can carry a dark outline like any other prop. That is the house
   style, but a whole field of it may be noisier than a few props of it.
