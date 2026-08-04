@@ -190,6 +190,14 @@ export interface BladeLayer {
   sprawl: number;
   /** Blade colour. Mixed with the ground's own so patches read through. */
   tint: number;
+  /**
+   * How much of the ground's colour mixes into the tint, 0..1. Default 0.25.
+   *
+   * Near zero for anything that grows on surfaces darker than itself — moss
+   * lives on stone and mud, and inheriting a quarter of those makes it black
+   * wherever it is most at home.
+   */
+  blend?: number;
   /** 0 even .. 1 ragged: how much blade length varies. Default 0.3. */
   vary?: number;
   /** Row pitch in metres. Set, blades grow only in rows — crop stubble. */
@@ -258,8 +266,8 @@ export const COVER_TYPES = {
   /** Thick soft chunks of green, not very short grass. See `mound`. */
   moss: {
     blades: {
-      length: 0.18, width: 0.06, density: 320, give: 0.12, sprawl: 0.35,
-      tint: 0x455c31, vary: 0.05, mound: 1,
+      length: 0.19, width: 0.06, density: 320, give: 0.12, sprawl: 0.35,
+      tint: 0x4c6634, vary: 0.05, mound: 1, blend: 0.06,
     },
   },
   /** Meadow grass with a mixed stand of flower heads. Authored only. */
@@ -290,22 +298,22 @@ export const COVER_TYPES = {
   /** Crawling ivy: leaves flat against a wall. `userData.cover` on the mesh. */
   ivy: {
     walls: true,
-    props: { kind: 'ivy', density: 9, scale: 1, tint: 0x3f5c30, tints: [0x3f5c30, 0x4a6636, 0x36512b] },
+    props: { kind: 'ivy', density: 14, scale: 1, tint: 0x3f5c30, tints: [0x3f5c30, 0x4a6636, 0x36512b] },
   },
   /** A climbing rose: sparser foliage with clustered blooms through it. */
   rose: {
     walls: true,
     props: [
-      { kind: 'ivy', density: 5, scale: 0.9, tint: 0x445c32, tints: [0x445c32, 0x4f6839] },
-      { kind: 'posy', density: 4.5, scale: 1, tint: 0xc76a72, tints: [0xc76a72, 0xd8888e, 0xb85560] },
+      { kind: 'ivy', density: 10, scale: 0.9, tint: 0x445c32, tints: [0x445c32, 0x4f6839] },
+      { kind: 'posy', density: 6.5, scale: 1, tint: 0xc76a72, tints: [0xc76a72, 0xd8888e, 0xb85560] },
     ],
   },
   /** Wisteria: foliage above, racemes hanging out of it. */
   wisteria: {
     walls: true,
     props: [
-      { kind: 'ivy', density: 5, scale: 1.1, tint: 0x53663a, tints: [0x53663a, 0x5e7242] },
-      { kind: 'raceme', density: 5.5, scale: 1, tint: 0x9a86c6, tints: [0x9a86c6, 0xb0a0d6, 0x8a74b8] },
+      { kind: 'ivy', density: 10, scale: 1.1, tint: 0x53663a, tints: [0x53663a, 0x5e7242] },
+      { kind: 'raceme', density: 7.5, scale: 1, tint: 0x9a86c6, tints: [0x9a86c6, 0xb0a0d6, 0x8a74b8] },
     ],
   },
 } as const satisfies Record<string, CoverType>;

@@ -706,20 +706,23 @@ function ivyGeometry(): THREE.BufferGeometry {
     }
   }
 
-  // Leaves along the runs, each near a vine point but off it a little.
+  // Leaves along the runs, each near a vine point but off it a little. Only
+  // the third of each triple is droppable: a crawl varies at its fringe and
+  // stays a crawl at its heart, where dropping any leaf leaves bare wall.
   let cell = 0;
   for (const run of RUNS) {
     for (let p = 0; p < run.length; p++) {
-      for (let l = 0; l < 2; l++) {
+      for (let l = 0; l < 3; l++) {
         cell++;
         const j1 = ((cell * 0.618) % 1) - 0.5;
         const j2 = ((cell * 0.414) % 1) - 0.5;
-        const x = run[p][0] + j1 * 0.09;
-        const y = run[p][1] + j2 * 0.09 + 0.02;
+        const x = run[p][0] + j1 * 0.1;
+        const y = run[p][1] + j2 * 0.1 + 0.02;
         const z = 0.024 + 0.028 * ((cell * 0.271) % 1);
-        const half = 0.024 + 0.014 * ((cell * 0.372) % 1);
+        const half = 0.027 + 0.014 * ((cell * 0.372) % 1);
         leaf.setScalar(0.82 + 0.32 * ((cell * 0.417) % 1));
-        wallLeaf(sink, x, y, z, half, cell * 2.4, leaf, cell, 0.1 + 0.1 * ((cell * 0.19) % 1), 0.75);
+        const solid = l === 2 ? 0.72 : 1;
+        wallLeaf(sink, x, y, z, half, cell * 2.4, leaf, cell, 0.1 + 0.1 * ((cell * 0.19) % 1), solid);
       }
     }
   }
@@ -1091,13 +1094,20 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         if (mound > 0) {
           const t = Math.min(Math.max((coverMound(wx, wz) - 0.38) / 0.24, 0), 1);
           crest = t * t * (3 - 2 * t);
-          length += (layer.length * (0.25 + 1.3 * crest) * (0.9 + 0.2 * h1) - length) * mound;
+          // Even a hollow is a pad of moss, not bare — the chunks stand out of
+          // it rather than off the ground.
+          length += (layer.length * (0.62 + 1.0 * crest) * (0.9 + 0.2 * h1) - length) * mound;
         }
         sample.maxLen = Math.max(sample.maxLen, length);
 
-        tint.set(layer.tint).lerp(faceTint, 0.25);
+        // How much of the ground's own colour bleeds through, so a patch reads
+        // as standing on what it stands on. Moss keeps its own green: it grows
+        // on stone and mud, and inheriting those turns it black.
+        tint.set(layer.tint).lerp(faceTint, layer.blend ?? 0.25);
+        // Crests catch more light than hollows lose — a mass lit from above,
+        // not a field of pits.
         const shade =
-          clumpShade * (0.92 + 0.16 * h2) * (1 + mound * (crest - 0.45) * 0.6);
+          clumpShade * (0.92 + 0.16 * h2) * (1 + mound * (crest - 0.3) * 0.45);
 
         const key = `${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
         let chunk = sample.blades.get(key);
