@@ -66,6 +66,27 @@ Offsetting along world +Y sidesteps it entirely, and grass growing straight up i
 more correct anyway. The slope case handles itself: `rockAngle` already turns
 faces past 34° to rock, and rock grows nothing.
 
+### A smooth height field, not a lattice of cells
+
+The technique above says "hashes world XZ into cells and discards any fragment whose
+cell does not reach this shell's height", and that is what was built first: a grid of
+cells, one tuft each, tested against a disc. **It moirés, and no amount of jittering
+fixes it.** A grid of hard edges whose period lands on a few pixels is an interference
+pattern against the pixel grid; jittering the tuft inside its cell keeps the period and
+only softens the fringe, and rotating the grid per clump turns one fringe into patches
+of them. At `pixelSize: 2` a chunky pixel covers about 5 mm underfoot and 4 cm five
+paces out, so *some* distance always lands in the beat.
+
+Two octaves of smooth value noise instead — 10 cm for the tufts, 3.5 cm for the strands
+inside them — read as a height field: keep the fragment where the field still reaches
+this shell. It is band-limited, so at a couple of samples per feature it reconstructs
+rather than fringing, and it has no period to beat against anything.
+
+It also makes the type table say what it means. A cell radius set coverage and tuft
+width at once and they pull opposite ways; a floor under the field sets coverage alone
+(`hold`) and a power on what clears it sets how fast a tuft narrows (`taper`). Sparse
+weeds and solid moss come out of the same field with a different floor.
+
 ### Hash world XZ, not UVs
 
 `assemble.ts` deletes UVs on principle, and the terrain has *variable* face
@@ -277,6 +298,15 @@ groundcover, just without profile.
   layers show; over twelve is paying for nothing. It interacts with the chunky
   resolution in a way arithmetic will not settle. The default of 60 is a starting
   point, not a finding.
+- **There is no distance LOD, and that is a decision rather than an omission.** One
+  was built — the field converging on its own average as a cell went under a pixel,
+  which is the mipmap a procedural discard cannot have — and every version of it read
+  as a ring on the ground moving with the player. Matching the two sides on brightness
+  and on texture both failed: the eye finds the contour anyway, because it is a
+  contour. The cover is therefore the same everywhere, and what it costs is aliasing
+  in the far field. Should that need addressing, the shape to reach for is a *dithered*
+  transition — chosen per sample so the boundary is a stipple — and not a smoother
+  blend, which is what has already been tried three times.
 - **Depth-edge speckle.** Shells write depth, and the edge pass fires on depth
   differences of 0.01–0.02. A carpet of cross-sections a few centimetres apart may
   add fine noise to the outline. If it does, the fix is a depth bias on the shells

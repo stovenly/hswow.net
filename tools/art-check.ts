@@ -299,14 +299,11 @@ check(
     ['the shell lift', shader.vertexShader, 'transformed.y += rise'],
     ['the height swell', shader.vertexShader, 'float swell = mix('],
     ['the wind shear', shader.vertexShader, 'vCoverPlace = vec4('],
-    ['the strand discard', shader.fragmentShader, 'if (up > mix('],
-    // Without it the fade converges on "covered" and bare rock grows a slab of
-    // zero-height shells at distance, in a ring that follows the player.
+    ['the height field', shader.fragmentShader, 'float field = 0.68 * coverNoise('],
+    ['the tuft floor', shader.fragmentShader, 'if (tuft <= 0.0) discard;'],
+    ['the taper discard', shader.fragmentShader, 'if (up > reach) discard;'],
     ['the bare-face early out', shader.fragmentShader, 'if (vCoverBlade.x <= 0.0) discard;'],
-    // Missing, the near view still looks perfect and every field in the game
-    // grows an interference fringe past a few paces.
-    ['the resolve fade', shader.fragmentShader, 'float resolve = clamp('],
-    ['the blade colour', shader.fragmentShader, 'vec3 blade = mix(vCoverTint'],
+    ['the blade colour', shader.fragmentShader, 'mix(vCoverTint, diffuseColor.rgb, 0.25)'],
   ] as const) {
     (source.includes(needle) ? landed : missed).push(what);
   }
