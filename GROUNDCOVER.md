@@ -111,9 +111,15 @@ A cover type is a blade layer and any number of prop layers, all optional
   the wall is a bloom nobody sees; the stalk is what keeps that reading as held
   out rather than floating. One authored mesh per kind, but leaves, buds and tail
   florets each pin a whole quad to one stipple cell at under-1 solidity, so every
-  *instance* drops a different set of them — and the crawling kinds spin freely
-  in the wall plane per instance, where a raceme must keep hanging. Both are the
-  antidote to one shape stamped over and over.
+  *instance* drops a different set of them. Rotation varies too, but the axis
+  depends on the shape: a crawl is a flat half-metre sheet lying in the wall
+  plane, so it **rolls** about the wall's normal (which keeps it in the plane)
+  and never turns about the vertical — turning a wide flat thing about the
+  vertical puts its far end behind the wall, where it is depth-tested away and
+  silently not there. A raceme is the opposite: compact, cannot roll because it
+  must keep hanging, free to **turn** on what it hangs from. `check:art`
+  measures every wall kind against its own turn and fails if anything ends up
+  inside the masonry.
 
 The pampas plume is Tsushima's own recipe — their fields are procedural blades with
 *modelled* stalks and tufts scattered through them — done in this project's idiom: the
