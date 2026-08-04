@@ -62,6 +62,9 @@ const RAMP = 0.4;
 /** Half-width of a crop row, metres. The pitch is the type's own. */
 const ROW_BAND = 0.14;
 
+/** How far off its face a wall prop is rooted. See `PROP_TURN`. */
+export const WALL_LIFT = 0.02;
+
 export const coverUniforms = {
   /** Global length and width multipliers, for tuning. */
   coverHeight: { value: 1 },
@@ -797,11 +800,23 @@ function posyGeometry(): THREE.BufferGeometry {
   return tuftGeometry(sink);
 }
 
+/** Deterministic wobble for authoring — irregularity without an `Rng`. */
+function wob(i: number, k: number): number {
+  return ((i + 1) * 0.6180339887 + k * 0.4142135624) % 1;
+}
+
 /**
  * A wisteria raceme: two crossed strips as the hanging core, drifting a
  * little as they fall, with florets — small petal quads — stuck out around
  * the chain, shrinking and fading toward the stippled tail. Authored white;
  * the instance tint is the flower.
+ *
+ * One mesh has to look like many, so nothing about it is regular: the chain
+ * wanders and pinches, florets come two or three to a level at wandering
+ * angles, reaches and droops, and *every* floret is pinned to its own stipple
+ * cell below full solidity — so each instance drops a different share of them
+ * and no two racemes carry the same silhouette. Instances also turn about the
+ * hang, which a hanging thing can do freely; see `PROP_TURN`.
  */
 function racemeGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
@@ -813,7 +828,11 @@ function racemeGeometry(): THREE.BufferGeometry {
   const centers: [number, number, number][] = [];
   for (let l = 0; l <= LEVELS; l++) {
     const s = l / LEVELS;
-    centers.push([Math.sin(l * 1.7) * 0.018, -0.03 - 0.44 * s, 0.125 + Math.cos(l * 1.3) * 0.014]);
+    centers.push([
+      Math.sin(l * 1.7) * 0.018 + (wob(l, 3) - 0.5) * 0.016,
+      -0.03 - 0.44 * s - (wob(l, 5) - 0.5) * 0.02,
+      0.125 + Math.cos(l * 1.3) * 0.014 + (wob(l, 7) - 0.5) * 0.012,
+    ]);
   }
 
   // The peduncle: what it hangs from, so the chain reads as held out rather
@@ -827,7 +846,9 @@ function racemeGeometry(): THREE.BufferGeometry {
     for (let l = 0; l <= LEVELS; l++) {
       const s = l / LEVELS;
       const [cx, cy, cz] = centers[l];
-      const half = 0.006 + 0.036 * (1 - s * 0.8);
+      // Pinched where the wobble says, so the core is a knobbly chain rather
+      // than a smooth cone.
+      const half = (0.006 + 0.036 * (1 - s * 0.8)) * (0.7 + 0.6 * wob(l, 11 + angle));
       const puff = 0.25 + 0.5 * s;
       const solid = s < 0.55 ? 1 : s < 0.9 ? 0.85 : 0.55;
       bloom.setScalar(1 - 0.18 * s);
@@ -841,30 +862,35 @@ function racemeGeometry(): THREE.BufferGeometry {
   }
 
   // Florets around the chain: what makes it a stack of flowers rather than a
-  // cone. Two per level at spiralled angles, drooping a little, the lower
-  // ones droppable per instance so no two tails match.
+  // cone. Two or three to a level, and every one droppable.
+  let cell = 80;
   for (let l = 0; l <= LEVELS; l++) {
     const s = l / LEVELS;
     const [cx, cy, cz] = centers[l];
-    const reach = 0.014 + 0.038 * (1 - s * 0.75);
-    for (let p = 0; p < 2; p++) {
-      const phi = l * 2.1 + p * Math.PI + 0.6;
+    const count = wob(l, 13) > 0.45 ? 3 : 2;
+    for (let p = 0; p < count; p++) {
+      cell++;
+      const phi = l * 2.1 + (p / count) * Math.PI * 2 + wob(cell, 17) * 1.5;
+      const reach = (0.014 + 0.038 * (1 - s * 0.75)) * (0.68 + 0.62 * wob(cell, 19));
       const ox = Math.cos(phi) * reach;
       // Biased outward, so the back of the ring hangs in front of the leaves
       // rather than reaching back into the wall.
       const oz = reach * (0.35 + 0.75 * Math.sin(phi));
-      const half = 0.017 * (1 - s * 0.6) + 0.004;
-      bloom.setScalar(1.04 - 0.24 * s - 0.06 * p);
-      const cell = 80 + l * 2 + p;
+      const half = (0.017 * (1 - s * 0.6) + 0.004) * (0.7 + 0.7 * wob(cell, 23));
+      // Some hang, some tuck up under the one above.
+      const drop = 0.9 + 1.4 * wob(cell, 29);
+      bloom.setScalar(0.94 + 0.18 * wob(cell, 31) - 0.22 * s);
       const u = (cell * 0.173) % 1;
       const v = (cell * 0.317) % 1;
-      const solid = s < 0.5 ? 1 : 0.7;
+      // Every floret drops on some instances, more toward the tail. This is
+      // what stops one mesh reading as one shape.
+      const solid = 0.78 - 0.22 * s;
       const puff = 0.3 + 0.5 * s;
       // A petal spanning outward and down, so the cluster reads knobbly.
       const a0 = tuftVertex(sink, cx + ox - oz * 0.4, cy - 0.004, cz + oz + ox * 0.4, bloom, u, v, puff, solid);
       const a1 = tuftVertex(sink, cx + ox + oz * 0.4, cy - 0.004, cz + oz - ox * 0.4, bloom, u, v, puff, solid);
-      const b0 = tuftVertex(sink, cx + ox * 1.6 - oz * 0.4, cy - 0.004 - half * 1.6, cz + oz * 1.6 + ox * 0.4, bloom, u, v, puff, solid);
-      const b1 = tuftVertex(sink, cx + ox * 1.6 + oz * 0.4, cy - 0.004 - half * 1.6, cz + oz * 1.6 - ox * 0.4, bloom, u, v, puff, solid);
+      const b0 = tuftVertex(sink, cx + ox * 1.6 - oz * 0.4, cy - 0.004 - half * drop, cz + oz * 1.6 + ox * 0.4, bloom, u, v, puff, solid);
+      const b1 = tuftVertex(sink, cx + ox * 1.6 + oz * 0.4, cy - 0.004 - half * drop, cz + oz * 1.6 - ox * 0.4, bloom, u, v, puff, solid);
       tuftQuad(sink, a0, a1, b0, b1);
     }
   }
@@ -902,6 +928,26 @@ const PROP_ROLLS: Record<PropLayer['kind'], boolean> = {
   ivy: true,
   posy: true,
   raceme: false,
+};
+
+/**
+ * How far a wall prop turns about the vertical, radians either side of facing
+ * its wall.
+ *
+ * A crawl gets none: it is a flat sheet half a metre wide lying in the wall
+ * plane, and turning it about the vertical is what takes its far end *behind*
+ * the wall, where it silently stops drawing. Its variety comes from the roll,
+ * which stays in the plane. A raceme is the opposite case — compact, cannot
+ * roll, but free to turn on the thing it hangs from, which shows a different
+ * face of the same mesh. `check:art` measures each against its own turn.
+ */
+export const PROP_TURN: Record<PropLayer['kind'], number> = {
+  plume: 0,
+  bloom: 0,
+  leaf: 0,
+  ivy: 0,
+  posy: 0.3,
+  raceme: 1.5,
 };
 
 const propGeometry: Partial<Record<PropLayer['kind'], THREE.BufferGeometry>> = {};
@@ -1211,12 +1257,12 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         }
         // Wall props sit just off their face and yaw to it, give or take;
         // ground props spin freely.
-        const lift = walls ? 0.02 : 0;
+        const lift = walls ? WALL_LIFT : 0;
         chunk.place.push(
           va.x * w0 + vb.x * r1 + vc.x * r2 + normal.x * lift,
           va.y * w0 + vb.y * r1 + vc.y * r2 + normal.y * lift,
           va.z * w0 + vb.z * r1 + vc.z * r2 + normal.z * lift,
-          walls ? yawWall + (h2 - 0.5) * 0.6 : h2 * Math.PI * 2,
+          walls ? yawWall + (h2 - 0.5) * PROP_TURN[props.kind] : h2 * Math.PI * 2,
         );
         chunk.prop.push(props.scale * (0.8 + 0.4 * h1), 0.8 + 0.9 * h3, h3, PROP_GLOW[props.kind]);
         chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);

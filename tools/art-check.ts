@@ -30,6 +30,9 @@ import {
   TUFT_MATERIAL,
   COVER_NORMAL_MATERIAL,
   TUFT_NORMAL_MATERIAL,
+  PROP_TURN,
+  WALL_LIFT,
+  coverFor,
 } from '../src/art/cover';
 import { windUniforms } from '../src/art/sway';
 
@@ -343,6 +346,48 @@ check(
     'groundcover answers the same gust as the trees',
     shared,
     shared ? 'one gust texture, shared by reference' : 'a cover material has its own gust field',
+  );
+
+  /**
+   * Wall cover stands in front of its wall.
+   *
+   * A wall prop is authored in the wall's frame and then turned about the
+   * vertical per instance, which takes anything wide *behind* the wall face,
+   * where it is depth-tested away and simply never seen. The failure is
+   * invisible in every other measurement — the props are placed, counted and
+   * drawn, they just are not there — so the geometry is measured against its
+   * own turn instead. The ivy shipped like this: a half-metre crawl turned
+   * seventeen degrees lost its far end 14 cm into the masonry.
+   */
+  const buried: string[] = [];
+  const clearances: string[] = [];
+  for (const type of ['ivy', 'rose', 'wisteria'] as const) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 0.7));
+    const grown = coverFor(wall, type);
+    const seen = new Set<string>();
+    grown?.traverse((mesh) => {
+      if (!(mesh instanceof THREE.Mesh) || seen.has(mesh.name)) return;
+      seen.add(mesh.name);
+      const kind = mesh.name.replace('cover-', '') as keyof typeof PROP_TURN;
+      const turn = (PROP_TURN[kind] ?? 0) / 2;
+      const position = mesh.geometry.getAttribute('position');
+      let worst = Infinity;
+      for (let i = 0; i < position.count; i++) {
+        const out = position.getZ(i) * Math.cos(turn) - Math.abs(position.getX(i)) * Math.sin(turn);
+        worst = Math.min(worst, out);
+      }
+      // Props are lifted `WALL_LIFT` off the face and scale up to 1.2.
+      const clearance = worst * 1.2 + WALL_LIFT;
+      clearances.push(`${kind} ${(clearance * 100).toFixed(1)} cm`);
+      if (clearance < 0) buried.push(`${kind} by ${(-clearance * 100).toFixed(1)} cm`);
+    });
+  }
+  check(
+    'wall cover stands in front of its wall',
+    buried.length === 0,
+    buried.length === 0
+      ? `closest approach: ${clearances.join(', ')}`
+      : `turned into the wall: ${buried.join(', ')}`,
   );
 }
 
