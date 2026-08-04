@@ -150,6 +150,6 @@ export const hopper: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'hopper', 0, 'metal-solid');
+    return finish(geometry, 'hopper', 0, 'metal-hollow-big');
   },
 };

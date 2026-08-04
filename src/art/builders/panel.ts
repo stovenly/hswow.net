@@ -243,6 +243,6 @@ export const panel: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'panel', 0, 'metal-solid');
+    return finish(geometry, 'panel', 0, 'metal-hollow-small');
   },
 };

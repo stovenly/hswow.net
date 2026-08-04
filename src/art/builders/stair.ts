@@ -100,6 +100,50 @@ export const stair: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'stair', 0);
+    const mesh = finish(geometry, 'stair', 0, 'metal-ring');
+
+    // --- what the player actually walks on -----------------------------------
+    //
+    // **A capsule cannot climb a real staircase.** Driven at one headlessly, the
+    // controller reports `grounded === false` for the entire ascent: the deepest
+    // contact each sub-step is a riser or a nosing, whose normal is nowhere near
+    // vertical, so nothing ever counts as standing. The player is shoved out of
+    // one riser, falls, catches the next, and reaches the top having technically
+    // been airborne the whole way.
+    //
+    // Everything downstream of that breaks, and none of it looks like a
+    // collision bug. Air acceleration replaces ground acceleration, so speed
+    // lurches between 1 and 4 m/s. Step smoothing is gated on being grounded, so
+    // the camera jumps a full tread at a time. `advanceBob` returns early when
+    // airborne, so **a staircase is silent** — no footfalls at all.
+    //
+    // So the geometry you see is not the geometry you stand on. A plane above
+    // every tread has a constant 37° normal, inside the slope limit, and the
+    // climb becomes an ordinary walk up a hill: grounded throughout, ground
+    // acceleration, footsteps, and a camera rising in a straight line because
+    // the surface under it is straight.
+    //
+    // **It rides the leading corners**, which is where a straight plane over a
+    // sawtooth has to sit: the front edge of each tread is the binding
+    // constraint, so the plane touches there and clears the back of that same
+    // tread by about seven tenths of a rise. Thirteen centimetres of daylight
+    // under the boots at the back of each step — in a game with no visible feet
+    // and no player shadow, nobody can see it and everybody can feel it.
+    const lift = rise * 0.86 + 0.02;
+    const thickness = 0.08;
+    const ramp = new THREE.BoxGeometry(width * 0.94, thickness, long + 0.7);
+    ramp.rotateX(pitch);
+    // Dropped by half a thickness measured along the *world* vertical rather
+    // than along the plane's own normal, so the top face lands on the line
+    // through the corners instead of near it.
+    ramp.translate(0, lift + top / 2 - thickness / 2 / Math.cos(pitch), -run / 2);
+    const walkway = new THREE.Mesh(ramp, mesh.material);
+    // Never drawn, always collided with. Visibility and collision are separate
+    // here — the octree filters by layer, which is what `markCollidable` sets —
+    // so an invisible mesh is as solid as any other.
+    walkway.visible = false;
+    walkway.userData.underfoot = 'metal-ring';
+    mesh.add(walkway);
+    return mesh;
   },
 };

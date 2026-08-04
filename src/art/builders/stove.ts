@@ -337,7 +337,7 @@ export const stove: MeshBuilder = {
       glowGeometry.scale(scale, scale, scale);
     }
 
-    const mesh = finish(geometry, 'stove', 0);
+    const mesh = finish(geometry, 'stove', 0, 'metal-hollow-small');
     mesh.add(finishGlow(glowGeometry, 'stove:glow'));
 
     const light = new THREE.PointLight(

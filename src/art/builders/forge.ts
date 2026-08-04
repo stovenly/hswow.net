@@ -197,7 +197,7 @@ export const forge: MeshBuilder = {
       glowGeometry.scale(scale, scale, scale);
     }
 
-    const mesh = finish(geometry, 'forge', 0);
+    const mesh = finish(geometry, 'forge', 0, 'metal-solid');
     mesh.add(finishGlow(glowGeometry, 'forge:glow'));
 
     const light = new THREE.PointLight(
