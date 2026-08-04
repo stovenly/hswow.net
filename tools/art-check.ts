@@ -25,7 +25,12 @@ import type { MeshBuilder } from '../src/art/types';
 import { SWAY_ATTRIBUTE } from '../src/art/assemble';
 import { CLUTTER } from '../src/art/clutter';
 import { FLEX } from '../src/art/flex';
-import { COVER_MATERIAL, TUFT_MATERIAL } from '../src/art/cover';
+import {
+  COVER_MATERIAL,
+  TUFT_MATERIAL,
+  COVER_NORMAL_MATERIAL,
+  TUFT_NORMAL_MATERIAL,
+} from '../src/art/cover';
 import { windUniforms } from '../src/art/sway';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
@@ -279,12 +284,11 @@ check(
 // the material compiles, the mesh draws, and every blade stands at the origin.
 // Nothing about that is an error anywhere.
 {
-  const compiled = (material: THREE.Material) => {
-    const lambert = THREE.ShaderLib.lambert;
+  const compiled = (material: THREE.Material, lib: THREE.ShaderLibShader) => {
     const shader = {
       uniforms: {} as Record<string, unknown>,
-      vertexShader: lambert.vertexShader,
-      fragmentShader: lambert.fragmentShader,
+      vertexShader: lib.vertexShader,
+      fragmentShader: lib.fragmentShader,
     };
     material.onBeforeCompile(
       shader as unknown as THREE.WebGLProgramParametersWithUniforms,
@@ -292,8 +296,12 @@ check(
     );
     return shader;
   };
-  const blades = compiled(COVER_MATERIAL);
-  const tufts = compiled(TUFT_MATERIAL);
+  const blades = compiled(COVER_MATERIAL, THREE.ShaderLib.lambert);
+  const tufts = compiled(TUFT_MATERIAL, THREE.ShaderLib.lambert);
+  // The normal-pass twins compile against the normal program — see
+  // drawCoverNormals for why they exist.
+  const bladesNormal = compiled(COVER_NORMAL_MATERIAL, THREE.ShaderLib.normal);
+  const tuftsNormal = compiled(TUFT_NORMAL_MATERIAL, THREE.ShaderLib.normal);
 
   const landed: string[] = [];
   const missed: string[] = [];
@@ -311,6 +319,9 @@ check(
     ['the tuft tread', tufts.vertexShader, 'coverPlayer.xz'],
     ['the stipple', tufts.fragmentShader, '> vTuftGrain.z) discard'],
     ['the backlight', tufts.fragmentShader, 'outgoingLight += diffuseColor.rgb * coverGlow'],
+    ['the blade normal pass', bladesNormal.vertexShader, 'attribute vec4 iPlace;'],
+    ['the tuft normal pass', tuftsNormal.vertexShader, 'attribute vec4 iPlace;'],
+    ['the normal-pass stipple', tuftsNormal.fragmentShader, '> vTuftGrain.z) discard'],
   ] as const) {
     (source.includes(needle) ? landed : missed).push(what);
   }

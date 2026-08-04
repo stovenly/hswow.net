@@ -68,6 +68,11 @@ export interface ZoneEnvironment {
   ambientIntensity: number;
   ambientSky: number;
   ambientGround: number;
+  /**
+   * How hard the wind moves things here, over the weather's own strength.
+   * An exposed field blows harder than a sheltered yard. Default 1.
+   */
+  wind?: number;
   /** Which impulse response the reverb crossfades to. */
   room: RoomName;
   /** What the floor is made of, for footsteps. */

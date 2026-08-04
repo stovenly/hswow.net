@@ -113,9 +113,25 @@ export const windUniforms: WindUniforms = {
   windHalfSpan: { value: 1 },
   swayTime: { value: 0 },
   // A global scale, so the whole world's motion can be turned down without
-  // re-tuning seventy builders against each other.
+  // re-tuning seventy builders against each other. Composed below from the
+  // player's option and the active zone's own wind.
   swayAmount: { value: 1 },
 };
+
+let swayOption = 1;
+let swayZone = 1;
+
+/** The reduced-motion / wind-sway option. Zero stills everything. */
+export function setSwayOption(enabled: boolean): void {
+  swayOption = enabled ? 1 : 0;
+  windUniforms.swayAmount.value = swayOption * swayZone;
+}
+
+/** The active zone's wind, over the weather's. An exposed hilltop blows harder. */
+export function setZoneWind(factor: number): void {
+  swayZone = factor;
+  windUniforms.swayAmount.value = swayOption * swayZone;
+}
 
 /**
  * The depth material the shadow map is drawn with, displaced to match.
