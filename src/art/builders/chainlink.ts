@@ -103,6 +103,6 @@ export const chainlink: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'chainlink', 0, 'metal-solid');
+    return finish(geometry, 'chainlink', 0, 'metal-ring');
   },
 };

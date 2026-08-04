@@ -27,6 +27,16 @@ const RESOLVE_PASSES = 4;
 const STEP_DROP_SAMPLES = 6;
 
 /**
+ * Ceiling on how far the camera may trail the feet, in metres.
+ *
+ * The steady state on a staircase is a few centimetres and this never fires
+ * there. It exists for the case nobody planned: a very long flight taken at a
+ * sprint, where the lag would otherwise keep growing and the view would sink
+ * toward the treads.
+ */
+const MAX_STEP_LAG = 0.22;
+
+/**
  * How soon after landing a jump counts as a continuation rather than a new
  * push-off, in seconds.
  *
@@ -114,8 +124,18 @@ export interface PlayerTuning {
   /**
    * How fast the camera catches up after a step, in fractions per second.
    *
-   * High enough that the lag is never more than a few centimetres — this is
-   * smoothing a judder, not adding suspension.
+   * **Low enough that consecutive steps overlap**, which is the whole
+   * difference between a smoothed staircase and a smooth one. A tread is about
+   * 0.19 m and a walking pace puts one under you every quarter of a second; at
+   * 16 the camera had finished the whole rise inside a fifteenth of a second
+   * and then waited, so every step was a distinct 19 cm lurch with a pause
+   * after it — technically smoothed, and still a staircase.
+   *
+   * Slower, each rise is still being paid off when the next one lands, and they
+   * sum into one continuous climb. The cost is standing lag: the camera sits
+   * about five centimetres below the feet while climbing and settles the moment
+   * you stop. That is the trade, and it is worth it — the alternative is
+   * accurate eye height and a judder at four hertz.
    */
   stepSmoothing: number;
   groundAccel: number;
@@ -281,7 +301,7 @@ export const DEFAULT_TUNING: PlayerTuning = {
   crouchHeight: 0.58,
   crouchSpeed: 22,
   crouchDrag: 0.45,
-  stepSmoothing: 16,
+  stepSmoothing: 6,
   groundAccel: 14,
   airAccel: 7.5,
   friction: 10,
@@ -1016,19 +1036,35 @@ export class Controller {
 
     const feetY = this.capsule.start.y - t.radius;
 
-    // A step is an *upward* move, while grounded, of less than a step height.
-    // Bounding it above matters: a teleport or a fall arrival also moves the
-    // feet, and smoothing those would leave the camera drifting up through the
+    // A step is a move of less than a step height, while grounded, **in either
+    // direction**. Bounding it matters: a teleport or a fall arrival also moves
+    // the feet, and smoothing those would leave the camera drifting through the
     // floor for half a second after every portal.
+    //
+    // Going *down* used to be excluded, and that was simply a gap. A descent is
+    // the same sequence of instantaneous vertical jumps as a climb — see
+    // `snapToGround`, which feels its way down a tread at a time — so leaving it
+    // unsmoothed meant a staircase was comfortable in one direction and a
+    // hammer in the other. The formula needs no sign of its own: a negative lag
+    // puts the camera *above* the feet and pays back exactly the same way.
     if (this.lastFeetY !== null && this.grounded) {
       const climbed = feetY - this.lastFeetY;
-      if (climbed > 0.001 && climbed < t.stepHeight * 1.2) this.stepLag += climbed;
+      if (Math.abs(climbed) > 0.001 && Math.abs(climbed) < t.stepHeight * 1.2) {
+        this.stepLag += climbed;
+      }
     }
     this.lastFeetY = feetY;
     // Paid back exponentially. Fast enough that the camera is never far from
     // where the body is — which matters, because the lag is a lie about where
     // your eyes are and a long one would be felt as floating.
-    this.stepLag = Math.max(0, this.stepLag - this.stepLag * Math.min(dt * t.stepSmoothing, 1));
+    // Clamped, so a long flight taken quickly cannot accumulate a lag nobody
+    // asked for — the steady state is a few centimetres and this only catches
+    // the pathological case.
+    this.stepLag = THREE.MathUtils.clamp(
+      this.stepLag - this.stepLag * Math.min(dt * t.stepSmoothing, 1),
+      -MAX_STEP_LAG,
+      MAX_STEP_LAG,
+    );
     this.camera.position.set(
       this.capsule.start.x,
       feetY -
