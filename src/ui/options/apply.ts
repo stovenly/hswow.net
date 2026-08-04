@@ -1,6 +1,6 @@
 import { DEFAULT_TUNING } from '../../player/Controller';
 import { DEFAULT_AUDIO } from '../../audio/AudioEngine';
-import { windUniforms } from '../../art/sway';
+import { setSwayOption } from '../../art/sway';
 import { effective, type Options } from './model';
 import { setDyslexicFont } from './font';
 import type { AudioEngine } from '../../audio/AudioEngine';
@@ -117,7 +117,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   input.setCrouchMode(options.crouchMode);
 
   // --- accessibility -------------------------------------------------------
-  windUniforms.swayAmount.value = options.windSway ? 1 : 0;
+  setSwayOption(options.windSway);
   postfx.setWaterMotion(options.waterMotion);
   tuning.bobScale = options.headBob ? 1 : 0;
   setDyslexicFont(options.dyslexicFont);

@@ -72,3 +72,15 @@ export const GLOW_LAYER = 2;
  * stops at it and never enables anything.
  */
 export const WATER_LAYER = 3;
+
+/**
+ * Groundcover — blades and props — additive like the first two.
+ *
+ * Read by `PixelStage`'s normal pass: the scene-wide override material cannot
+ * know the instanced cover construction, so after the override render the
+ * camera points at this layer alone and the cover draws itself into the normal
+ * buffer with its own patched normal materials. Without that, the edge
+ * detector outlines whatever stands *behind* a blade or a plume straight
+ * through it — worst against the rim hills, whose normals are full of edges.
+ */
+export const COVER_LAYER = 4;

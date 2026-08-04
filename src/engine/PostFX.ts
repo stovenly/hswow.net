@@ -608,8 +608,10 @@ export class PostFX {
    *   the lantern rather than as something burning.
    * - **Cover.** The blade and tuft construction lives in the cover materials'
    *   own vertex shaders, so an override material would draw every instance as
-   *   an untransformed sliver at its mesh's origin. And a blade is shaded by
-   *   the *ground's* normal, so the buffer already says the right thing.
+   *   an untransformed sliver at its mesh's origin. Hidden here, and drawn
+   *   into the normal buffer afterwards with its own patched materials — see
+   *   `drawCoverNormals` — or the edge pass outlines whatever stands behind a
+   *   blade straight through it.
    *
    * Three tests `material.visible` while it is building the render list, and
    * `scene.onBeforeRender` fires just before that happens. Each is one shared

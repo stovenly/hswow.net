@@ -64,8 +64,14 @@ front rolls across a field of grass exactly when it rolls through the trees stan
 in it. On top: a slow breathe, a two-frequency tip flutter, and for props a *lagged*
 gust sample, so a heavy plume head answers a beat after the grass under it.
 
-The player carries a displacement sphere at their feet: blades within ~0.85 m push
-radially away and spring back behind them. One uniform, updated per frame.
+The player carries a displacement sphere at their feet: blades and stalks within
+~0.85 m push radially away and spring back behind them. One uniform, updated per
+frame.
+
+A zone can state its own wind over the weather's — `ZoneEnvironment.wind`, a
+multiplier composed into `swayAmount` alongside the reduced-motion option. An
+exposed field blows harder than a sheltered yard; the showcase states 1.6, because
+the sway is half of what that room exists to show.
 
 ## The type table
 
@@ -128,9 +134,13 @@ interact.
 - **CPU** — the sampler runs once per zone build, a few tens of ms behind the
   transition fade. Per frame: four uniforms.
 - **Draw calls** — one per 24 m chunk per layer, single digits in view.
-- **Not in the normal pass, not casting shadows.** The override material cannot know
-  the instanced construction, and the normal buffer already says the right thing —
-  the ground's own normal. See `PostFX.hideGlowFromEdges`.
+- **In the normal buffer by its own hand, not casting shadows.** The scene-wide
+  override material cannot know the instanced construction, so the cover is hidden
+  from that pass and then draws itself into the normal buffer with patched normal
+  materials (`drawCoverNormals`, on `COVER_LAYER`). Skipping this entirely was
+  tried: the edge detector outlined whatever stood *behind* a blade or plume
+  straight through it — the same brighten-what-is-in-front failure the edge pass
+  once had with fog. Costs one extra vertex pass over the drawn cover.
 
 ## What is not in this version
 
