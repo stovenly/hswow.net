@@ -8,52 +8,37 @@ import { signPost } from './galleries/layout';
 import type { PortalEnd, PortalDefinition } from '../world/Portal';
 
 /**
- * The Groundcover Showcase: a rank of strips, a bank, and two painted patches.
+ * The Groundcover Showcase: a rank of strips, a plume meadow, a bank, and two
+ * painted patches.
  *
- * Groundcover makes claims a headless check cannot settle — GROUNDCOVER.md's
- * own list of what needs an eyeball is four items long and shell count is the
- * first of them. So the room is built to make each one answerable by standing
- * somewhere and looking:
+ * Groundcover makes claims a headless check cannot settle, so the room makes
+ * each one answerable by standing somewhere and looking:
  *
- * - **The rank.** Every cover type, on the ground material that grows it, in
- *   order of density: bare gravel, then weeds, moss, stubble, clover, tussock,
- *   turf. One walk down it is the density ramp, and the strips are wide enough
- *   to stand in the middle of one and see nothing else.
- * - **The bank.** A ridge steeper than the terrain's rock angle, so the cover
- *   stops in a line partway up it and the ground turns to rock underneath. That
- *   line is the whole of the slope handling, and it is not authored anywhere.
- * - **Two painted patches**, which is the other half of the system: a hollow of
- *   clover the material underneath knows nothing about, and a strip of moss
- *   along the foot of a wall.
- * - **A cleared strip**, at the end of the rank, because turning cover *off*
- *   somewhere is as much a thing to author as turning it on.
+ * - **The rank.** Every cover type on the ground material that grows it, from
+ *   bare to thick, ending on a cleared strip — turning cover *off* somewhere
+ *   is as much a thing to author as turning it on.
+ * - **The plume meadow.** A field of pampas to walk into: stalks over long
+ *   grass, the tread parting blades at your feet, and the backlight when you
+ *   look through the plumes toward the sun.
+ * - **The bank.** Steeper than the rock angle, so cover stops in a line that
+ *   is not authored anywhere.
+ * - **Two painted patches**: clover in a hollow, moss along the foot of a
+ *   wall — cover the material underneath knows nothing about.
  *
- * **Terrain, not slabs.** The cover type reaches the shader as a per-face
- * attribute the terrain writes, and a room of hand-placed boxes would exercise
- * the constant-attribute fallback instead — which is the path almost nothing in
- * the game uses.
- *
- * Silent, like the galleries. Cover answers the same gust field the trees do
- * and therefore the same one the rustle does, but nothing here is a plant that
- * would be making the noise; the shear is the thing on trial and it is visual.
+ * **Terrain, not slabs**, because the cover sampler reads the per-face
+ * attribute the terrain writes, and that is the path the game actually uses.
+ * Silent, like the galleries.
  */
 
 export const ZONE_GROUNDCOVER_SHOWCASE = 'groundcover-showcase';
 
 /** Metres across. Square, centred on the origin, and it is one mesh. */
 const SIZE = 96;
-/**
- * Metres per quad.
- *
- * The budget is ground triangles × shells under about 250k, and this cell is
- * near the top of it on purpose — a showcase that could not meet its own rule
- * would be a poor place to judge the rule. At 1.5 m the field is 8,192
- * triangles, which at the default eight shells is 66k.
- */
+/** Metres per quad. */
 const RESOLUTION = 1.5;
 
 /** The rank runs across the room, this far either side of the middle. */
-const RANK_HALF = 24;
+const RANK_HALF = 30;
 /** And this deep, so you can stand in one strip with the others out of view. */
 const RANK_Z: readonly [number, number] = [-10, 10];
 /** Where the captions stand, at the near end of every strip. */
@@ -77,20 +62,21 @@ interface Strip {
 }
 
 /**
- * The rank, west to east, ordered by how much of the ground the cover holds.
+ * The rank, west to east, from bare to thick to tall.
  *
  * `gravel` is first because bare is a reading too — it is what a painted path
- * across a field has to look like, and it costs the shader a discard on every
- * fragment of it rather than a special case anywhere.
+ * across a field has to look like.
  */
 const STRIPS: readonly Strip[] = [
   { name: 'bare', material: 'gravel' },
   { name: 'weeds', material: 'dirt' },
   { name: 'moss', material: 'cobble' },
-  { name: 'stubble', material: 'crop' },
   { name: 'clover', material: 'turf', paint: 'clover' },
-  { name: 'tussock', material: 'meadow' },
+  { name: 'stubble', material: 'crop' },
   { name: 'turf', material: 'turf' },
+  { name: 'flowers', material: 'turf', paint: 'flowers' },
+  { name: 'tussock', material: 'meadow' },
+  { name: 'plume', material: 'meadow', paint: 'plume' },
   { name: 'cleared', material: 'turf', paint: 'none' },
 ];
 
@@ -115,15 +101,21 @@ const LANDFORMS: readonly Landform[] = [
   { kind: 'basin', at: [31, 6], radius: 6.5, depth: 2.4 },
 ];
 
-const PATCHES: readonly GroundPatch[] = STRIPS.map((strip, i) => {
-  const [from, to] = stripSpan(i);
-  return {
-    kind: 'field' as const,
-    min: [from, RANK_Z[0]] as const,
-    max: [to, RANK_Z[1]] as const,
-    material: strip.material,
-  };
-});
+/** The pampas field, west of the wall and running up the bank's foot. */
+const MEADOW = { min: [-36, -28] as const, max: [-16, -13] as const };
+
+const PATCHES: readonly GroundPatch[] = [
+  ...STRIPS.map((strip, i) => {
+    const [from, to] = stripSpan(i);
+    return {
+      kind: 'field' as const,
+      min: [from, RANK_Z[0]] as const,
+      max: [to, RANK_Z[1]] as const,
+      material: strip.material,
+    };
+  }),
+  { kind: 'field', min: MEADOW.min, max: MEADOW.max, material: 'meadow' },
+];
 
 const COVER_PATCHES: readonly CoverPatch[] = [
   // The strips whose point is the painting rather than the material.
@@ -136,6 +128,8 @@ const COVER_PATCHES: readonly CoverPatch[] = [
   }),
   // Clover in the hollow, over turf that would otherwise be grass.
   { kind: 'blot', at: [31, 6], radius: 5.5, cover: 'clover' },
+  // The meadow grows pampas, and keeps growing it up the bank until the rock.
+  { kind: 'field', min: MEADOW.min, max: MEADOW.max, cover: 'plume' },
   // And moss along the foot of the wall, on its lit side. A band rather than a
   // blot, because what a wall grows is a line.
   {
@@ -158,7 +152,7 @@ const terrain = new Terrain({
   // Finer over the rank, so a strip edge is a straight line rather than
   // whatever the base grid happened to do. Kept on level ground, which is where
   // a change of facet size is invisible — see `DetailRegion`.
-  detail: [{ at: [0, 0], radius: 28, level: 2 }],
+  detail: [{ at: [0, 0], radius: 33, level: 2 }],
 });
 
 /** Exported so the portals and the checks can measure the ground. */
@@ -217,6 +211,10 @@ export function groundcoverShowcaseZone(): ZoneDefinition {
       const hollow = signPost('clover hollow');
       hollow.position.copy(onGround(24, 6));
       root.add(hollow);
+
+      const meadow = signPost('plume meadow');
+      meadow.position.copy(onGround(-14, -12));
+      root.add(meadow);
 
       const bank = signPost('where cover stops');
       bank.position.copy(onGround(0, -21));
