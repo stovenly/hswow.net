@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SWAY_ATTRIBUTE, finish } from '../art/assemble';
-import { COVER_ATTRIBUTE } from '../art/cover';
+import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE } from '../art/cover';
 import { shade } from '../art/palette';
 import {
   GROUND,
@@ -8,6 +8,7 @@ import {
   COVER_ORDER,
   patchAt,
   coverPatchAt,
+  coverPatchWinner,
   coverSwell,
   coverThickness,
   groundJitter,
@@ -299,6 +300,8 @@ export class Terrain {
     const colors: number[] = [];
     // Type, feather, and the two broad fields, per vertex, for the cover sampler.
     const covers: number[] = [];
+    // And who the neighbour across a boundary is, with how much of it to mix in.
+    const blends: number[] = [];
 
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -368,17 +371,20 @@ export class Terrain {
               const midZ = (a.z + b.z + c.z) / 3;
               const name = this.faceMaterial(normal.y, midX, midZ);
               color.set(this.faceColor(name, (a.y + b.y + c.y) / 3, midX, midZ));
-              // Type per face, so its edges stay hard; feather per corner, so
-              // it interpolates and the cover runs out over a couple of metres
-              // rather than on a line.
+              // Type per face, so its edges stay hard; feather and blend per
+              // corner, so they interpolate — cover runs out onto bare ground
+              // over a couple of metres, and two grown types interleave at
+              // their boundary instead of thinning to a gap.
               const cover = this.faceCover(name, midX, midZ);
               for (const corner of [a, b, c]) {
+                const [feather, neighbor, blend] = this.coverEdge(cover, corner.x, corner.z);
                 covers.push(
                   cover,
-                  this.feather(cover, corner.x, corner.z),
+                  feather,
                   coverSwell(corner.x, corner.z),
                   coverThickness(corner.x, corner.z),
                 );
+                blends.push(neighbor, blend);
               }
               emit(a, normal);
               emit(b, normal);
@@ -403,6 +409,7 @@ export class Terrain {
     // Read by the cover sampler on the CPU and by nothing else. The ground's
     // own material never declares it, so it costs a buffer and no draw.
     geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 4));
+    geometry.setAttribute(COVER_BLEND_ATTRIBUTE, new THREE.Float32BufferAttribute(blends, 2));
 
     return finish(geometry, 'terrain', 0);
   }
@@ -496,31 +503,70 @@ export class Terrain {
     return COVER_ORDER.indexOf(painted ?? COVER[name] ?? 'none');
   }
 
+  /** The cover at a probe point, and whether a hard-edged patch put it there. */
+  private coverThere(x: number, z: number): { index: number; hard: boolean } {
+    const patch = coverPatchWinner(this.cover, x, z);
+    if (patch) return { index: COVER_ORDER.indexOf(patch.cover), hard: patch.edge === 'hard' };
+    const name = COVER[patchAt(this.patches, x, z) ?? this.base] ?? 'none';
+    return { index: COVER_ORDER.indexOf(name), hard: false };
+  }
+
   /**
-   * How far inside its own cover a point is, 0 at a boundary and 1 well in.
+   * What happens to the cover at a corner: [feather, neighbour, blend].
    *
-   * A ring of probes rather than a distance field: enough to know whether a
-   * point is surrounded by its own kind. Slope is left out, so the rock line on
-   * a cliff stays hard — it is a cliff.
+   * Rings of probes rather than a distance field — enough to know what
+   * surrounds a point. Feather thins density, and only toward *bare* ground,
+   * so grass runs out onto a path as a scatter; between two grown types the
+   * density holds and `blend` takes over — how much of this corner's cover
+   * should be rolled as the neighbouring type instead, so a boundary is an
+   * interleaved band rather than a line or a gap. A `hard` patch opts out of
+   * both, from both sides. Slope is left out, so the rock line on a cliff
+   * stays hard — it is a cliff.
    */
-  private feather(cover: number, x: number, z: number): number {
+  private coverEdge(cover: number, x: number, z: number): [number, number, number] {
+    const own = coverPatchWinner(this.cover, x, z);
+    if (own?.edge === 'hard') return [1, 0, 0];
+
     let same = 0;
     for (let i = 0; i < FEATHER_PROBES; i++) {
       const angle = (i / FEATHER_PROBES) * Math.PI * 2;
-      const px = x + Math.cos(angle) * FEATHER_REACH;
-      const pz = z + Math.sin(angle) * FEATHER_REACH;
-      const there =
-        coverPatchAt(this.cover, px, pz) ??
-        COVER[patchAt(this.patches, px, pz) ?? this.base] ??
-        'none';
-      if (COVER_ORDER.indexOf(there) === cover) same++;
+      const there = this.coverThere(
+        x + Math.cos(angle) * FEATHER_REACH,
+        z + Math.sin(angle) * FEATHER_REACH,
+      );
+      if (there.index === cover || there.index > 0 || there.hard) same++;
     }
     // Remapped so a point on the boundary, where half its ring disagrees, comes
     // out near nothing rather than near half.
-    return Math.min(Math.max((same / FEATHER_PROBES - 0.45) / 0.55, 0), 1);
+    const feather = Math.min(Math.max((same / FEATHER_PROBES - 0.45) / 0.55, 0), 1);
+
+    const votes = new Map<number, number>();
+    for (let i = 0; i < BLEND_PROBES; i++) {
+      const angle = ((i + 0.5) / BLEND_PROBES) * Math.PI * 2;
+      const there = this.coverThere(
+        x + Math.cos(angle) * BLEND_REACH,
+        z + Math.sin(angle) * BLEND_REACH,
+      );
+      if (there.index > 0 && there.index !== cover && !there.hard) {
+        votes.set(there.index, (votes.get(there.index) ?? 0) + 1);
+      }
+    }
+    let neighbor = 0;
+    let best = 0;
+    for (const [index, count] of votes) {
+      if (count > best) {
+        best = count;
+        neighbor = index;
+      }
+    }
+    // Capped: a strip narrower than the ring keeps at least half its own kind.
+    return [feather, neighbor, Math.min(best / BLEND_PROBES, 0.5)];
   }
 }
 
 /** How far out the feather looks, and how many ways. */
 const FEATHER_REACH = 0.9;
 const FEATHER_PROBES = 8;
+/** The blend looks further: an interleaved boundary is a band, not a seam. */
+const BLEND_REACH = 1.8;
+const BLEND_PROBES = 10;

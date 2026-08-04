@@ -24,6 +24,10 @@ import type { PortalEnd, PortalDefinition } from '../world/Portal';
  *   is not authored anywhere.
  * - **Two painted patches**: clover in a hollow, moss along the foot of a
  *   wall — cover the material underneath knows nothing about.
+ * - **The vine walls.** Ivy, a climbing rose and wisteria, each on its own
+ *   wall east of the moss one — cover that grows on faces instead of ground.
+ *   And every strip boundary in the rank is now an interleaved band, except
+ *   the cleared strip's, which is authored hard to prove a line still can be.
  *
  * **Terrain, not slabs**, because the cover sampler reads the per-face
  * attribute the terrain writes, and that is the path the game actually uses.
@@ -50,6 +54,17 @@ const DOOR_Z = 24;
 /** The wall the moss grows along, and the ground it stands on. */
 const WALL = { z: -16, from: -12, to: 8, thick: 0.7, height: 2.4 };
 
+/**
+ * The vine walls, carrying the moss wall's line east: one per wall cover
+ * type, tall enough for the wisteria to hang out of.
+ */
+const VINE_WALLS = [
+  { name: 'ivy', cover: 'ivy', from: 12, to: 18.8 },
+  { name: 'rose', cover: 'rose', from: 20.4, to: 27.2 },
+  { name: 'wisteria', cover: 'wisteria', from: 28.8, to: 35.6 },
+] as const;
+const VINE_WALL = { z: -16, thick: 0.7, height: 3 };
+
 const STONE = new THREE.MeshLambertMaterial({ color: 0x8d8779, flatShading: true });
 
 interface Strip {
@@ -59,6 +74,8 @@ interface Strip {
   material: GroundName;
   /** Painted over the top, where the point of the strip is the painting. */
   paint?: CoverPatch['cover'];
+  /** A hard edge, where every other strip boundary interleaves. */
+  hard?: boolean;
 }
 
 /**
@@ -79,7 +96,9 @@ const STRIPS: readonly Strip[] = [
   { name: 'tussock', material: 'meadow' },
   { name: 'sedge', material: 'mire', paint: 'sedge' },
   { name: 'plume', material: 'meadow', paint: 'plume' },
-  { name: 'cleared', material: 'turf', paint: 'none' },
+  // Hard, so one boundary in the rank is a mown line rather than a mingle —
+  // the edge the blend has to be able to *not* soften.
+  { name: 'cleared', material: 'turf', paint: 'none', hard: true },
 ];
 
 /** Strip width, so the rank fills the space it was given exactly. */
@@ -125,7 +144,13 @@ const COVER_PATCHES: readonly CoverPatch[] = [
     if (!strip.paint) return [];
     const [from, to] = stripSpan(i);
     return [
-      { kind: 'field', min: [from, RANK_Z[0]], max: [to, RANK_Z[1]], cover: strip.paint },
+      {
+        kind: 'field',
+        min: [from, RANK_Z[0]],
+        max: [to, RANK_Z[1]],
+        cover: strip.paint,
+        ...(strip.hard ? { edge: 'hard' as const } : {}),
+      },
     ];
   }),
   // Clover in the hollow, over turf that would otherwise be grass.
@@ -212,6 +237,27 @@ export function groundcoverShowcaseZone(): ZoneDefinition {
       const wallSign = signPost('moss on the wall');
       wallSign.position.copy(onGround(WALL.to + 2.5, WALL.z + 1.2));
       root.add(wallSign);
+
+      // The vine walls: same box, but the wall itself is what grows. Stating
+      // a cover type is all it takes — `ZoneManager.prepare` does the rest.
+      for (const vine of VINE_WALLS) {
+        const span = vine.to - vine.from;
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(span, VINE_WALL.height, VINE_WALL.thick),
+          STONE,
+        );
+        wall.position.set(
+          (vine.from + vine.to) / 2,
+          terrain.heightAt((vine.from + vine.to) / 2, VINE_WALL.z) + VINE_WALL.height / 2,
+          VINE_WALL.z,
+        );
+        wall.userData.cover = vine.cover;
+        root.add(markCollidable(wall));
+
+        const sign = signPost(vine.name);
+        sign.position.copy(onGround((vine.from + vine.to) / 2, VINE_WALL.z + 1.6));
+        root.add(sign);
+      }
 
       const hollow = signPost('clover hollow');
       hollow.position.copy(onGround(24, 6));

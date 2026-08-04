@@ -194,12 +194,18 @@ export interface BladeLayer {
   vary?: number;
   /** Row pitch in metres. Set, blades grow only in rows — crop stubble. */
   rows?: number;
+  /**
+   * 0 blades .. 1 mass: height follows a smooth rolling field instead of
+   * per-blade jitter, and blades go blunt so neighbours merge — moss reads as
+   * soft mounds you can see the sides of, not as very short grass.
+   */
+  mound?: number;
 }
 
 /** A scattered prop stood among the blades — a plume stalk, a flower head. */
 export interface PropLayer {
   /** Which builder in `art/cover.ts` makes the mesh. */
-  kind: 'plume' | 'bloom' | 'leaf';
+  kind: 'plume' | 'bloom' | 'leaf' | 'ivy' | 'posy' | 'raceme';
   /** Props per square metre. */
   density: number;
   /** Height multiplier on the authored mesh. */
@@ -209,10 +215,16 @@ export interface PropLayer {
   tints?: readonly number[];
 }
 
-/** A cover type is up to two layers, and either may be absent. */
+/** A cover type is blades and any number of prop layers, all optional. */
 export interface CoverType {
   blades?: BladeLayer;
-  props?: PropLayer;
+  props?: PropLayer | readonly PropLayer[];
+  /**
+   * Grows on near-vertical faces instead of the ground, oriented to them —
+   * ivy on a wall. Stated per mesh (`userData.cover`), never painted on
+   * terrain, which turns steep faces to rock before this could see them.
+   */
+  walls?: boolean;
 }
 
 /** The cover types, in the order the terrain attribute indexes them. `none` is 0. */
@@ -243,9 +255,12 @@ export const COVER_TYPES = {
     blades: { length: 0.09, width: 0.04, density: 60, give: 0.3, sprawl: 0.6, tint: 0x53823f },
     props: { kind: 'leaf', density: 180, scale: 1, tint: 0x53823f },
   },
-  /** A dense low nap with almost no height. In the joints, on the north wall. */
+  /** Soft rolling mounds of green, not very short grass. See `mound`. */
   moss: {
-    blades: { length: 0.07, width: 0.05, density: 350, give: 0.1, sprawl: 0.75, tint: 0x455c31 },
+    blades: {
+      length: 0.14, width: 0.06, density: 320, give: 0.12, sprawl: 0.35,
+      tint: 0x455c31, vary: 0.05, mound: 1,
+    },
   },
   /** Meadow grass with a mixed stand of flower heads. Authored only. */
   flowers: {
@@ -271,6 +286,27 @@ export const COVER_TYPES = {
       kind: 'bloom', density: 24, scale: 0.55, tint: 0x9a86b8,
       tints: [0x9a86b8, 0xb59ac6],
     },
+  },
+  /** Crawling ivy: leaves flat against a wall. `userData.cover` on the mesh. */
+  ivy: {
+    walls: true,
+    props: { kind: 'ivy', density: 9, scale: 1, tint: 0x3f5c30, tints: [0x3f5c30, 0x4a6636, 0x36512b] },
+  },
+  /** A climbing rose: sparser foliage with clustered blooms through it. */
+  rose: {
+    walls: true,
+    props: [
+      { kind: 'ivy', density: 5, scale: 0.9, tint: 0x445c32, tints: [0x445c32, 0x4f6839] },
+      { kind: 'posy', density: 4.5, scale: 1, tint: 0xc76a72, tints: [0xc76a72, 0xd8888e, 0xb85560] },
+    ],
+  },
+  /** Wisteria: foliage above, racemes hanging out of it. */
+  wisteria: {
+    walls: true,
+    props: [
+      { kind: 'ivy', density: 5, scale: 1.1, tint: 0x53663a, tints: [0x53663a, 0x5e7242] },
+      { kind: 'raceme', density: 5.5, scale: 1, tint: 0x9a86c6, tints: [0x9a86c6, 0xb0a0d6, 0x8a74b8] },
+    ],
   },
 } as const satisfies Record<string, CoverType>;
 
@@ -300,8 +336,13 @@ export const COVER: Partial<Record<GroundName, CoverName>> = {
  * Clover in this hollow, moss along the north wall, and `none` to clear a
  * patch that the material would otherwise cover. Wins outright, including over
  * the rock a steep face falls back to.
+ *
+ * Edges feather unless the patch says `hard`: neighbouring cover runs at full
+ * density to a hard patch's line and never mixes across it — a mown edge, a
+ * kerb — where a feathered boundary interleaves both types over a couple of
+ * metres.
  */
-export type CoverPatch = PatchShape & { cover: CoverName };
+export type CoverPatch = PatchShape & { cover: CoverName; edge?: 'feather' | 'hard' };
 
 /** Stable 0..1 value at an integer lattice point. */
 function latticeHash(ix: number, iz: number, seed: number): number {
@@ -341,14 +382,32 @@ export function coverThickness(x: number, z: number): number {
   return smoothNoise(x, z, 18, 613) * 0.7 + smoothNoise(x, z, 7, 859) * 0.3;
 }
 
+/**
+ * Where a mounded cover stands tall and where it hollows, 0..1. Much smaller
+ * octaves than the swell — these are tufts you see the sides of, not sweeps
+ * you see across.
+ */
+export function coverMound(x: number, z: number): number {
+  return smoothNoise(x, z, 1.9, 431) * 0.6 + smoothNoise(x, z, 0.7, 733) * 0.4;
+}
+
 /** Which cover patch covers a position, or null for none. */
 export function coverPatchAt(
   patches: readonly CoverPatch[],
   x: number,
   z: number,
 ): CoverName | null {
+  return coverPatchWinner(patches, x, z)?.cover ?? null;
+}
+
+/** The winning patch itself, for asking about its edge. */
+export function coverPatchWinner(
+  patches: readonly CoverPatch[],
+  x: number,
+  z: number,
+): CoverPatch | null {
   for (let i = patches.length - 1; i >= 0; i--) {
-    if (inside(patches[i], x, z)) return patches[i].cover;
+    if (inside(patches[i], x, z)) return patches[i];
   }
   return null;
 }

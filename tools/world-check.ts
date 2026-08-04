@@ -40,7 +40,7 @@ import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
 import { ZONE_FOOTSTEPS_SHOWCASE } from '../src/debug/FootstepsShowcase';
 import { GROUND, COVER_TYPES } from '../src/world/ground';
 import { COVER_ATTRIBUTE, coverCensus } from '../src/art/cover';
-import { groundcoverTerrain } from '../src/debug/GroundcoverShowcase';
+import { groundcoverTerrain, ZONE_GROUNDCOVER_SHOWCASE } from '../src/debug/GroundcoverShowcase';
 import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
 import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
@@ -738,11 +738,13 @@ console.log('\n--- groundcover ---------------------------------------------\n')
     let props = 0;
     zone.root().traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
-      // The same test `ZoneManager.prepare` uses to decide what grows cover.
+      // The same test `ZoneManager.prepare` uses to decide what grows cover —
+      // ground, plus anything that states a type, which is how walls opt in.
       const isGround =
         object.name === 'flatGround' ||
         object.name === 'terrain' ||
-        object.userData.ground === true;
+        object.userData.ground === true ||
+        typeof object.userData.cover === 'string';
       if (!isGround) return;
       if (!object.geometry.getAttribute(COVER_ATTRIBUTE) && !object.userData.cover) return;
       const census = coverCensus(object);
@@ -774,6 +776,13 @@ console.log('\n--- groundcover ---------------------------------------------\n')
   for (let x = -46; x <= 46; x += 0.5) {
     for (let z = -46; z <= 46; z += 0.5) seen.add(t.coverAt(x, z));
   }
+  // Wall types never touch the terrain — they stand on the vine walls, which
+  // state them per mesh. Seen if the wall would actually grow the type.
+  zones.get(ZONE_GROUNDCOVER_SHOWCASE)?.root().traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const cover = object.userData.cover;
+    if (typeof cover === 'string' && coverCensus(object).props > 0) seen.add(cover);
+  });
   const missing = Object.keys(COVER_TYPES).filter((name) => !seen.has(name));
   check(
     'the groundcover showcase presents every cover type',
