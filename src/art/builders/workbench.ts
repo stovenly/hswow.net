@@ -98,7 +98,7 @@ export const workbench: MeshBuilder = {
     if (!rng.chance(0.5)) {
       const geometry = assemble(parts);
       if (scale !== 1) geometry.scale(scale, scale, scale);
-      return finish(geometry, 'workbench', 0);
+      return finish(geometry, 'workbench', 0, 'wood');
     }
 
     const vx = length * rng.range(0.2, 0.34) * (rng.chance(0.5) ? 1 : -1);

@@ -214,6 +214,27 @@ const STANDING_RISE = 0.06;
  */
 const STANDING_DROP = 0.2;
 
+/**
+ * Where the downward probes go, as fractions of the capsule's radius.
+ *
+ * The centre and four points at its edge. One ray down the middle is what a
+ * point test already was: stand on a railing and lean, and it loses the rail
+ * the moment your middle is past the edge. You are held up by whatever is under
+ * *any* part of your feet.
+ */
+const PROBES: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+const DOWN = new THREE.Vector3(0, -1, 0);
+const _ray = new THREE.Raycaster();
+const _from = new THREE.Vector3();
+const _candidates: THREE.Mesh[] = [];
+
 /** Shared, so the common case of no fog allocates nothing on every crossing. */
 const EMPTY_FOG: readonly FogVolume[] = [];
 
@@ -322,7 +343,7 @@ export class Zone {
    * bytes in the worst zone here and it turns "what am I standing on" into a
    * handful of comparisons.
    */
-  private readonly footings: { box: THREE.Box3; surface: SurfaceName }[] = [];
+  private readonly footings: { box: THREE.Box3; surface: SurfaceName; mesh: THREE.Mesh }[] = [];
 
   constructor(definition: ZoneDefinition) {
     this.definition = definition;
@@ -386,18 +407,34 @@ export class Zone {
    * highest one whose top you are actually near.
    */
   standingOn(x: number, z: number, feet: number, reach = 0): SurfaceName | null {
-    let best: SurfaceName | null = null;
-    let highest = -Infinity;
+    // **Broad phase only.** A box says where a prop is, and for a great many
+    // props it also says how high its top is — but not for the ones that matter
+    // most here. A staircase's box is topped by its highest tread, so every
+    // step below the last fails a top-of-box test; a tank's lid is a curve
+    // nowhere near the corner of its box; a ladder is mostly air. Those are
+    // exactly the things somebody climbs on to find out what they sound like.
+    _candidates.length = 0;
     for (const footing of this.footings) {
       const { box } = footing;
       if (x + reach < box.min.x || x - reach > box.max.x) continue;
       if (z + reach < box.min.z || z - reach > box.max.z) continue;
-      // Positive when the prop's top is below your feet.
-      const drop = feet - box.max.y;
-      if (drop < -STANDING_RISE || drop > STANDING_DROP) continue;
-      if (box.max.y > highest) {
-        highest = box.max.y;
-        best = footing.surface;
+      if (feet + STANDING_RISE < box.min.y || feet - STANDING_DROP > box.max.y) continue;
+      _candidates.push(footing.mesh);
+    }
+    if (_candidates.length === 0) return null;
+
+    // **Narrow phase against the real geometry**, which is the only thing that
+    // knows where a tread is. Cheap enough to be uninteresting: this runs twice
+    // a second, against the handful of props whose footprint you are inside.
+    let best: SurfaceName | null = null;
+    let highest = -Infinity;
+    _ray.far = STANDING_RISE + STANDING_DROP;
+    for (const [dx, dz] of PROBES) {
+      _ray.set(_from.set(x + dx * reach, feet + STANDING_RISE, z + dz * reach), DOWN);
+      for (const hit of _ray.intersectObjects(_candidates, false)) {
+        if (hit.point.y <= highest) continue;
+        highest = hit.point.y;
+        best = hit.object.userData.underfoot as SurfaceName;
       }
     }
     return best;
@@ -440,7 +477,7 @@ export class Zone {
         object.geometry.computeBoundingBox();
         const box = object.geometry.boundingBox?.clone();
         if (!box) return;
-        this.footings.push({ box: box.applyMatrix4(object.matrixWorld), surface });
+        this.footings.push({ box: box.applyMatrix4(object.matrixWorld), surface, mesh: object });
       });
     }
     return this.group;
