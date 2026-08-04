@@ -59,9 +59,6 @@ const CHUNK = 24;
 const ROOT = 0.6;
 const RAMP = 0.4;
 
-/** Half-width of a crop row, metres. The pitch is the type's own. */
-const ROW_BAND = 0.14;
-
 /** How far off its face a wall prop is rooted. See `PROP_TURN`. */
 export const WALL_LIFT = 0.02;
 
@@ -1146,10 +1143,6 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
           layer = swapped.blades;
         }
 
-        if (layer.rows) {
-          const off = ((wz % layer.rows) + layer.rows) % layer.rows;
-          if (Math.abs(off - layer.rows / 2) > ROW_BAND) continue;
-        }
         const cx = Math.floor(wx / CLUMP);
         const cz = Math.floor(wz / CLUMP);
         const clumpTall = 0.7 + 0.6 * hat(cx, cz, 3);

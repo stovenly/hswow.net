@@ -82,14 +82,18 @@ A cover type is a blade layer and any number of prop layers, all optional
 - **`blades`** — length, width, density (per m², the ultra figure), give (wind
   response), sprawl (rest lean), tint, `blend` (how much of the ground's own colour
   mixes into that tint, a quarter by default — near zero for moss, which grows on
-  stone and mud and goes black if it inherits them), plus three distinguishers:
-  `vary` (how ragged
-  the heights are — turf is even, weeds are every height at once), `rows` (a row
-  pitch; crop stubble actually grows in rows) and `mound` (height follows a small
-  smooth rolling field instead of per-blade jitter, and blades go blunt and wide so
-  neighbours merge — moss is soft masses you can see the sides of, not very short
-  grass). Grass, tussock, stubble, weeds, moss, sedge and heather's scrub are all
-  this one ribbon with different numbers.
+  stone and mud and goes black if it inherits them), plus two distinguishers:
+  `vary` (how ragged the heights are — turf is even, weeds are every height at
+  once) and `mound` (height follows a small smooth rolling field instead of
+  per-blade jitter, and blades go blunt and wide so neighbours merge — moss is
+  soft masses you can see the sides of, not very short grass). Grass, tussock,
+  stubble, weeds, moss, sedge and heather's scrub are all this one ribbon with
+  different numbers.
+
+  There was a third, `rows`, which grew stubble in drills at a stated pitch. It
+  worked and it was removed: a field of ruled lines reads as a texture error at
+  this scale, where an evenly thick dry field reads as stubble. Nothing else
+  wanted it, so it went with it.
 - **`props`** — a small authored mesh scattered among the blades: `plume` (a pampas
   stalk whose plume is built in tiers — wisps hugging the stem, a body of solid and
   haze fins, a narrow crown — every fin tapering into the stalk at its base),
