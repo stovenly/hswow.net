@@ -255,10 +255,10 @@ export const COVER_TYPES = {
     blades: { length: 0.09, width: 0.04, density: 60, give: 0.3, sprawl: 0.6, tint: 0x53823f },
     props: { kind: 'leaf', density: 180, scale: 1, tint: 0x53823f },
   },
-  /** Soft rolling mounds of green, not very short grass. See `mound`. */
+  /** Thick soft chunks of green, not very short grass. See `mound`. */
   moss: {
     blades: {
-      length: 0.14, width: 0.06, density: 320, give: 0.12, sprawl: 0.35,
+      length: 0.18, width: 0.06, density: 320, give: 0.12, sprawl: 0.35,
       tint: 0x455c31, vary: 0.05, mound: 1,
     },
   },
@@ -383,12 +383,12 @@ export function coverThickness(x: number, z: number): number {
 }
 
 /**
- * Where a mounded cover stands tall and where it hollows, 0..1. Much smaller
- * octaves than the swell — these are tufts you see the sides of, not sweeps
- * you see across.
+ * Where a mounded cover stands tall and where it hollows, 0..1. Smaller
+ * octaves than the swell — these are masses you see the sides of, not sweeps
+ * you see across — but big enough that a mound is a chunk, not a pimple.
  */
 export function coverMound(x: number, z: number): number {
-  return smoothNoise(x, z, 1.9, 431) * 0.6 + smoothNoise(x, z, 0.7, 733) * 0.4;
+  return smoothNoise(x, z, 3.4, 431) * 0.6 + smoothNoise(x, z, 1.3, 733) * 0.4;
 }
 
 /** Which cover patch covers a position, or null for none. */
