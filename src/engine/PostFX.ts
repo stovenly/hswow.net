@@ -201,8 +201,8 @@ export const DEFAULT_RENDER: RenderSettings = {
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
 
-/** The player's groundcover density tiers. */
-export type CoverDensity = 'low' | 'medium' | 'high' | 'ultra';
+/** The player's groundcover setting. Off is a tier, not a separate switch. */
+export type CoverDensity = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 
 /**
  * Fraction of the sampled pool each tier draws. The type table is authored at
@@ -210,7 +210,13 @@ export type CoverDensity = 'low' | 'medium' | 'high' | 'ultra';
  * ordinary one, low thin and worn. Props thin on a gentler curve than these —
  * see `art/cover.ts`.
  */
-const COVER_TIERS: Record<CoverDensity, number> = { low: 0.09, medium: 0.2, high: 0.3, ultra: 1 };
+const COVER_TIERS: Record<CoverDensity, number> = {
+  off: 0,
+  low: 0.09,
+  medium: 0.2,
+  high: 0.3,
+  ultra: 1,
+};
 
 /**
  * The part of the look that belongs to a *place* rather than to the game.
@@ -280,9 +286,8 @@ export class PostFX {
   private glow = true;
   /** The accessibility switch, not a look setting. See `setWaterMotion`. */
   private waves = true;
-  /** The player's groundcover toggle and density tier. See `setGroundcover`. */
-  private groundcover = true;
-  private groundcoverDensity: CoverDensity = 'high';
+  /** The player's groundcover tier, `off` included. See `setGroundcover`. */
+  private groundcover: CoverDensity = 'high';
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -482,13 +487,16 @@ export class PostFX {
   }
 
   /**
-   * Groundcover on or off, and how much of the sampled field to draw.
-   * Off skips every cover draw outright; the tiers are prefixes of the same
-   * shuffled pool, so changing one is an instance count and nothing else.
+   * How much of the sampled field to draw, `off` being none of it.
+   *
+   * One setting rather than a switch and a tier: off is where thinning ends,
+   * and a tier that is still remembered while a switch above it says no is two
+   * controls to reason about for one thing the player sees. Off skips every
+   * cover draw outright; the tiers are prefixes of the same shuffled pool, so
+   * changing one is an instance count and nothing else.
    */
-  setGroundcover(enabled: boolean, density: CoverDensity): void {
-    this.groundcover = enabled;
-    this.groundcoverDensity = density;
+  setGroundcover(density: CoverDensity): void {
+    this.groundcover = density;
     this.apply();
   }
 
@@ -547,8 +555,8 @@ export class PostFX {
     this.bloom.radius = s.bloom.radius;
 
     setCoverDraw(
-      this.groundcover,
-      COVER_TIERS[this.groundcoverDensity] * s.cover.density,
+      this.groundcover !== 'off',
+      COVER_TIERS[this.groundcover] * s.cover.density,
       s.cover.height,
       s.cover.width,
     );

@@ -151,22 +151,22 @@ is not authored anywhere.
 
 ## The player controls
 
-**A toggle, and a density tier when it is on: low, medium, high, ultra.** Off skips
-every cover draw outright. The type table is authored at **ultra**, which is twice a
-thick field; each tier below draws a fraction of the same sampled pool
-(0.09 / 0.2 / 0.3 / 1) — and because every chunk's instances are shuffled at build, a
-fraction is a prefix, so switching tiers is an instance count and costs nothing.
-Medium is an ordinary field, high (the default) a thick one, and ultra is every blade
-there is. Props thin on a square-root curve rather than the tier's own, because they
-are the accents — a plume field thinned as hard as its grass is a field with no
-plumes.
+**One dropdown: off, low, medium, high, ultra.** Off is the end of the scale rather
+than a switch above it — a remembered tier sitting under a switch that says no is two
+controls for one thing on screen — and it skips every cover draw outright. The type
+table is authored at **ultra**, which is twice a thick field; each tier below draws a
+fraction of the same sampled pool (0.09 / 0.2 / 0.3 / 1) — and because every chunk's
+instances are shuffled at build, a fraction is a prefix, so switching tiers is an
+instance count and costs nothing. Medium is an ordinary field, high (the default) a
+thick one, and ultra is every blade there is. Props thin on a square-root curve
+rather than the tier's own, because they are the accents — a plume field thinned as
+hard as its grass is a field with no plumes.
 
 Tuning multipliers over the table (`cover.density`, `cover.height`, `cover.width`)
 live in the render preset and the debug folder, never in the player's menu.
 
-Call it "groundcover", not "grass": `grassShadows` in the same menu refers to the
-`CLUTTER` props, which are a different grass. Cover casts no shadows; the two never
-interact.
+Call it "groundcover", not "grass": the `CLUTTER` props are a different grass. Cover
+casts no shadows, and neither does clutter; the two never interact.
 
 ## Cost
 

@@ -122,11 +122,10 @@ for (const portal of world.portals) zones.link(portal);
 // Builds the exterior's geometry and indexes all of it for collision, which on
 // a world this size is a couple of hundred milliseconds on its own.
 // Ahead of the first build rather than in `applyOptions` below, which cannot
-// run until the audio engine exists. Both of these are read as a zone's meshes
-// are prepared, so setting them afterwards would raise the exterior with the
-// wrong casters and then walk all of it again to correct them.
+// run until the audio engine exists. It is read as a zone's meshes are
+// prepared, so setting it afterwards would raise the exterior with the wrong
+// casters and then walk all of it again to correct them.
 zones.setShadows(options.shadows);
-zones.setClutterShadows(options.grassShadows);
 // The drawn sun and the shadow-casting one are the same direction by
 // construction. Static for now; when it moves, this call moves with it.
 postfx.aimSun(zones.sunDirection);
@@ -243,16 +242,11 @@ if (dev.gui) {
   const refresh = (): void => postfx.apply();
 
   const look = dev.gui.addFolder('look');
-  // The same two booleans the options menu edits, not a parallel pair. Bound
-  // with `.listen()` so a change made in the menu moves the control here, and
-  // routed through `commit` so it lands in the engine and in storage the same
-  // way the menu's would.
+  // The same boolean the options menu edits, not a parallel one. Bound with
+  // `.listen()` so a change made in the menu moves the control here, and routed
+  // through `commit` so it lands in the engine and in storage the same way the
+  // menu's would.
   look.add(options, 'shadows').name('cast shadows').listen().onChange(settings.commit);
-  look
-    .add(options, 'grassShadows')
-    .name('grass casts shadows')
-    .listen()
-    .onChange(settings.commit);
   look.add({ open: settings.open }, 'open').name("open the player's menu");
   look.add(r, 'pixelSize', 1, 12, 1).onChange(refresh);
   look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
@@ -265,7 +259,7 @@ if (dev.gui) {
   look.add(r, 'screenPeriod', 2, 32, 1).name('screen period').onChange(refresh);
 
   // The same switch the options menu edits, plus the tuning the menu does not
-  // show — the shadows/grass-shadows pattern, for a render feature.
+  // show — the player's switch, the developer's dials, one folder.
   const ao = dev.gui.addFolder('ambient occlusion');
   ao.add(options, 'ambientOcclusion').name('enabled').listen().onChange(settings.commit);
   ao.add(r.ao, 'strength', 0, 1, 0.05).onChange(refresh);
@@ -288,13 +282,12 @@ if (dev.gui) {
     .name('screen-space reflections')
     .onChange(refresh);
 
-  // The player has one toggle; the shape is tuned here, as multipliers over
+  // The player has one dropdown; the shape is tuned here, as multipliers over
   // the type table in world/ground.ts, which is authored in real units.
   const cover = dev.gui.addFolder('groundcover');
-  cover.add(options, 'groundcover').name('player toggle').listen().onChange(settings.commit);
   cover
-    .add(options, 'groundcoverDensity', ['low', 'medium', 'high', 'ultra'])
-    .name('player density')
+    .add(options, 'groundcoverDensity', ['off', 'low', 'medium', 'high', 'ultra'])
+    .name('player setting')
     .listen()
     .onChange(settings.commit);
   cover.add(r.cover, 'density', 0, 1, 0.05).name('fraction drawn').onChange(refresh);
