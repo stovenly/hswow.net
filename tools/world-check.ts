@@ -729,8 +729,8 @@ console.log('\n--- groundcover ---------------------------------------------\n')
  * the number here is the number a zone actually stands up.
  */
 {
-  // Sampled counts are the ultra pool; the default tier draws 0.6 of it.
-  const BUDGET = 500_000;
+  // Sampled counts are the ultra pool; the default tier draws 0.3 of it.
+  const BUDGET = 1_000_000;
   let worst = { id: 'nothing', blades: 0, props: 0 };
 
   for (const zone of zones.values()) {

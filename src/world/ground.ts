@@ -179,8 +179,9 @@ export interface BladeLayer {
   /** Blade width at the root, metres. */
   width: number;
   /**
-   * Blades per square metre at full thickness — the *ultra* figure. The
-   * player's density tiers draw a fraction of this pool; medium is about 0.4.
+   * Blades per square metre at full thickness — the *ultra* figure, which is
+   * twice a thick field. The player's density tiers draw a fraction of this
+   * pool; high is 0.3 and medium 0.2.
    */
   density: number;
   /** 0 rigid .. 1 floppy: how far wind and droop move the tip. */
@@ -220,35 +221,35 @@ export const COVER_TYPES = {
   none: {},
   /** Ordinary turf. */
   grass: {
-    blades: { length: 0.34, width: 0.03, density: 80, give: 0.55, sprawl: 0.3, tint: PALETTE.GRASS },
+    blades: { length: 0.34, width: 0.03, density: 160, give: 0.55, sprawl: 0.3, tint: PALETTE.GRASS },
   },
   /** Long and unmown, and pale with it. Ragged, where turf is even. */
   tussock: {
-    blades: { length: 0.6, width: 0.032, density: 55, give: 0.75, sprawl: 0.45, tint: PALETTE.GRASS_DRY, vary: 0.6 },
+    blades: { length: 0.6, width: 0.032, density: 110, give: 0.75, sprawl: 0.45, tint: PALETTE.GRASS_DRY, vary: 0.6 },
   },
   /** Crop stubble, and it actually grows in rows: stiff, straight, dry. */
   stubble: {
     blades: {
-      length: 0.36, width: 0.032, density: 90, give: 0.3, sprawl: 0.12,
+      length: 0.36, width: 0.032, density: 180, give: 0.3, sprawl: 0.12,
       tint: PALETTE.LEAF_DRY, vary: 0.1, rows: 0.8,
     },
   },
   /** Sparse, wiry and every height at once, on ground people walk flat. */
   weeds: {
-    blades: { length: 0.32, width: 0.026, density: 20, give: 0.6, sprawl: 0.55, tint: 0x6b7a45, vary: 0.9 },
+    blades: { length: 0.32, width: 0.026, density: 40, give: 0.6, sprawl: 0.55, tint: 0x6b7a45, vary: 0.9 },
   },
   /** Stalks with round leaves over a short nap. Authored only. */
   clover: {
-    blades: { length: 0.09, width: 0.04, density: 30, give: 0.3, sprawl: 0.6, tint: 0x53823f },
-    props: { kind: 'leaf', density: 90, scale: 1, tint: 0x53823f },
+    blades: { length: 0.09, width: 0.04, density: 60, give: 0.3, sprawl: 0.6, tint: 0x53823f },
+    props: { kind: 'leaf', density: 180, scale: 1, tint: 0x53823f },
   },
   /** A dense low nap with almost no height. In the joints, on the north wall. */
   moss: {
-    blades: { length: 0.07, width: 0.05, density: 175, give: 0.1, sprawl: 0.75, tint: 0x455c31 },
+    blades: { length: 0.07, width: 0.05, density: 350, give: 0.1, sprawl: 0.75, tint: 0x455c31 },
   },
   /** Meadow grass with a mixed stand of flower heads. Authored only. */
   flowers: {
-    blades: { length: 0.3, width: 0.028, density: 65, give: 0.6, sprawl: 0.35, tint: 0x5f7040, vary: 0.4 },
+    blades: { length: 0.3, width: 0.028, density: 130, give: 0.6, sprawl: 0.35, tint: 0x5f7040, vary: 0.4 },
     props: {
       kind: 'bloom', density: 3.5, scale: 1, tint: 0xcfc7a6,
       tints: [0xd9d3c0, 0xc9a83c, 0x9a86b8],
@@ -256,16 +257,16 @@ export const COVER_TYPES = {
   },
   /** Pampas: long dry grass under tall stalks with pale plumes. Authored only. */
   plume: {
-    blades: { length: 0.55, width: 0.03, density: 35, give: 0.7, sprawl: 0.5, tint: PALETTE.GRASS_DRY, vary: 0.5 },
-    props: { kind: 'plume', density: 1.2, scale: 1, tint: 0xd6c9a8 },
+    blades: { length: 0.55, width: 0.03, density: 70, give: 0.7, sprawl: 0.5, tint: PALETTE.GRASS_DRY, vary: 0.5 },
+    props: { kind: 'plume', density: 3.6, scale: 1, tint: 0xd6c9a8 },
   },
   /** Tall, stiff and dark, for water edges and ditches. Authored only. */
   sedge: {
-    blades: { length: 0.95, width: 0.035, density: 30, give: 0.35, sprawl: 0.2, tint: 0x3f5c35, vary: 0.5 },
+    blades: { length: 0.95, width: 0.035, density: 60, give: 0.35, sprawl: 0.2, tint: 0x3f5c35, vary: 0.5 },
   },
   /** Low woody scrub hazed with small purple flowers. Authored only. */
   heather: {
-    blades: { length: 0.22, width: 0.034, density: 100, give: 0.2, sprawl: 0.7, tint: 0x5a5f42, vary: 0.3 },
+    blades: { length: 0.22, width: 0.034, density: 200, give: 0.2, sprawl: 0.7, tint: 0x5a5f42, vary: 0.3 },
     props: {
       kind: 'bloom', density: 24, scale: 0.55, tint: 0x9a86b8,
       tints: [0x9a86b8, 0xb59ac6],

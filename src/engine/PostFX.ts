@@ -206,10 +206,11 @@ export type CoverDensity = 'low' | 'medium' | 'high' | 'ultra';
 
 /**
  * Fraction of the sampled pool each tier draws. The type table is authored at
- * ultra, so medium is an ordinary field and low is thin and worn. Props thin
- * on a gentler curve than these — see `art/cover.ts`.
+ * ultra, which is twice a thick field: high is that thick field, medium an
+ * ordinary one, low thin and worn. Props thin on a gentler curve than these —
+ * see `art/cover.ts`.
  */
-const COVER_TIERS: Record<CoverDensity, number> = { low: 0.18, medium: 0.4, high: 0.6, ultra: 1 };
+const COVER_TIERS: Record<CoverDensity, number> = { low: 0.09, medium: 0.2, high: 0.3, ultra: 1 };
 
 /**
  * The part of the look that belongs to a *place* rather than to the game.
