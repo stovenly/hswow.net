@@ -51,6 +51,7 @@ import { waterShowcaseZone } from './WaterShowcase';
 import { waterShowcase2Zone } from './WaterShowcase2';
 import { footstepsShowcaseZone } from './FootstepsShowcase';
 import { groundcoverShowcaseZone } from './GroundcoverShowcase';
+import { particleShowcaseZone } from './ParticleShowcase';
 import { chainZones, chainPortals } from './chains';
 
 /**
@@ -588,6 +589,8 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   // The Groundcover Showcase, which is the ground itself rather than anything
   // standing on it — see `propPortals` for where its door stands.
   zones.push(groundcoverShowcaseZone());
+  // And the Particle Showcase, which is the air above it.
+  zones.push(particleShowcaseZone());
 
   return { zones, portals };
 }

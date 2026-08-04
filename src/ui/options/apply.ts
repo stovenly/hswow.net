@@ -1,6 +1,7 @@
 import { DEFAULT_TUNING } from '../../player/Controller';
 import { DEFAULT_AUDIO } from '../../audio/AudioEngine';
 import { setSwayOption } from '../../art/sway';
+import { setPrecipitation } from '../../art/particles';
 import { effective, type Options } from './model';
 import { setDyslexicFont } from './font';
 import type { AudioEngine } from '../../audio/AudioEngine';
@@ -117,6 +118,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
 
   // --- accessibility -------------------------------------------------------
   setSwayOption(options.windSway);
+  setPrecipitation(options.precipitation);
   postfx.setWaterMotion(options.waterMotion);
   tuning.bobScale = options.headBob ? 1 : 0;
   setDyslexicFont(options.dyslexicFont);

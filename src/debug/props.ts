@@ -24,6 +24,7 @@ import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
 import { footstepsShowcasePortal } from './FootstepsShowcase';
 import { groundcoverShowcasePortal } from './GroundcoverShowcase';
+import { particleShowcasePortal } from './ParticleShowcase';
 
 /**
  * The prop halls: one antechamber per setting, with the setting's galleries
@@ -109,8 +110,10 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  *
  * Centred on the arrival rather than running east from it, so walking in from
  * the hub puts the whole rank in one look instead of trailing off to one side.
+ * An even number of doors therefore straddles the middle rather than standing
+ * one on it, which is why these are on half-metres.
  */
-const SHOWCASE_SLOTS = [-15, -10, -5, 0, 5, 10, 15] as const;
+const SHOWCASE_SLOTS = [-17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
 function gridDoor(slot: number, material: 'timber' | 'iron', seed: number): PortalEnd {
@@ -349,8 +352,10 @@ export function propPortals(
     // Footsteps. Iron again: what is behind it is a test rig rather than a
     // place.
     footstepsShowcasePortal(gridDoor(5, 'iron', 6436)),
-    // And the ground itself closes the rank — the one showcase whose subject is
-    // the surface everything else in this room is standing on.
+    // The ground everything else in this room is standing on.
     groundcoverShowcasePortal(gridDoor(6, 'timber', 6437)),
+    // And the air above it closes the rank. Iron, because what is behind it is
+    // a rig rather than a place — ten systems standing in a line.
+    particleShowcasePortal(gridDoor(7, 'iron', 6438)),
   ];
 }

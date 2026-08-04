@@ -9,6 +9,8 @@ import { FogVolumesEffect, type FogVolume } from './FogVolumes';
 import { WaterEffect } from './Water';
 import { UnderwaterEffect } from './Underwater';
 import { WATER_MATERIAL } from '../art/water';
+import { ParticlesEffect } from './Particles';
+import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
@@ -121,6 +123,16 @@ export interface RenderSettings {
    */
   cover: { density: number; height: number; width: number };
 
+  /**
+   * Particles (PARTICLES.md). Tuning multipliers over the system table.
+   *
+   * `density` is the fraction of each system's instances drawn — the cost knob,
+   * and a prefix of the buffer rather than a rebuild. `size` scales every
+   * particle live. `shutter` is the exposure a streak is integrated over, which
+   * is the one number that decides whether rain reads as rain.
+   */
+  particles: { density: number; size: number; shutter: number };
+
   vignetteStrength: number;
   vignetteRadius: number;
   vignetteSoftness: number;
@@ -184,6 +196,11 @@ export const DEFAULT_RENDER: RenderSettings = {
   // Unity: the type table in world/ground.ts is authored in real metres and
   // real blades per square metre, and these only bend it for tuning.
   cover: { density: 1, height: 1, width: 1 },
+
+  // Unity again, and a sixtieth of a second — a shutter near the frame time is
+  // what a camera would integrate, and it is the number rain's streaks fall out
+  // of. See PARTICLES.md §3.
+  particles: { density: 1, size: 1, shutter: 1 / 60 },
 
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
@@ -263,6 +280,7 @@ export class PostFX {
   private readonly water: WaterEffect;
   private readonly underwater: UnderwaterEffect;
   private readonly fog: FogVolumesEffect;
+  private readonly particles: ParticlesEffect;
   private readonly bloom: BloomEffect;
   private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
@@ -288,6 +306,14 @@ export class PostFX {
   private waves = true;
   /** The player's groundcover tier, `off` included. See `setGroundcover`. */
   private groundcover: CoverDensity = 'high';
+  /**
+   * Whether particles are drawn at all.
+   *
+   * Not a player video option, by SHADERS.md's line: snow in a snowy zone is
+   * the place, like a pond or a mist pool. This is the dev switch, and the
+   * accessibility one — which removes weather only — lives in `art/particles`.
+   */
+  private particulate = true;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -310,6 +336,7 @@ export class PostFX {
         saved.cover && !('shells' in saved.cover)
           ? { ...DEFAULT_RENDER.cover, ...saved.cover }
           : { ...DEFAULT_RENDER.cover },
+      particles: { ...DEFAULT_RENDER.particles, ...saved.particles },
     };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
@@ -349,12 +376,16 @@ export class PostFX {
     // rather than over the pixels a pond covers. See `Underwater.ts`.
     this.underwater = new UnderwaterEffect();
     this.fog = new FogVolumesEffect();
+    // After the fog and before bloom, and both of those are load-bearing —
+    // see `Particles.ts`.
+    this.particles = new ParticlesEffect();
     this.bloom = new BloomEffect();
     this.pixelStage.effects.push(
       this.gtao,
       this.water,
       this.underwater,
       this.fog,
+      this.particles,
       this.bloom,
     );
 
@@ -500,6 +531,12 @@ export class PostFX {
     this.apply();
   }
 
+  /** Particles on or off. Off skips the pass and every particle draw with it. */
+  setParticles(enabled: boolean): void {
+    this.particulate = enabled;
+    this.apply();
+  }
+
   /**
    * Sets the colour vision correction and how strongly it is applied.
    *
@@ -560,6 +597,10 @@ export class PostFX {
       s.cover.height,
       s.cover.width,
     );
+
+    this.particles.enabled = this.particulate;
+    setParticleDraw(this.particulate, s.particles.density, s.particles.size);
+    particleUniforms.uShutter.value = s.particles.shutter;
 
     const u = this.retroPass.uniforms;
     u.uPixelSize.value = devicePixels;

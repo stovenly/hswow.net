@@ -84,11 +84,28 @@ const FLUTTER = 0.05;
 
 export interface WindUniforms {
   gustField: { value: THREE.DataTexture };
+  /**
+   * The running integral of the same field, in strength-seconds.
+   *
+   * What an *unanchored* thing needs. A plant is a spring, so it answers the
+   * wind now; a snowflake keeps everything the wind has already given it, which
+   * is the integral over its own age — see PARTICLES.md §4. Two taps and a
+   * subtract, from the table beside the one the plants read, so the gust that
+   * carries the snow is the gust bending the trees by construction.
+   *
+   * Float, and that is not caution: a running sum quantised to a byte comes out
+   * of a short-lived particle as a staircase of two or three discrete drifts.
+   * Sampled `NearestFilter` and interpolated by hand in the shader, because
+   * linear filtering of a float texture is an extension and this is not.
+   */
+  gustIntegral: { value: THREE.DataTexture };
   windDir: { value: THREE.Vector2 };
   /** Metres per gust-time unit along the wind. Converts world position to phase. */
   windLagScale: { value: number };
   /** Half the lookup window, in the same units as the lag. */
   windHalfSpan: { value: number };
+  /** Seconds of age → texture coordinate, for reaching back into the integral. */
+  windAgeScale: { value: number };
   swayTime: { value: number };
   swayAmount: { value: number };
 }
@@ -106,11 +123,26 @@ field.wrapS = THREE.ClampToEdgeWrapping;
 field.wrapT = THREE.ClampToEdgeWrapping;
 field.needsUpdate = true;
 
+const integral = new THREE.DataTexture(
+  new Float32Array(FIELD_SIZE),
+  FIELD_SIZE,
+  1,
+  THREE.RedFormat,
+  THREE.FloatType,
+);
+integral.minFilter = THREE.NearestFilter;
+integral.magFilter = THREE.NearestFilter;
+integral.wrapS = THREE.ClampToEdgeWrapping;
+integral.wrapT = THREE.ClampToEdgeWrapping;
+integral.needsUpdate = true;
+
 export const windUniforms: WindUniforms = {
   gustField: { value: field },
+  gustIntegral: { value: integral },
   windDir: { value: new THREE.Vector2(1, 0) },
   windLagScale: { value: 0 },
   windHalfSpan: { value: 1 },
+  windAgeScale: { value: 0 },
   swayTime: { value: 0 },
   // A global scale, so the whole world's motion can be turned down without
   // re-tuning seventy builders against each other. Composed below from the
@@ -308,6 +340,7 @@ export function applySway(material: THREE.Material): void {
 }
 
 const texels = field.image.data as Uint8Array;
+const sums = integral.image.data as unknown as Float32Array;
 
 /**
  * Refills the lookup window and advances the clock. Once a frame.
@@ -327,6 +360,17 @@ export function updateWind(weather: Weather, elapsed: number): void {
   windUniforms.windLagScale.value = lagScale;
   windUniforms.windHalfSpan.value = halfSpan;
   windUniforms.swayTime.value = elapsed;
+  // Seconds of age into a step along the window. The window is a span of
+  // gust-time and age is a span of seconds, so the rate is the whole of the
+  // conversion — and a rate of zero would be a still world with an integral
+  // that never advances, which is exactly the right answer for one.
+  windUniforms.windAgeScale.value = gustRate / (2 * halfSpan || 1);
+
+  // Seconds between neighbouring texels, for the integral below. The window is
+  // `2·halfSpan` of gust-time wide, and `gustRate` is gust-time per second.
+  const step = (2 * halfSpan) / (FIELD_SIZE - 1) / Math.max(gustRate, 1e-6);
+  let sum = 0;
+  let previous = 0;
 
   const now = weather.phase;
   for (let i = 0; i < FIELD_SIZE; i++) {
@@ -341,7 +385,16 @@ export function updateWind(weather: Weather, elapsed: number): void {
     // upwind and holds one that has not arrived yet. The field is a pure
     // function of phase, so the future is exactly as computable as the past.
     const phase = now + (u - 0.5) * 2 * halfSpan;
-    texels[i] = Math.round(weather.fieldAt(phase) * 255);
+    const strength = weather.fieldAt(phase);
+    texels[i] = Math.round(strength * 255);
+    // Trapezoid, accumulated from the downwind edge — so the table holds the
+    // integral *up to* each phase and a particle's drift is the difference
+    // between two of them. The zero point slides with the window every frame,
+    // which is harmless: nothing ever compares two frames' tables.
+    if (i > 0) sum += ((previous + strength) / 2) * step;
+    previous = strength;
+    sums[i] = sum;
   }
   field.needsUpdate = true;
+  integral.needsUpdate = true;
 }

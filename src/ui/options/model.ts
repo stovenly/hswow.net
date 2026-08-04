@@ -107,6 +107,19 @@ export interface Options {
    */
   waterMotion: boolean;
   headBob: boolean;
+  /**
+   * Snow, rain, ash — the weather, and only the weather.
+   *
+   * An accessibility option rather than a video one, and a stronger case than
+   * wind sway: falling snow is constant motion across the whole frame. The trap
+   * is that there is **no still version of it** — snow that holds still is snow
+   * hanging in the air, which is worse than either state — so this removes the
+   * particles rather than freezing them, and that costs the zone something
+   * real. Motion is what makes a particle an accessibility question and a mist
+   * pool not one. Smoke and sparks stay: they are small, local, and looked at
+   * rather than looked through.
+   */
+  precipitation: boolean;
   /** The field of view widening while sprinting. */
   sprintZoom: boolean;
   colorblind: ColorblindMode;
@@ -150,6 +163,7 @@ export const DEFAULT_OPTIONS: Options = {
   windSway: true,
   waterMotion: true,
   headBob: true,
+  precipitation: true,
   sprintZoom: true,
   colorblind: 'off',
   colorblindStrength: 100,
@@ -176,6 +190,7 @@ export function effective(options: Options): Options {
     windSway: options.windSway && motion,
     waterMotion: options.waterMotion && motion,
     headBob: options.headBob && motion,
+    precipitation: options.precipitation && motion,
     sprintZoom: options.sprintZoom && motion,
   };
 }
@@ -419,6 +434,18 @@ export const CATEGORIES: readonly Category[] = [
         label: 'head bob',
         enabledWhen: motionAllowed,
         note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
+      },
+      {
+        kind: 'toggle',
+        key: 'precipitation',
+        label: 'falling weather',
+        enabledWhen: motionAllowed,
+        note: (options) =>
+          options.reducedMotion
+            ? 'held by reduced motion'
+            : options.precipitation
+              ? null
+              : 'snow and rain removed, not stilled',
       },
       {
         kind: 'toggle',

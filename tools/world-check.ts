@@ -41,6 +41,8 @@ import { ZONE_FOOTSTEPS_SHOWCASE } from '../src/debug/FootstepsShowcase';
 import { GROUND, COVER_TYPES } from '../src/world/ground';
 import { COVER_ATTRIBUTE, coverCensus } from '../src/art/cover';
 import { groundcoverTerrain, ZONE_GROUNDCOVER_SHOWCASE } from '../src/debug/GroundcoverShowcase';
+import { ZONE_PARTICLE_SHOWCASE } from '../src/debug/ParticleShowcase';
+import { drawnAlpha, QUANTIZE_FLOOR } from '../src/art/particles';
 import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
 import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
@@ -808,6 +810,104 @@ console.log('\n--- groundcover ---------------------------------------------\n')
     stopsAt === null
       ? 'the bank grows cover all the way over — nothing on it is past the rock angle'
       : `bare from z = ${stopsAt.toFixed(1)}, at ${t.slopeAt(0, stopsAt).toFixed(0)}°`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n--- particles -----------------------------------------------\n');
+
+/**
+ * The particle showcase presents every motion, and only on its own layer.
+ *
+ * The same argument the two showcases above make: almost nothing about
+ * particles can be settled by arithmetic, so a motion that stands nowhere
+ * cannot be looked at — and there are only four of them.
+ *
+ * The layer is checked here rather than believed, because losing it is silent
+ * in every other measurement. A particle back on layer 0 is drawn, counted and
+ * lit exactly as before; what changes is that every flake acquires an outline,
+ * punches a hole in the outline of whatever it crosses, and joins the shadow
+ * map three thousand at a time.
+ */
+{
+  const showcase = zones.get(ZONE_PARTICLE_SHOWCASE)?.root() ?? new THREE.Group();
+  const motions = new Set<number>();
+  const zero = new THREE.Layers();
+  zero.set(0);
+  let systems = 0;
+  let instances = 0;
+  let misplaced = 0;
+  let casters = 0;
+  showcase.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || object.userData.particles !== true) return;
+    systems++;
+    if (object.layers.test(zero)) misplaced++;
+    if (object.castShadow || object.frustumCulled) casters++;
+    const geometry = object.geometry as THREE.InstancedBufferGeometry;
+    instances += geometry.instanceCount;
+    const vary = geometry.getAttribute('iVary');
+    if (vary) motions.add(vary.getX(0));
+  });
+  const ok = systems > 0 && motions.size === 4 && misplaced === 0 && casters === 0;
+  check(
+    'the particle showcase presents every motion',
+    ok,
+    ok
+      ? `${systems} systems, ${instances.toLocaleString()} instances, all four motions, ` +
+        'none on layer 0, none casting'
+      : `${systems} systems, ${motions.size}/4 motions, ${misplaced} on layer 0, ${casters} casting`,
+  );
+
+  /**
+   * And every one of them is bright enough to appear.
+   *
+   * **This is the check that was missing, and the room shipped broken without
+   * it.** A particle can be correctly placed, correctly lit and mathematically
+   * invisible: the sub-pixel clamp costs alpha by the square of the distance
+   * once a thing is under a pixel wide, and the pipeline quantizes to sixteen
+   * levels — so under 1/16 is not faint, it is not drawn. The first version of
+   * the showcase stood its stations up to sixty metres from the arrival, and
+   * five of the ten could not have appeared at any brightness. Everything else
+   * in the suite passed.
+   *
+   * Measured from where the player actually arrives, at eye height, against the
+   * nearest instance of each system — the most favourable case there is, so
+   * failing it means the system is invisible from the door full stop.
+   */
+  const spawn = zones.get(ZONE_PARTICLE_SHOWCASE)?.definition.spawn.position;
+  const eye = spawn ? spawn.clone().setY(spawn.y + 1.5) : new THREE.Vector3();
+  const dim: string[] = [];
+  let faintest = { name: '—', alpha: Infinity };
+  showcase.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || object.userData.particles !== true) return;
+    const geometry = object.geometry as THREE.InstancedBufferGeometry;
+    const origin = geometry.getAttribute('iOrigin');
+    const shape = geometry.getAttribute('iShape');
+    const colour = geometry.getAttribute('iColour');
+    const field = geometry.getAttribute('iField');
+    // A wrapped box hangs by its centre and its origins run downward from the
+    // top, so the world position of instance `i` is the mesh, plus the origin,
+    // less half the box's height. An emitter's origin is already where it is.
+    const wrapped = field.getW(0) > 0.5;
+    let best = 0;
+    for (let i = 0; i < geometry.instanceCount; i++) {
+      const at = new THREE.Vector3(
+        origin.getX(i),
+        origin.getY(i) - (wrapped ? field.getY(i) / 2 : 0),
+        origin.getZ(i),
+      ).add(object.position);
+      best = Math.max(best, drawnAlpha(shape.getX(i), at.distanceTo(eye), colour.getW(i)));
+    }
+    if (best < faintest.alpha) faintest = { name: object.name, alpha: best };
+    if (best < QUANTIZE_FLOOR) dim.push(`${object.name} at ${best.toFixed(3)}`);
+  });
+  check(
+    'every showcase system is bright enough to be drawn',
+    dim.length === 0,
+    dim.length === 0
+      ? `faintest is ${faintest.name} at ${faintest.alpha.toFixed(2)} alpha, ` +
+        `against a quantize floor of ${QUANTIZE_FLOOR.toFixed(3)}`
+      : `under the quantize floor from the arrival: ${dim.join(', ')}`,
   );
 }
 
