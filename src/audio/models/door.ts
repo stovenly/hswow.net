@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import type { AudioEngine } from '../AudioEngine';
 import { createModalBank } from '../dsp/modal';
 import { strike } from '../dsp/envelopes';
@@ -44,8 +43,8 @@ import { thump } from '../dsp/impact';
  *
  * ```
  *  noise ─► click envelope ─► bandpass (hardware)  ─┐
- *  noise ─► body envelope  ─► bandpass (panel) ×3  ─┼─► out ─► panner ─┬─► dry
- *  sine  ─► thump envelope ────────────────────────ˈ                   └─► send
+ *  noise ─► body envelope  ─► bandpass (panel) ×3  ─┼─► out ─┬─► dry
+ *  sine  ─► thump envelope ────────────────────────ˈ         └─► send
  * ```
  *
  * **The ring-down is in the envelope, not in the filter Q.** A resonator sharp
@@ -60,6 +59,14 @@ import { thump } from '../dsp/impact';
  * the zone that made it** — you press E, the world is torn down and rebuilt
  * somewhere else, and this has to carry across the cut, so nothing about it may
  * depend on a frame loop or on any object a zone owns.
+ *
+ * **It has to outlive the listener's position too**, which is the half that was
+ * missing. This was spatialised at the door, and then the listener teleported
+ * tens of metres away from a panner that stayed where it was — 27 dB of it
+ * gone, mid-gesture, taking the reverb tail with it because the send is after
+ * the panner. So it is routed like `footsteps`: a first-person gesture goes to
+ * the bus, not into the world. You have to be looking at a door to use one, so
+ * there was never a direction here worth rendering.
  */
 
 interface Mode {
@@ -83,7 +90,7 @@ export interface DoorSpec {
 
 /** Heavy timber. A warm, hollow knock. */
 const TIMBER: DoorSpec = {
-  level: 0.55,
+  level: 0.43,
   click: { hz: 3200, q: 6, duration: 0.004, level: 0.5 },
   modes: [
     { hz: 180, decay: 0.16, q: 5, level: 1 },
@@ -95,7 +102,7 @@ const TIMBER: DoorSpec = {
 
 /** Iron. Brighter, longer, and it rings — the only one that sings. */
 const IRON: DoorSpec = {
-  level: 0.5,
+  level: 0.39,
   click: { hz: 5200, q: 9, duration: 0.005, level: 0.6 },
   modes: [
     { hz: 240, decay: 0.34, q: 9, level: 0.8 },
@@ -108,7 +115,7 @@ const IRON: DoorSpec = {
 
 /** Thin boards. Quick, light, a little rattly, and gone. */
 const PLANK: DoorSpec = {
-  level: 0.42,
+  level: 0.33,
   click: { hz: 2400, q: 5, duration: 0.003, level: 0.35 },
   modes: [
     { hz: 320, decay: 0.08, q: 5, level: 0.8 },
@@ -124,9 +131,13 @@ export type DoorMaterial = keyof typeof DOOR_SPECS;
 /**
  * How long a gesture lasts, for a spec. Used by the check and by the cleanup.
  *
- * The longest thing in it, plus the gap the click sits in. Deliberately well
- * inside the fade — a transition cue that is still going when the next place
- * has appeared reads as a sound belonging to the new room.
+ * The longest thing in it, plus the gap the click sits in.
+ *
+ * **Not required to finish inside the fade.** The fade is 0.58 s and iron rings
+ * for 1.1, so most of its tail lands in the room you have arrived in — which is
+ * the point of a threshold, and only became audible once the panner went. What
+ * must be over by then is the *gesture*: the click and the leaf are done inside
+ * 0.1 s on every material, and what crosses is decay.
  */
 export function doorDuration(spec: DoorSpec): number {
   const longest = Math.max(spec.thump.decay, ...spec.modes.map((m) => m.decay));
@@ -159,14 +170,14 @@ export class DoorAudio {
    * The latch comes first and the body follows, because that is the order your
    * hand does it in — the handle turns, then the leaf moves.
    */
-  play(position: THREE.Vector3, material: DoorMaterial = 'timber'): void {
+  play(material: DoorMaterial = 'timber'): void {
     const spec = DOOR_SPECS[material];
     const context = this.engine.context;
     if (context.state !== 'running' || !this.engine.noise) return;
 
     const start = context.currentTime + 0.02;
     const nodes: AudioNode[] = [];
-    const output = this.buildOutput(spec, position, nodes);
+    const output = this.buildOutput(spec, nodes);
 
     // The resonators are built per fire rather than kept, unlike `footsteps`.
     // A door sound has to outlive the zone that made it — you press E, the
@@ -214,36 +225,23 @@ export class DoorAudio {
     );
   }
 
-  /** Output stage: level, position, and a healthy send so doorways sound like doorways. */
-  private buildOutput(
-    spec: DoorSpec,
-    position: THREE.Vector3,
-    nodes: AudioNode[],
-  ): GainNode {
+  /** Output stage: level, and a healthy send so doorways sound like doorways. */
+  private buildOutput(spec: DoorSpec, nodes: AudioNode[]): GainNode {
     const context = this.engine.context;
 
     const output = context.createGain();
     output.gain.value = spec.level;
 
-    const panner = context.createPanner();
-    panner.panningModel = 'HRTF';
-    panner.distanceModel = 'inverse';
-    panner.refDistance = 1.6;
-    panner.maxDistance = 45;
-    panner.rolloffFactor = 1.1;
-    setPosition(panner, position);
-
     const send = context.createGain();
     // Doors are in doorways, which is exactly where a room's acoustics are most
     // legible — and on a transition the tail is the first thing you hear of the
     // place you have arrived in.
-    send.gain.value = 0.9;
+    send.gain.value = 0.7;
 
-    output.connect(panner);
-    panner.connect(this.engine.dry);
-    panner.connect(send);
+    output.connect(this.engine.dry);
+    output.connect(send);
     send.connect(this.engine.send);
-    nodes.push(output, panner, send);
+    nodes.push(output, send);
     return output;
   }
 
@@ -281,19 +279,5 @@ export class DoorAudio {
     source.start(at, rand(0, noise.white.duration - 1), decay * 3 + 0.05);
     source.stop(at + decay * 3 + 0.06);
     nodes.push(source, envelope);
-  }
-}
-
-function setPosition(panner: PannerNode, position: THREE.Vector3): void {
-  if (panner.positionX) {
-    panner.positionX.value = position.x;
-    panner.positionY.value = position.y;
-    panner.positionZ.value = position.z;
-  } else {
-    (panner as unknown as { setPosition(x: number, y: number, z: number): void }).setPosition(
-      position.x,
-      position.y,
-      position.z,
-    );
   }
 }
