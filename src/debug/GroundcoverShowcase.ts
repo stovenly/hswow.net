@@ -171,6 +171,9 @@ export function groundcoverShowcaseZone(): ZoneDefinition {
       // once, and fog closing at forty would put the far strips in haze.
       fogNear: 50,
       fogFar: 170,
+      // Blowier than the weather's default: the sway is half of what the room
+      // exists to show.
+      wind: 1.6,
       soundscape: SILENCE,
     },
     spawn: { position: onGround(0, DOOR_Z - 2.5), yaw: Math.PI },

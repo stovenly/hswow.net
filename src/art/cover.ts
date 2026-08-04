@@ -9,6 +9,7 @@ import {
   type PropLayer,
 } from '../world/ground';
 import { windUniforms } from './sway';
+import { COVER_LAYER } from '../layers';
 
 /**
  * Groundcover: instanced blades sampled from any ground mesh.
@@ -23,8 +24,9 @@ import { windUniforms } from './sway';
  * Three decisions carried over from the shell version this replaces:
  * blades rise from world-flat ground along +Y, never the face normal; broad
  * variation comes from `coverSwell`/`coverThickness` on world XZ; and the
- * cover stays out of the normal pass (see `PostFX.hideGlowFromEdges` — an
- * override material knows nothing about instanced blade construction).
+ * cover stays out of the scene-wide normal *override* (see
+ * `PostFX.hideGlowFromEdges`), drawing itself into the normal buffer
+ * afterwards with its own patched materials — see `drawCoverNormals`.
  *
  * Two shading choices do most of the work: a blade is lit by the *ground's*
  * normal, so a field shades as one surface with the terrain under it, and a
@@ -80,9 +82,8 @@ export const COVER_MATERIAL = new THREE.MeshLambertMaterial({
   side: THREE.DoubleSide,
 });
 
-COVER_MATERIAL.onBeforeCompile = (shader) => {
-  Object.assign(shader.uniforms, windUniforms, coverUniforms);
-
+/** The blade construction, shared by the colour material and the normal-pass one. */
+const patchBladeVertex = (shader: { vertexShader: string }): void => {
   shader.vertexShader = shader.vertexShader
     .replace(
       '#include <common>',
@@ -169,6 +170,11 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       }
       `,
     );
+};
+
+COVER_MATERIAL.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, windUniforms, coverUniforms);
+  patchBladeVertex(shader);
 
   shader.fragmentShader = shader.fragmentShader
     .replace(
@@ -206,9 +212,8 @@ export const TUFT_MATERIAL = new THREE.MeshLambertMaterial({
   side: THREE.DoubleSide,
 });
 
-TUFT_MATERIAL.onBeforeCompile = (shader) => {
-  Object.assign(shader.uniforms, windUniforms, coverUniforms);
-
+/** The tuft construction, shared by the colour material and the normal-pass one. */
+const patchTuftVertex = (shader: { vertexShader: string }): void => {
   shader.vertexShader = shader.vertexShader
     .replace(
       '#include <common>',
@@ -278,6 +283,28 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
       }
       `,
     );
+};
+
+/** The stipple, shared the same way: both passes must discard identically. */
+const TUFT_STIPPLE_DECL = /* glsl */ `
+varying vec4 vTuftGrain;
+
+// Fract-based, not sine-based: sin loses its fractional bits at large
+// lattice indices and quantises into visible bands.
+float coverHash(vec2 p) {
+  vec3 q = fract(vec3(p.x, p.y, p.x) * 0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
+`;
+
+const TUFT_STIPPLE_TEST = /* glsl */ `
+if (vTuftGrain.z < 1.0 && coverHash(floor(vTuftGrain.xy * 32.0)) > vTuftGrain.z) discard;
+`;
+
+TUFT_MATERIAL.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, windUniforms, coverUniforms);
+  patchTuftVertex(shader);
 
   shader.fragmentShader = shader.fragmentShader
     .replace(
@@ -286,16 +313,8 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
       uniform vec3 coverSunDir;
       uniform vec3 coverGlow;
       varying vec3 vTuftTint;
-      varying vec4 vTuftGrain;
       varying vec3 vTuftWorld;
-
-      // Fract-based, not sine-based: sin loses its fractional bits at large
-      // lattice indices and quantises into visible bands.
-      float coverHash(vec2 p) {
-        vec3 q = fract(vec3(p.x, p.y, p.x) * 0.1031);
-        q += dot(q, q.yzx + 33.33);
-        return fract((q.x + q.y) * q.z);
-      }
+      ${TUFT_STIPPLE_DECL}
       `,
     )
     .replace(
@@ -303,7 +322,7 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
       // The feathery edge is a stipple, which is what this pipeline quantises
       // a soft edge into anyway.
       /* glsl */ `#include <clipping_planes_fragment>
-      if (vTuftGrain.z < 1.0 && coverHash(floor(vTuftGrain.xy * 32.0)) > vTuftGrain.z) discard;
+      ${TUFT_STIPPLE_TEST}
       `,
     )
     .replace(
@@ -330,6 +349,59 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
 };
 
 TUFT_MATERIAL.customProgramCacheKey = () => 'cover-tufts';
+
+/**
+ * The same cover, for the normal buffer. `PixelStage` renders the scene with a
+ * scene-wide override that cannot know the instanced construction, so after
+ * that pass the cover meshes swap to these and draw themselves in — otherwise
+ * the edge detector outlines whatever stands *behind* a blade or a plume
+ * straight through it. Same vertex build and same discard, so the normal
+ * buffer agrees with the colour buffer per pixel; a blade writes the ground's
+ * normal, which is also what it is lit by.
+ */
+export const COVER_NORMAL_MATERIAL = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+
+COVER_NORMAL_MATERIAL.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, windUniforms, coverUniforms);
+  patchBladeVertex(shader);
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <normal_fragment_begin>',
+    /* glsl */ `#include <normal_fragment_begin>
+    normal = normalize(vNormal);
+    `,
+  );
+};
+
+COVER_NORMAL_MATERIAL.customProgramCacheKey = () => 'cover-blades-normal';
+
+export const TUFT_NORMAL_MATERIAL = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+
+TUFT_NORMAL_MATERIAL.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, windUniforms, coverUniforms);
+  patchTuftVertex(shader);
+  // The normal fragment has no <common> include; <packing> is its anchor.
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <packing>',
+      /* glsl */ `#include <packing>
+      ${TUFT_STIPPLE_DECL}
+      `,
+    )
+    .replace(
+      '#include <clipping_planes_fragment>',
+      /* glsl */ `#include <clipping_planes_fragment>
+      ${TUFT_STIPPLE_TEST}
+      `,
+    )
+    .replace(
+      '#include <normal_fragment_begin>',
+      /* glsl */ `#include <normal_fragment_begin>
+      normal = normalize(vNormal);
+      `,
+    );
+};
+
+TUFT_NORMAL_MATERIAL.customProgramCacheKey = () => 'cover-tufts-normal';
 
 // --- base geometry -----------------------------------------------------------
 
@@ -726,8 +798,10 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         const h3 = hat(f, i, 47);
         const h4 = hat(f, i, 53);
         const vary = blades.vary ?? 0.3;
+        // The swell field carries most of the range, so height reads as
+        // sweeping areas of a field rather than as noise between neighbours.
         const length =
-          blades.length * (0.65 + 0.7 * swell) * clumpTall * (1 - 0.5 * vary + vary * h1);
+          blades.length * (0.55 + 0.95 * swell) * clumpTall * (1 - 0.5 * vary + vary * h1);
         sample.maxLen = Math.max(sample.maxLen, length);
 
         tint.set(blades.tint).lerp(faceTint, 0.25);
@@ -870,6 +944,37 @@ export function updateCover(
   }
 }
 
+/**
+ * Draws the cover into the normal buffer, after the scene-wide override pass
+ * has drawn everything else. Called by `PixelStage` with the normal target
+ * still bound; depth testing against the override pass's depth keeps a wall in
+ * front of a field in front of it here too.
+ */
+export function drawCoverNormals(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+): void {
+  let any = false;
+  for (const mesh of live) {
+    if (!mesh.visible) continue;
+    mesh.material = mesh.userData.coverTuft ? TUFT_NORMAL_MATERIAL : COVER_NORMAL_MATERIAL;
+    any = true;
+  }
+  if (any) {
+    const mask = camera.layers.mask;
+    const autoClear = renderer.autoClear;
+    camera.layers.set(COVER_LAYER);
+    renderer.autoClear = false;
+    renderer.render(scene, camera);
+    renderer.autoClear = autoClear;
+    camera.layers.mask = mask;
+  }
+  for (const mesh of live) {
+    mesh.material = mesh.userData.coverTuft ? TUFT_MATERIAL : COVER_MATERIAL;
+  }
+}
+
 /** Deterministic shuffle, so thinning by prefix stays an even scatter. */
 function shuffledOrder(count: number, seed: number): Uint32Array {
   const order = new Uint32Array(count);
@@ -929,6 +1034,9 @@ function chunkMesh(
   mesh.castShadow = false;
   mesh.receiveShadow = true;
   mesh.userData.coverFull = count;
+  // Also on the cover layer, so the normal pass can point a camera at cover
+  // alone. See drawCoverNormals.
+  mesh.layers.enable(COVER_LAYER);
 
   live.add(mesh);
   geometry.addEventListener('dispose', () => live.delete(mesh));
@@ -978,12 +1086,20 @@ export function coverFor(ground: THREE.Mesh, type?: CoverName): THREE.Object3D |
     const base = (propGeometry[chunk.kind] ??= PROP_GEOMETRY[chunk.kind]());
     const count = chunk.place.length / 4;
     const order = shuffledOrder(count, hat(seed++, count, 11));
-    group.add(
-      chunkMesh(base, TUFT_MATERIAL, `cover-${chunk.kind}`, count, 3, gather(chunk.place, order, 4), {
+    const mesh = chunkMesh(
+      base,
+      TUFT_MATERIAL,
+      `cover-${chunk.kind}`,
+      count,
+      3,
+      gather(chunk.place, order, 4),
+      {
         iProp: [gather(chunk.prop, order, 4), 4],
         iTintP: [gather(chunk.tint, order, 3), 3],
-      }),
+      },
     );
+    mesh.userData.coverTuft = true;
+    group.add(mesh);
   }
 
   return group;

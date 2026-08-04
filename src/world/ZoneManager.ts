@@ -5,6 +5,7 @@ import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
+import { setZoneWind } from '../art/sway';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';
@@ -486,6 +487,7 @@ export class ZoneManager {
     this.lights.ambient.intensity = env.ambientIntensity;
     this.lights.ambient.color.setHex(env.ambientSky);
     this.lights.ambient.groundColor.setHex(env.ambientGround);
+    setZoneWind(env.wind ?? 1);
 
     this.applyAudio(zone);
 

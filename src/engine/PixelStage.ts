@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
+import { drawCoverNormals } from '../art/cover';
 
 /**
  * The pixel stage: render at chunky resolution, run effects there, upscale.
@@ -174,6 +175,10 @@ export class PixelStage extends Pass {
     this.scene.overrideMaterial = this.normalMaterial;
     renderer.render(this.scene, this.camera);
     this.scene.overrideMaterial = priorOverride;
+    // The groundcover draws itself in afterwards: the override cannot know its
+    // instanced construction, and a normal buffer that ends at the ground lets
+    // the edge pass outline whatever stands behind a blade straight through it.
+    drawCoverNormals(renderer, this.scene, this.camera);
 
     // --- the edge lines, before anything is put in front of them ------------
     // **The outline belongs to the surface, so it is drawn onto the surface.**
