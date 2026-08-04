@@ -13,15 +13,15 @@ import { windUniforms } from './sway';
  *
  * One `InstancedBufferGeometry` sharing the ground's own attribute buffers,
  * with one instance per shell. Each shell is the ground lifted along +Y; the
- * fragment shader hashes world XZ into cells and throws away anything whose
- * strand does not reach that height. A stack of cross-sections reads as blades.
+ * fragment shader reads a height field from world XZ and throws away anything
+ * the field does not reach. A stack of cross-sections reads as tufts.
  * See GROUNDCOVER.md for why shells rather than geometry, and for the three
  * things this project needs that no tutorial mentions:
  *
  * - **Along +Y, never along the normal.** The ground is flat-shaded with one
  *   normal per face, so normal-offset shells tear apart at every face boundary.
- * - **Hash world XZ, not UVs.** `assemble` deletes UVs, and terrain face
- *   density varies — a UV hash would change blade size wherever the mesh does.
+ * - **Sample world XZ, not UVs.** `assemble` deletes UVs, and terrain face
+ *   density varies — a UV field would change tuft size wherever the mesh does.
  * - **Out of the normal pass.** A shell's normal *is* the ground's, so drawing
  *   it there would be paying twice for the same answer. See `PostFX`.
  *
@@ -43,26 +43,29 @@ const SWELL_HIGH = 1.5;
 const THICK_LOW = 0.35;
 const THICK_HIGH = 1.65;
 
-/** Blade cell, in metres. Fine, so a blade can be both narrow and dense. */
-const CELL = 0.014;
+/**
+ * Tuft and blade feature sizes, in metres.
+ *
+ * Two octaves of a *smooth* field rather than a lattice of hard-edged discs.
+ * A grid of hard edges a few pixels to a cell is an interference pattern
+ * against the pixel grid however the cells are jittered, and jittering only
+ * turns one fringe into patches of them. Smooth noise is band-limited, so at a
+ * couple of samples a feature it reconstructs instead of fringing.
+ */
+const TUFT = 0.1;
+const BLADE = 0.035;
 
 /** Clump cell. Coarse, and what stops a field reading as a lawn. */
 const CLUMP = 0.8;
-
-/** Mean of `(0.55 + 0.45u)(0.6 + 0.8v)`, which the far field converges on. */
-const MEAN_STRAND = 0.775;
 
 /** How dark the roots are, and how much of that the tips recover. */
 const ROOT = 0.56;
 const RAMP = 0.44;
 
-/** How far under a screen pixel a cell may go before the pattern gives up. */
-const RESOLVE = 1.5;
-
 /** How far the top of the stack leans downwind, as a fraction of its height. */
 const LEAN = 0.7;
 
-/** `vec2`: the `COVER_TYPES` index per face, and how far inside it per corner. */
+/** `vec4`: type index and feather, then the swell and thickness fields. */
 export const COVER_ATTRIBUTE = 'cover';
 
 /** Per-instance shell number, 0 at the ground. */
@@ -70,7 +73,7 @@ const SHELL_ATTRIBUTE = 'shell';
 
 const COUNT = COVER_ORDER.length;
 
-/** `vec4(height, density, base, tip)` per type, flat. Filled once, never edited. */
+/** `vec4(height, density, hold, taper)` per type, flat. Filled once, never edited. */
 const spec = new Float32Array(COUNT * 4);
 /** And the tints, in the renderer's working colour space. */
 const tint = new Float32Array(COUNT * 3);
@@ -79,7 +82,7 @@ const tint = new Float32Array(COUNT * 3);
   const colour = new THREE.Color();
   COVER_ORDER.forEach((name, i) => {
     const type = COVER_TYPES[name];
-    spec.set([type.height, type.density, type.base, type.tip], i * 4);
+    spec.set([type.height, type.density, type.hold, type.taper], i * 4);
     colour.set(type.tint).toArray(tint, i * 3);
   });
 }
@@ -88,9 +91,9 @@ export const coverUniforms = {
   coverSpec: { value: spec },
   coverTint: { value: tint },
   /** Live shell count. The geometry's `instanceCount` is kept equal to it. */
-  coverShells: { value: 8 },
+  coverShells: { value: 16 },
   /** Metres the stack spans, before a type's own multiplier. */
-  coverHeight: { value: 0.126 },
+  coverHeight: { value: 0.18 },
   /** Global multiplier on each type's density. */
   coverDensity: { value: 1 },
 };
@@ -139,10 +142,10 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       uniform float swayAmount;
       // Packed: varyings are a hardware limit and Lambert with shadows has
       // already spent most of the guaranteed minimum.
-      varying vec4 vCoverBlade;  // density, base radius, tip radius, height up
+      varying vec4 vCoverBlade;  // density, hold, taper, height up the stack
       varying vec4 vCoverPlace;  // world XZ, and the wind shear to take it by
       varying vec3 vCoverTint;
-      varying vec3 vCoverEdge;   // world Y, feather, and the thickness field
+      varying vec2 vCoverEdge;   // feather, and the thickness field
       `,
     )
     .replace(
@@ -168,8 +171,7 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
         float rise = up * coverHeight * spec.x * swell;
         transformed.y += rise / max(length(modelMatrix[1].xyz), 0.0001);
         vec3 worldAt = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        vCoverEdge = vec3(
-          worldAt.y,
+        vCoverEdge = vec2(
           ${COVER_ATTRIBUTE}.y,
           mix(${THICK_LOW.toFixed(2)}, ${THICK_HIGH.toFixed(2)}, ${COVER_ATTRIBUTE}.w));
 
@@ -190,18 +192,12 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       '#include <common>',
       /* glsl */ `#include <common>
       uniform float coverDensity;
-      uniform float coverShells;
       varying vec4 vCoverBlade;
       varying vec4 vCoverPlace;
       varying vec3 vCoverTint;
-      varying vec3 vCoverEdge;
+      varying vec2 vCoverEdge;
 
-      // Set where the discards are decided and read where the colour is, which
-      // are two separate injections into three's program.
-      float coverFade;
-      float coverHeld;
-
-      // Not a sine hash: sin(dot(p, big)) loses its fractional bits at cell
+      // Not a sine hash: sin(dot(p, big)) loses its fractional bits at lattice
       // indices this large and quantises into visible bands. This folds to
       // 0..1 before it multiplies.
       float coverHash(vec2 p) {
@@ -209,110 +205,77 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
         q += dot(q, q.yzx + 33.33);
         return fract((q.x + q.y) * q.z);
       }
+
+      // Smooth value noise. Folded first, so the hash never sees a lattice
+      // index too large to keep its fractional bits.
+      float coverNoise(vec2 p) {
+        vec2 i = mod(floor(p), 1024.0);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = coverHash(i);
+        float b = coverHash(i + vec2(1.0, 0.0));
+        float c = coverHash(i + vec2(0.0, 1.0));
+        float d = coverHash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
       `,
     )
     .replace(
       '#include <clipping_planes_fragment>',
       /* glsl */ `#include <clipping_planes_fragment>
       {
-        // Nothing grows here. Out before the fade below, which converges on
-        // "covered" and would otherwise grow a slab on bare rock at distance.
+        // Nothing grows here, and no later test would have said so.
         if (vCoverBlade.x <= 0.0) discard;
 
         float up = vCoverBlade.w;
         vec2 place = vCoverPlace.xy - vCoverPlace.zw;
 
-        // Clumps are sampled undisplaced, so they stay where they are while the
-        // blades in them lean. Type comes from the face; height, thickness and
-        // tint come from here, and bare clumps are where mixed cover comes from.
+        // Clumps are sampled undisplaced, so they stay put while the tufts in
+        // them lean. Type comes from the face; how tall and how thick come from
+        // here, and a thin clump is where bare ground shows through.
         vec2 clump = floor(vCoverPlace.xy / ${CLUMP.toFixed(2)});
         float clumpTall = coverHash(clump);
         float clumpThick = coverHash(clump + 17.0);
 
-        // The blade lattice turns with the clump. One grid running the same way
-        // across a field is a regular pattern, and a regular pattern is what
-        // beats against the pixel grid.
-        float spin = coverHash(clump + 41.0) * 6.2831;
-        vec2 axis = vec2(cos(spin), sin(spin));
-        vec2 turned = vec2(dot(place, axis), dot(place, vec2(-axis.y, axis.x)));
-
-        // How much of one cell a screen pixel can still see. A procedural
-        // discard has no mipmap chain, so below a pixel the pattern is
-        // interference rather than grass — see world/floor.ts for the same
-        // failure in grid lines. Y is in the derivative because on a slope seen
-        // face-on the XZ footprint barely moves and would claim it is resolved.
-        float texel = max(max(fwidth(place.x), fwidth(place.y)), fwidth(vCoverEdge.x));
-        float resolve = clamp(${(CELL * RESOLVE).toFixed(4)} / max(texel, 1e-6), 0.0, 1.0);
-
-        vec2 blown = turned / ${CELL.toFixed(4)};
-        vec2 cell = floor(blown);
-        // Folded, so the hash never sees a coordinate too large to resolve.
-        vec2 key = mod(cell, 1024.0);
+        // The height field. Two octaves, the coarse one carrying the tufts and
+        // the fine one the strands inside them, both sheared downwind by the
+        // gust — which is the whole wind effect.
+        float field = 0.68 * coverNoise(place * ${(1 / TUFT).toFixed(3)})
+                    + 0.32 * coverNoise(place * ${(1 / BLADE).toFixed(3)});
 
         // Thinned toward the edge of its own patch, so grass runs out onto a
         // path instead of stopping on a line. A stipple rather than a gradient:
         // this pipeline quantizes a colour ramp into a band of dither.
-        float feather = vCoverEdge.y;
-        float density = vCoverBlade.x * coverDensity * (0.5 + clumpThick)
-                      * vCoverEdge.z * feather;
-        if (coverHash(key + 5.0) > mix(1.0, density, resolve)) discard;
+        float feather = vCoverEdge.x;
+        float hold = clamp(
+          vCoverBlade.x * coverDensity * (0.5 + clumpThick) * vCoverEdge.y * feather
+            * vCoverBlade.y,
+          0.0, 1.0);
 
-        // Far off, every test converges on the average of what it would have
-        // decided — a solid stack at the mean height, which is the mipmap this
-        // cannot have. Only the blade-scale randomness averages away: the clump
-        // and the broad fields are coarser than a pixel long after a blade is,
-        // so they stay, and the far field keeps its mottling instead of going
-        // flat. A flat far field beside a textured near one is a boundary no
-        // amount of matched brightness can hide.
-        float strand = (0.55 + 0.45 * coverHash(key + 11.0)) * (0.6 + 0.8 * clumpTall);
-        strand *= mix(0.5, 1.0, feather);
-        float meanStrand = ${MEAN_STRAND.toFixed(3)} * (0.6 + 0.8 * clumpTall)
-                         * mix(0.5, 1.0, feather);
-        if (up > mix(meanStrand, strand, resolve)) discard;
+        // Only the top of the field clears the floor, so what holds anything at
+        // the root is hold itself and the rest is bare ground. Moving the floor
+        // is what makes weeds sparse and moss solid out of one field.
+        float tuft = (field - (1.0 - hold)) / max(hold, 0.001);
+        if (tuft <= 0.0) discard;
 
-        // What fraction of the ground this cover actually holds, which is the
-        // lowest shell's disc and not the base radius — the two differ by a
-        // shell of taper, and the far field is a brightness match or it is a
-        // ring on the grass.
-        float lowest = 1.0 / max(coverShells, 1.0);
-        float held = mix(vCoverBlade.y, vCoverBlade.z, lowest);
-        coverHeld = clamp(density * 3.1416 * held * held, 0.0, 1.0);
-
-        // A disc that narrows with height. Both radii come from the type table,
-        // so a blade, a leaf and a fuzz are one shader.
-        vec2 centre = 0.5 + (vec2(coverHash(key + 3.0), coverHash(key + 23.0)) - 0.5) * 0.24;
-        float radius = mix(2.0, mix(vCoverBlade.y, vCoverBlade.z, up), resolve);
-        if (length(blown - cell - centre) > radius) discard;
-
-        coverFade = resolve;
+        // And how fast a tuft gives up its footprint on the way up. Above 1 is
+        // grass, below 1 is a mound that keeps its width. See CoverType.taper.
+        float reach = pow(tuft, vCoverBlade.z) * (0.6 + 0.8 * clumpTall)
+                    * mix(0.5, 1.0, feather);
+        if (up > reach) discard;
       }
       `,
     )
     .replace(
       '#include <color_fragment>',
       /* glsl */ `#include <color_fragment>
-      {
-        // The type's own colour, keeping a quarter of the ground it grows out
-        // of so painted patches and the height cooling read through it.
-        vec3 blade = mix(vCoverTint, diffuseColor.rgb, 0.25);
-        // Far off a pixel is a patch of ground rather than one blade, so it is
-        // that patch's average: shaded blade over the fraction the cover holds,
-        // and bare ground under the rest. The ramp applies to the blade only —
-        // shading the ground half too is what put a dark ring on the grass.
-        //
-        // The height that average shades at is the mean height *in view*, which
-        // is where the disc still reaches: base / 3(base - tip). Per type, so
-        // a moss that barely tapers shades at its top and grass at two fifths.
-        float meanUp = min(
-          vCoverBlade.y / max(3.0 * (vCoverBlade.y - vCoverBlade.z), 1e-4),
-          ${MEAN_STRAND.toFixed(3)});
-        vec3 far = mix(
-          diffuseColor.rgb,
-          blade * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * meanUp),
-          coverHeld);
-        vec3 near = blade * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * vCoverBlade.w);
-        diffuseColor.rgb = mix(far, near, coverFade);
-      }
+      // The type's own colour, keeping a quarter of the ground it grows out of
+      // so painted patches and the height cooling read through it, darkened
+      // toward the roots — which is what gives a stack of flat cross-sections
+      // any depth. One expression at every distance, so there is no second path
+      // for a seam to open between.
+      diffuseColor.rgb = mix(vCoverTint, diffuseColor.rgb, 0.25)
+        * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * vCoverBlade.w);
       `,
     );
 };
