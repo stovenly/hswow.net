@@ -80,7 +80,10 @@ A cover type is a blade layer and any number of prop layers, all optional
 (`world/ground.ts`):
 
 - **`blades`** — length, width, density (per m², the ultra figure), give (wind
-  response), sprawl (rest lean), tint, plus three distinguishers: `vary` (how ragged
+  response), sprawl (rest lean), tint, `blend` (how much of the ground's own colour
+  mixes into that tint, a quarter by default — near zero for moss, which grows on
+  stone and mud and goes black if it inherits them), plus three distinguishers:
+  `vary` (how ragged
   the heights are — turf is even, weeds are every height at once), `rows` (a row
   pitch; crop stubble actually grows in rows) and `mound` (height follows a small
   smooth rolling field instead of per-blade jitter, and blades go blunt and wide so
@@ -159,6 +162,11 @@ interact.
   high tier draws 0.3 of that and chunk culling carries roughly a third of what
   remains in a frame. Desktop-only makes this fine, and ultra is opt-in.
 - **Fragment** — trivial: no discard on blades, flat Lambert, one varying tint.
+- **Wall cover is dearer per square metre than ground cover**, because a crawl is
+  ~100 triangles where a blade is 8, and crawls must overlap heavily or the
+  repetition shows. Reckon ~3k triangles per m² of wall at ultra, half that at the
+  default tier: fine for a doorway or a garden wall, and not something to paint
+  across a whole elevation without looking at the number.
 - **CPU** — the sampler runs once per zone build, a few tens of ms behind the
   transition fade. Per frame: four uniforms.
 - **Draw calls** — one per 24 m chunk per layer, single digits in view.
@@ -189,10 +197,10 @@ interact.
   (real metres, real blades per m²) and none has been judged by eye. Densities are
   set for the pixel scale — the terrain is already green under the blades, so 30/m²
   is a full lawn here — but that is a prediction, not a finding.
-- **The moss mounds.** The rolling field's octaves (1.9 m and 0.7 m), the blade
-  bluntness and the crest-light/hollow-dark shading are all authored blind; if
-  moss reads as lumpy grass rather than soft masses, the octaves are the first
-  knob.
+- **The moss mounds.** The rolling field's octaves (3.4 m and 1.3 m), the plateau
+  band that turns them into chunks (0.38–0.62), the blade bluntness and the
+  crest-light shading are all authored blind; if moss reads as lumpy grass rather
+  than soft masses, the plateau band is the first knob and the octaves the second.
 - **The boundary band.** ~1.8 m of interleave, capped at a 50/50 mix at the line.
   Whether that is a mingle or a mess is a looking question, strip by strip.
 - **The wall types.** The ivy leaf scatter, the raceme's drift and stipple tail,
