@@ -1,7 +1,7 @@
 /**
  * Renders footsteps to a wav so they can be measured instead of argued about.
  *
- * `npm run render:footsteps -- water-puddle mud`
+ * `npm run render:footsteps -- mud gravel`
  *
  * **This runs the real `Footsteps`, not a model of it.** `audition/render.ts`
  * says why that matters and why it cannot be done in Node — `OfflineAudioContext`
