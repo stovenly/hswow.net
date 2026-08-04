@@ -159,6 +159,11 @@ export class PixelStage extends Pass {
     this.setSize(this.resolution.x, this.resolution.y);
   }
 
+  /** Render height in chunky pixels. The groundcover width clamp reads it. */
+  get renderHeight(): number {
+    return this.renderResolution.y;
+  }
+
   override render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget): void {
     // --- the two scene renders, exactly as the upstream pass did them ------
     renderer.setRenderTarget(this.colourTarget);

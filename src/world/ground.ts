@@ -169,50 +169,80 @@ export function patchAt(
  * still has grass standing in it is the visual half of the mismatch that a
  * cobbled path sounding like turf is the audible half of.
  *
- * These are read by the shell shader in `art/cover.ts` — every field here is a
- * uniform it indexes with a per-face attribute, so the table is the *only*
- * place any of these numbers appear.
+ * Read by the blade sampler in `art/cover.ts`, which turns each layer into
+ * instanced geometry at zone build. This table is the only place the numbers
+ * appear.
  */
-export interface CoverType {
-  /** Height as a multiple of the global. Species is mostly this. */
-  height: number;
-  /** Fraction of hash cells carrying a strand at all, 0..1. */
+export interface BladeLayer {
+  /** Median blade length, metres. */
+  length: number;
+  /** Blade width at the root, metres. */
+  width: number;
+  /** Blades per square metre at full thickness. The main cost knob. */
   density: number;
-  /** Fraction of the ground the cover holds at the root, 0..1. */
-  hold: number;
-  /**
-   * How sharply a tuft narrows as it rises.
-   *
-   * Above 1 is spikes — most of a tuft's footprint is gone by half its height,
-   * which is grass. Below 1 is a mound that keeps its width to the top, which
-   * is moss.
-   */
-  taper: number;
+  /** 0 rigid .. 1 floppy: how far wind and droop move the tip. */
+  give: number;
+  /** 0 upright .. 1 sprawling: how far a blade leans at rest. */
+  sprawl: number;
   /** Blade colour. Mixed with the ground's own so patches read through. */
   tint: number;
 }
 
-/**
- * The cover types, in the order the shader indexes them. `none` is 0.
- *
- * Adding one costs a uniform slot and nothing else; the shader has no branch on
- * type at all, because the shape *is* these four numbers.
- */
+/** A scattered prop stood among the blades — a plume stalk, a flower head. */
+export interface PropLayer {
+  /** Which builder in `art/cover.ts` makes the mesh. */
+  kind: 'plume' | 'bloom';
+  /** Props per square metre. */
+  density: number;
+  /** Height multiplier on the authored mesh. */
+  scale: number;
+  tint: number;
+}
+
+/** A cover type is up to two layers, and either may be absent. */
+export interface CoverType {
+  blades?: BladeLayer;
+  props?: PropLayer;
+}
+
+/** The cover types, in the order the terrain attribute indexes them. `none` is 0. */
 export const COVER_TYPES = {
   /** No cover. Also what every mesh without an attribute falls back to. */
-  none: { height: 0, density: 0, hold: 0, taper: 1, tint: 0x000000 },
-  /** Ordinary turf. Holds most of the ground and thins fast going up. */
-  grass: { height: 1, density: 1, hold: 0.82, taper: 2, tint: PALETTE.GRASS },
+  none: {},
+  /** Ordinary turf. */
+  grass: {
+    blades: { length: 0.34, width: 0.03, density: 32, give: 0.55, sprawl: 0.3, tint: PALETTE.GRASS },
+  },
   /** Long and unmown, and pale with it. */
-  tussock: { height: 1.5, density: 0.95, hold: 0.76, taper: 2.3, tint: PALETTE.GRASS_DRY },
-  /** Something growing in rows: medium, and dry. */
-  stubble: { height: 1.1, density: 0.8, hold: 0.72, taper: 1.8, tint: PALETTE.LEAF_DRY },
+  tussock: {
+    blades: { length: 0.6, width: 0.032, density: 22, give: 0.75, sprawl: 0.45, tint: PALETTE.GRASS_DRY },
+  },
+  /** Something growing in rows: stiff, straight and dry. */
+  stubble: {
+    blades: { length: 0.36, width: 0.032, density: 18, give: 0.3, sprawl: 0.18, tint: PALETTE.LEAF_DRY },
+  },
   /** Sparse and wiry, on ground people have walked flat. */
-  weeds: { height: 0.75, density: 0.45, hold: 0.34, taper: 2.6, tint: 0x6b7a45 },
-  /** Round, squat and paler. Authored only — nothing grows it by default. */
-  clover: { height: 0.6, density: 0.92, hold: 0.86, taper: 0.9, tint: 0x53823f },
-  /** A dense low fuzz with almost no height. In the joints, on the north wall. */
-  moss: { height: 0.35, density: 0.85, hold: 0.94, taper: 0.5, tint: 0x455c31 },
+  weeds: {
+    blades: { length: 0.3, width: 0.026, density: 8, give: 0.6, sprawl: 0.55, tint: 0x6b7a45 },
+  },
+  /** Short, wide and sprawling. Authored only — nothing grows it by default. */
+  clover: {
+    blades: { length: 0.15, width: 0.05, density: 48, give: 0.35, sprawl: 0.65, tint: 0x53823f },
+  },
+  /** A dense low nap with almost no height. In the joints, on the north wall. */
+  moss: {
+    blades: { length: 0.07, width: 0.05, density: 70, give: 0.1, sprawl: 0.75, tint: 0x455c31 },
+  },
+  /** Meadow grass with flower heads scattered through it. Authored only. */
+  flowers: {
+    blades: { length: 0.3, width: 0.028, density: 26, give: 0.6, sprawl: 0.35, tint: 0x5f7040 },
+    props: { kind: 'bloom', density: 2.2, scale: 1, tint: 0xcfc7a6 },
+  },
+  /** Pampas: long dry grass under tall stalks with pale plumes. Authored only. */
+  plume: {
+    blades: { length: 0.55, width: 0.03, density: 14, give: 0.7, sprawl: 0.5, tint: PALETTE.GRASS_DRY },
+    props: { kind: 'plume', density: 0.8, scale: 1, tint: 0xd6c9a8 },
+  },
 } as const satisfies Record<string, CoverType>;
 
 export type CoverName = keyof typeof COVER_TYPES;
@@ -232,6 +262,7 @@ export const COVER: Partial<Record<GroundName, CoverName>> = {
   crop: 'stubble',
   dirt: 'weeds',
   cobble: 'moss',
+  moss: 'moss',
 };
 
 /**

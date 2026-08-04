@@ -25,7 +25,7 @@ import type { MeshBuilder } from '../src/art/types';
 import { SWAY_ATTRIBUTE } from '../src/art/assemble';
 import { CLUTTER } from '../src/art/clutter';
 import { FLEX } from '../src/art/flex';
-import { COVER_MATERIAL, COVER_ATTRIBUTE } from '../src/art/cover';
+import { COVER_MATERIAL, TUFT_MATERIAL } from '../src/art/cover';
 import { windUniforms } from '../src/art/sway';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
@@ -272,58 +272,65 @@ check(
     : `no such builder: ${unknown.join(', ')}`,
 );
 
-// --- the cover patch actually lands ----------------------------------------
+// --- the cover patches actually land ----------------------------------------
 //
 // `String.replace` on a marker that is not there does nothing and says nothing.
-// If upstream renames an include, the shell shader silently becomes a no-op:
-// the material compiles, the mesh draws, and every shell lands in the same
-// place. Nothing about that is an error anywhere.
+// If upstream renames an include, a cover shader silently becomes a no-op:
+// the material compiles, the mesh draws, and every blade stands at the origin.
+// Nothing about that is an error anywhere.
 {
-  const lambert = THREE.ShaderLib.lambert;
-  const shader = {
-    uniforms: {} as Record<string, unknown>,
-    vertexShader: lambert.vertexShader,
-    fragmentShader: lambert.fragmentShader,
+  const compiled = (material: THREE.Material) => {
+    const lambert = THREE.ShaderLib.lambert;
+    const shader = {
+      uniforms: {} as Record<string, unknown>,
+      vertexShader: lambert.vertexShader,
+      fragmentShader: lambert.fragmentShader,
+    };
+    material.onBeforeCompile(
+      shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+      null as unknown as THREE.WebGLRenderer,
+    );
+    return shader;
   };
-  COVER_MATERIAL.onBeforeCompile?.(
-    shader as unknown as THREE.WebGLProgramParametersWithUniforms,
-    null as unknown as THREE.WebGLRenderer,
-  );
+  const blades = compiled(COVER_MATERIAL);
+  const tufts = compiled(TUFT_MATERIAL);
 
   const landed: string[] = [];
   const missed: string[] = [];
   // Named by what each is for, since a failure here is read by somebody asking
   // what stopped working rather than by somebody reading three's shader source.
   for (const [what, source, needle] of [
-    ['declarations', shader.vertexShader, `attribute vec4 ${COVER_ATTRIBUTE};`],
-    ['the shell lift', shader.vertexShader, 'transformed.y += rise'],
-    ['the height swell', shader.vertexShader, 'float swell = mix('],
-    ['the wind shear', shader.vertexShader, 'vCoverPlace = vec4('],
-    ['the height field', shader.fragmentShader, 'float field = 0.68 * coverNoise('],
-    ['the tuft floor', shader.fragmentShader, 'if (tuft <= 0.0) discard;'],
-    ['the taper discard', shader.fragmentShader, 'if (up > reach) discard;'],
-    ['the bare-face early out', shader.fragmentShader, 'if (vCoverBlade.x <= 0.0) discard;'],
-    ['the blade colour', shader.fragmentShader, 'mix(vCoverTint, diffuseColor.rgb, 0.25)'],
+    ['the blade instance data', blades.vertexShader, 'attribute vec4 iPlace;'],
+    ['the ground normal', blades.vertexShader, 'vec3 objectNormal = iNormal;'],
+    ['the blade gust', blades.vertexShader, 'texture2D(gustField'],
+    ['the width clamp', blades.vertexShader, '0.5 * coverPixel * length(toCam)'],
+    ['the tread', blades.vertexShader, 'coverPlayer.xz'],
+    ['the unflipped normal', blades.fragmentShader, 'normal = normalize(vNormal);'],
+    ['the blade tint', blades.fragmentShader, 'diffuseColor.rgb = vCoverTint;'],
+    ['the tuft lag', tufts.vertexShader, 'windLagScale + iProp.y'],
+    ['the stipple', tufts.fragmentShader, '> vTuftGrain.z) discard'],
+    ['the backlight', tufts.fragmentShader, 'outgoingLight += diffuseColor.rgb * coverGlow'],
   ] as const) {
     (source.includes(needle) ? landed : missed).push(what);
   }
   check(
-    'the groundcover shader patch lands',
+    'the groundcover shader patches land',
     missed.length === 0,
     missed.length === 0
       ? `${landed.length} injections land in three's Lambert program`
       : `no marker for: ${missed.join(', ')} — three's Lambert program has moved`,
   );
 
-  // And that it took the *shared* wind field rather than a copy of it, which is
-  // the claim `art/sway.ts` makes: the gust bending a tree is the gust shearing
-  // the grass under it, and two sets of numbers cannot make that claim.
+  // And that both took the *shared* wind field rather than a copy of it, which
+  // is the claim `art/sway.ts` makes: the gust bending a tree is the gust
+  // bending the grass under it, and two sets of numbers cannot make that claim.
+  const shared =
+    blades.uniforms.gustField === windUniforms.gustField &&
+    tufts.uniforms.gustField === windUniforms.gustField;
   check(
     'groundcover answers the same gust as the trees',
-    shader.uniforms.gustField === windUniforms.gustField,
-    shader.uniforms.gustField === windUniforms.gustField
-      ? 'one gust texture, shared by reference'
-      : 'the cover material has its own gust field',
+    shared,
+    shared ? 'one gust texture, shared by reference' : 'a cover material has its own gust field',
   );
 }
 

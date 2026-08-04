@@ -39,8 +39,7 @@ import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
 import { ZONE_FOOTSTEPS_SHOWCASE } from '../src/debug/FootstepsShowcase';
 import { GROUND, COVER_TYPES } from '../src/world/ground';
-import { COVER_ATTRIBUTE } from '../src/art/cover';
-import { DEFAULT_RENDER } from '../src/engine/PostFX';
+import { COVER_ATTRIBUTE, coverCensus } from '../src/art/cover';
 import { groundcoverTerrain } from '../src/debug/GroundcoverShowcase';
 import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
@@ -723,44 +722,40 @@ console.log('\n--- surfaces underfoot --------------------------------------\n')
 console.log('\n--- groundcover ---------------------------------------------\n');
 
 /**
- * The vertex budget, which is a rule about cell size and not a runtime lever.
- *
- * GROUNDCOVER.md states it as ground triangles × shells under about 250k. It
- * has to be a rule rather than a setting because levels here are small,
- * hand-authored cells: the ground is one mesh, always drawn in full, so this
- * cost cannot be reduced by distance and there is nothing to cull. A cell that
- * cannot meet it is either larger than the design calls for or more finely
- * subdivided than it needs, and both of those are authoring decisions.
+ * The blade budget, which is a rule about density and cell size, not a runtime
+ * lever. Levels here are small, hand-authored cells with no streaming, so a
+ * cell that cannot meet it wants sparser types or less ground that grows —
+ * both authoring decisions. The census is the same sampler the game runs, so
+ * the number here is the number a zone actually stands up.
  */
 {
-  const BUDGET = 250_000;
-  const shells = DEFAULT_RENDER.cover.shells;
-  let worst = { id: 'nothing', triangles: 0, cost: 0 };
+  const BUDGET = 200_000;
+  let worst = { id: 'nothing', blades: 0, props: 0 };
 
   for (const zone of zones.values()) {
-    let triangles = 0;
+    let blades = 0;
+    let props = 0;
     zone.root().traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
-      // The same test `ZoneManager.prepare` uses to decide what grows cover,
-      // narrowed to meshes that actually carry a type — a gallery floor is
-      // ground and grows nothing, so it costs nothing.
+      // The same test `ZoneManager.prepare` uses to decide what grows cover.
       const isGround =
         object.name === 'flatGround' ||
         object.name === 'terrain' ||
         object.userData.ground === true;
-      if (!isGround || !object.geometry.getAttribute(COVER_ATTRIBUTE)) return;
-      const index = object.geometry.getIndex();
-      triangles += index ? index.count / 3 : object.geometry.getAttribute('position').count / 3;
+      if (!isGround) return;
+      if (!object.geometry.getAttribute(COVER_ATTRIBUTE) && !object.userData.cover) return;
+      const census = coverCensus(object);
+      blades += census.blades;
+      props += census.props;
     });
-    const cost = triangles * shells;
-    if (cost > worst.cost) worst = { id: zone.id, triangles, cost };
+    if (blades > worst.blades) worst = { id: zone.id, blades, props };
   }
 
   check(
-    'no cell is over the groundcover vertex budget',
-    worst.cost <= BUDGET,
-    `worst is ${worst.id} at ${Math.round(worst.cost / 1000)}k — ` +
-      `${worst.triangles} ground triangles x ${shells} shells, budget ${BUDGET / 1000}k`,
+    'no cell is over the groundcover blade budget',
+    worst.blades <= BUDGET,
+    `worst is ${worst.id} at ${Math.round(worst.blades / 1000)}k blades ` +
+      `and ${worst.props} props, budget ${BUDGET / 1000}k`,
   );
 }
 
@@ -768,7 +763,7 @@ console.log('\n--- groundcover ---------------------------------------------\n')
  * The showcase presents every cover type.
  *
  * The same argument the footsteps showcase's strips make: a type that appears
- * nowhere cannot be looked at, and shell cover is a system whose whole
+ * nowhere cannot be looked at, and groundcover is a system whose whole
  * remaining list of open questions is answered by looking. `none` counts — a
  * strip of bare ground beside a thick one is how the density ramp reads at all.
  */

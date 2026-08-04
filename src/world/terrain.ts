@@ -297,7 +297,7 @@ export class Terrain {
     const positions: number[] = [];
     const normals: number[] = [];
     const colors: number[] = [];
-    // Type, feather, and the two broad fields, per vertex, for the shell shader.
+    // Type, feather, and the two broad fields, per vertex, for the cover sampler.
     const covers: number[] = [];
 
     const a = new THREE.Vector3();
@@ -400,8 +400,8 @@ export class Terrain {
       SWAY_ATTRIBUTE,
       new THREE.Float32BufferAttribute(new Float32Array(positions.length / 3), 1),
     );
-    // Read by the shell shader and by nothing else. The ground's own material
-    // never declares it, so it costs a buffer and no draw.
+    // Read by the cover sampler on the CPU and by nothing else. The ground's
+    // own material never declares it, so it costs a buffer and no draw.
     geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 4));
 
     return finish(geometry, 'terrain', 0);
@@ -490,7 +490,7 @@ export class Terrain {
     return shade(material.color, jitter * cooling);
   }
 
-  /** What one face grows, as a shell-shader type index. A patch wins outright. */
+  /** What one face grows, as a cover type index. A patch wins outright. */
   private faceCover(name: GroundName, x: number, z: number): number {
     const painted = coverPatchAt(this.cover, x, z);
     return COVER_ORDER.indexOf(painted ?? COVER[name] ?? 'none');

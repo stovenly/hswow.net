@@ -449,14 +449,14 @@ toggle layers over the preset and never overwrites tuning:
 Each is one honest switch that turns the effect on and off — not a quality ladder,
 not a master "effects" group that gates them behind each other.
 
-**Groundcover is the stated exception to that, and it is an exception with a reason.**
-The rule above was written about GTAO, bloom and god rays, where partial is
-meaningless — half an ambient occlusion is a bug. How much cover there is, is a
-quantity of world *content*, nearer in kind to field of view than to bloom: every
-setting of it is a legitimate look rather than grass with the detail turned down. It is
-a slider, 0–100, layered over the preset exactly as the toggles are, and it moves
-density alone — height and shell count are the look, and belong to the preset. Only
-zero costs less, because only zero skips the draw.
+**Groundcover** is the same shape: one toggle. On is the authored field, off is bare
+ground and skips every cover draw outright — the honest off-switch for the one option
+whose cost is vertex count rather than a pass. How thick or tall the cover stands is
+the look, lives in the type table and the render preset, and is not a player knob.
+(An earlier version shipped a 0–100 density slider and called itself the stated
+exception to this rule. Turning the whole field 40% sparser was never a look anyone
+wanted — it was grass with the detail turned down, which is exactly what the rule
+exists to forbid.)
 
 One more crosses the line by a different door: **water motion** is an *accessibility*
 option, under reduced motion beside wind sway and head bob. The water itself is not
