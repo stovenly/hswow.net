@@ -299,6 +299,9 @@ check(
     ['the shell lift', shader.vertexShader, 'transformed.y += rise'],
     ['the wind shear', shader.vertexShader, 'vCoverPlace = vec4('],
     ['the strand discard', shader.fragmentShader, 'if (up > mix('],
+    // Without it the fade converges on "covered" and bare rock grows a slab of
+    // zero-height shells at distance, in a ring that follows the player.
+    ['the bare-face early out', shader.fragmentShader, 'if (vCoverBlade.x <= 0.0) discard;'],
     // Missing, the near view still looks perfect and every field in the game
     // grows an interference fringe past a few paces.
     ['the resolve fade', shader.fragmentShader, 'float resolve = clamp('],
