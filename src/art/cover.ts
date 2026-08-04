@@ -232,6 +232,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
       attribute vec4 iProp;    // scale, gust lag, seed, glow
       attribute vec3 iTintP;
       attribute vec3 iNormalP; // up for ground props, the wall's for wall ones
+      attribute float iRoll;   // spin about the wall normal — crawling kinds only
       uniform vec3 coverPlayer;
       uniform sampler2D gustField;
       uniform vec2 windDir;
@@ -264,6 +265,10 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
         float ca = cos(iPlace.w);
         float sa = sin(iPlace.w);
         vec3 p = position * iProp.x;
+        // Spin the authored wall plane first, so a crawl can point any way.
+        float rc = cos(iRoll);
+        float rs = sin(iRoll);
+        p = vec3(p.x * rc - p.y * rs, p.x * rs + p.y * rc, p.z);
         p = vec3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca);
 
         vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
@@ -634,105 +639,150 @@ function bloomGeometry(): THREE.BufferGeometry {
 }
 
 /**
+ * One flat leaf quad in the wall plane, tipped slightly out. `cell` pins the
+ * whole quad to one stipple cell, so a `solid` under 1 drops the *leaf* per
+ * instance rather than eating its pixels — which is what keeps a wall of one
+ * authored mesh from reading as the same shape stamped over and over.
+ */
+function wallLeaf(
+  sink: TuftSink,
+  x: number,
+  y: number,
+  z: number,
+  half: number,
+  spin: number,
+  color: THREE.Color,
+  cell: number,
+  puff: number,
+  solid: number,
+): void {
+  const rx = Math.cos(spin) * half;
+  const ry = Math.sin(spin) * half;
+  const ux = -Math.sin(spin) * half;
+  const uy = Math.cos(spin) * half;
+  const uz = half * 0.5;
+  const u = (cell * 0.173) % 1;
+  const v = (cell * 0.317) % 1;
+  const a0 = tuftVertex(sink, x - rx - ux, y - ry - uy, z - uz, color, u, v, puff, solid);
+  const a1 = tuftVertex(sink, x + rx - ux, y + ry - uy, z - uz, color, u, v, puff, solid);
+  const b0 = tuftVertex(sink, x - rx + ux, y - ry + uy, z + uz, color, u, v, puff, solid);
+  const b1 = tuftVertex(sink, x + rx + ux, y + ry + uy, z + uz, color, u, v, puff, solid);
+  tuftQuad(sink, a0, a1, b0, b1);
+}
+
+/**
  * A crawl of ivy, authored in the wall's frame — X along it, Y up it, +Z out
- * of it. Vine runs fan up from the root with leaves spiralled over them. The
- * instance tint carries the green: leaves are authored white and the vines
- * dimmer, so they come out darker lines of the same.
+ * of it. Wandering vine runs — kinked, asymmetric, one curling and one
+ * drooping — with leaves scattered along them, each leaf droppable per
+ * instance (see `wallLeaf`). The instance tint carries the green: leaves are
+ * authored white and the vines dimmer, so they come out darker lines of it.
  */
 function ivyGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
   const vine = new THREE.Color(0.5, 0.55, 0.45);
   const leaf = new THREE.Color();
 
-  for (let s = 0; s < 3; s++) {
-    const angle = -0.85 + s * 0.85;
-    const dx = Math.sin(angle);
-    const dy = Math.cos(angle);
-    const len = 0.3 + 0.08 * s;
-    const px = dy * 0.008;
-    const py = -dx * 0.008;
-    const a0 = tuftVertex(sink, -px, -py, 0.012, vine, 0, 0, 0.05, 1);
-    const a1 = tuftVertex(sink, px, py, 0.012, vine, 1, 0, 0.05, 1);
-    const b0 = tuftVertex(sink, dx * len - px, dy * len - py, 0.02, vine, 0, 1, 0.15, 1);
-    const b1 = tuftVertex(sink, dx * len + px, dy * len + py, 0.02, vine, 1, 1, 0.15, 1);
-    tuftQuad(sink, a0, a1, b0, b1);
+  const RUNS: readonly (readonly [number, number])[][] = [
+    [[0, 0], [-0.13, 0.15], [-0.21, 0.33], [-0.16, 0.47]],
+    [[0, 0], [0.1, 0.12], [0.23, 0.25], [0.27, 0.42]],
+    [[0, 0], [0.15, -0.02], [0.29, 0.07]],
+    [[0, 0], [-0.07, -0.13], [-0.19, -0.2]],
+  ];
+  for (const run of RUNS) {
+    for (let s = 0; s + 1 < run.length; s++) {
+      const [ax, ay] = run[s];
+      const [bx, by] = run[s + 1];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const inv = 0.009 / Math.max(Math.hypot(dx, dy), 0.001);
+      const px = dy * inv;
+      const py = -dx * inv;
+      const z0 = 0.012 + s * 0.004;
+      const a0 = tuftVertex(sink, ax - px, ay - py, z0, vine, 0, 0, 0.04 + s * 0.05, 1);
+      const a1 = tuftVertex(sink, ax + px, ay + py, z0, vine, 1, 0, 0.04 + s * 0.05, 1);
+      const b0 = tuftVertex(sink, bx - px, by - py, z0 + 0.004, vine, 0, 1, 0.09 + s * 0.05, 1);
+      const b1 = tuftVertex(sink, bx + px, by + py, z0 + 0.004, vine, 1, 1, 0.09 + s * 0.05, 1);
+      tuftQuad(sink, a0, a1, b0, b1);
+    }
   }
 
-  // Leaves, spiralled over the crawl, denser near the root.
-  for (let l = 0; l < 11; l++) {
-    const g = l * 2.39996;
-    const r = 0.07 + 0.28 * Math.sqrt((l + 0.5) / 11);
-    const x = Math.cos(g) * r;
-    const y = Math.sin(g) * r * 1.15 + 0.06;
-    const z = 0.025 + 0.03 * ((l * 0.618) % 1);
-    const spin = g * 1.7;
-    const half = 0.028 + 0.008 * ((l * 0.372) % 1);
-    leaf.setScalar(0.85 + 0.3 * ((l * 0.417) % 1));
-    const rx = Math.cos(spin) * half;
-    const ry = Math.sin(spin) * half;
-    const ux = -Math.sin(spin) * half;
-    const uy = Math.cos(spin) * half;
-    const uz = half * 0.5;
-    const a0 = tuftVertex(sink, x - rx - ux, y - ry - uy, z - uz, leaf, 0, 0, 0.12, 1);
-    const a1 = tuftVertex(sink, x + rx - ux, y + ry - uy, z - uz, leaf, 1, 0, 0.12, 1);
-    const b0 = tuftVertex(sink, x - rx + ux, y - ry + uy, z + uz, leaf, 0, 1, 0.18, 1);
-    const b1 = tuftVertex(sink, x + rx + ux, y + ry + uy, z + uz, leaf, 1, 1, 0.18, 1);
-    tuftQuad(sink, a0, a1, b0, b1);
+  // Leaves along the runs, each near a vine point but off it a little.
+  let cell = 0;
+  for (const run of RUNS) {
+    for (let p = 0; p < run.length; p++) {
+      for (let l = 0; l < 2; l++) {
+        cell++;
+        const j1 = ((cell * 0.618) % 1) - 0.5;
+        const j2 = ((cell * 0.414) % 1) - 0.5;
+        const x = run[p][0] + j1 * 0.09;
+        const y = run[p][1] + j2 * 0.09 + 0.02;
+        const z = 0.024 + 0.028 * ((cell * 0.271) % 1);
+        const half = 0.024 + 0.014 * ((cell * 0.372) % 1);
+        leaf.setScalar(0.82 + 0.32 * ((cell * 0.417) % 1));
+        wallLeaf(sink, x, y, z, half, cell * 2.4, leaf, cell, 0.1 + 0.1 * ((cell * 0.19) % 1), 0.75);
+      }
+    }
   }
 
   return tuftGeometry(sink);
 }
 
 /**
- * A posy for the climbing rose: three small blooms held just off the wall,
- * each a face quad tipped out of the wall plane and a depth fin through it.
- * Authored white; the instance tint is the rose.
+ * A posy for the climbing rose: three rosettes held just off the wall — five
+ * petal quads fanned round a darker centre disc, with a depth fin so the
+ * bloom has body edge-on — and a couple of tight buds. Authored white with a
+ * dark heart; the instance tint is the rose.
  */
 function posyGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
-  const bloom = new THREE.Color();
-  const AT: readonly [number, number, number][] = [
-    [0.035, 0.05, 0.06],
-    [-0.055, -0.01, 0.045],
-    [0.01, -0.065, 0.07],
+  const petal = new THREE.Color();
+  const heart = new THREE.Color(0.45, 0.4, 0.42);
+  const BLOOMS: readonly [number, number, number, number][] = [
+    // x, y, z off the wall, size
+    [0.03, 0.05, 0.06, 0.034],
+    [-0.055, -0.005, 0.045, 0.026],
+    [0.015, -0.06, 0.07, 0.022],
   ];
-  AT.forEach(([x, y, z], i) => {
-    bloom.setScalar(0.88 + 0.12 * ((i * 0.618) % 1));
-    const half = 0.027;
-    const spin = 0.4 + i * 1.9;
-    const rx = Math.cos(spin) * half;
-    const ry = Math.sin(spin) * half;
-    const ux = -Math.sin(spin) * half;
-    const uy = Math.cos(spin) * half;
-    const uz = half * 0.45;
-    const a0 = tuftVertex(sink, x - rx - ux, y - ry - uy, z - uz, bloom, 0, 0, 0.15, 1);
-    const a1 = tuftVertex(sink, x + rx - ux, y + ry - uy, z - uz, bloom, 1, 0, 0.15, 1);
-    const b0 = tuftVertex(sink, x - rx + ux, y - ry + uy, z + uz, bloom, 0, 1, 0.2, 1);
-    const b1 = tuftVertex(sink, x + rx + ux, y + ry + uy, z + uz, bloom, 1, 1, 0.2, 1);
-    tuftQuad(sink, a0, a1, b0, b1);
-    const c0 = tuftVertex(sink, x - rx, y - ry, z - half * 0.8, bloom, 0, 0.3, 0.15, 1);
-    const c1 = tuftVertex(sink, x + rx, y + ry, z - half * 0.8, bloom, 1, 0.3, 0.15, 1);
-    const d0 = tuftVertex(sink, x - rx, y - ry, z + half * 0.8, bloom, 0, 0.7, 0.2, 1);
-    const d1 = tuftVertex(sink, x + rx, y + ry, z + half * 0.8, bloom, 1, 0.7, 0.2, 1);
+  BLOOMS.forEach(([x, y, z, size], i) => {
+    for (let p = 0; p < 5; p++) {
+      const spin = i * 1.1 + (p / 5) * Math.PI * 2;
+      const px = x + Math.cos(spin) * size * 0.8;
+      const py = y + Math.sin(spin) * size * 0.8;
+      petal.setScalar(0.82 + 0.24 * (((i * 5 + p) * 0.618) % 1));
+      wallLeaf(sink, px, py, z + 0.006 * (p % 2), size * 0.62, spin + 0.8, petal, 40 + i * 5 + p, 0.18, 1);
+    }
+    // The heart, forward of the petals so it wins the depth test.
+    wallLeaf(sink, x, y, z + 0.012, size * 0.42, i * 0.7, heart, 60 + i, 0.15, 1);
+    // The depth fin: body when the bloom is seen edge-on.
+    petal.setScalar(0.9);
+    const c0 = tuftVertex(sink, x - size * 0.7, y, z - size * 0.7, petal, 0.31, 0.57, 0.15, 1);
+    const c1 = tuftVertex(sink, x + size * 0.7, y, z - size * 0.7, petal, 0.31, 0.57, 0.15, 1);
+    const d0 = tuftVertex(sink, x - size * 0.7, y, z + size * 0.7, petal, 0.31, 0.57, 0.2, 1);
+    const d1 = tuftVertex(sink, x + size * 0.7, y, z + size * 0.7, petal, 0.31, 0.57, 0.2, 1);
     tuftQuad(sink, c0, c1, d0, d1);
   });
+  // Buds: small, dimmer, droppable per instance so the count varies.
+  petal.setScalar(0.7);
+  wallLeaf(sink, -0.02, 0.09, 0.04, 0.011, 0.5, petal, 70, 0.2, 0.8);
+  wallLeaf(sink, 0.07, -0.01, 0.05, 0.009, 1.3, petal, 71, 0.2, 0.8);
   return tuftGeometry(sink);
 }
 
 /**
- * A wisteria raceme: two crossed strips hanging from the root, drifting a
- * little as they fall and tapering, the tail fading into stipple. Authored
- * white; the instance tint is the flower.
+ * A wisteria raceme: two crossed strips as the hanging core, drifting a
+ * little as they fall, with florets — small petal quads — stuck out around
+ * the chain, shrinking and fading toward the stippled tail. Authored white;
+ * the instance tint is the flower.
  */
 function racemeGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
   const bloom = new THREE.Color();
-  const LEVELS = 6;
+  const LEVELS = 7;
 
   const centers: [number, number, number][] = [];
   for (let l = 0; l <= LEVELS; l++) {
     const s = l / LEVELS;
-    centers.push([Math.sin(l * 1.7) * 0.018, -0.03 - 0.42 * s, 0.05 + Math.cos(l * 1.3) * 0.014]);
+    centers.push([Math.sin(l * 1.7) * 0.018, -0.03 - 0.44 * s, 0.05 + Math.cos(l * 1.3) * 0.014]);
   }
 
   for (const angle of [0, Math.PI / 2]) {
@@ -742,7 +792,7 @@ function racemeGeometry(): THREE.BufferGeometry {
     for (let l = 0; l <= LEVELS; l++) {
       const s = l / LEVELS;
       const [cx, cy, cz] = centers[l];
-      const half = 0.008 + 0.05 * (1 - s * 0.8);
+      const half = 0.006 + 0.036 * (1 - s * 0.8);
       const puff = 0.25 + 0.5 * s;
       const solid = s < 0.55 ? 1 : s < 0.9 ? 0.85 : 0.55;
       bloom.setScalar(1 - 0.18 * s);
@@ -752,6 +802,33 @@ function racemeGeometry(): THREE.BufferGeometry {
     }
     for (let l = 0; l < LEVELS; l++) {
       tuftQuad(sink, rows[l][0], rows[l][1], rows[l + 1][0], rows[l + 1][1]);
+    }
+  }
+
+  // Florets around the chain: what makes it a stack of flowers rather than a
+  // cone. Two per level at spiralled angles, drooping a little, the lower
+  // ones droppable per instance so no two tails match.
+  for (let l = 0; l <= LEVELS; l++) {
+    const s = l / LEVELS;
+    const [cx, cy, cz] = centers[l];
+    const reach = 0.014 + 0.038 * (1 - s * 0.75);
+    for (let p = 0; p < 2; p++) {
+      const phi = l * 2.1 + p * Math.PI + 0.6;
+      const ox = Math.cos(phi) * reach;
+      const oz = Math.sin(phi) * reach;
+      const half = 0.017 * (1 - s * 0.6) + 0.004;
+      bloom.setScalar(1.04 - 0.24 * s - 0.06 * p);
+      const cell = 80 + l * 2 + p;
+      const u = (cell * 0.173) % 1;
+      const v = (cell * 0.317) % 1;
+      const solid = s < 0.5 ? 1 : 0.7;
+      const puff = 0.3 + 0.5 * s;
+      // A petal spanning outward and down, so the cluster reads knobbly.
+      const a0 = tuftVertex(sink, cx + ox - oz * 0.4, cy - 0.004, cz + oz + ox * 0.4, bloom, u, v, puff, solid);
+      const a1 = tuftVertex(sink, cx + ox + oz * 0.4, cy - 0.004, cz + oz - ox * 0.4, bloom, u, v, puff, solid);
+      const b0 = tuftVertex(sink, cx + ox * 1.6 - oz * 0.4, cy - 0.004 - half * 1.6, cz + oz * 1.6 + ox * 0.4, bloom, u, v, puff, solid);
+      const b1 = tuftVertex(sink, cx + ox * 1.6 + oz * 0.4, cy - 0.004 - half * 1.6, cz + oz * 1.6 - ox * 0.4, bloom, u, v, puff, solid);
+      tuftQuad(sink, a0, a1, b0, b1);
     }
   }
 
@@ -775,6 +852,19 @@ const PROP_GLOW: Record<PropLayer['kind'], number> = {
   ivy: 0.05,
   posy: 0.2,
   raceme: 0.35,
+};
+
+/**
+ * Which kinds spin freely in the wall plane. A crawl points any way; a
+ * raceme hangs, and must keep hanging.
+ */
+const PROP_ROLLS: Record<PropLayer['kind'], boolean> = {
+  plume: false,
+  bloom: false,
+  leaf: false,
+  ivy: true,
+  posy: true,
+  raceme: false,
 };
 
 const propGeometry: Partial<Record<PropLayer['kind'], THREE.BufferGeometry>> = {};
@@ -802,6 +892,7 @@ interface PropChunk {
   prop: number[];
   tint: number[];
   normal: number[];
+  roll: number[];
 }
 
 interface CoverSample {
@@ -992,18 +1083,21 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         // sweeping areas of a field rather than as noise between neighbours.
         let length =
           layer.length * (0.55 + 0.95 * swell) * clumpTall * (1 - 0.5 * vary + vary * h1);
-        // A mounded layer rolls instead: height follows its own small smooth
-        // field, so the cover reads as soft masses with sides, not as blades.
+        // A mounded layer rolls instead: height follows its own smooth field,
+        // plateaued into chunks — thick masses with quick sides and a low nap
+        // between, rather than gentle swells.
         const mound = layer.mound ?? 0;
-        const roll = mound > 0 ? coverMound(wx, wz) : 0;
+        let crest = 0;
         if (mound > 0) {
-          length += (layer.length * (0.35 + 1.5 * roll) * (0.9 + 0.2 * h1) - length) * mound;
+          const t = Math.min(Math.max((coverMound(wx, wz) - 0.38) / 0.24, 0), 1);
+          crest = t * t * (3 - 2 * t);
+          length += (layer.length * (0.25 + 1.3 * crest) * (0.9 + 0.2 * h1) - length) * mound;
         }
         sample.maxLen = Math.max(sample.maxLen, length);
 
         tint.set(layer.tint).lerp(faceTint, 0.25);
         const shade =
-          clumpShade * (0.92 + 0.16 * h2) * (1 + mound * (roll - 0.45) * 0.6);
+          clumpShade * (0.92 + 0.16 * h2) * (1 + mound * (crest - 0.45) * 0.6);
 
         const key = `${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
         let chunk = sample.blades.get(key);
@@ -1019,7 +1113,8 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         );
         chunk.shape.push(
           length,
-          layer.width * (0.85 + 0.3 * h2),
+          // Wider still on a mound's crest, so the chunk fuses into one mass.
+          layer.width * (0.85 + 0.3 * h2) * (1 + 0.5 * mound * crest),
           layer.sprawl * (0.25 + 0.75 * h4),
           // Blunt for mounds, so neighbours merge into a mass.
           0.8 - 0.5 * mound,
@@ -1067,7 +1162,7 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         const key = `${props.kind}:${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
         let chunk = sample.props.get(key);
         if (!chunk) {
-          chunk = { kind: props.kind, place: [], prop: [], tint: [], normal: [] };
+          chunk = { kind: props.kind, place: [], prop: [], tint: [], normal: [], roll: [] };
           sample.props.set(key, chunk);
         }
         // Wall props sit just off their face and yaw to it, give or take;
@@ -1083,6 +1178,9 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
         if (walls) chunk.normal.push(normal.x, normal.y, normal.z);
         else chunk.normal.push(0, 1, 0);
+        chunk.roll.push(
+          walls && PROP_ROLLS[props.kind] ? hat(f, i, 107 + salt) * Math.PI * 2 : 0,
+        );
         sample.propCount++;
       }
     }
@@ -1310,6 +1408,7 @@ export function coverFor(ground: THREE.Mesh, type?: CoverName): THREE.Object3D |
         iProp: [gather(chunk.prop, order, 4), 4],
         iTintP: [gather(chunk.tint, order, 3), 3],
         iNormalP: [gather(chunk.normal, order, 3), 3],
+        iRoll: [gather(chunk.roll, order, 1), 1],
       },
     );
     mesh.userData.coverTuft = true;
