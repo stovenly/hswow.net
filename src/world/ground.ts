@@ -178,7 +178,10 @@ export interface BladeLayer {
   length: number;
   /** Blade width at the root, metres. */
   width: number;
-  /** Blades per square metre at full thickness. The main cost knob. */
+  /**
+   * Blades per square metre at full thickness — the *ultra* figure. The
+   * player's density tiers draw a fraction of this pool; medium is about 0.4.
+   */
   density: number;
   /** 0 rigid .. 1 floppy: how far wind and droop move the tip. */
   give: number;
@@ -186,17 +189,23 @@ export interface BladeLayer {
   sprawl: number;
   /** Blade colour. Mixed with the ground's own so patches read through. */
   tint: number;
+  /** 0 even .. 1 ragged: how much blade length varies. Default 0.3. */
+  vary?: number;
+  /** Row pitch in metres. Set, blades grow only in rows — crop stubble. */
+  rows?: number;
 }
 
 /** A scattered prop stood among the blades — a plume stalk, a flower head. */
 export interface PropLayer {
   /** Which builder in `art/cover.ts` makes the mesh. */
-  kind: 'plume' | 'bloom';
+  kind: 'plume' | 'bloom' | 'leaf';
   /** Props per square metre. */
   density: number;
   /** Height multiplier on the authored mesh. */
   scale: number;
   tint: number;
+  /** Picked per instance when present — a mixed stand of flower colours. */
+  tints?: readonly number[];
 }
 
 /** A cover type is up to two layers, and either may be absent. */
@@ -211,37 +220,56 @@ export const COVER_TYPES = {
   none: {},
   /** Ordinary turf. */
   grass: {
-    blades: { length: 0.34, width: 0.03, density: 32, give: 0.55, sprawl: 0.3, tint: PALETTE.GRASS },
+    blades: { length: 0.34, width: 0.03, density: 80, give: 0.55, sprawl: 0.3, tint: PALETTE.GRASS },
   },
-  /** Long and unmown, and pale with it. */
+  /** Long and unmown, and pale with it. Ragged, where turf is even. */
   tussock: {
-    blades: { length: 0.6, width: 0.032, density: 22, give: 0.75, sprawl: 0.45, tint: PALETTE.GRASS_DRY },
+    blades: { length: 0.6, width: 0.032, density: 55, give: 0.75, sprawl: 0.45, tint: PALETTE.GRASS_DRY, vary: 0.6 },
   },
-  /** Something growing in rows: stiff, straight and dry. */
+  /** Crop stubble, and it actually grows in rows: stiff, straight, dry. */
   stubble: {
-    blades: { length: 0.36, width: 0.032, density: 18, give: 0.3, sprawl: 0.18, tint: PALETTE.LEAF_DRY },
+    blades: {
+      length: 0.36, width: 0.032, density: 90, give: 0.3, sprawl: 0.12,
+      tint: PALETTE.LEAF_DRY, vary: 0.1, rows: 0.8,
+    },
   },
-  /** Sparse and wiry, on ground people have walked flat. */
+  /** Sparse, wiry and every height at once, on ground people walk flat. */
   weeds: {
-    blades: { length: 0.3, width: 0.026, density: 8, give: 0.6, sprawl: 0.55, tint: 0x6b7a45 },
+    blades: { length: 0.32, width: 0.026, density: 20, give: 0.6, sprawl: 0.55, tint: 0x6b7a45, vary: 0.9 },
   },
-  /** Short, wide and sprawling. Authored only — nothing grows it by default. */
+  /** Stalks with round leaves over a short nap. Authored only. */
   clover: {
-    blades: { length: 0.15, width: 0.05, density: 48, give: 0.35, sprawl: 0.65, tint: 0x53823f },
+    blades: { length: 0.09, width: 0.04, density: 30, give: 0.3, sprawl: 0.6, tint: 0x53823f },
+    props: { kind: 'leaf', density: 90, scale: 1, tint: 0x53823f },
   },
   /** A dense low nap with almost no height. In the joints, on the north wall. */
   moss: {
-    blades: { length: 0.07, width: 0.05, density: 70, give: 0.1, sprawl: 0.75, tint: 0x455c31 },
+    blades: { length: 0.07, width: 0.05, density: 175, give: 0.1, sprawl: 0.75, tint: 0x455c31 },
   },
-  /** Meadow grass with flower heads scattered through it. Authored only. */
+  /** Meadow grass with a mixed stand of flower heads. Authored only. */
   flowers: {
-    blades: { length: 0.3, width: 0.028, density: 26, give: 0.6, sprawl: 0.35, tint: 0x5f7040 },
-    props: { kind: 'bloom', density: 2.2, scale: 1, tint: 0xcfc7a6 },
+    blades: { length: 0.3, width: 0.028, density: 65, give: 0.6, sprawl: 0.35, tint: 0x5f7040, vary: 0.4 },
+    props: {
+      kind: 'bloom', density: 3.5, scale: 1, tint: 0xcfc7a6,
+      tints: [0xd9d3c0, 0xc9a83c, 0x9a86b8],
+    },
   },
   /** Pampas: long dry grass under tall stalks with pale plumes. Authored only. */
   plume: {
-    blades: { length: 0.55, width: 0.03, density: 14, give: 0.7, sprawl: 0.5, tint: PALETTE.GRASS_DRY },
-    props: { kind: 'plume', density: 0.8, scale: 1, tint: 0xd6c9a8 },
+    blades: { length: 0.55, width: 0.03, density: 35, give: 0.7, sprawl: 0.5, tint: PALETTE.GRASS_DRY, vary: 0.5 },
+    props: { kind: 'plume', density: 1.2, scale: 1, tint: 0xd6c9a8 },
+  },
+  /** Tall, stiff and dark, for water edges and ditches. Authored only. */
+  sedge: {
+    blades: { length: 0.95, width: 0.035, density: 30, give: 0.35, sprawl: 0.2, tint: 0x3f5c35, vary: 0.5 },
+  },
+  /** Low woody scrub hazed with small purple flowers. Authored only. */
+  heather: {
+    blades: { length: 0.22, width: 0.034, density: 100, give: 0.2, sprawl: 0.7, tint: 0x5a5f42, vary: 0.3 },
+    props: {
+      kind: 'bloom', density: 24, scale: 0.55, tint: 0x9a86b8,
+      tints: [0x9a86b8, 0xb59ac6],
+    },
   },
 } as const satisfies Record<string, CoverType>;
 

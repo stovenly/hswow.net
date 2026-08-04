@@ -308,6 +308,7 @@ check(
     ['the unflipped normal', blades.fragmentShader, 'normal = normalize(vNormal);'],
     ['the blade tint', blades.fragmentShader, 'diffuseColor.rgb = vCoverTint;'],
     ['the tuft lag', tufts.vertexShader, 'windLagScale + iProp.y'],
+    ['the tuft tread', tufts.vertexShader, 'coverPlayer.xz'],
     ['the stipple', tufts.fragmentShader, '> vTuftGrain.z) discard'],
     ['the backlight', tufts.fragmentShader, 'outgoingLight += diffuseColor.rgb * coverGlow'],
   ] as const) {

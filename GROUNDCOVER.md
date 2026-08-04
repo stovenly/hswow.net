@@ -3,8 +3,8 @@
 **Built.** `art/cover.ts` is the sampler, the two materials and the attach; the type
 table and `CoverPatch` are in `world/ground.ts`; the terrain writes the per-face
 attribute; `ZoneManager.prepare` attaches cover to anything it already calls ground;
-the player has one toggle; and there is a showcase off General Props with every type,
-a plume meadow, and the bank where cover stops. `check:world` holds the blade budget
+the player has a toggle and a density tier; and there is a showcase off General Props
+with every type, a plume meadow, and the bank where cover stops. `check:world` holds the blade budget
 and asserts every type appears in that room; `check:art` asserts the shader patches
 land.
 
@@ -71,14 +71,18 @@ radially away and spring back behind them. One uniform, updated per frame.
 
 A cover type is up to two layers, both optional (`world/ground.ts`):
 
-- **`blades`** — length, width, density (per m²), give (wind response), sprawl
-  (rest lean), tint. Grass, tussock, stubble, weeds, clover and moss are all this one
-  ribbon with different numbers.
+- **`blades`** — length, width, density (per m², the ultra figure), give (wind
+  response), sprawl (rest lean), tint, plus two distinguishers: `vary` (how ragged
+  the heights are — turf is even, weeds are every height at once) and `rows` (a row
+  pitch; crop stubble actually grows in rows). Grass, tussock, stubble, weeds, moss,
+  sedge and heather's scrub are all this one ribbon with different numbers.
 - **`props`** — a small authored mesh scattered among the blades: `plume` (a pampas
-  stalk and three stippled fins) or `bloom` (a stem and a flower head tinted per
-  instance from a small palette). `flowers` is grass plus blooms; `plume` is long dry
-  grass plus pampas. Adding a type is a table row; adding a prop kind is a builder
-  function and a table row.
+  stalk under six stippled fins), `bloom` (a stem and a flower head, tinted per
+  instance from the type's own `tints` palette), or `leaf` (a clover stalk with
+  three round leaflets). `flowers` is grass plus a mixed stand of blooms; `heather`
+  is woody scrub hazed with purple ones; `clover` is a short nap under leaf props;
+  `plume` is long dry grass plus pampas. Adding a type is a table row; adding a prop
+  kind is a builder function and a table row.
 
 The pampas plume is Tsushima's own recipe — their fields are procedural blades with
 *modelled* stalks and tufts scattered through them — done in this project's idiom: the
@@ -94,14 +98,18 @@ over ~0.9 m at every cover boundary, so grass runs out onto a path as a scatter
 rather than stopping on a line. Steep ground turns to rock and rock grows nothing —
 the line on the showcase bank is not authored anywhere.
 
-## The player toggle
+## The player controls
 
-**One toggle: on or off.** On is the authored field; off skips every cover draw
-outright. This replaces the density slider the first build shipped — a percentage of
-grass was never a look anyone wanted, and SHADERS.md no longer needs its exception
-paragraph. Tuning lives in the render preset as multipliers over the table
-(`cover.density` draws a fraction of each chunk, `cover.height`/`cover.width` scale
-blades live), in the debug folder, never in the player's menu.
+**A toggle, and a density tier when it is on: low, medium, high, ultra.** Off skips
+every cover draw outright. The type table is authored at **ultra**; each tier below
+draws a fraction of the same sampled pool (0.18 / 0.4 / 0.6 / 1) — and because every
+chunk's instances are shuffled at build, a fraction is a prefix, so switching tiers
+is an instance count and costs nothing. Medium is an ordinary field; the default is
+high. Props thin on a square-root curve rather than the tier's own, because they are
+the accents — a plume field thinned as hard as its grass is a field with no plumes.
+
+Tuning multipliers over the table (`cover.density`, `cover.height`, `cover.width`)
+live in the render preset and the debug folder, never in the player's menu.
 
 Call it "groundcover", not "grass": `grassShadows` in the same menu refers to the
 `CLUTTER` props, which are a different grass. Cover casts no shadows; the two never
@@ -109,9 +117,10 @@ interact.
 
 ## Cost
 
-- **Vertex** — 9 verts × blades in view. The budget check holds every zone at or
-  under **200k blades sampled** (the countryside sits at ~167k), and chunk culling
-  means a frame typically carries a third of that. Desktop-only makes this fine.
+- **Vertex** — 9 verts × blades drawn. The budget check holds every zone at or
+  under **500k blades sampled at ultra** (the countryside sits at ~417k); the
+  default high tier draws 0.6 of that and chunk culling carries roughly a third of
+  what remains in a frame. Desktop-only makes this fine, and ultra is opt-in.
 - **Fragment** — trivial: no discard on blades, flat Lambert, one varying tint.
 - **CPU** — the sampler runs once per zone build, a few tens of ms behind the
   transition fade. Per frame: four uniforms.
@@ -142,9 +151,10 @@ interact.
 - **Blade width against the pixel clamp.** If distant fields read as uniformly thick
   thatch, widths are hitting the clamp everywhere and the table's widths only matter
   up close. That may be fine; it may want narrower far tint instead.
-- **The plume mesh.** Authored blind: stalk height, fin droop, stipple grain (24
-  cells along a fin) and the backlight strength all want looking at, ideally at a low
-  sun angle.
+- **The plume mesh.** Authored blind: stalk height, the droop and reach of the six
+  fins (three solid, three haze), the stipple grain (32 cells along a fin) and the
+  backlight strength all want looking at, ideally at a low sun angle. The clover
+  leaflets and the heather bloom haze are the same kind of guess.
 - **Depth-edge speckle.** Blades write depth and the edge pass fires on depth steps,
   so every blade can carry a dark outline like any other prop. That is the house
   style, but a whole field of it may be noisier than a few props of it.

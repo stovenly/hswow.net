@@ -449,14 +449,14 @@ toggle layers over the preset and never overwrites tuning:
 Each is one honest switch that turns the effect on and off — not a quality ladder,
 not a master "effects" group that gates them behind each other.
 
-**Groundcover** is the same shape: one toggle. On is the authored field, off is bare
-ground and skips every cover draw outright — the honest off-switch for the one option
-whose cost is vertex count rather than a pass. How thick or tall the cover stands is
-the look, lives in the type table and the render preset, and is not a player knob.
-(An earlier version shipped a 0–100 density slider and called itself the stated
-exception to this rule. Turning the whole field 40% sparser was never a look anyone
-wanted — it was grass with the detail turned down, which is exactly what the rule
-exists to forbid.)
+**Groundcover** is a toggle, plus a density tier when it is on — low, medium, high,
+ultra. The toggle is the honest off-switch for the one option whose cost is vertex
+count rather than a pass; the tier is a quantity of world content, four named looks
+rather than a 0–100 dial (which an earlier version shipped, and which was never a
+look anyone chose on purpose). Ultra is the authored field; every tier below draws
+an even fraction of the same sampled pool, so no tier is a different style of grass —
+only less of the same one. Height, width, and species stay in the type table and the
+render preset.
 
 One more crosses the line by a different door: **water motion** is an *accessibility*
 option, under reduced motion beside wind sway and head bob. The water itself is not

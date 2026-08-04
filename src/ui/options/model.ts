@@ -1,6 +1,7 @@
 import { DEFAULT_TUNING, type FovScaling } from '../../player/Controller';
 import { loadPreset, savePreset, clearPreset } from '../../debug/presets';
 import type { ColorblindMode } from '../../engine/RetroShader';
+import type { CoverDensity } from '../../engine/PostFX';
 import type { PerformanceMode } from '../Performance';
 import { fontNote } from './font';
 
@@ -78,6 +79,12 @@ export interface Options {
    */
   groundcover: boolean;
   /**
+   * How much of the sampled field is drawn. The type table is authored at
+   * ultra; every tier below draws a prefix of the same shuffled pool, so the
+   * scatter stays even and switching tiers is free.
+   */
+  groundcoverDensity: CoverDensity;
+  /**
    * Frames per second, or `uncapped`.
    *
    * A string rather than a number so the dropdown can offer "uncapped" as one
@@ -139,6 +146,7 @@ export const DEFAULT_OPTIONS: Options = {
   grassShadows: false,
   shadows: true,
   groundcover: true,
+  groundcoverDensity: 'high',
   fpsCap: 'uncapped',
   performance: 'off',
 
@@ -327,7 +335,28 @@ export const CATEGORIES: readonly Category[] = [
         key: 'groundcover',
         label: 'groundcover',
         note: (options) =>
-          options.groundcover ? 'grass, moss and everything underfoot' : 'off — bare ground',
+          options.groundcover ? 'grass, moss, and everything underfoot' : 'off — bare ground',
+      },
+      {
+        kind: 'choice',
+        key: 'groundcoverDensity',
+        label: 'groundcover density',
+        enabledWhen: (options) => options.groundcover,
+        choices: [
+          { value: 'low', label: 'low' },
+          { value: 'medium', label: 'medium' },
+          { value: 'high', label: 'high' },
+          { value: 'ultra', label: 'ultra' },
+        ],
+        note: (options) =>
+          !options.groundcover
+            ? 'needs groundcover'
+            : {
+                low: 'thin and worn',
+                medium: 'an ordinary field',
+                high: 'a thick field',
+                ultra: 'every blade there is',
+              }[options.groundcoverDensity],
       },
       {
         kind: 'choice',

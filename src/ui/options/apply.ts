@@ -98,7 +98,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   postfx.setAmbientOcclusion(options.ambientOcclusion);
   postfx.setBloom(options.bloom);
   postfx.setColorblind(options.colorblind, options.colorblindStrength / 100);
-  postfx.setGroundcover(options.groundcover);
+  postfx.setGroundcover(options.groundcover, options.groundcoverDensity);
   zones.setShadows(options.shadows);
   zones.setClutterShadows(options.grassShadows);
   // `uncapped` is not a number, and anything else stored there would be, so a
