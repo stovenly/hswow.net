@@ -4,8 +4,10 @@ import {
   COVER_ORDER,
   coverSwell,
   coverThickness,
+  coverMound,
   type CoverName,
   type CoverType,
+  type BladeLayer,
   type PropLayer,
 } from '../world/ground';
 import { windUniforms } from './sway';
@@ -20,6 +22,10 @@ import { COVER_LAYER } from '../layers';
  * the terrain already writes, and packs one instance per blade. Clump cells
  * give blades local agreement — shared height, facing and shade — which is
  * what makes a field read as grown rather than scattered.
+ *
+ * Wall types (`walls` in the table) are the one exception to everything being
+ * ground: they grow props on near-vertical faces, oriented to them — ivy on a
+ * wall — and a mesh opts in with `userData.cover`.
  *
  * Three decisions carried over from the shell version this replaces:
  * blades rise from world-flat ground along +Y, never the face normal; broad
@@ -36,6 +42,9 @@ import { COVER_LAYER } from '../layers';
 
 /** `vec4` per terrain vertex: type index, feather, swell, thickness. */
 export const COVER_ATTRIBUTE = 'cover';
+
+/** `vec2` per terrain vertex: neighbouring type index, how much of it to mix in. */
+export const COVER_BLEND_ATTRIBUTE = 'coverBlend';
 
 /** Blade ribbon segments. Two verts each plus a tip: 9 vertices a blade. */
 const SEGMENTS = 4;
@@ -89,7 +98,7 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
       '#include <common>',
       /* glsl */ `#include <common>
       attribute vec4 iPlace;   // root position, facing yaw
-      attribute vec4 iShape;   // length, width, sprawl, unused
+      attribute vec4 iShape;   // length, width, sprawl, taper
       attribute vec3 iTint;
       attribute vec4 iWild;    // breathe phase, flutter phase, give, unused
       attribute vec3 iNormal;  // the ground's normal under the root
@@ -158,7 +167,7 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         vec2 sideDir = dot(flatCam, flatCam) > 0.001
           ? normalize(vec2(-flatCam.y, flatCam.x))
           : vec2(face.y, -face.x);
-        float halfW = 0.5 * iShape.y * coverWidth * (1.0 - 0.8 * t);
+        float halfW = 0.5 * iShape.y * coverWidth * (1.0 - iShape.w * t);
         halfW = max(halfW, 0.5 * coverPixel * length(toCam));
 
         vec3 disp = vec3(tip.x, 0.0, tip.y) * (t * t)
@@ -222,6 +231,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
       attribute vec4 iPlace;   // root position, yaw
       attribute vec4 iProp;    // scale, gust lag, seed, glow
       attribute vec3 iTintP;
+      attribute vec3 iNormalP; // up for ground props, the wall's for wall ones
       uniform vec3 coverPlayer;
       uniform sampler2D gustField;
       uniform vec2 windDir;
@@ -237,8 +247,9 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
     )
     .replace(
       '#include <beginnormal_vertex>',
-      // Lit as the ground plane is: a plume is a soft mass, not a surface.
-      /* glsl */ `vec3 objectNormal = vec3(0.0, 1.0, 0.0);
+      // Lit as what it stands on is lit: the ground plane for a plume, the
+      // wall's own face for ivy — a prop is a soft mass, not a surface.
+      /* glsl */ `vec3 objectNormal = iNormalP;
       `,
     )
     .replace(
@@ -262,10 +273,13 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
         float u = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
         float gust = texture2D(gustField, vec2(u, 0.5)).r * swayAmount;
 
+        // abs, because a hanging raceme's tip is *below* its root and should
+        // still swing downwind, not up it.
         float roll = 0.7 + 0.3 * sin(swayTime * 1.1 + iProp.z * 6.2831);
-        vec2 push = windDir * (gust * roll * fin.z * p.y * 0.3)
+        float reach = abs(p.y);
+        vec2 push = windDir * (gust * roll * fin.z * reach * 0.3)
                   + vec2(-windDir.y, windDir.x)
-                    * (sin(swayTime * 2.6 + iProp.z * 9.42) * gust * fin.z * p.y * 0.08);
+                    * (sin(swayTime * 2.6 + iProp.z * 9.42) * gust * fin.z * reach * 0.08);
 
         // Stalks part around the player exactly as the blades under them do,
         // bending from the base — displacement grows with height.
@@ -273,7 +287,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
         float treadD = length(fromPlayer);
         float tread = (1.0 - smoothstep(0.15, 0.9, treadD))
                     * (1.0 - smoothstep(1.0, 1.8, abs(worldRoot.y - coverPlayer.y)));
-        if (tread > 0.0 && treadD > 0.001) push += (fromPlayer / treadD) * (tread * p.y * 0.55);
+        if (tread > 0.0 && treadD > 0.001) push += (fromPlayer / treadD) * (tread * reach * 0.55);
         p.xz += push;
 
         transformed = iPlace.xyz + coverToObject(p, c0, c1, c2, scaleSq);
@@ -619,10 +633,148 @@ function bloomGeometry(): THREE.BufferGeometry {
   return tuftGeometry(sink);
 }
 
+/**
+ * A crawl of ivy, authored in the wall's frame — X along it, Y up it, +Z out
+ * of it. Vine runs fan up from the root with leaves spiralled over them. The
+ * instance tint carries the green: leaves are authored white and the vines
+ * dimmer, so they come out darker lines of the same.
+ */
+function ivyGeometry(): THREE.BufferGeometry {
+  const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
+  const vine = new THREE.Color(0.5, 0.55, 0.45);
+  const leaf = new THREE.Color();
+
+  for (let s = 0; s < 3; s++) {
+    const angle = -0.85 + s * 0.85;
+    const dx = Math.sin(angle);
+    const dy = Math.cos(angle);
+    const len = 0.3 + 0.08 * s;
+    const px = dy * 0.008;
+    const py = -dx * 0.008;
+    const a0 = tuftVertex(sink, -px, -py, 0.012, vine, 0, 0, 0.05, 1);
+    const a1 = tuftVertex(sink, px, py, 0.012, vine, 1, 0, 0.05, 1);
+    const b0 = tuftVertex(sink, dx * len - px, dy * len - py, 0.02, vine, 0, 1, 0.15, 1);
+    const b1 = tuftVertex(sink, dx * len + px, dy * len + py, 0.02, vine, 1, 1, 0.15, 1);
+    tuftQuad(sink, a0, a1, b0, b1);
+  }
+
+  // Leaves, spiralled over the crawl, denser near the root.
+  for (let l = 0; l < 11; l++) {
+    const g = l * 2.39996;
+    const r = 0.07 + 0.28 * Math.sqrt((l + 0.5) / 11);
+    const x = Math.cos(g) * r;
+    const y = Math.sin(g) * r * 1.15 + 0.06;
+    const z = 0.025 + 0.03 * ((l * 0.618) % 1);
+    const spin = g * 1.7;
+    const half = 0.028 + 0.008 * ((l * 0.372) % 1);
+    leaf.setScalar(0.85 + 0.3 * ((l * 0.417) % 1));
+    const rx = Math.cos(spin) * half;
+    const ry = Math.sin(spin) * half;
+    const ux = -Math.sin(spin) * half;
+    const uy = Math.cos(spin) * half;
+    const uz = half * 0.5;
+    const a0 = tuftVertex(sink, x - rx - ux, y - ry - uy, z - uz, leaf, 0, 0, 0.12, 1);
+    const a1 = tuftVertex(sink, x + rx - ux, y + ry - uy, z - uz, leaf, 1, 0, 0.12, 1);
+    const b0 = tuftVertex(sink, x - rx + ux, y - ry + uy, z + uz, leaf, 0, 1, 0.18, 1);
+    const b1 = tuftVertex(sink, x + rx + ux, y + ry + uy, z + uz, leaf, 1, 1, 0.18, 1);
+    tuftQuad(sink, a0, a1, b0, b1);
+  }
+
+  return tuftGeometry(sink);
+}
+
+/**
+ * A posy for the climbing rose: three small blooms held just off the wall,
+ * each a face quad tipped out of the wall plane and a depth fin through it.
+ * Authored white; the instance tint is the rose.
+ */
+function posyGeometry(): THREE.BufferGeometry {
+  const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
+  const bloom = new THREE.Color();
+  const AT: readonly [number, number, number][] = [
+    [0.035, 0.05, 0.06],
+    [-0.055, -0.01, 0.045],
+    [0.01, -0.065, 0.07],
+  ];
+  AT.forEach(([x, y, z], i) => {
+    bloom.setScalar(0.88 + 0.12 * ((i * 0.618) % 1));
+    const half = 0.027;
+    const spin = 0.4 + i * 1.9;
+    const rx = Math.cos(spin) * half;
+    const ry = Math.sin(spin) * half;
+    const ux = -Math.sin(spin) * half;
+    const uy = Math.cos(spin) * half;
+    const uz = half * 0.45;
+    const a0 = tuftVertex(sink, x - rx - ux, y - ry - uy, z - uz, bloom, 0, 0, 0.15, 1);
+    const a1 = tuftVertex(sink, x + rx - ux, y + ry - uy, z - uz, bloom, 1, 0, 0.15, 1);
+    const b0 = tuftVertex(sink, x - rx + ux, y - ry + uy, z + uz, bloom, 0, 1, 0.2, 1);
+    const b1 = tuftVertex(sink, x + rx + ux, y + ry + uy, z + uz, bloom, 1, 1, 0.2, 1);
+    tuftQuad(sink, a0, a1, b0, b1);
+    const c0 = tuftVertex(sink, x - rx, y - ry, z - half * 0.8, bloom, 0, 0.3, 0.15, 1);
+    const c1 = tuftVertex(sink, x + rx, y + ry, z - half * 0.8, bloom, 1, 0.3, 0.15, 1);
+    const d0 = tuftVertex(sink, x - rx, y - ry, z + half * 0.8, bloom, 0, 0.7, 0.2, 1);
+    const d1 = tuftVertex(sink, x + rx, y + ry, z + half * 0.8, bloom, 1, 0.7, 0.2, 1);
+    tuftQuad(sink, c0, c1, d0, d1);
+  });
+  return tuftGeometry(sink);
+}
+
+/**
+ * A wisteria raceme: two crossed strips hanging from the root, drifting a
+ * little as they fall and tapering, the tail fading into stipple. Authored
+ * white; the instance tint is the flower.
+ */
+function racemeGeometry(): THREE.BufferGeometry {
+  const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
+  const bloom = new THREE.Color();
+  const LEVELS = 6;
+
+  const centers: [number, number, number][] = [];
+  for (let l = 0; l <= LEVELS; l++) {
+    const s = l / LEVELS;
+    centers.push([Math.sin(l * 1.7) * 0.018, -0.03 - 0.42 * s, 0.05 + Math.cos(l * 1.3) * 0.014]);
+  }
+
+  for (const angle of [0, Math.PI / 2]) {
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const rows: [number, number][] = [];
+    for (let l = 0; l <= LEVELS; l++) {
+      const s = l / LEVELS;
+      const [cx, cy, cz] = centers[l];
+      const half = 0.008 + 0.05 * (1 - s * 0.8);
+      const puff = 0.25 + 0.5 * s;
+      const solid = s < 0.55 ? 1 : s < 0.9 ? 0.85 : 0.55;
+      bloom.setScalar(1 - 0.18 * s);
+      const v0 = tuftVertex(sink, cx - dx * half, cy, cz - dz * half, bloom, angle, s, puff, solid);
+      const v1 = tuftVertex(sink, cx + dx * half, cy, cz + dz * half, bloom, angle + 1, s, puff, solid);
+      rows.push([v0, v1]);
+    }
+    for (let l = 0; l < LEVELS; l++) {
+      tuftQuad(sink, rows[l][0], rows[l][1], rows[l + 1][0], rows[l + 1][1]);
+    }
+  }
+
+  return tuftGeometry(sink);
+}
+
 const PROP_GEOMETRY: Record<PropLayer['kind'], () => THREE.BufferGeometry> = {
   plume: plumeGeometry,
   bloom: bloomGeometry,
   leaf: leafGeometry,
+  ivy: ivyGeometry,
+  posy: posyGeometry,
+  raceme: racemeGeometry,
+};
+
+/** The backlight each kind carries — see the tuft fragment's glow term. */
+const PROP_GLOW: Record<PropLayer['kind'], number> = {
+  plume: 1,
+  bloom: 0.25,
+  leaf: 0.1,
+  ivy: 0.05,
+  posy: 0.2,
+  raceme: 0.35,
 };
 
 const propGeometry: Partial<Record<PropLayer['kind'], THREE.BufferGeometry>> = {};
@@ -649,6 +801,7 @@ interface PropChunk {
   place: number[];
   prop: number[];
   tint: number[];
+  normal: number[];
 }
 
 interface CoverSample {
@@ -670,6 +823,7 @@ interface CoverSample {
 function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | null {
   const source = ground.geometry;
   const painted = source.getAttribute(COVER_ATTRIBUTE);
+  const blended = painted ? source.getAttribute(COVER_BLEND_ATTRIBUTE) : null;
   const stated = uniform ?? (ground.userData.cover as CoverName | undefined);
   if (!painted && (!stated || stated === 'none')) return null;
 
@@ -712,6 +866,7 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
     if (typeIndex <= 0) continue;
     const spec: CoverType = COVER_TYPES[COVER_ORDER[typeIndex]];
     if (!spec || (!spec.blades && !spec.props)) continue;
+    const walls = spec.walls === true;
 
     va.fromBufferAttribute(position, i0);
     vb.fromBufferAttribute(position, i1);
@@ -725,11 +880,17 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
     const area = cross.crossVectors(ab, ac).length() / 2;
     if (area <= 0) continue;
 
-    // Object-space face normal, for the shader's lighting.
+    // Wall cover grows only on faces that are actually wall-like, and stays
+    // oriented to them: yaw turns an authored prop's +Z out along the face.
+    if (walls && Math.abs(cross.y) / (2 * area) > 0.55) continue;
+    const yawWall = Math.atan2(-cross.x, cross.z);
+
+    // Object-space face normal, for the shader's lighting. A wall face keeps
+    // its own way out; ground is always lit from above.
     ab.subVectors(vb, va);
     ac.subVectors(vc, va);
     normal.crossVectors(ab, ac).normalize();
-    if (normal.y < 0) normal.negate();
+    if (!walls && normal.y < 0) normal.negate();
 
     if (colors) faceTint.setRGB(colors.getX(i0), colors.getY(i0), colors.getZ(i0));
     else faceTint.setRGB(1, 1, 1);
@@ -763,8 +924,24 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
       k2 = coverThickness(wc.x, wc.z);
     }
 
+    // Who is across the nearest soft boundary, and how much of them to roll.
+    let n0 = 0;
+    let n1 = 0;
+    let n2 = 0;
+    let b0 = 0;
+    let b1 = 0;
+    let b2 = 0;
+    if (blended) {
+      n0 = Math.round(blended.getX(i0));
+      n1 = Math.round(blended.getX(i1));
+      n2 = Math.round(blended.getX(i2));
+      b0 = blended.getY(i0);
+      b1 = blended.getY(i1);
+      b2 = blended.getY(i2);
+    }
+
     const blades = spec.blades;
-    if (blades) {
+    if (blades && !walls) {
       const n = Math.floor(area * blades.density + hat(f, 0, 17));
       for (let i = 0; i < n; i++) {
         let r1 = hat(f, i, 29);
@@ -782,9 +959,22 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
 
         const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
         const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
-        if (blades.rows) {
-          const off = ((wz % blades.rows) + blades.rows) % blades.rows;
-          if (Math.abs(off - blades.rows / 2) > ROW_BAND) continue;
+
+        // Near a soft boundary, some of this face's blades are rolled as the
+        // neighbouring type instead — from both sides, so the boundary is an
+        // interleaved band rather than a line.
+        let layer: BladeLayer = blades;
+        const mix = b0 * w0 + b1 * r1 + b2 * r2;
+        if (mix > 0 && hat(f, i, 109) < mix) {
+          const other = w0 >= r1 && w0 >= r2 ? n0 : r1 >= r2 ? n1 : n2;
+          const swapped: CoverType = COVER_TYPES[COVER_ORDER[other]];
+          if (!swapped?.blades || swapped.walls) continue;
+          layer = swapped.blades;
+        }
+
+        if (layer.rows) {
+          const off = ((wz % layer.rows) + layer.rows) % layer.rows;
+          if (Math.abs(off - layer.rows / 2) > ROW_BAND) continue;
         }
         const cx = Math.floor(wx / CLUMP);
         const cz = Math.floor(wz / CLUMP);
@@ -797,15 +987,23 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         const h2 = hat(f, i, 43);
         const h3 = hat(f, i, 47);
         const h4 = hat(f, i, 53);
-        const vary = blades.vary ?? 0.3;
+        const vary = layer.vary ?? 0.3;
         // The swell field carries most of the range, so height reads as
         // sweeping areas of a field rather than as noise between neighbours.
-        const length =
-          blades.length * (0.55 + 0.95 * swell) * clumpTall * (1 - 0.5 * vary + vary * h1);
+        let length =
+          layer.length * (0.55 + 0.95 * swell) * clumpTall * (1 - 0.5 * vary + vary * h1);
+        // A mounded layer rolls instead: height follows its own small smooth
+        // field, so the cover reads as soft masses with sides, not as blades.
+        const mound = layer.mound ?? 0;
+        const roll = mound > 0 ? coverMound(wx, wz) : 0;
+        if (mound > 0) {
+          length += (layer.length * (0.35 + 1.5 * roll) * (0.9 + 0.2 * h1) - length) * mound;
+        }
         sample.maxLen = Math.max(sample.maxLen, length);
 
-        tint.set(blades.tint).lerp(faceTint, 0.25);
-        const shade = clumpShade * (0.92 + 0.16 * h2);
+        tint.set(layer.tint).lerp(faceTint, 0.25);
+        const shade =
+          clumpShade * (0.92 + 0.16 * h2) * (1 + mound * (roll - 0.45) * 0.6);
 
         const key = `${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
         let chunk = sample.blades.get(key);
@@ -819,57 +1017,72 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
           va.z * w0 + vb.z * r1 + vc.z * r2,
           clumpYaw + (h3 - 0.5) * 2.6,
         );
-        chunk.shape.push(length, blades.width * (0.85 + 0.3 * h2), blades.sprawl * (0.25 + 0.75 * h4), 0);
+        chunk.shape.push(
+          length,
+          layer.width * (0.85 + 0.3 * h2),
+          layer.sprawl * (0.25 + 0.75 * h4),
+          // Blunt for mounds, so neighbours merge into a mass.
+          0.8 - 0.5 * mound,
+        );
         chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
-        chunk.wild.push(h1 * 6.2831, h4 * 31, blades.give, 0);
+        chunk.wild.push(h1 * 6.2831, h4 * 31, layer.give, 0);
         chunk.normal.push(normal.x, normal.y, normal.z);
         sample.bladeCount++;
       }
     }
 
-    const props = spec.props;
-    if (props) {
-      const n = Math.floor(area * props.density + hat(f, 0, 71));
+    const propLayers: readonly PropLayer[] = !spec.props
+      ? []
+      : Array.isArray(spec.props)
+        ? spec.props
+        : [spec.props];
+    for (let layer = 0; layer < propLayers.length; layer++) {
+      const props = propLayers[layer];
+      const salt = layer * 131;
+      const n = Math.floor(area * props.density + hat(f, salt, 71));
       for (let i = 0; i < n; i++) {
-        let r1 = hat(f, i, 73);
-        let r2 = hat(f, i, 79);
+        let r1 = hat(f, i, 73 + salt);
+        let r2 = hat(f, i, 79 + salt);
         if (r1 + r2 > 1) {
           r1 = 1 - r1;
           r2 = 1 - r2;
         }
         const w0 = 1 - r1 - r2;
         const feather = f0 * w0 + f1 * r1 + f2 * r2;
-        if (hat(f, i, 83) >= feather) continue;
+        // Props cross-fade at a soft boundary: ours thin out as the
+        // neighbour's thin in from their own side.
+        const mix = b0 * w0 + b1 * r1 + b2 * r2;
+        if (hat(f, i, 83 + salt) >= feather * (1 - mix)) continue;
 
         const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
         const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
-        const h1 = hat(f, i, 89);
-        const h2 = hat(f, i, 97);
-        const h3 = hat(f, i, 101);
+        const h1 = hat(f, i, 89 + salt);
+        const h2 = hat(f, i, 97 + salt);
+        const h3 = hat(f, i, 101 + salt);
 
         const palette = props.tints ?? [props.tint];
         tint.set(palette[Math.floor(h3 * palette.length) % palette.length]);
-        const shade = 0.9 + 0.2 * hat(f, i, 103);
+        const shade = 0.9 + 0.2 * hat(f, i, 103 + salt);
 
         const key = `${props.kind}:${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
         let chunk = sample.props.get(key);
         if (!chunk) {
-          chunk = { kind: props.kind, place: [], prop: [], tint: [] };
+          chunk = { kind: props.kind, place: [], prop: [], tint: [], normal: [] };
           sample.props.set(key, chunk);
         }
+        // Wall props sit just off their face and yaw to it, give or take;
+        // ground props spin freely.
+        const lift = walls ? 0.02 : 0;
         chunk.place.push(
-          va.x * w0 + vb.x * r1 + vc.x * r2,
-          va.y * w0 + vb.y * r1 + vc.y * r2,
-          va.z * w0 + vb.z * r1 + vc.z * r2,
-          h2 * Math.PI * 2,
+          va.x * w0 + vb.x * r1 + vc.x * r2 + normal.x * lift,
+          va.y * w0 + vb.y * r1 + vc.y * r2 + normal.y * lift,
+          va.z * w0 + vb.z * r1 + vc.z * r2 + normal.z * lift,
+          walls ? yawWall + (h2 - 0.5) * 0.6 : h2 * Math.PI * 2,
         );
-        chunk.prop.push(
-          props.scale * (0.8 + 0.4 * h1),
-          0.8 + 0.9 * h3,
-          h3,
-          props.kind === 'plume' ? 1 : props.kind === 'bloom' ? 0.25 : 0.1,
-        );
+        chunk.prop.push(props.scale * (0.8 + 0.4 * h1), 0.8 + 0.9 * h3, h3, PROP_GLOW[props.kind]);
         chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
+        if (walls) chunk.normal.push(normal.x, normal.y, normal.z);
+        else chunk.normal.push(0, 1, 0);
         sample.propCount++;
       }
     }
@@ -1096,6 +1309,7 @@ export function coverFor(ground: THREE.Mesh, type?: CoverName): THREE.Object3D |
       {
         iProp: [gather(chunk.prop, order, 4), 4],
         iTintP: [gather(chunk.tint, order, 3), 3],
+        iNormalP: [gather(chunk.normal, order, 3), 3],
       },
     );
     mesh.userData.coverTuft = true;

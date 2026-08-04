@@ -4,7 +4,8 @@
 table and `CoverPatch` are in `world/ground.ts`; the terrain writes the per-face
 attribute; `ZoneManager.prepare` attaches cover to anything it already calls ground;
 the player has a toggle and a density tier; and there is a showcase off General Props
-with every type, a plume meadow, and the bank where cover stops. `check:world` holds the blade budget
+with every type, a plume meadow, the bank where cover stops, and the vine walls where
+cover climbs. `check:world` holds the blade budget
 and asserts every type appears in that room; `check:art` asserts the shader patches
 land.
 
@@ -75,13 +76,17 @@ the sway is half of what that room exists to show.
 
 ## The type table
 
-A cover type is up to two layers, both optional (`world/ground.ts`):
+A cover type is a blade layer and any number of prop layers, all optional
+(`world/ground.ts`):
 
 - **`blades`** — length, width, density (per m², the ultra figure), give (wind
-  response), sprawl (rest lean), tint, plus two distinguishers: `vary` (how ragged
-  the heights are — turf is even, weeds are every height at once) and `rows` (a row
-  pitch; crop stubble actually grows in rows). Grass, tussock, stubble, weeds, moss,
-  sedge and heather's scrub are all this one ribbon with different numbers.
+  response), sprawl (rest lean), tint, plus three distinguishers: `vary` (how ragged
+  the heights are — turf is even, weeds are every height at once), `rows` (a row
+  pitch; crop stubble actually grows in rows) and `mound` (height follows a small
+  smooth rolling field instead of per-blade jitter, and blades go blunt and wide so
+  neighbours merge — moss is soft masses you can see the sides of, not very short
+  grass). Grass, tussock, stubble, weeds, moss, sedge and heather's scrub are all
+  this one ribbon with different numbers.
 - **`props`** — a small authored mesh scattered among the blades: `plume` (a pampas
   stalk whose plume is built in tiers — wisps hugging the stem, a body of solid and
   haze fins, a narrow crown — every fin tapering into the stalk at its base),
@@ -90,6 +95,14 @@ A cover type is up to two layers, both optional (`world/ground.ts`):
   is woody scrub hazed with purple ones; `clover` is a short nap under leaf props;
   `plume` is long dry grass plus pampas. Adding a type is a table row; adding a prop
   kind is a builder function and a table row.
+- **`walls`** — the type grows on near-vertical faces instead of the ground,
+  oriented to them, and a mesh opts in by stating it (`userData.cover = 'ivy'`) —
+  terrain never grows these, because steep terrain turns to rock first. Props only,
+  lit by the wall's own normal so the vegetation shades with its wall. Three kinds:
+  `ivy` (vine runs fanned up from the root with leaves spiralled over them),
+  `posy` (the climbing rose's blooms, held just off the wall) and `raceme` (a
+  wisteria chain hanging and tapering, the tail stippled away — and swaying by its
+  *distance* from the root, so a hanging tip still swings downwind).
 
 The pampas plume is Tsushima's own recipe — their fields are procedural blades with
 *modelled* stalks and tufts scattered through them — done in this project's idiom: the
@@ -100,10 +113,20 @@ low sun adds wrapped light, strongest at golden hour, never quite zero.
 
 Materials grow cover automatically via the `COVER` map (turf → grass, meadow →
 tussock, crop → stubble, dirt → weeds, cobble → moss, moss → moss); `CoverPatch`
-paints over the automatic answer, including `none` to clear. Feather thins density
-over ~0.9 m at every cover boundary, so grass runs out onto a path as a scatter
-rather than stopping on a line. Steep ground turns to rock and rock grows nothing —
-the line on the showcase bank is not authored anywhere.
+paints over the automatic answer, including `none` to clear. Boundaries come in
+three kinds:
+
+- **Against bare ground**, feather thins density over ~0.9 m, so grass runs out
+  onto a path as a scatter rather than stopping on a line.
+- **Between two grown types**, density holds and the types *interleave*: over a
+  ~1.8 m band each side rolls a growing share of its blades as the neighbouring
+  type instead (the terrain writes who the neighbour is per vertex), and props
+  cross-fade by density. Grass mingles into clover; neither thins to a gap.
+- **A patch marked `edge: 'hard'`** opts out of both, from both sides: full
+  density to a crisp line and no mixing across it — a mown edge, a kerb.
+
+Steep ground turns to rock and rock grows nothing — the line on the showcase bank
+is not authored anywhere.
 
 ## The player controls
 
@@ -161,6 +184,15 @@ interact.
   (real metres, real blades per m²) and none has been judged by eye. Densities are
   set for the pixel scale — the terrain is already green under the blades, so 30/m²
   is a full lawn here — but that is a prediction, not a finding.
+- **The moss mounds.** The rolling field's octaves (1.9 m and 0.7 m), the blade
+  bluntness and the crest-light/hollow-dark shading are all authored blind; if
+  moss reads as lumpy grass rather than soft masses, the octaves are the first
+  knob.
+- **The boundary band.** ~1.8 m of interleave, capped at a 50/50 mix at the line.
+  Whether that is a mingle or a mess is a looking question, strip by strip.
+- **The wall types.** The ivy leaf scatter, the raceme's drift and stipple tail,
+  the posy's held-off distance — authored blind, and best judged at the vine
+  walls with the sun low and the wind up.
 - **Blade width against the pixel clamp.** If distant fields read as uniformly thick
   thatch, widths are hitting the clamp everywhere and the table's widths only matter
   up close. That may be fine; it may want narrower far tint instead.
