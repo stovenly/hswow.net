@@ -202,6 +202,10 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       '#include <clipping_planes_fragment>',
       /* glsl */ `#include <clipping_planes_fragment>
       {
+        // Nothing grows here. Out before the fade below, which converges on
+        // "covered" and would otherwise grow a slab on bare rock at distance.
+        if (vCoverBlade.x <= 0.0) discard;
+
         float up = vCoverBlade.w;
         vec2 place = vCoverPlace.xy - vCoverPlace.zw;
 
@@ -263,17 +267,15 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
         // The type's own colour, keeping a quarter of the ground it grows out
         // of so painted patches and the height cooling read through it.
         vec3 blade = mix(vCoverTint, diffuseColor.rgb, 0.25);
-        // Far off a pixel is a patch of ground rather than one blade, so it has
-        // to be that patch's average: blade over the fraction the cover holds,
-        // ground under the rest, and the root ramp at its mean. See FAR_SHADE.
-        float held = clamp(vCoverBlade.x * 3.1416 * vCoverBlade.y * vCoverBlade.y, 0.0, 1.0);
-        vec3 far = mix(diffuseColor.rgb, blade, held);
-        float shade = mix(
-          ${FAR_SHADE.toFixed(2)},
-          ${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * vCoverBlade.w,
-          coverFade
-        );
-        diffuseColor.rgb = mix(far, blade, coverFade) * shade;
+        // Far off a pixel is a patch of ground rather than one blade, so it is
+        // that patch's average: shaded blade over the fraction the cover holds,
+        // and bare ground under the rest. The ramp applies to the blade only —
+        // shading the ground half too is what put a dark ring on the grass.
+        float held = clamp(
+          vCoverBlade.x * 3.1416 * vCoverBlade.y * vCoverBlade.y * vCoverEdge.y, 0.0, 1.0);
+        vec3 far = mix(diffuseColor.rgb, blade * ${FAR_SHADE.toFixed(2)}, held);
+        vec3 near = blade * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * vCoverBlade.w);
+        diffuseColor.rgb = mix(far, near, coverFade);
       }
       `,
     );
