@@ -167,6 +167,12 @@ export function bubbleRadius(min: number, max: number, bias = 0): number {
   // sounding evenly spread in a way no water is. Raising the variate to a power
   // skews the draw toward the fine end while keeping the bounds exact, and one
   // number says how hard.
-  const u = bias > 0 ? Math.pow(Math.random(), 1 + bias * 2) : Math.random();
-  return min * Math.pow(max / min, u);
+  // Negative skews the other way, toward the coarse end, and that direction is
+  // the one a splash actually wants: measurement puts nearly half a puddle's
+  // energy between 900 Hz and 2 kHz and two per cent of it above 8, so what is
+  // needed up top is a *thin tail* rather than a crowd. A log-uniform draw over
+  // four octaves puts a quarter of the population in the top one, which is far
+  // too many.
+  const skew = bias >= 0 ? 1 + bias * 2 : 1 / (1 - bias * 2);
+  return min * Math.pow(max / min, Math.pow(Math.random(), skew));
 }

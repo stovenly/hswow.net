@@ -14,11 +14,13 @@
     "check": "npm run check:movement && npm run check:audio && npm run check:art && npm run check:world && npm run check:faust",
     "check:world": "esbuild tools/world-check.ts --bundle --platform=node --format=esm --log-level=warning --external:../faust/* --outfile=node_modules/.cache/world-check.mjs && node node_modules/.cache/world-check.mjs",
     "build:faust": "esbuild tools/faust-build.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/faust-build.mjs && node node_modules/.cache/faust-build.mjs",
+    "render:footsteps": "esbuild tools/footstep-render.ts --bundle --platform=node --format=esm --log-level=warning --external:node-web-audio-api --outfile=node_modules/.cache/footstep-render.mjs && node node_modules/.cache/footstep-render.mjs",
     "check:faust": "esbuild tools/faust-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/faust-check.mjs && node node_modules/.cache/faust-check.mjs"
   },
   "devDependencies": {
     "@grame/faustwasm": "^0.16.6",
     "@types/three": "^0.170.0",
+    "node-web-audio-api": "^1.0.9",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   },

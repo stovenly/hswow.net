@@ -113,7 +113,11 @@ interface Splash {
    * anything over five.
    */
   radius: readonly [number, number];
-  /** How far the draw is skewed toward the fine end. See `bubbleRadius`. */
+  /**
+   * How far the draw is skewed. Positive toward the fine end, **negative toward
+   * the coarse**, and negative is what a splash wants — the top of the range
+   * should be a thin tail rather than a crowd.
+   */
   bias?: number;
   level: number;
   /**
@@ -585,12 +589,12 @@ export const SURFACES = {
    */
   'water-puddle': {
     level: 0.5,
-    impact: { level: 0.44, duration: 0.02, low: 180, tone: 7000, q: 0.7, attack: 0.0022 },
+    impact: { level: 0.22, duration: 0.022, low: 240, tone: 13000, q: 0.7, attack: 0.0022 },
     modes: [],
     grit: null,
     splash: {
-      count: 34, over: 0.14, decay: 0.055,
-      radius: [0.0009, 0.004], damping: 1, level: 0.72,
+      count: 74, over: 0.2, decay: 0.085,
+      radius: [0.00017, 0.0045], bias: 0.72, damping: 1, level: 0.94,
     },
     scuff: 0.95,
     toe: 0.6,
@@ -629,17 +633,17 @@ export const SURFACES = {
    */
   'water-pond': {
     level: 0.52,
-    impact: { level: 0.3, duration: 0.045, low: 200, tone: 4800, q: 0.5, attack: 0.011 },
+    impact: { level: 0.19, duration: 0.04, low: 280, tone: 10000, q: 0.5, attack: 0.011 },
     crush: {
-      level: 0.18, duration: 0.12, from: 6000, to: 2200, q: 0.6,
+      level: 0.13, duration: 0.13, from: 6500, to: 2400, q: 0.6,
       rise: 0.06, band: 'ceiling', rough: 0.3,
     },
     modes: [],
     grit: null,
     splash: {
-      count: 46, over: 0.18, decay: 0.07,
-      radius: [0.0013, 0.006], damping: 1, level: 0.68,
-      cavity: { radius: 0.013, level: 0.24, delay: 0.026 },
+      count: 80, over: 0.26, decay: 0.11,
+      radius: [0.0002, 0.0055], bias: 0.55, damping: 1, level: 0.86,
+      cavity: { radius: 0.012, level: 0.13, delay: 0.026 },
     },
     scuff: 1,
     toe: 0.65,
@@ -1258,7 +1262,7 @@ function scatterBubbles(
     // Tilted very slightly toward the larger end, because that is where the
     // measurement puts the energy — and left nearly flat, because the longer
     // ring-down of a big bubble is already most of a fortyfold advantage.
-    const level = splash.level * force * energy * rand(0.35, 1) * (0.88 + 0.24 * size);
+    const level = splash.level * force * energy * rand(0.35, 1) * (1.22 - 0.36 * size);
     if (level < 0.0015) continue;
 
     popBubble(context, target, at + t, {
