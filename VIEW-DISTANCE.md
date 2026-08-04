@@ -45,10 +45,11 @@ looking like it does nothing.
 
 ### Clutter culling — this is where the win actually is
 
-`ui/options/model.ts` already states the case, about grass shadows: clutter is *"most
-of the object count in an outdoor zone and almost none of the picture"*. Those
-objects are already tagged — `art/assemble.ts` stamps `userData.clutter` from the
-`CLUTTER` set, and `ZoneManager.prepare` already walks the scene reading tags.
+`art/clutter.ts` already states the case, about shadows: clutter is *"most of the
+object count in an outdoor zone and almost none of the picture"*, which is why none
+of it casts. Those objects are already tagged — `art/assemble.ts` stamps
+`userData.clutter` from the `CLUTTER` set, and `ZoneManager.prepare` already walks
+the scene reading tags.
 
 So: **hide clutter well before the far plane**, at some fraction of the view
 distance. A per-frame distance test over tagged objects' bounding spheres is cheap,

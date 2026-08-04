@@ -17,9 +17,9 @@
  * 0.55 m. A threshold would also cut *through* a scatter, since one builder's
  * instances vary in size, and half a field with shadows reads as a bug.
  *
- * This is a look, not a fact about the world: `?debug` → look → "grass casts
- * shadows" puts them back, and Phase 9 can hang a real graphics option off the
- * same switch.
+ * Not switchable. It shipped with a player option and a debug toggle, and
+ * neither earned its row: ambient occlusion already sits these things on the
+ * ground, so the shadow was paying for a difference nobody could point at.
  *
  * A leaf module with no imports, so `assemble` can apply it without a cycle.
  */

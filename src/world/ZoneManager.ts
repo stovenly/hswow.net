@@ -98,8 +98,6 @@ export class ZoneManager {
   private active: Zone | null = null;
   /** Zones whose portal doors have been built into them. */
   private doored = new Set<ZoneId>();
-  /** Whether grass and small flowers cast. See `setClutterShadows`. */
-  private clutterShadows = false;
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -220,33 +218,6 @@ export class ZoneManager {
    */
   setShadows(enabled: boolean): void {
     this.lights.sun.castShadow = enabled;
-  }
-
-  /**
-   * Whether grass and small flowers cast. Off by default — see `art/clutter.ts`.
-   *
-   * Applies to zones already standing, not only to ones built after the switch.
-   * Half the point of the control is watching the frame cost move while looking
-   * at the same field of grass, and a setting that only takes effect through a
-   * door is not a setting, it is a build flag with a dial on it.
-   */
-  setClutterShadows(enabled: boolean): void {
-    if (enabled === this.clutterShadows) return;
-    this.clutterShadows = enabled;
-
-    for (const zone of this.zones.values()) {
-      // Only what is already standing. Reading `root()` here would *build*
-      // every zone in the world to change a shadow flag on it.
-      if (!zone.isBuilt) continue;
-      zone.root().traverse((object) => {
-        if (object instanceof THREE.Mesh && object.userData.clutter === true) {
-          object.castShadow = enabled;
-        }
-      });
-    }
-
-    // The map is drawn from a `needsUpdate` set once a frame, so the next frame
-    // picks this up on its own — no invalidation needed here.
   }
 
   register(definition: ZoneDefinition): Zone {
@@ -600,9 +571,9 @@ export class ZoneManager {
     //   Recognised by name for the two floors that predate the flag, and by
     //   `userData.ground` for anything else that is a large near-horizontal
     //   surface — a pond bed is one, and is not called either of those things.
-    // - **Clutter casts only when asked.** Grass and small flowers are the bulk
-    //   of the object count in an outdoor zone and a couple of pixels each on
-    //   screen. Off by default and switchable; see `art/clutter.ts`.
+    // - **Clutter never casts.** Grass and small flowers are the bulk of the
+    //   object count in an outdoor zone and a couple of pixels each on screen,
+    //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -612,7 +583,7 @@ export class ZoneManager {
         object.name === 'terrain' ||
         object.userData.ground === true;
       const clutter = object.userData.clutter === true;
-      object.castShadow = !glow && !ground && (!clutter || this.clutterShadows);
+      object.castShadow = !glow && !ground && !clutter;
       object.receiveShadow = !glow;
       // Walls opt in by stating a type — ivy on this one — without becoming
       // ground for shadows or anything else.
