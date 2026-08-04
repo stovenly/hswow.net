@@ -200,8 +200,6 @@ export interface BladeLayer {
   blend?: number;
   /** 0 even .. 1 ragged: how much blade length varies. Default 0.3. */
   vary?: number;
-  /** Row pitch in metres. Set, blades grow only in rows — crop stubble. */
-  rows?: number;
   /**
    * 0 blades .. 1 mass: height follows a smooth rolling field instead of
    * per-blade jitter, and blades go blunt so neighbours merge — moss reads as
@@ -247,11 +245,11 @@ export const COVER_TYPES = {
   tussock: {
     blades: { length: 0.6, width: 0.032, density: 110, give: 0.75, sprawl: 0.45, tint: PALETTE.GRASS_DRY, vary: 0.6 },
   },
-  /** Crop stubble, and it actually grows in rows: stiff, straight, dry. */
+  /** Crop stubble: stiff, straight, dry, and evenly thick over the ground. */
   stubble: {
     blades: {
-      length: 0.36, width: 0.032, density: 180, give: 0.3, sprawl: 0.12,
-      tint: PALETTE.LEAF_DRY, vary: 0.1, rows: 0.8,
+      length: 0.36, width: 0.032, density: 150, give: 0.3, sprawl: 0.12,
+      tint: PALETTE.LEAF_DRY, vary: 0.1,
     },
   },
   /** Sparse, wiry and every height at once, on ground people walk flat. */
