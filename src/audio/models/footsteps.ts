@@ -589,15 +589,15 @@ export const SURFACES = {
    */
   'water-puddle': {
     level: 0.5,
-    impact: { level: 0.22, duration: 0.022, low: 240, tone: 7000, q: 0.7, attack: 0.0022 },
+    impact: { level: 0.21, duration: 0.045, low: 405, tone: 7350, q: 0.7, attack: 0.0022 },
     modes: [],
     grit: {
-      count: 265, over: 0.26, energyDecay: 0.3, hz: 1250, q: 0.45, level: 0.54,
-      grain: 0.0065, attack: 0.0006, bounce: 0.3, voices: 3, spread: 0.45,
+      count: 124, over: 0.17, energyDecay: 0.15, hz: 4200, q: 0.4, level: 0.13,
+      grain: 0.019, attack: 0.0005, bounce: 0.15, voices: 5, spread: 0.84,
     },
     splash: {
-      count: 50, over: 0.2, decay: 0.085,
-      radius: [0.00017, 0.0045], bias: 0.72, damping: 1, level: 0.58,
+      count: 16, over: 0.14, decay: 0.046,
+      radius: [0.0002, 0.0072], bias: -0.14, damping: 1, level: 0.67,
     },
     scuff: 0.95,
     toe: 0.6,
@@ -636,10 +636,10 @@ export const SURFACES = {
    */
   'water-pond': {
     level: 0.52,
-    impact: { level: 0.19, duration: 0.04, low: 280, tone: 10000, q: 0.5, attack: 0.011 },
+    impact: { level: 0.18, duration: 0.05, low: 330, tone: 7000, q: 0.5, attack: 0.011 },
     grit: {
-      count: 280, over: 0.3, energyDecay: 0.34, hz: 1100, q: 0.45, level: 0.52,
-      grain: 0.007, attack: 0.0006, bounce: 0.3, voices: 3, spread: 0.45,
+      count: 140, over: 0.22, energyDecay: 0.2, hz: 3400, q: 0.4, level: 0.13,
+      grain: 0.021, attack: 0.0005, bounce: 0.15, voices: 5, spread: 0.84,
     },
     crush: {
       level: 0.13, duration: 0.13, from: 6500, to: 2400, q: 0.6,
@@ -647,8 +647,8 @@ export const SURFACES = {
     },
     modes: [],
     splash: {
-      count: 56, over: 0.26, decay: 0.11,
-      radius: [0.0002, 0.0055], bias: 0.55, damping: 1, level: 0.5,
+      count: 20, over: 0.18, decay: 0.06,
+      radius: [0.00022, 0.0058], bias: -0.14, damping: 1, level: 0.7,
       cavity: { radius: 0.012, level: 0.09, delay: 0.026 },
     },
     scuff: 1,
