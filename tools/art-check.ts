@@ -274,13 +274,10 @@ check(
 
 // --- the cover patch actually lands ----------------------------------------
 //
-// **`String.replace` on a marker that is not there does nothing and says
-// nothing.** The shell shader is five injections into three's Lambert program,
-// and if upstream renames or drops an include the patch silently becomes a
-// no-op: the material compiles, the mesh draws, and what you get is sixteen
-// copies of the ground stacked in exactly the same place. Nothing about that
-// is an error anywhere — so the check is that every injection changed the
-// source it was applied to.
+// `String.replace` on a marker that is not there does nothing and says nothing.
+// If upstream renames an include, the shell shader silently becomes a no-op:
+// the material compiles, the mesh draws, and every shell lands in the same
+// place. Nothing about that is an error anywhere.
 {
   const lambert = THREE.ShaderLib.lambert;
   const shader = {
@@ -295,15 +292,17 @@ check(
 
   const landed: string[] = [];
   const missed: string[] = [];
-  // One marker per injection, named by what it is for rather than by the chunk
-  // it went into — a failure here is read by somebody asking what stopped
-  // working, not by somebody reading three's shader source.
+  // Named by what each is for, since a failure here is read by somebody asking
+  // what stopped working rather than by somebody reading three's shader source.
   for (const [what, source, needle] of [
-    ['declarations', shader.vertexShader, `attribute float ${COVER_ATTRIBUTE};`],
+    ['declarations', shader.vertexShader, `attribute vec2 ${COVER_ATTRIBUTE};`],
     ['the shell lift', shader.vertexShader, 'transformed.y += rise'],
     ['the wind shear', shader.vertexShader, 'vCoverPlace = vec4('],
-    ['the strand discard', shader.fragmentShader, 'up > strand'],
-    ['the blade colour', shader.fragmentShader, 'diffuseColor.rgb = mix(vCoverTint'],
+    ['the strand discard', shader.fragmentShader, 'if (up > mix('],
+    // Missing, the near view still looks perfect and every field in the game
+    // grows an interference fringe past a few paces.
+    ['the resolve fade', shader.fragmentShader, 'float resolve = clamp('],
+    ['the blade colour', shader.fragmentShader, 'vec3 blade = mix(vCoverTint'],
   ] as const) {
     (source.includes(needle) ? landed : missed).push(what);
   }
@@ -311,7 +310,7 @@ check(
     'the groundcover shader patch lands',
     missed.length === 0,
     missed.length === 0
-      ? `${landed.length} injections, and the wind uniforms are shared not copied`
+      ? `${landed.length} injections land in three's Lambert program`
       : `no marker for: ${missed.join(', ')} — three's Lambert program has moved`,
   );
 
