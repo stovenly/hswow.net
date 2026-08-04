@@ -615,15 +615,29 @@ for (const [mm, hz] of [
     );
   }
 
-  // **Water runs on bubbles alone.** A particle bed is small hard things
-  // colliding, and standing one in for spray is what made every earlier attempt
-  // read as static — spray is bubbles, just very small ones. Mud is exempt and
-  // it is not a loophole: churned ground really does throw wet lumps, and that
-  // spatter is the squelch.
-  const gritty = Object.entries(SURFACES)
-    .filter(([name, surface]) => surface.splash && surface.grit && name !== 'mud')
-    .map(([name]) => name);
-  check('water is bubbles and nothing else', gritty.length === 0, gritty.join(', ') || 'both waters clean');
+  // **Water is a bed *and* a cloud, and it took a measurement to see it.**
+  //
+  // "Spray is bubbles, not particles" sounded right and produced goop. Counting
+  // envelope peaks in the reference says why: it sustains around 4,000 events a
+  // second for a quarter of a second, where a cloud of seventy oscillators
+  // manages 550 after the attack and goes tonal — spectral flatness 0.10
+  // against the recording's 0.14. A handful of warbling sines is exactly what
+  // thick snot sounds like.
+  //
+  // Thousands of oscillators is not affordable and is not the model anyway. A
+  // droplet striking water **is a small impact**, and a population of small
+  // impacts is what PhISEM is for. So the bed carries the hail and the bubbles
+  // carry the resonances, and neither alone is water.
+  for (const name of ['water-puddle', 'water-pond'] as const) {
+    const surface = SURFACES[name];
+    const bed = surface.grit;
+    const density = bed ? bed.count / bed.over : 0;
+    check(
+      `${name} has a bed as well as a cloud`,
+      !!bed && !!surface.splash && density > 500 && (bed.grain ?? 0.012) <= 0.01,
+      bed ? `${density.toFixed(0)} impacts/s at ${((bed.grain ?? 0.012) * 1000).toFixed(1)} ms` : 'no bed',
+    );
+  }
 }
 
 // **Soft materials must not have hard grains.**
