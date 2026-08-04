@@ -614,7 +614,9 @@ export class ZoneManager {
       const clutter = object.userData.clutter === true;
       object.castShadow = !glow && !ground && (!clutter || this.clutterShadows);
       object.receiveShadow = !glow;
-      if (ground) grounds.push(object);
+      // Walls opt in by stating a type — ivy on this one — without becoming
+      // ground for shadows or anything else.
+      if (ground || typeof object.userData.cover === 'string') grounds.push(object);
     });
 
     // **Cover is a property of the ground, not a set of objects standing on
