@@ -28,6 +28,7 @@ import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
 import { updateCover } from './art/cover';
+import { updateParticles } from './art/particles';
 import { installReloadBanner } from './debug/HotReload';
 import { attachFaustPanel } from './debug/FaustPanel';
 import type { FrictionModel } from './audio/models/friction';
@@ -241,6 +242,14 @@ if (dev.gui) {
   const r = postfx.settings;
   const refresh = (): void => postfx.apply();
 
+  // Dev-only, and held here rather than in the settings because it is a switch
+  // on the pass rather than a value in the preset — the same shape the fog
+  // volumes' dev toggle has.
+  const particleState = {
+    enabled: true,
+    apply: (): void => postfx.setParticles(particleState.enabled),
+  };
+
   const look = dev.gui.addFolder('look');
   // The same boolean the options menu edits, not a parallel one. Bound with
   // `.listen()` so a change made in the menu moves the control here, and routed
@@ -293,6 +302,22 @@ if (dev.gui) {
   cover.add(r.cover, 'density', 0, 1, 0.05).name('fraction drawn').onChange(refresh);
   cover.add(r.cover, 'height', 0.25, 2, 0.05).onChange(refresh);
   cover.add(r.cover, 'width', 0.25, 3, 0.05).onChange(refresh);
+
+  // No player video option here on purpose — snow in a snowy zone is the place,
+  // like a pond or a mist pool (PARTICLES.md §8). What the player does get is
+  // the accessibility switch, which is in the menu beside head bob.
+  const particles = dev.gui.addFolder('particles');
+  particles.add(particleState, 'enabled').name('draw particles').onChange(particleState.apply);
+  particles
+    .add(options, 'precipitation')
+    .name('player: precipitation')
+    .listen()
+    .onChange(settings.commit);
+  particles.add(r.particles, 'density', 0, 1, 0.05).name('fraction drawn').onChange(refresh);
+  particles.add(r.particles, 'size', 0.25, 3, 0.05).onChange(refresh);
+  // In seconds. A streak is `speed × shutter`, so this is the one knob that
+  // decides whether rain reads as rain or as falling dots.
+  particles.add(r.particles, 'shutter', 0, 0.05, 0.001).name('shutter (s)').onChange(refresh);
 
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
@@ -719,6 +744,9 @@ loop.add((dt, elapsed) => {
   // After the wind, for the same reason: the cover reads the gust field the
   // trees just took. This ships the width clamp, the tread and the backlight.
   updateCover(viewport.camera, postfx.artHeight, player.position, zones.lights.sun);
+  // And beside it, for the same reason: the sub-pixel clamp is measured in art
+  // pixels, so it moves with the window and with the pixel-size setting.
+  updateParticles(viewport.camera, postfx.artHeight);
 
   // **The hand-driven room switching is gone with the rooms.** The proving
   // ground used to contain a two-room stone building that was not a zone, so

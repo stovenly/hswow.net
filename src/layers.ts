@@ -84,3 +84,28 @@ export const WATER_LAYER = 3;
  * through it — worst against the rim hills, whose normals are full of edges.
  */
 export const COVER_LAYER = 4;
+
+/**
+ * Particles, and **the second exception to the additive rule.**
+ *
+ * `createParticles` calls `layers.set`, so a particle mesh is on this layer and
+ * nothing else — the same one line water uses, for three of the same reasons
+ * (PARTICLES.md §2):
+ *
+ * - **No outline.** A snowflake is one or two chunky pixels, and an outline
+ *   round a two-pixel square is a dark square.
+ * - **No hole in anything else's outline.** The subtler half: a flake crossing
+ *   a roof ridge in the normal buffer would break the ridge's line for a frame,
+ *   with the cause nowhere near the symptom.
+ * - **No shadow.** Off layer 0 is out of the shadow map, so three thousand
+ *   flakes cost the sun nothing.
+ *
+ * The lights are the one thing that has to be told: a camera restricted to this
+ * layer collects no light that is not also on it, so `ZoneManager.prepare`
+ * enables it on every light it walks past. Without that the particles compile
+ * against an empty light list and come out black.
+ *
+ * An emissive system enables `GLOW_LAYER` as well, which is what puts a spark
+ * in bloom's emitters pass with no code in `Bloom.ts`.
+ */
+export const PARTICLE_LAYER = 5;

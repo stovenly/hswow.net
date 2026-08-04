@@ -6,6 +6,7 @@ import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { setZoneWind } from '../art/sway';
+import { PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';
@@ -193,6 +194,12 @@ export class ZoneManager {
     // Opposed on both horizontal axes but still above, so it lifts the walls
     // the sun misses without lighting the ceiling from underneath.
     this.lights.fill.position.set(9, 7, -7);
+    // The three world lights are the scene's, not a zone's, so the walk in
+    // `prepare` never reaches them — see the note there for why the particle
+    // pass has to be shown every light there is.
+    for (const light of [this.lights.sun, this.lights.fill, this.lights.ambient]) {
+      light.layers.enable(PARTICLE_LAYER);
+    }
     options.scene.add(this.lights.sun, this.lights.fill, this.lights.ambient);
   }
 
@@ -576,6 +583,14 @@ export class ZoneManager {
     //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
     root.traverse((object) => {
+      // **Every light is shown to the particle pass.** That pass restricts the
+      // camera to `PARTICLE_LAYER`, and three collects only the lights a camera
+      // can see — so without this the particle material compiles against an
+      // empty light list and every flake in the zone comes out black. Enabled,
+      // not set, so nothing about ordinary rendering changes; and done here
+      // rather than in the builders so a forge lights the embers drifting off
+      // it without knowing particles exist.
+      if (object instanceof THREE.Light) object.layers.enable(PARTICLE_LAYER);
       if (!(object instanceof THREE.Mesh)) return;
       const glow = object.userData.noCollide === true;
       const ground =

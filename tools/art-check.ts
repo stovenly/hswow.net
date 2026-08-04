@@ -35,6 +35,8 @@ import {
   coverFor,
 } from '../src/art/cover';
 import { windUniforms } from '../src/art/sway';
+import { PARTICLE_MATERIAL, PARTICLE_GLOW_MATERIAL, createParticles } from '../src/art/particles';
+import { WATER_MATERIAL } from '../src/art/water';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
@@ -388,6 +390,159 @@ check(
     buried.length === 0
       ? `closest approach: ${clearances.join(', ')}`
       : `turned into the wall: ${buried.join(', ')}`,
+  );
+
+  /**
+   * The particle patches land, in both materials.
+   *
+   * Two of these replace a three include rather than adding to it —
+   * `begin_vertex`, because a particle's position is not its vertex's, and
+   * `project_vertex`, because that position is already in world space. A
+   * `String.replace` that matches nothing is silent, and what it leaves behind
+   * is a shader that compiles perfectly and draws every particle at the origin.
+   */
+  const particleShader = (material: THREE.Material, lib: { vertexShader: string; fragmentShader: string }) => {
+    const shader = {
+      uniforms: {} as Record<string, unknown>,
+      vertexShader: lib.vertexShader,
+      fragmentShader: lib.fragmentShader,
+    };
+    (material.onBeforeCompile as unknown as (s: typeof shader, r: unknown) => void)(shader, null);
+    return shader;
+  };
+  const lit = particleShader(PARTICLE_MATERIAL, THREE.ShaderLib.lambert);
+  const glow = particleShader(PARTICLE_GLOW_MATERIAL, THREE.ShaderLib.basic);
+
+  const gone: string[] = [];
+  const here: string[] = [];
+  for (const [what, source, needle] of [
+    ['the instance data', lit.vertexShader, 'attribute vec4 iShape;'],
+    ['the wrap', lit.vertexShader, 'pos.xz = centre.xz + mod('],
+    ['the wind integral', lit.vertexShader, 'gustSum(uNow) - gustSum(uThen)'],
+    ['the sub-pixel clamp', lit.vertexShader, 'float drawn = max(wanted, 1.0);'],
+    // The *on-screen* speed, not the world one — see the note beside it. Rain
+    // stretched by its world speed lies on its side the moment you look up.
+    ['the streak', lit.vertexShader, 'speedOnScreen * uShutter'],
+    ['begin_vertex replaced', lit.vertexShader, 'vec3 transformed = vec3(position);'],
+    ['the depth test', lit.fragmentShader, 'if (sceneZ < vParticleDepth) discard;'],
+    ['the soft fade', lit.fragmentShader, 'smoothstep(0.0, uSoftFade'],
+    ['the emissive twin', glow.vertexShader, 'attribute vec4 iShape;'],
+    ['the emissive depth test', glow.fragmentShader, 'if (sceneZ < vParticleDepth) discard;'],
+  ] as const) {
+    (source.includes(needle) ? here : gone).push(what);
+  }
+  // The two replacements have to have *consumed* their include, or the original
+  // runs after the patch and quietly overwrites `transformed`.
+  for (const [what, source] of [
+    ['begin_vertex', lit.vertexShader],
+    ['project_vertex', lit.vertexShader],
+  ] as const) {
+    if (source.includes(`#include <${what}>`)) gone.push(`${what} still present`);
+  }
+  check(
+    'the particle shader patches land',
+    gone.length === 0,
+    gone.length === 0
+      ? `${here.length} injections land in both particle programs`
+      : `no marker for: ${gone.join(', ')} — three's program has moved`,
+  );
+
+  /**
+   * Nothing drawn into the effect chain may hardware depth-test.
+   *
+   * **This is the check for the bug that made the whole feature invisible.**
+   * The ping-pong targets carry a depth renderbuffer nothing fills
+   * meaningfully, and every pass that draws into one opens with a full-screen
+   * blit — which, on a `ShaderMaterial`, writes depth by default and stamps the
+   * near plane across the frame. Anything drawn afterwards that tests against
+   * it fails everywhere.
+   *
+   * The particle materials shipped with `depthTest: true` and drew eleven
+   * systems, every one of them discarded at the first fragment. The draw calls
+   * were right, the instance data was right, the shader compiled, and the room
+   * was empty. `WATER_MATERIAL` has had the correct setting since it was
+   * written; this asserts the particle ones match it.
+   */
+  const depthy = [
+    ['particles (lit)', PARTICLE_MATERIAL],
+    ['particles (glow)', PARTICLE_GLOW_MATERIAL],
+    ['water', WATER_MATERIAL],
+  ] as const;
+  const testing = depthy.filter(([, m]) => m.depthTest || m.depthWrite).map(([n]) => n);
+  check(
+    'nothing in the effect chain depth-tests in hardware',
+    testing.length === 0,
+    testing.length === 0
+      ? `${depthy.length} chain materials, all testing depth in the shader instead`
+      : `still depth-testing against a buffer nobody fills: ${testing.join(', ')}`,
+  );
+
+  // The same claim the cover makes, one layer out: the gust carrying the snow
+  // is the gust bending the trees, which two tables cannot say.
+  const oneWind =
+    lit.uniforms.gustIntegral === windUniforms.gustIntegral &&
+    glow.uniforms.gustIntegral === windUniforms.gustIntegral;
+  check(
+    'particles answer the same gust as the trees',
+    oneWind,
+    oneWind ? 'one integral texture, shared by reference' : 'a particle material has its own',
+  );
+
+  /**
+   * A system is built deterministically, finite, and off layer 0.
+   *
+   * Off layer 0 is the whole of the layer decision — it is what buys no
+   * outline, no hole in anything else's outline, and no shadow — and it is one
+   * line in `createParticles` that nothing else would notice the loss of. The
+   * *showcase* is checked in `world-check`, where the zones live.
+   */
+  const madeOf = (motion: 'fall' | 'ballistic' | 'rise' | 'tumble') =>
+    createParticles(
+      {
+        count: 64,
+        shape: motion === 'tumble' ? new THREE.PlaneGeometry(1, 1) : 'billboard',
+        motion,
+        volume:
+          motion === 'fall' || motion === 'tumble'
+            ? { kind: 'field', size: new THREE.Vector3(8, 8, 8) }
+            : { kind: 'emitter', spread: 0.2 },
+        size: [0.02, 0.05],
+        colour: [0xffffff, 0xcccccc],
+        opacity: 0.8,
+        speed: [1, 2],
+        life: 2,
+      },
+      1234,
+    );
+
+  const wrong: string[] = [];
+  let instances = 0;
+  for (const motion of ['fall', 'ballistic', 'rise', 'tumble'] as const) {
+    const first = madeOf(motion);
+    const second = madeOf(motion);
+    const zero = new THREE.Layers();
+    zero.set(0);
+    if (first.layers.test(zero)) wrong.push(`${motion} is on layer 0`);
+    if (first.frustumCulled) wrong.push(`${motion} is frustum culled`);
+    if (first.userData.noCollide !== true) wrong.push(`${motion} is collidable`);
+    const geometry = first.geometry as THREE.InstancedBufferGeometry;
+    instances += geometry.instanceCount;
+    for (const [name, attribute] of Object.entries(geometry.attributes)) {
+      const mine = (attribute as THREE.BufferAttribute).array as ArrayLike<number>;
+      const theirs = ((second.geometry.getAttribute(name) as THREE.BufferAttribute).array) as ArrayLike<number>;
+      for (let i = 0; i < mine.length; i++) {
+        if (!Number.isFinite(mine[i])) wrong.push(`${motion}.${name}[${i}] is not finite`);
+        else if (mine[i] !== theirs[i]) wrong.push(`${motion}.${name} is not deterministic`);
+        if (wrong.length > 4) break;
+      }
+    }
+  }
+  check(
+    'every particle motion builds clean',
+    wrong.length === 0,
+    wrong.length === 0
+      ? `4 motions, ${instances} instances, deterministic, off layer 0, never culled`
+      : wrong.slice(0, 4).join('; '),
   );
 }
 
