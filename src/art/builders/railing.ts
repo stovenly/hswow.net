@@ -96,6 +96,6 @@ export const railing: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'railing', 0);
+    return finish(geometry, 'railing', 0, 'metal-solid');
   },
 };

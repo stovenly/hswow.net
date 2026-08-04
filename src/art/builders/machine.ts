@@ -53,13 +53,13 @@ export const machine: MeshBuilder = {
     const length = rng.range(2.1, 2.8);
     const width = rng.range(0.9, 1.3);
     const bedHeight = rng.range(0.32, 0.46);
-    const iron = rng.chance(0.5) ? PALETTE.IRON : PALETTE.STONE_DARK;
+    const iron = rng.chance(0.5) ? PALETTE.IRON : PALETTE.IRON_PALE;
     const trim = rng.chance(0.6) ? PALETTE.RUST : PALETTE.IRON;
 
     // --- bed ----------------------------------------------------------------
     const bed = new THREE.BoxGeometry(length, bedHeight, width);
     bed.translate(0, bedHeight / 2, 0);
-    parts.push({ geometry: bed, color: PALETTE.STONE_DARK, sway: 0 });
+    parts.push({ geometry: bed, color: PALETTE.IRON_PALE, sway: 0 });
 
     // Feet, so it sits on the floor rather than growing out of it.
     for (const sx of [-1, 1]) {
@@ -146,7 +146,7 @@ export const machine: MeshBuilder = {
     for (const at of bearings) {
       const pillow = new THREE.BoxGeometry(0.26, wheelY - bedHeight + 0.12, 0.3);
       pillow.translate(at, bedHeight + (wheelY - bedHeight) / 2, 0);
-      parts.push({ geometry: pillow, color: PALETTE.STONE_DARK, sway: 0 });
+      parts.push({ geometry: pillow, color: PALETTE.IRON_PALE, sway: 0 });
 
       const cap = new THREE.BoxGeometry(0.3, 0.1, 0.34);
       cap.translate(at, wheelY, 0);
@@ -211,6 +211,6 @@ export const machine: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'machine', 0);
+    return finish(geometry, 'machine', 0, 'metal-solid');
   },
 };

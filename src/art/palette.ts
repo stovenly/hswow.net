@@ -68,6 +68,24 @@ export const PALETTE = {
 
   IRON: 0x5a5f63,
   IRON_DARK: 0x3f4448,
+  /**
+   * The pale end of the metal, for machine casings and plant bodies.
+   *
+   * Added because those were being painted `STONE_DARK` — a machine wants a
+   * lighter grey than raw iron and there was not one, so the nearest thing was
+   * masonry. It reads acceptably and it is a lie in two places that matter:
+   * the works ends up looking like it is built of stone, and **the footstep
+   * material is read off these colours** (`art/underfoot.ts`), so a steel
+   * machine you can climb on sounded like a rock.
+   *
+   * Cooler than the stones rather than merely darker, and that is the point.
+   * `IRON` and `STONE_DARK` are the same hue at different brightness — identical
+   * to four decimal places once normalised — which is exactly why iron could not
+   * be told from stone by colour at all. This one has nearly twice the
+   * blue-over-red of any stone, so the two families separate on hue and stay
+   * separated through the pipeline's per-channel quantization.
+   */
+  IRON_PALE: 0x6d757e,
   RUST: 0x7a4a30,
   /**
    * Cast bronze, and what it goes when it has stood outside for a century.

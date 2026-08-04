@@ -270,7 +270,7 @@ export function buildFactoryDoor(options: FactoryDoorOptions = {}): THREE.Mesh {
   const geometry = assemble(parts);
   if (scale !== 1) geometry.scale(scale, scale, scale);
 
-  const mesh = finish(geometry, 'factory-door', 0);
+  const mesh = finish(geometry, 'factory-door', 0, 'metal-solid');
   const metrics: DoorMetrics = {
     width: (width + jamb * 2) * scale,
     height: (height + jamb) * scale,
