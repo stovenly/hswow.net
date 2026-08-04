@@ -99,10 +99,15 @@ A cover type is a blade layer and any number of prop layers, all optional
   oriented to them, and a mesh opts in by stating it (`userData.cover = 'ivy'`) —
   terrain never grows these, because steep terrain turns to rock first. Props only,
   lit by the wall's own normal so the vegetation shades with its wall. Three kinds:
-  `ivy` (vine runs fanned up from the root with leaves spiralled over them),
-  `posy` (the climbing rose's blooms, held just off the wall) and `raceme` (a
-  wisteria chain hanging and tapering, the tail stippled away — and swaying by its
-  *distance* from the root, so a hanging tip still swings downwind).
+  `ivy` (wandering, kinked vine runs with leaves scattered along them), `posy`
+  (the climbing rose's rosettes — petals fanned round a darker heart, plus buds)
+  and `raceme` (a wisteria chain with florets stuck out around it, the tail
+  stippled away — and swaying by its *distance* from the root, so a hanging tip
+  still swings downwind). One authored mesh per kind, but leaves, buds and tail
+  florets each pin a whole quad to one stipple cell at under-1 solidity, so every
+  *instance* drops a different set of them — and the crawling kinds spin freely
+  in the wall plane per instance, where a raceme must keep hanging. Both are the
+  antidote to one shape stamped over and over.
 
 The pampas plume is Tsushima's own recipe — their fields are procedural blades with
 *modelled* stalks and tufts scattered through them — done in this project's idiom: the
