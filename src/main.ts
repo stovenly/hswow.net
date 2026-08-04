@@ -287,18 +287,17 @@ if (dev.gui) {
     .name('screen-space reflections')
     .onChange(refresh);
 
-  // The player's slider collapses these three into one number; here they are
-  // separate, which is the only way shell count can be judged against height —
-  // see GROUNDCOVER.md on why that is the whole quality dial. Edits show
-  // immediately at the default slider position and are scaled by it elsewhere.
+  // The player's slider moves density alone. Shape is tuned here, and shells
+  // has to be judged against height: their ratio is the shell spacing, which
+  // must stay at or under a blade's own width.
   const cover = dev.gui.addFolder('groundcover');
   cover
     .add(options, 'groundcover', 0, 100, 5)
     .name('player slider')
     .listen()
     .onChange(settings.commit);
-  cover.add(r.cover, 'shells', 0, 16, 1).onChange(refresh);
-  cover.add(r.cover, 'height', 0, 0.4, 0.005).name('height (m)').onChange(refresh);
+  cover.add(r.cover, 'shells', 0, 48, 1).onChange(refresh);
+  cover.add(r.cover, 'height', 0, 0.6, 0.005).name('height (m)').onChange(refresh);
   cover.add(r.cover, 'density', 0, 2, 0.05).onChange(refresh);
 
   const vignette = dev.gui.addFolder('vignette').close();

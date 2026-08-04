@@ -72,9 +72,8 @@ export interface Options {
    *
    * SHADERS.md's rule is that a player option is an honest switch rather than a
    * quality ladder, and this is the stated exception: cover is world *content*,
-   * nearer in kind to field of view than to bloom, and every setting of it is a
-   * legitimate look — the difference reads as mown versus unmown rather than as
-   * grass with the detail turned down. See `PostFX.setGroundcover`.
+   * nearer in kind to field of view than to bloom. It moves how thickly the
+   * cover stands and leaves its shape alone — see `PostFX.setGroundcover`.
    *
    * Not "grass density": `grassShadows` above refers to the `CLUTTER` props,
    * which are a different grass, and two adjacent rows both saying grass would
@@ -335,10 +334,8 @@ export const CATEGORIES: readonly Category[] = [
         max: 100,
         step: 5,
         format: percent,
-        // What it does, said in the terms the picture will answer in — the
-        // number is a height, and 0 is genuinely nothing rather than a little.
         note: (options) =>
-          options.groundcover <= 0 ? 'off — bare ground' : 'depth of grass, moss and weeds',
+          options.groundcover <= 0 ? 'off — bare ground' : 'how thick the grass and moss stand',
       },
       {
         kind: 'choice',

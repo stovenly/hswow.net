@@ -8,6 +8,8 @@ import {
   COVER_ORDER,
   patchAt,
   coverPatchAt,
+  coverSwell,
+  coverThickness,
   groundJitter,
   type GroundName,
   type GroundPatch,
@@ -295,7 +297,7 @@ export class Terrain {
     const positions: number[] = [];
     const normals: number[] = [];
     const colors: number[] = [];
-    // Type and feather per vertex, for the shell shader.
+    // Type, feather, and the two broad fields, per vertex, for the shell shader.
     const covers: number[] = [];
 
     const a = new THREE.Vector3();
@@ -371,7 +373,12 @@ export class Terrain {
               // rather than on a line.
               const cover = this.faceCover(name, midX, midZ);
               for (const corner of [a, b, c]) {
-                covers.push(cover, this.feather(cover, corner.x, corner.z));
+                covers.push(
+                  cover,
+                  this.feather(cover, corner.x, corner.z),
+                  coverSwell(corner.x, corner.z),
+                  coverThickness(corner.x, corner.z),
+                );
               }
               emit(a, normal);
               emit(b, normal);
@@ -393,9 +400,9 @@ export class Terrain {
       SWAY_ATTRIBUTE,
       new THREE.Float32BufferAttribute(new Float32Array(positions.length / 3), 1),
     );
-    // Type and feather, read by the shell shader and by nothing else. The
-    // ground's own material never declares it, so it costs a buffer and no draw.
-    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 2));
+    // Read by the shell shader and by nothing else. The ground's own material
+    // never declares it, so it costs a buffer and no draw.
+    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 4));
 
     return finish(geometry, 'terrain', 0);
   }
