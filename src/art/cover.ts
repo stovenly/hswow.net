@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { COVER_TYPES, COVER_ORDER, type CoverName } from '../world/ground';
+import {
+  COVER_TYPES,
+  COVER_ORDER,
+  coverSwell,
+  coverThickness,
+  type CoverName,
+} from '../world/ground';
 import { windUniforms } from './sway';
 
 /**
@@ -23,11 +29,19 @@ import { windUniforms } from './sway';
  * `art/clutter.ts` is the standing rule that those do not cast.
  */
 
-/** How many shells the geometry is built for. The slider never asks for more. */
-const MAX_SHELLS = 24;
+/** How many shells the geometry is built for. */
+const MAX_SHELLS = 48;
 
-/** Deepest cover any setting can produce, for the culling sphere. */
-const MAX_RISE = 0.4;
+/** Deepest cover any tuning can produce, for the culling sphere. */
+const MAX_RISE = 1.4;
+
+/** What the swell field multiplies the height by, at its two ends. */
+const SWELL_LOW = 0.5;
+const SWELL_HIGH = 1.5;
+
+/** And the thickness field, on density. */
+const THICK_LOW = 0.35;
+const THICK_HIGH = 1.65;
 
 /** Blade cell, in metres. Fine, so a blade can be both narrow and dense. */
 const CELL = 0.014;
@@ -37,15 +51,6 @@ const CLUMP = 0.8;
 
 /** Mean of `(0.55 + 0.45u)(0.6 + 0.8v)`, which the far field converges on. */
 const MEAN_STRAND = 0.775;
-
-/**
- * The brightness the root ramp averages to, and the far field's own.
- *
- * Mean height in view is `base / 3(base - tip)`, about 0.41 — not the 0.775 the
- * stack reaches, because tall shells are thin. Matching it is what keeps the
- * near-to-far join from reading as a ring on the ground.
- */
-const FAR_SHADE = 0.74;
 
 /** How dark the roots are, and how much of that the tips recover. */
 const ROOT = 0.56;
@@ -120,7 +125,7 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
     .replace(
       '#include <common>',
       /* glsl */ `#include <common>
-      attribute vec2 ${COVER_ATTRIBUTE};
+      attribute vec4 ${COVER_ATTRIBUTE};
       attribute float ${SHELL_ATTRIBUTE};
       uniform vec4 coverSpec[${COUNT}];
       uniform vec3 coverTint[${COUNT}];
@@ -137,7 +142,7 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       varying vec4 vCoverBlade;  // density, base radius, tip radius, height up
       varying vec4 vCoverPlace;  // world XZ, and the wind shear to take it by
       varying vec3 vCoverTint;
-      varying vec2 vCoverEdge;   // world Y, and how far inside its own cover
+      varying vec3 vCoverEdge;   // world Y, feather, and the thickness field
       `,
     )
     .replace(
@@ -156,11 +161,17 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
         vCoverBlade = vec4(spec.yzw, up);
 
         // World +Y, over the model's own Y scale so the rise is metres whatever
-        // the mesh is scaled to.
-        float rise = up * coverHeight * spec.x;
+        // the mesh is scaled to. The swell field rides on it, so a plain has
+        // sweeps of longer and shorter grass rather than one mown height.
+        float swell = mix(
+          ${SWELL_LOW.toFixed(2)}, ${SWELL_HIGH.toFixed(2)}, ${COVER_ATTRIBUTE}.z);
+        float rise = up * coverHeight * spec.x * swell;
         transformed.y += rise / max(length(modelMatrix[1].xyz), 0.0001);
         vec3 worldAt = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        vCoverEdge = vec2(worldAt.y, ${COVER_ATTRIBUTE}.y);
+        vCoverEdge = vec3(
+          worldAt.y,
+          ${COVER_ATTRIBUTE}.y,
+          mix(${THICK_LOW.toFixed(2)}, ${THICK_HIGH.toFixed(2)}, ${COVER_ATTRIBUTE}.w));
 
         // The same travelling gust the trees answer, and by construction the
         // same one driving the rustle in the audio. See art/sway.ts.
@@ -179,14 +190,16 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       '#include <common>',
       /* glsl */ `#include <common>
       uniform float coverDensity;
+      uniform float coverShells;
       varying vec4 vCoverBlade;
       varying vec4 vCoverPlace;
       varying vec3 vCoverTint;
-      varying vec2 vCoverEdge;
+      varying vec3 vCoverEdge;
 
       // Set where the discards are decided and read where the colour is, which
       // are two separate injections into three's program.
       float coverFade;
+      float coverHeld;
 
       // Not a sine hash: sin(dot(p, big)) loses its fractional bits at cell
       // indices this large and quantises into visible bands. This folds to
@@ -240,15 +253,30 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
         // path instead of stopping on a line. A stipple rather than a gradient:
         // this pipeline quantizes a colour ramp into a band of dither.
         float feather = vCoverEdge.y;
-        float density = vCoverBlade.x * coverDensity * (0.5 + clumpThick) * feather;
+        float density = vCoverBlade.x * coverDensity * (0.5 + clumpThick)
+                      * vCoverEdge.z * feather;
         if (coverHash(key + 5.0) > mix(1.0, density, resolve)) discard;
 
         // Far off, every test converges on the average of what it would have
         // decided — a solid stack at the mean height, which is the mipmap this
-        // cannot have. Grass dissolving into a carpet, with no edge to see.
+        // cannot have. Only the blade-scale randomness averages away: the clump
+        // and the broad fields are coarser than a pixel long after a blade is,
+        // so they stay, and the far field keeps its mottling instead of going
+        // flat. A flat far field beside a textured near one is a boundary no
+        // amount of matched brightness can hide.
         float strand = (0.55 + 0.45 * coverHash(key + 11.0)) * (0.6 + 0.8 * clumpTall);
         strand *= mix(0.5, 1.0, feather);
-        if (up > mix(${MEAN_STRAND.toFixed(3)}, strand, resolve)) discard;
+        float meanStrand = ${MEAN_STRAND.toFixed(3)} * (0.6 + 0.8 * clumpTall)
+                         * mix(0.5, 1.0, feather);
+        if (up > mix(meanStrand, strand, resolve)) discard;
+
+        // What fraction of the ground this cover actually holds, which is the
+        // lowest shell's disc and not the base radius — the two differ by a
+        // shell of taper, and the far field is a brightness match or it is a
+        // ring on the grass.
+        float lowest = 1.0 / max(coverShells, 1.0);
+        float held = mix(vCoverBlade.y, vCoverBlade.z, lowest);
+        coverHeld = clamp(density * 3.1416 * held * held, 0.0, 1.0);
 
         // A disc that narrows with height. Both radii come from the type table,
         // so a blade, a leaf and a fuzz are one shader.
@@ -271,9 +299,17 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
         // that patch's average: shaded blade over the fraction the cover holds,
         // and bare ground under the rest. The ramp applies to the blade only —
         // shading the ground half too is what put a dark ring on the grass.
-        float held = clamp(
-          vCoverBlade.x * 3.1416 * vCoverBlade.y * vCoverBlade.y * vCoverEdge.y, 0.0, 1.0);
-        vec3 far = mix(diffuseColor.rgb, blade * ${FAR_SHADE.toFixed(2)}, held);
+        //
+        // The height that average shades at is the mean height *in view*, which
+        // is where the disc still reaches: base / 3(base - tip). Per type, so
+        // a moss that barely tapers shades at its top and grass at two fifths.
+        float meanUp = min(
+          vCoverBlade.y / max(3.0 * (vCoverBlade.y - vCoverBlade.z), 1e-4),
+          ${MEAN_STRAND.toFixed(3)});
+        vec3 far = mix(
+          diffuseColor.rgb,
+          blade * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * meanUp),
+          coverHeld);
         vec3 near = blade * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * vCoverBlade.w);
         diffuseColor.rgb = mix(far, near, coverFade);
       }
@@ -285,7 +321,7 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
 // not supply falls back to a generic value that persists across draw calls, so
 // without this cover would depend on whatever was drawn before it.
 (COVER_MATERIAL as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
-  [COVER_ATTRIBUTE]: [0, 1],
+  [COVER_ATTRIBUTE]: [0, 1, 0.5, 0.5],
   [SHELL_ATTRIBUTE]: [0],
 };
 
@@ -351,16 +387,19 @@ export function coverFor(ground: THREE.Mesh, type?: CoverName): THREE.Mesh | nul
   geometry.groups = source.groups;
 
   if (!painted) {
-    // A constant, for a mesh the terrain did not build: one type everywhere and
-    // no feathering, since there is no boundary to feather against.
+    // For a mesh the terrain did not build: one type everywhere, no boundary to
+    // feather against, and the broad fields sampled from its own world position
+    // so a slab in a debug zone still sweeps like the ground next to it.
     const index = COVER_ORDER.indexOf(uniform as CoverName);
-    const count = source.getAttribute('position').count;
-    const constant = new Float32Array(count * 2);
-    for (let i = 0; i < count; i++) {
-      constant[i * 2] = index;
-      constant[i * 2 + 1] = 1;
+    const position = source.getAttribute('position');
+    const constant = new Float32Array(position.count * 4);
+    ground.updateWorldMatrix(true, false);
+    const at = new THREE.Vector3();
+    for (let i = 0; i < position.count; i++) {
+      at.fromBufferAttribute(position, i).applyMatrix4(ground.matrixWorld);
+      constant.set([index, 1, coverSwell(at.x, at.z), coverThickness(at.x, at.z)], i * 4);
     }
-    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.BufferAttribute(constant, 2));
+    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.BufferAttribute(constant, 4));
   }
 
   const shells = new Float32Array(MAX_SHELLS);

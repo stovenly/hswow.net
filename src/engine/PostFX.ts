@@ -114,13 +114,12 @@ export interface RenderSettings {
   water: { waves: number; reflections: boolean };
 
   /**
-   * Groundcover (GROUNDCOVER.md) at the *default* slider position, which is
-   * what makes these three tunable independently of the player-facing collapse.
+   * Groundcover (GROUNDCOVER.md). The shape of it, which the player's slider
+   * does not touch — that moves `density` alone.
    *
-   * `shells` is the whole quality dial and the whole vertex cost. `height` is
-   * the metres they span, so the two together fix the spacing — about 1.6 cm,
-   * which is the number the slider holds constant while it moves the other two.
-   * `density` is a global multiplier on what each cover type asks for.
+   * `shells` is the whole vertex cost. `height` is the metres they span, so the
+   * two together fix the spacing, which has to stay at or under a blade's own
+   * width. `density` is what each cover type's own figure is multiplied by.
    */
   cover: { shells: number; height: number; density: number };
 
@@ -184,10 +183,11 @@ export const DEFAULT_RENDER: RenderSettings = {
   // beside, and this is the multiplier for asking what half of that looks like.
   water: { waves: 1, reflections: true },
 
-  // Twelve shells over 12.6 cm, so they sit 1.05 cm apart — at or under a
+  // Sixteen shells over 18 cm, so they sit 1.13 cm apart — at or under a
   // blade's own width, or the cross-sections read as beads rather than as one
-  // blade. Density 1 gives each cover type what its own table asks for.
-  cover: { shells: 12, height: 0.126, density: 1 },
+  // blade. The swell field takes that between half and half again, and a
+  // tussock multiplies it by another 1.5.
+  cover: { shells: 16, height: 0.18, density: 1 },
 
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
@@ -205,18 +205,9 @@ export const DEFAULT_RENDER: RenderSettings = {
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
 
-/** Cover depth in metres for a 0–100 slider: 30 is 7 cm, 60 is 12.6, 100 is 22. */
-function coverHeightFor(slider: number): number {
-  const u = Math.min(Math.max(slider, 0), 100) / 100;
-  return 0.02 + 0.14 * u + 0.06 * u * u;
-}
-
-/** The default position, which the tuning in `RenderSettings.cover` describes. */
-const COVER_MIDPOINT = coverHeightFor(60);
-
-/** The slider as a multiple of the tuning. Exactly 1 at the default, 0 at nothing. */
+/** The slider as a fraction of the tuned density. 100 is all of it. */
 function coverScale(slider: number): number {
-  return slider <= 0 ? 0 : coverHeightFor(slider) / COVER_MIDPOINT;
+  return Math.min(Math.max(slider, 0), 100) / 100;
 }
 
 /**
@@ -486,9 +477,9 @@ export class PostFX {
    * How much groundcover, 0–100, without disturbing its tuning.
    *
    * A quantity of world content rather than a quality ladder, which is the one
-   * exception to SHADERS.md's rule about honest switches. Sets height and holds
-   * the spacing, so the shell count — the whole cost — falls out of it. Zero
-   * skips the draw.
+   * exception to SHADERS.md's rule about honest switches. Moves density only:
+   * how tall the grass is and how many layers it takes is a look, not a
+   * preference. Zero skips the draw, and is the one setting that costs less.
    */
   setGroundcover(value: number): void {
     this.groundcover = Math.min(Math.max(value, 0), 100);
@@ -549,15 +540,11 @@ export class PostFX {
     this.bloom.strength = s.bloom.strength;
     this.bloom.radius = s.bloom.radius;
 
-    // Groundcover, layered over its tuning the same way. One slider against
-    // three numbers, so it arrives as a scale on all of them — which is what
-    // holds the shell spacing while the height moves.
+    // Groundcover, layered over its tuning the same way. The slider moves
+    // density and leaves the shape alone — height and shell count are a look,
+    // and belong to the tuning rather than to the player.
     const cover = coverScale(this.groundcover);
-    setCoverDraw(
-      s.cover.shells * cover,
-      s.cover.height * cover,
-      s.cover.density * (0.8 + 0.2 * cover),
-    );
+    setCoverDraw(cover > 0 ? s.cover.shells : 0, s.cover.height, s.cover.density * cover);
 
     const u = this.retroPass.uniforms;
     u.uPixelSize.value = devicePixels;

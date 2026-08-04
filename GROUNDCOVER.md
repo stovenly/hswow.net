@@ -120,9 +120,15 @@ apart.
 - **`CoverPatch`** — the same shapes `GroundPatch` already offers (`path`, `blot`,
   `field`), painted over the automatic result. "Clover in this hollow", "moss along
   the north wall", regardless of what the ground material underneath says.
-- **Clumping** — a coarse hash cell, around 0.8 m, picks type, height and tint per
-  clump. This is what stops a field reading as a lawn, and it is where mixed types
-  come from for nothing. Ghost of Tsushima's clumping, at our scale.
+- **Clumping** — a coarse hash cell, around 0.8 m, picks height and thickness per
+  clump. This is what stops a field reading as a lawn. Ghost of Tsushima's clumping,
+  at our scale.
+- **Broad sweeps** — two smooth fields on world XZ, at 26/9.5 m for height and
+  18/7 m for thickness, baked per vertex by the terrain. Clumping alone still reads as
+  one uniform field of tufts from any distance; a plain wants areas that are longer
+  and thinner than the areas beside them, and those have to be bigger than a clump to
+  be seen as areas at all. Decorrelated seeds, so the tall places are not the thick
+  ones.
 - **Species shape** — each type is a different cross-section in the hash. Grass is
   thin and tall, clover round and squat and paler, moss a dense low fuzz with
   almost no height. One shader, a branch on the type index.
@@ -149,30 +155,26 @@ without wiring.
 **One slider, 0–100, default 60.** It is layered over the preset the way
 `setDither` and `setWaterMotion` are, and never writes back into tuning.
 
-The trap it avoids: in a shell system, blade *density* is nearly free — it is a
-threshold, and our fill rate is negligible at chunky resolution. What costs is
-**shell count**. A slider that only moved density would visibly thin the grass and
-move the frame rate by almost nothing, which is the worst kind of option.
+**It moves density, and nothing else.** This reverses what this section originally
+specified, which was that the slider should move *height* and let shell count fall out
+of a fixed spacing — on the argument that density is nearly free and a slider that only
+moved it would thin the grass without moving the frame rate. That argument is correct
+about cost and wrong about what the control is for. A slider that changes how tall the
+grass is changes the *place*; a player reaching for a groundcover setting is asking how
+much of it there is. Height and shell count are a look, and looks belong to the preset.
 
-So the slider sets **height**, holds **shell spacing constant** at about 1.6 cm, and
-lets shell count fall out:
+| slider | reads as |
+|---|---|
+| 0 | bare ground; the draw is skipped entirely |
+| 30 | thin, worn, plenty of soil showing |
+| **60** | ordinary turf |
+| 100 | thick, nothing showing through |
 
-| slider | height | shells | reads as |
-|---|---|---|---|
-| 0 | — | 0 | ground colour only; draw skipped entirely |
-| 30 | 7 cm | 4 | close-cropped fuzz |
-| **60** | **13 cm** | **8** | ordinary turf |
-| 100 | 22 cm | 14 | deep, unmown |
-
-Two properties fall out of fixing the spacing:
-
-- **No setting looks broken.** Low is not "grass with visible layers", it is
-  *shorter grass* — a legitimate look. The difference reads as mown versus unmown.
-- **Cost is linear in the slider and honest.** Half the setting is half the vertex
-  cost, and 0 costs nothing at all.
-
-Density rides along as a secondary curve — taller cover is also slightly thicker —
-but it is the passenger, not the driver.
+The consequence, stated rather than hidden: **only 0 costs less.** Everything above it
+draws the same shells, because the shells are the vertex cost and the slider no longer
+touches them. It is an appearance control with an off switch, not a quality ladder.
+Anyone needing the frame time back turns it off, and anyone tuning the cost uses
+`RenderSettings.cover.shells` in the debug folder.
 
 Changing it is free at runtime: an instance count and a uniform. No rebuild,
 consistent with the rest of the system.
