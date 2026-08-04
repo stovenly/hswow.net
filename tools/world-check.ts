@@ -732,9 +732,11 @@ for (const material of Object.keys(DOOR_SPECS) as DoorMaterial[]) {
   const spec = DOOR_SPECS[material];
   const duration = doorDuration(spec);
 
-  // 1. Over before the fade is. A cue still sounding once the next place has
-  //    appeared reads as belonging to that place instead of to the threshold.
-  //    FADE_TIME + FADE_HOLD + FADE_TIME is 0.58 s.
+  // 1. Decays across the fade rather than outlasting it. The fade is 0.58 s and
+  //    iron rings for 1.1, deliberately: the tail arriving in the new room is
+  //    what makes a doorway a threshold rather than a cut. The ceiling is about
+  //    twice the fade, past which a cue stops reading as a door at all and
+  //    starts reading as something the new place is doing.
   const brief = duration < 1.3;
 
   // 2. Recognisable immediately. Everything but the latch starts at once, so

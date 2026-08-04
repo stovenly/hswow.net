@@ -651,7 +651,8 @@ export class ZoneManager {
    * scheduled onto the audio clock in one go at this moment, so it survives the
    * zone being torn down and rebuilt underneath it — the tail carries across
    * the cut, which is most of what makes the transition feel like walking
-   * through a door rather than a screen wipe.
+   * through a door rather than a screen wipe. It survives the *teleport* too,
+   * which took removing the panner: see `door.ts`.
    *
    * One sound, here, and nothing on arrival. A second cue on the far side read
    * as a second event rather than as the other half of the same one.
@@ -662,9 +663,7 @@ export class ZoneManager {
     this.options.reticle.set(null);
 
     const material = side.door ? doorMetrics(side.door).material : 'timber';
-    // Heard from where the door is, at head height rather than at its foot.
-    _at.copy(side.end.position).setY(side.end.position.y + 1.2);
-    this.doorAudio?.play(_at, material);
+    this.doorAudio?.play(material);
 
     await this.options.fade.cover(async () => {
       await this.enter(side.target.zone, side.arrival);
@@ -692,5 +691,3 @@ export class ZoneManager {
     this.doored.clear();
   }
 }
-
-const _at = new THREE.Vector3();
