@@ -1,7 +1,19 @@
 import * as THREE from 'three';
 import { SWAY_ATTRIBUTE, finish } from '../art/assemble';
+import { COVER_ATTRIBUTE } from '../art/cover';
 import { shade } from '../art/palette';
-import { GROUND, patchAt, groundJitter, type GroundName, type GroundPatch } from './ground';
+import {
+  GROUND,
+  COVER,
+  COVER_ORDER,
+  patchAt,
+  coverPatchAt,
+  groundJitter,
+  type GroundName,
+  type GroundPatch,
+  type CoverPatch,
+  type CoverName,
+} from './ground';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
@@ -104,6 +116,14 @@ export interface TerrainOptions {
    * and wrong for anywhere anybody lives.
    */
   patches?: readonly GroundPatch[];
+  /**
+   * Cover painted over the automatic result. Later patches win.
+   *
+   * Most ground grows what its material says it grows — see `COVER` in
+   * `world/ground.ts`. This is for the cases a material cannot state: clover in
+   * one hollow, moss along one wall, a clearing trodden bare.
+   */
+  cover?: readonly CoverPatch[];
   /** Slope in degrees past which a face falls back to rock, whatever is painted. */
   rockAngle?: number;
   /** What unpainted, unsteep ground is made of. */
@@ -130,6 +150,7 @@ export class Terrain {
   readonly resolution: number;
   private readonly landforms: readonly Landform[];
   private readonly patches: readonly GroundPatch[];
+  private readonly cover: readonly CoverPatch[];
   private readonly detail: readonly DetailRegion[];
   private readonly rockAngle: number;
   private readonly base: GroundName;
@@ -139,6 +160,7 @@ export class Terrain {
     this.resolution = options.resolution;
     this.landforms = options.landforms;
     this.patches = options.patches ?? [];
+    this.cover = options.cover ?? [];
     this.detail = options.detail ?? [];
     this.rockAngle = options.rockAngle ?? 34;
     this.base = options.base ?? 'turf';
@@ -273,6 +295,9 @@ export class Terrain {
     const positions: number[] = [];
     const normals: number[] = [];
     const colors: number[] = [];
+    // What grows on each face, as the shell shader's type index. Written here
+    // rather than derived later because the face material is already known.
+    const covers: number[] = [];
 
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -338,14 +363,12 @@ export class Terrain {
               normal.crossVectors(ab, ac).normalize();
               if (normal.y < 0) normal.negate();
 
-              color.set(
-                this.faceColor(
-                  normal.y,
-                  (a.y + b.y + c.y) / 3,
-                  (a.x + b.x + c.x) / 3,
-                  (a.z + b.z + c.z) / 3,
-                ),
-              );
+              const midX = (a.x + b.x + c.x) / 3;
+              const midZ = (a.z + b.z + c.z) / 3;
+              const name = this.faceMaterial(normal.y, midX, midZ);
+              color.set(this.faceColor(name, (a.y + b.y + c.y) / 3, midX, midZ));
+              const cover = this.faceCover(name, midX, midZ);
+              covers.push(cover, cover, cover);
               emit(a, normal);
               emit(b, normal);
               emit(c, normal);
@@ -366,6 +389,9 @@ export class Terrain {
       SWAY_ATTRIBUTE,
       new THREE.Float32BufferAttribute(new Float32Array(positions.length / 3), 1),
     );
+    // Read by the shell shader, and by nothing else. The ground's own material
+    // never declares it, so it costs the ground a buffer upload and no draw.
+    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 1));
 
     return finish(geometry, 'terrain', 0);
   }
@@ -415,17 +441,35 @@ export class Terrain {
   }
 
   /**
-   * Colour for one face: its material, jittered, and darkened a little with
-   * height so the high ground reads as further away and colder.
+   * What grows here. A painted patch wins over whatever the material grows.
+   *
+   * The mesh does not read this — `build` asks the same question per face off
+   * the face normal, which is cheaper and cannot disagree with the shading. It
+   * is here so the checks and the debug panel can ask without a mesh.
+   */
+  coverAt(x: number, z: number): CoverName {
+    return coverPatchAt(this.cover, x, z) ?? COVER[this.materialAt(x, z)] ?? 'none';
+  }
+
+  /**
+   * Which material one face is made of.
    *
    * Slope is taken from the face normal rather than resampled, because the
    * normal is what the light will actually use — deciding a face is turf while
    * shading it as a cliff is the sort of disagreement that looks like a bug in
-   * the lighting.
+   * the lighting. Asked once per face and answered for the colour and the
+   * cover together, so the grass cannot disagree with the ground it stands on.
    */
-  private faceColor(normalY: number, height: number, x: number, z: number): number {
+  private faceMaterial(normalY: number, x: number, z: number): GroundName {
     const slope = (Math.acos(Math.min(1, Math.max(-1, normalY))) * 180) / Math.PI;
-    const name = slope > this.rockAngle ? 'rock' : (patchAt(this.patches, x, z) ?? this.base);
+    return slope > this.rockAngle ? 'rock' : (patchAt(this.patches, x, z) ?? this.base);
+  }
+
+  /**
+   * Colour for one face: its material, jittered, and darkened a little with
+   * height so the high ground reads as further away and colder.
+   */
+  private faceColor(name: GroundName, height: number, x: number, z: number): number {
     const material = GROUND[name];
 
     // Centred on 1, so variation brightens as often as it darkens and the
@@ -433,5 +477,11 @@ export class Terrain {
     const jitter = 1 + (groundJitter(x, z) - 0.5) * material.variation * 2;
     const cooling = 1 - Math.min(Math.max(height / 55, 0), 1) * 0.16;
     return shade(material.color, jitter * cooling);
+  }
+
+  /** What one face grows, as a shell-shader type index. A patch wins outright. */
+  private faceCover(name: GroundName, x: number, z: number): number {
+    const painted = coverPatchAt(this.cover, x, z);
+    return COVER_ORDER.indexOf(painted ?? COVER[name] ?? 'none');
   }
 }

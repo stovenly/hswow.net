@@ -23,6 +23,7 @@ import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
 import { footstepsShowcasePortal } from './FootstepsShowcase';
+import { groundcoverShowcasePortal } from './GroundcoverShowcase';
 
 /**
  * The prop halls: one antechamber per setting, with the setting's galleries
@@ -109,7 +110,7 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  * Centred on the arrival rather than running east from it, so walking in from
  * the hub puts the whole rank in one look instead of trailing off to one side.
  */
-const SHOWCASE_SLOTS = [-12.5, -7.5, -2.5, 2.5, 7.5, 12.5] as const;
+const SHOWCASE_SLOTS = [-15, -10, -5, 0, 5, 10, 15] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
 function gridDoor(slot: number, material: 'timber' | 'iron', seed: number): PortalEnd {
@@ -345,8 +346,11 @@ export function propPortals(
     // And the open sea beside it, which is the same subject at a size nothing
     // else in the rank is — see `WaterShowcase2`.
     waterShowcase2Portal(gridDoor(4, 'timber', 6435)),
-    // Footsteps close the rank. Iron again: what is behind it is a test rig
-    // rather than a place.
+    // Footsteps. Iron again: what is behind it is a test rig rather than a
+    // place.
     footstepsShowcasePortal(gridDoor(5, 'iron', 6436)),
+    // And the ground itself closes the rank — the one showcase whose subject is
+    // the surface everything else in this room is standing on.
+    groundcoverShowcasePortal(gridDoor(6, 'timber', 6437)),
   ];
 }

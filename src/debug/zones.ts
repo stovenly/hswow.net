@@ -50,6 +50,7 @@ import { soundStageZone } from './SoundStage';
 import { waterShowcaseZone } from './WaterShowcase';
 import { waterShowcase2Zone } from './WaterShowcase2';
 import { footstepsShowcaseZone } from './FootstepsShowcase';
+import { groundcoverShowcaseZone } from './GroundcoverShowcase';
 import { chainZones, chainPortals } from './chains';
 
 /**
@@ -584,6 +585,9 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   zones.push(waterShowcase2Zone());
   // And the Footsteps Showcase, whose door completes that rank.
   zones.push(footstepsShowcaseZone());
+  // The Groundcover Showcase, which is the ground itself rather than anything
+  // standing on it — see `propPortals` for where its door stands.
+  zones.push(groundcoverShowcaseZone());
 
   return { zones, portals };
 }

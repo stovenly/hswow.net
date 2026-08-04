@@ -14,6 +14,7 @@ import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL } from '../art/glow';
+import { COVER_MATERIAL, setCoverDraw } from '../art/cover';
 import type { Viewport } from './Viewport';
 
 /**
@@ -112,6 +113,17 @@ export interface RenderSettings {
    */
   water: { waves: number; reflections: boolean };
 
+  /**
+   * Groundcover (GROUNDCOVER.md) at the *default* slider position, which is
+   * what makes these three tunable independently of the player-facing collapse.
+   *
+   * `shells` is the whole quality dial and the whole vertex cost. `height` is
+   * the metres they span, so the two together fix the spacing — about 1.6 cm,
+   * which is the number the slider holds constant while it moves the other two.
+   * `density` is a global multiplier on what each cover type asks for.
+   */
+  cover: { shells: number; height: number; density: number };
+
   vignetteStrength: number;
   vignetteRadius: number;
   vignetteSoftness: number;
@@ -172,6 +184,11 @@ export const DEFAULT_RENDER: RenderSettings = {
   // beside, and this is the multiplier for asking what half of that looks like.
   water: { waves: 1, reflections: true },
 
+  // Eight shells over 12.6 cm: a shade under 1.6 cm apart, which is the spacing
+  // every other setting of the slider holds. Density 1 means each cover type
+  // gets exactly what its own table asks for.
+  cover: { shells: 8, height: 0.126, density: 1 },
+
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
   // there in case a zone ever wants to close in around you; nothing uses it.
@@ -187,6 +204,26 @@ export const DEFAULT_RENDER: RenderSettings = {
 };
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
+
+/**
+ * How deep the cover is, in metres, for a 0–100 slider.
+ *
+ * 30 is a close-cropped fuzz at 7 cm, 60 is ordinary turf at 12.6, and 100 is
+ * deep and unmown at 22. Bent slightly upward at the top so the deep end is
+ * worth having; below that it is near enough a straight line.
+ */
+function coverHeightFor(slider: number): number {
+  const u = Math.min(Math.max(slider, 0), 100) / 100;
+  return 0.02 + 0.14 * u + 0.06 * u * u;
+}
+
+/** The default position, which the tuning in `RenderSettings.cover` describes. */
+const COVER_MIDPOINT = coverHeightFor(60);
+
+/** The slider as a multiple of the tuning. Exactly 1 at the default, 0 at nothing. */
+function coverScale(slider: number): number {
+  return slider <= 0 ? 0 : coverHeightFor(slider) / COVER_MIDPOINT;
+}
 
 /**
  * The part of the look that belongs to a *place* rather than to the game.
@@ -256,6 +293,8 @@ export class PostFX {
   private glow = true;
   /** The accessibility switch, not a look setting. See `setWaterMotion`. */
   private waves = true;
+  /** The player's groundcover slider, 0–100. See `setGroundcover`. */
+  private groundcover = 60;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -272,6 +311,7 @@ export class PostFX {
       ao: { ...DEFAULT_RENDER.ao, ...saved.ao },
       bloom: { ...DEFAULT_RENDER.bloom, ...saved.bloom },
       water: { ...DEFAULT_RENDER.water, ...saved.water },
+      cover: { ...DEFAULT_RENDER.cover, ...saved.cover },
     };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
@@ -449,6 +489,24 @@ export class PostFX {
   }
 
   /**
+   * How much groundcover, 0–100, without disturbing its tuning.
+   *
+   * **A quantity of world content, not a quality ladder** — the one place this
+   * project's rule about honest switches has an exception, and GROUNDCOVER.md
+   * says why: density in a shell system is nearly free, so a slider that moved
+   * it would visibly thin the grass and move the frame rate by almost nothing.
+   * What costs is shell *count*. So this sets height, holds the spacing the
+   * tuning fixes, and lets the count fall out — which makes every setting a
+   * legitimate look (mown versus unmown) and the cost linear in the number.
+   *
+   * Zero skips the draw outright. See `art/cover.ts`.
+   */
+  setGroundcover(value: number): void {
+    this.groundcover = Math.min(Math.max(value, 0), 100);
+    this.apply();
+  }
+
+  /**
    * Sets the colour vision correction and how strongly it is applied.
    *
    * `strength` is 0..1, and 0 is genuinely nothing rather than nearly nothing:
@@ -502,6 +560,17 @@ export class PostFX {
     this.bloom.strength = s.bloom.strength;
     this.bloom.radius = s.bloom.radius;
 
+    // Groundcover, layered over its tuning the same way. The slider is one
+    // number and the tuning is three, so it arrives as a scale on all of them —
+    // which is what holds the shell spacing constant while the height moves.
+    // Density rides along as a passenger: taller cover is also a little thicker.
+    const cover = coverScale(this.groundcover);
+    setCoverDraw(
+      s.cover.shells * cover,
+      s.cover.height * cover,
+      s.cover.density * (0.8 + 0.2 * cover),
+    );
+
     const u = this.retroPass.uniforms;
     u.uPixelSize.value = devicePixels;
     // Passed through in steps rather than converted to absolute colour: the
@@ -545,25 +614,33 @@ export class PostFX {
   }
 
   /**
-   * Keeps additive glow geometry out of the edge detector.
+   * Keeps glow and groundcover out of the edge detector.
    *
    * `RenderPixelatedPass` draws the scene twice: once for colour, and once with
    * `scene.overrideMaterial` set to a `MeshNormalMaterial`, whose output the
-   * shader differences to find edges. That second pass has no concept of
-   * transparency — every object in it is opaque — so a street lamp's flame came
-   * back with a hard outline drawn round its silhouette, reading as a small
-   * solid object hanging in the lantern rather than as something burning.
+   * shader differences to find edges.
+   *
+   * - **Glow.** That second pass has no concept of transparency — every object
+   *   in it is opaque — so a street lamp's flame came back with a hard outline
+   *   drawn round its silhouette, reading as a small solid object hanging in
+   *   the lantern rather than as something burning.
+   * - **Cover.** A shell is the ground geometry translated in Y, so its normal
+   *   *is* the ground's: the normal buffer at a grass pixel reads the same
+   *   whether the shell was drawn or not. Excluding it changes nothing except
+   *   that we do not pay for it twice. See GROUNDCOVER.md.
    *
    * Three tests `material.visible` while it is building the render list, and
-   * `scene.onBeforeRender` fires just before that happens. Since every glow in
-   * the game shares one material — exactly as the art kit shares one
-   * `ART_MATERIAL` — switching that one flag drops all of them from the pass,
-   * and `overrideMaterial` being set is what identifies the pass. One line, and
-   * no copy of three's render loop to keep in step with upstream.
+   * `scene.onBeforeRender` fires just before that happens. Both of these are one
+   * shared material — exactly as the art kit shares one `ART_MATERIAL` — so
+   * switching two flags drops all of them, and `overrideMaterial` being set is
+   * what identifies the pass. No copy of three's render loop to keep in step
+   * with upstream.
    */
   private hideGlowFromEdges(scene: THREE.Scene): void {
     scene.onBeforeRender = (_renderer, rendered) => {
-      GLOW_MATERIAL.visible = (rendered as THREE.Scene).overrideMaterial === null;
+      const colourPass = (rendered as THREE.Scene).overrideMaterial === null;
+      GLOW_MATERIAL.visible = colourPass;
+      COVER_MATERIAL.visible = colourPass;
     };
   }
 

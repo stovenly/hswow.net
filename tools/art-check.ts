@@ -20,10 +20,13 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as THREE from 'three';
 import type { MeshBuilder } from '../src/art/types';
 import { SWAY_ATTRIBUTE } from '../src/art/assemble';
 import { CLUTTER } from '../src/art/clutter';
 import { FLEX } from '../src/art/flex';
+import { COVER_MATERIAL, COVER_ATTRIBUTE } from '../src/art/cover';
+import { windUniforms } from '../src/art/sway';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
@@ -268,6 +271,61 @@ check(
     ? `${CLUTTER.size} species drop their shadows`
     : `no such builder: ${unknown.join(', ')}`,
 );
+
+// --- the cover patch actually lands ----------------------------------------
+//
+// **`String.replace` on a marker that is not there does nothing and says
+// nothing.** The shell shader is five injections into three's Lambert program,
+// and if upstream renames or drops an include the patch silently becomes a
+// no-op: the material compiles, the mesh draws, and what you get is sixteen
+// copies of the ground stacked in exactly the same place. Nothing about that
+// is an error anywhere — so the check is that every injection changed the
+// source it was applied to.
+{
+  const lambert = THREE.ShaderLib.lambert;
+  const shader = {
+    uniforms: {} as Record<string, unknown>,
+    vertexShader: lambert.vertexShader,
+    fragmentShader: lambert.fragmentShader,
+  };
+  COVER_MATERIAL.onBeforeCompile?.(
+    shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+    null as unknown as THREE.WebGLRenderer,
+  );
+
+  const landed: string[] = [];
+  const missed: string[] = [];
+  // One marker per injection, named by what it is for rather than by the chunk
+  // it went into — a failure here is read by somebody asking what stopped
+  // working, not by somebody reading three's shader source.
+  for (const [what, source, needle] of [
+    ['declarations', shader.vertexShader, `attribute float ${COVER_ATTRIBUTE};`],
+    ['the shell lift', shader.vertexShader, 'transformed.y += rise'],
+    ['the wind shear', shader.vertexShader, 'vCoverPlace = vec4('],
+    ['the strand discard', shader.fragmentShader, 'up > strand'],
+    ['the blade colour', shader.fragmentShader, 'diffuseColor.rgb = mix(vCoverTint'],
+  ] as const) {
+    (source.includes(needle) ? landed : missed).push(what);
+  }
+  check(
+    'the groundcover shader patch lands',
+    missed.length === 0,
+    missed.length === 0
+      ? `${landed.length} injections, and the wind uniforms are shared not copied`
+      : `no marker for: ${missed.join(', ')} — three's Lambert program has moved`,
+  );
+
+  // And that it took the *shared* wind field rather than a copy of it, which is
+  // the claim `art/sway.ts` makes: the gust bending a tree is the gust shearing
+  // the grass under it, and two sets of numbers cannot make that claim.
+  check(
+    'groundcover answers the same gust as the trees',
+    shader.uniforms.gustField === windUniforms.gustField,
+    shader.uniforms.gustField === windUniforms.gustField
+      ? 'one gust texture, shared by reference'
+      : 'the cover material has its own gust field',
+  );
+}
 
 console.log('');
 

@@ -4,6 +4,7 @@ import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
+import { coverFor } from '../art/cover';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';
@@ -600,6 +601,7 @@ export class ZoneManager {
     // - **Clutter casts only when asked.** Grass and small flowers are the bulk
     //   of the object count in an outdoor zone and a couple of pixels each on
     //   screen. Off by default and switchable; see `art/clutter.ts`.
+    const grounds: THREE.Mesh[] = [];
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const glow = object.userData.noCollide === true;
@@ -610,7 +612,20 @@ export class ZoneManager {
       const clutter = object.userData.clutter === true;
       object.castShadow = !glow && !ground && (!clutter || this.clutterShadows);
       object.receiveShadow = !glow;
+      if (ground) grounds.push(object);
     });
+
+    // **Cover is a property of the ground, not a set of objects standing on
+    // it.** The same test that decided shadows decides this, so anything the
+    // manager already calls ground grows what its material says it grows —
+    // with no placement to author and nothing to invalidate when the mesh
+    // moves. A mesh that grows nothing returns null and costs no draw. Attached
+    // after the walk rather than during it, because adding to a tree you are
+    // traversing is how you end up covering the cover.
+    for (const mesh of grounds) {
+      const cover = coverFor(mesh);
+      if (cover) mesh.add(cover);
+    }
 
     return root;
   }
