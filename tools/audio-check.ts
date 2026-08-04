@@ -529,120 +529,21 @@ for (const [mm, hz] of [
   );
 }
 
-// --- the liquids -----------------------------------------------------------
+// **Mud is the last liquid, and it is a bed and a cloud.**
 //
-// Three surfaces, two parameters: medium and depth. The design lives or dies on
-// those staying separable, and both are checkable.
+// The two waters were fitted against a recording and then pulled: they matched
+// it on bands, flatness, event density, crest and length, and still did not
+// sound like water. What is worth keeping from that is the structure — a dense
+// bed of small wet impacts under a sparse cloud of bubbles — because a bed
+// alone is a rustle and a cloud alone is a warble, and neither is a liquid.
 {
-  const at = (name: string) => SURFACES[name as keyof typeof SURFACES];
-  const puddle = at('water-puddle').splash;
-  const pond = at('water-pond').splash;
-
-  // **Depth is the cavity.** A puddle traps no column of air at all; a pond
-  // traps one the size of a leg, which — since a bubble sings at 3.26/r — is
-  // both bigger and much lower than anything in the spray above it.
-  const cavity = pond?.cavity;
-  // **An octave clear of the cloud, stated in octaves.** A fixed radius ratio
-  // was the wrong measure: it tightens as the spray band widens upward, and it
-  // fails a cavity that is separating perfectly well. What has to be true is
-  // that the cavity cannot be mistaken for another droplet.
-  const octaves =
-    cavity && pond ? Math.log2(bubbleHz(pond.radius[1]) / bubbleHz(cavity.radius)) : 0;
+  const bed = SURFACES.mud.grit;
+  const density = bed ? bed.count / bed.over : 0;
   check(
-    'depth is the cavity',
-    !puddle?.cavity && !!cavity && octaves >= 1,
-    cavity && pond
-      ? `puddle none, pond ${bubbleHz(cavity.radius).toFixed(0)} Hz, ${octaves.toFixed(1)} octaves below the cloud`
-      : 'the pond has no cavity',
+    'mud is a bed and a cloud',
+    !!bed && !!SURFACES.mud.splash && density > 100 && (bed.grain ?? 0.012) >= 0.012,
+    bed ? `${density.toFixed(0)} impacts/s ringing ${((bed.grain ?? 0.012) * 1000).toFixed(0)} ms` : 'no bed',
   );
-
-  // **Medium is which way the bulk moves.** Water spreads and thins, so its
-  // rush is a ceiling falling; mud packs around the foot, so its shear is a
-  // window climbing. That claim survived being tested by ear where a neater one
-  // — mud simply damps its bubbles dead — did not, because the wet spatter in
-  // churned ground is free water and rings like it.
-  const pondCrush = at('water-pond').crush;
-  const mudCrush = at('mud').crush;
-  check(
-    'water spreads and mud packs',
-    !!pondCrush && !!mudCrush &&
-      pondCrush.band === 'ceiling' && pondCrush.to < pondCrush.from &&
-      mudCrush.band !== 'ceiling' && mudCrush.to > mudCrush.from,
-    pondCrush && mudCrush
-      ? `pond ${pondCrush.from}->${pondCrush.to} Hz falling, mud ${mudCrush.from}->${mudCrush.to} Hz climbing`
-      : 'missing a bulk',
-  );
-
-  // **A tenth of a second was a guess and it was wrong.** It came from a run of
-  // versions that each got thicker than the last, and the fault there was
-  // spectral rather than temporal — too much energy at the bottom of the cloud,
-  // not too much cloud. Measured, the reference puts ninety per cent of a
-  // step's energy inside 125 ms, and reproducing that takes a scatter window
-  // around 0.2. What is still worth guarding is the far end: past a third of a
-  // second nothing sounds like an impact any more.
-  const longest = Object.entries(SURFACES)
-    .filter(([, surface]) => surface.splash)
-    .map(([name, surface]) => [name, surface.splash!.over] as const)
-    .filter(([, over]) => over > 0.3);
-  check(
-    'a splash is a short event',
-    longest.length === 0,
-    longest.map(([n, o]) => `${n} ${o}s`).join(', ') || 'nothing over 0.18s',
-  );
-
-  // **The cloud sits where a recording puts it.** Four steps through a puddle,
-  // banded: 47% of the energy between 900 Hz and 2 kHz, 13.6% below 900, and
-  // two per cent above 8 kHz. So a water cloud belongs roughly between half a
-  // kilohertz and four, and every time this drifted upward chasing "airier" it
-  // came back sounding like foil — which is what a bandful of sub-millisecond
-  // pings is.
-  // The cloud's *coarse end* is the part that has to land, because a bubble's
-  // ring-down is superlinear in frequency: one at 600 Hz carries roughly
-  // eighteen times the energy of one at 5.6 kHz, so a handful of them below the
-  // main band swamps everything above it. Sitting the coarse end at the top of
-  // that band is what puts 47% of the energy where the recording has it.
-  //
-  // The fine end is left free. It is a thin tail by count and a rounding error
-  // by energy, and it is where the air lives.
-  for (const name of ['water-puddle', 'water-pond'] as const) {
-    const cloud = SURFACES[name].splash!;
-    const low = bubbleHz(cloud.radius[1]);
-    const octaves = Math.log2(cloud.radius[1] / cloud.radius[0]);
-    check(
-      `${name} sits in the measured band`,
-      low >= 350 && low <= 1400 && octaves >= 3,
-      `coarse end ${low.toFixed(0)} Hz, ${octaves.toFixed(1)} octaves wide`,
-    );
-  }
-
-  // **Water is a bed *and* a cloud, and it took a measurement to see it.**
-  //
-  // "Spray is bubbles, not particles" sounded right and produced goop. Counting
-  // envelope peaks in the reference says why: it sustains around 4,000 events a
-  // second for a quarter of a second, where a cloud of seventy oscillators
-  // manages 550 after the attack and goes tonal — spectral flatness 0.10
-  // against the recording's 0.14. A handful of warbling sines is exactly what
-  // thick snot sounds like.
-  //
-  // Thousands of oscillators is not affordable and is not the model anyway. A
-  // droplet striking water **is a small impact**, and a population of small
-  // impacts is what PhISEM is for. So the bed carries the hail and the bubbles
-  // carry the resonances, and neither alone is water.
-  for (const name of ['water-puddle', 'water-pond'] as const) {
-    const surface = SURFACES[name];
-    const bed = surface.grit;
-    const density = bed ? bed.count / bed.over : 0;
-    // **And the bed's grains must ring.** Short dry ticks at this density are a
-    // bag of cereal being swished — which is what a bed tuned for *impacts*
-    // gives you, and the fitter independently walked away from it. A droplet is
-    // a wet plink: an impact with a short resonance behind it, and a scatter of
-    // them at varied pitch is the most watery thing this library can make.
-    check(
-      `${name} has a bed as well as a cloud`,
-      !!bed && !!surface.splash && density > 500 && (bed.grain ?? 0.012) >= 0.012,
-      bed ? `${density.toFixed(0)} impacts/s ringing ${((bed.grain ?? 0.012) * 1000).toFixed(0)} ms` : 'no bed',
-    );
-  }
 }
 
 // **Soft materials must not have hard grains.**
@@ -758,7 +659,7 @@ for (const name of ['metal-solid', 'metal-ring', 'metal-hollow-small', 'metal-ho
 // of `scuff` is that creeping over gravel and sprinting over it are different
 // events, so a loose surface that ignores speed is the feature not working.
 {
-  const LOOSE = ['gravel', 'cobble-loose', 'sand', 'water-puddle', 'water-pond'];
+  const LOOSE = ['gravel', 'cobble-loose', 'sand'];
   const deaf = LOOSE.filter((name) => SURFACES[name as keyof typeof SURFACES].scuff < 0.7);
   check('loose surfaces answer to speed', deaf.length === 0, deaf.join(', ') || `${LOOSE.length} checked`);
 }

@@ -71,10 +71,6 @@ export const GROUND = {
   hollowmetal: { color: PALETTE.IRON_DARK, variation: 0.13, step: 'metal-hollow-big' },
   /** Lying snow, trodden. Almost no face variation — snow is famously even. */
   snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
-  /** A puddle: a flooded yard, a rut after rain, the edge of a ford. */
-  puddle: { color: shade(PALETTE.WATER, 1.18), variation: 0.05, step: 'water-puddle' },
-  /** Half a foot of it up to knee deep. Wading rather than walking. */
-  shallows: { color: PALETTE.WATER, variation: 0.07, step: 'water-pond' },
   /** Damp shade under a canopy, or the north side of a stone. */
   moss: { color: 0x455c31, variation: 0.14, step: 'moss' },
 } as const satisfies Record<string, GroundMaterial>;

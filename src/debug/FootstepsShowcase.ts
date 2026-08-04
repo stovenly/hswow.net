@@ -28,14 +28,8 @@ import { signboard, type SignboardOptions } from '../art/builders/signboard';
  *   The aggregate family is a single question — how big are the pieces, and are
  *   they fixed — asked at five grain sizes from a slab down to dust. Adjacent
  *   pairs should be tellable apart; the ends should not be comparable.
- * - `puddle | shallows` — **one liquid at two depths**, and depth is almost
- *   entirely the cavity: the puddle has none and the pond has a big low one
- *   arriving a beat after the step. If these two differ only in level, the model
- *   has failed.
- * - `shallows | mire` — **two liquids at one depth**, and the pair worth
- *   hearing back to back in the whole room. Identical engine; one rings its
- *   bubbles out in full and the other kills them in two oscillations. That is
- *   viscosity and it is one number.
+ * - `dirt | mire` — dry ground and wet. The two waters that used to stand
+ *   between them are gone; see `footsteps.ts` for why.
  * - `moss | turf | snow` — soft, in ascending order of noise. Moss should be
  *   very nearly silent without being absent; snow should compress rather than
  *   crunch.
@@ -71,8 +65,6 @@ const STRIPS: readonly GroundName[] = [
   'gravel',
   'sand',
   'dirt',
-  'puddle',
-  'shallows',
   'mire',
   'moss',
   'turf',
