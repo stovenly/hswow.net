@@ -243,6 +243,44 @@ export const COVER: Partial<Record<GroundName, CoverName>> = {
  */
 export type CoverPatch = PatchShape & { cover: CoverName };
 
+/** Stable 0..1 value at an integer lattice point. */
+function latticeHash(ix: number, iz: number, seed: number): number {
+  let h = (Math.imul(ix, 374761393) + Math.imul(iz, 668265263) + Math.imul(seed, 1442695041)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Smooth value noise on world XZ at a given feature size, 0..1. */
+function smoothNoise(x: number, z: number, scale: number, seed: number): number {
+  const px = x / scale;
+  const pz = z / scale;
+  const ix = Math.floor(px);
+  const iz = Math.floor(pz);
+  const sx = (px - ix) * (px - ix) * (3 - 2 * (px - ix));
+  const sz = (pz - iz) * (pz - iz) * (3 - 2 * (pz - iz));
+  const low = latticeHash(ix, iz, seed) + (latticeHash(ix + 1, iz, seed) - latticeHash(ix, iz, seed)) * sx;
+  const high =
+    latticeHash(ix, iz + 1, seed) +
+    (latticeHash(ix + 1, iz + 1, seed) - latticeHash(ix, iz + 1, seed)) * sx;
+  return low + (high - low) * sz;
+}
+
+/**
+ * Where the cover stands taller and shorter, 0..1.
+ *
+ * Sweeps rather than noise: a field is not one height, and it is not a random
+ * height per tuft either. Two octaves at 26 m and 9.5 m, so a plain has broad
+ * areas you can see across and smaller ones inside them.
+ */
+export function coverSwell(x: number, z: number): number {
+  return smoothNoise(x, z, 26, 101) * 0.68 + smoothNoise(x, z, 9.5, 227) * 0.32;
+}
+
+/** The same for how thick it stands. Separate seeds, so the two do not lock. */
+export function coverThickness(x: number, z: number): number {
+  return smoothNoise(x, z, 18, 613) * 0.7 + smoothNoise(x, z, 7, 859) * 0.3;
+}
+
 /** Which cover patch covers a position, or null for none. */
 export function coverPatchAt(
   patches: readonly CoverPatch[],

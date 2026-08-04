@@ -295,8 +295,9 @@ check(
   // Named by what each is for, since a failure here is read by somebody asking
   // what stopped working rather than by somebody reading three's shader source.
   for (const [what, source, needle] of [
-    ['declarations', shader.vertexShader, `attribute vec2 ${COVER_ATTRIBUTE};`],
+    ['declarations', shader.vertexShader, `attribute vec4 ${COVER_ATTRIBUTE};`],
     ['the shell lift', shader.vertexShader, 'transformed.y += rise'],
+    ['the height swell', shader.vertexShader, 'float swell = mix('],
     ['the wind shear', shader.vertexShader, 'vCoverPlace = vec4('],
     ['the strand discard', shader.fragmentShader, 'if (up > mix('],
     // Without it the fade converges on "covered" and bare rock grows a slab of
