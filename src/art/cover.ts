@@ -731,6 +731,29 @@ function ivyGeometry(): THREE.BufferGeometry {
 }
 
 /**
+ * The stalk holding a wall bloom out off its wall. Authored dark, so whatever
+ * the instance tint is it comes out a line rather than more flower.
+ */
+function wallStem(
+  sink: TuftSink,
+  x0: number,
+  y0: number,
+  z0: number,
+  x1: number,
+  y1: number,
+  z1: number,
+  puff: number,
+): void {
+  const stem = new THREE.Color(0.34, 0.36, 0.3);
+  const half = 0.005;
+  const a0 = tuftVertex(sink, x0 - half, y0, z0, stem, 0.11, 0.23, 0.03, 1);
+  const a1 = tuftVertex(sink, x0 + half, y0, z0, stem, 0.11, 0.23, 0.03, 1);
+  const b0 = tuftVertex(sink, x1 - half, y1, z1, stem, 0.11, 0.23, puff, 1);
+  const b1 = tuftVertex(sink, x1 + half, y1, z1, stem, 0.11, 0.23, puff, 1);
+  tuftQuad(sink, a0, a1, b0, b1);
+}
+
+/**
  * A posy for the climbing rose: three rosettes held just off the wall — five
  * petal quads fanned round a darker centre disc, with a depth fin so the
  * bloom has body edge-on — and a couple of tight buds. Authored white with a
@@ -740,13 +763,16 @@ function posyGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
   const petal = new THREE.Color();
   const heart = new THREE.Color(0.45, 0.4, 0.42);
+  // Held off the wall by more than the foliage is thick, for the reason the
+  // racemes are: a bloom among leaves, not behind them.
   const BLOOMS: readonly [number, number, number, number][] = [
     // x, y, z off the wall, size
-    [0.03, 0.05, 0.06, 0.034],
-    [-0.055, -0.005, 0.045, 0.026],
-    [0.015, -0.06, 0.07, 0.022],
+    [0.03, 0.05, 0.105, 0.034],
+    [-0.055, -0.005, 0.088, 0.026],
+    [0.015, -0.06, 0.118, 0.022],
   ];
   BLOOMS.forEach(([x, y, z, size], i) => {
+    wallStem(sink, x * 0.3, y * 0.3 - 0.03, 0.02, x, y, z - size * 0.4, 0.14);
     for (let p = 0; p < 5; p++) {
       const spin = i * 1.1 + (p / 5) * Math.PI * 2;
       const px = x + Math.cos(spin) * size * 0.8;
@@ -766,8 +792,8 @@ function posyGeometry(): THREE.BufferGeometry {
   });
   // Buds: small, dimmer, droppable per instance so the count varies.
   petal.setScalar(0.7);
-  wallLeaf(sink, -0.02, 0.09, 0.04, 0.011, 0.5, petal, 70, 0.2, 0.8);
-  wallLeaf(sink, 0.07, -0.01, 0.05, 0.009, 1.3, petal, 71, 0.2, 0.8);
+  wallLeaf(sink, -0.02, 0.09, 0.082, 0.011, 0.5, petal, 70, 0.2, 0.8);
+  wallLeaf(sink, 0.07, -0.01, 0.092, 0.009, 1.3, petal, 71, 0.2, 0.8);
   return tuftGeometry(sink);
 }
 
@@ -782,11 +808,17 @@ function racemeGeometry(): THREE.BufferGeometry {
   const bloom = new THREE.Color();
   const LEVELS = 7;
 
+  // Held well off the wall — the foliage it hangs through is a good 8 cm
+  // thick, and a raceme buried in leaves is a raceme nobody sees.
   const centers: [number, number, number][] = [];
   for (let l = 0; l <= LEVELS; l++) {
     const s = l / LEVELS;
-    centers.push([Math.sin(l * 1.7) * 0.018, -0.03 - 0.44 * s, 0.05 + Math.cos(l * 1.3) * 0.014]);
+    centers.push([Math.sin(l * 1.7) * 0.018, -0.03 - 0.44 * s, 0.125 + Math.cos(l * 1.3) * 0.014]);
   }
+
+  // The peduncle: what it hangs from, so the chain reads as held out rather
+  // than floating in front of the leaves.
+  wallStem(sink, 0, 0.02, 0.02, centers[0][0], centers[0][1] + 0.01, centers[0][2], 0.1);
 
   for (const angle of [0, Math.PI / 2]) {
     const dx = Math.cos(angle);
@@ -818,7 +850,9 @@ function racemeGeometry(): THREE.BufferGeometry {
     for (let p = 0; p < 2; p++) {
       const phi = l * 2.1 + p * Math.PI + 0.6;
       const ox = Math.cos(phi) * reach;
-      const oz = Math.sin(phi) * reach;
+      // Biased outward, so the back of the ring hangs in front of the leaves
+      // rather than reaching back into the wall.
+      const oz = reach * (0.35 + 0.75 * Math.sin(phi));
       const half = 0.017 * (1 - s * 0.6) + 0.004;
       bloom.setScalar(1.04 - 0.24 * s - 0.06 * p);
       const cell = 80 + l * 2 + p;

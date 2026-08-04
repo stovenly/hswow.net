@@ -106,7 +106,10 @@ A cover type is a blade layer and any number of prop layers, all optional
   (the climbing rose's rosettes — petals fanned round a darker heart, plus buds)
   and `raceme` (a wisteria chain with florets stuck out around it, the tail
   stippled away — and swaying by its *distance* from the root, so a hanging tip
-  still swings downwind). One authored mesh per kind, but leaves, buds and tail
+  still swings downwind). Flowering kinds are held out past the foliage on a
+  stalk — the leaf layer is a good 7 cm thick and a bloom authored flat against
+  the wall is a bloom nobody sees; the stalk is what keeps that reading as held
+  out rather than floating. One authored mesh per kind, but leaves, buds and tail
   florets each pin a whole quad to one stipple cell at under-1 solidity, so every
   *instance* drops a different set of them — and the crawling kinds spin freely
   in the wall plane per instance, where a raceme must keep hanging. Both are the
