@@ -68,6 +68,21 @@ export interface Options {
   grassShadows: boolean;
   shadows: boolean;
   /**
+   * How much groundcover, 0–100. The one quantity option in this menu.
+   *
+   * SHADERS.md's rule is that a player option is an honest switch rather than a
+   * quality ladder, and this is the stated exception: cover is world *content*,
+   * nearer in kind to field of view than to bloom, and every setting of it is a
+   * legitimate look — the difference reads as mown versus unmown rather than as
+   * grass with the detail turned down. See `PostFX.setGroundcover`.
+   *
+   * Not "grass density": `grassShadows` above refers to the `CLUTTER` props,
+   * which are a different grass, and two adjacent rows both saying grass would
+   * be a support question waiting to happen. The two never interact — shell
+   * cover does not cast at all.
+   */
+  groundcover: number;
+  /**
    * Frames per second, or `uncapped`.
    *
    * A string rather than a number so the dropdown can offer "uncapped" as one
@@ -128,6 +143,7 @@ export const DEFAULT_OPTIONS: Options = {
   bloom: true,
   grassShadows: false,
   shadows: true,
+  groundcover: 60,
   fpsCap: 'uncapped',
   performance: 'off',
 
@@ -310,6 +326,19 @@ export const CATEGORIES: readonly Category[] = [
         label: 'grass shadows',
         enabledWhen: (options) => options.shadows,
         note: (options) => (options.shadows ? null : 'needs shadows'),
+      },
+      {
+        kind: 'slider',
+        key: 'groundcover',
+        label: 'groundcover',
+        min: 0,
+        max: 100,
+        step: 5,
+        format: percent,
+        // What it does, said in the terms the picture will answer in — the
+        // number is a height, and 0 is genuinely nothing rather than a little.
+        note: (options) =>
+          options.groundcover <= 0 ? 'off — bare ground' : 'depth of grass, moss and weeds',
       },
       {
         kind: 'choice',

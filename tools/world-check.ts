@@ -38,7 +38,10 @@ import { buildDoor, doorMetrics, doorName } from '../src/art/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
 import { ZONE_FOOTSTEPS_SHOWCASE } from '../src/debug/FootstepsShowcase';
-import { GROUND } from '../src/world/ground';
+import { GROUND, COVER_TYPES } from '../src/world/ground';
+import { COVER_ATTRIBUTE } from '../src/art/cover';
+import { DEFAULT_RENDER } from '../src/engine/PostFX';
+import { groundcoverTerrain } from '../src/debug/GroundcoverShowcase';
 import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
 import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
@@ -714,6 +717,93 @@ console.log('\n--- surfaces underfoot --------------------------------------\n')
         : `not on any strip: ${missing.join(', ')}`,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n--- groundcover ---------------------------------------------\n');
+
+/**
+ * The vertex budget, which is a rule about cell size and not a runtime lever.
+ *
+ * GROUNDCOVER.md states it as ground triangles × shells under about 250k. It
+ * has to be a rule rather than a setting because levels here are small,
+ * hand-authored cells: the ground is one mesh, always drawn in full, so this
+ * cost cannot be reduced by distance and there is nothing to cull. A cell that
+ * cannot meet it is either larger than the design calls for or more finely
+ * subdivided than it needs, and both of those are authoring decisions.
+ */
+{
+  const BUDGET = 250_000;
+  const shells = DEFAULT_RENDER.cover.shells;
+  let worst = { id: 'nothing', triangles: 0, cost: 0 };
+
+  for (const zone of zones.values()) {
+    let triangles = 0;
+    zone.root().traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      // The same test `ZoneManager.prepare` uses to decide what grows cover,
+      // narrowed to meshes that actually carry a type — a gallery floor is
+      // ground and grows nothing, so it costs nothing.
+      const isGround =
+        object.name === 'flatGround' ||
+        object.name === 'terrain' ||
+        object.userData.ground === true;
+      if (!isGround || !object.geometry.getAttribute(COVER_ATTRIBUTE)) return;
+      const index = object.geometry.getIndex();
+      triangles += index ? index.count / 3 : object.geometry.getAttribute('position').count / 3;
+    });
+    const cost = triangles * shells;
+    if (cost > worst.cost) worst = { id: zone.id, triangles, cost };
+  }
+
+  check(
+    'no cell is over the groundcover vertex budget',
+    worst.cost <= BUDGET,
+    `worst is ${worst.id} at ${Math.round(worst.cost / 1000)}k — ` +
+      `${worst.triangles} ground triangles x ${shells} shells, budget ${BUDGET / 1000}k`,
+  );
+}
+
+/**
+ * The showcase presents every cover type.
+ *
+ * The same argument the footsteps showcase's strips make: a type that appears
+ * nowhere cannot be looked at, and shell cover is a system whose whole
+ * remaining list of open questions is answered by looking. `none` counts — a
+ * strip of bare ground beside a thick one is how the density ramp reads at all.
+ */
+{
+  const t = groundcoverTerrain;
+  const seen = new Set<string>();
+  for (let x = -46; x <= 46; x += 0.5) {
+    for (let z = -46; z <= 46; z += 0.5) seen.add(t.coverAt(x, z));
+  }
+  const missing = Object.keys(COVER_TYPES).filter((name) => !seen.has(name));
+  check(
+    'the groundcover showcase presents every cover type',
+    missing.length === 0,
+    missing.length === 0
+      ? `${seen.size} types across the rank: ${[...seen].sort().join(', ')}`
+      : `nowhere in the room: ${missing.join(', ')}`,
+  );
+
+  // And that the bank is steep enough to have a line on it. Cover stops where
+  // the terrain turns to rock, which is not authored anywhere — so a ridge that
+  // quietly got gentler would take the whole station with it and say nothing.
+  let stopsAt: number | null = null;
+  for (let z = -20; z >= -34; z -= 0.25) {
+    if (t.coverAt(0, z) === 'none') {
+      stopsAt = z;
+      break;
+    }
+  }
+  check(
+    'cover stops partway up the bank',
+    stopsAt !== null,
+    stopsAt === null
+      ? 'the bank grows cover all the way over — nothing on it is past the rock angle'
+      : `bare from z = ${stopsAt.toFixed(1)}, at ${t.slopeAt(0, stopsAt).toFixed(0)}°`,
+  );
 }
 
 // ---------------------------------------------------------------------------

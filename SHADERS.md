@@ -449,6 +449,15 @@ toggle layers over the preset and never overwrites tuning:
 Each is one honest switch that turns the effect on and off — not a quality ladder,
 not a master "effects" group that gates them behind each other.
 
+**Groundcover is the stated exception to that, and it is an exception with a reason.**
+The rule above was written about GTAO, bloom and god rays, where partial is
+meaningless — half an ambient occlusion is a bug. Cover density is a quantity of world
+*content*, nearer in kind to field of view than to bloom: every setting of it is a
+legitimate look, and the difference reads as mown versus unmown rather than as grass
+with the detail turned down. It is a slider, 0–100, and it is layered over the preset
+exactly as the toggles are. See GROUNDCOVER.md, *The player slider*, for why moving
+height rather than density is what makes that true.
+
 One more crosses the line by a different door: **water motion** is an *accessibility*
 option, under reduced motion beside wind sway and head bob. The water itself is not
 optional and never will be — it is the place. Whether the surface moves is the same
