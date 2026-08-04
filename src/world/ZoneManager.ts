@@ -361,11 +361,26 @@ export class ZoneManager {
    * Zones declare one floor material, which is right for a room and wrong for
    * anywhere outdoors — walking off a cobbled yard onto grass has to change the
    * sound or the ground cover is only paint. A zone that varies overrides this.
+   *
+   * **A prop you are standing on beats both**, and it has to: a plank walkway
+   * over mud is timber underfoot, and a zone's paint has no way to know a prop
+   * was put there. What the prop is made of is measured off its own geometry at
+   * build time — see `art/underfoot.ts` — so nothing has to be declared twice
+   * and re-colouring a thing changes what it sounds like.
    */
-  surfaceAt(x: number, z: number): SurfaceName {
+  surfaceAt(x: number, z: number, feet = -Infinity): SurfaceName {
     const zone = this.active;
     if (!zone) return 'soil';
-    return zone.definition.surfaceAt?.(x, z) ?? zone.environment.surface;
+    // **Widened by the capsule's radius, because you are held up by whatever is
+    // under any part of your feet — not by whatever is under their centre.**
+    // A railing is narrower than a stride: stand on one and lean, and a point
+    // test loses it the moment your middle is past the edge, so the rail you
+    // are plainly balanced on goes back to sounding like the floor below.
+    return (
+      zone.standingOn(x, z, feet, this.options.player.tuning.radius) ??
+      zone.definition.surfaceAt?.(x, z) ??
+      zone.environment.surface
+    );
   }
 
   attachAudio(audio: ZoneAudio): void {
