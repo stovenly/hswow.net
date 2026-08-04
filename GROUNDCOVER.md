@@ -1,6 +1,14 @@
 # Groundcover — spec
 
-Not built. Researched and specified; the implementation is a later phase.
+**Built**, as specified. `art/cover.ts` is the shell material and the attach, the
+`COVER` table and `CoverPatch` are in `world/ground.ts`, the terrain writes the
+per-face type, `ZoneManager.prepare` attaches it, `PostFX` carries the tuning and the
+slider, and there is a showcase off General Props. `check:world` holds the vertex
+budget below and asserts every cover type appears in that room.
+
+What is *not* settled is everything under **Needs an eyeball** — starting with shell
+count, which is the whole quality dial and cannot be arrived at from a type checker.
+The numbers in this document are where the implementation starts, not where it lands.
 
 Scope is deliberately **carpet only** — short cover read from above and at a normal
 third-person angle. Blades standing against the skyline are a separate, more
