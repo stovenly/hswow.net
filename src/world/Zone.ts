@@ -195,6 +195,25 @@ export const INDOOR_ENVIRONMENT: ZoneEnvironment = {
  */
 const SETTLE_CLEARANCE = 0.12;
 
+/**
+ * How far *above* your feet a prop's top may be and still count as underfoot.
+ *
+ * Barely at all, and asymmetric on purpose. A prop whose top is above your feet
+ * is one you are standing *beside*, not on — and since the footprint test is
+ * widened by the capsule's radius, without this every kerb and every crate you
+ * walked past would claim the ground you were actually on.
+ */
+const STANDING_RISE = 0.06;
+
+/**
+ * How far *below* your feet a prop's top may be and still count.
+ *
+ * More generous, because the capsule settles over several sub-steps and a
+ * plank is not always exactly flush with what it is laid on. Still well under
+ * a step height, so standing on the floor next to a low box is unambiguous.
+ */
+const STANDING_DROP = 0.2;
+
 /** Shared, so the common case of no fog allocates nothing on every crossing. */
 const EMPTY_FOG: readonly FogVolume[] = [];
 
@@ -294,6 +313,16 @@ export class Zone {
   private group: THREE.Group | null = null;
   /** Set when the zone is built, by looking. See `hasWater`. */
   private water = false;
+  /**
+   * Props you could be standing on top of, with what they are made of.
+   *
+   * Collected on the same traversal `hasWater` uses, and for its reason: the
+   * answer cannot change without the geometry being rebuilt, so this is the one
+   * place it can be gathered once. A world-space box per prop is a few hundred
+   * bytes in the worst zone here and it turns "what am I standing on" into a
+   * handful of comparisons.
+   */
+  private readonly footings: { box: THREE.Box3; surface: SurfaceName }[] = [];
 
   constructor(definition: ZoneDefinition) {
     this.definition = definition;
@@ -344,6 +373,37 @@ export class Zone {
   }
 
   /**
+   * What you are standing *on*, if it is a prop rather than the ground.
+   *
+   * **The top of the box has to be at your feet**, which is what makes this a
+   * question about standing rather than about proximity. Without it, walking
+   * under an oak would report timber, because a tree's bounding box contains
+   * the ground beneath it — the prop you are inside is almost never the prop
+   * you are on.
+   *
+   * The tolerance is a stride's worth of slop, so a step onto decking answers
+   * before the capsule has fully settled, and stacked props resolve to the
+   * highest one whose top you are actually near.
+   */
+  standingOn(x: number, z: number, feet: number, reach = 0): SurfaceName | null {
+    let best: SurfaceName | null = null;
+    let highest = -Infinity;
+    for (const footing of this.footings) {
+      const { box } = footing;
+      if (x + reach < box.min.x || x - reach > box.max.x) continue;
+      if (z + reach < box.min.z || z - reach > box.max.z) continue;
+      // Positive when the prop's top is below your feet.
+      const drop = feet - box.max.y;
+      if (drop < -STANDING_RISE || drop > STANDING_DROP) continue;
+      if (box.max.y > highest) {
+        highest = box.max.y;
+        best = footing.surface;
+      }
+    }
+    return best;
+  }
+
+  /**
    * Drops a placement onto the zone's ground.
    *
    * A no-op for interiors, which are flat and say nothing about their floor.
@@ -369,8 +429,18 @@ export class Zone {
       // Once, here, rather than on every crossing: the answer cannot change
       // without the geometry being rebuilt, and this is where that happens.
       this.water = false;
+      this.footings.length = 0;
       this.group.traverse((object) => {
         if (object.userData.water === true) this.water = true;
+        const surface = object.userData.underfoot as SurfaceName | undefined;
+        if (!surface || !(object instanceof THREE.Mesh)) return;
+        // Its top, and the footprint under it. A world-space box is enough:
+        // the question is only ever "am I standing on this", and the answer
+        // wanted is the *top* of the thing, which a box gives exactly.
+        object.geometry.computeBoundingBox();
+        const box = object.geometry.boundingBox?.clone();
+        if (!box) return;
+        this.footings.push({ box: box.applyMatrix4(object.matrixWorld), surface });
       });
     }
     return this.group;
@@ -408,6 +478,7 @@ export class Zone {
     });
     this.group.clear();
     this.group = null;
+    this.footings.length = 0;
     // Recomputed on the next build. Left true, a released zone would have the
     // water pass running in whatever room the player walked into instead.
     this.water = false;

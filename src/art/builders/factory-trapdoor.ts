@@ -186,7 +186,7 @@ export function buildFactoryTrapdoor(options: FactoryTrapdoorOptions = {}): THRE
 
   const geometry = assemble(parts);
   if (scale !== 1) geometry.scale(scale, scale, scale);
-  return finish(geometry, 'factory-trapdoor', 0);
+  return finish(geometry, 'factory-trapdoor', 0, 'metal-solid');
 }
 
 export const factoryTrapdoor: MeshBuilder = {

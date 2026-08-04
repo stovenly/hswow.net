@@ -180,6 +180,6 @@ export const sink: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'sink', 0);
+    return finish(geometry, 'sink', 0, 'metal-solid');
   },
 };

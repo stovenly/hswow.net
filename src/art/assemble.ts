@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CLUTTER } from './clutter';
+import { underfootOf } from './underfoot';
+import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL } from './sway';
 import { WEAR_ATTRIBUTE, WEAR_TINT_ATTRIBUTE } from './weathering';
@@ -197,7 +199,26 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
  * gives every instance a different phase from where it stands, which is both
  * cheaper and more correct than a random offset.
  */
-export function finish(geometry: THREE.BufferGeometry, name: string, phase: number): THREE.Mesh {
+export function finish(
+  geometry: THREE.BufferGeometry,
+  name: string,
+  phase: number,
+  /**
+   * What it sounds like underfoot, when the colours cannot say.
+   *
+   * `art/underfoot.ts` reads the material off the geometry, which is right for
+   * anything whose colours are honest about what it is made of — and a good
+   * deal of the works kit is not. A machine casing is painted `STONE_DARK`
+   * because that is what reads as a grey machine, chainlink is drawn in colours
+   * of its own, and a sink is mostly the water in it. All three are steel and
+   * none of them measures as steel.
+   *
+   * So a builder that knows better says so. Declaration beats inference exactly
+   * where inference is wrong, and nowhere else: leave this alone and the
+   * geometry answers, which is what almost every prop should do.
+   */
+  underfoot?: SurfaceName,
+): THREE.Mesh {
   // Baked into the attribute rather than passed as a uniform: a uniform would
   // need a material per species, and the whole kit sharing one material is
   // what keeps a prop to a single draw call.
@@ -217,6 +238,12 @@ export function finish(geometry: THREE.BufferGeometry, name: string, phase: numb
   // long gone, and the name on the mesh is the only thing left that says what
   // this is. `ZoneManager.prepare` reads it; see `art/clutter.ts`.
   if (CLUTTER.has(name)) mesh.userData.clutter = true;
+  // What the thing is mostly made of, read off the geometry rather than looked
+  // up by name — see `art/underfoot.ts`. A builder that wants to say something
+  // the colours cannot, like a walkway that rings or a drum that booms, sets
+  // `MeshBuilder.underfoot` and `ZoneManager` prefers it.
+  const material = underfoot ?? underfootOf(geometry);
+  if (material) mesh.userData.underfoot = material;
   // So the sun sees what the camera sees. Without it the shadow map is drawn
   // from undisplaced geometry and every swaying plant casts a still shadow of
   // where it is not — see `SWAY_DEPTH_MATERIAL`. Set on everything rather than

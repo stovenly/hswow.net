@@ -107,6 +107,6 @@ export const vent: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'vent', 0);
+    return finish(geometry, 'vent', 0, 'metal-solid');
   },
 };
