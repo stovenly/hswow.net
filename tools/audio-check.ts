@@ -573,14 +573,17 @@ for (const [mm, hz] of [
       : 'missing a bulk',
   );
 
-  // **Short is the whole of it.** Every version of these that went wrong went
-  // wrong by being longer or denser than the one before, whatever the spectrum
-  // was doing. A splash is a brief event; a tenth of a second of droplets is a
-  // splash and a quarter of a second of them is a wash.
+  // **A tenth of a second was a guess and it was wrong.** It came from a run of
+  // versions that each got thicker than the last, and the fault there was
+  // spectral rather than temporal — too much energy at the bottom of the cloud,
+  // not too much cloud. Measured, the reference puts ninety per cent of a
+  // step's energy inside 125 ms, and reproducing that takes a scatter window
+  // around 0.2. What is still worth guarding is the far end: past a third of a
+  // second nothing sounds like an impact any more.
   const longest = Object.entries(SURFACES)
     .filter(([, surface]) => surface.splash)
     .map(([name, surface]) => [name, surface.splash!.over] as const)
-    .filter(([, over]) => over > 0.18);
+    .filter(([, over]) => over > 0.3);
   check(
     'a splash is a short event',
     longest.length === 0,
@@ -593,14 +596,22 @@ for (const [mm, hz] of [
   // kilohertz and four, and every time this drifted upward chasing "airier" it
   // came back sounding like foil — which is what a bandful of sub-millisecond
   // pings is.
+  // The cloud's *coarse end* is the part that has to land, because a bubble's
+  // ring-down is superlinear in frequency: one at 600 Hz carries roughly
+  // eighteen times the energy of one at 5.6 kHz, so a handful of them below the
+  // main band swamps everything above it. Sitting the coarse end at the top of
+  // that band is what puts 47% of the energy where the recording has it.
+  //
+  // The fine end is left free. It is a thin tail by count and a rounding error
+  // by energy, and it is where the air lives.
   for (const name of ['water-puddle', 'water-pond'] as const) {
     const cloud = SURFACES[name].splash!;
     const low = bubbleHz(cloud.radius[1]);
-    const high = bubbleHz(cloud.radius[0]);
+    const octaves = Math.log2(cloud.radius[1] / cloud.radius[0]);
     check(
       `${name} sits in the measured band`,
-      low >= 400 && high <= 4500,
-      `${low.toFixed(0)} to ${high.toFixed(0)} Hz`,
+      low >= 500 && low <= 1300 && octaves >= 3,
+      `coarse end ${low.toFixed(0)} Hz, ${octaves.toFixed(1)} octaves wide`,
     );
   }
 
