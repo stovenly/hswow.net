@@ -5,120 +5,79 @@ import {
   coverSwell,
   coverThickness,
   type CoverName,
+  type CoverType,
+  type PropLayer,
 } from '../world/ground';
 import { windUniforms } from './sway';
 
 /**
- * Groundcover: shells of cross-section stacked over any ground mesh.
+ * Groundcover: instanced blades sampled from any ground mesh.
  *
- * One `InstancedBufferGeometry` sharing the ground's own attribute buffers,
- * with one instance per shell. Each shell is the ground lifted along +Y; the
- * fragment shader reads a height field from world XZ and throws away anything
- * the field does not reach. A stack of cross-sections reads as tufts.
- * See GROUNDCOVER.md for why shells rather than geometry, and for the three
- * things this project needs that no tutorial mentions:
+ * The Ghost of Tsushima shape, at this project's scale. Each blade is a small
+ * camera-facing ribbon bent along a curve in the vertex shader; a CPU sampler
+ * walks the ground's triangles once at zone build, reads the cover attribute
+ * the terrain already writes, and packs one instance per blade. Clump cells
+ * give blades local agreement — shared height, facing and shade — which is
+ * what makes a field read as grown rather than scattered.
  *
- * - **Along +Y, never along the normal.** The ground is flat-shaded with one
- *   normal per face, so normal-offset shells tear apart at every face boundary.
- * - **Sample world XZ, not UVs.** `assemble` deletes UVs, and terrain face
- *   density varies — a UV field would change tuft size wherever the mesh does.
- * - **Out of the normal pass.** A shell's normal *is* the ground's, so drawing
- *   it there would be paying twice for the same answer. See `PostFX`.
+ * Three decisions carried over from the shell version this replaces:
+ * blades rise from world-flat ground along +Y, never the face normal; broad
+ * variation comes from `coverSwell`/`coverThickness` on world XZ; and the
+ * cover stays out of the normal pass (see `PostFX.hideGlowFromEdges` — an
+ * override material knows nothing about instanced blade construction).
  *
- * No `customDepthMaterial` and no shadows: cover is scattered small things, and
- * `art/clutter.ts` is the standing rule that those do not cast.
+ * Two shading choices do most of the work: a blade is lit by the *ground's*
+ * normal, so a field shades as one surface with the terrain under it, and a
+ * blade never projects under one art pixel wide — thinner than that is not
+ * thin, it is shimmer.
  */
 
-/** How many shells the geometry is built for. */
-const MAX_SHELLS = 48;
-
-/** Deepest cover any tuning can produce, for the culling sphere. */
-const MAX_RISE = 1.4;
-
-/** What the swell field multiplies the height by, at its two ends. */
-const SWELL_LOW = 0.5;
-const SWELL_HIGH = 1.5;
-
-/** And the thickness field, on density. */
-const THICK_LOW = 0.35;
-const THICK_HIGH = 1.65;
-
-/**
- * Tuft and blade feature sizes, in metres.
- *
- * Two octaves of a *smooth* field rather than a lattice of hard-edged discs.
- * A grid of hard edges a few pixels to a cell is an interference pattern
- * against the pixel grid however the cells are jittered, and jittering only
- * turns one fringe into patches of them. Smooth noise is band-limited, so at a
- * couple of samples a feature it reconstructs instead of fringing.
- */
-const TUFT = 0.1;
-const BLADE = 0.035;
-
-/** Clump cell. Coarse, and what stops a field reading as a lawn. */
-const CLUMP = 0.8;
-
-/** How dark the roots are, and how much of that the tips recover. */
-const ROOT = 0.56;
-const RAMP = 0.44;
-
-/** How far the top of the stack leans downwind, as a fraction of its height. */
-const LEAN = 0.7;
-
-/** `vec4`: type index and feather, then the swell and thickness fields. */
+/** `vec4` per terrain vertex: type index, feather, swell, thickness. */
 export const COVER_ATTRIBUTE = 'cover';
 
-/** Per-instance shell number, 0 at the ground. */
-const SHELL_ATTRIBUTE = 'shell';
+/** Blade ribbon segments. Two verts each plus a tip: 9 vertices a blade. */
+const SEGMENTS = 4;
 
-const COUNT = COVER_ORDER.length;
+/** Clump cell, metres. What stops a field reading as a lawn. */
+const CLUMP = 0.9;
 
-/** `vec4(height, density, hold, taper)` per type, flat. Filled once, never edited. */
-const spec = new Float32Array(COUNT * 4);
-/** And the tints, in the renderer's working colour space. */
-const tint = new Float32Array(COUNT * 3);
+/** Cull tile, metres. Instances are grouped so the frustum can drop them. */
+const CHUNK = 24;
 
-{
-  const colour = new THREE.Color();
-  COVER_ORDER.forEach((name, i) => {
-    const type = COVER_TYPES[name];
-    spec.set([type.height, type.density, type.hold, type.taper], i * 4);
-    colour.set(type.tint).toArray(tint, i * 3);
-  });
-}
+/** How dark a root is, and how much of that the tip recovers. */
+const ROOT = 0.6;
+const RAMP = 0.4;
+
+/** Flower head tints, picked per instance. */
+const BLOOM_TINTS = [0xd9d3c0, 0xc9a83c, 0x9a86b8] as const;
 
 export const coverUniforms = {
-  coverSpec: { value: spec },
-  coverTint: { value: tint },
-  /** Live shell count. The geometry's `instanceCount` is kept equal to it. */
-  coverShells: { value: 16 },
-  /** Metres the stack spans, before a type's own multiplier. */
-  coverHeight: { value: 0.18 },
-  /** Global multiplier on each type's density. */
-  coverDensity: { value: 1 },
+  /** Global length and width multipliers, for tuning. */
+  coverHeight: { value: 1 },
+  coverWidth: { value: 1 },
+  /** World size of one art pixel at unit view depth. See `updateCover`. */
+  coverPixel: { value: 0 },
+  /** The player's feet, for treading a path through the blades. */
+  coverPlayer: { value: new THREE.Vector3(0, -1000, 0) },
+  /** Toward the sun, and the plume backlight colour, premultiplied. */
+  coverSunDir: { value: new THREE.Vector3(0, 1, 0) },
+  coverGlow: { value: new THREE.Color(0, 0, 0) },
 };
 
+/** World direction into a mesh's object space: Y rotation and uniform scale only. */
+const TO_OBJECT = /* glsl */ `
+vec3 coverToObject(vec3 v, vec3 c0, vec3 c1, vec3 c2, float scaleSq) {
+  return vec3(dot(c0, v), dot(c1, v), dot(c2, v)) / scaleSq;
+}
+`;
+
 /**
- * The one shared shell material.
- *
- * Lambert with vertex colours, exactly like `ART_MATERIAL` — so a shell is lit
- * by the same maths as the ground under it and inherits its per-face colour,
- * which is where the terrain's jitter and height cooling come from for free.
+ * The blade material. Lambert, so a blade is lit by the same maths as the
+ * ground — and by the ground's own normal, passed per instance.
  */
 export const COVER_MATERIAL = new THREE.MeshLambertMaterial({
-  name: 'Cover',
-  vertexColors: true,
-  flatShading: true,
-  // **Depth-tested but not depth-written**, which is the bias GROUNDCOVER.md
-  // asks for. `PixelStage` shares one depth texture between the outline and
-  // GTAO, and cover writing 12 cm of relief into it made both read the grass
-  // as a field of silhouettes — a dark ring on the ground at the range where
-  // non-linear depth resolves that step. Written, the buffer stays the ground.
-  //
-  // Costs the shells their sorting against each other, which is why they draw
-  // after everything else and bottom to top: within one draw the last write
-  // wins, and the last shell is the top one.
-  depthWrite: false,
+  name: 'CoverBlades',
+  side: THREE.DoubleSide,
 });
 
 COVER_MATERIAL.onBeforeCompile = (shader) => {
@@ -128,61 +87,85 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
     .replace(
       '#include <common>',
       /* glsl */ `#include <common>
-      attribute vec4 ${COVER_ATTRIBUTE};
-      attribute float ${SHELL_ATTRIBUTE};
-      uniform vec4 coverSpec[${COUNT}];
-      uniform vec3 coverTint[${COUNT}];
-      uniform float coverShells;
+      attribute vec4 iPlace;   // root position, facing yaw
+      attribute vec4 iShape;   // length, width, sprawl, unused
+      attribute vec3 iTint;
+      attribute vec4 iWild;    // breathe phase, flutter phase, give, unused
+      attribute vec3 iNormal;  // the ground's normal under the root
       uniform float coverHeight;
+      uniform float coverWidth;
+      uniform float coverPixel;
+      uniform vec3 coverPlayer;
       uniform sampler2D gustField;
       uniform vec2 windDir;
       uniform float windLagScale;
       uniform float windHalfSpan;
       uniform float swayTime;
       uniform float swayAmount;
-      // Packed: varyings are a hardware limit and Lambert with shadows has
-      // already spent most of the guaranteed minimum.
-      varying vec4 vCoverBlade;  // density, hold, taper, height up the stack
-      varying vec4 vCoverPlace;  // world XZ, and the wind shear to take it by
       varying vec3 vCoverTint;
-      varying vec2 vCoverEdge;   // feather, and the thickness field
+      ${TO_OBJECT}
+      `,
+    )
+    .replace(
+      '#include <beginnormal_vertex>',
+      /* glsl */ `vec3 objectNormal = iNormal;
       `,
     )
     .replace(
       '#include <begin_vertex>',
-      /* glsl */ `#include <begin_vertex>
+      /* glsl */ `vec3 transformed;
       {
-        // Dynamic indexing of a uniform array is legal in the vertex shader and
-        // nowhere else in GLSL ES 1, which is why these arrive as varyings. The
-        // index is per face, so it interpolates to itself and edges stay hard;
-        // the feather beside it is per corner, and does not.
-        int coverIndex = int(${COVER_ATTRIBUTE}.x + 0.5);
-        vec4 spec = coverSpec[coverIndex];
-        vCoverTint = coverTint[coverIndex];
+        float t = position.y;
 
-        float up = (${SHELL_ATTRIBUTE} + 1.0) / max(coverShells, 1.0);
-        vCoverBlade = vec4(spec.yzw, up);
+        vec3 c0 = modelMatrix[0].xyz;
+        vec3 c1 = modelMatrix[1].xyz;
+        vec3 c2 = modelMatrix[2].xyz;
+        float scaleSq = max(dot(c0, c0), 0.0001);
 
-        // World +Y, over the model's own Y scale so the rise is metres whatever
-        // the mesh is scaled to. The swell field rides on it, so a plain has
-        // sweeps of longer and shorter grass rather than one mown height.
-        float swell = mix(
-          ${SWELL_LOW.toFixed(2)}, ${SWELL_HIGH.toFixed(2)}, ${COVER_ATTRIBUTE}.z);
-        float rise = up * coverHeight * spec.x * swell;
-        transformed.y += rise / max(length(modelMatrix[1].xyz), 0.0001);
-        vec3 worldAt = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        vCoverEdge = vec2(
-          ${COVER_ATTRIBUTE}.y,
-          mix(${THICK_LOW.toFixed(2)}, ${THICK_HIGH.toFixed(2)}, ${COVER_ATTRIBUTE}.w));
+        vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
+        float len = iShape.x * coverHeight;
 
-        // The same travelling gust the trees answer, and by construction the
-        // same one driving the rustle in the audio. See art/sway.ts.
-        float lag = dot(worldAt.xz, windDir) * windLagScale;
+        // The same travelling gust the trees answer. See art/sway.ts.
+        float lag = dot(worldRoot.xz, windDir) * windLagScale;
         float u = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
-        float strength = texture2D(gustField, vec2(u, 0.5)).r * swayAmount;
-        float ripple = 0.66 + 0.34 * sin(swayTime * 1.6 + worldAt.x * 0.7 + worldAt.z * 0.53);
-        // Shearing the hash sample downwind by height is the whole wind effect.
-        vCoverPlace = vec4(worldAt.xz, windDir * (strength * ripple * rise * ${LEAN.toFixed(2)}));
+        float gust = texture2D(gustField, vec2(u, 0.5)).r * swayAmount;
+
+        float breathe = 0.6 + 0.4 * sin(swayTime * 1.3 + iWild.x);
+        float flutter = sin(swayTime * 3.1 + iWild.y) * 0.6
+                      + sin(swayTime * 5.3 + iWild.y * 1.7) * 0.4;
+
+        // Where the tip goes: rest lean, then the wind, then the flutter.
+        vec2 face = vec2(cos(iPlace.w), sin(iPlace.w));
+        vec2 tip = face * (iShape.z * len);
+        tip += windDir * (gust * breathe * iWild.z * len * 0.9);
+        tip += vec2(-windDir.y, windDir.x) * (flutter * gust * iWild.z * len * 0.25);
+
+        // Blades part around the player's feet.
+        vec2 fromPlayer = worldRoot.xz - coverPlayer.xz;
+        float treadD = length(fromPlayer);
+        float tread = (1.0 - smoothstep(0.15, 0.85, treadD))
+                    * (1.0 - smoothstep(1.0, 1.6, abs(worldRoot.y - coverPlayer.y)));
+        if (tread > 0.0 && treadD > 0.001) tip += (fromPlayer / treadD) * (tread * len * 0.9);
+
+        // Cantilever: displacement grows with t squared, and the tip dips to pay.
+        float bend = length(tip) / max(len, 0.001);
+        float dip = 1.0 - 0.35 * bend * t * t;
+
+        // The ribbon faces the camera, and never projects under one art pixel.
+        vec3 toCam = cameraPosition - worldRoot;
+        vec2 flatCam = vec2(toCam.x, toCam.z);
+        vec2 sideDir = dot(flatCam, flatCam) > 0.001
+          ? normalize(vec2(-flatCam.y, flatCam.x))
+          : vec2(face.y, -face.x);
+        float halfW = 0.5 * iShape.y * coverWidth * (1.0 - 0.8 * t);
+        halfW = max(halfW, 0.5 * coverPixel * length(toCam));
+
+        vec3 disp = vec3(tip.x, 0.0, tip.y) * (t * t)
+                  + vec3(0.0, len * t * dip, 0.0)
+                  + vec3(sideDir.x, 0.0, sideDir.y) * (position.x * halfW);
+        transformed = iPlace.xyz + coverToObject(disp, c0, c1, c2, scaleSq);
+
+        vCoverTint = iTint * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * t);
       }
       `,
     );
@@ -191,206 +174,765 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
     .replace(
       '#include <common>',
       /* glsl */ `#include <common>
-      uniform float coverDensity;
-      varying vec4 vCoverBlade;
-      varying vec4 vCoverPlace;
       varying vec3 vCoverTint;
-      varying vec2 vCoverEdge;
-
-      // Not a sine hash: sin(dot(p, big)) loses its fractional bits at lattice
-      // indices this large and quantises into visible bands. This folds to
-      // 0..1 before it multiplies.
-      float coverHash(vec2 p) {
-        vec3 q = fract(vec3(p.x, p.y, p.x) * 0.1031);
-        q += dot(q, q.yzx + 33.33);
-        return fract((q.x + q.y) * q.z);
-      }
-
-      // Smooth value noise. Folded first, so the hash never sees a lattice
-      // index too large to keep its fractional bits.
-      float coverNoise(vec2 p) {
-        vec2 i = mod(floor(p), 1024.0);
-        vec2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = coverHash(i);
-        float b = coverHash(i + vec2(1.0, 0.0));
-        float c = coverHash(i + vec2(0.0, 1.0));
-        float d = coverHash(i + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
       `,
     )
     .replace(
-      '#include <clipping_planes_fragment>',
-      /* glsl */ `#include <clipping_planes_fragment>
-      {
-        // Nothing grows here, and no later test would have said so.
-        if (vCoverBlade.x <= 0.0) discard;
-
-        float up = vCoverBlade.w;
-        vec2 place = vCoverPlace.xy - vCoverPlace.zw;
-
-        // Clumps are sampled undisplaced, so they stay put while the tufts in
-        // them lean. Type comes from the face; how tall and how thick come from
-        // here, and a thin clump is where bare ground shows through.
-        vec2 clump = floor(vCoverPlace.xy / ${CLUMP.toFixed(2)});
-        float clumpTall = coverHash(clump);
-        float clumpThick = coverHash(clump + 17.0);
-
-        // The height field. Two octaves, the coarse one carrying the tufts and
-        // the fine one the strands inside them, both sheared downwind by the
-        // gust — which is the whole wind effect.
-        float field = 0.68 * coverNoise(place * ${(1 / TUFT).toFixed(3)})
-                    + 0.32 * coverNoise(place * ${(1 / BLADE).toFixed(3)});
-
-        // Thinned toward the edge of its own patch, so grass runs out onto a
-        // path instead of stopping on a line. A stipple rather than a gradient:
-        // this pipeline quantizes a colour ramp into a band of dither.
-        float feather = vCoverEdge.x;
-        float hold = clamp(
-          vCoverBlade.x * coverDensity * (0.5 + clumpThick) * vCoverEdge.y * feather
-            * vCoverBlade.y,
-          0.0, 1.0);
-
-        // Only the top of the field clears the floor, so what holds anything at
-        // the root is hold itself and the rest is bare ground. Moving the floor
-        // is what makes weeds sparse and moss solid out of one field.
-        float tuft = (field - (1.0 - hold)) / max(hold, 0.001);
-        if (tuft <= 0.0) discard;
-
-        // And how fast a tuft gives up its footprint on the way up. Above 1 is
-        // grass, below 1 is a mound that keeps its width. See CoverType.taper.
-        float reach = pow(tuft, vCoverBlade.z) * (0.6 + 0.8 * clumpTall)
-                    * mix(0.5, 1.0, feather);
-        if (up > reach) discard;
-      }
+      '#include <normal_fragment_begin>',
+      // Undo the double-sided flip: the normal is the ground's, whichever way
+      // the ribbon happens to face.
+      /* glsl */ `#include <normal_fragment_begin>
+      normal = normalize(vNormal);
       `,
     )
     .replace(
       '#include <color_fragment>',
       /* glsl */ `#include <color_fragment>
-      // The type's own colour, keeping a quarter of the ground it grows out of
-      // so painted patches and the height cooling read through it, darkened
-      // toward the roots — which is what gives a stack of flat cross-sections
-      // any depth. One expression at every distance, so there is no second path
-      // for a seam to open between.
-      diffuseColor.rgb = mix(vCoverTint, diffuseColor.rgb, 0.25)
-        * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * vCoverBlade.w);
+      diffuseColor.rgb = vCoverTint;
       `,
     );
 };
 
-// Missing means bare, and fully feathered. A shader attribute the geometry does
-// not supply falls back to a generic value that persists across draw calls, so
-// without this cover would depend on whatever was drawn before it.
-(COVER_MATERIAL as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
-  [COVER_ATTRIBUTE]: [0, 1, 0.5, 0.5],
-  [SHELL_ATTRIBUTE]: [0],
-};
-
-// Three caches compiled programs by a key that knows nothing about an
-// `onBeforeCompile`, and this is a Lambert material like several others.
-COVER_MATERIAL.customProgramCacheKey = () => 'cover';
+COVER_MATERIAL.customProgramCacheKey = () => 'cover-blades';
 
 /**
- * Every cover mesh currently standing, so the shell count can reach them.
+ * The prop material: plume heads and flower heads. Vertex colours for the
+ * authored parts, an instance tint over them, a stippled discard for feathery
+ * edges, and a backlight term that makes plumes glow against a low sun.
+ */
+export const TUFT_MATERIAL = new THREE.MeshLambertMaterial({
+  name: 'CoverTufts',
+  vertexColors: true,
+  side: THREE.DoubleSide,
+});
+
+TUFT_MATERIAL.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, windUniforms, coverUniforms);
+
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      '#include <common>',
+      /* glsl */ `#include <common>
+      attribute vec4 fin;      // stipple uv, puff (how much it sways), solidity
+      attribute vec4 iPlace;   // root position, yaw
+      attribute vec4 iProp;    // scale, gust lag, seed, glow
+      attribute vec3 iTintP;
+      uniform sampler2D gustField;
+      uniform vec2 windDir;
+      uniform float windLagScale;
+      uniform float windHalfSpan;
+      uniform float swayTime;
+      uniform float swayAmount;
+      varying vec3 vTuftTint;
+      varying vec4 vTuftGrain; // stipple uv, solidity, glow
+      varying vec3 vTuftWorld;
+      ${TO_OBJECT}
+      `,
+    )
+    .replace(
+      '#include <beginnormal_vertex>',
+      // Lit as the ground plane is: a plume is a soft mass, not a surface.
+      /* glsl */ `vec3 objectNormal = vec3(0.0, 1.0, 0.0);
+      `,
+    )
+    .replace(
+      '#include <begin_vertex>',
+      /* glsl */ `vec3 transformed;
+      {
+        vec3 c0 = modelMatrix[0].xyz;
+        vec3 c1 = modelMatrix[1].xyz;
+        vec3 c2 = modelMatrix[2].xyz;
+        float scaleSq = max(dot(c0, c0), 0.0001);
+
+        float ca = cos(iPlace.w);
+        float sa = sin(iPlace.w);
+        vec3 p = position * iProp.x;
+        p = vec3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca);
+
+        vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
+
+        // The same gust, sampled a beat behind: a heavy head answers late.
+        float lag = dot(worldRoot.xz, windDir) * windLagScale + iProp.y;
+        float u = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
+        float gust = texture2D(gustField, vec2(u, 0.5)).r * swayAmount;
+
+        float roll = 0.7 + 0.3 * sin(swayTime * 1.1 + iProp.z * 6.2831);
+        vec2 push = windDir * (gust * roll * fin.z * p.y * 0.3)
+                  + vec2(-windDir.y, windDir.x)
+                    * (sin(swayTime * 2.6 + iProp.z * 9.42) * gust * fin.z * p.y * 0.08);
+        p.xz += push;
+
+        transformed = iPlace.xyz + coverToObject(p, c0, c1, c2, scaleSq);
+        vTuftWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        vTuftTint = iTintP;
+        vTuftGrain = vec4(fin.xy + iProp.z * 7.0, fin.w, iProp.w);
+      }
+      `,
+    );
+
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <common>',
+      /* glsl */ `#include <common>
+      uniform vec3 coverSunDir;
+      uniform vec3 coverGlow;
+      varying vec3 vTuftTint;
+      varying vec4 vTuftGrain;
+      varying vec3 vTuftWorld;
+
+      // Fract-based, not sine-based: sin loses its fractional bits at large
+      // lattice indices and quantises into visible bands.
+      float coverHash(vec2 p) {
+        vec3 q = fract(vec3(p.x, p.y, p.x) * 0.1031);
+        q += dot(q, q.yzx + 33.33);
+        return fract((q.x + q.y) * q.z);
+      }
+      `,
+    )
+    .replace(
+      '#include <clipping_planes_fragment>',
+      // The feathery edge is a stipple, which is what this pipeline quantises
+      // a soft edge into anyway.
+      /* glsl */ `#include <clipping_planes_fragment>
+      if (vTuftGrain.z < 1.0 && coverHash(floor(vTuftGrain.xy * 24.0)) > vTuftGrain.z) discard;
+      `,
+    )
+    .replace(
+      '#include <normal_fragment_begin>',
+      /* glsl */ `#include <normal_fragment_begin>
+      normal = normalize(vNormal);
+      `,
+    )
+    .replace(
+      '#include <color_fragment>',
+      /* glsl */ `#include <color_fragment>
+      diffuseColor.rgb *= vTuftTint;
+      `,
+    )
+    .replace(
+      '#include <opaque_fragment>',
+      // Looking through a plume toward a low sun lights it from behind.
+      /* glsl */ `vec3 coverBack = normalize(vTuftWorld - cameraPosition);
+      outgoingLight += diffuseColor.rgb * coverGlow
+        * (pow(max(dot(coverBack, coverSunDir), 0.0), 4.0) * vTuftGrain.w);
+      #include <opaque_fragment>
+      `,
+    );
+};
+
+TUFT_MATERIAL.customProgramCacheKey = () => 'cover-tufts';
+
+// --- base geometry -----------------------------------------------------------
+
+/** The one blade every instance draws: a tapered ribbon on (side, t). */
+function bladeGeometry(): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const index: number[] = [];
+  for (let i = 0; i < SEGMENTS; i++) {
+    const t = i / SEGMENTS;
+    positions.push(-1, t, 0, 1, t, 0);
+    normals.push(0, 1, 0, 0, 1, 0);
+  }
+  positions.push(0, 1, 0);
+  normals.push(0, 1, 0);
+  for (let i = 0; i < SEGMENTS - 1; i++) {
+    const a = i * 2;
+    index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  index.push(SEGMENTS * 2 - 2, SEGMENTS * 2 - 1, SEGMENTS * 2);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setIndex(index);
+  return geometry;
+}
+
+const BLADE_GEOMETRY = bladeGeometry();
+
+/** Vertex sink for the authored prop meshes. */
+interface TuftSink {
+  position: number[];
+  color: number[];
+  fin: number[];
+  index: number[];
+}
+
+function tuftVertex(
+  sink: TuftSink,
+  x: number,
+  y: number,
+  z: number,
+  color: THREE.Color,
+  u: number,
+  v: number,
+  puff: number,
+  solid: number,
+): number {
+  sink.position.push(x, y, z);
+  sink.color.push(color.r, color.g, color.b);
+  sink.fin.push(u, v, puff, solid);
+  return sink.position.length / 3 - 1;
+}
+
+function tuftQuad(sink: TuftSink, a: number, b: number, c: number, d: number): void {
+  sink.index.push(a, b, c, b, d, c);
+}
+
+function tuftGeometry(sink: TuftSink): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(sink.position, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(sink.color, 3));
+  geometry.setAttribute('fin', new THREE.Float32BufferAttribute(sink.fin, 4));
+  geometry.setIndex(sink.index);
+  return geometry;
+}
+
+/**
+ * A pampas stalk: a stiff crossed-quad stem, then three fins of plume whose
+ * solidity falls from the spine outward — the stipple discard turns that
+ * gradient into the feathery rim.
+ */
+function plumeGeometry(): THREE.BufferGeometry {
+  const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
+  const straw = new THREE.Color(0x8a8050);
+  const plume = new THREE.Color(1, 1, 1);
+
+  for (const angle of [0, Math.PI / 2]) {
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const b0 = tuftVertex(sink, -0.016 * dx, 0, -0.016 * dz, straw, 0, 0, 0.05, 1);
+    const b1 = tuftVertex(sink, 0.016 * dx, 0, 0.016 * dz, straw, 1, 0, 0.05, 1);
+    const t0 = tuftVertex(sink, -0.007 * dx, 1.45, -0.007 * dz, straw, 0, 1, 0.4, 1);
+    const t1 = tuftVertex(sink, 0.007 * dx, 1.45, 0.007 * dz, straw, 1, 1, 0.4, 1);
+    tuftQuad(sink, b0, b1, t0, t1);
+  }
+
+  const ROWS = 4;
+  for (let f = 0; f < 3; f++) {
+    const angle = (f / 3) * Math.PI * 2;
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const px = -dz;
+    const pz = dx;
+    const rows: [number, number, number][] = [];
+    for (let r = 0; r <= ROWS; r++) {
+      const s = r / ROWS;
+      const y = 1.42 + s * 0.6 - s * s * 0.12;
+      const reach = 0.05 + s * 0.17;
+      const halfW = 0.025 + 0.085 * Math.max(0, 1 - Math.abs(s - 0.35) / 0.65);
+      const puff = 0.55 + 0.45 * s;
+      const left = tuftVertex(
+        sink,
+        reach * dx - halfW * px,
+        y,
+        reach * dz - halfW * pz,
+        plume,
+        f * 1.7,
+        s,
+        puff,
+        0.3 - 0.45 * s,
+      );
+      const mid = tuftVertex(
+        sink,
+        reach * dx,
+        y,
+        reach * dz,
+        plume,
+        f * 1.7 + 0.5,
+        s,
+        puff,
+        1.05 - 0.5 * s,
+      );
+      const right = tuftVertex(
+        sink,
+        reach * dx + halfW * px,
+        y,
+        reach * dz + halfW * pz,
+        plume,
+        f * 1.7 + 1,
+        s,
+        puff,
+        0.3 - 0.45 * s,
+      );
+      rows.push([left, mid, right]);
+    }
+    for (let r = 0; r < ROWS; r++) {
+      const [a0, a1, a2] = rows[r];
+      const [b0, b1, b2] = rows[r + 1];
+      tuftQuad(sink, a0, a1, b0, b1);
+      tuftQuad(sink, a1, a2, b1, b2);
+    }
+  }
+
+  return tuftGeometry(sink);
+}
+
+/** A flower: a crossed stem and a small crossed head the instance tint colours. */
+function bloomGeometry(): THREE.BufferGeometry {
+  const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
+  const stem = new THREE.Color(0x5f7040);
+  const head = new THREE.Color(1, 1, 1);
+
+  for (const angle of [0, Math.PI / 2]) {
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const b0 = tuftVertex(sink, -0.009 * dx, 0, -0.009 * dz, stem, 0, 0, 0.1, 1);
+    const b1 = tuftVertex(sink, 0.009 * dx, 0, 0.009 * dz, stem, 1, 0, 0.1, 1);
+    const t0 = tuftVertex(sink, -0.005 * dx, 0.3, -0.005 * dz, stem, 0, 1, 0.45, 1);
+    const t1 = tuftVertex(sink, 0.005 * dx, 0.3, 0.005 * dz, stem, 1, 1, 0.45, 1);
+    tuftQuad(sink, b0, b1, t0, t1);
+
+    const h0 = tuftVertex(sink, -0.05 * dx, 0.27, -0.05 * dz, head, 0, 0, 0.5, 1);
+    const h1 = tuftVertex(sink, 0.05 * dx, 0.27, 0.05 * dz, head, 1, 0, 0.5, 1);
+    const h2 = tuftVertex(sink, -0.05 * dx, 0.37, -0.05 * dz, head, 0, 1, 0.55, 1);
+    const h3 = tuftVertex(sink, 0.05 * dx, 0.37, 0.05 * dz, head, 1, 1, 0.55, 1);
+    tuftQuad(sink, h0, h1, h2, h3);
+  }
+
+  return tuftGeometry(sink);
+}
+
+const PROP_GEOMETRY: Record<PropLayer['kind'], () => THREE.BufferGeometry> = {
+  plume: plumeGeometry,
+  bloom: bloomGeometry,
+};
+
+const propGeometry: Partial<Record<PropLayer['kind'], THREE.BufferGeometry>> = {};
+
+// --- sampling ----------------------------------------------------------------
+
+/** Deterministic 0..1 from three integers — the same field on every visit. */
+function hat(a: number, b: number, c: number): number {
+  let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(c, 1442695041)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+interface BladeChunk {
+  place: number[];
+  shape: number[];
+  tint: number[];
+  wild: number[];
+  normal: number[];
+}
+
+interface PropChunk {
+  kind: PropLayer['kind'];
+  place: number[];
+  prop: number[];
+  tint: number[];
+}
+
+interface CoverSample {
+  blades: Map<string, BladeChunk>;
+  props: Map<string, PropChunk>;
+  bladeCount: number;
+  propCount: number;
+  maxLen: number;
+}
+
+/**
+ * Walks the ground's triangles and rolls every blade and prop.
  *
- * `instanceCount` is per geometry and the count is a uniform, and the two have
- * to agree or the top of the stack is drawn at the wrong height. Pruned on
- * geometry disposal, which is what `Zone.dispose` does to a released zone.
+ * Hash-driven throughout, keyed on face and blade index, so the same mesh
+ * grows the same field every time a zone is rebuilt. A mesh with no painted
+ * attribute grows a single stated type everywhere, with the broad fields
+ * sampled at its world position — a slab beside the terrain sweeps with it.
+ */
+function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | null {
+  const source = ground.geometry;
+  const painted = source.getAttribute(COVER_ATTRIBUTE);
+  const stated = uniform ?? (ground.userData.cover as CoverName | undefined);
+  if (!painted && (!stated || stated === 'none')) return null;
+
+  const position = source.getAttribute('position');
+  const colors = source.getAttribute('color');
+  const index = source.getIndex();
+  const faces = (index ? index.count : position.count) / 3;
+  const statedIndex = stated ? COVER_ORDER.indexOf(stated) : 0;
+
+  ground.updateWorldMatrix(true, false);
+  const toWorld = ground.matrixWorld;
+
+  const sample: CoverSample = {
+    blades: new Map(),
+    props: new Map(),
+    bladeCount: 0,
+    propCount: 0,
+    maxLen: 0,
+  };
+
+  const va = new THREE.Vector3();
+  const vb = new THREE.Vector3();
+  const vc = new THREE.Vector3();
+  const wa = new THREE.Vector3();
+  const wb = new THREE.Vector3();
+  const wc = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const cross = new THREE.Vector3();
+  const normal = new THREE.Vector3();
+  const tint = new THREE.Color();
+  const faceTint = new THREE.Color();
+
+  for (let f = 0; f < faces; f++) {
+    const i0 = index ? index.getX(f * 3) : f * 3;
+    const i1 = index ? index.getX(f * 3 + 1) : f * 3 + 1;
+    const i2 = index ? index.getX(f * 3 + 2) : f * 3 + 2;
+
+    const typeIndex = painted ? Math.round(painted.getX(i0)) : statedIndex;
+    if (typeIndex <= 0) continue;
+    const spec: CoverType = COVER_TYPES[COVER_ORDER[typeIndex]];
+    if (!spec || (!spec.blades && !spec.props)) continue;
+
+    va.fromBufferAttribute(position, i0);
+    vb.fromBufferAttribute(position, i1);
+    vc.fromBufferAttribute(position, i2);
+    wa.copy(va).applyMatrix4(toWorld);
+    wb.copy(vb).applyMatrix4(toWorld);
+    wc.copy(vc).applyMatrix4(toWorld);
+
+    ab.subVectors(wb, wa);
+    ac.subVectors(wc, wa);
+    const area = cross.crossVectors(ab, ac).length() / 2;
+    if (area <= 0) continue;
+
+    // Object-space face normal, for the shader's lighting.
+    ab.subVectors(vb, va);
+    ac.subVectors(vc, va);
+    normal.crossVectors(ab, ac).normalize();
+    if (normal.y < 0) normal.negate();
+
+    if (colors) faceTint.setRGB(colors.getX(i0), colors.getY(i0), colors.getZ(i0));
+    else faceTint.setRGB(1, 1, 1);
+
+    // Per-corner feather and the two broad fields.
+    let f0 = 1;
+    let f1 = 1;
+    let f2 = 1;
+    let s0: number;
+    let s1: number;
+    let s2: number;
+    let k0: number;
+    let k1: number;
+    let k2: number;
+    if (painted) {
+      f0 = painted.getY(i0);
+      f1 = painted.getY(i1);
+      f2 = painted.getY(i2);
+      s0 = painted.getZ(i0);
+      s1 = painted.getZ(i1);
+      s2 = painted.getZ(i2);
+      k0 = painted.getW(i0);
+      k1 = painted.getW(i1);
+      k2 = painted.getW(i2);
+    } else {
+      s0 = coverSwell(wa.x, wa.z);
+      s1 = coverSwell(wb.x, wb.z);
+      s2 = coverSwell(wc.x, wc.z);
+      k0 = coverThickness(wa.x, wa.z);
+      k1 = coverThickness(wb.x, wb.z);
+      k2 = coverThickness(wc.x, wc.z);
+    }
+
+    const blades = spec.blades;
+    if (blades) {
+      const n = Math.floor(area * blades.density + hat(f, 0, 17));
+      for (let i = 0; i < n; i++) {
+        let r1 = hat(f, i, 29);
+        let r2 = hat(f, i, 31);
+        if (r1 + r2 > 1) {
+          r1 = 1 - r1;
+          r2 = 1 - r2;
+        }
+        const w0 = 1 - r1 - r2;
+
+        const feather = f0 * w0 + f1 * r1 + f2 * r2;
+        const thick = k0 * w0 + k1 * r1 + k2 * r2;
+        const keep = Math.min(1, feather * (0.4 + 1.2 * thick));
+        if (hat(f, i, 37) >= keep) continue;
+
+        const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
+        const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
+        const cx = Math.floor(wx / CLUMP);
+        const cz = Math.floor(wz / CLUMP);
+        const clumpTall = 0.7 + 0.6 * hat(cx, cz, 3);
+        const clumpYaw = hat(cx, cz, 5) * Math.PI * 2;
+        const clumpShade = 0.9 + 0.2 * hat(cx, cz, 7);
+
+        const swell = s0 * w0 + s1 * r1 + s2 * r2;
+        const h1 = hat(f, i, 41);
+        const h2 = hat(f, i, 43);
+        const h3 = hat(f, i, 47);
+        const h4 = hat(f, i, 53);
+        const length = blades.length * (0.65 + 0.7 * swell) * clumpTall * (0.85 + 0.3 * h1);
+        sample.maxLen = Math.max(sample.maxLen, length);
+
+        tint.set(blades.tint).lerp(faceTint, 0.25);
+        const shade = clumpShade * (0.92 + 0.16 * h2);
+
+        const key = `${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
+        let chunk = sample.blades.get(key);
+        if (!chunk) {
+          chunk = { place: [], shape: [], tint: [], wild: [], normal: [] };
+          sample.blades.set(key, chunk);
+        }
+        chunk.place.push(
+          va.x * w0 + vb.x * r1 + vc.x * r2,
+          va.y * w0 + vb.y * r1 + vc.y * r2,
+          va.z * w0 + vb.z * r1 + vc.z * r2,
+          clumpYaw + (h3 - 0.5) * 2.6,
+        );
+        chunk.shape.push(length, blades.width * (0.85 + 0.3 * h2), blades.sprawl * (0.25 + 0.75 * h4), 0);
+        chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
+        chunk.wild.push(h1 * 6.2831, h4 * 31, blades.give, 0);
+        chunk.normal.push(normal.x, normal.y, normal.z);
+        sample.bladeCount++;
+      }
+    }
+
+    const props = spec.props;
+    if (props) {
+      const n = Math.floor(area * props.density + hat(f, 0, 71));
+      for (let i = 0; i < n; i++) {
+        let r1 = hat(f, i, 73);
+        let r2 = hat(f, i, 79);
+        if (r1 + r2 > 1) {
+          r1 = 1 - r1;
+          r2 = 1 - r2;
+        }
+        const w0 = 1 - r1 - r2;
+        const feather = f0 * w0 + f1 * r1 + f2 * r2;
+        if (hat(f, i, 83) >= feather) continue;
+
+        const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
+        const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
+        const h1 = hat(f, i, 89);
+        const h2 = hat(f, i, 97);
+        const h3 = hat(f, i, 101);
+
+        if (props.kind === 'bloom') {
+          tint.set(BLOOM_TINTS[Math.floor(h3 * BLOOM_TINTS.length) % BLOOM_TINTS.length]);
+        } else {
+          tint.set(props.tint);
+        }
+        const shade = 0.9 + 0.2 * hat(f, i, 103);
+
+        const key = `${props.kind}:${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
+        let chunk = sample.props.get(key);
+        if (!chunk) {
+          chunk = { kind: props.kind, place: [], prop: [], tint: [] };
+          sample.props.set(key, chunk);
+        }
+        chunk.place.push(
+          va.x * w0 + vb.x * r1 + vc.x * r2,
+          va.y * w0 + vb.y * r1 + vc.y * r2,
+          va.z * w0 + vb.z * r1 + vc.z * r2,
+          h2 * Math.PI * 2,
+        );
+        chunk.prop.push(
+          props.scale * (0.8 + 0.4 * h1),
+          0.8 + 0.9 * h3,
+          h3,
+          props.kind === 'plume' ? 1 : 0.25,
+        );
+        chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
+        sample.propCount++;
+      }
+    }
+  }
+
+  return sample;
+}
+
+// --- the meshes --------------------------------------------------------------
+
+/**
+ * Every cover mesh currently standing, so the toggle and the density fraction
+ * can reach them. Pruned on geometry disposal, which `Zone.dispose` does.
  */
 const live = new Set<THREE.Mesh>();
 
-/**
- * The live shell count, which the uniform cannot hold on its own: it divides,
- * so it is floored at one, and zero has to stay tellable from one.
- */
-let shellCount = 8;
+let drawOn = true;
+let drawDensity = 1;
+
+function refreshDraw(mesh: THREE.Mesh): void {
+  const full = mesh.userData.coverFull as number;
+  const count = Math.round(full * drawDensity);
+  mesh.visible = drawOn && count > 0;
+  (mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = count;
+}
 
 /**
- * Sets what the cover is drawn at. Free at runtime: a count and two uniforms.
+ * Sets what the cover is drawn at. Free at runtime: a flag, an instance count
+ * and two uniforms. Off skips every draw outright.
  *
- * Zero shells means the draw is skipped outright rather than made invisible —
- * the slider's bottom end has to cost nothing, or it is not an option.
+ * `density` thins by drawing a prefix of each chunk's instances — they are
+ * shuffled at build, so a prefix is an even scatter rather than a region.
  */
-export function setCoverDraw(shells: number, height: number, density: number): void {
-  shellCount = Math.max(0, Math.min(Math.round(shells), MAX_SHELLS));
-  coverUniforms.coverShells.value = Math.max(shellCount, 1);
+export function setCoverDraw(on: boolean, density: number, height: number, width: number): void {
+  drawOn = on;
+  drawDensity = Math.min(Math.max(density, 0), 1);
   coverUniforms.coverHeight.value = height;
-  coverUniforms.coverDensity.value = density;
+  coverUniforms.coverWidth.value = width;
+  for (const mesh of live) refreshDraw(mesh);
+}
 
-  for (const mesh of live) {
-    mesh.visible = shellCount > 0;
-    (mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = shellCount;
+/**
+ * Per frame: the width clamp's pixel size, the tread sphere, and the plume
+ * backlight. Cheap — four uniforms.
+ *
+ * `artHeight` is the render height in chunky pixels; with the camera's
+ * projection it gives the world size of one art pixel at unit depth, which is
+ * the floor no blade projects under.
+ */
+export function updateCover(
+  camera: THREE.PerspectiveCamera,
+  artHeight: number,
+  player: THREE.Vector3,
+  sun?: THREE.DirectionalLight | null,
+): void {
+  coverUniforms.coverPixel.value = 2 / (camera.projectionMatrix.elements[5] * Math.max(artHeight, 1));
+  coverUniforms.coverPlayer.value.copy(player);
+  const glow = coverUniforms.coverGlow.value;
+  if (sun) {
+    const dir = coverUniforms.coverSunDir.value;
+    dir.copy(sun.position).normalize();
+    // Strongest with the sun low — the golden-hour shot — but never quite
+    // gone, so a plume field always has a bright side.
+    const low = 0.15 + 0.85 * Math.max(0, 1 - Math.abs(dir.y) / 0.5) ** 2;
+    glow.copy(sun.color).multiplyScalar(sun.intensity * 0.5 * low);
+  } else {
+    glow.setRGB(0, 0, 0);
   }
+}
+
+/** Deterministic shuffle, so thinning by prefix stays an even scatter. */
+function shuffledOrder(count: number, seed: number): Uint32Array {
+  const order = new Uint32Array(count);
+  for (let i = 0; i < count; i++) order[i] = i;
+  let s = (seed * 4294967296) | 0;
+  for (let i = count - 1; i > 0; i--) {
+    s = (Math.imul(s ^ (s >>> 15), 0x85ebca6b) + 0x6d2b79f5) | 0;
+    const j = (s >>> 0) % (i + 1);
+    const swap = order[i];
+    order[i] = order[j];
+    order[j] = swap;
+  }
+  return order;
+}
+
+function gather(src: number[], order: Uint32Array, stride: number): Float32Array {
+  const out = new Float32Array(src.length);
+  for (let i = 0; i < order.length; i++) {
+    for (let k = 0; k < stride; k++) out[i * stride + k] = src[order[i] * stride + k];
+  }
+  return out;
+}
+
+function chunkMesh(
+  base: THREE.BufferGeometry,
+  material: THREE.Material,
+  name: string,
+  count: number,
+  margin: number,
+  place: Float32Array,
+  attributes: Record<string, [Float32Array, number]>,
+): THREE.Mesh {
+  const geometry = new THREE.InstancedBufferGeometry();
+  geometry.index = base.index;
+  for (const [attr, attribute] of Object.entries(base.attributes)) {
+    geometry.setAttribute(attr, attribute);
+  }
+  geometry.setAttribute('iPlace', new THREE.InstancedBufferAttribute(place, 4));
+  for (const [attr, [data, size]] of Object.entries(attributes)) {
+    geometry.setAttribute(attr, new THREE.InstancedBufferAttribute(data, size));
+  }
+  geometry.instanceCount = count;
+
+  // A sphere over the chunk's roots, opened by the tallest thing in it.
+  const box = new THREE.Box3();
+  const at = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    box.expandByPoint(at.set(place[i * 4], place[i * 4 + 1], place[i * 4 + 2]));
+  }
+  const sphere = new THREE.Sphere();
+  box.getBoundingSphere(sphere);
+  sphere.radius += margin;
+  geometry.boundingSphere = sphere;
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = name;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.userData.coverFull = count;
+
+  live.add(mesh);
+  geometry.addEventListener('dispose', () => live.delete(mesh));
+  refreshDraw(mesh);
+  return mesh;
 }
 
 /**
  * Cover for a ground mesh, or null if it grows nothing.
  *
- * Given any mesh: terrain, a flat floor, an ad-hoc slab in a debug zone. The
- * geometry is *shared*, not copied — the instanced wrapper carries the ground's
- * own attribute buffers plus sixteen floats of shell index, so a field of grass
- * costs one draw call and no memory.
- *
- * A mesh with no `cover` attribute grows nothing unless it says otherwise, via
- * `userData.cover` or `type` here. That is what keeps gallery floors bare.
+ * Given any mesh: terrain, a flat floor, an ad-hoc slab in a debug zone. A
+ * mesh with no `cover` attribute grows nothing unless it says otherwise, via
+ * `userData.cover` or `type` here — which is what keeps gallery floors bare.
+ * Returned as a group of chunk meshes, so the frustum can drop the parts of a
+ * field behind the camera.
  */
-export function coverFor(ground: THREE.Mesh, type?: CoverName): THREE.Mesh | null {
-  const source = ground.geometry;
-  const painted = source.getAttribute(COVER_ATTRIBUTE);
-  const uniform = type ?? (ground.userData.cover as CoverName | undefined);
-  if (!painted && (!uniform || uniform === 'none')) return null;
+export function coverFor(ground: THREE.Mesh, type?: CoverName): THREE.Object3D | null {
+  const sample = sampleCover(ground, type);
+  if (!sample || (sample.bladeCount === 0 && sample.propCount === 0)) return null;
 
-  const geometry = new THREE.InstancedBufferGeometry();
-  geometry.index = source.index;
-  for (const [name, attribute] of Object.entries(source.attributes)) {
-    geometry.setAttribute(name, attribute);
-  }
-  geometry.groups = source.groups;
+  const group = new THREE.Group();
+  group.name = 'cover';
 
-  if (!painted) {
-    // For a mesh the terrain did not build: one type everywhere, no boundary to
-    // feather against, and the broad fields sampled from its own world position
-    // so a slab in a debug zone still sweeps like the ground next to it.
-    const index = COVER_ORDER.indexOf(uniform as CoverName);
-    const position = source.getAttribute('position');
-    const constant = new Float32Array(position.count * 4);
-    ground.updateWorldMatrix(true, false);
-    const at = new THREE.Vector3();
-    for (let i = 0; i < position.count; i++) {
-      at.fromBufferAttribute(position, i).applyMatrix4(ground.matrixWorld);
-      constant.set([index, 1, coverSwell(at.x, at.z), coverThickness(at.x, at.z)], i * 4);
-    }
-    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.BufferAttribute(constant, 4));
-  }
-
-  const shells = new Float32Array(MAX_SHELLS);
-  for (let i = 0; i < MAX_SHELLS; i++) shells[i] = i;
-  geometry.setAttribute(SHELL_ATTRIBUTE, new THREE.InstancedBufferAttribute(shells, 1));
-  geometry.instanceCount = shellCount;
-
-  // The ground's sphere, opened by the deepest cover any setting can ask for.
-  // Culled on the ground's own extent, a hillside would drop its grass a frame
-  // before it dropped itself.
-  source.computeBoundingSphere();
-  if (source.boundingSphere) {
-    geometry.boundingSphere = source.boundingSphere.clone();
-    geometry.boundingSphere.radius += MAX_RISE;
+  let seed = 0;
+  for (const chunk of sample.blades.values()) {
+    const count = chunk.place.length / 4;
+    const order = shuffledOrder(count, hat(seed++, count, 7));
+    group.add(
+      chunkMesh(
+        BLADE_GEOMETRY,
+        COVER_MATERIAL,
+        'cover-blades',
+        count,
+        sample.maxLen * 2 + 0.5,
+        gather(chunk.place, order, 4),
+        {
+          iShape: [gather(chunk.shape, order, 4), 4],
+          iTint: [gather(chunk.tint, order, 3), 3],
+          iWild: [gather(chunk.wild, order, 4), 4],
+          iNormal: [gather(chunk.normal, order, 3), 3],
+        },
+      ),
+    );
   }
 
-  const mesh = new THREE.Mesh(geometry, COVER_MATERIAL);
-  mesh.name = 'cover';
-  // A child of the ground, so it inherits the transform and cannot drift off
-  // it. Added after the zone manager has decided shadows, and never marked
-  // collidable — cover is something you walk through.
-  mesh.castShadow = false;
-  mesh.receiveShadow = true;
-  // After the ground, which it does not write depth against. See the material.
-  mesh.renderOrder = 1;
-  mesh.visible = shellCount > 0;
+  for (const chunk of sample.props.values()) {
+    const base = (propGeometry[chunk.kind] ??= PROP_GEOMETRY[chunk.kind]());
+    const count = chunk.place.length / 4;
+    const order = shuffledOrder(count, hat(seed++, count, 11));
+    group.add(
+      chunkMesh(base, TUFT_MATERIAL, `cover-${chunk.kind}`, count, 3, gather(chunk.place, order, 4), {
+        iProp: [gather(chunk.prop, order, 4), 4],
+        iTintP: [gather(chunk.tint, order, 3), 3],
+      }),
+    );
+  }
 
-  live.add(mesh);
-  geometry.addEventListener('dispose', () => live.delete(mesh));
-  return mesh;
+  return group;
+}
+
+/** Headless count of what a mesh would grow, for the world check's budget. */
+export function coverCensus(
+  ground: THREE.Mesh,
+  type?: CoverName,
+): { blades: number; props: number } {
+  const sample = sampleCover(ground, type);
+  return { blades: sample?.bladeCount ?? 0, props: sample?.propCount ?? 0 };
 }

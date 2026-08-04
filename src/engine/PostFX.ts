@@ -14,7 +14,7 @@ import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL } from '../art/glow';
-import { COVER_MATERIAL, setCoverDraw } from '../art/cover';
+import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
 import type { Viewport } from './Viewport';
 
 /**
@@ -114,14 +114,12 @@ export interface RenderSettings {
   water: { waves: number; reflections: boolean };
 
   /**
-   * Groundcover (GROUNDCOVER.md). The shape of it, which the player's slider
-   * does not touch — that moves `density` alone.
+   * Groundcover (GROUNDCOVER.md). Tuning multipliers over the type table.
    *
-   * `shells` is the whole vertex cost. `height` is the metres they span, so the
-   * two together fix the spacing, which has to stay at or under a blade's own
-   * width. `density` is what each cover type's own figure is multiplied by.
+   * `density` is the fraction of sampled blades drawn, 0..1 — the cost knob.
+   * `height` and `width` scale every blade live, no rebuild.
    */
-  cover: { shells: number; height: number; density: number };
+  cover: { density: number; height: number; width: number };
 
   vignetteStrength: number;
   vignetteRadius: number;
@@ -183,11 +181,9 @@ export const DEFAULT_RENDER: RenderSettings = {
   // beside, and this is the multiplier for asking what half of that looks like.
   water: { waves: 1, reflections: true },
 
-  // Sixteen shells over 18 cm, so they sit 1.13 cm apart — at or under a
-  // blade's own width, or the cross-sections read as beads rather than as one
-  // blade. The swell field takes that between half and half again, and a
-  // tussock multiplies it by another 1.5.
-  cover: { shells: 16, height: 0.18, density: 1 },
+  // Unity: the type table in world/ground.ts is authored in real metres and
+  // real blades per square metre, and these only bend it for tuning.
+  cover: { density: 1, height: 1, width: 1 },
 
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
@@ -204,11 +200,6 @@ export const DEFAULT_RENDER: RenderSettings = {
 };
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
-
-/** The slider as a fraction of the tuned density. 100 is all of it. */
-function coverScale(slider: number): number {
-  return Math.min(Math.max(slider, 0), 100) / 100;
-}
 
 /**
  * The part of the look that belongs to a *place* rather than to the game.
@@ -278,8 +269,8 @@ export class PostFX {
   private glow = true;
   /** The accessibility switch, not a look setting. See `setWaterMotion`. */
   private waves = true;
-  /** The player's groundcover slider, 0–100. See `setGroundcover`. */
-  private groundcover = 60;
+  /** The player's groundcover toggle. See `setGroundcover`. */
+  private groundcover = true;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
 
@@ -296,7 +287,12 @@ export class PostFX {
       ao: { ...DEFAULT_RENDER.ao, ...saved.ao },
       bloom: { ...DEFAULT_RENDER.bloom, ...saved.bloom },
       water: { ...DEFAULT_RENDER.water, ...saved.water },
-      cover: { ...DEFAULT_RENDER.cover, ...saved.cover },
+      // A preset saved by the shell-era cover stored different keys with
+      // different units; carrying them over would misread badly.
+      cover:
+        saved.cover && !('shells' in saved.cover)
+          ? { ...DEFAULT_RENDER.cover, ...saved.cover }
+          : { ...DEFAULT_RENDER.cover },
     };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
@@ -474,15 +470,11 @@ export class PostFX {
   }
 
   /**
-   * How much groundcover, 0–100, without disturbing its tuning.
-   *
-   * A quantity of world content rather than a quality ladder, which is the one
-   * exception to SHADERS.md's rule about honest switches. Moves density only:
-   * how tall the grass is and how many layers it takes is a look, not a
-   * preference. Zero skips the draw, and is the one setting that costs less.
+   * Groundcover on or off — one honest switch, per SHADERS.md's rule.
+   * Off skips every cover draw outright.
    */
-  setGroundcover(value: number): void {
-    this.groundcover = Math.min(Math.max(value, 0), 100);
+  setGroundcover(enabled: boolean): void {
+    this.groundcover = enabled;
     this.apply();
   }
 
@@ -540,11 +532,7 @@ export class PostFX {
     this.bloom.strength = s.bloom.strength;
     this.bloom.radius = s.bloom.radius;
 
-    // Groundcover, layered over its tuning the same way. The slider moves
-    // density and leaves the shape alone — height and shell count are a look,
-    // and belong to the tuning rather than to the player.
-    const cover = coverScale(this.groundcover);
-    setCoverDraw(cover > 0 ? s.cover.shells : 0, s.cover.height, s.cover.density * cover);
+    setCoverDraw(this.groundcover, s.cover.density, s.cover.height, s.cover.width);
 
     const u = this.retroPass.uniforms;
     u.uPixelSize.value = devicePixels;
@@ -599,13 +587,14 @@ export class PostFX {
    *   in it is opaque — so a street lamp's flame came back with a hard outline
    *   drawn round its silhouette, reading as a small solid object hanging in
    *   the lantern rather than as something burning.
-   * - **Cover.** A shell is the ground translated in Y, so its normal *is* the
-   *   ground's and the buffer reads the same either way. Excluding it only
-   *   avoids paying twice.
+   * - **Cover.** The blade and tuft construction lives in the cover materials'
+   *   own vertex shaders, so an override material would draw every instance as
+   *   an untransformed sliver at its mesh's origin. And a blade is shaded by
+   *   the *ground's* normal, so the buffer already says the right thing.
    *
    * Three tests `material.visible` while it is building the render list, and
-   * `scene.onBeforeRender` fires just before that happens. Both are one shared
-   * material, so two flags drop all of them, and `overrideMaterial` being set
+   * `scene.onBeforeRender` fires just before that happens. Each is one shared
+   * material, so three flags drop all of them, and `overrideMaterial` being set
    * is what identifies the pass.
    */
   private hideGlowFromEdges(scene: THREE.Scene): void {
@@ -613,7 +602,13 @@ export class PostFX {
       const colourPass = (rendered as THREE.Scene).overrideMaterial === null;
       GLOW_MATERIAL.visible = colourPass;
       COVER_MATERIAL.visible = colourPass;
+      TUFT_MATERIAL.visible = colourPass;
     };
+  }
+
+  /** Render height in chunky pixels, for the groundcover width clamp. */
+  get artHeight(): number {
+    return this.pixelStage.renderHeight;
   }
 
   render(elapsed: number): void {

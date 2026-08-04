@@ -27,6 +27,7 @@ import { STAGE_STATIONS } from './debug/SoundStage';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
+import { updateCover } from './art/cover';
 import { installReloadBanner } from './debug/HotReload';
 import { attachFaustPanel } from './debug/FaustPanel';
 import type { FrictionModel } from './audio/models/friction';
@@ -287,18 +288,13 @@ if (dev.gui) {
     .name('screen-space reflections')
     .onChange(refresh);
 
-  // The player's slider moves density alone. Shape is tuned here, and shells
-  // has to be judged against height: their ratio is the shell spacing, which
-  // must stay at or under a blade's own width.
+  // The player has one toggle; the shape is tuned here, as multipliers over
+  // the type table in world/ground.ts, which is authored in real units.
   const cover = dev.gui.addFolder('groundcover');
-  cover
-    .add(options, 'groundcover', 0, 100, 5)
-    .name('player slider')
-    .listen()
-    .onChange(settings.commit);
-  cover.add(r.cover, 'shells', 0, 48, 1).onChange(refresh);
-  cover.add(r.cover, 'height', 0, 0.6, 0.005).name('height (m)').onChange(refresh);
-  cover.add(r.cover, 'density', 0, 2, 0.05).onChange(refresh);
+  cover.add(options, 'groundcover').name('player toggle').listen().onChange(settings.commit);
+  cover.add(r.cover, 'density', 0, 1, 0.05).name('fraction drawn').onChange(refresh);
+  cover.add(r.cover, 'height', 0.25, 2, 0.05).onChange(refresh);
+  cover.add(r.cover, 'width', 0.25, 3, 0.05).onChange(refresh);
 
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
@@ -722,6 +718,9 @@ loop.add((dt, elapsed) => {
   // rustle answered the next, which is a whole frame of drift between a sight
   // and a sound that are meant to be one event.
   updateWind(audio.weather, elapsed);
+  // After the wind, for the same reason: the cover reads the gust field the
+  // trees just took. This ships the width clamp, the tread and the backlight.
+  updateCover(viewport.camera, postfx.artHeight, player.position, zones.lights.sun);
 
   // **The hand-driven room switching is gone with the rooms.** The proving
   // ground used to contain a two-room stone building that was not a zone, so

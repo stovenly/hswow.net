@@ -68,19 +68,15 @@ export interface Options {
   grassShadows: boolean;
   shadows: boolean;
   /**
-   * How much groundcover, 0–100. The one quantity option in this menu.
+   * Groundcover on or off — an honest switch by SHADERS.md's rule, and the one
+   * graphics option here whose cost is vertex count rather than a pass.
    *
-   * SHADERS.md's rule is that a player option is an honest switch rather than a
-   * quality ladder, and this is the stated exception: cover is world *content*,
-   * nearer in kind to field of view than to bloom. It moves how thickly the
-   * cover stands and leaves its shape alone — see `PostFX.setGroundcover`.
-   *
-   * Not "grass density": `grassShadows` above refers to the `CLUTTER` props,
-   * which are a different grass, and two adjacent rows both saying grass would
-   * be a support question waiting to happen. The two never interact — shell
-   * cover does not cast at all.
+   * Not "grass": `grassShadows` above refers to the `CLUTTER` props, which are
+   * a different grass, and two adjacent rows both saying grass would be a
+   * support question waiting to happen. The two never interact — cover does
+   * not cast shadows at all.
    */
-  groundcover: number;
+  groundcover: boolean;
   /**
    * Frames per second, or `uncapped`.
    *
@@ -142,7 +138,7 @@ export const DEFAULT_OPTIONS: Options = {
   bloom: true,
   grassShadows: false,
   shadows: true,
-  groundcover: 60,
+  groundcover: true,
   fpsCap: 'uncapped',
   performance: 'off',
 
@@ -327,15 +323,11 @@ export const CATEGORIES: readonly Category[] = [
         note: (options) => (options.shadows ? null : 'needs shadows'),
       },
       {
-        kind: 'slider',
+        kind: 'toggle',
         key: 'groundcover',
         label: 'groundcover',
-        min: 0,
-        max: 100,
-        step: 5,
-        format: percent,
         note: (options) =>
-          options.groundcover <= 0 ? 'off — bare ground' : 'how thick the grass and moss stand',
+          options.groundcover ? 'grass, moss and everything underfoot' : 'off — bare ground',
       },
       {
         kind: 'choice',
