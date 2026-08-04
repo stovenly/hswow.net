@@ -184,10 +184,10 @@ export const DEFAULT_RENDER: RenderSettings = {
   // beside, and this is the multiplier for asking what half of that looks like.
   water: { waves: 1, reflections: true },
 
-  // Eight shells over 12.6 cm: a shade under 1.6 cm apart, which is the spacing
-  // every other setting of the slider holds. Density 1 means each cover type
-  // gets exactly what its own table asks for.
-  cover: { shells: 8, height: 0.126, density: 1 },
+  // Twelve shells over 12.6 cm, so they sit 1.05 cm apart — at or under a
+  // blade's own width, or the cross-sections read as beads rather than as one
+  // blade. Density 1 gives each cover type what its own table asks for.
+  cover: { shells: 12, height: 0.126, density: 1 },
 
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
@@ -205,13 +205,7 @@ export const DEFAULT_RENDER: RenderSettings = {
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
 
-/**
- * How deep the cover is, in metres, for a 0–100 slider.
- *
- * 30 is a close-cropped fuzz at 7 cm, 60 is ordinary turf at 12.6, and 100 is
- * deep and unmown at 22. Bent slightly upward at the top so the deep end is
- * worth having; below that it is near enough a straight line.
- */
+/** Cover depth in metres for a 0–100 slider: 30 is 7 cm, 60 is 12.6, 100 is 22. */
 function coverHeightFor(slider: number): number {
   const u = Math.min(Math.max(slider, 0), 100) / 100;
   return 0.02 + 0.14 * u + 0.06 * u * u;
@@ -491,15 +485,10 @@ export class PostFX {
   /**
    * How much groundcover, 0–100, without disturbing its tuning.
    *
-   * **A quantity of world content, not a quality ladder** — the one place this
-   * project's rule about honest switches has an exception, and GROUNDCOVER.md
-   * says why: density in a shell system is nearly free, so a slider that moved
-   * it would visibly thin the grass and move the frame rate by almost nothing.
-   * What costs is shell *count*. So this sets height, holds the spacing the
-   * tuning fixes, and lets the count fall out — which makes every setting a
-   * legitimate look (mown versus unmown) and the cost linear in the number.
-   *
-   * Zero skips the draw outright. See `art/cover.ts`.
+   * A quantity of world content rather than a quality ladder, which is the one
+   * exception to SHADERS.md's rule about honest switches. Sets height and holds
+   * the spacing, so the shell count — the whole cost — falls out of it. Zero
+   * skips the draw.
    */
   setGroundcover(value: number): void {
     this.groundcover = Math.min(Math.max(value, 0), 100);
@@ -560,10 +549,9 @@ export class PostFX {
     this.bloom.strength = s.bloom.strength;
     this.bloom.radius = s.bloom.radius;
 
-    // Groundcover, layered over its tuning the same way. The slider is one
-    // number and the tuning is three, so it arrives as a scale on all of them —
-    // which is what holds the shell spacing constant while the height moves.
-    // Density rides along as a passenger: taller cover is also a little thicker.
+    // Groundcover, layered over its tuning the same way. One slider against
+    // three numbers, so it arrives as a scale on all of them — which is what
+    // holds the shell spacing while the height moves.
     const cover = coverScale(this.groundcover);
     setCoverDraw(
       s.cover.shells * cover,
@@ -624,17 +612,14 @@ export class PostFX {
    *   in it is opaque — so a street lamp's flame came back with a hard outline
    *   drawn round its silhouette, reading as a small solid object hanging in
    *   the lantern rather than as something burning.
-   * - **Cover.** A shell is the ground geometry translated in Y, so its normal
-   *   *is* the ground's: the normal buffer at a grass pixel reads the same
-   *   whether the shell was drawn or not. Excluding it changes nothing except
-   *   that we do not pay for it twice. See GROUNDCOVER.md.
+   * - **Cover.** A shell is the ground translated in Y, so its normal *is* the
+   *   ground's and the buffer reads the same either way. Excluding it only
+   *   avoids paying twice.
    *
    * Three tests `material.visible` while it is building the render list, and
-   * `scene.onBeforeRender` fires just before that happens. Both of these are one
-   * shared material — exactly as the art kit shares one `ART_MATERIAL` — so
-   * switching two flags drops all of them, and `overrideMaterial` being set is
-   * what identifies the pass. No copy of three's render loop to keep in step
-   * with upstream.
+   * `scene.onBeforeRender` fires just before that happens. Both are one shared
+   * material, so two flags drop all of them, and `overrideMaterial` being set
+   * is what identifies the pass.
    */
   private hideGlowFromEdges(scene: THREE.Scene): void {
     scene.onBeforeRender = (_renderer, rendered) => {
