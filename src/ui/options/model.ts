@@ -11,9 +11,9 @@ import { fontNote } from './font';
  * **This file knows nothing about how any of it is applied.** It holds the
  * values, their ranges and the rules between them; `apply.ts` pushes them into
  * the engine and `menu.ts` draws them. Splitting it that way is what lets a
- * dependency — grass shadows under shadows, three motion effects under reduced
- * motion — be stated once, as data, instead of being re-derived in the menu, in
- * the apply step and in the debug panel.
+ * dependency — the four motion effects under reduced motion, the correction
+ * strength under the correction — be stated once, as data, instead of being
+ * re-derived in the menu, in the apply step and in the debug panel.
  *
  * Values are stored in the units the *player* sees, not the ones the engine
  * wants: volumes are percentages, sensitivity is 0–10, field of view is
@@ -60,28 +60,20 @@ export interface Options {
    * goes.
    */
   bloom: boolean;
-  /**
-   * Off by default. Grass is most of the object count in an outdoor zone and
-   * almost none of the picture — see `art/clutter.ts` — so this is the one
-   * graphics option here that buys back real frame time, and the one somebody
-   * with headroom will want to turn on.
-   */
-  grassShadows: boolean;
   shadows: boolean;
   /**
-   * Groundcover on or off — an honest switch by SHADERS.md's rule, and the one
-   * graphics option here whose cost is vertex count rather than a pass.
+   * How much of the sampled field is drawn, `off` included — the one graphics
+   * option here whose cost is vertex count rather than a pass.
    *
-   * Not "grass": `grassShadows` above refers to the `CLUTTER` props, which are
-   * a different grass, and two adjacent rows both saying grass would be a
-   * support question waiting to happen. The two never interact — cover does
-   * not cast shadows at all.
-   */
-  groundcover: boolean;
-  /**
-   * How much of the sampled field is drawn. The type table is authored at
-   * ultra; every tier below draws a prefix of the same shuffled pool, so the
-   * scatter stays even and switching tiers is free.
+   * The type table is authored at ultra; every tier below draws a prefix of the
+   * same shuffled pool, so the scatter stays even and switching tiers is free.
+   * Off is the end of that scale rather than a switch above it, because a
+   * remembered tier under a switch that says no is two things to reason about
+   * for one thing on screen.
+   *
+   * Called groundcover, not grass: it is the field itself, and the `CLUTTER`
+   * props are a different grass — see `art/clutter.ts`. The two never interact;
+   * neither casts a shadow.
    */
   groundcoverDensity: CoverDensity;
   /**
@@ -143,9 +135,7 @@ export const DEFAULT_OPTIONS: Options = {
   pixelation: true,
   ambientOcclusion: true,
   bloom: true,
-  grassShadows: false,
   shadows: true,
-  groundcover: true,
   groundcoverDensity: 'high',
   fpsCap: 'uncapped',
   performance: 'off',
@@ -183,7 +173,6 @@ export function effective(options: Options): Options {
   const motion = !options.reducedMotion;
   return {
     ...options,
-    grassShadows: options.grassShadows && options.shadows,
     windSway: options.windSway && motion,
     waterMotion: options.waterMotion && motion,
     headBob: options.headBob && motion,
@@ -324,39 +313,24 @@ export const CATEGORIES: readonly Category[] = [
       { kind: 'toggle', key: 'bloom', label: 'bloom' },
       { kind: 'toggle', key: 'shadows', label: 'shadows' },
       {
-        kind: 'toggle',
-        key: 'grassShadows',
-        label: 'grass shadows',
-        enabledWhen: (options) => options.shadows,
-        note: (options) => (options.shadows ? null : 'needs shadows'),
-      },
-      {
-        kind: 'toggle',
-        key: 'groundcover',
-        label: 'groundcover',
-        note: (options) =>
-          options.groundcover ? 'grass, moss, and everything underfoot' : 'off — bare ground',
-      },
-      {
         kind: 'choice',
         key: 'groundcoverDensity',
-        label: 'groundcover density',
-        enabledWhen: (options) => options.groundcover,
+        label: 'groundcover',
         choices: [
+          { value: 'off', label: 'off' },
           { value: 'low', label: 'low' },
           { value: 'medium', label: 'medium' },
           { value: 'high', label: 'high' },
           { value: 'ultra', label: 'ultra' },
         ],
         note: (options) =>
-          !options.groundcover
-            ? 'needs groundcover'
-            : {
-                low: 'thin and worn',
-                medium: 'an ordinary field',
-                high: 'a thick field',
-                ultra: 'every blade there is',
-              }[options.groundcoverDensity],
+          ({
+            off: 'bare ground',
+            low: 'thin and worn',
+            medium: 'an ordinary field',
+            high: 'a thick field',
+            ultra: 'every blade there is',
+          })[options.groundcoverDensity],
       },
       {
         kind: 'choice',

@@ -98,9 +98,8 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   postfx.setAmbientOcclusion(options.ambientOcclusion);
   postfx.setBloom(options.bloom);
   postfx.setColorblind(options.colorblind, options.colorblindStrength / 100);
-  postfx.setGroundcover(options.groundcover, options.groundcoverDensity);
+  postfx.setGroundcover(options.groundcoverDensity);
   zones.setShadows(options.shadows);
-  zones.setClutterShadows(options.grassShadows);
   // `uncapped` is not a number, and anything else stored there would be, so a
   // failed parse and the deliberate case land in the same place.
   const cap = Number.parseInt(options.fpsCap, 10);
