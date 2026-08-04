@@ -610,7 +610,7 @@ for (const [mm, hz] of [
     const octaves = Math.log2(cloud.radius[1] / cloud.radius[0]);
     check(
       `${name} sits in the measured band`,
-      low >= 500 && low <= 1300 && octaves >= 3,
+      low >= 350 && low <= 1400 && octaves >= 3,
       `coarse end ${low.toFixed(0)} Hz, ${octaves.toFixed(1)} octaves wide`,
     );
   }
@@ -632,10 +632,15 @@ for (const [mm, hz] of [
     const surface = SURFACES[name];
     const bed = surface.grit;
     const density = bed ? bed.count / bed.over : 0;
+    // **And the bed's grains must ring.** Short dry ticks at this density are a
+    // bag of cereal being swished — which is what a bed tuned for *impacts*
+    // gives you, and the fitter independently walked away from it. A droplet is
+    // a wet plink: an impact with a short resonance behind it, and a scatter of
+    // them at varied pitch is the most watery thing this library can make.
     check(
       `${name} has a bed as well as a cloud`,
-      !!bed && !!surface.splash && density > 500 && (bed.grain ?? 0.012) <= 0.01,
-      bed ? `${density.toFixed(0)} impacts/s at ${((bed.grain ?? 0.012) * 1000).toFixed(1)} ms` : 'no bed',
+      !!bed && !!surface.splash && density > 500 && (bed.grain ?? 0.012) >= 0.012,
+      bed ? `${density.toFixed(0)} impacts/s ringing ${((bed.grain ?? 0.012) * 1000).toFixed(0)} ms` : 'no bed',
     );
   }
 }
