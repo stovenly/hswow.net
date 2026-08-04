@@ -70,12 +70,14 @@ interface Strip {
 const STRIPS: readonly Strip[] = [
   { name: 'bare', material: 'gravel' },
   { name: 'weeds', material: 'dirt' },
+  { name: 'heather', material: 'dirt', paint: 'heather' },
   { name: 'moss', material: 'cobble' },
   { name: 'clover', material: 'turf', paint: 'clover' },
   { name: 'stubble', material: 'crop' },
   { name: 'turf', material: 'turf' },
   { name: 'flowers', material: 'turf', paint: 'flowers' },
   { name: 'tussock', material: 'meadow' },
+  { name: 'sedge', material: 'mire', paint: 'sedge' },
   { name: 'plume', material: 'meadow', paint: 'plume' },
   { name: 'cleared', material: 'turf', paint: 'none' },
 ];

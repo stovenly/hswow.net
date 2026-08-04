@@ -48,8 +48,8 @@ const CHUNK = 24;
 const ROOT = 0.6;
 const RAMP = 0.4;
 
-/** Flower head tints, picked per instance. */
-const BLOOM_TINTS = [0xd9d3c0, 0xc9a83c, 0x9a86b8] as const;
+/** Half-width of a crop row, metres. The pitch is the type's own. */
+const ROW_BAND = 0.14;
 
 export const coverUniforms = {
   /** Global length and width multipliers, for tuning. */
@@ -217,6 +217,7 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
       attribute vec4 iPlace;   // root position, yaw
       attribute vec4 iProp;    // scale, gust lag, seed, glow
       attribute vec3 iTintP;
+      uniform vec3 coverPlayer;
       uniform sampler2D gustField;
       uniform vec2 windDir;
       uniform float windLagScale;
@@ -260,6 +261,14 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
         vec2 push = windDir * (gust * roll * fin.z * p.y * 0.3)
                   + vec2(-windDir.y, windDir.x)
                     * (sin(swayTime * 2.6 + iProp.z * 9.42) * gust * fin.z * p.y * 0.08);
+
+        // Stalks part around the player exactly as the blades under them do,
+        // bending from the base — displacement grows with height.
+        vec2 fromPlayer = worldRoot.xz - coverPlayer.xz;
+        float treadD = length(fromPlayer);
+        float tread = (1.0 - smoothstep(0.15, 0.9, treadD))
+                    * (1.0 - smoothstep(1.0, 1.8, abs(worldRoot.y - coverPlayer.y)));
+        if (tread > 0.0 && treadD > 0.001) push += (fromPlayer / treadD) * (tread * p.y * 0.55);
         p.xz += push;
 
         transformed = iPlace.xyz + coverToObject(p, c0, c1, c2, scaleSq);
@@ -294,7 +303,7 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
       // The feathery edge is a stipple, which is what this pipeline quantises
       // a soft edge into anyway.
       /* glsl */ `#include <clipping_planes_fragment>
-      if (vTuftGrain.z < 1.0 && coverHash(floor(vTuftGrain.xy * 24.0)) > vTuftGrain.z) discard;
+      if (vTuftGrain.z < 1.0 && coverHash(floor(vTuftGrain.xy * 32.0)) > vTuftGrain.z) discard;
       `,
     )
     .replace(
@@ -390,14 +399,16 @@ function tuftGeometry(sink: TuftSink): THREE.BufferGeometry {
 }
 
 /**
- * A pampas stalk: a stiff crossed-quad stem, then three fins of plume whose
- * solidity falls from the spine outward — the stipple discard turns that
- * gradient into the feathery rim.
+ * A pampas stalk: a stiff crossed-quad stem, then six fins of plume — three
+ * solid ones carrying the shape and three hazier ones between them carrying
+ * the fluff. Solidity falls from each spine outward and from base to tip, and
+ * the stipple discard turns both gradients into the feathery rim. Tips run
+ * brighter than the base, which is most of what reads as soft.
  */
 function plumeGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
   const straw = new THREE.Color(0x8a8050);
-  const plume = new THREE.Color(1, 1, 1);
+  const bright = new THREE.Color();
 
   for (const angle of [0, Math.PI / 2]) {
     const dx = Math.cos(angle);
@@ -409,9 +420,12 @@ function plumeGeometry(): THREE.BufferGeometry {
     tuftQuad(sink, b0, b1, t0, t1);
   }
 
-  const ROWS = 4;
-  for (let f = 0; f < 3; f++) {
-    const angle = (f / 3) * Math.PI * 2;
+  const ROWS = 6;
+  const SKEW = [0.12, -0.08, 0.05, 0.15, -0.12, 0.02];
+  for (let f = 0; f < 6; f++) {
+    const haze = f % 2 === 1;
+    const angle = (f / 6) * Math.PI * 2 + SKEW[f];
+    const grow = haze ? 1.18 : 1;
     const dx = Math.cos(angle);
     const dz = Math.sin(angle);
     const px = -dz;
@@ -419,42 +433,21 @@ function plumeGeometry(): THREE.BufferGeometry {
     const rows: [number, number, number][] = [];
     for (let r = 0; r <= ROWS; r++) {
       const s = r / ROWS;
-      const y = 1.42 + s * 0.6 - s * s * 0.12;
-      const reach = 0.05 + s * 0.17;
-      const halfW = 0.025 + 0.085 * Math.max(0, 1 - Math.abs(s - 0.35) / 0.65);
+      const y = 1.4 + (s * 0.66 - s * s * 0.16) * grow;
+      const reach = (0.04 + s * 0.2) * grow;
+      const halfW = (0.03 + 0.1 * Math.max(0, 1 - Math.abs(s - 0.38) / 0.62)) * grow;
       const puff = 0.55 + 0.45 * s;
+      const spine = haze ? 0.5 - 0.38 * s : 1.08 - 0.5 * s;
+      const rim = haze ? 0.12 - 0.25 * s : 0.32 - 0.42 * s;
+      bright.setScalar(0.8 + 0.2 * s);
       const left = tuftVertex(
-        sink,
-        reach * dx - halfW * px,
-        y,
-        reach * dz - halfW * pz,
-        plume,
-        f * 1.7,
-        s,
-        puff,
-        0.3 - 0.45 * s,
+        sink, reach * dx - halfW * px, y, reach * dz - halfW * pz,
+        bright, f * 1.7, s, puff, rim,
       );
-      const mid = tuftVertex(
-        sink,
-        reach * dx,
-        y,
-        reach * dz,
-        plume,
-        f * 1.7 + 0.5,
-        s,
-        puff,
-        1.05 - 0.5 * s,
-      );
+      const mid = tuftVertex(sink, reach * dx, y, reach * dz, bright, f * 1.7 + 0.5, s, puff, spine);
       const right = tuftVertex(
-        sink,
-        reach * dx + halfW * px,
-        y,
-        reach * dz + halfW * pz,
-        plume,
-        f * 1.7 + 1,
-        s,
-        puff,
-        0.3 - 0.45 * s,
+        sink, reach * dx + halfW * px, y, reach * dz + halfW * pz,
+        bright, f * 1.7 + 1, s, puff, rim,
       );
       rows.push([left, mid, right]);
     }
@@ -464,6 +457,42 @@ function plumeGeometry(): THREE.BufferGeometry {
       tuftQuad(sink, a0, a1, b0, b1);
       tuftQuad(sink, a1, a2, b1, b2);
     }
+  }
+
+  return tuftGeometry(sink);
+}
+
+/**
+ * A clover stalk: a short stem and three round leaflets tilted up around its
+ * top. The instance tint carries the green; the stem is authored pale so it
+ * comes out a quieter shade of the same.
+ */
+function leafGeometry(): THREE.BufferGeometry {
+  const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
+  const stem = new THREE.Color(0.8, 0.85, 0.75);
+  const leaf = new THREE.Color(1, 1, 1);
+
+  for (const angle of [0, Math.PI / 2]) {
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const b0 = tuftVertex(sink, -0.006 * dx, 0, -0.006 * dz, stem, 0, 0, 0.15, 1);
+    const b1 = tuftVertex(sink, 0.006 * dx, 0, 0.006 * dz, stem, 1, 0, 0.15, 1);
+    const t0 = tuftVertex(sink, -0.004 * dx, 0.07, -0.004 * dz, stem, 0, 1, 0.35, 1);
+    const t1 = tuftVertex(sink, 0.004 * dx, 0.07, 0.004 * dz, stem, 1, 1, 0.35, 1);
+    tuftQuad(sink, b0, b1, t0, t1);
+  }
+
+  for (let l = 0; l < 3; l++) {
+    const angle = (l / 3) * Math.PI * 2;
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const px = -dz;
+    const pz = dx;
+    const a0 = tuftVertex(sink, 0.004 * dx - 0.013 * px, 0.066, 0.004 * dz - 0.013 * pz, leaf, 0, 0, 0.4, 1);
+    const a1 = tuftVertex(sink, 0.004 * dx + 0.013 * px, 0.066, 0.004 * dz + 0.013 * pz, leaf, 1, 0, 0.4, 1);
+    const b0 = tuftVertex(sink, 0.036 * dx - 0.016 * px, 0.08, 0.036 * dz - 0.016 * pz, leaf, 0, 1, 0.45, 1);
+    const b1 = tuftVertex(sink, 0.036 * dx + 0.016 * px, 0.08, 0.036 * dz + 0.016 * pz, leaf, 1, 1, 0.45, 1);
+    tuftQuad(sink, a0, a1, b0, b1);
   }
 
   return tuftGeometry(sink);
@@ -497,6 +526,7 @@ function bloomGeometry(): THREE.BufferGeometry {
 const PROP_GEOMETRY: Record<PropLayer['kind'], () => THREE.BufferGeometry> = {
   plume: plumeGeometry,
   bloom: bloomGeometry,
+  leaf: leafGeometry,
 };
 
 const propGeometry: Partial<Record<PropLayer['kind'], THREE.BufferGeometry>> = {};
@@ -656,6 +686,10 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
 
         const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
         const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
+        if (blades.rows) {
+          const off = ((wz % blades.rows) + blades.rows) % blades.rows;
+          if (Math.abs(off - blades.rows / 2) > ROW_BAND) continue;
+        }
         const cx = Math.floor(wx / CLUMP);
         const cz = Math.floor(wz / CLUMP);
         const clumpTall = 0.7 + 0.6 * hat(cx, cz, 3);
@@ -667,7 +701,9 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         const h2 = hat(f, i, 43);
         const h3 = hat(f, i, 47);
         const h4 = hat(f, i, 53);
-        const length = blades.length * (0.65 + 0.7 * swell) * clumpTall * (0.85 + 0.3 * h1);
+        const vary = blades.vary ?? 0.3;
+        const length =
+          blades.length * (0.65 + 0.7 * swell) * clumpTall * (1 - 0.5 * vary + vary * h1);
         sample.maxLen = Math.max(sample.maxLen, length);
 
         tint.set(blades.tint).lerp(faceTint, 0.25);
@@ -713,11 +749,8 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
         const h2 = hat(f, i, 97);
         const h3 = hat(f, i, 101);
 
-        if (props.kind === 'bloom') {
-          tint.set(BLOOM_TINTS[Math.floor(h3 * BLOOM_TINTS.length) % BLOOM_TINTS.length]);
-        } else {
-          tint.set(props.tint);
-        }
+        const palette = props.tints ?? [props.tint];
+        tint.set(palette[Math.floor(h3 * palette.length) % palette.length]);
         const shade = 0.9 + 0.2 * hat(f, i, 103);
 
         const key = `${props.kind}:${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
@@ -736,7 +769,7 @@ function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | nul
           props.scale * (0.8 + 0.4 * h1),
           0.8 + 0.9 * h3,
           h3,
-          props.kind === 'plume' ? 1 : 0.25,
+          props.kind === 'plume' ? 1 : props.kind === 'bloom' ? 0.25 : 0.1,
         );
         chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
         sample.propCount++;
@@ -760,7 +793,11 @@ let drawDensity = 1;
 
 function refreshDraw(mesh: THREE.Mesh): void {
   const full = mesh.userData.coverFull as number;
-  const count = Math.round(full * drawDensity);
+  // Props thin on a gentler curve: they are the accents, and a plume field
+  // thinned as hard as its grass would be a field with no plumes in it.
+  const fraction =
+    mesh.name === 'cover-blades' ? drawDensity : Math.sqrt(Math.max(drawDensity, 0));
+  const count = Math.round(full * fraction);
   mesh.visible = drawOn && count > 0;
   (mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = count;
 }
