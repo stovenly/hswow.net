@@ -178,7 +178,13 @@ export interface CoverType {
   height: number;
   /** Fraction of hash cells carrying a strand at all, 0..1. */
   density: number;
-  /** Cross-section radius at the bottom of the stack, as a fraction of a cell. */
+  /**
+   * Cross-section radius at the bottom of the stack, as a fraction of a cell.
+   *
+   * Sets two things at once: `π·base²` is how much ground the cover holds, and
+   * `2·base·CELL` is how wide one blade is. Coverage wants it high, blade width
+   * wants it low, and the cell size is what buys both.
+   */
   base: number;
   /** And at the top. The gap between the two is what makes a blade a blade. */
   tip: number;
@@ -195,18 +201,18 @@ export interface CoverType {
 export const COVER_TYPES = {
   /** No cover. Also what every mesh without an attribute falls back to. */
   none: { height: 0, density: 0, base: 0, tip: 0, tint: 0x000000 },
-  /** Ordinary turf. Thin, tall, and close enough to read as a carpet. */
-  grass: { height: 1, density: 1, base: 0.5, tip: 0.12, tint: PALETTE.GRASS },
+  /** Ordinary turf. A blade 1.3 cm across, tapering to a fifth of that. */
+  grass: { height: 1, density: 1, base: 0.46, tip: 0.1, tint: PALETTE.GRASS },
   /** Long and unmown, and pale with it. */
-  tussock: { height: 1.5, density: 0.95, base: 0.46, tip: 0.1, tint: PALETTE.GRASS_DRY },
+  tussock: { height: 1.5, density: 0.95, base: 0.44, tip: 0.09, tint: PALETTE.GRASS_DRY },
   /** Something growing in rows: medium, and dry. */
-  stubble: { height: 1.1, density: 0.75, base: 0.44, tip: 0.12, tint: PALETTE.LEAF_DRY },
+  stubble: { height: 1.1, density: 0.8, base: 0.45, tip: 0.11, tint: PALETTE.LEAF_DRY },
   /** Sparse and wiry, on ground people have walked flat. */
-  weeds: { height: 0.75, density: 0.3, base: 0.4, tip: 0.08, tint: 0x6b7a45 },
+  weeds: { height: 0.75, density: 0.35, base: 0.38, tip: 0.07, tint: 0x6b7a45 },
   /** Round, squat and paler. Authored only — nothing grows it by default. */
-  clover: { height: 0.6, density: 0.9, base: 0.52, tip: 0.4, tint: 0x53823f },
+  clover: { height: 0.6, density: 0.92, base: 0.52, tip: 0.4, tint: 0x53823f },
   /** A dense low fuzz with almost no height. In the joints, on the north wall. */
-  moss: { height: 0.35, density: 0.7, base: 0.52, tip: 0.44, tint: 0x455c31 },
+  moss: { height: 0.35, density: 0.85, base: 0.54, tip: 0.46, tint: 0x455c31 },
 } as const satisfies Record<string, CoverType>;
 
 export type CoverName = keyof typeof COVER_TYPES;

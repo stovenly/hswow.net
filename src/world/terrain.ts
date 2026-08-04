@@ -295,8 +295,7 @@ export class Terrain {
     const positions: number[] = [];
     const normals: number[] = [];
     const colors: number[] = [];
-    // What grows on each face, as the shell shader's type index. Written here
-    // rather than derived later because the face material is already known.
+    // Type and feather per vertex, for the shell shader.
     const covers: number[] = [];
 
     const a = new THREE.Vector3();
@@ -367,8 +366,13 @@ export class Terrain {
               const midZ = (a.z + b.z + c.z) / 3;
               const name = this.faceMaterial(normal.y, midX, midZ);
               color.set(this.faceColor(name, (a.y + b.y + c.y) / 3, midX, midZ));
+              // Type per face, so its edges stay hard; feather per corner, so
+              // it interpolates and the cover runs out over a couple of metres
+              // rather than on a line.
               const cover = this.faceCover(name, midX, midZ);
-              covers.push(cover, cover, cover);
+              for (const corner of [a, b, c]) {
+                covers.push(cover, this.feather(cover, corner.x, corner.z));
+              }
               emit(a, normal);
               emit(b, normal);
               emit(c, normal);
@@ -389,9 +393,9 @@ export class Terrain {
       SWAY_ATTRIBUTE,
       new THREE.Float32BufferAttribute(new Float32Array(positions.length / 3), 1),
     );
-    // Read by the shell shader, and by nothing else. The ground's own material
-    // never declares it, so it costs the ground a buffer upload and no draw.
-    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 1));
+    // Type and feather, read by the shell shader and by nothing else. The
+    // ground's own material never declares it, so it costs a buffer and no draw.
+    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 2));
 
     return finish(geometry, 'terrain', 0);
   }
@@ -484,4 +488,32 @@ export class Terrain {
     const painted = coverPatchAt(this.cover, x, z);
     return COVER_ORDER.indexOf(painted ?? COVER[name] ?? 'none');
   }
+
+  /**
+   * How far inside its own cover a point is, 0 at a boundary and 1 well in.
+   *
+   * A ring of probes rather than a distance field: enough to know whether a
+   * point is surrounded by its own kind. Slope is left out, so the rock line on
+   * a cliff stays hard — it is a cliff.
+   */
+  private feather(cover: number, x: number, z: number): number {
+    let same = 0;
+    for (let i = 0; i < FEATHER_PROBES; i++) {
+      const angle = (i / FEATHER_PROBES) * Math.PI * 2;
+      const px = x + Math.cos(angle) * FEATHER_REACH;
+      const pz = z + Math.sin(angle) * FEATHER_REACH;
+      const there =
+        coverPatchAt(this.cover, px, pz) ??
+        COVER[patchAt(this.patches, px, pz) ?? this.base] ??
+        'none';
+      if (COVER_ORDER.indexOf(there) === cover) same++;
+    }
+    // Remapped so a point on the boundary, where half its ring disagrees, comes
+    // out near nothing rather than near half.
+    return Math.min(Math.max((same / FEATHER_PROBES - 0.45) / 0.55, 0), 1);
+  }
 }
+
+/** How far out the feather looks, and how many ways. */
+const FEATHER_REACH = 0.9;
+const FEATHER_PROBES = 8;
