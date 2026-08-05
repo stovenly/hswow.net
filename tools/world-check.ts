@@ -43,7 +43,16 @@ import { COVER_ATTRIBUTE, coverCensus } from '../src/art/cover';
 import { groundcoverTerrain, ZONE_GROUNDCOVER_SHOWCASE } from '../src/debug/GroundcoverShowcase';
 import { ZONE_PARTICLE_SHOWCASE } from '../src/debug/ParticleShowcase';
 import { drawnAlpha, QUANTIZE_FLOOR } from '../src/art/particles';
-import { clampFog, FOG_HEADROOM, VIEW_UNLIMITED } from '../src/engine/PostFX';
+import {
+  clampFog,
+  resolveSamples,
+  DEFAULT_RENDER,
+  FOG_HEADROOM,
+  VIEW_UNLIMITED,
+} from '../src/engine/PostFX';
+import { PixelStage } from '../src/engine/PixelStage';
+import { buildInterior, HOUSE_STYLE } from '../src/world/interior';
+import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE } from '../src/art/detail';
 import { SKY_FRACTION } from '../src/engine/Sky';
 import { CAMERA_FAR } from '../src/engine/Viewport';
 import { SURFACES } from '../src/audio/models/footsteps';
@@ -875,6 +884,202 @@ check(
     problems.length === 0,
     problems.length === 0
       ? `${zones.size} zones × ${notches.length} settings, 6 m to 300 m of air`
+      : problems.join(', '),
+  );
+}
+
+/**
+ * A boarded floor is one unbroken surface at y = 0.
+ *
+ * The seams used to be cut: a slot with 6 mm of vertical board side-wall
+ * standing in it. That wall is a 90° normal step, and the edge detector resolves
+ * a normal step through a hard threshold into a bright line — so the floor wore
+ * a grid of outlines that re-decided themselves every frame as the camera
+ * turned, which is the moiré this was chased down from. Boards and seams now
+ * tile edge to edge and the seam is painted. See ANTIALIASING.md.
+ *
+ * Ray-cast rather than inspected, because what matters is what a *view* of the
+ * floor finds: a re-cut seam is a ray landing on the slab below instead of on
+ * the boards, whatever the buffer happens to contain underneath.
+ */
+{
+  const width = 6;
+  const depth = 5;
+  const down = new THREE.Vector3(0, -1, 0);
+  const ray = new THREE.Raycaster();
+
+  let low = 0;
+  let cast = 0;
+  let deepest = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    const shell = buildInterior({ width, depth, height: 3, seed, planks: true });
+    // Inside the footprint only. The margin past it is under the walls, where
+    // the slab is meant to show.
+    for (let i = 0; i < 60; i++) {
+      for (let j = 0; j < 12; j++) {
+        const x = -width / 2 + ((i + 0.5) / 60) * width;
+        const z = -depth / 2 + ((j + 0.5) / 12) * depth;
+        ray.set(new THREE.Vector3(x, 1, z), down);
+        const hit = ray.intersectObject(shell, false)[0];
+        cast++;
+        if (!hit) continue;
+        const drop = -hit.point.y;
+        deepest = Math.max(deepest, drop);
+        // Half a millimetre of slack for the ray maths. The slab is 6 mm down.
+        if (drop > 0.0005) low++;
+      }
+    }
+    shell.geometry.dispose();
+  }
+
+  check(
+    'a boarded floor is one unbroken surface',
+    low === 0,
+    low === 0
+      ? `${cast} rays over 12 rooms, deepest landing ${(deepest * 1000).toFixed(2)} mm below y = 0`
+      : `${low} of ${cast} rays fell into a seam, worst ${(deepest * 1000).toFixed(1)} mm`,
+  );
+}
+
+/**
+ * The seam declares a feature size, and it is the seam's own width.
+ *
+ * The one place in the game that opts into detail fading, so this is where it
+ * would silently stop being opted into. It is also the number that decides
+ * *when* the seam goes: declare the board pitch by mistake and the seam holds
+ * full contrast to thirty metres, which is the moiré back with a fade attached.
+ *
+ * Both strips fade toward `style.floor`, which is the whole idea — at range the
+ * floor is one timber, and the seam and the board-to-board variation dissolve
+ * into it at ranges thirty times apart. See `art/detail.ts`.
+ */
+{
+  const shell = buildInterior({ width: 6, depth: 5, height: 3, seed: 1, planks: true });
+  const detail = shell.geometry.getAttribute(DETAIL_ATTRIBUTE);
+  const tint = shell.geometry.getAttribute(DETAIL_TINT_ATTRIBUTE);
+  const floor = new THREE.Color(HOUSE_STYLE.floor);
+
+  const sizes = new Set<number>();
+  let offTarget = 0;
+  for (let i = 0; i < detail.count; i++) {
+    const size = detail.getX(i);
+    if (size === 0) continue;
+    sizes.add(Number(size.toFixed(4)));
+    if (
+      Math.abs(tint.getX(i) - floor.r) > 1e-6 ||
+      Math.abs(tint.getY(i) - floor.g) > 1e-6 ||
+      Math.abs(tint.getZ(i) - floor.b) > 1e-6
+    ) {
+      offTarget++;
+    }
+  }
+
+  const ordered = [...sizes].sort((a, b) => a - b);
+  const seam = ordered[0];
+  const problems = [
+    ordered.length !== 2 && `${ordered.length} distinct feature sizes, expected a seam and a board`,
+    // 9 mm. Wrong by an order of magnitude is the failure that matters, not
+    // wrong in the third decimal — the fade runs in octaves.
+    (seam < 0.004 || seam > 0.02) && `the seam declares ${(seam * 1000).toFixed(0)} mm`,
+    offTarget > 0 && `${offTarget} vertices fade to something other than the floor`,
+  ].filter(Boolean);
+
+  check(
+    'the floor seam fades at its own width',
+    problems.length === 0,
+    problems.length === 0
+      ? `seam ${(ordered[0] * 1000).toFixed(0)} mm, board ${(ordered[1] * 1000).toFixed(0)} mm, both into the floor`
+      : problems.join(', '),
+  );
+  shell.geometry.dispose();
+}
+
+/**
+ * The antialiasing switch is a switch, and the count is never a lie.
+ *
+ * There is no GPU here and multisampling is invisible to everything except a
+ * rendered frame, so what can be asserted is the plumbing — which is where the
+ * silent failures live. Asking for more samples than the driver has is a render
+ * target that fails to build; asking for one is a multisampled framebuffer with
+ * nothing to average, which costs and changes nothing.
+ */
+{
+  const drivers = [0, 1, 2, 4, 8, 16];
+  const asked = [0, 1, 2, 3, 4, 8, 16, 64];
+
+  let overshot = 0;
+  let pointless = 0;
+  let leaked = 0;
+  for (const max of drivers) {
+    for (const want of asked) {
+      const on = resolveSamples(true, want, max);
+      if (on > max) overshot++;
+      if (on === 1) pointless++;
+      if (resolveSamples(false, want, max) !== 0) leaked++;
+    }
+  }
+
+  const problems = [
+    overshot > 0 && `${overshot} asked past the driver`,
+    pointless > 0 && `${pointless} resolved to a single sample`,
+    leaked > 0 && `${leaked} sampled with the switch off`,
+    DEFAULT_RENDER.samples < 2 && `the default of ${DEFAULT_RENDER.samples} does nothing`,
+  ].filter(Boolean);
+  check(
+    'the sample count is clamped, and off is off',
+    problems.length === 0,
+    problems.length === 0
+      ? `${drivers.length * asked.length} combinations, default ${DEFAULT_RENDER.samples}`
+      : problems.join(', '),
+  );
+}
+
+/**
+ * The count reaches the target, and the depth texture survives the trip.
+ *
+ * Two failures, both silent. A count that never lands is a toggle that does
+ * nothing. And `setSamples` has to throw the colour target away for three to
+ * rebuild its framebuffer at the new count — which frees the target's depth
+ * texture with it, leaving bloom's own target attached to a texture that no
+ * longer exists, and the symptom in a pass with no antialiasing in it at all.
+ *
+ * The freeing itself happens inside three's texture cache and needs a GL
+ * context, so it cannot be watched here. What *can* be watched is the state
+ * three reads to decide: `onRenderTargetDispose` looks at `depthTexture` at the
+ * instant the target dispatches `dispose`, and the whole trick is that it finds
+ * nothing there. So this listens for that moment and asserts the field is
+ * already clear — the same condition, one step earlier.
+ */
+{
+  const stage = new PixelStage(1, new THREE.Scene(), new THREE.PerspectiveCamera());
+  const depth = (stage as unknown as { depthTexture: THREE.DepthTexture }).depthTexture;
+  const colour = (stage as unknown as { colourTarget: THREE.WebGLRenderTarget }).colourTarget;
+
+  let exposed = 0;
+  colour.addEventListener('dispose', () => {
+    if (colour.depthTexture !== null) exposed++;
+  });
+
+  let missed = 0;
+  let detached = 0;
+  const counts = [4, 4, 0, 8, 2, 0];
+  for (const samples of counts) {
+    stage.setSamples(samples);
+    if (stage.samples !== samples) missed++;
+    if (colour.depthTexture !== depth) detached++;
+  }
+  const problems = [
+    missed > 0 && `${missed} counts never landed`,
+    detached > 0 && `${detached} left the depth texture off the target`,
+    exposed > 0 && `${exposed} disposals would have freed the depth texture`,
+  ].filter(Boolean);
+  stage.dispose();
+
+  check(
+    'setting the sample count keeps the depth texture',
+    problems.length === 0,
+    problems.length === 0
+      ? `${counts.length} changes, depth texture held throughout`
       : problems.join(', '),
   );
 }

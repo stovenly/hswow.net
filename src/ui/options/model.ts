@@ -49,6 +49,15 @@ export interface Options {
   dither: boolean;
   pixelation: boolean;
   /**
+   * Multisampling on the colour render. A player option for the same reason
+   * ambient occlusion is: real per-frame cost, and off, the world still reads
+   * as itself — with harder staircases on every thin edge.
+   *
+   * One switch and no tiers. How many samples is a developer's dial, and a
+   * quality ladder here would be two controls for one thing on screen.
+   */
+  antialias: boolean;
+  /**
    * Ambient occlusion. A player option by SHADERS.md's rule: real per-frame
    * cost, purely additive shading — off, the world still reads as itself.
    */
@@ -160,6 +169,7 @@ export const DEFAULT_OPTIONS: Options = {
   fovScaling: DEFAULT_TUNING.fovScaling,
   dither: true,
   pixelation: true,
+  antialias: true,
   ambientOcclusion: true,
   bloom: true,
   shadows: true,
@@ -341,6 +351,7 @@ export const CATEGORIES: readonly Category[] = [
       },
       { kind: 'toggle', key: 'dither', label: 'dither' },
       { kind: 'toggle', key: 'pixelation', label: 'pixelation' },
+      { kind: 'toggle', key: 'antialias', label: 'antialiasing' },
       { kind: 'toggle', key: 'ambientOcclusion', label: 'ambient occlusion' },
       { kind: 'toggle', key: 'bloom', label: 'bloom' },
       { kind: 'toggle', key: 'shadows', label: 'shadows' },

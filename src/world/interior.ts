@@ -28,6 +28,11 @@ import { PALETTE, shade } from '../art/palette';
 
 export interface InteriorStyle {
   floor: number;
+  /**
+   * The slab under the boards, which shows only in the margin beneath the
+   * walls. It no longer colours a seam — the boards tile edge to edge and the
+   * joint is painted off `floor`. The name is now wrong; renaming it is yours.
+   */
   floorSeam: number;
   wall: number;
   wallTrim: number;
@@ -107,9 +112,8 @@ export function buildInterior(options: InteriorOptions): THREE.Mesh {
   // **This is the z-fighting fix.** Both surfaces were at exactly y = 0, so
   // across the whole floor the depth buffer had two coplanar faces to choose
   // between and picked differently from one pixel and one camera angle to the
-  // next — which reads as the floor crawling. Dropping the slab below the
-  // boards means the boards simply win everywhere, and the gaps between them
-  // still show the dark slab because the gaps have no board over them at all.
+  // next — which reads as the floor crawling. Dropped, the boards simply win
+  // wherever they reach; the slab is what shows in the margin under the walls.
   const slabTop = planks ? -0.006 : 0;
   const floor = new THREE.BoxGeometry(outerX, t, outerZ);
   floor.translate(0, slabTop - t / 2, 0);
@@ -131,21 +135,40 @@ export function buildInterior(options: InteriorOptions): THREE.Mesh {
   }
 
   // --- floor boards -------------------------------------------------------
-  // Laid *into* the slab rather than on top of it: each board's top face is
-  // exactly y = 0, so the walkable height is the same whether or not boards
-  // are switched on, and the gaps between them show the dark slab underneath
-  // as seams instead of opening holes in the floor.
+  // Boards and seams tile the floor edge to edge, every top face at exactly
+  // y = 0 — so the walkable height does not depend on whether boards are on,
+  // and **the floor has no vertical faces in it**. That second part is the
+  // point. A recessed seam stands a 90° normal step in front of the edge
+  // detector, which resolves it to a bright line through a hard threshold and
+  // re-decides it every frame as the camera turns: a shimmering grid on the one
+  // surface you sweep across. See ANTIALIASING.md.
   if (planks) {
     const boardWidth = rng.range(0.24, 0.34);
     const count = Math.ceil(width / boardWidth);
-    const gap = 0.012;
+    // A joint lit like the boards either side of it, rather than the near-black
+    // of `floorSeam` — that was the colour of a *shadowed slot*, and nothing
+    // shadows it now. Wider than the slot was narrow, too: the same amount of
+    // dark spread across twice the line is the same seam and half the peak, and
+    // peak contrast at a low duty cycle is what sparkles at distance.
+    const seamWidth = 0.009;
+    const seamColor = shade(style.floor, 0.55);
+    const strip = (from: number, span: number, color: number): void => {
+      // Laid *into* the slab rather than on top of it.
+      const geometry = new THREE.BoxGeometry(span, 0.03, depth);
+      geometry.translate(from + span / 2, -0.015, 0);
+      // Each declares its own width as its feature size, so the two stop being
+      // drawn at very different ranges: the seam dissolves into the boards as
+      // soon as it is narrower than a pixel, while the board-to-board variation
+      // — thirty times wider and a fraction of the contrast — outlasts any room
+      // it could be standing in. See `art/detail.ts`.
+      parts.push({ geometry, color, sway: 0, detail: span, detailTint: style.floor });
+    };
     for (let i = 0; i < count; i++) {
-      const x = -width / 2 + (i + 0.5) * boardWidth;
-      const board = new THREE.BoxGeometry(boardWidth - gap, 0.03, depth);
-      board.translate(x, -0.015, 0);
+      const x = -width / 2 + i * boardWidth;
+      strip(x, seamWidth, seamColor);
       // Every board a slightly different timber. A floor of one colour is the
       // fastest way to make a room look like a render of a room.
-      parts.push({ geometry: board, color: shade(style.floor, rng.around(1, 0.09)), sway: 0 });
+      strip(x + seamWidth, boardWidth - seamWidth, shade(style.floor, rng.around(1, 0.09)));
     }
   }
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
+import { applyDetail } from './detail';
 import type { Weather } from '../audio/weather';
 
 /**
@@ -287,6 +288,9 @@ export function patchArtMaterial(): void {
   // after sway has claimed `onBeforeCompile`, because it composes by
   // wrapping; see `applyWear`.
   applyWear(ART_MATERIAL);
+  // And detail fading wraps that, in this order: it dissolves the finished
+  // surface colour, weathering included. See `applyDetail`.
+  applyDetail(ART_MATERIAL);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */
