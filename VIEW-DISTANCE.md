@@ -1,6 +1,18 @@
 # View distance — spec
 
-Not built. Researched and specified.
+**Built.** `PostFX` owns the number and derives the five values from it in one
+place; `Sky.follow` sizes the dome off `camera.far`; `ZoneManager` collects the
+clutter as it prepares a zone and culls it per frame; `Options.viewDistance` is
+the slider and `apply.ts` turns its top stop into the null the engine wants.
+`check:world` asserts the fog, the sky and the far plane stay ordered, that the
+clamp only ever takes away — across all 28 zones at all 14 notches — and that
+clutter is still worth culling.
+
+Where building it disagreed with this document, the document has been corrected
+and the correction is marked **[measured]**. There are three, and one of them
+removed a whole phase of the work: the outline does *not* move with the far
+plane, the sky dome cannot sit where §1 said it should, and clutter is a third
+of an outdoor zone rather than most of it.
 
 **Short answer to the question that prompted it: yes.** Pulling the camera's far
 plane in genuinely reduces how far a player can see *and* gets culling for free,
@@ -47,7 +59,14 @@ looking like it does nothing.
 
 `art/clutter.ts` already states the case, about shadows: clutter is *"most of the
 object count in an outdoor zone and almost none of the picture"*, which is why none
-of it casts. Those objects are already tagged — `art/assemble.ts` stamps
+of it casts.
+
+**[measured] About a third, not most, and only where something scatters.** The
+countryside is 129 clutter meshes out of 431; the hub is 99 meshes and *none* of
+them, because it is hand-placed buildings rather than a scattered field. So this
+part of the option pays in the countryside and pays nothing in the village, where
+what the far plane buys is ordinary frustum culling of props. `check:world` prints
+both numbers, because the day a hub starts scattering is the day this changes. Those objects are already tagged — `art/assemble.ts` stamps
 `userData.clutter` from the `CLUTTER` set, and `ZoneManager.prepare` already walks
 the scene reading tags.
 
@@ -58,7 +77,20 @@ which is the right thing to remove, because the pipeline is draw-call bound long
 before it is fill bound at 960×540.
 
 This is the part of the feature that will actually move the frame rate, and it is
-driven by the slider rather than being the slider.
+driven by the slider rather than being the slider. It landed as `clutterCull`, a
+fraction of the view distance, at 0.75 — far enough in to remove a real share of the
+object count, far enough out that the grass goes while the fog is already most of
+the way through hiding it.
+
+`ZoneManager` collects the tagged meshes as it prepares a zone rather than walking
+the graph each frame, and reads their positions straight out of the matrices the
+renderer has already updated. Nothing about collision changes: `Collider` never asks
+what is visible, so the grass you cannot see is still grass.
+
+**Groundcover comes along for free**, and was not planned for. `art/cover.ts` builds
+one instanced mesh per chunk with a real bounding sphere on it, so the far plane
+frustum-culls whole chunks of blades with no code at all — the same win the props
+get, on the system with the highest vertex count in the game.
 
 ### Depth precision — a quality win, not a performance one
 
@@ -108,8 +140,22 @@ depth test and three's CPU-side cull; neither has anything to do with the GPU
 clipping geometry against the near and far planes. A dome at 400 with `far = 120` is
 clipped away entirely and the sky is the clear colour.
 
-**Fix: scale the dome from `camera.far`** — around 0.8 of it, in `follow()`, which
-already runs once a frame with the camera in hand and already re-centres the mesh.
+**Fix: scale the dome from `camera.far`**, in `follow()`, which already runs once
+a frame with the camera in hand and already re-centres the mesh.
+
+**[measured] Not 0.8 of it — 0.95, and the reason is the normal pass.** The dome's
+own material writes no depth, but `PixelStage` draws the scene a second time with
+`scene.overrideMaterial` set to a `MeshNormalMaterial`, which does. So in the normal
+buffer the dome is a solid sphere at its own radius, and anything standing *behind*
+it there fails the depth test and keeps the sky's normals instead of its own — which
+means no outline, or a wrong one, on geometry that is still plainly inside the
+frustum. At 0.8 that band is 0.80–0.90 of the view distance, and the fog does not
+reach it. At 0.95 the band is 0.90–0.95, which is entirely behind `FOG_HEADROOM` and
+therefore already solid fog colour.
+
+That is why the two fractions are stated together and checked against each other:
+`FOG_HEADROOM < SKY_FRACTION < 1` is the whole rule, and every part of it fails
+silently on its own.
 
 ### Why that is a correctness fix and not a workaround
 
@@ -170,17 +216,27 @@ becomes 90, near stays 25 — the zone's own near survives, which is right.
 
 `GTAO.setFog` is already fed these values by `PostFX` and follows for free.
 
-### 3. The outline look moves with the slider
+### 3. The outline look moves with the slider — **[measured] it does not**
 
-This is the subtle one. The edge detector thresholds on **non-linear** depth —
-`smoothstep(0.01, 0.02, diff)` on raw buffer values. Changing `far` changes how
-that non-linearity distributes, so the same world-space step produces a *different*
-buffer difference. Pulling the far plane in makes distant edges fire harder.
+This was the subtle one, and it is arithmetically negligible. The edge detector
+thresholds on **non-linear** depth — `smoothstep(0.01, 0.02, diff)` on raw buffer
+values — so the worry was that changing `far` redistributes that non-linearity and
+makes the same world-space step fire differently.
 
-That means a performance option would quietly change the art direction, which is
-exactly the failure R0 was written to avoid. Either the thresholds scale with far
-to hold the look constant, or the coupling is measured and accepted deliberately.
-It must not be discovered later.
+Window depth is
+
+```
+d(z) = (1/n − 1/z) / (1/n − 1/f)
+```
+
+and `far` appears only in that denominator. With `n = 0.1`, `1/n` is 10 and `1/f`
+is between 0.002 and 0.025 across the entire slider — so the denominator moves from
+9.998 to 9.975, and a surface at 20 m reads 0.995199 at `far = 500` against
+0.997494 at `far = 40`. **A 0.23% change across the whole range.** The encoding is
+dominated by the near plane, not by the far one.
+
+So no threshold scaling was built, and none is owed. The coupling is real, measured
+and three orders of magnitude below anything anybody could see.
 
 ### 4. A metre value means nothing indoors
 
@@ -215,24 +271,25 @@ setting change, not per frame.
 
 ## Shape of the work
 
-1. **`RenderSettings.viewDistance`** and a debug-panel folder, so it can be tuned
-   before it is exposed.
-2. **Derive and apply the five values** in one place in `PostFX.apply` — far, fog
+1. ~~**`RenderSettings.viewDistance`** and a debug-panel folder~~ — the distance is
+   the player's, so it sits in `Options` and the panel binds *that*, the way shadows
+   and groundcover already do. What the preset kept is `clutterCull`, which is
+   tuning rather than a preference.
+2. ✅ **Derive and apply the five values** in one place in `PostFX.apply` — far, fog
    near/far, sky radius, clutter radius. One function, because these five going out
    of step with each other is every gotcha above.
-3. **Sky dome radius from `camera.far`,** in `follow()`. Scale the existing mesh
-   rather than rebuilding it. Check it in the normal pass as well as the colour
-   one — that is where getting the radius wrong shows up as something other than a
-   missing sky.
-4. **Clutter distance cull.** A per-frame pass over objects tagged
-   `userData.clutter`, toggling `visible`. Radius from the slider.
-5. **Edge thresholds.** Measure whether the outline moves; scale
-   `normalEdgeStrength` / `depthEdgeStrength` inputs against far if it does.
-6. **`Options.viewDistance`** and `setViewDistance()` in `apply.ts`.
+3. ✅ **Sky dome radius from `camera.far`,** in `follow()`. Scaled rather than
+   rebuilt. The normal pass is exactly where the first radius was wrong; see the
+   correction in §1.
+4. ✅ **Clutter distance cull**, over meshes collected at prepare time rather than
+   found each frame.
+5. ✅ **Edge thresholds** — measured, and they do not move. See §3.
+6. ✅ **`Options.viewDistance`** and `setViewDistance()` in `apply.ts`.
 7. **Read the cost off the existing readouts** — draw calls and frame time, in the
    village and in Water Showcase 2, at unlimited and at 80 m. Since the ground is a
    constant and cannot be culled, the number that should move is draw calls, and
-   most of that movement should come from step 4.
+   most of that movement should come from step 4. **Still owed**; the check suite
+   can say how much clutter there is to cull but not what removing it buys.
 
 ## Deliberately not in the first version
 
@@ -243,9 +300,12 @@ setting change, not per frame.
 
 ## Needs an eyeball
 
-- **Whether the outline actually moves** with far, and by how much. Arithmetic says
-  it should; only looking will say whether it is visible.
-- **What fraction of view distance clutter should cull at.** Too tight and grass
-  visibly evaporates ahead of the player; too loose and the option buys nothing.
+- ~~**Whether the outline actually moves** with far~~ — settled by arithmetic
+  instead. See §3.
+- **Whether `clutterCull` at 0.75 is right.** Too tight and grass visibly evaporates
+  ahead of the player; too loose and the option buys nothing. The debug panel has
+  the dial beside the slider for exactly this.
 - **Whether 40 m is usable or merely survivable** as the bottom of the range. The
   floor should still be a playable world, not a proof that the slider works.
+- **What it actually buys**, in draw calls and frame time, in the countryside and in
+  Water Showcase 2. Step 7 above.

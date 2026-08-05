@@ -1,7 +1,7 @@
 import { DEFAULT_TUNING, type FovScaling } from '../../player/Controller';
 import { loadPreset, savePreset, clearPreset } from '../../debug/presets';
 import type { ColorblindMode } from '../../engine/RetroShader';
-import type { CoverDensity } from '../../engine/PostFX';
+import { VIEW_UNLIMITED, type CoverDensity } from '../../engine/PostFX';
 import type { PerformanceMode } from '../Performance';
 import { fontNote } from './font';
 
@@ -77,6 +77,20 @@ export interface Options {
    */
   groundcoverDensity: CoverDensity;
   /**
+   * How far you can see, in metres, `VIEW_UNLIMITED` being as far as the world
+   * goes (VIEW-DISTANCE.md).
+   *
+   * It only ever pulls the view *in*. Every zone already says how thick its own
+   * air is, and this clamps under that rather than extending it — so indoors,
+   * where the fog ends well inside any of these numbers, it does nothing.
+   *
+   * A number rather than a tier, because metres is what it means and the
+   * failure it guards against — a cut with nothing in front of it — is a
+   * distance. The top stop reads as words for the same reason the frame cap's
+   * does: unlimited is a state, not a value.
+   */
+  viewDistance: number;
+  /**
    * Frames per second, or `uncapped`.
    *
    * A string rather than a number so the dropdown can offer "uncapped" as one
@@ -150,6 +164,9 @@ export const DEFAULT_OPTIONS: Options = {
   bloom: true,
   shadows: true,
   groundcoverDensity: 'high',
+  // Unlimited. Unlike groundcover, where the default is a look, this only ever
+  // *removes* world — so nobody's game changes until they ask for it.
+  viewDistance: VIEW_UNLIMITED,
   fpsCap: 'uncapped',
   performance: 'off',
 
@@ -346,6 +363,19 @@ export const CATEGORIES: readonly Category[] = [
             high: 'a thick field',
             ultra: 'every blade there is',
           })[options.groundcoverDensity],
+      },
+      {
+        kind: 'slider',
+        key: 'viewDistance',
+        label: 'view distance',
+        // Twenty-metre steps: the difference a smaller one makes is not
+        // visible, and the fog moves with every notch.
+        min: 40,
+        max: VIEW_UNLIMITED,
+        step: 20,
+        format: (value) => (value >= VIEW_UNLIMITED ? 'unlimited' : `${value} m`),
+        note: (options) =>
+          options.viewDistance >= VIEW_UNLIMITED ? null : 'never further than the zone allows',
       },
       {
         kind: 'choice',

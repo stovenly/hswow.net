@@ -5,7 +5,7 @@ import { setPrecipitation } from '../../art/particles';
 import { effective, type Options } from './model';
 import { setDyslexicFont } from './font';
 import type { AudioEngine } from '../../audio/AudioEngine';
-import type { PostFX } from '../../engine/PostFX';
+import { VIEW_UNLIMITED, type PostFX } from '../../engine/PostFX';
 import type { ZoneManager } from '../../world/ZoneManager';
 import type { Controller } from '../../player/Controller';
 import type { Input } from '../../engine/Input';
@@ -100,6 +100,13 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   postfx.setBloom(options.bloom);
   postfx.setColorblind(options.colorblind, options.colorblindStrength / 100);
   postfx.setGroundcover(options.groundcoverDensity);
+  // Null rather than the number at the top of the slider: unlimited means the
+  // camera's own far plane, not a very large view distance, and the difference
+  // is the clutter cull and the fog clamp being off entirely rather than
+  // arithmetically harmless.
+  postfx.setViewDistance(
+    options.viewDistance >= VIEW_UNLIMITED ? null : options.viewDistance,
+  );
   zones.setShadows(options.shadows);
   // `uncapped` is not a number, and anything else stored there would be, so a
   // failed parse and the deliberate case land in the same place.
