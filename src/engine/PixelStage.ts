@@ -18,9 +18,10 @@ import { drawCoverNormals } from '../art/cover';
  *       ─► upscale        (nearest-neighbour blit)
  * ```
  *
- * The edge shader is lifted verbatim from the upstream pass — same maths, same
- * output — because R0's exit criterion is that nothing changes on screen.
- * Differences from upstream are structural only: the colour target keeps its
+ * The edge shader came verbatim from the upstream pass — same maths, same
+ * output — because R0's exit criterion was that nothing changes on screen. Its
+ * thresholds have since been graded; see `createEdgeMaterial`. The rest of the
+ * differences from upstream are structural: the colour target keeps its
  * depth texture bound and hands it, with the normals, to whoever asks; effects
  * run between render and upscale, each reading the chain's colour so far and
  * writing the next link; and the outline is drawn *before* those effects
@@ -160,6 +161,33 @@ export class PixelStage extends Pass {
     this.setSize(this.resolution.x, this.resolution.y);
   }
 
+  /**
+   * Coverage samples on the colour render. 0 is off. Clamped by the caller.
+   *
+   * **The colour target only.** The normal target feeds the edge detector, and
+   * an averaged normal across a silhouette reads as a *smaller* discontinuity —
+   * the ink lines would soften. The ping pair is written by fullscreen quads,
+   * where there is no coverage to sample.
+   *
+   * Three builds the multisampled framebuffer once and never revisits the
+   * count, so the target has to be thrown away for a new one to take. The depth
+   * texture is detached first: `dispose` disposes it too, and bloom has it bound
+   * as the depth attachment of its *own* target — which three would not rebuild,
+   * because bloom's target has not changed. See `Bloom.renderEmitters`.
+   */
+  setSamples(samples: number): void {
+    if (this.colourTarget.samples === samples) return;
+    this.colourTarget.samples = samples;
+    this.colourTarget.depthTexture = null;
+    this.colourTarget.dispose();
+    this.colourTarget.depthTexture = this.depthTexture;
+  }
+
+  /** What the colour render is actually sampling at. Read by the checks. */
+  get samples(): number {
+    return this.colourTarget.samples;
+  }
+
   /** Render height in chunky pixels. The groundcover width clamp reads it. */
   get renderHeight(): number {
     return this.renderResolution.y;
@@ -263,12 +291,22 @@ export class PixelStage extends Pass {
 /**
  * The edge shader: the depth/normal outline, applied to the chunky colour.
  *
- * The detection maths is lifted from `RenderPixelatedPass` unchanged — R0's
- * point was that this stage produces the same picture the upstream pass did,
- * and the edge look is tuned; nothing in here is ours to improve. What did
- * change is *when* it runs. Upstream it was fused to the upscale and therefore
- * ran last, over everything; here it runs on the surfaces alone, before any
- * effect puts fog or bloom in front of them. See the note in `render`.
+ * Two things have changed since it arrived from `RenderPixelatedPass`.
+ *
+ * **When it runs.** Upstream it was fused to the upscale and therefore ran last,
+ * over everything; here it runs on the surfaces alone, before any effect puts
+ * fog or bloom in front of them. See the note in `render`.
+ *
+ * **Its thresholds are graded rather than binary.** Upstream binarised the same
+ * signal three times over — `sign()`, then a 0.02-wide window, then
+ * `step(0.1, …)` — so an outline was on or off with nothing between. A pixel a
+ * third covered by an edge got the same line as one fully covered, which is an
+ * outline that cannot be antialiased however well the rest of the frame is
+ * sampled, and it is why diagonals read as staircases. The underlying quantity,
+ * how sharply the surface turns, is continuous; these hand that back. `sign` and
+ * `step` became `smoothstep` at the same crossing points, so a hard edge is
+ * unchanged and only shallow and partly-covered ones grade. `normalIndicator`
+ * stayed binary deliberately — it picks which side draws.
  */
 function createEdgeMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -311,7 +349,10 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
         diff += clamp(getDepth(-1, 0) - depth, 0.0, 1.0);
         diff += clamp(getDepth(0, 1) - depth, 0.0, 1.0);
         diff += clamp(getDepth(0, -1) - depth, 0.0, 1.0);
-        return floor(smoothstep(0.01, 0.02, diff) * 2.) / 2.;
+        // Upstream quantized this to three values with floor(x * 2.) / 2.
+        // Ungraded, so a pixel a third covered by an edge got the same line as
+        // one fully covered, and a diagonal came out a staircase.
+        return smoothstep(0.01, 0.02, diff);
       }
 
       float neighborNormalEdgeIndicator(int x, int y, float depth, vec3 normal) {
@@ -321,10 +362,13 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
         // Edge pixels should yield to faces whose normals are closer to the bias normal.
         vec3 normalEdgeBias = vec3(1., 1., 1.);
         float normalDiff = dot(normal - neighborNormal, normalEdgeBias);
+        // Left binary on purpose. This picks *which side* of an edge draws the
+        // line; graded, both sides draw and every outline comes out double.
         float normalIndicator = clamp(smoothstep(-.01, .01, normalDiff), 0.0, 1.0);
 
-        // Only the shallower pixel should detect the normal edge.
-        float depthIndicator = clamp(sign(depthDiff * .25 + .0025), 0.0, 1.0);
+        // Only the shallower pixel should detect the normal edge. Upstream flipped
+        // this hard with sign(); same crossing point, graded across it.
+        float depthIndicator = smoothstep(-0.014, -0.006, depthDiff);
 
         return (1.0 - dot(normal, neighborNormal)) * depthIndicator * normalIndicator;
       }
@@ -335,7 +379,14 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
         indicator += neighborNormalEdgeIndicator(0, 1, depth, normal);
         indicator += neighborNormalEdgeIndicator(-1, 0, depth, normal);
         indicator += neighborNormalEdgeIndicator(1, 0, depth, normal);
-        return step(0.1, indicator);
+        // **The one that mattered.** Upstream returned step(0.1, indicator), so
+        // an outline was on or off with nothing between and could not be
+        // antialiased however the rest of the frame was sampled. The quantity
+        // being thresholded — how sharply the surface turns — is continuous, and
+        // this hands that back. A hard 90 degree edge still reads 1.0 from a
+        // single tap and is unchanged; what grades is everything shallower and
+        // everything partly covered, which is the whole of the staircasing.
+        return smoothstep(0.05, 0.25, indicator);
       }
 
       void main() {

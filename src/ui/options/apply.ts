@@ -96,6 +96,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   );
   postfx.setDither(options.dither);
   postfx.setPixelation(options.pixelation);
+  postfx.setAntialias(options.antialias);
   postfx.setAmbientOcclusion(options.ambientOcclusion);
   postfx.setBloom(options.bloom);
   postfx.setColorblind(options.colorblind, options.colorblindStrength / 100);

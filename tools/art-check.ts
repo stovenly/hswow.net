@@ -22,7 +22,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as THREE from 'three';
 import type { MeshBuilder } from '../src/art/types';
-import { SWAY_ATTRIBUTE } from '../src/art/assemble';
+import { SWAY_ATTRIBUTE, ART_MATERIAL } from '../src/art/assemble';
+import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE, detailUniforms } from '../src/art/detail';
 import { CLUTTER } from '../src/art/clutter';
 import { FLEX } from '../src/art/flex';
 import {
@@ -34,7 +35,7 @@ import {
   WALL_LIFT,
   coverFor,
 } from '../src/art/cover';
-import { windUniforms } from '../src/art/sway';
+import { windUniforms, patchArtMaterial } from '../src/art/sway';
 import { PARTICLE_MATERIAL, PARTICLE_GLOW_MATERIAL, createParticles } from '../src/art/particles';
 import { WATER_MATERIAL } from '../src/art/water';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../src/art/glow';
@@ -298,6 +299,104 @@ check(
     ? `${CLUTTER.size} species drop their shadows`
     : `no such builder: ${unknown.join(', ')}`,
 );
+
+// --- the detail fade lands, and lands after weathering ----------------------
+//
+// Two failures with no symptom. `String.replace` on a marker that is not there
+// does nothing and says nothing, so a renamed include upstream turns the fade
+// into a no-op and the moiré simply comes back — see ANTIALIASING.md, which is
+// a document about chasing that exact shimmer through three separate causes.
+//
+// The ordering is the subtler one. The fade is anchored *after* `color_fragment`
+// rather than on it, because weathering has already replaced that chunk; land
+// above the wear block instead and a rusted patch keeps full contrast into the
+// distance while the surface under it dissolves. That reads as sparkle on rust
+// and nothing about it points here.
+{
+  patchArtMaterial();
+  const shader = {
+    uniforms: {} as Record<string, unknown>,
+    vertexShader: THREE.ShaderLib.lambert.vertexShader,
+    fragmentShader: THREE.ShaderLib.lambert.fragmentShader,
+  };
+  ART_MATERIAL.onBeforeCompile?.(
+    shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+    null as unknown as THREE.WebGLRenderer,
+  );
+
+  const missed: string[] = [];
+  for (const [what, source, needle] of [
+    ['the feature size', shader.vertexShader, `attribute float ${DETAIL_ATTRIBUTE};`],
+    ['the fade target', shader.vertexShader, `attribute vec3 ${DETAIL_TINT_ATTRIBUTE};`],
+    ['the view position', shader.vertexShader, 'vDetailView = mvPosition.xyz;'],
+    ['the footprint', shader.fragmentShader, 'length(fwidth(vDetailView))'],
+    ['the fade', shader.fragmentShader, 'mix(diffuseColor.rgb, vDetailTint, gone)'],
+  ] as const) {
+    if (!source.includes(needle)) missed.push(what);
+  }
+
+  const wearAt = shader.fragmentShader.indexOf('vWearTint * (0.72');
+  const fadeAt = shader.fragmentShader.indexOf('vDetailTint, gone');
+  const ordered = wearAt >= 0 && fadeAt > wearAt;
+  if (!ordered) missed.push('the fade running after weathering');
+
+  const wired =
+    shader.uniforms.uDetailStart === detailUniforms.uDetailStart &&
+    shader.uniforms.uDetailSpan === detailUniforms.uDetailSpan;
+  if (!wired) missed.push('the dials, shared by reference');
+
+  check(
+    'the detail fade patches land, after weathering',
+    missed.length === 0,
+    missed.length === 0
+      ? '5 injections land in three’s Lambert program, fade after wear'
+      : `missing: ${missed.join(', ')}`,
+  );
+}
+
+// --- nothing fades unless it asked to ---------------------------------------
+//
+// The fade is opt-in, and the default has to be *never*. A stray non-zero
+// feature size dissolves a prop into a colour at a distance somebody has to
+// walk to before they can see it go wrong — and the whole art kit shares one
+// material, so a mistake in `assemble` would do it to everything at once.
+{
+  const stray: string[] = [];
+  let missing = 0;
+  let vertices = 0;
+  for (const builder of builders) {
+    const attribute = builder.build({ seed: 1 }).geometry.getAttribute(DETAIL_ATTRIBUTE);
+    // Absent is worse than non-zero: the attribute has to exist on every
+    // geometry, because they all merge into one buffer against one program.
+    if (!attribute) {
+      missing++;
+      continue;
+    }
+    vertices += attribute.count;
+    for (let i = 0; i < attribute.count; i++) {
+      if (attribute.getX(i) !== 0) {
+        stray.push(`${builder.name} at ${(attribute.getX(i) * 1000).toFixed(0)} mm`);
+        break;
+      }
+    }
+  }
+  const problems = [
+    missing > 0 && `${missing} builders carry no ${DETAIL_ATTRIBUTE} attribute`,
+    // Named, but not all of them: the likely cause is `assemble` fading
+    // everything, and a failure that prints ninety identical lines buries the
+    // one number that says what went wrong.
+    stray.length > 0 &&
+      `${stray.length} declared a feature size: ${stray.slice(0, 4).join(', ')}` +
+        (stray.length > 4 ? ` and ${stray.length - 4} more` : ''),
+  ].filter(Boolean);
+  check(
+    'nothing in the kit fades unless it asked to',
+    problems.length === 0,
+    problems.length === 0
+      ? `${vertices.toLocaleString()} vertices across ${builders.length} builders, every feature size 0`
+      : problems.join('; '),
+  );
+}
 
 // --- the cover patches actually land ----------------------------------------
 //
