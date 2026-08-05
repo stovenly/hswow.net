@@ -203,6 +203,50 @@ and unlike the sample plumbing there is no seam here where a silent failure
 could hide — the change is four constants in one shader, and it is either on
 screen or it is not.
 
+### The sky was riding the edge strength
+
+Found by turning `normalEdgeStrength` down and watching the *sky* dim with it.
+Nothing to do with the grading — it was there under the binary thresholds too.
+
+`PostFX.apply` sets the renderer's clear colour to the fog colour, which is
+right for the colour pass: with the sky dome off, every pixel the geometry
+misses has to be fog or an interior is a lit room floating in blue. But there is
+one clear colour and two render targets, and the normal pass was getting it as
+well. The sky dome does not survive that pass either — `scene.overrideMaterial`
+replaces the material wholesale, so the sphere loses its `BackSide` and is
+culled from inside — so every open-sky pixel in the normal buffer held the fog
+colour, which `getNormal` decodes to a vector 0.66 long. The detector's quantity
+is `1 - dot(normal, neighborNormal)`, and a short vector reads as a turn even
+where the buffer is uniform: 0.56 a tap, 1.12 over four, well past any
+threshold. The whole sky was being multiplied by `1 + normalEdgeStrength`.
+
+The normal target now takes its own clear — `FLAT_NORMAL`, the packed `(0, 0, 1)`
+— borrowed and given back around the render, the same shape `Bloom.renderEmitters`
+uses. Unit length, so an empty region contributes exactly nothing. Silhouettes
+against the sky are unaffected: `dei > 0` on the geometry side, and the ternary
+takes the depth branch there before the normal term is ever consulted.
+
+This one *is* covered by a check — `nothing in the normal buffer is not an edge`
+in `world-check` decodes the constant and runs the uniform-region case through
+the shader's arithmetic. Verified by pointing it at the horizon colour, which
+reports the 0.663 and the 1.12 above.
+
+The sky came out genuinely dimmer, having lost a multiply it should never have
+had, so `DEFAULT_SKY`'s three gradient colours carry it now: `#bcd4e6 → #cce6f9`,
+`#3f7fbf → #458acf`, `#5d6469 → #656d72`, each scaled 1.2 in linear. The
+compositing in `skyColour` is `mix` throughout and `mix` is linear in its
+inputs, so scaling the inputs is the same picture the multiply produced.
+
+`cloudColor` and `sunColor` were left alone. Scaled they clip — `#f2f5f8` to
+pure white, `#fff6e0` to `#fffff3` — and there is no tone mapping in the
+pipeline, so they were already clipping on screen under the old multiply. Baking
+that in would write a rendering artefact into the art direction and lose the
+warm sun the day an exposure control exists.
+
+The fog follows the horizon through `linkFogToSky`, which is the point rather
+than a side effect: the multiply hit the sky and not the geometry fading into
+it, so those two had been disagreeing by 20% at the horizon the whole time.
+
 ### Considered and not done
 
 - **Eight taps instead of four.** The detector samples a 4-neighbour cross, so a

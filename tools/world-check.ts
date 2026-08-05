@@ -50,7 +50,7 @@ import {
   FOG_HEADROOM,
   VIEW_UNLIMITED,
 } from '../src/engine/PostFX';
-import { PixelStage } from '../src/engine/PixelStage';
+import { PixelStage, FLAT_NORMAL } from '../src/engine/PixelStage';
 import { buildInterior, HOUSE_STYLE } from '../src/world/interior';
 import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE } from '../src/art/detail';
 import { SKY_FRACTION } from '../src/engine/Sky';
@@ -1080,6 +1080,44 @@ check(
     problems.length === 0,
     problems.length === 0
       ? `${counts.length} changes, depth texture held throughout`
+      : problems.join(', '),
+  );
+}
+
+/**
+ * An empty normal buffer is not an edge.
+ *
+ * The edge pass is invisible without a GPU, but the one number it cannot
+ * survive being wrong is testable here. Its quantity is
+ * `1 - dot(normal, neighborNormal)`, so a clear colour that decodes to
+ * anything shorter than unit length reads as a turn in the surface across
+ * every pixel the geometry misses — which outdoors is the entire sky, lit at
+ * `1 + normalEdgeStrength` with nothing anywhere reporting it. That is what the
+ * renderer's own clear colour did, being the fog colour and about 0.66 long.
+ *
+ * So: decode `FLAT_NORMAL` the way `getNormal` does and run the uniform-region
+ * case through the arithmetic. Point it at a colour that is not a normal and
+ * this fails.
+ */
+{
+  const n = new THREE.Vector3(FLAT_NORMAL.r, FLAT_NORMAL.g, FLAT_NORMAL.b)
+    .multiplyScalar(2)
+    .subScalar(1);
+  // Four taps, each `(1 - dot(n, n)) * depthIndicator * normalIndicator`, with
+  // both indicators at what a uniform region gives them: depth 1.0, normal 0.5.
+  const indicator = 4 * (1 - n.dot(n)) * 1.0 * 0.5;
+
+  const problems = [
+    Math.abs(n.length() - 1) > 1e-6 && `decodes to length ${n.length().toFixed(3)}, not 1`,
+    indicator > 0 && `open sky reads ${indicator.toFixed(2)} of an edge`,
+    n.z <= 0 && `faces ${n.z.toFixed(2)} away from the camera`,
+  ].filter(Boolean);
+
+  check(
+    'nothing in the normal buffer is not an edge',
+    problems.length === 0,
+    problems.length === 0
+      ? `cleared to (${n.x}, ${n.y}, ${n.z}), indicator ${indicator.toFixed(2)}`
       : problems.join(', '),
   );
 }
