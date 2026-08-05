@@ -4,7 +4,14 @@ import { signPost } from './layout';
 import { markCollidable } from '../../player/Collider';
 import { signboard, type SignboardOptions } from '../../art/builders/signboard';
 import { banner, type BannerOptions } from '../../art/builders/banner';
-import { lettering, letteringMesh, type LetteringStyle } from '../../art/lettering';
+import {
+  lettering,
+  letteringGlow,
+  letteringMesh,
+  readableCapHeight,
+  type LetteringGlowStyle,
+  type LetteringStyle,
+} from '../../art/lettering';
 import { assemble, finish, type Part } from '../../art/assemble';
 import { PALETTE } from '../../art/palette';
 
@@ -21,6 +28,10 @@ import { PALETTE } from '../../art/palette';
  * a range test along the east edge. Everything here states what it is in its
  * own lettering — the room documents itself, which is also the first honest
  * use of the system it exists to test.
+ *
+ * The lettering that *emits* rather than reflects gets a bay of its own to the
+ * west, against a wall — its claim is that a line of text can hang in the air
+ * and read as a light, and the sky is the one background that cannot show it.
  *
  * The specimen strings are engineering fixtures (pangrams, the charset, the
  * stations' own names), not fiction. What real signs in the world say is
@@ -164,6 +175,107 @@ function formsStation(): THREE.Object3D {
   return station(hoarding(1.7, 1.0, top), ink);
 }
 
+/**
+ * A slab to stand glowing text against.
+ *
+ * Glowing letters have almost nothing to separate from against the sky dome.
+ * Tall, because a wall stops backing the text the moment you are close enough
+ * to be looking up at it.
+ */
+function backdrop(width: number, height: number): THREE.Object3D {
+  const parts: Part[] = [];
+  const base = 0.5;
+
+  // Standing in the plinth rather than on it, so no two faces are coplanar.
+  const panel = new THREE.BoxGeometry(width, height - 0.4, 0.5);
+  panel.translate(0, 0.4 + (height - 0.4) / 2, 0);
+  parts.push({ geometry: panel, color: PALETTE.STONE_DARK, sway: 0 });
+
+  const plinth = new THREE.BoxGeometry(width + 0.6, base, 1.1);
+  plinth.translate(0, base / 2, 0);
+  parts.push({ geometry: plinth, color: PALETTE.STONE, sway: 0 });
+
+  return markCollidable(finish(assemble(parts), 'text-backdrop', 0));
+}
+
+/** A glowing word, put where it belongs. */
+function glowing(
+  text: string,
+  color: number,
+  style: LetteringGlowStyle,
+  x: number,
+  y: number,
+  z: number,
+): THREE.Mesh {
+  const mesh = letteringGlow(text, color, style);
+  mesh.position.set(x, y, z);
+  return mesh;
+}
+
+/**
+ * Solid against additive, each on a pale board and again in open air — the
+ * difference between the two modes is entirely what they stand in front of.
+ * One colour and one intensity throughout, so the mode is the only variable.
+ */
+function glowModes(): THREE.Object3D {
+  const top = 2.4;
+  const group = new THREE.Group();
+  group.add(markCollidable(finish(assemble(hoarding(2.2, 1.5, top)), 'text-station', 0)));
+
+  const rows: [string, boolean][] = [
+    ['SOLID', false],
+    ['ADDITIVE', true],
+  ];
+  rows.forEach(([text, additive], i) => {
+    const style: LetteringGlowStyle = {
+      capHeight: 0.24,
+      fitWidth: 1.9,
+      depth: 0.8,
+      intensity: 2,
+      additive,
+    };
+    const y = top - 0.48 - i * 0.62;
+    group.add(glowing(text, PALETTE.LAMPLIGHT, style, 0, y, FACE));
+    group.add(glowing(text, PALETTE.LAMPLIGHT, style, 2.5, y, 0));
+  });
+  return group;
+}
+
+/**
+ * What the whole thing is for: a caption in the air with nothing behind it, at
+ * the cap height the font's own rule gives for reading from three metres.
+ * Solid above, additive below, and an intensity ramp beside them — each line
+ * stating its own number, the way the eye chart states its own cap height.
+ */
+function tutorialText(): THREE.Object3D {
+  const group = new THREE.Group();
+  const style: LetteringGlowStyle = {
+    capHeight: readableCapHeight(3),
+    weight: 0.18,
+    depth: 1.2,
+    intensity: 2,
+  };
+
+  group.add(glowing('TUTORIAL TEXT\nAT READING SIZE', PALETTE.LAMPLIGHT, style, 0, 2.5, 0));
+  group.add(
+    glowing('TUTORIAL TEXT\nAT READING SIZE', PALETTE.LAMPLIGHT, { ...style, additive: true }, 0, 1.7, 0),
+  );
+
+  [1, 2, 4, 8].forEach((intensity, i) => {
+    group.add(
+      glowing(
+        `${intensity} INTENSITY`,
+        PALETTE.LAMPLIGHT,
+        { capHeight: 0.16, depth: 0.8, intensity },
+        2.7,
+        2.5 - i * 0.36,
+        0,
+      ),
+    );
+  });
+  return group;
+}
+
 /** Every glyph the font has, so a missing or broken one has nowhere to hide. */
 function charsetBoard(): THREE.Object3D {
   const top = 2.6;
@@ -212,6 +324,15 @@ export const textShowcaseGalleryPlan: GalleryPlan = {
     floating.position.y = 2.1;
     at(floating, 'floating-text', 10, -8);
     at(markCollidable(charsetBoard()), 'character-set', 10, -18);
+
+    // The lettering that emits, in a bay of its own west of the rank: two
+    // stations six metres in front of one wall, with nothing behind them that
+    // is sky. See `backdrop`.
+    const wall = backdrop(18, 7);
+    wall.position.set(-22, 0, -12);
+    extras.push(wall);
+    at(glowModes(), 'glowing-text', -26, -6);
+    at(tutorialText(), 'tutorial-text', -18, -6);
 
     // The range test, along the east edge: stand at the marker post and read
     // up the rank. All three say their distance at the same cap height, so

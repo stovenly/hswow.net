@@ -34,6 +34,64 @@ export const GLOW_MATERIAL = new THREE.MeshBasicMaterial({
 });
 
 /**
+ * Emissive text, drawn solid — see `letteringGlow` in `art/lettering`.
+ *
+ * Additive would be wrong for a caption twice over: it can only brighten what
+ * is behind it, so a word against the pale sky disappears, and lettering's
+ * overlapping strokes and joint discs would add three or four times at every
+ * elbow. Fogged, because a distant sign should dim into the air.
+ */
+export const TEXT_GLOW_MATERIAL = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  // Fully opaque, but queued as transparent so it draws after the opaque
+  // geometry — writing no depth, it would otherwise be painted over by a wall
+  // drawn behind it later in the pass.
+  transparent: true,
+  // Bloom's emitters pass borrows the scene's depth texture, so anything that
+  // writes depth there corrupts the buffer the edge lines are drawn from.
+  depthWrite: false,
+  fog: true,
+});
+
+/**
+ * Emissive text drawn like a flame: light laid over the world rather than a
+ * surface standing in it. Right on dark stone, unreadable against bright sky,
+ * which is why `letteringGlow` defaults to the solid one.
+ */
+export const TEXT_GLOW_ADDITIVE = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  // Letters are closed solids seen from outside; back faces would only add
+  // themselves on top of the front ones.
+  side: THREE.FrontSide,
+  fog: true,
+});
+
+/**
+ * Fades to black rather than to the fog colour. Three's fog mixes toward
+ * `fogColor`, and on an additive surface that adds the sky on top of everything
+ * behind the letters — a distant word in a rectangle of haze.
+ */
+TEXT_GLOW_ADDITIVE.onBeforeCompile = (shader) => {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <fog_fragment>',
+    /* glsl */ `
+    #ifdef USE_FOG
+      #ifdef FOG_EXP2
+        float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+      #else
+        float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+      #endif
+      gl_FragColor.rgb *= 1.0 - fogFactor;
+    #endif
+    `,
+  );
+};
+TEXT_GLOW_ADDITIVE.customProgramCacheKey = () => 'text-glow-additive';
+
+/**
  * Wraps merged glow geometry into a mesh.
  *
  * Two flags, both load-bearing:
@@ -44,9 +102,16 @@ export const GLOW_MATERIAL = new THREE.MeshBasicMaterial({
  * - `renderOrder` puts it after the opaque pass. Three sorts transparent
  *   objects behind opaque ones already; this keeps several glows in one prop
  *   in a stable order between frames.
+ *
+ * Which of the three glow materials is a caller's choice; that everything drawn
+ * with one goes through here is not, for the layer reason below.
  */
-export function finishGlow(geometry: THREE.BufferGeometry, name: string): THREE.Mesh {
-  const mesh = new THREE.Mesh(geometry, GLOW_MATERIAL);
+export function finishGlow(
+  geometry: THREE.BufferGeometry,
+  name: string,
+  material: THREE.Material = GLOW_MATERIAL,
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(geometry, material);
   mesh.name = name;
   mesh.userData.noCollide = true;
   mesh.renderOrder = 2;
