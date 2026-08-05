@@ -99,6 +99,16 @@ export class ZoneManager {
   private active: Zone | null = null;
   /** Zones whose portal doors have been built into them. */
   private doored = new Set<ZoneId>();
+  /**
+   * The clutter in each built zone, collected while it was prepared.
+   *
+   * Gathered once rather than looked for each frame: a scene walk to find a few
+   * hundred meshes that never move would cost more than the draws it saves. See
+   * `cullClutter`.
+   */
+  private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
+  /** Whether anything is currently hidden, so the default path stays free. */
+  private clutterHidden = false;
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -316,6 +326,9 @@ export class ZoneManager {
       this.options.collider.invalidate(zone.id);
       this.doored.delete(zone.id);
       this.warmed.delete(zone.id);
+      // The meshes are about to be freed; holding them here would be a leak
+      // shaped exactly like the one eviction exists to prevent.
+      this.clutter.delete(zone.id);
       for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
 
       const soundscape = this.soundscapes.get(zone.id);
@@ -582,6 +595,7 @@ export class ZoneManager {
     //   object count in an outdoor zone and a couple of pixels each on screen,
     //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
+    const clutter: THREE.Mesh[] = [];
     root.traverse((object) => {
       // **Every light is shown to the particle pass.** That pass restricts the
       // camera to `PARTICLE_LAYER`, and three collects only the lights a camera
@@ -597,8 +611,11 @@ export class ZoneManager {
         object.name === 'flatGround' ||
         object.name === 'terrain' ||
         object.userData.ground === true;
-      const clutter = object.userData.clutter === true;
-      object.castShadow = !glow && !ground && !clutter;
+      const scatter = object.userData.clutter === true;
+      // The same tag decides the distance cull, and for the same reason it
+      // decides shadows — see `cullClutter`.
+      if (scatter) clutter.push(object);
+      object.castShadow = !glow && !ground && !scatter;
       object.receiveShadow = !glow;
       // Walls opt in by stating a type — ivy on this one — without becoming
       // ground for shadows or anything else.
@@ -617,7 +634,50 @@ export class ZoneManager {
       if (cover) mesh.add(cover);
     }
 
+    this.clutter.set(zone.id, clutter);
+
     return root;
+  }
+
+  /**
+   * Hides clutter past the view distance (VIEW-DISTANCE.md).
+   *
+   * Grass and small flowers are about a third of the meshes in a zone that
+   * scatters and almost none of the picture — near enough the fact that already
+   * stops them casting shadows — so they are the right thing to drop first when
+   * the view is pulled in. It removes draw calls rather than pixels, which is
+   * what a pipeline this chunky is short of.
+   *
+   * Positions come out of the matrices the renderer has already updated, so a
+   * zone that has never been drawn simply reads its meshes where they were
+   * placed. Nothing here touches collision: `Collider` walks the graph without
+   * asking what is visible, so the grass you cannot see is still grass.
+   */
+  private cullClutter(): void {
+    const radius = this.options.postfx.clutterRadius;
+    if (radius === Infinity) {
+      // The default, and then this costs one comparison a frame. Releasing
+      // takes every built zone rather than the one being stood in: a zone left
+      // behind mid-cull would still be missing its grass on the way back.
+      if (!this.clutterHidden) return;
+      for (const zone of this.clutter.values()) for (const mesh of zone) mesh.visible = true;
+      this.clutterHidden = false;
+      return;
+    }
+
+    const list = this.active ? this.clutter.get(this.active.id) : undefined;
+    if (!list) return;
+
+    const eye = this.options.player.camera.position;
+    const limit = radius * radius;
+    for (const mesh of list) {
+      const m = mesh.matrixWorld.elements;
+      const dx = m[12] - eye.x;
+      const dy = m[13] - eye.y;
+      const dz = m[14] - eye.z;
+      mesh.visible = dx * dx + dy * dy + dz * dz <= limit;
+    }
+    this.clutterHidden = true;
   }
 
   /**
@@ -628,6 +688,10 @@ export class ZoneManager {
    */
   update(): PortalSide | null {
     const { interaction, collider, player, reticle } = this.options;
+
+    // Ahead of the transition guard, because the zone being arrived in wants
+    // its grass sorted out before it is first drawn rather than after.
+    this.cullClutter();
 
     if (this.transitioning) {
       reticle.set(null);
@@ -694,5 +758,6 @@ export class ZoneManager {
     for (const zone of this.zones.values()) zone.dispose();
     this.zones.clear();
     this.doored.clear();
+    this.clutter.clear();
   }
 }

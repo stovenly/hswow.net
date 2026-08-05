@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 
+/**
+ * The camera's far plane, and what an unlimited view distance means.
+ *
+ * Everything in the game is drawn well inside it; it is out here because the
+ * view-distance option replaces it and the checks compare against it.
+ */
+export const CAMERA_FAR = 500;
+
 /** Owns the renderer, scene and camera, and keeps them sized to the window. */
 export class Viewport {
   readonly renderer: THREE.WebGLRenderer;
@@ -59,7 +67,7 @@ export class Viewport {
     this.renderer.info.autoReset = false;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, CAMERA_FAR);
 
     this.resize();
     window.addEventListener('resize', this.handleResize);
