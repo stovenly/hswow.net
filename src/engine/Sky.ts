@@ -51,8 +51,16 @@ export interface SkySettings {
   sunGlow: number;
 }
 
-/** Comfortably inside the camera's far plane, and far outside the world. */
+/** The size the dome is authored at. `follow` scales it from the far plane. */
 const RADIUS = 400;
+
+/**
+ * The dome's share of the far plane. Under 1 so it is never clipped away, and
+ * above the fog's share so whatever stands behind it is already solid fog —
+ * the dome writes depth in the *normal* pass and would take those outlines
+ * with it. See VIEW-DISTANCE.md.
+ */
+export const SKY_FRACTION = 0.95;
 
 /**
  * The sky's uniforms, at module scope and shared.
@@ -292,9 +300,13 @@ export class Sky {
       .normalize();
   }
 
-  /** Recentres the dome on the camera and advances the drift. */
-  follow(camera: THREE.Camera, elapsed: number): void {
+  /** Recentres the dome on the camera, sizes it to the far plane, and drifts. */
+  follow(camera: THREE.PerspectiveCamera, elapsed: number): void {
     this.mesh.position.setFromMatrixPosition(camera.matrixWorld);
+    // The radius divides out of the shading — the dome is a gradient per view
+    // direction — so this is only about not being clipped. Pulling the view
+    // distance in moves the far plane, and the sky has to come with it.
+    this.mesh.scale.setScalar((camera.far * SKY_FRACTION) / RADIUS);
     this.material.uniforms.uTime.value = elapsed;
   }
 

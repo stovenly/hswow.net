@@ -133,6 +133,13 @@ export interface RenderSettings {
    */
   particles: { density: number; size: number; shutter: number };
 
+  /**
+   * Fraction of the view distance at which clutter stops being drawn
+   * (VIEW-DISTANCE.md). The player sets the distance; this decides how far
+   * inside it the grass goes, which is where the frame-rate win actually is.
+   */
+  clutterCull: number;
+
   vignetteStrength: number;
   vignetteRadius: number;
   vignetteSoftness: number;
@@ -202,6 +209,10 @@ export const DEFAULT_RENDER: RenderSettings = {
   // of. See PARTICLES.md §3.
   particles: { density: 1, size: 1, shutter: 1 / 60 },
 
+  // Three quarters, so grass thins out where the fog is already most of the
+  // way through hiding it rather than evaporating in clear air ahead of you.
+  clutterCull: 0.75,
+
   // Off. It read as a bright oval hanging in the middle of the screen, which
   // is what a vignette is, and it was not wanted. The shader path is still
   // there in case a zone ever wants to close in around you; nothing uses it.
@@ -217,6 +228,41 @@ export const DEFAULT_RENDER: RenderSettings = {
 };
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
+
+/**
+ * The fog's share of the far plane, and the near's share of the fog.
+ *
+ * Fog has to finish before the cut or geometry vanishes in mid-air while it is
+ * still plainly visible; near has to stay under far or the two invert. Below
+ * `SKY_FRACTION`, so the dome is always behind solid fog — see `Sky.ts`.
+ */
+export const FOG_HEADROOM = 0.9;
+const FOG_RISE = 0.6;
+
+/**
+ * The view distance at which the option stops being a distance.
+ *
+ * The top of the player's slider, and above every zone's own fog, so at this
+ * setting the clamp cannot bite. Here rather than with the menu because what it
+ * means — fall back to the camera's own far plane — is an engine fact.
+ */
+export const VIEW_UNLIMITED = 300;
+
+/**
+ * A zone's fog, pulled under a far plane (VIEW-DISTANCE.md).
+ *
+ * **Clamps and never extends.** A zone says what the air in it is like and this
+ * can only take away — so indoors, where the fog is already a fraction of any
+ * view distance, it does nothing at all.
+ */
+export function clampFog(
+  near: number,
+  far: number,
+  viewFar: number,
+): { near: number; far: number } {
+  const fogFar = Math.min(far, viewFar * FOG_HEADROOM);
+  return { near: Math.min(near, fogFar * FOG_RISE), far: fogFar };
+}
 
 /** The player's groundcover setting. Off is a tier, not a separate switch. */
 export type CoverDensity = 'off' | 'low' | 'medium' | 'high' | 'ultra';
@@ -316,9 +362,17 @@ export class PostFX {
   private particulate = true;
   private colorblind: ColorblindMode = 'off';
   private colorblindStrength = 1;
+  /**
+   * How far the player can see, in metres, or null for the camera's own far
+   * plane — the default, and today's picture exactly. See `setViewDistance`.
+   */
+  private viewDistance: number | null = null;
+  /** The far plane the camera was built with, and what `null` above means. */
+  private readonly baseFar: number;
 
   constructor(viewport: Viewport) {
     this.viewport = viewport;
+    this.baseFar = viewport.camera.far;
     // Spread is shallow, so a preset saved before the sky existed would leave
     // `sky` undefined and take the whole pipeline down. Nested groups get
     // merged a level deeper.
@@ -531,6 +585,31 @@ export class PostFX {
     this.apply();
   }
 
+  /**
+   * How far the player can see, in metres. Null is the camera's own far plane.
+   *
+   * One number driving five — the far plane, the fog's two distances, the sky
+   * dome's radius and the clutter cull — and they are derived together in
+   * `apply` because every way this goes wrong is two of them disagreeing.
+   *
+   * Layered over the tuning like the switches above, and it only ever pulls the
+   * view *in*: the air belongs to the zone, so this clamps under what the zone
+   * asked for and never past it. See VIEW-DISTANCE.md.
+   */
+  setViewDistance(metres: number | null): void {
+    this.viewDistance = metres;
+    this.apply();
+  }
+
+  /**
+   * How far from the camera clutter is still worth drawing. Infinite by
+   * default. Read by `ZoneManager`, which owns the tagged meshes.
+   */
+  get clutterRadius(): number {
+    if (this.viewDistance === null) return Infinity;
+    return this.viewDistance * this.settings.clutterCull;
+  }
+
   /** Particles on or off. Off skips the pass and every particle draw with it. */
   setParticles(enabled: boolean): void {
     this.particulate = enabled;
@@ -620,6 +699,16 @@ export class PostFX {
     this.sky.apply(s.sky);
     this.sky.mesh.visible = this.air === null || this.air.sky;
 
+    // The far plane, and with it the frustum culling every prop gets for free.
+    // The sky follows it in `Sky.follow` and the clutter in `clutterRadius`;
+    // the fog is clamped under it below.
+    const camera = this.viewport.camera;
+    const far = this.viewDistance ?? this.baseFar;
+    if (camera.far !== far) {
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    }
+
     const fog = this.viewport.scene.fog;
     if (fog instanceof THREE.Fog) {
       // Indoors the fog is the darkness at the end of the room and has nothing
@@ -632,8 +721,12 @@ export class PostFX {
       } else {
         fog.color.set(this.air?.fogColor ?? s.fogColor);
       }
-      fog.near = this.air?.fogNear ?? s.fogNear;
-      fog.far = this.air?.fogFar ?? s.fogFar;
+      // Clamped under the far plane, never extended past what the zone asked
+      // for — a cut with no fade in front of it is geometry disappearing in
+      // mid-air. At the default far this is a no-op everywhere.
+      const range = clampFog(this.air?.fogNear ?? s.fogNear, this.air?.fogFar ?? s.fogFar, far);
+      fog.near = range.near;
+      fog.far = range.far;
       // The clear colour is what shows where nothing was drawn. With the sky
       // dome off that is every pixel the geometry does not cover, so it has to
       // be the fog colour or an interior is a lit room floating in blue.

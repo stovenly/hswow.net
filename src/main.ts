@@ -319,6 +319,16 @@ if (dev.gui) {
   // decides whether rain reads as rain or as falling dots.
   particles.add(r.particles, 'shutter', 0, 0.05, 0.001).name('shutter (s)').onChange(refresh);
 
+  // The player's slider, and the one number behind it they do not get: how far
+  // inside the view distance the grass stops. See VIEW-DISTANCE.md.
+  const distance = dev.gui.addFolder('view distance');
+  distance
+    .add(options, 'viewDistance', 40, 300, 20)
+    .name('metres (300 = off)')
+    .listen()
+    .onChange(settings.commit);
+  distance.add(r, 'clutterCull', 0.3, 1, 0.05).name('clutter at ×').onChange(refresh);
+
   const vignette = dev.gui.addFolder('vignette').close();
   vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
   vignette.add(r, 'vignetteRadius', 0, 1.5, 0.01).onChange(refresh);

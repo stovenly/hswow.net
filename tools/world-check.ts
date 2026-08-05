@@ -43,6 +43,9 @@ import { COVER_ATTRIBUTE, coverCensus } from '../src/art/cover';
 import { groundcoverTerrain, ZONE_GROUNDCOVER_SHOWCASE } from '../src/debug/GroundcoverShowcase';
 import { ZONE_PARTICLE_SHOWCASE } from '../src/debug/ParticleShowcase';
 import { drawnAlpha, QUANTIZE_FLOOR } from '../src/art/particles';
+import { clampFog, FOG_HEADROOM, VIEW_UNLIMITED } from '../src/engine/PostFX';
+import { SKY_FRACTION } from '../src/engine/Sky';
+import { CAMERA_FAR } from '../src/engine/Viewport';
 import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
 import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
@@ -814,6 +817,107 @@ console.log('\n--- groundcover ---------------------------------------------\n')
 }
 
 // ---------------------------------------------------------------------------
+console.log('\n--- view distance -------------------------------------------\n');
+
+/**
+ * The three fractions the view-distance option is built out of stay ordered.
+ *
+ * Every way VIEW-DISTANCE.md says this turns into a rendering bug is two of
+ * these disagreeing, and each failure looks like something else: fog that
+ * outruns the far plane cuts geometry off in mid-air, and a sky dome outside it
+ * is clipped away to the clear colour. None of it is visible in a screenshot
+ * taken at the default, which is where the whole option starts.
+ */
+check(
+  'the sky sits between the fog and the far plane',
+  FOG_HEADROOM < SKY_FRACTION && SKY_FRACTION < 1,
+  `fog ends at ${FOG_HEADROOM} of far, dome at ${SKY_FRACTION}`,
+);
+
+/**
+ * The clamp only ever takes away, and never inverts.
+ *
+ * Run over every zone's declared air at every notch of the slider, because the
+ * range these have to survive is enormous — 6 m in a dungeon room against 300 m
+ * in the water showcase — and a rule that holds outdoors and fails indoors is
+ * the kind that ships.
+ */
+{
+  const notches: number[] = [];
+  for (let metres = 40; metres <= VIEW_UNLIMITED; metres += 20) notches.push(metres);
+
+  let extended = 0;
+  let inverted = 0;
+  let overrun = 0;
+  let moved = 0;
+  for (const zone of zones.values()) {
+    const air = zone.environment;
+    for (const metres of notches) {
+      // What `apply.ts` hands the engine: the top stop is the camera's own far
+      // plane rather than a very long view.
+      const far = metres >= VIEW_UNLIMITED ? CAMERA_FAR : metres;
+      const fog = clampFog(air.fogNear, air.fogFar, far);
+      if (fog.far > air.fogFar || fog.near > air.fogNear) extended++;
+      if (fog.near >= fog.far) inverted++;
+      if (fog.far > far) overrun++;
+      if (far === CAMERA_FAR && (fog.near !== air.fogNear || fog.far !== air.fogFar)) moved++;
+    }
+  }
+
+  const problems = [
+    extended > 0 && `${extended} extended a zone's own fog`,
+    inverted > 0 && `${inverted} inverted near and far`,
+    overrun > 0 && `${overrun} fogged past the far plane`,
+    moved > 0 && `${moved} changed the picture at unlimited`,
+  ].filter(Boolean);
+  check(
+    'pulling the view in only ever takes away',
+    problems.length === 0,
+    problems.length === 0
+      ? `${zones.size} zones × ${notches.length} settings, 6 m to 300 m of air`
+      : problems.join(', '),
+  );
+}
+
+/**
+ * Clutter is worth culling.
+ *
+ * The option's whole performance argument is that grass and small flowers are a
+ * large share of the object count and almost none of the picture. If that
+ * stopped being true the slider would still work and would simply buy nothing —
+ * a failure that shows up as a shrug rather than as a bug.
+ *
+ * Measured against the countryside, which is the zone that scatters. The hub is
+ * hand-placed buildings and carries no clutter at all, so it is printed beside
+ * it rather than asserted on: what the cull buys there is nothing, and the far
+ * plane's own frustum culling is what pays for the hub.
+ *
+ * A quarter is the bar, and the measurement is why: `art/clutter.ts` says
+ * "most of the object count in an outdoor zone", and the zone that has any says
+ * about a third. Worth culling, and not what that sentence claims.
+ */
+{
+  const counted = [ZONE_EXTERIOR, ZONE_COUNTRYSIDE].map((id) => {
+    let meshes = 0;
+    let clutter = 0;
+    zones.get(id)?.root().traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      meshes++;
+      if (object.userData.clutter === true) clutter++;
+    });
+    return { id, meshes, clutter, share: meshes > 0 ? clutter / meshes : 0 };
+  });
+
+  const scattered = counted.find((z) => z.id === ZONE_COUNTRYSIDE);
+  check(
+    'clutter is a real share of what a scattered zone draws',
+    (scattered?.share ?? 0) > 0.25,
+    counted
+      .map((z) => `${z.id} ${z.clutter}/${z.meshes} (${(z.share * 100).toFixed(0)}%)`)
+      .join(', '),
+  );
+}
+
 console.log('\n--- particles -----------------------------------------------\n');
 
 /**
