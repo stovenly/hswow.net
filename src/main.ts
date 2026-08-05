@@ -261,8 +261,14 @@ if (dev.gui) {
   look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'depthEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'quantize', ['off', 'levels']).onChange(refresh);
-  look.add(r, 'levels', 2, 16, 1).onChange(refresh);
-  look.add(r, 'ditherScale', 0, 2, 0.05).name('dither (steps)').onChange(refresh);
+  // Up to 64. The output is eight bits a channel, so past there the steps are
+  // finer than the display and the quantizer stops being visible at all —
+  // which is what `quantize: off` is for.
+  look.add(r, 'levels', 2, 64, 1).onChange(refresh);
+  // Counted in *steps*, so what it does on screen depends on `levels` — at 32
+  // a step is half as wide as at 16, and the same number here spreads the
+  // dither across half as much colour. Ceiling raised to match.
+  look.add(r, 'ditherScale', 0, 4, 0.05).name('dither (steps)').onChange(refresh);
   // Counted in chunky pixels, so this and `pixelSize` multiply — a period of 4
   // at pixel size 3 is the same size on screen as 3 at pixel size 4.
   look.add(r, 'screenPeriod', 2, 32, 1).name('screen period').onChange(refresh);
@@ -732,7 +738,7 @@ loop.add((dt, elapsed) => {
   const zone = zones.current;
   if (zone && player.position.y < zone.floor) zones.respawn();
 
-  const door = zones.update();
+  const door = zones.update(elapsed);
   // Consumed unconditionally. Read only when a door is in front of you, a
   // press aimed at nothing would sit in the buffer and fire at whatever you
   // happened to look at next.

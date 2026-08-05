@@ -6,6 +6,7 @@ import { labelOf, type Interaction } from './Interaction';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { setZoneWind } from '../art/sway';
+import { LightActivity } from '../engine/LightActivity';
 import { PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
@@ -109,6 +110,8 @@ export class ZoneManager {
   private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
   /** Whether anything is currently hidden, so the default path stays free. */
   private clutterHidden = false;
+  /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
+  private readonly activity = new LightActivity();
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -329,6 +332,7 @@ export class ZoneManager {
       // The meshes are about to be freed; holding them here would be a leak
       // shaped exactly like the one eviction exists to prevent.
       this.clutter.delete(zone.id);
+      this.activity.release(zone.id);
       for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
 
       const soundscape = this.soundscapes.get(zone.id);
@@ -635,6 +639,7 @@ export class ZoneManager {
     }
 
     this.clutter.set(zone.id, clutter);
+    this.activity.collect(zone.id, root);
 
     return root;
   }
@@ -686,12 +691,14 @@ export class ZoneManager {
    * Returns the side the player could use right now, so the caller can act on
    * the interact key without probing a second time.
    */
-  update(): PortalSide | null {
+  update(elapsed: number): PortalSide | null {
     const { interaction, collider, player, reticle } = this.options;
 
     // Ahead of the transition guard, because the zone being arrived in wants
-    // its grass sorted out before it is first drawn rather than after.
+    // its grass sorted out before it is first drawn rather than after, and a
+    // hearth wants its light at the level it will be at rather than at rest.
     this.cullClutter();
+    this.activity.update(this.active?.id ?? null, elapsed, player.camera.position);
 
     if (this.transitioning) {
       reticle.set(null);
@@ -759,5 +766,6 @@ export class ZoneManager {
     this.zones.clear();
     this.doored.clear();
     this.clutter.clear();
+    this.activity.clear();
   }
 }

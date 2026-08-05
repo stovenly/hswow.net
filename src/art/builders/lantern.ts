@@ -3,6 +3,7 @@ import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
+import { rollActivity, LANTERN } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { flameGlow, rollFlame, FLAME_DECAY } from '../flame';
 
@@ -201,6 +202,9 @@ export const lantern: MeshBuilder = {
     light.position.set(0, wick * scale, 0);
     light.castShadow = false;
     mesh.add(light);
+
+    // What it is doing over time, which drives both the light and the flame.
+    mesh.userData.activity = rollActivity(LANTERN, rng);
 
     return mesh;
   },

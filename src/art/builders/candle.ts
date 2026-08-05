@@ -3,6 +3,7 @@ import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
+import { rollActivity, CANDLE } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { flameGlow, rollFlame, FLAME_DECAY } from '../flame';
 
@@ -58,7 +59,9 @@ export const candle: MeshBuilder = {
   build({ seed = 1, scale = 1 } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
-    const glow: Part[] = [];
+    // One glow mesh per flame rather than one for the prop — see below.
+    const flames: THREE.Mesh[] = [];
+    const wicks: number[] = [];
 
     const flame = rollFlame(rng);
     // Beeswax is honey-coloured and tallow is grey-white. Rolled per candle
@@ -107,11 +110,14 @@ export const candle: MeshBuilder = {
     // why they lean — see below.
     const count = 1 + (rng.chance(0.42) ? 1 : 0) + (rng.chance(0.18) ? 1 : 0);
     const spread = dishRadius * 0.42;
+    // Arranged on a circle rather than in a row, and rotated by a random phase
+    // so two candles are never at the same bearing across instances. One phase
+    // for the dish: rolled per candle it is not a phase at all, just three
+    // independent bearings, and two of them share a spot often enough to see.
+    const phase = rng.range(0, Math.PI * 2);
 
     for (let i = 0; i < count; i++) {
-      // Arranged on a circle rather than in a row, and rotated by a random
-      // phase, so two candles are never at the same bearing across instances.
-      const angle = (i / count) * Math.PI * 2 + rng.range(0, Math.PI * 2);
+      const angle = (i / count) * Math.PI * 2 + phase;
       const ox = count === 1 ? 0 : Math.cos(angle) * spread;
       const oz = count === 1 ? 0 : Math.sin(angle) * spread;
 
@@ -125,11 +131,13 @@ export const candle: MeshBuilder = {
       // sockets. Small — past about eight degrees they read as falling over.
       const lean = rng.range(0, 0.13);
       const leanAt = rng.range(0, Math.PI * 2);
+      const leanX = Math.cos(leanAt) * lean;
+      const leanZ = Math.sin(leanAt) * lean;
 
       const stick = new THREE.CylinderGeometry(radius * 0.92, radius, height, 7);
       stick.translate(0, height / 2, 0);
-      stick.rotateX(Math.cos(leanAt) * lean);
-      stick.rotateZ(Math.sin(leanAt) * lean);
+      stick.rotateX(leanX);
+      stick.rotateZ(leanZ);
       stick.translate(ox, base, oz);
 
       // The wax nearest the flame is lit by it, and lit *its* colour. Without
@@ -142,43 +150,62 @@ export const candle: MeshBuilder = {
         sway: 0,
       });
 
-      // Where the wick actually is, once the lean has moved the top of the
-      // candle off its own axis.
-      const tipX = ox + Math.sin(Math.sin(leanAt) * lean) * height;
-      const tipZ = oz - Math.sin(Math.cos(leanAt) * lean) * height;
-      const tipY = base + height;
+      // Where the wick actually is: the top of the candle's own axis carried
+      // through the same two rotations the geometry took, in the same order.
+      // Getting a sign wrong here floats the flame beside the candle instead of
+      // on it, and the taller and more leaned the candle the further off it is.
+      const tipX = ox - Math.sin(leanZ) * Math.cos(leanX) * height;
+      const tipY = base + Math.cos(leanZ) * Math.cos(leanX) * height + radius * 2.2;
+      const tipZ = oz + Math.sin(leanX) * height;
 
       // A bright core inside a wide faint halo, both additive and unlit, so
       // they stay bright regardless of what is lighting the room around them.
       // The halo is what stops the flame reading as a small orange solid.
-      flameGlow(glow, flame, tipX, tipY + radius * 2.2, tipZ, radius * 1.35);
+      //
+      // Built at the origin in its own mesh and moved to the wick, rather than
+      // merged into one buffer with the others. `LightActivity` swells a flame
+      // by scaling its mesh, and a scale is about the mesh's origin: three
+      // wicks sharing a buffer would grow about the point between them and
+      // slide off their candles.
+      const one: Part[] = [];
+      flameGlow(one, flame, 0, 0, 0, radius * 1.35);
+      const shape = assemble(one);
+      // The variety `facing` used to give the merged buffer. Geometry rather
+      // than the mesh, which `LightActivity` needs — see its `apply`.
+      shape.rotateY(leanAt);
+      flames.push(finishGlow(shape, 'candle:flame'));
+      wicks.push(tipX, tipY, tipZ);
 
       // One light for the whole prop, not one per candle — three point lights
       // on an object this size is three shader iterations for a difference
       // nobody can see. Recorded here and hung after assembly.
-      if (i === 0) lightAt.set(tipX, tipY + radius * 2.2, tipZ);
+      if (i === 0) lightAt.set(tipX, tipY, tipZ);
     }
 
     const geometry = assemble(parts);
-    const glowGeometry = assemble(glow);
 
     const facing = rng.range(0, Math.PI * 2);
     geometry.rotateY(facing);
-    glowGeometry.rotateY(facing);
 
-    if (scale !== 1) {
-      geometry.scale(scale, scale, scale);
-      glowGeometry.scale(scale, scale, scale);
-    }
+    if (scale !== 1) geometry.scale(scale, scale, scale);
 
     const mesh = finish(geometry, 'candle', 0);
-    mesh.add(finishGlow(glowGeometry, 'candle:glow'));
 
-    // `rotateY` maps (x, z) to (x·cos − z·(−sin))… written out rather than
-    // built with a matrix because it is two lines and a matrix here would be
-    // three plus an allocation.
-    const lx = Math.cos(facing) * lightAt.x + Math.sin(facing) * lightAt.z;
-    const lz = -Math.sin(facing) * lightAt.x + Math.cos(facing) * lightAt.z;
+    // Everything hung on the prop rather than merged into it takes the facing
+    // and the scale by hand. `rotateY` maps (x, z) to (x·cos + z·sin, −x·sin +
+    // z·cos), written out rather than built with a matrix because it is two
+    // lines and a matrix here would be three plus an allocation.
+    const cos = Math.cos(facing);
+    const sin = Math.sin(facing);
+    const place = (child: THREE.Object3D, x: number, y: number, z: number) => {
+      child.position.set((cos * x + sin * z) * scale, y * scale, (-sin * x + cos * z) * scale);
+      mesh.add(child);
+    };
+
+    for (let i = 0; i < flames.length; i++) {
+      flames[i].scale.setScalar(scale);
+      place(flames[i], wicks[i * 3], wicks[i * 3 + 1], wicks[i * 3 + 2]);
+    }
 
     const light = new THREE.PointLight(
       flame.light,
@@ -189,9 +216,11 @@ export const candle: MeshBuilder = {
       LIGHT_RANGE * scale,
       FLAME_DECAY,
     );
-    light.position.set(lx * scale, lightAt.y * scale, lz * scale);
     light.castShadow = false;
-    mesh.add(light);
+    place(light, lightAt.x, lightAt.y, lightAt.z);
+
+    // What it is doing over time, which drives both the light and the flame.
+    mesh.userData.activity = rollActivity(CANDLE, rng);
 
     return mesh;
   },

@@ -3,6 +3,7 @@ import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
+import { rollActivity, FORGE } from '../activity';
 import { PALETTE, shade } from '../palette';
 
 /**
@@ -210,6 +211,9 @@ export const forge: MeshBuilder = {
     light.position.set(0, (bedY + 0.1) * scale, 0);
     light.castShadow = false;
     mesh.add(light);
+
+    // What it is doing over time, which drives both the light and the flame.
+    mesh.userData.activity = rollActivity(FORGE, rng);
 
     return mesh;
   },

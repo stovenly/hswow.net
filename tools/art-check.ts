@@ -40,6 +40,20 @@ import { WATER_MATERIAL } from '../src/art/water';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../src/art/glow';
 import { letteringGlow } from '../src/art/lettering';
 import { GLOW_LAYER } from '../src/layers';
+import { createRng } from '../src/art/random';
+import {
+  rollActivity,
+  displace,
+  sampleActivity,
+  eventsIn,
+  CANDLE,
+  LANTERN,
+  STREETLAMP,
+  HEARTH,
+  FORGE,
+  STOVE,
+  type ActivityEvent,
+} from '../src/art/activity';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
@@ -611,7 +625,209 @@ check(
   );
 }
 
+// --- what the flames are doing ----------------------------------------------
+{
+  const presets = [
+    ['candle', CANDLE],
+    ['lantern', LANTERN],
+    ['streetlamp', STREETLAMP],
+    ['hearth', HEARTH],
+    ['forge', FORGE],
+    ['stove', STOVE],
+  ] as const;
+
+  // Ten candles in a row is the requirement, stated as a number. Phase alone
+  // passes this at two sources and fails it at ten — same rate, different
+  // phase, and they drift into step and beat.
+  const RUN = 90;
+  const RATE = 30;
+  const trace = (source: ReturnType<typeof rollActivity>): number[] =>
+    Array.from({ length: RUN * RATE }, (_, s) => sampleActivity(source, s / RATE));
+  const traces = Array.from({ length: 10 }, (_, i) =>
+    trace(displace(rollActivity(CANDLE, createRng(700 + i * 7919)), i * 2654435761)),
+  );
+
+  let worst = 0;
+  for (let a = 0; a < traces.length; a++) {
+    for (let b = a + 1; b < traces.length; b++) {
+      worst = Math.max(worst, Math.abs(correlation(traces[a], traces[b])));
+    }
+  }
+
+  // And the same measurement on two flames that *are* in step, so the threshold
+  // above is a bar something can fail rather than a number that always passes.
+  const twinned = rollActivity(CANDLE, createRng(700));
+  const locked = correlation(trace(twinned), trace(twinned));
+
+  check(
+    'no two flames flicker together',
+    worst < 0.25 && locked > 0.99,
+    `worst of ${(traces.length * (traces.length - 1)) / 2} pairs correlates ` +
+      `${worst.toFixed(3)}, against ${locked.toFixed(3)} for two in lockstep`,
+  );
+
+  // A signal that averages 0.8 dims every hearth in the game by a fifth, and
+  // nothing anywhere reports it.
+  const drifting: string[] = [];
+  for (const [name, spec] of presets) {
+    const source = rollActivity(spec, createRng(9001));
+    let sum = 0;
+    let pinned = 0;
+    let high = -Infinity;
+    const samples = 120 * RATE;
+    for (let s = 0; s < samples; s++) {
+      const level = sampleActivity(source, s / RATE);
+      sum += level;
+      if (level <= spec.floor + 1e-9) pinned++;
+      high = Math.max(high, level);
+    }
+    const mean = sum / samples;
+    if (Math.abs(mean - 1) > 0.05) drifting.push(`${name} averages ${mean.toFixed(3)}`);
+    // A floor that bites often is a light pinned dark, and it makes the mean
+    // above a claim about a number nobody is looking at.
+    if (pinned / samples > 0.02) {
+      drifting.push(`${name} sits on its floor ${((pinned / samples) * 100).toFixed(0)}% of the time`);
+    }
+    if (high > 3) drifting.push(`${name} peaked at ${high.toFixed(2)}`);
+  }
+  check(
+    'every flame averages the brightness it was authored at',
+    drifting.length === 0,
+    drifting.length === 0
+      ? `${presets.length} presets within 5% of 1 over two minutes`
+      : drifting.join('; '),
+  );
+
+  // The whole sound coupling rests on this. A signal that answers differently
+  // depending on when it was asked cannot be scheduled ahead on the audio
+  // clock, and a crackle would fire at a time the light never responded to.
+  const source = rollActivity(HEARTH, createRng(4242));
+  const ordered = Array.from({ length: 400 }, (_, i) => sampleActivity(source, 10 + i * 0.05));
+  const shuffled = new Array<number>(400);
+  for (let i = 399; i >= 0; i--) shuffled[i] = sampleActivity(source, 10 + i * 0.05);
+  const pure = ordered.every((value, i) => value === shuffled[i]);
+
+  const whole: ActivityEvent[] = [];
+  const first: ActivityEvent[] = [];
+  const second: ActivityEvent[] = [];
+  const all = eventsIn(source, 10, 40, whole);
+  const split =
+    eventsIn(source, 10, 25, first) + eventsIn(source, 25, 40, second);
+  const seamless = all === split && all > 0;
+
+  check(
+    'the signal is seekable, so sound can schedule off it',
+    pure && seamless,
+    pure && seamless
+      ? `${all} events over 30 s, and a window is the sum of its halves`
+      : [!pure && 'sampling order changes the answer', !seamless && `${all} whole vs ${split} split`]
+          .filter(Boolean)
+          .join('; '),
+  );
+
+  // Six one-line changes, each of which is silent if dropped: the prop simply
+  // never moves, among five that do.
+  const lit = [candle, lantern, streetlamp, fireplace, forge, stove];
+  const still = lit
+    .filter((builder) => !builder.build({ seed: 31 }).userData.activity)
+    .map((builder) => builder.name);
+  check(
+    'everything that burns has an activity signal',
+    still.length === 0,
+    still.length === 0 ? `${lit.length} builders tagged` : `not tagged: ${still.join(', ')}`,
+  );
+
+  // A candle's wicks lean, so where the flame goes is the top of a rotated
+  // axis rather than the point it was built from — and getting that wrong
+  // stands the flame beside the candle rather than on it. Invisible in every
+  // headless measure of the prop: the bounds, the triangle count and the seed
+  // response are all unchanged by a flame in the wrong place.
+  const wickLayer = new THREE.Layers();
+  wickLayer.set(GLOW_LAYER);
+  let strays = 0;
+  let wicks = 0;
+  let worstWick = 0;
+  // Widest a candle gets, so two of them centred this far apart are touching.
+  const FATTEST = 0.016 * 2;
+  let closest = Infinity;
+  let shared = 0;
+
+  for (let seed = 1; seed <= 400; seed++) {
+    const prop = candle.build({ seed });
+    const wax = prop.geometry.getAttribute('position');
+    const onDish: THREE.Vector3[] = [];
+    prop.traverse((child) => {
+      if (child === prop || !(child instanceof THREE.Mesh)) return;
+      if (!child.layers.test(wickLayer)) return;
+      wicks++;
+      for (const other of onDish) {
+        const gap = Math.hypot(other.x - child.position.x, other.z - child.position.z);
+        closest = Math.min(closest, gap);
+        if (gap < FATTEST) shared++;
+      }
+      onDish.push(child.position);
+      // Horizontally, because the flame sits deliberately above the wick. A
+      // cylinder cap has a vertex on its own axis, so a flame standing where
+      // it should is directly over one.
+      let nearest = Infinity;
+      for (let v = 0; v < wax.count; v++) {
+        nearest = Math.min(
+          nearest,
+          Math.hypot(wax.getX(v) - child.position.x, wax.getZ(v) - child.position.z),
+        );
+      }
+      worstWick = Math.max(worstWick, nearest);
+      if (nearest > 0.004) strays++;
+    });
+  }
+
+  check(
+    'every flame stands on its own wick',
+    strays === 0,
+    strays === 0
+      ? `${wicks} wicks over 400 candles, worst ${(worstWick * 1000).toFixed(1)} mm off axis`
+      : `${strays} of ${wicks} flames off their wick, worst ${(worstWick * 1000).toFixed(1)} mm`,
+  );
+
+  // Two candles standing in the same place read as one candle with a doubled
+  // flame — the geometry interpenetrates and the bounds do not change, so it
+  // survives every other measure here.
+  check(
+    'no two candles stand in the same spot',
+    shared === 0,
+    shared === 0
+      ? `closest pair on any dish ${(closest * 1000).toFixed(1)} mm apart, and a candle is ${(FATTEST * 1000).toFixed(0)} mm at its fattest`
+      : `${shared} overlapping pairs, closest ${(closest * 1000).toFixed(1)} mm`,
+  );
+}
+
 console.log('');
+
+/** Pearson's r between two equal-length traces. */
+function correlation(a: number[], b: number[]): number {
+  const n = a.length;
+  let sa = 0;
+  let sb = 0;
+  for (let i = 0; i < n; i++) {
+    sa += a[i];
+    sb += b[i];
+  }
+  const ma = sa / n;
+  const mb = sb / n;
+
+  let top = 0;
+  let va = 0;
+  let vb = 0;
+  for (let i = 0; i < n; i++) {
+    const da = a[i] - ma;
+    const db = b[i] - mb;
+    top += da * db;
+    va += da * da;
+    vb += db * db;
+  }
+  const bottom = Math.sqrt(va * vb);
+  return bottom === 0 ? 0 : top / bottom;
+}
 
 /**
  * Fraction of edges shared by exactly two triangles.
