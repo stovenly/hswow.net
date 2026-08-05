@@ -49,8 +49,8 @@ const FLOOR = 120;
  *
  * §3's arithmetic is the whole reason: a 3 cm flake is under one chunky pixel
  * past ten metres, and the clamp that stops it flickering costs alpha by the
- * square of the distance. The pipeline then quantizes to sixteen levels, so a
- * particle under 1/16 alpha is not faint — it is *not drawn*. The first version
+ * square of the distance. The pipeline then quantizes, so a particle under one
+ * level of alpha is not faint — it is *not drawn*. The first version
  * of this room stood ten stations thirteen metres apart with the door
  * twenty-four metres off the end, and five of the ten were mathematically
  * incapable of appearing. It read as a feature that did not work.

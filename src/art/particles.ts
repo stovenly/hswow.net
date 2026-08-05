@@ -528,7 +528,12 @@ export function drawnAlpha(size: number, distance: number, opacity: number): num
   return ratio * ratio * opacity;
 }
 
-/** One over `RenderSettings.levels`: the dimmest thing the pipeline can draw. */
+/**
+ * The dimmest thing the pipeline can draw is one over `RenderSettings.levels`,
+ * and that is a setting rather than a constant — so this is pinned at the
+ * coarsest value the look has run at. A particle that clears it is drawn
+ * whatever the quantizer is set to; the reverse does not hold.
+ */
 export const QUANTIZE_FLOOR = 1 / 16;
 
 /**

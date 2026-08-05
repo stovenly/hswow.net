@@ -3,6 +3,7 @@ import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
+import { rollActivity, STREETLAMP } from '../activity';
 import { PALETTE, shade } from '../palette';
 
 /**
@@ -257,6 +258,9 @@ export const streetlamp: MeshBuilder = {
     // only if a zone is ever lit by lamps alone.
     light.castShadow = false;
     mesh.add(light);
+
+    // What it is doing over time, which drives both the light and the flame.
+    mesh.userData.activity = rollActivity(STREETLAMP, rng);
 
     return mesh;
   },

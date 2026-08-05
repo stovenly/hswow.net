@@ -3,6 +3,7 @@ import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
+import { rollActivity, STOVE } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { FLAME_DECAY } from '../flame';
 
@@ -353,6 +354,9 @@ export const stove: MeshBuilder = {
     light.position.set(0, doorY * scale, (front + 0.06) * scale);
     light.castShadow = false;
     mesh.add(light);
+
+    // What it is doing over time, which drives both the light and the flame.
+    mesh.userData.activity = rollActivity(STOVE, rng);
 
     return mesh;
   },

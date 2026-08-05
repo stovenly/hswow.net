@@ -167,20 +167,26 @@ export const DEFAULT_RENDER: RenderSettings = {
   normalEdgeStrength: 0.5,
   depthEdgeStrength: 0.5,
 
-  // Over a full step, so the transition between two levels never fully
-  // resolves to flat colour and the screen stays visible as a texture in its
-  // own right. Under 1 it would be the opposite — bands with clean centres.
-  ditherScale: 1.65,
+  // Well over a full step, so the transition between two levels never resolves
+  // to flat colour and the screen stays visible as a texture in its own right.
+  // Under 1 it would be the opposite — bands with clean centres. Paired with
+  // `levels` below: a step is the unit here, so the two move together.
+  ditherScale: 3.4,
   // Three chunky pixels, so six device pixels at the pixel size above: a dot
   // small enough to read as a print screen rather than as a pattern.
   screenPeriod: 3,
 
   quantize: 'levels',
-  // Sixteen. Costs nothing — it is a uniform, and the shader does identical
+  // Thirty-two. Costs nothing — it is a uniform, and the shader does identical
   // arithmetic whatever it holds — so the only question is the look. High
   // enough that the quantization is not the thing you see, which leaves the
   // halftone doing the work instead of fighting the banding.
-  levels: 16,
+  //
+  // Was sixteen, which was chosen against flat-shaded surfaces lit by a distant
+  // sun — a wall is one value there and the steps never show. A point light half
+  // a metre from a wall runs the whole range across that wall, and sixteen steps
+  // read as bands.
+  levels: 32,
 
   // Strength short of full black: GTAO's corners should read as seated, not
   // sooted, and the halftone will texture whatever gradient this produces.
