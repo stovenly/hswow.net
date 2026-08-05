@@ -2,6 +2,7 @@ import type { GalleryPlan } from './layout';
 import { foliageGalleryPlan } from './foliage';
 import { animalGalleryPlan } from './animal';
 import { textShowcaseGalleryPlan } from './text';
+import { darkRoomPlan } from './dark';
 import { fogShowcasePlan } from './fog';
 import {
   villageInteriorGalleryPlan,
@@ -29,6 +30,7 @@ export const GALLERIES: readonly GalleryPlan[] = [
   factoryInteriorGalleryPlan,
   factoryExteriorGalleryPlan,
   textShowcaseGalleryPlan,
+  darkRoomPlan,
   fogShowcasePlan,
 ];
 
@@ -37,6 +39,7 @@ export type { GalleryPlan } from './layout';
 export { ZONE_GALLERY_FOLIAGE } from './foliage';
 export { ZONE_GALLERY_ANIMAL } from './animal';
 export { ZONE_TEXT_SHOWCASE } from './text';
+export { ZONE_DARK_ROOM } from './dark';
 export { ZONE_FOG_SHOWCASE } from './fog';
 export {
   ZONE_GALLERY_VILLAGE_INTERIOR,

@@ -15,7 +15,7 @@ import { BloomEffect } from './Bloom';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
-import { GLOW_MATERIAL } from '../art/glow';
+import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
 import type { Viewport } from './Viewport';
 
@@ -747,7 +747,9 @@ export class PostFX {
    * - **Glow.** That second pass has no concept of transparency — every object
    *   in it is opaque — so a street lamp's flame came back with a hard outline
    *   drawn round its silhouette, reading as a small solid object hanging in
-   *   the lantern rather than as something burning.
+   *   the lantern rather than as something burning. All three glow materials —
+   *   a glowing word with a dark rim round every stroke is a sign in the air,
+   *   not a line of light.
    * - **Cover.** The blade and tuft construction lives in the cover materials'
    *   own vertex shaders, so an override material would draw every instance as
    *   an untransformed sliver at its mesh's origin. Hidden here, and drawn
@@ -764,6 +766,8 @@ export class PostFX {
     scene.onBeforeRender = (_renderer, rendered) => {
       const colourPass = (rendered as THREE.Scene).overrideMaterial === null;
       GLOW_MATERIAL.visible = colourPass;
+      TEXT_GLOW_MATERIAL.visible = colourPass;
+      TEXT_GLOW_ADDITIVE.visible = colourPass;
       COVER_MATERIAL.visible = colourPass;
       TUFT_MATERIAL.visible = colourPass;
     };
@@ -821,6 +825,8 @@ export class PostFX {
     // that no longer exists — and it could leave it hidden.
     this.viewport.scene.onBeforeRender = () => {};
     GLOW_MATERIAL.visible = true;
+    TEXT_GLOW_MATERIAL.visible = true;
+    TEXT_GLOW_ADDITIVE.visible = true;
     this.viewport.scene.remove(this.sky.mesh);
     this.sky.dispose();
     this.pixelStage.dispose();

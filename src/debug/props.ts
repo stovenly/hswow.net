@@ -18,6 +18,7 @@ import {
 import { foliageGalleryPlan } from './galleries/foliage';
 import { animalGalleryPlan } from './galleries/animal';
 import { textShowcaseGalleryPlan } from './galleries/text';
+import { darkRoomPlan } from './galleries/dark';
 import { fogShowcasePlan } from './galleries/fog';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
@@ -333,6 +334,18 @@ export function propPortals(
     // Lettering, which was the first door out here and the reason the rank
     // exists.
     galleryPortal(textShowcaseGalleryPlan, gridDoor(1, 'timber', 6431)),
+    // The dark room's door stands *inside* the Text Showcase, beside the glow
+    // bay, rather than out here. Two reasons: the showcase rank is full and was
+    // argued down to eight already (see `SHOWCASE_SLOTS`), and the room is only
+    // meaningful having just looked at the same lettering in the light.
+    galleryPortal(darkRoomPlan, {
+      zone: textShowcaseGalleryPlan.id,
+      position: new THREE.Vector3(-22, 0, 4),
+      // Faces -Z, so stepping back out puts the glow bay in front of you.
+      yaw: Math.PI,
+      material: 'iron',
+      seed: 6439,
+    }),
     // The Sound Showcase. It stood in the exterior, four paces from spawn, on
     // the argument that it was the only place in the hub where a model could be
     // heard and friction in front of the only door is just friction. That

@@ -37,6 +37,9 @@ import {
 import { windUniforms } from '../src/art/sway';
 import { PARTICLE_MATERIAL, PARTICLE_GLOW_MATERIAL, createParticles } from '../src/art/particles';
 import { WATER_MATERIAL } from '../src/art/water';
+import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../src/art/glow';
+import { letteringGlow } from '../src/art/lettering';
+import { GLOW_LAYER } from '../src/layers';
 
 // Imported explicitly. `art/registry.ts` finds these with `import.meta.glob`,
 // which exists only under Vite; the check below compares this list against the
@@ -543,6 +546,68 @@ check(
     wrong.length === 0
       ? `4 motions, ${instances} instances, deterministic, off layer 0, never culled`
       : wrong.slice(0, 4).join('; '),
+  );
+}
+
+// --- lettering that emits ---------------------------------------------------
+{
+  // Bloom's emitters pass selects by layer and nothing else, so text that
+  // missed it would render correctly and simply never bloom, with no error.
+  const onLayer = new THREE.Layers();
+  onLayer.set(GLOW_LAYER);
+  const wrong: string[] = [];
+  for (const additive of [false, true]) {
+    const mode = additive ? 'additive' : 'solid';
+    const mesh = letteringGlow('AB', 0xffe0a8, { additive });
+    if (!mesh.layers.test(onLayer)) wrong.push(`${mode} is off the glow layer`);
+    if (mesh.userData.noCollide !== true) wrong.push(`${mode} is collidable`);
+    const wanted = additive ? TEXT_GLOW_ADDITIVE : TEXT_GLOW_MATERIAL;
+    if (mesh.material !== wanted) wrong.push(`${mode} is on the wrong material`);
+  }
+
+  // Intensity has to leave the colour over 1 or bloom has nothing to spread,
+  // and the symptom of losing it is "the glow looks a bit weak".
+  const plain = letteringGlow('AB', 0xffe0a8, {});
+  const bright = letteringGlow('AB', 0xffe0a8, { intensity: 4 });
+  const peak = (mesh: THREE.Mesh): number =>
+    Math.max(...(mesh.geometry.getAttribute('color').array as Float32Array));
+  if (!(peak(plain) <= 1.0001)) wrong.push('an unscaled word is already over 1');
+  if (peak(bright) < 3.9) wrong.push(`intensity 4 only reached ${peak(bright).toFixed(2)}`);
+
+  check(
+    'glowing text emits, and has headroom to bloom with',
+    wrong.length === 0,
+    wrong.length === 0
+      ? `both modes on layer ${GLOW_LAYER}, uncollidable, peak ${peak(bright).toFixed(1)} at intensity 4`
+      : wrong.join('; '),
+  );
+
+  // Bloom's emitters pass borrows the scene's depth texture, so a glow material
+  // that writes depth breaks the edge lines — in some other zone, with no
+  // lettering in it. Transparent-queued for the reason on `TEXT_GLOW_MATERIAL`.
+  const glows = [
+    ['flames', GLOW_MATERIAL],
+    ['text (solid)', TEXT_GLOW_MATERIAL],
+    ['text (additive)', TEXT_GLOW_ADDITIVE],
+  ] as const;
+  const writing = glows.filter(([, m]) => m.depthWrite || !m.transparent).map(([n]) => n);
+  check(
+    'glow materials draw last and write no depth',
+    writing.length === 0,
+    writing.length === 0
+      ? `${glows.length} materials, all transparent-queued and depth-read-only`
+      : `would scribble on the scene depth, or be overdrawn by it: ${writing.join(', ')}`,
+  );
+
+  // A string replacement against three's own chunk: rename it upstream and the
+  // patch silently does nothing, and additive text hazes again.
+  const marker = THREE.ShaderLib.basic.fragmentShader.includes('#include <fog_fragment>');
+  check(
+    "the additive text fog patch has a chunk to land on",
+    marker,
+    marker
+      ? 'fog_fragment is still where three keeps it'
+      : "no fog_fragment in three's basic shader — glowing text will haze again",
   );
 }
 
