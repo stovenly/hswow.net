@@ -19,6 +19,7 @@ import { foliageGalleryPlan } from './galleries/foliage';
 import { animalGalleryPlan } from './galleries/animal';
 import { textShowcaseGalleryPlan } from './galleries/text';
 import { darkRoomPlan } from './galleries/dark';
+import { lightShowcasePlan } from './galleries/light';
 import { fogShowcasePlan } from './galleries/fog';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
@@ -345,6 +346,17 @@ export function propPortals(
       yaw: Math.PI,
       material: 'iron',
       seed: 6439,
+    }),
+    // And the Light Showcase off the Dark Room, for the same two reasons over
+    // again: the rank is full, and a room full of flames in the dark is the
+    // Dark Room's own argument applied to the props that carry one.
+    galleryPortal(lightShowcasePlan, {
+      zone: darkRoomPlan.id,
+      position: new THREE.Vector3(-13, 0, 17),
+      // Faces -Z, so stepping back out looks down the room rather than at a wall.
+      yaw: Math.PI,
+      material: 'iron',
+      seed: 6440,
     }),
     // The Sound Showcase. It stood in the exterior, four paces from spawn, on
     // the argument that it was the only place in the hub where a model could be

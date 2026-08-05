@@ -297,8 +297,8 @@ export const RetroShader = {
       // small amounts, and doing it last would move them off the levels the
       // dither is resolving between — the halftone would still be there but it
       // would no longer be dithering toward anything, and flat faces would
-      // come back banded. Corrected first, the output is still exactly the
-      // sixteen levels per channel the look is built on.
+      // come back banded. Corrected first, the output still lands exactly on
+      // the levels per channel the look is built on.
       if (uColorblind != 0) {
         colour = mix(colour, correctColour(colour), clamp(uColorblindStrength, 0.0, 1.0));
       }

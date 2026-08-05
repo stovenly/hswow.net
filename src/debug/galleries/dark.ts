@@ -29,7 +29,7 @@ export const ZONE_DARK_ROOM = 'dark-room';
  * something lights them, and a room with no shape at all reads as a bug rather
  * than as darkness.
  */
-const UNLIT: Partial<ZoneEnvironment> = {
+export const UNLIT: Partial<ZoneEnvironment> = {
   sky: false,
   fogColor: '#04050a',
   fogNear: 12,
@@ -51,39 +51,50 @@ const NORTH = -20;
 const LID = 6;
 const THICK = 0.4;
 
+export interface SealedRoom {
+  /** Half-width; the room runs x ±half. */
+  half: number;
+  /** Near and far walls, in z. */
+  south: number;
+  north: number;
+  height: number;
+}
+
 /**
  * Four walls and a lid. A zone with no sky has to be *sealed* — `check:world`
  * fires six hundred rays out of the spawn and one that escapes is a hole into
  * the void — and the walls are what the light lands on anyway.
+ *
+ * Exported because the Light Showcase is the same problem at a different size.
  */
-function chamber(): THREE.Object3D {
+export function sealedRoom({ half, south, north, height }: SealedRoom): THREE.Object3D {
   const parts: Part[] = [];
-  const depth = SOUTH - NORTH;
-  const middle = (SOUTH + NORTH) / 2;
-  const span = HALF * 2 + THICK * 2;
+  const depth = south - north;
+  const middle = (south + north) / 2;
+  const span = half * 2 + THICK * 2;
   const stone = shade(PALETTE.STONE_DARK, 0.8);
 
   for (const side of [-1, 1]) {
-    const wall = new THREE.BoxGeometry(THICK, LID, depth + THICK * 2);
-    wall.translate(side * (HALF + THICK / 2), LID / 2, middle);
+    const wall = new THREE.BoxGeometry(THICK, height, depth + THICK * 2);
+    wall.translate(side * (half + THICK / 2), height / 2, middle);
     parts.push({ geometry: wall, color: stone, sway: 0 });
   }
 
-  for (const z of [SOUTH, NORTH]) {
-    const wall = new THREE.BoxGeometry(span, LID, THICK);
-    wall.translate(0, LID / 2, z + (z === SOUTH ? THICK / 2 : -THICK / 2));
+  for (const z of [south, north]) {
+    const wall = new THREE.BoxGeometry(span, height, THICK);
+    wall.translate(0, height / 2, z + (z === south ? THICK / 2 : -THICK / 2));
     parts.push({ geometry: wall, color: stone, sway: 0 });
   }
 
   const lid = new THREE.BoxGeometry(span, THICK, depth + THICK * 2);
-  lid.translate(0, LID + THICK / 2, middle);
+  lid.translate(0, height + THICK / 2, middle);
   parts.push({ geometry: lid, color: shade(PALETTE.STONE_DARK, 0.66), sway: 0 });
 
-  return markCollidable(finish(assemble(parts), 'dark-chamber', 0));
+  return markCollidable(finish(assemble(parts), 'sealed-room', 0));
 }
 
 /** Three walls facing +Z, so a light inside has surfaces to fall off across. */
-function alcove(width: number, depth: number, height: number): THREE.Object3D {
+export function alcove(width: number, depth: number, height: number): THREE.Object3D {
   const parts: Part[] = [];
   const thickness = 0.4;
 
@@ -127,7 +138,9 @@ export const darkRoomPlan: GalleryPlan = {
   environment: UNLIT,
 
   extras() {
-    const extras: THREE.Object3D[] = [chamber()];
+    const extras: THREE.Object3D[] = [
+      sealedRoom({ half: HALF, south: SOUTH, north: NORTH, height: LID }),
+    ];
 
     RANK.forEach(([text, intensity, range], i) => {
       const x = -10.5 + i * 7;
