@@ -258,6 +258,18 @@ if (dev.gui) {
   look.add(options, 'shadows').name('cast shadows').listen().onChange(settings.commit);
   look.add({ open: settings.open }, 'open').name("open the player's menu");
   look.add(r, 'pixelSize', 1, 12, 1).onChange(refresh);
+  // The player's switch is in the options menu; this is how many. Clamped to
+  // what the driver offers, so the top of the slider may not be reachable —
+  // and under 2 it is off, which is what the switch is for.
+  look.add(options, 'antialias').listen().onChange(settings.commit);
+  look.add(r, 'samples', 0, 8, 1).onChange(refresh);
+  // The other half, and the half samples cannot buy: fine detail dissolving
+  // into its surroundings once a pixel is too coarse to resolve it. Counted in
+  // pixels per feature, so it is independent of resolution and view distance.
+  look.add(r.detail, 'start', 0.25, 4, 0.05).name('detail fade start').onChange(refresh);
+  // Ceiling well above the default of 16, which is where it sits after being
+  // dialled in — a slider whose default is its own maximum can only go one way.
+  look.add(r.detail, 'span', 1, 48, 0.5).name('detail fade span').onChange(refresh);
   look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'depthEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'quantize', ['off', 'levels']).onChange(refresh);

@@ -6,6 +6,7 @@ import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL } from './sway';
 import { WEAR_ATTRIBUTE, WEAR_TINT_ATTRIBUTE } from './weathering';
+import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE } from './detail';
 
 /**
  * Turning a pile of primitives into one mesh.
@@ -98,6 +99,19 @@ export interface Part {
   wear?: number | ((x: number, y: number, z: number) => number);
   /** What colour the part weathers toward — rust, moss, patina. sRGB hex. */
   wearTint?: number;
+  /**
+   * The size of the feature this part *is*, in metres — a 9 mm seam says
+   * 0.009. Once a pixel covers more than this, the part dissolves into
+   * `detailTint` rather than being sampled by a pixel too coarse to see it.
+   * Omitted, it never fades, which is what nearly everything wants.
+   *
+   * See `art/detail.ts`. Per part rather than per prop because one surface
+   * carries features of very different sizes, and they stop being resolvable
+   * at very different ranges.
+   */
+  detail?: number;
+  /** What the feature dissolves into — its surroundings. sRGB hex. */
+  detailTint?: number;
 }
 
 export function assemble(parts: Part[]): THREE.BufferGeometry {
@@ -172,6 +186,19 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
       for (let i = 0; i < count; i++) color.toArray(tints, i * 3);
     }
     geometry.setAttribute(WEAR_TINT_ATTRIBUTE, new THREE.BufferAttribute(tints, 3));
+
+    // Detail fading, the same shape again — a constant per part rather than a
+    // field, because a feature is one size all over. Zero is "never fade".
+    const detail = new Float32Array(count);
+    if (part.detail) detail.fill(Math.max(part.detail, 0));
+    geometry.setAttribute(DETAIL_ATTRIBUTE, new THREE.BufferAttribute(detail, 1));
+
+    const detailTints = new Float32Array(count * 3);
+    if (part.detailTint !== undefined) {
+      color.set(part.detailTint);
+      for (let i = 0; i < count; i++) color.toArray(detailTints, i * 3);
+    }
+    geometry.setAttribute(DETAIL_TINT_ATTRIBUTE, new THREE.BufferAttribute(detailTints, 3));
 
     // Normals must exist before merging: mergeGeometries requires every input
     // to carry the same attributes, and a missing one silently drops the lot.

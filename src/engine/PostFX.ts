@@ -17,6 +17,7 @@ import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
+import { detailUniforms } from '../art/detail';
 import type { Viewport } from './Viewport';
 
 /**
@@ -54,6 +55,28 @@ export type QuantizeMode = 'off' | 'levels';
 export interface RenderSettings {
   /** Chunky pixel size in *CSS* pixels, so the look survives a retina screen. */
   pixelSize: number;
+  /**
+   * Coverage samples per chunky pixel. Clamped to what the driver offers.
+   *
+   * The scene is rasterised at a fraction of display resolution, so a
+   * floorboard seam or a lit batten edge is narrower than one pixel and either
+   * wins its single sample or vanishes — which is a coin toss that re-flips
+   * every time the camera turns. Sampling coverage several times per pixel
+   * makes each block an honest average of the geometry under it. The blocks
+   * stay blocks; this happens *inside* one.
+   */
+  samples: number;
+  /**
+   * Detail fading, in pixels per feature (`art/detail.ts`).
+   *
+   * The other half of the antialiasing answer, and the half multisampling
+   * cannot reach: a feature narrower than a pixel is below Nyquist, so more
+   * samples move the threshold and never cross it. `start` is where a feature
+   * begins to dissolve into its surroundings — 1 is "as soon as it is narrower
+   * than a pixel", which is exactly when it stops being sampleable. `span` is
+   * how many times wider the pixel gets before it is gone.
+   */
+  detail: { start: number; span: number };
   normalEdgeStrength: number;
   depthEdgeStrength: number;
 
@@ -164,7 +187,21 @@ export interface RenderSettings {
 // from the reverse, and the dither spread is chosen against the level count.
 export const DEFAULT_RENDER: RenderSettings = {
   pixelSize: 2,
-  normalEdgeStrength: 0.5,
+  // Four. Only the colour render of the two scene renders is multisampled, and
+  // MSAA shades once per triangle — so what multiplies is coverage, depth
+  // testing and bandwidth, not shading. Eight is worth trying on a desktop card.
+  samples: 4,
+  // A long fade: one pixel per feature out to sixteen, four octaves. Found by
+  // eye, and wider than the two octaves trilinear filtering uses between mip
+  // levels — a short ramp puts a visible ring on the floor where the seams give
+  // out, and nothing on screen should announce where the detail went.
+  detail: { start: 1, span: 16 },
+  // The interior crease line, and the quieter of the two on purpose. Grading the
+  // thresholds means far more pixels now carry *some* normal edge, so the same
+  // strength reads much heavier than it used to; and a world built of planks and
+  // battens has a crease everywhere you look. The silhouette below keeps its
+  // full weight — that is the line doing the work of making this look drawn.
+  normalEdgeStrength: 0.2,
   depthEdgeStrength: 0.5,
 
   // Well over a full step, so the transition between two levels never resolves
@@ -270,6 +307,21 @@ export function clampFog(
   return { near: Math.min(near, fogFar * FOG_RISE), far: fogFar };
 }
 
+/**
+ * How many coverage samples the colour render actually gets.
+ *
+ * Its own function so it can be checked without a GPU, which is the whole of
+ * what a headless run can say about multisampling. Asking for more than
+ * `maxSamples` is a render target that fails to build; one sample is a
+ * multisampled framebuffer with nothing to average, so anything under two is
+ * off outright rather than an expensive way to change nothing.
+ */
+export function resolveSamples(enabled: boolean, wanted: number, max: number): number {
+  if (!enabled) return 0;
+  const samples = Math.min(Math.floor(wanted), Math.floor(max));
+  return samples < 2 ? 0 : samples;
+}
+
 /** The player's groundcover setting. Off is a tier, not a separate switch. */
 export type CoverDensity = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 
@@ -350,6 +402,7 @@ export class PostFX {
    */
   private dither = true;
   private pixelate = true;
+  private antialias = true;
   private occlusion = true;
   /** Dev-only, unlike the others here. See `setFogVolumes`. */
   private volumetrics = true;
@@ -397,6 +450,7 @@ export class PostFX {
           ? { ...DEFAULT_RENDER.cover, ...saved.cover }
           : { ...DEFAULT_RENDER.cover },
       particles: { ...DEFAULT_RENDER.particles, ...saved.particles },
+      detail: { ...DEFAULT_RENDER.detail, ...saved.detail },
     };
     // A preset saved while palette matching existed still names it, and an
     // unknown mode would put `undefined` into the uniform and take the pass
@@ -515,6 +569,22 @@ export class PostFX {
    */
   setPixelation(enabled: boolean): void {
     this.pixelate = enabled;
+    this.apply();
+  }
+
+  /**
+   * Multisamples the colour render, or does not.
+   *
+   * A player option by SHADERS.md's rule: real per-frame cost, and nothing is
+   * lost with it off but the smoothing. It is not a quality ladder — the sample
+   * count is a developer's dial in `RenderSettings`, because two controls for
+   * one thing on screen is one control too many.
+   *
+   * Off is genuinely off: the target goes back to a single sample, not to a
+   * cheaper multisample.
+   */
+  setAntialias(enabled: boolean): void {
+    this.antialias = enabled;
     this.apply();
   }
 
@@ -647,6 +717,9 @@ export class PostFX {
     if (this.pixelStage.pixelSize !== devicePixels) this.pixelStage.setPixelSize(devicePixels);
     this.pixelStage.normalEdgeStrength = s.normalEdgeStrength;
     this.pixelStage.depthEdgeStrength = s.depthEdgeStrength;
+    this.pixelStage.setSamples(
+      resolveSamples(this.antialias, s.samples, this.viewport.renderer.capabilities.maxSamples),
+    );
 
     this.gtao.enabled = this.occlusion && s.ao.strength > 0;
     this.gtao.strength = s.ao.strength;
@@ -682,6 +755,9 @@ export class PostFX {
       s.cover.height,
       s.cover.width,
     );
+
+    detailUniforms.uDetailStart.value = s.detail.start;
+    detailUniforms.uDetailSpan.value = s.detail.span;
 
     this.particles.enabled = this.particulate;
     setParticleDraw(this.particulate, s.particles.density, s.particles.size);
