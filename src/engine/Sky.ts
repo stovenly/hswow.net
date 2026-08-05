@@ -213,9 +213,13 @@ const SkyShader = {
 };
 
 export const DEFAULT_SKY: SkySettings = {
-  horizon: '#bcd4e6',
-  zenith: '#3f7fbf',
-  ground: '#5d6469',
+  // The gradient carries the 1.2 the edge pass used to hand the sky for free.
+  // See ANTIALIASING.md. Cloud and sun keep their authored tints: both already
+  // clipped to white under that multiply, so scaling them would bake a
+  // rendering artefact into the art direction.
+  horizon: '#cce6f9',
+  zenith: '#458acf',
+  ground: '#656d72',
   curve: 0.35,
 
   cloudColor: '#f2f5f8',

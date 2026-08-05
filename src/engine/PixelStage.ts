@@ -82,6 +82,24 @@ export interface PixelEffect {
   dispose(): void;
 }
 
+/**
+ * What the normal buffer is cleared to: the packed normal `(0, 0, 1)`, a flat
+ * surface facing the camera.
+ *
+ * **It has to decode to a unit vector.** The edge detector's continuous
+ * quantity is `1.0 - dot(normal, neighborNormal)`, so anything shorter than 1
+ * reads as a turn in the surface even where the buffer is uniform. The
+ * renderer's own clear colour is the fog colour — `PostFX.apply` sets it so an
+ * interior is not a lit room floating in blue — which decodes to a vector of
+ * length 0.66, and since the sky dome is culled out of the normal pass (the
+ * override material replaces its `BackSide`), that was the whole open sky
+ * flagged as an edge and multiplied by `1 + normalEdgeStrength`.
+ *
+ * Linear on purpose: the target is raw half-float with no colour space, so the
+ * clear lands in it unconverted.
+ */
+export const FLAT_NORMAL = new THREE.Color().setRGB(0.5, 0.5, 1, THREE.LinearSRGBColorSpace);
+
 export class PixelStage extends Pass {
   /** Chunky pixel size in device pixels. Set through `setPixelSize`. */
   pixelSize: number;
@@ -115,6 +133,9 @@ export class PixelStage extends Pass {
    * upscale still needs for the edge lines.
    */
   private readonly ping: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
+
+  /** Scratch for the clear colour the normal render borrows and gives back. */
+  private readonly priorClear = new THREE.Color();
 
   private readonly edgeMaterial: THREE.ShaderMaterial;
   private readonly blitMaterial: THREE.ShaderMaterial;
@@ -199,10 +220,17 @@ export class PixelStage extends Pass {
     renderer.render(this.scene, this.camera);
 
     const priorOverride = this.scene.overrideMaterial;
+    const priorAlpha = renderer.getClearAlpha();
+    renderer.getClearColor(this.priorClear);
     renderer.setRenderTarget(this.normalTarget);
+    // Its own clear, and not the fog colour every other target wants. See
+    // `FLAT_NORMAL` — a clear that decodes to a short vector lights every pixel
+    // the geometry misses, which outdoors is the whole sky.
+    renderer.setClearColor(FLAT_NORMAL, 1);
     this.scene.overrideMaterial = this.normalMaterial;
     renderer.render(this.scene, this.camera);
     this.scene.overrideMaterial = priorOverride;
+    renderer.setClearColor(this.priorClear, priorAlpha);
     // The groundcover draws itself in afterwards: the override cannot know its
     // instanced construction, and a normal buffer that ends at the ground lets
     // the edge pass outline whatever stands behind a blade straight through it.
