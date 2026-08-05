@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   OUTDOOR_ENVIRONMENT,
   type ZoneDefinition,
+  type ZoneEnvironment,
   type ZoneId,
   type ZoneGroup,
 } from '../../world/Zone';
@@ -271,6 +272,11 @@ export interface GalleryPlan {
    * one place that turns a plan into a zone stays the one place that knows how.
    */
   readonly fogVolumes?: readonly FogVolume[];
+  /**
+   * Overrides on the room's light and air. Applied last, so a gallery can put
+   * out the sun — which is the only way to judge anything that emits.
+   */
+  readonly environment?: Partial<ZoneEnvironment>;
 }
 
 /**
@@ -427,6 +433,7 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
       surface: 'stone',
       room: 'open',
       soundscape: plan.soundscape ?? SILENCE,
+      ...plan.environment,
     },
     // Only reached on a fresh boot into a gallery, which the game never does —
     // but it has to exist, and just inside the door looking down the rank is

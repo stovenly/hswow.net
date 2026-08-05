@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { assemble, finish } from './assemble';
+import { FLAME_DECAY } from './flame';
+import { finishGlow, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from './glow';
 import { PALETTE } from './palette';
 
 /**
@@ -403,5 +405,74 @@ export function letteringMesh(
   const { geometry } = lettering(text, style);
   const mesh = finish(assemble([{ geometry, color, sway: 0 }]), 'lettering', 0);
   mesh.userData.noCollide = true;
+  return mesh;
+}
+
+export interface LetteringGlowStyle extends LetteringStyle {
+  /** Draw as light over the world rather than as a bright surface in it. Off by default. */
+  additive?: boolean;
+  /**
+   * How far past full brightness the colour is pushed. Default 1.
+   *
+   * Bloom's halo is made of the light above the top of the picture, and a hex
+   * tops out at exactly 1 — so at an intensity of 1 there is nothing to spread.
+   */
+  intensity?: number;
+  /**
+   * A light thrown by the word itself, in the text's own colour. Off by
+   * default — a caption used in a corridor must not add a light to every zone
+   * it appears in.
+   *
+   * Uses `FLAME_DECAY` rather than the physical exponent, for the reason given
+   * there: inverse-square at arm's length blows out to a flat blob under this
+   * pipeline.
+   */
+  light?: { intensity?: number; range?: number };
+}
+
+/**
+ * Lettering that emits: a line of text as a light rather than as paint. The
+ * counterpart to `letteringMesh`, and the same object but for the material.
+ *
+ * `color` has no default. A glowing word is not ink and there is no one colour
+ * it should be.
+ */
+export function letteringGlow(
+  text: string,
+  color: number,
+  style: LetteringGlowStyle = {},
+): THREE.Mesh {
+  const { geometry } = lettering(text, style);
+  const assembled = assemble([{ geometry, color, sway: 0 }]);
+
+  // After assembly, not folded into the colour: a hex cannot express a value
+  // over 1 and this needs to.
+  const intensity = style.intensity ?? 1;
+  if (intensity !== 1) {
+    const colors = assembled.getAttribute('color');
+    const array = colors.array as Float32Array;
+    for (let i = 0; i < array.length; i++) array[i] *= intensity;
+    colors.needsUpdate = true;
+  }
+
+  const mesh = finishGlow(
+    assembled,
+    'lettering:glow',
+    style.additive ? TEXT_GLOW_ADDITIVE : TEXT_GLOW_MATERIAL,
+  );
+
+  if (style.light) {
+    // At the block's centre, which is where the letters are — a word lights a
+    // room from where it hangs, the way a lantern does.
+    const lamp = new THREE.PointLight(
+      color,
+      style.light.intensity ?? 6,
+      style.light.range ?? 8,
+      FLAME_DECAY,
+    );
+    lamp.castShadow = false;
+    mesh.add(lamp);
+  }
+
   return mesh;
 }
