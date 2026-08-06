@@ -1,175 +1,184 @@
-import * as THREE from 'three';
-import { PALETTE } from './palette';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
- * What a prop sounds like when you stand on it — **measured, not declared**.
+ * What a prop sounds like when you stand on it — **declared, one line each**.
  *
- * The obvious way to do this is a table from builder name to surface, in the
- * shape of `flex.ts`: ninety entries, hand-written, and every new prop owes one.
- * It is also the wrong way, because the answer is already in the geometry. A
- * builder that makes a plank walkway has already said the planks are `TIMBER`
- * and the nails are `IRON`, and it said so in the only place that cannot drift
- * from what was actually built.
+ * This was measured instead: every triangle's colour matched to a palette
+ * family, weighted by area, largest total wins. The argument for it was good —
+ * the answer is already in the geometry, a re-coloured prop changes its own
+ * sound, and nobody has to remember a second place to edit. It does not work,
+ * and the reason it does not work is worth stating plainly so it is not tried
+ * again.
  *
- * So the material is read off the mesh: every triangle's colour is matched to a
- * palette family, its area is added to that family's total, and the largest
- * total wins. That is what *the majority of the object* means, stated as
- * arithmetic — and it costs nothing at runtime because it happens once, at
- * build, alongside the sway weights.
+ * **Nothing in the kit uses a palette entry raw.** Everything is `shade(X, k)`
+ * — the same colour a bit darker or lighter — and the families are only a few
+ * per cent apart in brightness at the dark end. `STONE_DARK` shaded to 0.86 is
+ * nearer `IRON` than it is to `STONE_DARK`. So the measurement was a coin
+ * flip, and measurably so: over eight seeds a stone wall came back as steel
+ * once, a barrel as steel four times, a cow as *masonry* four times, and a
+ * handrail as timber or stone in half its rolls. Every one of those is
+ * something the player hears and cannot explain.
  *
- * Two things fall out of doing it this way that a table would not give:
+ * Colour cannot tell iron from stone in this palette, and it was never going
+ * to — the two are the same hue thirty per cent apart in brightness, and
+ * shading moves a colour exactly that far. So the material is stated, and it
+ * is stated **here**, in one list, rather than scattered through ninety
+ * builders where nobody can scan it. That is the point of the shape: the
+ * question this file has to answer at a glance is *"is anything claiming to be
+ * metal that is not metal"*, and one screen answers it.
  *
- * - **A prop that changes material changes its sound.** Re-colour a hut door
- *   from timber to iron and it stops sounding like wood, without anyone
- *   remembering there is a second place to edit.
- * - **Trim does not count.** A stone stair with an iron handrail is stone,
- *   because the treads are most of its area and the rail is not, and nobody had
- *   to make that judgement.
+ * ## What an entry means
  *
- * ## Matching a shaded colour back to its family
+ * The material of the part of it you could **stand on**. Not what most of it
+ * is made of — a stone wall with a timber gate hanging off it is stone,
+ * because the wall is what holds you up.
  *
- * Nothing in the kit uses palette entries raw — everything is `shade(X, 0.9)`
- * or similar, which multiplies all three channels by a constant. That invites
- * normalising the colour and comparing directions, so the shading divides out.
- *
- * **Do not.** `IRON` is `0x5a5f63` and `STONE_DARK` is `0x757a80`: the same
- * hue, thirty per cent apart in brightness, and identical to four decimal
- * places once normalised. Throwing brightness away makes iron and stone the
- * same material, which is exactly what happened — every railing and every
- * machine in the works came back as masonry.
- *
- * So the comparison keeps brightness and happens in full linear RGB, in the
- * space three writes the attribute in. Shading does move a colour away from
- * its own entry, but the entries are laid out so that a shaded one lands on
- * another member of its *own* family — a dark timber finds `TIMBER_DARK`, a
- * pale one finds `TIMBER_PALE` — and every member maps to the same surface. The
- * palette's own note explains why that holds: the families were spaced to stay
- * apart through the render pipeline's per-channel quantization, and that is the
- * same separation this needs.
+ * `null` is a real answer and the commonest one: **you cannot stand on this**.
+ * A flower, a cow, a hanging lantern, a banner. The ground underneath answers
+ * instead, which is right — you are not standing on a lantern's light.
  */
 
 /**
- * Palette families, and what standing on one sounds like.
+ * Every name that reaches `finish`, and what standing on it sounds like.
  *
- * Anything absent is a material nobody walks on — cloth, skin, wool, a flame —
- * and contributes no vote. A prop made entirely of those simply has no surface,
- * and the ground under it answers instead, which is right: you are not standing
- * on a lantern's light.
+ * Grouped by material rather than alphabetically, because the grouping is what
+ * makes a mistake visible: a wall in the metal block is wrong on sight.
+ * `check:art` asserts that every builder appears here, so a new prop cannot be
+ * added without saying what it is.
  */
-const FAMILIES: Record<string, SurfaceName> = {
-  BARK: 'wood',
-  BARK_PALE: 'wood',
-  TIMBER: 'wood',
-  TIMBER_DARK: 'wood',
-  TIMBER_PALE: 'wood',
+export const MATERIALS: Record<string, SurfaceName | null> = {
+  // --- stone ---------------------------------------------------------------
+  archway: 'stone',
+  cairn: 'stone',
+  cistern: 'stone',
+  fireplace: 'stone',
+  hut: 'stone',
+  rock: 'stone',
+  'stone-wall': 'stone',
+  'stone-wall-low': 'stone',
+  'stone-wall-column': 'stone',
+  'stone-wall-column-low': 'stone',
 
-  STONE: 'stone',
-  STONE_DARK: 'stone',
-  STONE_PALE: 'stone',
+  // --- timber --------------------------------------------------------------
+  barrel: 'wood',
+  bed: 'wood',
+  chair: 'wood',
+  chest: 'wood',
+  crate: 'wood',
+  dresser: 'wood',
+  'fallen-log': 'wood',
+  fence: 'wood',
+  'fence-post': 'wood',
+  'hut-door': 'wood',
+  'hut-trapdoor': 'wood',
+  post: 'wood',
+  signboard: 'wood',
+  'spinning-wheel': 'wood',
+  stool: 'wood',
+  stump: 'wood',
+  table: 'wood',
+  washtub: 'wood',
+  window: 'wood',
+  workbench: 'wood',
 
-  // Sheet and plate, which is what props are made of. `metal-ring` is a
-  // walkway fixed at its ends and `metal-hollow-*` is a container, and neither
-  // is inferable from a colour — a builder that wants one says so through
-  // `MeshBuilder.underfoot`.
-  IRON: 'metal-solid',
-  IRON_DARK: 'metal-solid',
-  IRON_PALE: 'metal-solid',
-  RUST: 'metal-solid',
-  BRONZE: 'metal-solid',
-  PATINA: 'metal-solid',
+  // --- metal ---------------------------------------------------------------
+  //
+  // **Every one of these is actually made of steel or iron.** Nothing gets in
+  // here because its colour was grey; see the header.
+  anvil: 'metal-solid',
+  'factory-door': 'metal-solid',
+  floodlight: 'metal-solid',
+  forge: 'metal-solid',
+  sink: 'metal-solid',
+  streetlamp: 'metal-solid',
 
-  EARTH: 'soil',
-  GRASS: 'grass',
-  GRASS_DRY: 'grass',
-  LEAF: 'grass',
-  LEAF_DARK: 'grass',
-  LEAF_DRY: 'grass',
+  // Fixed at its ends, so the clang travels along it.
+  bell: 'metal-ring',
+  chainlink: 'metal-ring',
+  hoist: 'metal-ring',
+  ladder: 'metal-ring',
+  railing: 'metal-ring',
+  stair: 'metal-ring',
+
+  // Sheet with a small volume behind it.
+  'factory-trapdoor': 'metal-hollow-small',
+  panel: 'metal-hollow-small',
+  pipes: 'metal-hollow-small',
+  stove: 'metal-hollow-small',
+  vent: 'metal-hollow-small',
+
+  // A great deal of air under it.
+  hopper: 'metal-hollow-big',
+  machine: 'metal-hollow-big',
+  tank: 'metal-hollow-big',
+
+  // --- rolled per prop -----------------------------------------------------
+  //
+  // A trough is stone or timber, decided by its own seed, so it is the one
+  // thing here that cannot be a fixed entry. It passes its answer to `finish`.
+  trough: null,
+
+  // --- nothing you stand on ------------------------------------------------
+  //
+  // The ground underneath answers for all of these. Animals, plants, cloth,
+  // things at head height, and things too small to get a foot on.
+  banner: null,
+  bluebell: null,
+  bovine: null,
+  bramble: null,
+  birch: null,
+  broom: null,
+  bush: null,
+  candle: null,
+  cowparsley: null,
+  daisy: null,
+  dog: null,
+  elder: null,
+  equine: null,
+  fern: null,
+  figure: null,
+  foxglove: null,
+  gorse: null,
+  'hanging-herbs': null,
+  hazel: null,
+  'large-grass-clump': null,
+  lantern: null,
+  lavender: null,
+  moss: null,
+  mushroom: null,
+  nettle: null,
+  oak: null,
+  ovine: null,
+  pinecone: null,
+  poppy: null,
+  porcine: null,
+  poultry: null,
+  reeds: null,
+  'small-birch': null,
+  'small-grass-clump': null,
+  'small-oak': null,
+  'small-spruce': null,
+  'small-tree': null,
+  spruce: null,
+  sticks: null,
+  sunflower: null,
+  thistle: null,
+  tree: null,
+  'wall-pegs': null,
+  wildflower: null,
+
+  // --- not props -----------------------------------------------------------
+  //
+  // Ground and shells. These are the floor rather than something on it, so the
+  // zone's own answer governs: painted ground outdoors (`ZoneDefinition
+  // .surfaceAt`) and a declared floor material indoors.
+  terrain: null,
+  interior: null,
+  lettering: null,
+  'sealed-room': null,
+  'dark-alcove': null,
+  'light-plinth': null,
+  'text-backdrop': null,
+  'text-station': null,
+  'text-station-ink': null,
 };
-
-/**
- * **The whole palette, linearised once, as unit vectors** — not just the
- * families that vote.
- *
- * Offering only the walkable ones as candidates is the obvious shortcut and it
- * is badly wrong: every colour then matches *something*, so a cow's hide gets
- * pulled to whichever of earth, timber or stone happens to be nearest and the
- * animal reports as ground. Letting hide match `HIDE` and then finding it has
- * no surface is the same work and gives the right answer, because the palette
- * already contains the thing it actually is.
- */
-const REFERENCE = (Object.keys(PALETTE) as (keyof typeof PALETTE)[]).map((key) => {
-  const colour = new THREE.Color(PALETTE[key]);
-  return { surface: FAMILIES[key] ?? null, r: colour.r, g: colour.g, b: colour.b };
-});
-
-/**
- * How far off a colour may be and still count as a family, as a squared
- * distance in linear RGB.
- *
- * Wide enough that a shaded entry still finds its own family and narrow enough
- * that a colour belonging to no family finds nothing. Linear space is heavily
- * compressed at the dark end, where most of this kit lives, so this is a larger
- * fraction of the useful range than it looks.
- */
-const TOLERANCE = 0.05;
-
-/**
- * The material most of a mesh is made of, or null if most of it is nothing
- * anyone stands on.
- *
- * Weighted by area rather than by vertex count, and the difference is not
- * academic: a box is thirty-six vertices whether it is a floorboard or a nail
- * head, so counting vertices would let a handful of fittings outvote the thing
- * they are fitted to.
- */
-export function underfootOf(geometry: THREE.BufferGeometry): SurfaceName | null {
-  const position = geometry.getAttribute('position');
-  const colour = geometry.getAttribute('color');
-  if (!position || !colour) return null;
-
-  const totals = new Map<SurfaceName, number>();
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3();
-
-  for (let i = 0; i + 2 < position.count; i += 3) {
-    // Flat-shaded and un-indexed, so a triangle's three vertices always carry
-    // the same colour — the first one speaks for the face.
-    const r = colour.getX(i);
-    const g = colour.getY(i);
-    const bb = colour.getZ(i);
-
-    let best: SurfaceName | null = null;
-    let closest = TOLERANCE;
-    for (const family of REFERENCE) {
-      const dr = r - family.r;
-      const dg = g - family.g;
-      const db = bb - family.b;
-      const distance = dr * dr + dg * dg + db * db;
-      if (distance < closest) {
-        closest = distance;
-        best = family.surface;
-      }
-    }
-    // Either nothing was near enough, or the nearest thing was a material
-    // nobody stands on. Both abstain.
-    if (!best) continue;
-
-    a.fromBufferAttribute(position, i);
-    b.fromBufferAttribute(position, i + 1);
-    c.fromBufferAttribute(position, i + 2);
-    const area = b.sub(a).cross(c.sub(a)).length() * 0.5;
-    totals.set(best, (totals.get(best) ?? 0) + area);
-  }
-
-  let winner: SurfaceName | null = null;
-  let most = 0;
-  for (const [surface, area] of totals) {
-    if (area > most) {
-      most = area;
-      winner = surface;
-    }
-  }
-  return winner;
-}

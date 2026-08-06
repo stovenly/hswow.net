@@ -66,6 +66,6 @@ export const barrel: MeshBuilder = {
       geometry.translate(0, waist, 0);
     }
     if (scale !== 1) geometry = geometry.scale(scale, scale, scale);
-    return finish(geometry, 'barrel', 0, 'wood');
+    return finish(geometry, 'barrel', 0);
   },
 };

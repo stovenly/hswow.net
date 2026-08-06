@@ -72,6 +72,6 @@ export const ladder: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'ladder', 0, 'metal-ring');
+    return finish(geometry, 'ladder', 0);
   },
 };

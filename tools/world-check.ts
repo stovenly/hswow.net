@@ -30,7 +30,7 @@
 import * as THREE from 'three';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import { Collider } from '../src/player/Collider';
-import { Zone } from '../src/world/Zone';
+import { Zone, OUTDOOR_ENVIRONMENT } from '../src/world/Zone';
 import { PortalGraph, arrivalFor, doorFacing, ARRIVAL_STANDOFF } from '../src/world/Portal';
 import { residentZones, KEEP_WITHIN } from '../src/world/residency';
 import { DEFAULT_REACH } from '../src/world/Interaction';
@@ -58,6 +58,9 @@ import { CAMERA_FAR } from '../src/engine/Viewport';
 import { SURFACES } from '../src/audio/models/footsteps';
 import { ProvingGround } from '../src/debug/ProvingGround';
 import { countrysideTerrain, ZONE_COUNTRYSIDE } from '../src/debug/countryside';
+import { railing } from '../src/art/builders/railing';
+import { fence } from '../src/art/builders/fence';
+import { tank } from '../src/art/builders/tank';
 import { DEFAULT_TUNING } from '../src/player/Controller';
 import { doorDuration, DOOR_SPECS, type DoorMaterial } from '../src/audio/models/door';
 
@@ -737,6 +740,78 @@ console.log('\n--- surfaces underfoot --------------------------------------\n')
       missing.length === 0
         ? `${heard.size} distinct surfaces across the strips`
         : `not on any strip: ${missing.join(', ')}`,
+    );
+  }
+}
+
+/**
+ * You hear what you are standing on, not what is under it.
+ *
+ * **A handrail is fifty millimetres across and a foot is six hundred.** This
+ * used to be asked as a ray down from the sole, and the misses were exactly
+ * where you would expect once the numbers are written down: a railing rang like
+ * steel dead centre and like the floor two centimetres either side, a fence
+ * rail over churned ground sounded like mud, and the first step onto a tank
+ * sounded like the floor it was jumped from — you land on the *shoulder* of a
+ * drum, and there is nothing directly under your sole until you have walked
+ * onto the flat.
+ *
+ * It is now the collision that answers, so the question this asks is whether
+ * the material survives the trip from the builder, through the octree, to the
+ * contact that stops the capsule. Each prop is stood on at every spot across
+ * the top of it, on the controller's own terms — a contact flatter than the
+ * slope limit — and every one of them has to name the prop.
+ */
+{
+  const STOOD_ON = [
+    { builder: railing, surface: 'metal-ring', above: 0.9 },
+    { builder: fence, surface: 'wood', above: 0.8 },
+    { builder: tank, surface: 'metal-hollow-big', above: 1 },
+  ] as const;
+
+  const flattest = Math.cos((50 * Math.PI) / 180);
+  const at = new THREE.Vector3();
+
+  for (const { builder, surface, above } of STOOD_ON) {
+    const mesh = builder.build({ seed: 7 });
+    const collider = new Collider();
+    collider.build(markCollidable(new THREE.Group().add(mesh)));
+    mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox as THREE.Box3;
+
+    let stood = 0;
+    let heard = 0;
+    for (let x = box.min.x; x <= box.max.x; x += 0.06) {
+      for (let z = box.min.z; z <= box.max.z; z += 0.06) {
+        // Dropped until something stops the capsule, then crept back in
+        // millimetres so the contact is where it actually touches.
+        let hit = -1;
+        for (let y = box.max.y + 0.4; y > 0; y -= 0.02) {
+          if (collider.intersectCapsule(capsuleAt(at.set(x, y, z)))) {
+            hit = y;
+            break;
+          }
+        }
+        // Only up on the thing. Standing on the ground beside it is the
+        // ground's answer to give.
+        if (hit < above) continue;
+        for (let y = hit + 0.02; y > hit - 0.001; y -= 0.004) {
+          const contact = collider.intersectCapsule(capsuleAt(at.set(x, y, z)));
+          if (!contact) continue;
+          if (contact.normal.y <= flattest) break;
+          stood++;
+          if (contact.surface === surface) heard++;
+          break;
+        }
+      }
+    }
+
+    check(
+      `you hear a ${builder.name} wherever you can stand on one`,
+      stood > 0 && heard === stood,
+      stood === 0
+        ? 'nowhere on it to stand'
+        : `${heard} of ${stood} places on top of it, ${surface}`,
     );
   }
 }

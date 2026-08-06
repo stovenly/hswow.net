@@ -100,7 +100,7 @@ export const stair: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    const mesh = finish(geometry, 'stair', 0, 'metal-ring');
+    const mesh = finish(geometry, 'stair', 0);
 
     // --- what the player actually walks on -----------------------------------
     //

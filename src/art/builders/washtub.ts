@@ -120,6 +120,8 @@ export const washtub: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'washtub', 0, 'metal-hollow-small');
+    // No declared material: it is a wooden vessel with two iron bands round it,
+    // the staves are nearly all of its surface, and the geometry says so.
+    return finish(geometry, 'washtub', 0);
   },
 };

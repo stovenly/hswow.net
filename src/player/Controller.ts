@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import type { Input } from '../engine/Input';
 import type { Collider } from './Collider';
+import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
  * First-person movement.
@@ -444,6 +445,11 @@ export class Controller {
 
   /** Surface the player is standing on. Straight up whenever airborne. */
   private readonly groundNormal = new THREE.Vector3(0, 1, 0);
+  /**
+   * What the last thing that held the player up was made of. See
+   * `groundSurface`.
+   */
+  private ground: SurfaceName | null = null;
   /** Horizontal unit direction the player is asking to go, world space. */
   private wishX = 0;
   private wishZ = 0;
@@ -496,6 +502,9 @@ export class Controller {
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
     this.grounded = false;
+    // Whatever they were standing on is in another zone. Left set, the first
+    // footfall after a doorway would be the last plank on the other side of it.
+    this.ground = null;
     // The capsule has just been rebuilt at full height. `applyStance` only acts
     // when the crouch has moved, so without this a player who arrives mid-crouch
     // would keep a standing collision volume until they stood up and ducked
@@ -563,6 +572,27 @@ export class Controller {
   /** Feet position — what autosave persists in Phase 9. Shared scratch; copy it. */
   get position(): THREE.Vector3 {
     return _position.copy(this.capsule.start).setY(this.capsule.start.y - this.tuning.radius);
+  }
+
+  /**
+   * What the player is standing on, or null when it is the ground itself.
+   *
+   * **Taken from the collision that stopped them**, not looked up afterwards.
+   * The thing holding you up is the thing you were last pushed out of, so this
+   * is exact at the instant of landing, on the shoulder of a tank, on a
+   * handrail fifty millimetres across — every case where a query about the
+   * geometry near your feet has to guess.
+   *
+   * Null means the triangle had no material: bare ground, a terrain face, an
+   * interior floor. The zone answers for those, because painted ground and a
+   * room's floor are its business — see `ZoneManager.surfaceAt`.
+   *
+   * Held rather than recomputed, so it survives the frames in the air between
+   * a take-off and a landing. It is rewritten by every contact that counts as
+   * standing, which is several times a frame while walking.
+   */
+  get groundSurface(): SurfaceName | null {
+    return this.ground;
   }
 
   get heading(): number {
@@ -819,6 +849,7 @@ export class Controller {
       if (contact.normal.y > slopeCos) {
         this.grounded = true;
         this.groundNormal.copy(contact.normal);
+        this.ground = contact.surface;
       }
 
       const into = this.velocity.dot(contact.normal);
@@ -901,6 +932,7 @@ export class Controller {
       this.capsule.copy(_probe);
       this.grounded = true;
       this.groundNormal.copy(contact.normal);
+      this.ground = contact.surface;
       return;
     }
   }
@@ -939,13 +971,19 @@ export class Controller {
 
     for (let i = 0; i < STEP_DROP_SAMPLES; i++) {
       _probe.translate(_drop);
-      if (this.collider.overlaps(_probe)) {
+      // Asked as a contact rather than an overlap, only so the tread can say
+      // what it is made of. A step up onto a stair is where a footfall is most
+      // likely to land, and inheriting the material of the floor below it is
+      // the whole failure this is here to avoid.
+      const contact = this.collider.intersectCapsule(_probe);
+      if (contact) {
         // Back off to the last clear height and stand there.
         _probe.translate(_push.set(0, increment, 0));
         this.capsule.copy(_probe);
         this.grounded = true;
         // A tread is flat by definition; the real normal is one frame away.
         this.groundNormal.set(0, 1, 0);
+        this.ground = contact.surface;
         return true;
       }
     }

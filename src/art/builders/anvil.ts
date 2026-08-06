@@ -91,7 +91,7 @@ export const anvil: MeshBuilder = {
     const geometry = assemble(parts);
     geometry.rotateY(rng.range(0, Math.PI * 2));
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'anvil', 0, 'metal-solid');
+    return finish(geometry, 'anvil', 0);
   },
 };
 
