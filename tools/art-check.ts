@@ -82,7 +82,21 @@ import { factoryTrapdoor } from '../src/art/builders/factory-trapdoor';
 import { sticks } from '../src/art/builders/sticks';
 import { dog } from '../src/art/builders/dog';
 import { equine } from '../src/art/builders/equine';
-import { fence } from '../src/art/builders/fence';
+import {
+  fence,
+  FENCE_MAX_SECTIONS,
+  FENCE_SECTION,
+  RAIL_DEPTH,
+} from '../src/art/builders/fence';
+import { fencePost } from '../src/art/builders/fence-post';
+import {
+  stoneWall,
+  WALL_MAX_SECTIONS,
+  WALL_SECTION,
+} from '../src/art/builders/stone-wall';
+import { stoneWallLow } from '../src/art/builders/stone-wall-low';
+import { stoneWallColumn } from '../src/art/builders/stone-wall-column';
+import { stoneWallColumnLow } from '../src/art/builders/stone-wall-column-low';
 import { fallenLog } from '../src/art/builders/fallen-log';
 import { fern } from '../src/art/builders/fern';
 import { figure } from '../src/art/builders/figure';
@@ -191,6 +205,11 @@ const builders: MeshBuilder[] = [
   equine,
   fallenLog,
   fence,
+  fencePost,
+  stoneWall,
+  stoneWallLow,
+  stoneWallColumn,
+  stoneWallColumnLow,
   fern,
   figure,
   floodlight,
@@ -395,6 +414,190 @@ check(
     problems.length === 0
       ? `${vertices.toLocaleString()} vertices across ${builders.length} builders, every feature size 0`
       : problems.join('; '),
+  );
+}
+
+// --- runs join, and join the same way every time ----------------------------
+//
+// `fence` and `stone-wall` exist to be laid end to end by a placer that wants a
+// boundary of some arbitrary length. Both promise the same two things, and both
+// promises are invisible in a gallery — a row of eight fences standing apart
+// looks identical whether or not any two of them would actually meet.
+//
+// **A piece is exactly its sections long.** Get this wrong by a centimetre and
+// nothing breaks; a run of twenty pieces is simply twenty centimetres short of
+// where the placer put the gate.
+//
+// **A fence is missing its last post, and only its last post.** That is what
+// lets `fence-post` finish a run and another fence extend it, with no doubled
+// post either way — so the far end must carry nothing past the join, and the
+// near end must carry a post standing proud of it. A wall makes no such
+// promise: it has no piers at all, so it is flush at both ends.
+{
+  let overrun = 0;
+  let nearEnd = -Infinity;
+  for (let seed = 1; seed <= 400; seed++) {
+    for (let sections = 1; sections <= FENCE_MAX_SECTIONS; sections++) {
+      const geometry = fence.build({ seed, sections }).geometry;
+      geometry.computeBoundingBox();
+      const box = geometry.boundingBox as THREE.Box3;
+      const half = (sections * FENCE_SECTION) / 2;
+      overrun = Math.max(overrun, box.max.x - half);
+      nearEnd = Math.max(nearEnd, half + box.min.x);
+    }
+  }
+
+  // A wall's face deliberately wanders across the join — see `seam` — so what
+  // has to line up is not the bounding box but the *profile*, and it does
+  // because it is a function of height alone. So the pieces of one run are
+  // measured against each other rather than against the nominal plane: whatever
+  // one of them does at its end, every other length of the same run does too.
+  // A wall's face deliberately wanders across the join — see `seam` — so what
+  // it may not do is leave it by more than that wander. The pieces still meet
+  // because the wander is a function of height alone and both sides compute the
+  // same one; the hearting they bear on spans exactly and never moves at all.
+  //
+  // That last part is by construction and no measurement here can stand in for
+  // it: at any given height the leftmost vertex is the seam plus whatever the
+  // bedding pulled that particular stone in by, and the bedding varies more than
+  // the seam does. A profile comparison reads the same with the fault in.
+  let drift = 0;
+  for (let run = 1; run <= 200; run++) {
+    for (let sections = 1; sections <= WALL_MAX_SECTIONS; sections++) {
+      const geometry = stoneWall.build({ seed: run * 131 + sections, run, sections }).geometry;
+      geometry.computeBoundingBox();
+      const box = geometry.boundingBox as THREE.Box3;
+      const half = (sections * WALL_SECTION) / 2;
+      drift = Math.max(drift, Math.abs(box.max.x - half), Math.abs(box.min.x + half));
+    }
+  }
+
+  const problems = [
+    // A sagging rail tips its own end out by a millimetre or so. A *post* at
+    // the far end would put six centimetres there, which is the failure.
+    overrun > 0.005 && `a fence runs ${(overrun * 1000).toFixed(0)} mm past its last join`,
+    nearEnd >= 0 && 'a fence has no post at its near end',
+    drift > 0.045 && `a wall face leaves its join by ${(drift * 1000).toFixed(0)} mm`,
+  ].filter(Boolean);
+
+  check(
+    'runs are exactly as long as they say',
+    problems.length === 0,
+    problems.length === 0
+      ? `fence overruns ${(overrun * 1000).toFixed(1)} mm and stands ${(-nearEnd * 1000).toFixed(0)} mm proud at the near end; wall faces wander ${(drift * 1000).toFixed(0)} mm across a join`
+      : problems.join(', '),
+  );
+}
+
+// --- the pieces of a run agree with each other ------------------------------
+//
+// Tiling exactly is not enough, and this is the half that a bounding box cannot
+// see. A placer laying a boundary longer than one piece calls the builder again
+// with a different seed, and if the *carpentry* is rolled off that seed then the
+// two halves of one fence have different numbers of rails and tops a hand's
+// breadth apart — three rails meeting two on the same post. Same for a wall,
+// where the step reached two thirds of a metre.
+//
+// So both take a `run` seed for everything that has to match, and this is what
+// holds them to it. A one-section fence is one post and its rails, so its
+// triangle count *is* the rail count: nothing else could tell them apart.
+{
+  let mismatched = 0;
+  let step = 0;
+  for (let run = 1; run <= 300; run++) {
+    const a = fence.build({ seed: run * 31 + 1, run, sections: 1 }).geometry;
+    const b = fence.build({ seed: run * 977 + 5, run, sections: 1 }).geometry;
+    if (a.getAttribute('position').count !== b.getAttribute('position').count) mismatched++;
+    a.computeBoundingBox();
+    b.computeBoundingBox();
+    const ay = (a.boundingBox as THREE.Box3).max.y;
+    const by = (b.boundingBox as THREE.Box3).max.y;
+    // Posts still vary about the run's own height; a different height *band* is
+    // what this is looking for.
+    step = Math.max(step, Math.abs(ay - by) / Math.max(ay, by));
+  }
+
+  let wallStep = 0;
+  for (let run = 1; run <= 300; run++) {
+    const boxes = [run * 31 + 1, run * 977 + 5].map((seed) => {
+      const geometry = stoneWall.build({ seed, run, sections: 1 }).geometry;
+      geometry.computeBoundingBox();
+      return geometry.boundingBox as THREE.Box3;
+    });
+    wallStep = Math.max(wallStep, Math.abs(boxes[0].max.y - boxes[1].max.y));
+  }
+
+  const problems = [
+    mismatched > 0 && `${mismatched}/300 fence runs change their rail count mid-run`,
+    step > 0.25 && `a fence run steps ${(step * 100).toFixed(0)}% in height`,
+    wallStep > 0.08 && `a wall run steps ${(wallStep * 100).toFixed(0)} cm in height`,
+  ].filter(Boolean);
+
+  check(
+    'the pieces of a run agree',
+    problems.length === 0,
+    problems.length === 0
+      ? `300 runs: rails always match, fence tops within ${(step * 100).toFixed(0)}%, wall tops within ${(wallStep * 1000).toFixed(0)} mm`
+      : problems.join(', '),
+  );
+}
+
+// --- a pier is never overtopped by its own wall -----------------------------
+//
+// `stone-wall-column` is what finishes a run, and a pier the wall stands taller
+// than reads as a lump in the middle of it rather than its end. The two bands
+// used to overlap, so it happened on one pair in six.
+{
+  let worst = -Infinity;
+  for (let seed = 1; seed <= 400; seed++) {
+    const wall = stoneWall.build({ seed, run: seed, sections: 1 }).geometry;
+    const pier = stoneWallColumn.build({ seed: seed + 70 }).geometry;
+    wall.computeBoundingBox();
+    pier.computeBoundingBox();
+    const over =
+      (wall.boundingBox as THREE.Box3).max.y - (pier.boundingBox as THREE.Box3).max.y;
+    worst = Math.max(worst, over);
+  }
+  check(
+    'a pier stands clear of the wall it ends',
+    worst <= 0,
+    worst <= 0
+      ? `400 pairs, the wall never reaches within ${(-worst * 100).toFixed(0)} cm of the pier`
+      : `a wall overtops its own pier by ${(worst * 100).toFixed(0)} cm`,
+  );
+}
+
+// --- the rails are all on one face ------------------------------------------
+//
+// A rail in front of one post and behind the next reads as a fault rather than
+// as a fence somebody knocked together, and nothing else here would measure it.
+//
+// Stated as: every fence leans the same way off its own line. The mean z over
+// all vertices mixes posts sitting on the line with rails standing off it, and
+// so lands somewhere between zero and the standoff — where rails jittered onto
+// either side average out to nothing.
+{
+  let quietest = Infinity;
+  let at = 0;
+  for (let seed = 1; seed <= 400; seed++) {
+    const position = fence.build({ seed }).geometry.getAttribute('position');
+    let total = 0;
+    for (let i = 0; i < position.count; i++) total += position.getZ(i);
+    const mean = total / position.count;
+    if (mean < quietest) {
+      quietest = mean;
+      at = seed;
+    }
+  }
+  // A quarter of the rail's own thickness. Well clear of zero, and well under
+  // what a run whose rails are genuinely one-sided ever gets down to.
+  const bar = RAIL_DEPTH / 4;
+  check(
+    'a fence puts its rails on one face',
+    quietest > bar,
+    quietest > bar
+      ? `worst of 400 seeds sits ${(quietest * 1000).toFixed(0)} mm in front of the post line`
+      : `seed ${at} averages ${(quietest * 1000).toFixed(0)} mm, under the ${(bar * 1000).toFixed(0)} mm bar`,
   );
 }
 
