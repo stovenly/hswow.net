@@ -185,7 +185,7 @@ await loader.step('tuning the air', 0.96, () => {
     // under you, and a cobbled lane that sounds like the grass beside it is
     // only paint.
     const at = player.position;
-    footsteps.surface = zones.surfaceAt(at.x, at.z, at.y);
+    footsteps.surface = zones.surfaceAt(at.x, at.z);
     footsteps.step(step);
   };
   // Landing is part of the same system — same surface, same models, different
@@ -193,7 +193,7 @@ await loader.step('tuning the air', 0.96, () => {
   player.onLand = (impact, horizontal) => {
     if (!footsteps) return;
     const at = player.position;
-    footsteps.surface = zones.surfaceAt(at.x, at.z, at.y);
+    footsteps.surface = zones.surfaceAt(at.x, at.z);
     footsteps.land(impact, horizontal);
   };
   // The push-off. The controller decides whether this one counts — a hop
@@ -202,7 +202,7 @@ await loader.step('tuning the air', 0.96, () => {
   player.onJump = (speed) => {
     if (!footsteps) return;
     const at = player.position;
-    footsteps.surface = zones.surfaceAt(at.x, at.z, at.y);
+    footsteps.surface = zones.surfaceAt(at.x, at.z);
     footsteps.jump(speed);
   };
   // Attaching builds the current zone's soundscape, including the one the

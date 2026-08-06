@@ -119,6 +119,6 @@ export const pipes: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'pipes', 0, 'metal-hollow-small');
+    return finish(geometry, 'pipes', 0);
   },
 };

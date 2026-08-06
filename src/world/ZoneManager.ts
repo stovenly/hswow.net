@@ -361,20 +361,15 @@ export class ZoneManager {
    *
    * **A prop you are standing on beats both**, and it has to: a plank walkway
    * over mud is timber underfoot, and a zone's paint has no way to know a prop
-   * was put there. What the prop is made of is measured off its own geometry at
-   * build time — see `art/underfoot.ts` — so nothing has to be declared twice
-   * and re-colouring a thing changes what it sounds like.
+   * was put there. Which prop that is comes from the player's own collision —
+   * see `Controller.groundSurface` — so it is whatever actually stopped them
+   * rather than whatever a search near their feet turned up.
    */
-  surfaceAt(x: number, z: number, feet = -Infinity): SurfaceName {
+  surfaceAt(x: number, z: number): SurfaceName {
     const zone = this.active;
     if (!zone) return 'soil';
-    // **Widened by the capsule's radius, because you are held up by whatever is
-    // under any part of your feet — not by whatever is under their centre.**
-    // A railing is narrower than a stride: stand on one and lean, and a point
-    // test loses it the moment your middle is past the edge, so the rail you
-    // are plainly balanced on goes back to sounding like the floor below.
     return (
-      zone.standingOn(x, z, feet, this.options.player.tuning.radius) ??
+      this.options.player.groundSurface ??
       zone.definition.surfaceAt?.(x, z) ??
       zone.environment.surface
     );

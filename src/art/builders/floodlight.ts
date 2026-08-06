@@ -168,7 +168,7 @@ export const floodlight: MeshBuilder = {
       glowGeometry.scale(scale, scale, scale);
     }
 
-    const mesh = finish(geometry, 'floodlight', 0, 'metal-solid');
+    const mesh = finish(geometry, 'floodlight', 0);
     mesh.add(finishGlow(glowGeometry, 'floodlight:glow'));
 
     const light = new THREE.SpotLight(

@@ -197,6 +197,6 @@ export const hoist: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'hoist', 0, 'metal-ring');
+    return finish(geometry, 'hoist', 0);
   },
 };
