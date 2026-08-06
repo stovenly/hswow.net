@@ -12,6 +12,11 @@ import { wallPegs } from '../../art/builders/wall-pegs';
 import { hut } from '../../art/builders/hut';
 import { archway } from '../../art/builders/archway';
 import { fence } from '../../art/builders/fence';
+import { fencePost } from '../../art/builders/fence-post';
+import { stoneWall } from '../../art/builders/stone-wall';
+import { stoneWallLow } from '../../art/builders/stone-wall-low';
+import { stoneWallColumn } from '../../art/builders/stone-wall-column';
+import { stoneWallColumnLow } from '../../art/builders/stone-wall-column-low';
 import { post } from '../../art/builders/post';
 import { hutDoor } from '../../art/builders/hut-door';
 import { hutTrapdoor } from '../../art/builders/hut-trapdoor';
@@ -92,10 +97,18 @@ export const ZONE_GALLERY_FACTORY_EXTERIOR = 'gallery-factory-exterior';
 // building, which is the order the eye walks a village in.
 const VILLAGE_EXTERIOR_BUILDERS = [
   hut,
-  archway,
   hutDoor,
   hutTrapdoor,
+  // The two run-and-cap pairs together, so a fence and the post that finishes
+  // it are read side by side — which is the only way to see that they are the
+  // same post. Same for the wall and its pier.
   fence,
+  fencePost,
+  stoneWall,
+  stoneWallLow,
+  stoneWallColumn,
+  stoneWallColumnLow,
+  archway,
   post,
   streetlamp,
   trough,

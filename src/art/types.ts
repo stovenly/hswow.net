@@ -88,3 +88,16 @@ export interface MeshBuilder {
   readonly solid?: boolean;
   build(options?: BuildOptions): THREE.Mesh;
 }
+
+/**
+ * A builder that takes something beyond the standard seed and scale — a
+ * signboard's text, a fence's section count.
+ *
+ * It is still a `MeshBuilder`, so a gallery can call it with nothing and get
+ * whatever the seed rolled, and it still sits in a list of them. This only adds
+ * the option to *say*: a placer laying a boundary to a length wants the section
+ * count checked rather than silently dropped as an unknown property.
+ */
+export interface BuilderWith<Options extends BuildOptions> extends MeshBuilder {
+  build(options?: Options): THREE.Mesh;
+}

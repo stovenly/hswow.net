@@ -605,6 +605,11 @@ quadruped, its legs come out of the middle of the body rather than the corners.
 - `art/registry` — `import.meta.glob` over `builders/`, so a new file appears in the
   gallery without anything else being edited. **Vite-only**; nothing reachable from
   `tools/` may import it, which is why the proving ground imports builders directly.
+- `art/masonry` — a face of rubble, and the pieces built out of it: the wall, its pier and
+  the archway. Stones are **scattered, not split** — a cell is the patch of face nearer its
+  own stone than any other, so no joint runs further than the two stones sharing it. What
+  makes a run tile is that the sideways warp fades to a shared `seam(y)` at each end, which
+  two independently-built pieces both compute identically.
 - `art/blob` — welded, vertex-displaced spheres. Shared by rock, cairn and the sheep's
   fleece, along with the non-obvious precondition: normals and UVs must be deleted before
   `mergeVertices`, or nothing welds and the weld silently does nothing.
@@ -951,7 +956,7 @@ settlement's kit hangs together, and a barrel belongs in that judgement.
 |---|---|
 | **Animal** | bovine, ovine, equine, porcine, poultry, **dog** |
 | **Foliage** | the wood, the ground cover and the flowers, tallest first, plus rock and cairn |
-| **Village** | figure, hut, archway, door, fence, post, streetlamp, trough, cistern, **anvil**, **bell**, and the furniture |
+| **Village** | figure, hut, archway, door, fence, **fence-post**, **stone-wall** and **stone-wall-low**, **stone-wall-column** and **stone-wall-column-low**, post, streetlamp, trough, cistern, **anvil**, **bell**, and the furniture |
 | **Factory** | machine, **forge**, tank, hopper, pipes, hoist, vent, workbench, panel, **sink**, stair, ladder, railing, chainlink, floodlight |
 
 Figure moved from Animal to Village: it is a person-shaped object standing in a settlement,

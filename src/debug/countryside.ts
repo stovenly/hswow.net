@@ -52,7 +52,15 @@ import { cairn } from '../art/builders/cairn';
 import { hut, hutDoorAnchor } from '../art/builders/hut';
 import { hutDoor } from '../art/builders/hut-door';
 import { hutTrapdoor } from '../art/builders/hut-trapdoor';
-import { fence } from '../art/builders/fence';
+import { fence, FENCE_MAX_SECTIONS, FENCE_SECTION } from '../art/builders/fence';
+import { fencePost } from '../art/builders/fence-post';
+import {
+  stoneWall,
+  wallHeight,
+  WALL_MAX_SECTIONS,
+  WALL_SECTION,
+} from '../art/builders/stone-wall';
+import { stoneWallColumn, COLUMN_REACH } from '../art/builders/stone-wall-column';
 import { post } from '../art/builders/post';
 import { archway } from '../art/builders/archway';
 import { streetlamp } from '../art/builders/streetlamp';
@@ -642,6 +650,110 @@ function lean(
   parent.add(markCollidable(mesh));
 }
 
+type Point = readonly [number, number];
+
+/**
+ * Which way a line runs, for laying a boundary along it.
+ *
+ * `fence` and `stone-wall` are both built along +X and turned about Y by
+ * `place`, so a direction of (ux, uz) is a yaw of `atan2(-uz, ux)`.
+ */
+function along(from: Point, to: Point): { ux: number; uz: number; length: number; yaw: number } {
+  const dx = to[0] - from[0];
+  const dz = to[1] - from[1];
+  const length = Math.hypot(dx, dz);
+  return { ux: dx / length, uz: dz / length, length, yaw: Math.atan2(-dz, dx) };
+}
+
+/**
+ * Lays a builder that tiles along a line, in pieces, and reports where it
+ * actually ended.
+ *
+ * **This is the whole point of the fixed pitch.** An arbitrary length becomes a
+ * count of sections: round the line to the nearest one, then take up to four at
+ * a time until they run out. Nothing here has to build a piece to find out how
+ * wide it came out, and nothing here knows what a fence looks like.
+ *
+ * The end is *returned* rather than assumed, because rounding to whole sections
+ * moves it — a ten-metre line at a 1.4 m pitch is seven sections and stops 20 cm
+ * short. Chaining from the returned point is what keeps a corner closed.
+ */
+function laid(
+  root: THREE.Group,
+  build: (seed: number, sections: number) => THREE.Mesh,
+  pitch: number,
+  most: number,
+  seed: number,
+  from: Point,
+  to: Point,
+): Point {
+  const { ux, uz, length, yaw } = along(from, to);
+  const total = Math.max(1, Math.round(length / pitch));
+
+  for (let done = 0, piece = 0; done < total; piece++) {
+    const take = Math.min(most, total - done);
+    const middle = (done + take / 2) * pitch;
+    place(root, build(seed + piece, take), from[0] + ux * middle, from[1] + uz * middle, yaw);
+    done += take;
+  }
+
+  return [from[0] + ux * total * pitch, from[1] + uz * total * pitch];
+}
+
+/**
+ * A fence along a line, optionally finished with the post it is missing.
+ *
+ * `cap` is the contract made visible. A run ends in two rails pointing at
+ * nothing until something supplies the post at its far end — either a
+ * `fence-post`, or the first post of the next run, which is why a corner passes
+ * `false` and lets the run turning out of it do the job.
+ */
+function fenceRun(root: THREE.Group, seed: number, from: Point, to: Point, cap = true): Point {
+  const end = laid(
+    root,
+    // Every piece of the run shares one carpentry seed, so two of them meeting
+    // on a post are the same fence rather than two butted together.
+    (s, n) => fence.build({ seed: s, run: seed, sections: n }),
+    FENCE_SECTION,
+    FENCE_MAX_SECTIONS,
+    seed,
+    from,
+    to,
+  );
+  if (cap) {
+    place(root, fencePost.build({ seed: seed + 71, run: seed }), end[0], end[1], along(from, to).yaw);
+  }
+  return end;
+}
+
+/** A stone wall along a line, with a pier standing off each end of it. */
+function wallRun(root: THREE.Group, seed: number, from: Point, to: Point): Point {
+  const { ux, uz, yaw } = along(from, to);
+  const end = laid(
+    root,
+    (s, n) => stoneWall.build({ seed: s, run: seed, sections: n }),
+    WALL_SECTION,
+    WALL_MAX_SECTIONS,
+    seed,
+    from,
+    to,
+  );
+  // Matched to the run they finish, and a little proud of it.
+  const stand = wallHeight(createRng(seed)) + 0.3;
+  const pier = (at: Point, out: number, salt: number): void => {
+    place(
+      root,
+      stoneWallColumn.build({ seed: seed + salt, height: stand }),
+      at[0] + ux * out * COLUMN_REACH,
+      at[1] + uz * out * COLUMN_REACH,
+      yaw,
+    );
+  };
+  pier(from, -1, 70);
+  pier(end, 1, 71);
+  return end;
+}
+
 /**
  * What a sign says, and what a banner says. Both take text beyond the standard
  * seed and scale, which `MeshBuilder` does not know about, so the options have
@@ -889,6 +1001,15 @@ function buildSettlement(root: THREE.Group): void {
   place(root, trough.build({ seed: 5302 }), -4.6, 13.9, 1.2);
   place(root, figure.build({ seed: 5303 }), -4.9, 14.8, -1.1);
 
+  // --- the west boundary ---------------------------------------------------
+  //
+  // Where the settlement stops and the fields start. Stone rather than timber
+  // because the two say different things about a line: a fence keeps animals
+  // where they are put, and a wall says the ground on either side of it belongs
+  // to different people. A pier at each end, which is the only place the wall
+  // has one.
+  wallRun(root, 6100, [-13.2, 11.4], [-18, 11.4]);
+
   // The hedge. The line is what makes it one rather than four bushes.
   const HEDGE = [
     [-0.8, -1.4],
@@ -942,11 +1063,19 @@ function buildSettlement(root: THREE.Group): void {
   //
   // The one place where planting is deliberate rather than scattered, which is
   // why the sunflowers and the lavender are here and nowhere else.
-  place(root, fence.build({ seed: 5701 }), -4.6, 19.6, 0.2);
-  place(root, fence.build({ seed: 5702 }), -0.4, 20.4, 1.62);
+  //
+  // Fenced on the two sides that face open country — the house behind it is the
+  // other two. The corner carries one post and not two: the west run leaves its
+  // last one off, and the north run, which starts there, supplies it. Only the
+  // far end of the north run is capped.
+  //
+  // Both runs stay on the level shelf: the terrace falls away past z = 20, and
+  // a rail follows its posts rather than the ground under them.
+  const gardenCorner = fenceRun(root, 5701, [-5.4, 16.8], [-5.4, 19.6], false);
+  fenceRun(root, 5705, gardenCorner, [-1, 19.6]);
   place(root, sunflower.build({ seed: 5711 }), -3.2, 19.3, 0.4, false);
-  place(root, sunflower.build({ seed: 5712 }), -2.5, 20.0, 1.9, false);
-  place(root, sunflower.build({ seed: 5713 }), -3.7, 20.2, 3.1, false);
+  place(root, sunflower.build({ seed: 5712 }), -2.5, 19.0, 1.9, false);
+  place(root, sunflower.build({ seed: 5713 }), -4.4, 19.1, 3.1, false);
   // One. Lavender is fourteen thousand triangles for a plant the size of a
   // boot — four per cent of this zone — so it goes at the fence where the lane
   // passes within a stride of it, and nowhere else.
@@ -954,17 +1083,10 @@ function buildSettlement(root: THREE.Group): void {
 
   // --- the paddock ---------------------------------------------------------
   //
-  // West of the houses, on the mired ground.
-  for (let i = 0; i < 5; i++) {
-    const angle = (i / 5) * Math.PI * 2;
-    place(
-      root,
-      fence.build({ seed: 400 + i }),
-      -16 + Math.cos(angle) * 8,
-      -10 + Math.sin(angle) * 8,
-      angle,
-    );
-  }
+  // West of the houses, on the mired ground. Two sides of it and no more, open
+  // toward the settlement — one continuous run that turns a corner.
+  const paddockCorner = fenceRun(root, 400, [-22, -4], [-22, -14], false);
+  fenceRun(root, 420, paddockCorner, [-11, -14]);
   place(root, trough.build({ seed: 91 }), -13, -13, 0.4);
   place(root, figure.build({ seed: 5801 }), -13.4, -6.2, 2.6);
   scatter(root, bovine, { seed: 8801, count: 2, within: 5, from: [-16, -10], maxSlope: 20 });
