@@ -144,7 +144,7 @@ export const bell: MeshBuilder = {
     const geometry = assemble(parts);
     geometry.rotateY(rng.range(0, Math.PI * 2));
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'bell', 0, 'metal-ring');
+    return finish(geometry, 'bell', 0);
   },
 };
 

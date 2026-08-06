@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { COLLISION_LAYER } from '../layers';
 import { Octree } from 'three/examples/jsm/math/Octree.js';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
+import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
  * The static collision world.
@@ -34,6 +35,31 @@ export interface Contact {
   normal: THREE.Vector3;
   /** How far the capsule has to move along the normal to be clear. */
   depth: number;
+  /**
+   * What the triangle is made of, or null if it is ground or something with no
+   * material of its own. See `SurfacedTriangle`.
+   */
+  surface: SurfaceName | null;
+}
+
+/**
+ * A collision triangle that remembers which prop it was cut from.
+ *
+ * **This is how the game knows what it is standing on**, and it is one field
+ * because the collider is already the authority: the thing holding the player
+ * up is, by definition, the thing they last pushed out of. Nothing else has to
+ * be asked, nothing has to be searched for, and there is no way for the answer
+ * to disagree with the physics.
+ *
+ * The alternative was to ask the geometry afterwards — sweep the props near the
+ * player's feet and work out which one the sole is resting on — and it is both
+ * slower and worse. Slower because it re-walks triangles the collider has
+ * already sorted; worse because it is a *second* opinion about contact, and a
+ * second opinion is wrong exactly when it matters: at the instant of landing,
+ * on a curve, on anything narrow.
+ */
+interface SurfacedTriangle extends THREE.Triangle {
+  surface: SurfaceName | null;
 }
 
 /**
@@ -75,7 +101,8 @@ const _centre = new THREE.Vector3();
 const _closest = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _segment = new THREE.Line3();
-const _contact: Contact = { normal: new THREE.Vector3(), depth: 0 };
+const _contact: Contact = { normal: new THREE.Vector3(), depth: 0, surface: null };
+const _corner = new THREE.Vector3();
 
 interface Index {
   octree: Octree;
@@ -143,7 +170,11 @@ export class Collider {
     const octree = new Octree();
     octree.layers.disableAll();
     octree.layers.enable(COLLISION_LAYER);
-    octree.fromGraphNode(root);
+    // Not `octree.fromGraphNode`, which is the same walk without the one thing
+    // wanted here: three's triangles do not remember which mesh they came from,
+    // and that is the whole of what a footstep needs to know.
+    cut(octree, root);
+    octree.build();
     return { octree, triangles: countTriangles(octree) };
   }
 
@@ -166,16 +197,19 @@ export class Collider {
     this.index.octree.getCapsuleTriangles(capsule, _candidates);
 
     let deepest = 0;
+    let hit: SurfacedTriangle | null = null;
 
     for (const triangle of _candidates) {
       const depth = penetration(capsule, triangle);
       if (depth <= deepest) continue;
       deepest = depth;
+      hit = triangle as SurfacedTriangle;
       _contact.normal.copy(_offset);
     }
 
-    if (deepest === 0) return null;
+    if (deepest === 0 || !hit) return null;
     _contact.depth = deepest;
+    _contact.surface = hit.surface ?? null;
     return _contact;
   }
 
@@ -251,6 +285,42 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
   if (_offset.dot(_normal) <= 0) return 0;
 
   return capsule.radius - distance;
+}
+
+/**
+ * Cuts every collidable mesh under `root` into triangles and adds them to the
+ * octree, each one carrying its mesh's material.
+ *
+ * A copy of three's `Octree.fromGraphNode` — same traversal, same layer test,
+ * same handling of indexed geometry — with the surface stamped on and without
+ * the `build()` at the end, so the caller can add from more than one root.
+ */
+function cut(octree: Octree, root: THREE.Object3D): void {
+  root.updateWorldMatrix(true, true);
+
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !octree.layers.test(object.layers)) return;
+
+    const indexed = object.geometry.index !== null;
+    const geometry = indexed ? object.geometry.toNonIndexed() : object.geometry;
+    const position = geometry.getAttribute('position');
+    // Set once per mesh rather than per triangle: it is the same string for
+    // every face of a prop, and a prop is thousands of faces.
+    const surface = (object.userData.underfoot as SurfaceName | undefined) ?? null;
+
+    for (let i = 0; i + 2 < position.count; i += 3) {
+      const triangle = new THREE.Triangle() as SurfacedTriangle;
+      for (const [corner, target] of [triangle.a, triangle.b, triangle.c].entries()) {
+        target
+          .copy(_corner.fromBufferAttribute(position, i + corner))
+          .applyMatrix4(object.matrixWorld);
+      }
+      triangle.surface = surface;
+      octree.addTriangle(triangle);
+    }
+
+    if (indexed) geometry.dispose();
+  });
 }
 
 function countTriangles(node: Octree): number {

@@ -92,6 +92,8 @@ export const trough: MeshBuilder = {
     const geometry = assemble(parts);
     geometry.rotateY(rng.range(0, Math.PI));
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'trough', 0);
+    // Said here rather than in `art/underfoot.ts`, because only the roll above
+    // knows which of the two this one is.
+    return finish(geometry, 'trough', 0, stone ? 'stone' : 'wood');
   },
 };

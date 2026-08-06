@@ -211,6 +211,6 @@ export const machine: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'machine', 0, 'metal-hollow-big');
+    return finish(geometry, 'machine', 0);
   },
 };

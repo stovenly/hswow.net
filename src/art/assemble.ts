@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CLUTTER } from './clutter';
-import { underfootOf } from './underfoot';
+import { MATERIALS } from './underfoot';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL } from './sway';
@@ -231,18 +231,13 @@ export function finish(
   name: string,
   phase: number,
   /**
-   * What it sounds like underfoot, when the colours cannot say.
+   * What it sounds like underfoot, for the few props that **roll** their own
+   * material rather than having one.
    *
-   * `art/underfoot.ts` reads the material off the geometry, which is right for
-   * anything whose colours are honest about what it is made of — and a good
-   * deal of the works kit is not. A machine casing is painted `STONE_DARK`
-   * because that is what reads as a grey machine, chainlink is drawn in colours
-   * of its own, and a sink is mostly the water in it. All three are steel and
-   * none of them measures as steel.
-   *
-   * So a builder that knows better says so. Declaration beats inference exactly
-   * where inference is wrong, and nowhere else: leave this alone and the
-   * geometry answers, which is what almost every prop should do.
+   * Every prop's material is declared once in `art/underfoot.ts`, keyed by the
+   * name above, and that is where to put it. This is for the case a table
+   * cannot express: a trough is stone or timber depending on its own seed, so
+   * only the build knows.
    */
   underfoot?: SurfaceName,
 ): THREE.Mesh {
@@ -265,11 +260,11 @@ export function finish(
   // long gone, and the name on the mesh is the only thing left that says what
   // this is. `ZoneManager.prepare` reads it; see `art/clutter.ts`.
   if (CLUTTER.has(name)) mesh.userData.clutter = true;
-  // What the thing is mostly made of, read off the geometry rather than looked
-  // up by name — see `art/underfoot.ts`. A builder that wants to say something
-  // the colours cannot, like a walkway that rings or a drum that booms, sets
-  // `MeshBuilder.underfoot` and `ZoneManager` prefers it.
-  const material = underfoot ?? underfootOf(geometry);
+  // What standing on it sounds like, declared by name in `art/underfoot.ts` —
+  // which explains at length why it is not read off the colours. The collider
+  // carries this onto every triangle, so what holds the player up is what they
+  // hear.
+  const material = underfoot ?? MATERIALS[name];
   if (material) mesh.userData.underfoot = material;
   // So the sun sees what the camera sees. Without it the shadow map is drawn
   // from undisplaced geometry and every swaying plant casts a still shadow of

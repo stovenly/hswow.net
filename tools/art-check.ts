@@ -25,6 +25,7 @@ import type { MeshBuilder } from '../src/art/types';
 import { SWAY_ATTRIBUTE, ART_MATERIAL } from '../src/art/assemble';
 import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE, detailUniforms } from '../src/art/detail';
 import { CLUTTER } from '../src/art/clutter';
+import { MATERIALS } from '../src/art/underfoot';
 import { FLEX } from '../src/art/flex';
 import {
   COVER_MATERIAL,
@@ -1233,6 +1234,75 @@ for (const builder of builders) {
   ].filter(Boolean);
 
   check(builder.name, ok, ok ? detail : `${problems.join(', ')} — ${detail}`);
+}
+
+// ---------------------------------------------------------------------------
+//
+// **Every prop says what it is made of.**
+//
+// `art/underfoot.ts` used to read the material off the colours, and the header
+// there records why that had to stop: shading moves a colour further than the
+// gap between two families, so a stone wall measured as steel one seed in
+// eight and a cow measured as masonry half the time. The table replaced it, and
+// a table's failure mode is drift — a prop added with no entry is silent, and
+// silent means the ground answers for something you are standing on.
+//
+// So the list and the kit are compared both ways. A builder with no entry is a
+// missing material; an entry with no builder is a prop that was renamed or
+// deleted and left a line behind.
+{
+  const named = new Set(builders.map((builder) => builder.name));
+  const listed = new Set(Object.keys(MATERIALS));
+  // Named in the table but built elsewhere: ground, room shells, lettering.
+  const notProps = new Set([
+    'terrain',
+    'interior',
+    'lettering',
+    'sealed-room',
+    'dark-alcove',
+    'light-plinth',
+    'text-backdrop',
+    'text-station',
+    'text-station-ink',
+  ]);
+
+  const unstated = [...named].filter((name) => !listed.has(name));
+  const orphans = [...listed].filter((name) => !named.has(name) && !notProps.has(name));
+  const stated = [...listed].filter((name) => MATERIALS[name] !== null).length;
+
+  check(
+    'every prop says what it is made of',
+    unstated.length === 0 && orphans.length === 0,
+    unstated.length === 0 && orphans.length === 0
+      ? `${listed.size} names, ${stated} with a surface`
+      : [
+          unstated.length > 0 && `no material: ${unstated.join(', ')}`,
+          orphans.length > 0 && `no such prop: ${orphans.join(', ')}`,
+        ]
+          .filter(Boolean)
+          .join('; '),
+  );
+
+  // And that a prop's material does not change under it. Everything here is
+  // fixed by name; the one exception says so out loud.
+  const rolled = new Set(['trough']);
+  const wobbly: string[] = [];
+  for (const builder of builders) {
+    if (rolled.has(builder.name)) continue;
+    const seen = new Set(
+      [1, 2, 3, 4, 5, 6, 7, 8].map((seed) =>
+        String(builder.build({ seed }).userData.underfoot ?? 'none'),
+      ),
+    );
+    if (seen.size > 1) wobbly.push(`${builder.name} (${[...seen].join('/')})`);
+  }
+  check(
+    'a prop sounds the same however it rolled',
+    wobbly.length === 0,
+    wobbly.length === 0
+      ? `${builders.length - rolled.size} builders over 8 seeds each`
+      : `varies by seed: ${wobbly.join(', ')}`,
+  );
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
