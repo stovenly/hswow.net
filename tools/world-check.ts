@@ -550,13 +550,22 @@ console.log('\n--- terrain -------------------------------------------------\n')
     // Fences and troughs count too. A rail follows the posts it is nailed to,
     // not the hillside underneath, so a paddock on a slope gapes underneath
     // exactly the way a building does.
-    const RIGID = new Set(['hut', 'fence', 'trough', 'archway']);
+    // A stone wall is the same argument again and the least forgiving of them:
+    // courses are level by construction, so ground falling under a run leaves a
+    // wedge of daylight beneath it.
+    const RIGID = new Map([
+      ['hut', 2.2],
+      ['fence', 2.2],
+      ['stone-wall', 2.2],
+      ['trough', 1],
+      ['archway', 2.2],
+    ]);
     let worstFall = 0;
     let worstAt = '';
     for (const child of zone.root().children) {
-      if (!RIGID.has(child.name)) continue;
       // Sampled at the corners of a square about the size of the thing.
-      const r = child.name === 'trough' ? 1 : 2.2;
+      const r = RIGID.get(child.name);
+      if (r === undefined) continue;
       let low = Infinity;
       let high = -Infinity;
       for (const [dx, dz] of [

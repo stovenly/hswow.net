@@ -1,8 +1,18 @@
-import * as THREE from 'three';
 import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE, shade } from '../palette';
+import { shade } from '../palette';
+import {
+  hearting,
+  patch,
+  pointing,
+  prism,
+  quoinedPier,
+  roughBox,
+  stoneColours,
+  throughStone,
+  type Point,
+} from '../masonry';
 
 /**
  * A standing stone archway: two piers and a lintel.
@@ -10,6 +20,15 @@ import { PALETTE, shade } from '../palette';
  * Somewhere for a door to be that is not a building. A portal door standing
  * alone in a field reads as a mistake; the same door under an arch reads as a
  * threshold, which is what it is.
+ *
+ * Built from the same masonry as `stone-wall` and `stone-wall-column` — quoined
+ * piers with rubble panels between, out of `art/masonry`. It has to be: a
+ * village gate that did not match the wall running up to it would be the kit
+ * contradicting itself at its own front door.
+ *
+ * The crown is dressed work: corbels out of the jambs to carry the lintel, the
+ * lintel stepped back underneath, and a course oversailing both faces. Quoins
+ * and crown are chosen stone; everything between them came off the field.
  *
  * Built facing **+Z** with its opening centred on the origin, matching the door
  * builder, so a portal can place both from the same position and yaw.
@@ -25,38 +44,157 @@ export const archway: MeshBuilder = {
 
     const opening = rng.range(1.5, 1.9);
     const height = rng.range(2.6, 3.1);
-    const pier = rng.range(0.42, 0.58);
-    const depth = rng.range(0.5, 0.7);
-    const stone = rng.chance(0.5) ? PALETTE.STONE : PALETTE.STONE_DARK;
+    const pier = rng.range(0.5, 0.64);
+    const depth = rng.range(0.54, 0.7);
 
-    // Piers, each a short stack of blocks so the joints show. One block per
-    // pier would read as a poured slab.
+    const dry = rng.chance(0.4);
+    const point = pointing(rng, dry);
+    const fill = hearting(rng, dry);
+    const colour = stoneColours(rng);
+    // Quoins take a smaller bite than a wall pier's: these jambs are narrower,
+    // and at the wall's 13 cm there would be no panel left between them.
+    const quoin = 0.1;
+
     for (const side of [-1, 1]) {
-      const courses = rng.int(3, 4);
-      const course = height / courses;
-      for (let i = 0; i < courses; i++) {
-        // Each course a little different, and inset slightly as it rises.
-        const taper = 1 - (i / courses) * 0.12;
-        const block = new THREE.BoxGeometry(pier * taper, course * 1.02, depth * taper);
-        block.translate(
-          (side * (opening + pier)) / 2 + rng.around(0, 0.02),
-          course * (i + 0.5),
-          rng.around(0, 0.02),
-        );
-        parts.push({ geometry: block, color: shade(stone, rng.around(1, 0.08)), sway: 0 });
+      // Always up to the lintel, never short of it: a jamb a few centimetres
+      // under its own lintel shows daylight through the joint.
+      const shaft = height * rng.range(1, 1.02);
+      const stones = quoinedPier(rng, {
+        width: pier,
+        depth,
+        height: shaft,
+        quoin,
+        stone: rng.range(0.3, 0.38),
+        point,
+        fill,
+        colour,
+      });
+      for (const part of stones) {
+        part.geometry.translate((side * (opening + pier)) / 2, 0, 0);
+        parts.push(part);
       }
     }
 
-    // The lintel, overhanging both piers.
-    const lintel = new THREE.BoxGeometry(opening + pier * 2.5, rng.range(0.34, 0.46), depth * 1.1);
-    lintel.translate(0, height + 0.18, 0);
-    parts.push({ geometry: lintel, color: shade(stone, 0.92), sway: 0 });
+    // --- the crown -----------------------------------------------------------
+    //
+    // All of it dressed, so none of it is brown. Rubble is whatever came off the
+    // field; the stones that carry the opening were chosen out of one bed.
+    const dressed = stoneColours(rng, 0);
+    const crownPoint = { ...point, chamfer: 0.04 };
 
-    // A cap on top, on some of them.
-    if (rng.chance(0.55)) {
-      const cap = new THREE.BoxGeometry(opening + pier * 1.6, 0.18, depth * 0.8);
-      cap.translate(rng.around(0, 0.06), height + 0.48, 0);
-      parts.push({ geometry: cap, color: shade(stone, 1.08), sway: 0 });
+    // An impost across the top of each jamb, standing out of both faces and
+    // reaching a little way over the opening — what the arch springs off, and
+    // what shortens the span it has to cross.
+    const impostH = rng.range(0.13, 0.19);
+    const jut = rng.range(0.09, 0.15);
+    for (const side of [-1, 1]) {
+      const over = (side * opening) / 2 - side * jut;
+      const out = (side * (opening + pier * 2.2)) / 2;
+      parts.push({
+        geometry: roughBox(
+          rng,
+          over < out ? [over, out] : [out, over],
+          [height - impostH, height],
+          [(-depth * 1.14) / 2, (depth * 1.14) / 2],
+          0.008,
+        ),
+        color: shade(dressed(), rng.around(1.05, 0.04)),
+        sway: 0,
+      });
+    }
+
+    // The lintel, as a flat arch of wedge stones rather than one slab.
+    //
+    // A slab across an opening this wide is not a thing anybody could lift, and
+    // it does not read as one either — it reads as a plank laid on two posts. So
+    // the joints radiate from a centre below the opening, which is how a mason
+    // carries a flat head, and the stone in the middle of them is a keystone.
+    const lintelH = rng.range(0.34, 0.46);
+    const reach = (opening + pier * 2.5) / 2;
+    const voussoirs = rng.pick([7, 9, 11]);
+    // How far below the springing the joints point. Nearer and they splay like a
+    // fan; further and they go parallel and it is a row of blocks again.
+    const focus = opening * rng.range(1.4, 1.9);
+    const splay = reach / (focus + lintelH);
+    const camber = rng.range(0.025, 0.055);
+    const keyRise = rng.range(0.1, 0.19);
+
+    const soffit = (t: number): number => focus * splay * t;
+    const back = (t: number): number => (focus + lintelH) * splay * t;
+    const crownAt = (t: number): number => height + lintelH + camber * (1 - t * t);
+
+    for (let i = 0; i < voussoirs; i++) {
+      const t0 = -1 + (2 * i) / voussoirs;
+      const t1 = -1 + (2 * (i + 1)) / voussoirs;
+      const key = i === (voussoirs - 1) / 2 ? keyRise : 0;
+      parts.push({
+        geometry: throughStone(
+          rng,
+          [
+            { x: soffit(t0), y: height },
+            { x: soffit(t1), y: height },
+            { x: back(t1), y: crownAt(t1) + key },
+            { x: back(t0), y: crownAt(t0) + key },
+          ],
+          crownPoint,
+          depth * rng.range(0.98, 1.04),
+          rng.range(0.012, 0.026),
+          // Every soffit on one line. Bedding pulls a wedge's underside up by
+          // more the taller it is, so the stones over the middle of the opening
+          // ride highest and the backing behind them hangs out below.
+          height,
+        ),
+        color: key ? shade(dressed(), rng.around(1.07, 0.04)) : dressed(),
+        sway: 0,
+      });
+    }
+
+    // The course over it, oversailing both faces to throw rain clear, laid
+    // outward from the keystone and following the camber under it.
+    const dripH = rng.range(0.15, 0.21);
+    const dripZ = depth * rng.range(1.16, 1.26);
+    const keyHalf = back(1 / voussoirs);
+
+    // What the crown is bedded on, set back inside every stone in it. The
+    // voussoirs and the course above are each a joint's width off their
+    // neighbours, so with nothing behind them the head of the arch is a comb.
+    // Starts above the springing and stops short of the top of the course above,
+    // so nothing of it shows past either.
+    const backing: Point[] = [
+      { x: -soffit(1), y: height + 0.025 },
+      { x: soffit(1), y: height + 0.025 },
+    ];
+    for (let i = 8; i >= 0; i--) {
+      const t = -1 + i / 4;
+      backing.push({ x: back(t), y: crownAt(t) + dripH * 0.7 });
+    }
+    parts.push({ geometry: prism(backing, depth * 0.82), color: fill, sway: 0 });
+
+    for (const dir of [-1, 1]) {
+      let x = keyHalf;
+      while (reach - x > 1e-6) {
+        let w = rng.range(0.26, 0.42);
+        if (reach - (x + w) < 0.2) w = reach - x;
+        w = Math.min(w, reach - x);
+        const from = dir < 0 ? -(x + w) : x;
+        parts.push({
+          geometry: throughStone(
+            rng,
+            patch(
+              from,
+              crownAt((from + w / 2) / reach) - rng.range(0.006, 0.018),
+              w,
+              dripH * rng.range(0.92, 1.06),
+            ),
+            crownPoint,
+            dripZ,
+            rng.range(0.01, 0.02),
+          ),
+          color: dressed(),
+          sway: 0,
+        });
+        x += w;
+      }
     }
 
     const geometry = assemble(parts);
