@@ -58,11 +58,56 @@ export function markLabelled<T extends THREE.Object3D>(object: T, label: string)
   return object;
 }
 
-/** Reads a label off an object or the nearest ancestor carrying one. */
-export function labelOf(object: THREE.Object3D | null): string | null {
+/**
+ * Marks an object as something the player can read *and* open.
+ *
+ * A third state, and the reason the zone manager stopped answering a question
+ * with yes or no. A door is a link, a sign is a caption, and a bound book is
+ * neither: it names itself over the crosshair like the sign and it does
+ * something when you press the key like the door.
+ *
+ * The binding is one id into `content/notes`, never the prose itself. And **it
+ * is the binding that makes the tooltip two lines** — there is no opt-in and no
+ * per-prop switch. A book with words in it says what is written in it, always;
+ * a book with none is furniture and says only what it is.
+ */
+export function markReadable<T extends THREE.Object3D>(
+  object: T,
+  /**
+   * The builder that made it, not a string. What the player calls a prop is
+   * fixed per builder (`MeshBuilder.display`), so taking it from the source
+   * means a cover cannot be renamed in one place and keep its old name over
+   * every crosshair in the world. Structurally typed, so this file does not
+   * have to learn about the art kit to ask a builder its name.
+   */
+  source: { readonly name: string; readonly display?: string },
+  text: string,
+): T {
+  object.userData.label = source.display ?? source.name;
+  object.userData.text = text;
+  return object;
+}
+
+/** What a hovered object says about itself: its name, and any note bound to it. */
+export interface Labelled {
+  readonly label: string;
+  /** The note's id. Its presence is what makes the thing readable. */
+  readonly text?: string;
+}
+
+/**
+ * Reads the label off an object or the nearest ancestor carrying one.
+ *
+ * Both fields come from the *same* node rather than from two separate walks, so
+ * a book standing inside something else that happens to be labelled cannot end
+ * up showing one thing's name over another thing's prose.
+ */
+export function labelOf(object: THREE.Object3D | null): Labelled | null {
   for (let node = object; node; node = node.parent) {
     const label = node.userData.label;
-    if (typeof label === 'string') return label;
+    if (typeof label !== 'string') continue;
+    const text = node.userData.text;
+    return { label, text: typeof text === 'string' ? text : undefined };
   }
   return null;
 }

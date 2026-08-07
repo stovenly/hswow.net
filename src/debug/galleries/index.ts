@@ -5,6 +5,8 @@ import { textShowcaseGalleryPlan } from './text';
 import { darkRoomPlan } from './dark';
 import { lightShowcasePlan } from './light';
 import { fogShowcasePlan } from './fog';
+import { readablesGalleryPlan } from './readables';
+import { readablesShowcasePlan } from './readables-showcase';
 import {
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
@@ -34,6 +36,8 @@ export const GALLERIES: readonly GalleryPlan[] = [
   darkRoomPlan,
   lightShowcasePlan,
   fogShowcasePlan,
+  readablesGalleryPlan,
+  readablesShowcasePlan,
 ];
 
 export { galleryZone, galleryDoor, galleryPortal, rowPosition } from './layout';
@@ -44,6 +48,8 @@ export { ZONE_TEXT_SHOWCASE } from './text';
 export { ZONE_DARK_ROOM } from './dark';
 export { ZONE_LIGHT_SHOWCASE } from './light';
 export { ZONE_FOG_SHOWCASE } from './fog';
+export { ZONE_READABLES_GALLERY } from './readables';
+export { ZONE_READABLES_SHOWCASE } from './readables-showcase';
 export {
   ZONE_GALLERY_VILLAGE_INTERIOR,
   ZONE_GALLERY_VILLAGE_EXTERIOR,

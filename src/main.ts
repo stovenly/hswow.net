@@ -35,6 +35,9 @@ import type { FrictionModel } from './audio/models/friction';
 import type { WaveguideModel } from './audio/models/waveguide';
 import { Loader } from './ui/Loader';
 import { installOptions, loadOptions } from './ui/options';
+import { Reading } from './ui/Reading';
+import { READING_FIXTURES } from './debug/reading-fixtures';
+import { NOTES } from './content/notes';
 import { PerformanceHud } from './ui/Performance';
 
 const canvas = document.getElementById('viewport');
@@ -228,6 +231,37 @@ if (isTouchDevice()) {
 // already reads for the heap size — shadowing it here would break that at a
 // distance, in a readout, silently.
 const perfHud = new PerformanceHud(overlay, viewport.renderer);
+
+// The reading screen. Not a pause: the world keeps running behind it, exactly
+// as it does behind the options panel — what stops is *steering*, and that
+// falls out of releasing the pointer lock rather than being a mode of its own,
+// because `Input` already ignores the whole keyboard while the mouse is free.
+//
+// Closing puts the mouse back exactly where it was rather than always taking
+// it: a note opened from the world was opened by somebody who was playing, and
+// one opened from the debug panel was not. Re-capturing unconditionally would
+// throw the second case into the game on the way out.
+let wasPlaying = false;
+const reading = new Reading(overlay, {
+  onOpen: () => {
+    wasPlaying = input.locked;
+    document.exitPointerLock();
+  },
+  // Not a bare `requestPointerLock`: closing a note is not a click, and the
+  // browser's cooldown after a user-initiated exit refuses the first ask. See
+  // `Input.capture`, which is the one place that knows to keep asking.
+  onClose: () => {
+    if (!wasPlaying) return;
+    // Held until the mouse is genuinely back. `is-reading` comes off the moment
+    // the page closes, and the lock does not come back on that frame — the
+    // browser holds a cooldown after a user-initiated exit — so for a few
+    // hundred milliseconds the interface believes nobody is playing and raises
+    // the capture panel. Closing a book flashed the pause screen every time.
+    document.body.classList.add('is-capturing');
+    void input.capture().finally(() => document.body.classList.remove('is-capturing'));
+  },
+});
+
 const settings = installOptions(options, overlay, {
   audio,
   postfx,
@@ -643,6 +677,17 @@ if (dev.gui) {
     for (const zone of members) go(folder, zone.id, zone.name);
   }
 
+  // --- the reading screen ---------------------------------------------------
+  //
+  // A way in that is not a walk across a room. Everything here is also bound to
+  // a book in the Readables Showcase and reachable the way a player reaches it;
+  // this is for the times you are tuning the type and do not want the walk
+  // between one look and the next.
+  const read = dev.gui.addFolder('reading').close();
+  for (const note of [...NOTES, ...READING_FIXTURES]) {
+    read.add({ open: () => reading.open(note) }, 'open').name(note.title.toLowerCase());
+  }
+
   // --- the sound stage ------------------------------------------------------
   //
   // Closed by default, and everything in it acts on whatever soundscape is
@@ -750,12 +795,17 @@ loop.add((dt, elapsed) => {
   const zone = zones.current;
   if (zone && player.position.y < zone.floor) zones.respawn();
 
-  const door = zones.update(elapsed);
-  // Consumed unconditionally. Read only when a door is in front of you, a
+  const focus = zones.update(elapsed);
+  // Consumed unconditionally. Read only when something is in front of you, a
   // press aimed at nothing would sit in the buffer and fire at whatever you
   // happened to look at next.
   const interacted = input.takeInteract();
-  if (interacted && door) void zones.use(door);
+  if (interacted && focus) {
+    // Two verbs, one key. Which one is decided by what is under the crosshair
+    // rather than by a mode, so nothing has to be entered or left.
+    if (focus.kind === 'door') void zones.use(focus.side);
+    else reading.open(focus.note);
+  }
 
   // The listener has to be moved before anything is judged against it, so the
   // engine is pumped first and hands back whether the occlusion raycasts are

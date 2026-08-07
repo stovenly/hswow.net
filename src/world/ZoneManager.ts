@@ -3,6 +3,7 @@ import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
+import { noteById, type Note } from '../content/notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { setZoneWind } from '../art/sway';
@@ -34,6 +35,18 @@ import type { Reticle, Fade } from '../ui/Reticle';
  * it, and a frame where the old zone's lights have gone and the new zone's have
  * not yet arrived is a frame of pure black that no fade is covering.
  */
+
+/**
+ * What pressing the interact key would act on.
+ *
+ * A union rather than a door or null, because there are two verbs now and they
+ * are not variants of one. A door moves you and a readable opens a page; the
+ * caller has to say which, and a boolean dressed as an object is how that
+ * decision ends up being made by whichever branch was written first.
+ */
+export type Focus =
+  | { readonly kind: 'door'; readonly side: PortalSide }
+  | { readonly kind: 'read'; readonly note: Note };
 
 export interface ZoneManagerOptions {
   scene: THREE.Scene;
@@ -683,10 +696,10 @@ export class ZoneManager {
   /**
    * Per-frame: what is under the crosshair, and should the prompt be showing.
    *
-   * Returns the side the player could use right now, so the caller can act on
-   * the interact key without probing a second time.
+   * Returns what the interact key would act on, so the caller can act on it
+   * without probing a second time.
    */
-  update(elapsed: number): PortalSide | null {
+  update(elapsed: number): Focus | null {
     const { interaction, collider, player, reticle } = this.options;
 
     // Ahead of the transition guard, because the zone being arrived in wants
@@ -704,15 +717,28 @@ export class ZoneManager {
     this.hovered = hover ? this.portals.sideOf(hover.object) : null;
     if (this.hovered) {
       reticle.set({ title: this.hovered.title, target: this.hovered.label });
-    } else {
-      // Not a door. It may still be something with a name on it — a sign — in
-      // which case the tooltip shows and `null` comes back, so the interact key
-      // does nothing. Readable and not usable is a real state, and the one a
-      // caption is in.
-      const label = labelOf(hover?.object ?? null);
-      reticle.set(label ? { title: label } : null);
+      return { kind: 'door', side: this.hovered };
     }
-    return this.hovered;
+
+    // Not a door. Three things it can still be, and they are told apart by what
+    // the object carries rather than by what kind of prop it is:
+    //
+    // - nothing named — no tooltip, no verb;
+    // - named and nothing more — a sign. The tooltip shows and the key does
+    //   nothing, which is a real state and the one a caption is in;
+    // - named and bound to a note — a readable. Two lines, and a verb.
+    const found = labelOf(hover?.object ?? null);
+    if (!found) {
+      reticle.set(null);
+      return null;
+    }
+
+    // An id that resolves to nothing degrades to a plain label rather than
+    // opening a blank page. It is a content bug, and `check:world` is where it
+    // is meant to be caught — this is only what the game does meanwhile.
+    const note = found.text === undefined ? undefined : noteById(found.text);
+    reticle.set({ title: found.label, target: note?.title, kind: 'read' });
+    return note ? { kind: 'read', note } : null;
   }
 
   /**

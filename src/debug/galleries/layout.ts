@@ -14,6 +14,8 @@ import type { FogVolume } from '../../engine/FogVolumes';
 import { markCollidable } from '../../player/Collider';
 import { markLabelled } from '../../world/Interaction';
 import { createRng } from '../../art/random';
+import { assemble, finish } from '../../art/assemble';
+import { writing, textSeed } from '../../art/writing';
 import { DEFAULT_TUNING } from '../../player/Controller';
 import { flatGround, GRID_TILE } from '../../world/floor';
 
@@ -88,67 +90,28 @@ const DOOR_Z = 16;
 
 const SIGN_POST = new THREE.MeshLambertMaterial({ color: 0x3a3228, flatShading: true });
 const SIGN_BOARD = new THREE.MeshLambertMaterial({ color: 0xb9ad92, flatShading: true });
-const SIGN_INK = new THREE.MeshLambertMaterial({ color: 0x2b2620, flatShading: true });
 
 /**
  * Marks on a board that read as writing without being any.
  *
- * Real lettering exists now — `art/lettering`, judged in the Text Showcase —
- * but it earns its keep at sign scale, and these boards are caption scale: a
- * name on a 26 cm plank would need to be read from a metre away, which is
- * exactly the reach at which the tooltip already does it better. But a blank
- * board is furniture: nobody walks up to a plank to see what it says. So the
- * board gets a few rows of short dark bars at irregular lengths with gaps
- * between them, which is what text looks like once it is too small to read —
- * and *too small to read* is the state anyone is in until they are close
- * enough for the tooltip anyway.
+ * The marks themselves are `art/writing` now, shared with whatever else in the
+ * kit has words on it that nobody is meant to read. This is only the sign's own
+ * decision about how much text a caption plank carries — a couple of rows, and
+ * the third about half the time.
  *
- * The point is the invitation, not the illusion. It has to survive being walked
- * up to, so it must not resolve into fake glyphs; ragged word-lengths on a ragged
- * right margin is exactly as much as the trick can bear.
- *
- * Seeded off the row's own name, so a given row's scribble is the same on every
- * load and two rows never share one. That also means the marks are *stable*
- * landmarks — you learn where you are in a rank by their shape before you can
- * read a word of it.
+ * Why a plank rather than real lettering: `art/lettering` earns its keep at
+ * sign scale and these boards are caption scale, so a name on a 26 cm plank
+ * would have to be read from a metre away, which is exactly the reach at which
+ * the tooltip already does it better. But a blank board is furniture — nobody
+ * walks up to a plank to see what it says.
  */
-function scribble(name: string, width: number, height: number): THREE.Mesh[] {
-  // A cheap string hash. Any two distinct names have to land on distinct
-  // seeds far more than they have to be well distributed.
-  let hash = 2166136261;
-  for (let i = 0; i < name.length; i++) hash = Math.imul(hash ^ name.charCodeAt(i), 16777619);
-  const rng = createRng(hash >>> 0);
-
-  const marks: THREE.Mesh[] = [];
-  const margin = width * 0.1;
-  const usable = width - margin * 2;
-  const lines = 2 + (rng.chance(0.45) ? 1 : 0);
-  // Leading, not glyph height: the bar is thinner than the space it sits in,
-  // which is what stops three rows reading as a barcode.
-  const leading = height / (lines + 0.9);
-
-  for (let line = 0; line < lines; line++) {
-    const y = height / 2 - leading * (line + 0.95);
-    // A ragged right margin. A line that fills the width every time reads as
-    // justified type, which is far too tidy for a hand-painted board.
-    const fill = line === lines - 1 ? rng.range(0.4, 0.8) : rng.range(0.82, 1);
-    let x = -usable / 2;
-    const limit = -usable / 2 + usable * fill;
-
-    while (x < limit) {
-      const word = Math.min(rng.range(usable * 0.08, usable * 0.26), limit - x);
-      if (word < usable * 0.04) break;
-      const bar = new THREE.Mesh(
-        new THREE.BoxGeometry(word, leading * rng.range(0.3, 0.42), 0.008),
-        SIGN_INK,
-      );
-      bar.position.set(x + word / 2, y, 0);
-      marks.push(bar);
-      x += word + usable * rng.range(0.045, 0.09);
-    }
-  }
-
-  return marks;
+function scribble(name: string, width: number, height: number): THREE.Mesh {
+  const rng = createRng(textSeed(name));
+  const marks = writing(width, height, rng, {
+    lines: 2 + (rng.chance(0.45) ? 1 : 0),
+    color: 0x2b2620,
+  });
+  return finish(assemble(marks), 'writing', 0);
 }
 
 /**
@@ -203,10 +166,9 @@ export function signPost(name: string, display?: string): THREE.Group {
   board.add(plank);
   // Proud of the front face by a hair. Coplanar would z-fight, and at this
   // size the offset is invisible from anywhere you can see the sign at all.
-  for (const mark of scribble(name, boardW, boardH)) {
-    mark.position.z += 0.026;
-    board.add(mark);
-  }
+  const marks = scribble(name, boardW, boardH);
+  marks.position.z = 0.026;
+  board.add(marks);
   group.add(board);
 
   // A cap, so the post does not end in a cut end.
