@@ -21,6 +21,8 @@ import { textShowcaseGalleryPlan } from './galleries/text';
 import { darkRoomPlan } from './galleries/dark';
 import { lightShowcasePlan } from './galleries/light';
 import { fogShowcasePlan } from './galleries/fog';
+import { readablesGalleryPlan } from './galleries/readables';
+import { readablesShowcasePlan } from './galleries/readables-showcase';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
@@ -115,7 +117,9 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  * An even number of doors therefore straddles the middle rather than standing
  * one on it, which is why these are on half-metres.
  */
-const SHOWCASE_SLOTS = [-17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5] as const;
+const SHOWCASE_SLOTS = [
+  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5,
+] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
 function gridDoor(slot: number, material: 'timber' | 'iron', seed: number): PortalEnd {
@@ -379,8 +383,15 @@ export function propPortals(
     footstepsShowcasePortal(gridDoor(5, 'iron', 6436)),
     // The ground everything else in this room is standing on.
     groundcoverShowcasePortal(gridDoor(6, 'timber', 6437)),
-    // And the air above it closes the rank. Iron, because what is behind it is
-    // a rig rather than a place — ten systems standing in a line.
+    // And the air above it. Iron, because what is behind it is a rig rather
+    // than a place — ten systems standing in a line.
     particleShowcasePortal(gridDoor(7, 'iron', 6438)),
+    // The readables close the rank, and take two doors rather than one. They
+    // belong to no setting either — a book is a book in a cottage and in a
+    // works, which is why there is a room out here rather than a row in one of
+    // the two halls — and the objects and the system they carry are separate
+    // questions, so they get separate rooms standing side by side.
+    galleryPortal(readablesGalleryPlan, gridDoor(8, 'timber', 6441)),
+    galleryPortal(readablesShowcasePlan, gridDoor(9, 'timber', 6442)),
   ];
 }

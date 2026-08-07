@@ -255,10 +255,18 @@ export class Input {
    * pressing "resume" and then having to click again to actually play would be
    * a button that does not do what it says. A click is a user gesture, which
    * is all `requestPointerLock` needs.
+   *
+   * **Resolves when the lock is actually back**, or when the retry window has
+   * run out — see `requestLock`, which keeps asking through the browser's
+   * cooldown. That wait is the whole reason this returns anything: not holding
+   * the lock is what raises the capture panel, so a caller closing an interface
+   * and asking for the mouse back has a window of a few hundred milliseconds
+   * where the pause screen is technically correct and completely wrong, and it
+   * needs to know when that window shuts.
    */
-  capture(): void {
+  async capture(): Promise<void> {
     if (this.locked || !this.needsCapture) return;
-    void this.requestLock();
+    await this.requestLock();
   }
 
   // --- internals ----------------------------------------------------------
