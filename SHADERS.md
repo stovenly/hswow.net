@@ -553,22 +553,102 @@ composite. Nothing downstream depends on it — it is first purely on value.
 are the reference views); no halo around swaying foliage against the sky; toggled
 off, output matches R0 exactly; frame cost measured and recorded here.
 
-**Status: built** — `src/engine/GTAO.ts`: 2 slices × 4 steps each way (16 taps),
-**interleaved gradient noise** rotation, two 3×3 depth-aware blurs, composite faded
-by the zone's actual fog (smoothstep, matching the material fog exactly).
+**Status: built** — `src/engine/GTAO.ts`: 4 slices × 6 steps each way (48 taps),
+**interleaved gradient noise** rotation, a per-axis reach with squared step
+spacing, samples read off texel centres and weighed against the tangent plane,
+two 3×3 depth-aware blurs both one texel apart, composite faded by the zone's
+actual fog (smoothstep, matching the material fog exactly).
 `ao: { strength, radius }` in `RenderSettings`, dev-panel folder, and the player
 option ("ambient occlusion", Video tab) all landed.
 
-Three notes for anyone tuning this, all learned by getting them wrong:
+Ten notes for anyone tuning this, all learned by getting them wrong:
 
+- **A sample on the surface's own plane is not an occluder, and the horizon is a
+  maximum.** So noise in a near-tangent reading can only push the horizon up,
+  never down, and the bias accumulates: an *open, unoccluded* floor collects a
+  band of darkening that grows toward the horizon and shimmers, because the noise
+  is keyed to the per-pixel rotation. On a bare plane, where the true answer is
+  exactly 1 everywhere, the pre-fix march wrote 0.3% at 21 m and 5.4%±3.2 at
+  65 m. Weighting each sample by how far it stands off the tangent plane —
+  `smoothstep(0, 0.1, dot(D, N)/|D|)`, one dot product — takes that to 0.0%±0.0
+  at every distance and costs nothing on real geometry.
+- **Reconstruct a sample from the texel centre its depth came from.** The depth
+  fetch is nearest, so it *is* a texel centre; feeding the un-snapped uv back
+  through `uProjInverse` builds a point on no surface at all — that texel's depth
+  along a ray beside it, displaced sideways off the plane, which is precisely
+  what a spurious occluder looks like.
+- **Where the taps land beats how many there are — but the radial step count is
+  the exception, and it is the only thing here worth paying taps for.** Raising
+  the *slice* count does nothing *for this case*: the analytic arc is smooth in
+  angle, so on a floor seen from standing distance, 2 slices and 4 are within
+  3% on every noise figure — but see the last note before believing that
+  settles slices. What the grain
+  is actually made of is the march: the radius covers 50–190 texels at ordinary
+  distances, evenly spread steps leave gaps of tens of texels, and whether a
+  thin occluder falls in a gap is decided by that pixel's jitter — a table leg
+  is 6 cm and a chair leg 4, which is a handful of texels against those gaps,
+  which is why an interior with furniture in it is the worst case in the game
+  for this and the open countryside is not. Squaring the step parameter costs
+  nothing and cuts the deviation from a converged estimate by 40% at 1.2 m, 49%
+  at 4 m and 13% at 9 m. **It is only safe with the tangent bias above.**
+  Without it, crowding taps inward puts them inside the falloff radius on a
+  grazing floor, and the bias they feed the maximum turns that 5% band into
+  45%. Going 4 → 6 steps then buys a further 22% in the room and 16% around
+  crates while *deepening* the shadow toward truth (deepest 1%: 0.656 → 0.587
+  against a converged 0.473) and lowering the structure ratio with it — the
+  only lever measured that improves noise and accuracy together. It costs 8
+  taps of 34, so about a quarter of the pass.
+- **The march reach is per axis, not one number.** UV is not isotropic. One
+  radius for both axes marches a circle in UV, which is an ellipse in the world
+  reaching `aspect` further sideways than up — 1.78× at 16:9, where the falloff
+  then throws away most of what the sideways taps found, and the slice-plane
+  maths disagrees with where the samples actually went. Scaling by
+  `projectionMatrix[0][0]` and `[1][1]` separately fixes both.
 - **The rotation must be IGN, not a hash.** White noise gives neighbouring pixels
   uncorrelated estimates, and a small blur cannot reconstruct anything from that —
   the AO reads as grain over every shaded surface. IGN makes neighbours
   complementary, so a 3×3 neighbourhood contains a full rotation set.
+- **Both blur passes stay one texel apart, and rms is the wrong way to judge
+  that.** Two 3×3 boxes in series are a triangle across five texels. Widening
+  the second pass to three texels makes the pair a *flat* nine-tap box — and
+  that measures beautifully and looks awful. It cut the rms deviation in half
+  (0.0111 → 0.0058 in a room with a table and a chair, the 1-in-100 tail from
+  0.51 to 0.27 quantization levels) and shipped obvious striping, because a
+  flat kernel does not reduce noise so much as *correlate* it: the residual
+  stops being fine grain and becomes plateaus with steps between them, which is
+  the one thing a 64-level quantizer will happily draw a hard edge along.
+  Measure the residual at several scales and it is plain — fine grain averages
+  away when downsampled, structure does not. Against `rms(8)/rms(1)`, the
+  triangle sits at 0.47 and the flat box at 0.68. **Judge any change to this
+  blur on that ratio, not on the rms.**
+- **A quieter setting is usually just less AO.** Shrinking the radius to 0.5 m,
+  swapping the quadratic falloff for a linear one, or respending the same 16
+  taps as 4 slices × 2 steps instead of 2 × 4 — each roughly halves the
+  measured noise, and each roughly halves the darkening with it. Matched on how
+  much they actually shade, every falloff shape and radius tried lands within
+  about 10% of the others. The noise is proportional to the effect being asked
+  for, so before believing any improvement here, check what it did to the
+  darkening in the same breath.
 - **The blur's depth tolerance must be relative to distance.** An absolute
   metres-based threshold rejects every neighbour on a floor seen at a grazing
   angle — the blur switches itself off precisely on the surface the player looks
-  at most, leaving raw noise there.
+  at most, leaving raw noise there. Relative, the exact value barely matters:
+  0.02 to 0.08 moves the residual noise by 5%.
+- **The regime decides which knob matters, so measure the regime the complaint
+  came from — and look at a picture, not only at numbers.** Every floor crop
+  from standing distance said radial steps were the one lever worth paying for,
+  and every one was true of floors — while the artifact that survived four
+  rounds of tuning sat on none of them: a chair seat close to the camera with
+  the table top a hand-span above it, dark enough that each quantization level
+  is at its most visible. There, occluders stand at every distance in every
+  direction and *direction* is most of the variance — which way a slice points
+  decides whether the table is seen at all — so 4 slices × 6 steps cuts the
+  residual 39% (p99 0.45 → 0.27 levels) with the expected shading unchanged,
+  where more steps deepen the shading as they quiet it, and a third blur pass
+  raises the structure ratio to 0.51, which is the striping direction. The
+  harness renders the whole pipeline to a PNG (`AO_IMAGE`, the seat scene)
+  because both scalar columns had already signed off on pictures that looked
+  wrong; judge any change here with eyes first and numbers second.
 - **Normalise against the unoccluded response, not the slice count.** An open
   slice integrates to `cos(n) + n·sin(n)`, not to 1 — equal to 1 only when the
   surface squarely faces the camera, and rising above it as the surface tilts.

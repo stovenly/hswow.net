@@ -13,18 +13,36 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  *
  * Three sub-passes, all chunky-to-chunky:
  *
- * 1. **Horizon march.** 2 slice directions × 4 steps each way (16 taps),
+ * 1. **Horizon march.** 4 slice directions × 6 steps each way (48 taps),
  *    rotated per chunky pixel by *interleaved gradient noise* — stable per
- *    pixel, no temporal anything. IGN rather than a white-noise hash, and
- *    the difference is the whole noise story: white noise gives neighbouring
- *    pixels unrelated estimates, which a small blur cannot reconstruct, and
- *    the AO reads as grain. IGN gives neighbours maximally *complementary*
- *    rotations, so the blur below averages a full direction set and the
- *    result comes out smooth. World radius default 0.8 m, quadratic falloff,
- *    so a distant sample fades out of the horizon rather than snapping.
- * 2. **Two 3×3 depth-aware blurs.** Effectively a 5×5 with edge respect —
- *    enough to consume the IGN pattern; wider than this starts eating the
- *    corner darkening it exists to preserve.
+ *    pixel, no temporal anything. IGN rather than a white-noise hash: white
+ *    noise gives neighbouring pixels unrelated estimates, which a small blur
+ *    cannot reconstruct. IGN gives neighbours maximally *complementary*
+ *    rotations, so the blur below averages a full direction set.
+ *
+ *    Where the taps land matters more than how many there are, and three of
+ *    the rules that put them there cost nothing. The reach is per-axis, so the
+ *    march is a circle in the world rather than an ellipse; the spacing is
+ *    squared, so taps crowd where a contact shadow's horizon is; and each
+ *    sample is read off a texel centre and weighed against the surface's own
+ *    tangent plane — see `horizon`, which is where an open floor stops
+ *    wearing a band of shimmer toward the horizon.
+ *
+ *    Steps and slices quiet different noise. Radial steps are what a chair
+ *    leg falls between: more of them catch thinner occluders, and deepen the
+ *    estimate toward truth as they do. Slices are the directions marched, and
+ *    close to furniture — a seat with a table top a hand-span above it —
+ *    direction is most of the variance: which way a slice points decides
+ *    whether the table top is seen at all. Four slices halve that draw
+ *    without moving the expected shading anywhere.
+ *
+ *    World radius default 0.8 m, quadratic falloff, so a distant sample fades
+ *    out of the horizon rather than snapping.
+ * 2. **Two 3×3 depth-aware blurs, both one texel apart.** Two boxes in series
+ *    are a triangle, and that shape is the point: it falls off smoothly, so
+ *    what it leaves is fine grain rather than flat plateaus with steps between
+ *    them. Spacing the second pass wider makes the pair a flat box instead,
+ *    which is what banding is made of — see the note in SHADERS.md.
  * 3. **Composite.** `colour × mix(1, ao, strength · fogFactor)` — faded by
  *    the same linear fog the materials apply, so distant AO does not paint
  *    grime onto the haze.
@@ -87,8 +105,12 @@ export class GTAOEffect implements PixelEffect {
     ao.tDepth.value = context.depth;
     ao.tNormal.value = context.normal;
     ao.uProjInverse.value = camera.projectionMatrixInverse;
-    // projectionMatrix[1][1]: view-space metres to NDC at unit distance.
-    ao.uProjScale.value = camera.projectionMatrix.elements[5];
+    // projectionMatrix[0][0] and [1][1]: view-space metres to NDC at unit
+    // distance. Both, because they differ by the aspect ratio — see `radiusUv`.
+    ao.uProjScale.value.set(
+      camera.projectionMatrix.elements[0],
+      camera.projectionMatrix.elements[5],
+    );
     ao.uRadius.value = this.radius;
     ao.uResolution.value.set(
       context.size.x,
@@ -102,8 +124,9 @@ export class GTAOEffect implements PixelEffect {
 
     // --- 2: the blur, twice -------------------------------------------------
     // Ping-ponged through the two AO targets, so the second pass costs no
-    // extra memory. Two 3×3s approximate a 5×5 while every tap stays
-    // depth-checked — one pass leaves the IGN pattern's period visible.
+    // extra memory. Both passes one texel apart, which makes the pair a
+    // triangle across five texels — see the note on why the spacing must not
+    // be widened.
     const blur = this.blurMaterial.uniforms;
     blur.tDepth.value = context.depth;
     blur.uNear.value = camera.near;
@@ -159,7 +182,7 @@ function createAoMaterial(): THREE.ShaderMaterial {
       tDepth: { value: null },
       tNormal: { value: null },
       uProjInverse: { value: new THREE.Matrix4() },
-      uProjScale: { value: 1 },
+      uProjScale: { value: new THREE.Vector2(1, 1) },
       uRadius: { value: 0.8 },
       uResolution: { value: new THREE.Vector4(1, 1, 1, 1) },
     },
@@ -168,15 +191,18 @@ function createAoMaterial(): THREE.ShaderMaterial {
       uniform sampler2D tDepth;
       uniform sampler2D tNormal;
       uniform mat4 uProjInverse;
-      uniform float uProjScale;
+      uniform vec2 uProjScale;
       uniform float uRadius;
       uniform vec4 uResolution;
       varying vec2 vUv;
 
-      #define SLICES 2
-      #define STEPS 4
+      #define SLICES 4
+      #define STEPS 6
       #define PI 3.14159265
       #define HALF_PI 1.5707963
+      // How far off a surface's own plane a sample has to stand before it
+      // counts as standing on it. A sine, so about 6 degrees.
+      #define TANGENT_BIAS 0.1
 
       // Interleaved gradient noise (Jimenez). Not a hash: neighbouring
       // pixels land on maximally different values, which is what lets the
@@ -192,6 +218,40 @@ function createAoMaterial(): THREE.ShaderMaterial {
         return p.xyz / p.w;
       }
 
+      /**
+       * How high one sample raises the horizon, as a cosine about V. -1 is a
+       * sample that raises it not at all.
+       *
+       * Two rules here, and between them they are the whole of why an open
+       * floor comes out clean.
+       *
+       * **Read the texel, not the point between texels.** The depth fetch is
+       * nearest, so the value comes from a texel centre; reconstructing with
+       * the un-snapped uv builds a point that is on no surface at all — that
+       * texel's depth, along a ray beside it. Displaced sideways off the
+       * plane, which is exactly what a spurious occluder looks like.
+       *
+       * **A sample on this surface's own plane is not an occluder.** The
+       * horizon is a maximum, so noise in a near-tangent reading can only ever
+       * push it up, never down: a flat floor seen at a grazing angle collects
+       * a band of darkening that grows toward the horizon, and it shimmers
+       * because the noise is keyed to the per-pixel rotation. Weighting the
+       * sample by how far it stands off the tangent plane costs one dot
+       * product and takes that band to nothing.
+       */
+      float horizon(vec2 uv, vec3 P, vec3 N, vec3 V) {
+        vec2 texel = (floor(uv * uResolution.xy) + 0.5) * uResolution.zw;
+        vec3 D = viewPosition(texel, texture2D(tDepth, texel).r) - P;
+        float dist2 = dot(D, D);
+        float reach = inversesqrt(max(dist2, 1e-6));
+        // The quadratic falloff blends a distant sample toward the open
+        // horizon, so the radius is a soft reach rather than a hard window —
+        // and a sample on the sky attenuates to nothing, the no-halo rule.
+        float weight = clamp(1.0 - dist2 / (uRadius * uRadius), 0.0, 1.0);
+        weight *= smoothstep(0.0, TANGENT_BIAS, dot(D, N) * reach);
+        return mix(-1.0, dot(D, V) * reach, weight);
+      }
+
       void main() {
         float depth = texture2D(tDepth, vUv).r;
         // Sky: nothing to occlude, and returning early keeps the far plane
@@ -205,10 +265,19 @@ function createAoMaterial(): THREE.ShaderMaterial {
         vec3 N = normalize(texture2D(tNormal, vUv).rgb * 2.0 - 1.0);
         vec3 V = normalize(-P);
 
-        // The world radius on screen. Clamped: a wall against the camera
-        // would otherwise march most of the frame for information the
-        // falloff will throw away anyway.
-        float radiusUv = min(uRadius * uProjScale * 0.5 / max(-P.z, 0.05), 0.35);
+        // **The world radius on screen, and it is two numbers.** UV is not
+        // isotropic: the projection scales x and y by different amounts, so one
+        // radius for both marches a circle in UV, which is an *ellipse* in the
+        // world reaching the aspect ratio further sideways than up — 1.78x on a
+        // 16:9 screen, where the falloff then discards most of what the
+        // sideways taps found. Scaled per axis, every direction reaches the same
+        // distance and no tap is spent outside the radius.
+        //
+        // Clamped: a wall against the camera would otherwise march most of the
+        // frame for information the falloff will throw away anyway. On both
+        // axes together, so the clamp shortens the reach without re-shaping it.
+        vec2 radiusUv = uRadius * uProjScale * 0.5 / max(-P.z, 0.05);
+        radiusUv *= min(1.0, 0.35 / max(radiusUv.x, radiusUv.y));
 
         float noise = gradientNoise(floor(gl_FragCoord.xy));
         float baseAngle = noise * PI;
@@ -240,30 +309,23 @@ function createAoMaterial(): THREE.ShaderMaterial {
           float cosN = clamp(dot(pn, V), -1.0, 1.0);
           float n = sign(dot(pn, T)) * acos(cosN);
 
-          // March both ways, tracking the highest horizon. The quadratic
-          // falloff blends distant samples toward the open horizon, so the
-          // radius is a soft reach rather than a hard window — and a sample
-          // on the sky attenuates to nothing, which is the no-halo rule.
+          // March both ways, tracking the highest horizon each way.
           float maxCos1 = -1.0;
           float maxCos2 = -1.0;
           for (int s = 0; s < STEPS; s++) {
-            vec2 offset = dir2 * radiusUv * ((float(s) + stepJitter + 0.5) / float(STEPS));
-            {
-              vec2 uv = vUv + offset;
-              vec3 D = viewPosition(uv, texture2D(tDepth, uv).r) - P;
-              float dist2 = dot(D, D);
-              float falloff = clamp(1.0 - dist2 / (uRadius * uRadius), 0.0, 1.0);
-              float c = dot(D, V) * inversesqrt(max(dist2, 1e-6));
-              maxCos2 = max(maxCos2, mix(-1.0, c, falloff));
-            }
-            {
-              vec2 uv = vUv - offset;
-              vec3 D = viewPosition(uv, texture2D(tDepth, uv).r) - P;
-              float dist2 = dot(D, D);
-              float falloff = clamp(1.0 - dist2 / (uRadius * uRadius), 0.0, 1.0);
-              float c = dot(D, V) * inversesqrt(max(dist2, 1e-6));
-              maxCos1 = max(maxCos1, mix(-1.0, c, falloff));
-            }
+            // **Squared, so the steps crowd toward the centre.** The radius
+            // covers 50 to 190 texels at ordinary viewing distances, and
+            // evenly spread steps leave gaps of tens of texels: an occluder
+            // thinner than a gap is caught or missed depending on where this
+            // pixel's jitter happened to land, and its neighbour decides
+            // differently. That is the grain, and a chair leg is a few texels
+            // wide. Squared, the six taps sit at roughly 1, 6, 17, 34, 56 and
+            // 84 percent of the reach — dense where a contact shadow's horizon
+            // is, and still out to the rim.
+            float t = (float(s) + stepJitter + 0.5) / float(STEPS);
+            vec2 offset = dir2 * radiusUv * t * t;
+            maxCos2 = max(maxCos2, horizon(vUv + offset, P, N, V));
+            maxCos1 = max(maxCos1, horizon(vUv - offset, P, N, V));
           }
 
           // Horizon angles about V, clamped to the hemisphere around the
