@@ -34,6 +34,7 @@ import { Zone, OUTDOOR_ENVIRONMENT } from '../src/world/Zone';
 import { PortalGraph, arrivalFor, doorFacing, ARRIVAL_STANDOFF } from '../src/world/Portal';
 import { residentZones, KEEP_WITHIN } from '../src/world/residency';
 import { DEFAULT_REACH } from '../src/world/Interaction';
+import { NOTES, noteById } from '../src/content/notes';
 import { buildDoor, doorMetrics, doorName } from '../src/art/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
@@ -159,6 +160,58 @@ function standDoors(zone: Zone): THREE.Group {
 }
 
 for (const zone of zones.values()) standDoors(zone);
+
+// --- every binding resolves, and every note is bound -----------------------
+//
+// The prop and the prose are stored apart and joined by an id, which is the
+// whole arrangement and also the whole risk: nothing about a `text` field is
+// checked by the compiler, so a renamed note leaves a book that opens onto
+// nothing. That failure is invisible until somebody walks up to that one book
+// in that one room.
+//
+// The reverse is a warning rather than a failure. Prose that is written and
+// placed nowhere is a content bug, and it is also a perfectly ordinary state
+// for a note to be in between being written and being put somewhere.
+{
+  const bound = new Map<string, string[]>();
+  for (const zone of zones.values()) {
+    zone.root().traverse((object) => {
+      const text = object.userData.text;
+      if (typeof text !== 'string') return;
+      const where = bound.get(text) ?? [];
+      where.push(zone.id);
+      bound.set(text, where);
+    });
+  }
+
+  const dangling = [...bound.keys()].filter((id) => noteById(id) === undefined);
+  const zoneCount = new Set([...bound.values()].flat()).size;
+  const placed = NOTES.filter((note) => bound.has(note.id)).length;
+  check(
+    'every readable is bound to a note that exists',
+    dangling.length === 0,
+    dangling.length === 0
+      ? `${bound.size} ids bound across ${zoneCount} zones, ${placed} of ${NOTES.length} written for the world`
+      : `no such note: ${dangling.join(', ')}`,
+  );
+
+  const unplaced = NOTES.filter((note) => !bound.has(note.id)).map((note) => note.id);
+  if (unplaced.length > 0) {
+    console.log(`warn written but placed nowhere — ${unplaced.join(', ')}`);
+  }
+
+  // A note's title is the loud line over a crosshair and there is one line for
+  // it. Long enough and the prompt runs off both sides of the screen, which is
+  // not something any layout can be asked to fix.
+  const overlong = NOTES.filter((note) => note.title.length > 48).map((note) => note.id);
+  check(
+    'every note title fits over a crosshair',
+    overlong.length === 0,
+    overlong.length === 0
+      ? `${NOTES.length} notes, longest title ${Math.max(...NOTES.map((n) => n.title.length))} characters`
+      : `too long to sit on one line: ${overlong.join(', ')}`,
+  );
+}
 
 // --- portals are two-way ---------------------------------------------------
 {

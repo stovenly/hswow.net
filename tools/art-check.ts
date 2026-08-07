@@ -106,6 +106,23 @@ import { smallGrassClump } from '../src/art/builders/small-grass-clump';
 import { largeGrassClump } from '../src/art/builders/large-grass-clump';
 import { hut } from '../src/art/builders/hut';
 import { lantern } from '../src/art/builders/lantern';
+import { leatherBook } from '../src/art/builders/leather-book';
+import { boardBook } from '../src/art/builders/board-book';
+import { claspedTome } from '../src/art/builders/clasped-tome';
+import { ledger } from '../src/art/builders/ledger';
+import { pamphlet } from '../src/art/builders/pamphlet';
+import { bookshelf } from '../src/art/builders/bookshelf';
+import { bookshelfPart } from '../src/art/builders/bookshelf-part';
+import { bookshelfBare } from '../src/art/builders/bookshelf-bare';
+import { rollerScroll } from '../src/art/builders/roller-scroll';
+import { scrollCase } from '../src/art/builders/scroll-case';
+import { clothBook } from '../src/art/builders/cloth-book';
+import { vellumBook } from '../src/art/builders/vellum-book';
+import { giltBook } from '../src/art/builders/gilt-book';
+import { batteredBook } from '../src/art/builders/battered-book';
+import { looseNote } from '../src/art/builders/loose-note';
+import { foldedLetter } from '../src/art/builders/folded-letter';
+import { lectern } from '../src/art/builders/lectern';
 import { machine } from '../src/art/builders/machine';
 import { moss } from '../src/art/builders/moss';
 import { mushroom } from '../src/art/builders/mushroom';
@@ -218,6 +235,23 @@ const builders: MeshBuilder[] = [
   largeGrassClump,
   hut,
   lantern,
+  leatherBook,
+  boardBook,
+  claspedTome,
+  ledger,
+  pamphlet,
+  bookshelf,
+  bookshelfPart,
+  bookshelfBare,
+  rollerScroll,
+  scrollCase,
+  clothBook,
+  vellumBook,
+  giltBook,
+  batteredBook,
+  looseNote,
+  foldedLetter,
+  lectern,
   machine,
   moss,
   mushroom,
@@ -599,6 +633,206 @@ check(
     quietest > bar
       ? `worst of 400 seeds sits ${(quietest * 1000).toFixed(0)} mm in front of the post line`
       : `seed ${at} averages ${(quietest * 1000).toFixed(0)} mm, under the ${(bar * 1000).toFixed(0)} mm bar`,
+  );
+}
+
+// --- an open book is as sound a solid as a shut one -------------------------
+//
+// The per-builder loop below only ever calls `build({ seed })`, so it measures
+// the shut form and nothing else. The open form is where the risk actually is:
+// a page of illegible marks is sixty small boxes merged into the same buffer as
+// the boards, which is precisely the arrangement that welds two vertices into
+// an edge belonging to four faces. It would look completely correct.
+{
+  const opened = [
+    leatherBook,
+    boardBook,
+    claspedTome,
+    ledger,
+    pamphlet,
+    clothBook,
+    vellumBook,
+    giltBook,
+    batteredBook,
+    ];
+  const problems: string[] = [];
+  let marks = 0;
+  for (const builder of opened) {
+    const first = builder.build({ seed: 4242, state: 'open' }).geometry;
+    const again = builder.build({ seed: 4242, state: 'open' }).geometry;
+    const a = first.getAttribute('position').array as Float32Array;
+    const b = again.getAttribute('position').array as Float32Array;
+    if (a.length !== b.length || a.some((value, i) => value !== b[i])) {
+      problems.push(`${builder.name} open is not deterministic`);
+    }
+    // Against the shut form, so a state that quietly built nothing extra — an
+    // open book with no writing on it — fails rather than passing as tidy.
+    const shut = builder.build({ seed: 4242 }).geometry.getAttribute('position').count;
+    if (a.length / 3 <= shut) problems.push(`${builder.name} open is no bigger than shut`);
+    marks += a.length / 3 - shut;
+
+    for (const seed of [1, 77, 4242, 99991]) {
+      const closed = closedFraction(builder.build({ seed, state: 'open' }).geometry);
+      if (closed <= 0.999) {
+        problems.push(`${builder.name} open at seed ${seed} is ${(closed * 100).toFixed(1)}% closed`);
+        break;
+      }
+    }
+  }
+  check(
+    'an open book is a closed solid',
+    problems.length === 0,
+    problems.length === 0
+      ? `${opened.length} covers, ${marks} vertices of writing merged in, watertight over 4 seeds`
+      : problems.join('; '),
+  );
+}
+
+// --- a bookshelf is full, and none of it is in the collider ------------------
+//
+// **Every check below this reads `builder.build().geometry` and nothing else.**
+// On a bookshelf that is the carcass — four planks and a back — and misses the
+// entire contents, which is most of the prop and all of the risk: a hundred
+// books packed into a couple of square metres is exactly the density
+// `assemble.ts` says the collider cannot afford, and a lean that tips one out
+// through the side of the case is invisible in a bounding box that already
+// contains the case.
+{
+  const problems: string[] = [];
+  let shelved = 0;
+  let carcass = 0;
+  let worstOverhang = -Infinity;
+
+  for (const seed of [1, 77, 4242, 99991]) {
+    const mesh = bookshelf.build({ seed });
+    const contents = mesh.children.find((child): child is THREE.Mesh => child instanceof THREE.Mesh);
+    if (!contents) {
+      problems.push(`seed ${seed} built no books at all`);
+      continue;
+    }
+    if (contents.userData.noCollide !== true) problems.push(`seed ${seed} would collide with its books`);
+    if (closedFraction(contents.geometry) <= 0.999) {
+      problems.push(`seed ${seed}'s books are not a closed solid`);
+    }
+
+    mesh.geometry.computeBoundingBox();
+    contents.geometry.computeBoundingBox();
+    const shell = mesh.geometry.boundingBox as THREE.Box3;
+    const books = contents.geometry.boundingBox as THREE.Box3;
+    carcass += mesh.geometry.getAttribute('position').count / 3;
+    shelved += contents.geometry.getAttribute('position').count / 3;
+
+    // Nothing may stand outside the case it is in. A leaning book pivots about
+    // its own base, so an over-rolled lean puts its head through the side.
+    // Measured as clearance, and the worst one is what matters.
+    worstOverhang = Math.max(
+      worstOverhang,
+      -Math.min(
+        books.min.x - shell.min.x,
+        shell.max.x - books.max.x,
+        books.min.z - shell.min.z,
+        shell.max.z - books.max.z,
+      ),
+    );
+  }
+
+  if (worstOverhang > 0) problems.push(`a book stands ${(worstOverhang * 1000).toFixed(0)} mm outside its case`);
+  // A case that quietly stocked three books would pass everything else here.
+  if (shelved < carcass * 10) problems.push(`only ${shelved} triangles of books against ${carcass} of case`);
+
+  check(
+    'a bookshelf is full, and its books are not collidable',
+    problems.length === 0,
+    problems.length === 0
+      ? `4 cases, ${shelved} triangles of books to ${carcass} of carcass, all inside and off the collider`
+      : problems.join('; '),
+  );
+}
+
+// --- the three cases are one case at three fullnesses ------------------------
+//
+// **The whole point of splitting the fullness into three builders is that a
+// placer can swap one for another and the furniture does not move.** That is a
+// claim about the random stream — every roll deciding the joinery has to be
+// drawn before anything is shelved, and the per-shelf fullness has to be drawn
+// whether or not it is used — and it is a claim nothing about the geometry
+// makes visible: three cases that differ by a centimetre look like three cases.
+{
+  const problems: string[] = [];
+  let contents = '';
+  let stockedFull = 0;
+  let stockedPart = 0;
+
+  for (const seed of [1, 77, 4242, 99991]) {
+    const cases = [bookshelf, bookshelfPart, bookshelfBare].map((builder) => builder.build({ seed }));
+    const [full, part, bare] = cases;
+
+    // The carcass, vertex for vertex. Counting triangles would pass a case that
+    // came out the same size in a different place.
+    const carcassOf = (mesh: THREE.Mesh) => mesh.geometry.getAttribute('position').array as Float32Array;
+    const reference = carcassOf(full);
+    for (const [name, mesh] of [['part', part], ['bare', bare]] as const) {
+      const theirs = carcassOf(mesh);
+      if (theirs.length !== reference.length || reference.some((v, i) => v !== theirs[i])) {
+        problems.push(`${name} is a different case from full at seed ${seed}`);
+      }
+    }
+
+    const books = (mesh: THREE.Mesh): number => {
+      const child = mesh.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh);
+      return child ? child.geometry.getAttribute('position').count / 3 : 0;
+    };
+    if (books(bare) !== 0) problems.push(`bare has ${books(bare)} triangles of books on it`);
+    if (books(part) === 0) problems.push(`part is bare at seed ${seed}`);
+    stockedFull += books(full);
+    stockedPart += books(part);
+    if (seed === 1) contents = `${books(full)} / ${books(part)} / ${books(bare)} triangles`;
+  }
+
+  // **Compared in total rather than case by case**, because a part-filled shelf
+  // does not merely stop early — it takes a different path through the random
+  // stream from there on and stocks different covers, so one case in four comes
+  // out heavier than its full twin off nothing but which books it happened to
+  // draw. What is actually being claimed is that less shelf is used, and over
+  // four cases that is what the count says.
+  if (stockedPart > stockedFull * 0.9) {
+    problems.push(`part carries ${((stockedPart / stockedFull) * 100).toFixed(0)}% of full`);
+  }
+
+  check(
+    'full, part and bare are one bookcase',
+    problems.length === 0,
+    problems.length === 0
+      ? `4 seeds, identical carcasses, ${contents} of books; part carries ${((stockedPart / stockedFull) * 100).toFixed(0)}% of full overall`
+      : problems.join('; '),
+  );
+}
+
+// --- an unrolled scroll is a closed solid ------------------------------------
+//
+// The per-builder loop only measures the default state, which for a scroll is
+// the rolled one. The spread is where the risk is: a sheet, two rollers, four
+// turned finials and a page of marks all merged into one buffer.
+{
+  const problems: string[] = [];
+  let spread = 0;
+  for (const seed of [1, 77, 4242, 99991]) {
+    const geometry = rollerScroll.build({ seed, state: 'unrolled' }).geometry;
+    const closed = closedFraction(geometry);
+    if (closed <= 0.999) problems.push(`seed ${seed} is ${(closed * 100).toFixed(1)}% closed`);
+    spread = Math.max(spread, geometry.getAttribute('position').count / 3);
+  }
+  // And that it is a different object from the rolled one rather than the same
+  // build with a flag nobody read.
+  const rolled = rollerScroll.build({ seed: 1 }).geometry.getAttribute('position').count / 3;
+  if (spread <= rolled) problems.push('unrolled is no larger than rolled');
+
+  check(
+    'an unrolled scroll is a closed solid',
+    problems.length === 0,
+    problems.length === 0
+      ? `4 seeds watertight, ${spread} triangles spread against ${rolled} rolled`
+      : problems.join('; '),
   );
 }
 
@@ -1264,6 +1498,8 @@ for (const builder of builders) {
     'text-backdrop',
     'text-station',
     'text-station-ink',
+    'writing',
+    'bookshelf-books',
   ]);
 
   const unstated = [...named].filter((name) => !listed.has(name));

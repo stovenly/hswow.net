@@ -6,6 +6,15 @@
      whole interface by overriding a single property rather than by finding
      every rule that sets a face. Everything else uses `font: inherit`. */
   --type: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  /* And one for prose, which is a different job. `--type` is the chrome:
+     monospace, because it labels switches and reads back numbers, and a
+     proportional face makes a column of readouts jitter as the digits change.
+     A page of a book is the opposite — nobody reads three hundred words of
+     monospace by choice — so the reading screen gets a serif and nothing else
+     does. Named here for `--type`'s reason: the accessibility option has one
+     place to reach, not two families of rules to find. */
+  --prose: ui-serif, Georgia, "Iowan Old Style", Palatino, "Palatino Linotype",
+    "Times New Roman", serif;
 
   /* Where the paused game's furniture starts, measured from the top.
      Three elements share it: the options button, the controls panel beneath
@@ -19,9 +28,15 @@
    behind it as the fallback, so the interface is never unstyled while the file
    is in flight — and stays readable if it never turns up at all.
    Set on `body` rather than on `:root` so the class the loader adds is the
-   thing that switches it; see `ui/options/font.ts`. */
+   thing that switches it; see `ui/options/font.ts`.
+
+   **Both stacks, and the second one is the point.** The one screen in the game
+   that is three hundred words of continuous prose is the reading screen, and an
+   accessibility option that skipped it would be a switch that misses the only
+   place anybody needed it. */
 body.is-dyslexic {
   --type: "OpenDyslexic", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --prose: "OpenDyslexic", ui-serif, Georgia, Palatino, "Times New Roman", serif;
 }
 
 * {
@@ -1018,6 +1033,26 @@ body:not(.is-playing) #prompt {
   color: rgb(220 220 200 / 92%);
 }
 
+/* A readable inverts the two lines:
+
+     Leather Bound Book
+     A Treatise On Prague
+
+   A door's second line is a place you have not got to yet, so it reads quieter
+   than the door in front of you. A readable's is the opposite — the object is
+   the container and the note is the reason to open it, so the object drops back
+   to the size and weight the joiner has on a door, and the title takes the
+   line. No joiner at all: the note is not somewhere the book leads. */
+#prompt.is-readable .prompt-title {
+  font-size: 0.78em;
+  letter-spacing: 0.16em;
+  color: rgb(220 220 200 / 55%);
+}
+
+#prompt.is-readable .prompt-target {
+  color: var(--ink);
+}
+
 /* --- zone transition ----------------------------------------------------- */
 
 /* Covers everything during a zone swap. Above the touch controls, because a
@@ -1099,4 +1134,155 @@ body:not(.is-playing) #prompt {
 .touch-jump.is-active {
   background: rgb(220 220 200 / 22%);
   opacity: 1;
+}
+
+/* --- the reading screen -------------------------------------------------- */
+
+/* Above the options panel rather than beside it. The two are never open at
+   once — reading releases the pointer lock, and the options button is hidden
+   while it is — but a stacking order that depends on that never happening is a
+   stacking order waiting to be wrong. */
+#reading {
+  position: fixed;
+  z-index: 32;
+  inset: 0;
+}
+
+/* Invisible, and it has to exist anyway — see `.options-scrim`, which catches
+   clicks for exactly the same reason. There is no dimming here either: the
+   object you are reading is still standing in front of you, and hiding it
+   behind a wash would take away the one thing that says what you are holding. */
+.reading-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+/* The page. Same register as the options panel — flat dark ground, one hard
+   pixel of border, no shadow — and deliberately none of its classes: that box
+   is a settings dialog and this one is a page of prose, and they should be free
+   to move apart. */
+.reading-book {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  /* Title, page, footer. The middle row takes everything left over, which is
+     what makes the text box a fixed height — and a fixed height is the whole
+     premise of paginating rather than scrolling. */
+  grid-template-rows: auto 1fr auto;
+  gap: 1.1rem;
+  width: min(42rem, 92vw);
+  /* Centred, unlike the options panel, and for the opposite reason: that one is
+     pinned so its tab strip never moves between tabs, and this has no strip and
+     never changes height. A page of a book sits in the middle of the view. */
+  height: min(34rem, 82vh);
+  height: min(34rem, 82dvh);
+  padding: 1.6rem 1.8rem 1.2rem;
+  background: rgb(10 10 15 / 94%);
+  border: 1px solid rgb(220 220 200 / 30%);
+  transform: translate(-50%, -50%);
+}
+
+/* Chrome, so `--type` rather than `--prose`: this is the object's name in the
+   game's own voice, not part of what is written on the page. */
+.reading-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 55%);
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgb(220 220 200 / 18%);
+}
+
+/* The measured box. Everything about pagination is measured against this
+   element, so nothing here may be a function of the content: a fixed row of a
+   fixed-height grid, and `hidden` rather than `auto` — an `auto` that ever
+   showed a scrollbar would both narrow the box mid-measurement and hand the
+   player the scrolling this screen exists to avoid. */
+.reading-body {
+  overflow: hidden;
+  font-family: var(--prose);
+  font-size: 1.02rem;
+  line-height: 1.65;
+  color: rgb(220 220 200 / 88%);
+  /* A run of characters longer than the box has to break somewhere, or it lays
+     a line out past the edge and the page silently loses its right margin.
+     Pagination cuts long runs into pieces of its own (see `Reading.ts`); this
+     is what handles one that is still too long for one line. */
+  overflow-wrap: anywhere;
+}
+
+.reading-para + .reading-para {
+  /* An indent rather than a blank line between paragraphs. A page eight lines
+     long cannot spend one of them on white space, and the indent is what a book
+     does anyway. */
+  text-indent: 1.4em;
+}
+
+.reading-foot {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr 2.4rem;
+  align-items: center;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgb(220 220 200 / 18%);
+}
+
+.reading-count {
+  font-size: 0.66rem;
+  letter-spacing: 0.24em;
+  text-align: center;
+  color: rgb(220 220 200 / 45%);
+}
+
+.reading-turn {
+  font: inherit;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.1rem 0;
+  color: rgb(220 220 200 / 70%);
+  background: none;
+  border: 1px solid rgb(220 220 200 / 22%);
+  cursor: pointer;
+  transition: color 120ms linear, border-color 120ms linear;
+}
+
+.reading-turn:hover:not(:disabled),
+.reading-turn:focus-visible:not(:disabled) {
+  color: var(--ink);
+  border-color: rgb(220 220 200 / 55%);
+}
+
+/* Dimmed in place, never removed. A control that vanishes on the first page
+   moves the count sideways under the cursor, and a one-page note would lose its
+   whole footer. */
+.reading-turn:disabled {
+  color: rgb(220 220 200 / 18%);
+  border-color: rgb(220 220 200 / 8%);
+  cursor: default;
+}
+
+/* Nothing else on screen while a note is open.
+
+   The crosshair follows the pointer lock on its own. These three do not, and
+   two of them are actively wrong: reading gives up the lock, and *not holding
+   the lock* is exactly the state the capture panel and the options button exist
+   to advertise — so opening a book raised the pause screen behind the page.
+   The lock is a proxy for "not playing" everywhere else in the interface and it
+   is the wrong proxy here, because reading a note is something you do while
+   playing. */
+body.is-reading #options-open,
+body.is-reading #capture-hint,
+body.is-reading #prompt {
+  display: none;
+}
+
+/* And for as long as it takes to get the mouse back afterwards. The lock
+   returns some way after the page closes, and the gap is long enough to see —
+   see `Input.capture`. Only the two that say "you are not playing"; the prompt
+   comes back the moment there is something under the crosshair, which is
+   correct and is what the player is walking away to do. */
+body.is-capturing #options-open,
+body.is-capturing #capture-hint {
+  display: none;
 }
