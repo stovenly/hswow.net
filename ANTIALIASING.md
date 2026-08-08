@@ -261,14 +261,14 @@ it, so those two had been disagreeing by 20% at the horizon the whole time.
 
 ## The toggle
 
-SHADERS.md's rule (*Player options*, line 432): **an option is something a
+SHADERS-AND-MATERIALS.md's rule (*Player options*, line 432): **an option is something a
 player may reasonably want off — for performance or comfort — while the world
 still reads as itself without it.** Antialiasing qualifies on both counts: real
 per-frame cost, and nothing is lost but smoothing.
 
 | Where | What |
 |---|---|
-| `options.antialias` | One boolean, Video tab, on by default. One honest switch — not a quality ladder (SHADERS.md line 449), which here would be two controls for one thing on screen. |
+| `options.antialias` | One boolean, Video tab, on by default. One honest switch — not a quality ladder (SHADERS-AND-MATERIALS.md line 449), which here would be two controls for one thing on screen. |
 | `RenderSettings.samples` | The count, default 4, on the developer's dial beside `ao.strength` and `bloom.radius`. |
 
 `resolveSamples` is where the two meet, and it is a separate exported function
@@ -329,7 +329,7 @@ suggests, which is why the shimmer is worst toward the far wall rather than in a
 ring around you. A distance fade would under-fade precisely where it is needed.
 `fwidth` of the view-space position is the metres of surface under one chunky
 pixel, there, at that angle: the same quantity the GPU uses to pick a mipmap
-level, one instruction, and spatial-only, so it stays inside SHADERS.md's ground
+level, one instruction, and spatial-only, so it stays inside SHADERS-AND-MATERIALS.md's ground
 rule 3.
 
 **Why per part and not per surface.** A floor carries a 9 mm seam and a 290 mm

@@ -3,7 +3,7 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Ground-truth ambient occlusion, at chunky resolution. SHADERS.md §1 / R1.
+ * Ground-truth ambient occlusion, at chunky resolution. SHADERS-AND-MATERIALS.md §1 / R1.
  *
  * For a flat-shaded world AO is the missing ingredient, not a refinement:
  * Lambert under a hemisphere light produces zero contact darkening, so props
@@ -42,7 +42,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  *    are a triangle, and that shape is the point: it falls off smoothly, so
  *    what it leaves is fine grain rather than flat plateaus with steps between
  *    them. Spacing the second pass wider makes the pair a flat box instead,
- *    which is what banding is made of — see the note in SHADERS.md.
+ *    which is what banding is made of — see the note in SHADERS-AND-MATERIALS.md.
  * 3. **Composite.** `colour × mix(1, ao, strength · fogFactor)` — faded by
  *    the same linear fog the materials apply, so distant AO does not paint
  *    grime onto the haze.

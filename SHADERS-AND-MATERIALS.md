@@ -1,10 +1,15 @@
-# Shaders — the screen-space roadmap
+# Shaders and materials
 
 A companion to [SPEC.md](SPEC.md) and [SCALING.md](SCALING.md): the spec says what the
 game is, scaling says what must change structurally, and this says how each planned
 graphical feature would actually be built against the pipeline as it stands. Nothing
 here is committed work. Everything here is a design worked out far enough that starting
 it is a matter of doing, not deciding.
+
+Two halves. The first is the screen-space roadmap — the pixel stage and the effects
+that run in it, phased R0–R7. The second, from *Materials* onward, is the surface
+roadmap — finishes, transmission, the M-phases. They share the pipeline and the
+ground rules, and the section numbers (§1–§8) belong to the first half.
 
 Written to be read cold. Update it as decisions land.
 
@@ -990,4 +995,624 @@ R0 ──► R1 (GTAO)
   └──► R7 shimmer, DoF
 
 R4 (day/night) — independent; R4a → R4b → R4c → R4d
+```
+
+---
+
+# Materials — surfaces that answer light
+
+The surface roadmap: metallic sheen, glint, roughness, anisotropy,
+velvet, iridescence, transmission, refraction, subsurface scattering — the family of
+things a physically-based renderer calls material parameters, worked out against a
+pipeline that is deliberately not a physically-based renderer.
+
+Nothing here is committed work. Everything is designed far enough that starting it is
+a matter of doing, not deciding. Names are provisional throughout.
+
+The use cases this was written against: gilded objects, polished metal, chrome, silk,
+velvet, crystals, bubbles, polished marble.
+
+---
+
+## The ground rules, and what they do to this feature
+
+The constraints come from the architecture, and every one of them turns out to
+*shape* the design rather than block it.
+
+1. **One shared material, one draw call per prop.** Everything the art kit builds is
+   merged geometry on `ART_MATERIAL` (`art/assemble.ts`). So a material parameter can
+   never be a uniform — a uniform would mean a material per finish and a draw call
+   per part. Parameters are **per-vertex attributes baked from `Part`**, exactly as
+   sway, wear and detail already are. This is the load-bearing decision and it is
+   already made three times over; this document just makes it a fourth time.
+
+2. **Flat shading.** The normal is per facet, so a specular highlight is per facet:
+   a curved goblet does not carry a smooth hotspot, it carries facets that catch the
+   sun whole and let it go whole as the camera moves. That is not a compromise — it
+   is the entire low-poly-gem aesthetic, and it is what makes specularity *work* in
+   this art style where a smooth PBR highlight would look pasted on. The design
+   leans on it everywhere below.
+
+3. **No texture assets, no environment maps.** The reflection environment is the
+   **analytic sky** — `skyColour(direction)` in `SKY_GLSL`, already exported and
+   already proven as exactly this by the water shader, whose SSR misses fall back to
+   it. A metal surface outdoors reflects the real sky, sun disc and clouds included,
+   for the cost of evaluating a gradient. Indoors (`ZoneAir.sky` false) the fallback
+   is the hemisphere-light pair evaluated in the reflected direction — a two-colour
+   gradient, which is honestly what a dim interior reflects. When day/night (R4)
+   lands, every reflection in the game follows the sun for free, because
+   `skyUniforms` is shared rather than copied — the water shader's argument, verbatim.
+
+4. **The quantizer is downstream and it is a friend.** Smooth specular gradients
+   band; the halftone resolves them into screen-tone, which is what it is for. And
+   the palette doctrine (`art/palette.ts`) — per-channel quantization preserves *hue*
+   differences and collapses brightness-only ones — is a gift to exactly one feature
+   here: iridescence is a hue play, and hue is what survives the pipeline best.
+
+5. **No temporal accumulation.** A glint may never be frame-random. Sparkle is
+   spatially hashed in object space and moves only because the camera or the sun
+   moved — which is what real glitter does anyway.
+
+6. **The opaque pass cannot read the scene.** Nothing can sample the buffer it is
+   rendering into, so *transmission and refraction cannot live in `ART_MATERIAL`*.
+   They live where water lives: a shared material drawn in the effect chain with the
+   opaque colour and depth bound as textures. Water is the complete precedent — the
+   layer trick, the pass gating, the hand depth-test, all of it transfers.
+
+Those constraints split the work into three tracks:
+
+```
+Track A — the finish stage      opaque surfaces: metal, gilt, silk, velvet,
+          (on ART_MATERIAL)     marble, glint, iridescent shell, SSS
+Track B — the transmissive      crystals, glass, bubbles — drawn in the
+          material              effect chain, like water
+Track C — general SSR           mirror chrome, reflective floors — the
+          (parked tier, now     upgrade path, off until a prop wants it
+          unblocked)
+```
+
+---
+
+## Track A — the finish stage on the shared material
+
+### Where it hooks
+
+The sway → wear → detail chain composes by wrapping `onBeforeCompile`
+(`art/sway.ts`, bottom of `patchArtMaterial`). The finish stage joins that chain —
+but it anchors in a **different part of the shader**. Wear and detail rewrite
+`diffuseColor` in the colour chunks; finish rewrites the *lighting* chunks, which run
+after them and consume their result. The two compose with no ordering subtlety:
+colour stages decide what the surface is, the finish stage decides how it answers
+light, and a wear patch that turned gilt to rust is automatically rust to the
+lighting too (plus one explicit hand-off, below).
+
+Concretely: `MeshLambertMaterial` computes its lighting per fragment through three's
+lights loop. `lights_fragment_begin` folds the **shadow factor into
+`directLight.color` before calling `RE_Direct`** — so a custom `RE_Direct` that adds
+a specular lobe gets sun shadows for free, with no shadow-map code of its own. The
+finish stage therefore:
+
+- replaces the Lambert BRDF chunk with one that computes Lambert diffuse **plus** a
+  specular lobe weighted by the per-vertex parameters — zero parameters yields
+  bit-identical Lambert;
+- appends an indirect-specular term after the lights loop: `skyColour(reflect(V, N))`
+  outdoors, the hemisphere gradient indoors, weighted by metallic and blurred by
+  roughness (see below);
+- keeps the depth and normal materials untouched — finish is colour-stage work only,
+  like weathering. The shadow pass, the edge pass and `check:art`'s geometry checks
+  never see it.
+
+`customProgramCacheKey` becomes `'sway-wear-detail-finish'`, and the same
+default-attribute-values lesson all three prior patches record applies: a geometry
+that carries no finish attribute must read zero, or the terrain glints with whatever
+the last prop left in the slot.
+
+### The data: `Part.finish`, a named table, two packed attributes
+
+Following `FLEX` and the palette — named by material, not by parameter soup:
+
+```ts
+// art/finish.ts — names are placeholders, the repo owner's to replace
+export const FINISHES = {
+  gilt:     { metallic: 1.0, roughness: 0.35, glint: 0.6 },
+  polished: { metallic: 0.9, roughness: 0.15 },
+  chrome:   { metallic: 1.0, roughness: 0.02 },
+  silk:     { metallic: 0.0, roughness: 0.4, anisotropy: 0.8, sheen: 0.35 },
+  velvet:   { sheen: 1.0, roughness: 0.9 },
+  marble:   { metallic: 0.15, roughness: 0.2, translucency: 0.5 },
+  shell:    { metallic: 0.6, roughness: 0.3, iridescence: 0.8 },
+  waxen:    { roughness: 0.5, translucency: 0.8 },
+} as const;
+```
+
+A `Part` says `finish: 'gilt'` (or a raw object, for the one-off), plus optionally
+`grain` — a direction or a function of position, for anisotropy, exactly the shape
+`sway` and `wear` already take. `assemble` bakes the table entry into **two
+normalized-Uint8 vec4 attributes** (~`aFinish`: metallic, roughness, sheen,
+iridescence; ~`aGrain`: oct-encoded grain axis ×2, anisotropy, translucency — glint
+packs wherever a lane is spare; exact packing is build-time detail). Every parameter
+is a 0–1 knob, so 1/255 precision is far more than any of them can use.
+
+**Why Uint8 and not Float32: the merge makes everything pay.** The kit shares one
+attribute set, so every vertex in the game carries these whether it glints or not.
+The world is ~870k triangles ≈ 2.6M unindexed vertices; two Uint8 vec4s cost
+8 bytes/vertex ≈ **21 MB** GPU memory total, where Float32 would cost 84 MB. (For
+scale: the existing attribute set is ~72 bytes/vertex. This is a +11% memory ask, and
+it is the single largest fixed cost in this document.)
+
+The fragment early-out is the wear stage's: `if (all zero) → pure Lambert`, so the
+matte 95% of the world pays one attribute fetch and a branch. Cheap surfaces stay
+cheap; only finished fragments pay for their finish.
+
+### The terms, each with its cost
+
+All costs are per *finished* fragment, at chunky resolution (~0.5M pixels total
+frame, of which finished surfaces are normally a small fraction).
+
+**Specular + metallic + roughness** — the foundation everything else modifies. One
+GGX (or Blinn, decided by eye in the gallery) lobe per light from the lights loop —
+sun and fill, both already shadowed. Metallic tints the lobe by the surface's own
+vertex colour and dims the diffuse; roughness widens the lobe and blurs the
+environment term by mixing `skyColour(R)` toward the sky's average (the sky is
+procedural, so its "blurred mip" is just its own gradient with the sun halo widened —
+a couple of extra ALU, not a second texture). *Cost: ~25–35 ALU + one `skyColour`
+evaluation (itself ~30 ALU with clouds).* This is trivial against GTAO's 48 texture
+taps. **Covers: gilded objects, bronze, polished metal, polished marble's finish.**
+
+**Anisotropy** — silk, brushed metal, turned wood. The tangent comes from the baked
+grain axis: `T = normalize(cross(grain, N))`, per facet, which for a lathe-shaped
+prop with a vertical grain axis is the circumferential direction — exactly where a
+silk drape or a goblet's brushed band wants its highlight stretched. Stretched-GGX
+(or Kajiya-Kay, same decision-by-eye). *Cost: ~+15 ALU on top of specular.* The
+per-facet tangent means the stretch jumps at facet boundaries; on cloth builders
+with reasonable subdivision that reads as woven structure, which is the goal.
+
+**Sheen** — velvet, moss-as-fabric, worn cloth. An inverted-fresnel rim term
+(bright where `dot(N, V)` is low) plus a retro-reflective lift, tinted from the
+vertex colour. This is the cheapest term in the document and one of the most
+legible: velvet is *defined* by its edge-glow, and a rim term at chunky resolution
+with the quantizer behind it reads as exactly that. *Cost: ~10 ALU.* No tangents
+needed.
+
+**Iridescence** — bubbles (their surface term), beetle-shell, oil-slick, fantasy
+metals. A thin-film approximation: the specular and environment terms get a hue
+rotation driven by `dot(N, V)` — grazing angles walk the hue wheel. No spectral
+integral, just a cheap cosine palette (Iñigo Quílez's trick) scaled by the
+iridescence knob. Per ground rule 4 this is the term the pipeline is *best* at:
+hue survives per-channel quantization where brightness ramps collapse. *Cost:
+~12 ALU.* On flat facets, each facet holds one hue and neighbours differ — a cut
+opal look, again the aesthetic rather than a defect.
+
+**Glint** — gilt, gem-dust, frost, the sparkle on hammered metal. Procedural
+micro-facets: hash the undisplaced object-space position (the wear stage's sampling
+rule, for the wear stage's reason — sparkle must not swim on a swaying banner) into
+a jittered micro-normal per cell; a glint fires where that micro-normal aligns with
+the half-vector within a threshold. Spatially stable — a glint sits on its spot on
+the surface and fires when *you* move or the *sun* does, never at random. At chunky
+resolution a glint is one bright pixel, which the halftone prints as a single dot:
+about as close to a hand-placed sparkle as a shader can get. *Cost: ~20 ALU behind
+its own early-out (glint knob zero skips it).*
+
+**Subsurface scattering** — marble, wax, skin, wet jade. The honest version of SSS
+needs depth maps or path length through the object; this pipeline gets the two-term
+approximation that stylized games actually ship: **wrap lighting** (diffuse wraps
+past the terminator by the translucency knob, softening the flat-shaded facet
+boundary at the light's edge) plus a **back-light term** (`pow(dot(V, -L), k)`
+tinted warm, so a candle behind an alabaster panel blooms through it). Driven per
+vertex, so a statue can be waxen at its thin edges and dense at its core — the
+builder states thickness the way it states wear. *Cost: ~15 ALU.* It will not do a
+photoreal skin pass; it will absolutely do "this marble is not plaster", which is
+the whole ask.
+
+**The weathering hand-off** — one explicit line: where the wear noise wins and
+replaces the surface colour, the finish stage also scales its parameters down.
+Mechanism: the wear chunk sets a shared local (`float wearTaken`) the lighting chunk
+reads. Rusted gilt goes matte; that it does is what makes the gilt read as *plating*
+rather than paint.
+
+### What Track A cannot do, stated plainly
+
+- **No mirror image of the world.** Environment reflection is the sky (or the
+  indoor gradient) — a chrome sphere reflects sun, clouds and blue, not the hut
+  beside it. For most props at most sizes this is imperceptible and it is what
+  every stylized game does. Where it genuinely matters (a mirror, a still shield
+  wall, a polished floor), that is Track C.
+- **No transmission.** A finish is opaque by construction. Crystals are Track B.
+
+---
+
+## Track B — the transmissive family: crystal, glass, bubble
+
+The fourth shared material, standing beside `ART_MATERIAL`, `GLOW_MATERIAL` and
+`WATER_MATERIAL` — and it is fair to say water already paid nearly every design cost
+this needs, because water *is* a transmissive material with a wave generator
+attached. What transfers verbatim:
+
+- **Drawn in the effect chain**, opaque colour + depth bound as textures, because
+  nothing samples the buffer it renders into (ground rule 6).
+- **Its own exclusive layer** (next number in `layers.ts` — reading the list, 6),
+  `layers.set` not `enable`, taking it out of the opaque pass, the normal pass and
+  the shadow map in one line. No outline (the fresnel rim *is* the outline); the
+  screen-space march has nothing of its own to intersect.
+- **Hand depth test in the shader**, centimetre of slack, `discard` where the scene
+  is nearer.
+- **Pass gating by observation, not declaration**: the builder marks
+  `userData` the way `waterPlane` marks `water: true`; the zone counts them on the
+  build traversal it already does (`Zone.hasWater`'s pattern), and the pass costs
+  nothing in a zone with no glass in it.
+- **Nearest-wins sorting** through the transparent list: two crystals in line show
+  the nearer one's refraction only. Honest limitation, same as water's, and at prop
+  scale it is nearly unobservable.
+
+What is new is the shading, and it is *simpler* than water's (no waves, no flow, no
+foam, no underside):
+
+- **Refraction**: `refract(V, N, 1/ior)` per facet, projected to screen, and the
+  scene colour read at the offset position — offset scaled by the thickness the
+  depth buffer reports behind the fragment. Flat-shaded normals mean the refracted
+  image *jumps* at every facet boundary — which is precisely what a cut gem does to
+  the world behind it, and it is the single feature that will sell "crystal".
+  (§8 tier 1 above already sketched constant-offset glass panes; this is that
+  design given real normals and real thickness.)
+- **Dispersion**: three refracted reads at slightly different IOR, one per channel.
+  Costs two extra texture reads on crystal pixels only, and buys the rainbow fringe
+  that separates "crystal" from "glass". Worth it; a knob, so a plain window pane
+  sets it to zero.
+- **Beer–Lambert tint** by the path length behind the surface — thin edges pale,
+  thick cores deep, from the depth difference that is already in hand. The exact
+  mechanism water uses for its column, reused.
+- **Fresnel** between the refracted image and the reflection — analytic sky
+  outdoors, and it can *reuse `marchReflection`* (factored out of the water shader
+  into a shared GLSL chunk, the way `SKY_GLSL` was factored out of the sky) for
+  true screen-space hits on the room around it. The march is the expensive option
+  and a per-prop switch; the sky fallback alone is respectable.
+- **Bubbles** are the same material at the thin-film limit: near-zero opacity,
+  fresnel + strong iridescence (the Track A hue-rotation term, shared), a slight
+  refraction wobble. A bubble is genuinely cheap — most of its pixels are one
+  scene read and a rim term.
+
+**The shadow question, decided when built.** Off layer 0 means casting no shadow.
+For a bubble or a pane that is correct physics. For a chunky altar crystal it may
+read as floating — the escape hatch is a *shadow proxy*: a copy of the hull on
+layer 0 with `colorWrite: false, depthWrite: false`, which draws nothing and
+occludes nothing in the main pass but appears in the shadow map. Costs one draw
+call per crystal that wants it. Try without, add if a placed crystal looks wrong.
+
+**Cost envelope.** Per crystal pixel: 1–3 scene reads + ~40 ALU, plus the march
+only where enabled. A fist-sized prop is a few thousand chunky pixels — noise. The
+worst case is architectural: a stained-glass wall filling the frame is ~0.5M
+marched fragments, water-showcase-2 territory; the answer is the same as water's —
+budget it in the zone that wants it, and measure there.
+
+---
+
+## Track C — general SSR, the parked tier, now unblockable
+
+§8 tier 3 above parked general SSR "because it needs per-surface
+roughness/mask data the vertex-colour format does not carry, and flat-shaded
+Lambert does not read specularity anyway." **Track A dissolves both reasons** — the
+format carries the data and the surfaces read specular. What remains is the real
+architectural cost, so this stays a *deliberate later phase* rather than part of
+the foundation:
+
+- The finish attributes live in the opaque pass; an SSR pass lives in the effect
+  slot and needs them *per pixel*. The cheapest honest bridge: the normal target is
+  half-float RGBA and **its alpha channel is unused** — patch the normal-pass
+  override material (which already carries the sway patch, so the wiring exists) to
+  read `aFinish` and write `metallic × (1 − roughness)` into alpha. No new target,
+  no MRT, one channel of an existing texture.
+- The SSR pass then runs water's march (the shared chunk again) only on pixels
+  whose mirrorness clears a threshold, compositing hit colour over the analytic-sky
+  term Track A already painted — a crossfade between two correct answers, water's
+  edge-fade included.
+- Cost: zero on frames with no mirror pixels (the mask kills the march at the first
+  read); a full-frame polished floor approaches water's cost, which R6 already
+  demonstrated is carryable.
+
+Until a prop actually wants a room-reflecting surface, Track A's sky reflections
+are the shipped answer and this tier stays parked — but parked with the road built,
+rather than parked as ruled out.
+
+---
+
+## The use cases, mapped
+
+| Want | Recipe | Track |
+|---|---|---|
+| Gilded frame, idol | `gilt` — metallic, mid-rough, glint | A |
+| Polished bronze, pewter | `polished` on the existing BRONZE/IRON colours | A |
+| Chrome | `chrome` — sky-mirror now, room-mirror when C lands | A (→C) |
+| Silk hanging, banner | `silk` — anisotropy along the drape + sheen; composes with sway | A |
+| Velvet | `velvet` — sheen dominant, rough | A |
+| Polished marble | `marble` — tight specular + translucency; floor reflections are C | A (→C) |
+| Crystal, cut gem | transmissive + dispersion + facet refraction | B |
+| Window/vessel glass | transmissive, dispersion 0 (existing windows stay emissive by design) | B |
+| Bubble | transmissive thin-film + iridescence | B |
+| Beetle shell, oil slick, fantasy alloy | `shell` — iridescence over metallic | A |
+| Wax, alabaster, jade | `waxen` — translucency, wrap + backlight | A |
+
+---
+
+## Feasibility and cost, honestly totalled
+
+**Feasibility: high, and structurally additive.** Track A is a fourth link in an
+onBeforeCompile chain that already has three, using a lighting hook (`RE_Direct`)
+that three hands us with shadows pre-applied. Track B is water minus the hard
+parts. Track C is one alpha channel and a factored-out march. Nothing touches the
+pass order, the targets, or the quantizer; the depth/normal/shadow passes never
+learn any of this exists.
+
+The bill:
+
+*(Measured after M1/M2: three attributes, 9 B/vertex, ≤ ~24 MB. The row below
+is the estimate that was written first — see the M1/M2 status block for why the
+ninth lane became its own byte.)*
+
+| Item | Cost | When paid |
+|---|---|---|
+| Two Uint8 vec4 attributes, whole kit | ~21 MB GPU (+11% vertex memory), +8 B/vertex bake time | Always, once M0 lands |
+| Matte fragments (most of every frame) | 1 attribute fetch + branch | Always |
+| Finished fragments | 25–90 ALU by term count + one `skyColour` | Only on finished surfaces |
+| Glint | ~20 ALU behind its own early-out | Only where glint > 0 |
+| Transmissive pass | 0 in zones without; 1–3 reads + ~40 ALU per crystal pixel; march extra | Per placed prop |
+| SSR tier | 0 until enabled; water-class where a mirror fills the frame | Parked |
+| Program complexity | one shared shader grows ~150 lines; compile once at boot | Boot |
+
+For calibration: GTAO spends 48 texture taps on *every* pixel every frame and was
+signed off as carryable. A frame where a gilded altar fills a third of the screen
+spends less than half of that on the third it covers. The only figure that warrants
+a real measurement before commitment is the vertex-memory ask, and the measurement
+is `renderer.info` before and after M0 in the heaviest zone (the readables gallery,
+~340k triangles).
+
+**Risks worth naming:**
+
+- *Three.js version drift.* The stage grafts onto Lambert's chunk names
+  (`RE_Direct`, the lights loop). Upstream renames break it loudly at compile —
+  same exposure the sway/wear/detail patches already carry, no worse.
+- *The quantizer will band wide soft highlights.* By design — the dither absorbs
+  it — but roughness values in the 0.5–0.8 band produce the widest gradients and
+  should be *judged in the running game* (screenshot before tuning), not in a
+  probe.
+- *Facet popping.* A whole facet catching the sun in one frame is the aesthetic,
+  and on a large flat roof it could strobe as the camera moves. The glint threshold
+  and specular strength want tuning against big surfaces early, and big surfaces
+  mostly should not be finished at all.
+- *Attribute slot count.* WebGL guarantees 16 vertex attributes; the kit currently
+  uses 8 (position, normal, color, sway, wear, wearTint, detail, detailTint) and
+  this adds 2. Comfortable, but the ledger should live in a comment in
+  `assemble.ts` once this lands.
+
+**Checks.** `check:art` grows the same way it did for water: the FINISHES table
+validated (all knobs 0–1, grain axes unit), the chunk anchors asserted, and a
+SwiftShader probe that draws a finished fixture and asserts a facet actually
+brightens with the lobe on and is bit-identical to Lambert with all knobs zero —
+the "toggled off, output matches" guarantee, machine-checked.
+
+---
+
+## Implementation phases
+
+M-numbered, beside the R-phases above. M0 blocks the rest of Track A; B and C
+are independent of everything after M0's gallery exists to look at them in.
+
+- **M0 — the finish stage.** `art/finish.ts` (table + patch), `Part.finish`,
+  attribute packing in `assemble`, specular/metallic/roughness + sky/hemisphere
+  environment, the weathering hand-off, dev-panel folder, check additions. A
+  materials gallery rank with fixtures rough as the checks need and no rougher.
+  *Exit: all-zero finish is bit-identical to today (probe-asserted); a gilt and a
+  polished fixture read at a glance in the gallery; vertex-memory delta measured
+  and recorded here.*
+
+  **Status: built** — `art/finish.ts` (the `FINISHES` table, `resolveFinish`,
+  `applyFinish`), baked by `assemble` as one normalized-Uint8 vec4 (`aFinish`:
+  metallic, roughness, two lanes reserved for M1/M2). The patch is the fourth
+  link in the `onBeforeCompile` chain and hooks the *lighting* chunks: a custom
+  `RE_Direct` wrapping Lambert's (the lights loop folds the shadow factor into
+  `directLight.color` first, so the highlight is shadowed for free), a GGX lobe
+  with implicit visibility, and an indirect term after the lights loop —
+  `skyColour(reflect)` outdoors, the hemisphere pair indoors, switched by
+  `uFinishSky` from the zone's air. Lambert's outgoing-light line gains its two
+  specular terms back, which upstream Lambert discards.
+
+  Decisions worth keeping written down:
+
+  - **The roughness lane is the has-finish gate.** Zero is the matte default
+    every unfinished vertex carries, so a real finish keeps roughness ≥ 0.05
+    (`check:art` enforces it on the table and on every baked vertex) and the
+    shader gates every term on `step(0.001, vFinish.y)`. No fifth lane spent on
+    an enable bit.
+  - **The weathering hand-off is one global.** `art/weathering.ts` declares
+    `float finishWorn` and sets it where the wear noise wins; the finish stage
+    scales itself by `1 − finishWorn`, so rusted gilt is matte rust. The check
+    asserts the declaration lands textually before the read — the patches
+    insert in reverse application order at the `<common>` anchor, which is
+    exactly the kind of ordering that breaks silently.
+  - **Verified under SwiftShader** (throwaway probe, the R6 method): the
+    patched program compiles with no shader log; a gilt fixture changes when
+    the stage toggles; a matte crate is **zero bytes different** with the stage
+    on and off — the bit-identical claim, held on an actual rasterizer rather
+    than argued from IEEE identities.
+  - **Vertex memory, measured:** 4 bytes/vertex, 359,712 vertices across the
+    116 builders at one build each (~1.4 MB); against the ~2.6 M unindexed
+    vertices of the fully resident world, ≤ ~10.5 MB. Half the spec's estimate,
+    because M0 lands one attribute of the two — `aGrain` arrives with M1.
+
+  The Materials Gallery hangs off the general hall's showcase rank (slot
+  eleven, appended east rather than re-centring ten doors): chrome, polished,
+  gilt, marble — mirror to dielectric. The fixtures carry no wear — the
+  weathering hand-off is asserted in `check:art`, and tarnish is a statement a
+  placed prop makes, not a default. `finish: { specular, environment }` in `RenderSettings`, a
+  dev-panel folder ("material finish"), dev toggle via `PostFX.setFinish`; no
+  player option, by the water rule. **Still owed: eyes.** The lobes and the
+  gallery want looking at in the browser, and the world itself is untouched
+  until real props declare finishes — which are the repo owner's to assign.
+- **M1 — cloth.** Anisotropy (`Part.grain`) + sheen. *Exit: a silk fixture's
+  highlight follows the drape; a velvet fixture rims; both survive sway without
+  swimming.*
+- **M2 — sparkle and depth.** Glint, iridescence, SSS terms. *Exit: glints are
+  static in object space (probe: two renders, same camera, identical); an
+  iridescent fixture walks hue with view angle; a backlit waxen fixture glows
+  through its thin edge.*
+
+  **Status: both built**, together, since they share the attribute work. Five
+  terms landed on M0's stage: an anisotropic GGX (the isotropic form is the
+  same function at anisotropy zero, so the branch is arithmetic rather than
+  answer), a sheen rim in the surface's own colour with direct and indirect
+  halves, procedural glint, a thin-film hue walk, and wrap-plus-backlight
+  translucency.
+
+  **Nine parameters, three attributes, and the third one is a plain byte.**
+  Two vec4s hold eight lanes and there were nine things to say. Every way of
+  avoiding the ninth needed either a mode-switched lane — one number meaning
+  two things depending on another — or sub-byte packing read back through
+  float arithmetic, and both of those fail silently. `aGlint` is one byte and
+  buys the absence of a class of bug nobody could see. The grain *axis* is two
+  lanes rather than three by a cheaper trick that is not a trick: it is an
+  axis, so sign carries no information, and flipping it to the upper
+  hemisphere lets Y come back as `sqrt(1 − x² − z²)` exactly.
+
+  Six things worth keeping written down:
+
+  - **One grain axis per part is a whole surface's tangent field.** The tangent
+    is `cross(grain, facet normal)`, so a single authored axis gives a turned
+    column its circumferential stretch and a drape its stretch along the folds
+    — no per-vertex direction, and nothing to interpolate wrong. Where the axis
+    stands *along* the normal there is no grain direction at all (the pole of a
+    lathe), so anisotropy fades out over the last few degrees rather than
+    snapping to whatever the cross product rounded to.
+  - **The axis rides the normal matrix, which sway never touches**, so grain is
+    welded to a cloth however the cloth moves. That is why the drape fixture is
+    hung taut and does not sway: the sway shader scales displacement by height
+    above the origin, so a cloth fixed at its *top* would move most where it is
+    nailed down. The stability claim is by construction, not by fixture — the
+    exit criterion above asked for the wrong demonstration.
+  - **Glint is jittered alignment, not a jittered normal.** The obvious
+    implementation perturbs the micro-normal, and the perturbation has to live
+    in some frame — pick view space and every sparkle swims when the camera
+    turns, which is the one thing glitter must never do. Perturbing the
+    *alignment* `dot(N, H)` instead is frame-free: each cell carries a fixed
+    draw, crosses its own threshold as the geometry moves, and fires. Two
+    identical frames come back byte-identical under the probe.
+  - **Glint fades with the pixel footprint**, reusing the varying the detail
+    stage already computes. 1.4 cm cells are about one chunky pixel at the
+    range a prop is looked at; past that they are below Nyquist and would
+    shimmer, which is precisely ANTIALIASING.md's subject. A feature too fine
+    to sample has to dissolve, never sparkle harder.
+  - **The stage borrows two varyings rather than declaring its own** —
+    weathering's object-space position for the glint cells, the detail fade's
+    footprint for the fade. Each would otherwise be a second interpolator
+    saying something already said. `check:art` asserts both are still in scope,
+    because the failure mode is a shader that stops compiling in whichever zone
+    first draws a finished prop and nowhere else.
+  - **The star sparkle is geometry, not shading** (`art/sparkle.ts`). A glint
+    drawn in the material can only colour that material's own pixels, so it is
+    cropped at the silhouette and rotated by the face under it — which reads as
+    glitter stuck to the surface rather than as light reaching the eye.
+    `assemble` scatters sites over whatever triangles carry the star lane (so a
+    gilt band on a stone prop seeds the band alone), `ZoneManager.prepare`
+    merges every prop's sites into one instanced draw per zone, and the quads
+    face the camera on `PARTICLE_LAYER` + `GLOW_LAYER`. The depth test is **once
+    per quad, at its centre**: a star arrives whole or not at all, so an
+    occluder swallows it rather than cutting it in half. The cost is that a
+    star whose centre clears an edge draws its arms over that edge, which is
+    what a lens flare does anyway.
+  - **The backlight is shadowed, and that is a real limit.** The lights loop
+    folds the shadow factor into the light colour before any of this runs,
+    which is what gives every lobe shadows for free — and it means a thick
+    closed solid shadows its own back, so light-through reads on thin geometry
+    and edges rather than through an orb. The wrap term carries the visible
+    half of SSS regardless, which is why the waxen fixture is an orb: a
+    softened terminator across facets is the thing to look at.
+
+  **Verified under SwiftShader**, two probes. The first: every fixture changes
+  when the stage toggles, the matte crate is **zero bytes different** on and
+  off, and gilt renders twice to the byte. The second answers a question the
+  first cannot — equal byte counts across fixtures are just shared geometry, so
+  it renders eight finishes at *one colour on one shape* and compares all 28
+  pairs. Every pair differs; the closest is polished against brushed at 476
+  bytes, which is the pair separated by nothing but the grain. A term that was
+  never wired would render identically to the one beside it and no
+  against-off count would ever say so.
+
+  Ten fixtures in the gallery now, each isolating one claim: chrome, polished,
+  brushed, gilt, frost, shell, waxen, marble, then silk and velvet as drapes,
+  since the terms that matter to cloth are both about a surface turning.
+  **Memory, measured:** 9 bytes/vertex, 3.2 MB across the builders at one build
+  each; ≤ ~24 MB for the fully resident world — against the 21 MB the estimate
+  above budgeted for eight lanes, which is what the ninth byte cost.
+
+  ### What the first look changed
+
+  Reported from the running game: the gilt read "rough and pixellated" and the
+  cloth read "saran wrap". Both were true, neither was guessable from the
+  numbers, and chasing them produced four corrections and one lesson about the
+  harness itself.
+
+  - **A screenshot harness that does not call `patchArtMaterial` photographs a
+    different renderer.** The first pass of the tuning harness imported it and
+    never called it, so every image was stock Lambert with vertex colours —
+    no finish at all — and looked entirely plausible: a smooth ochre ball,
+    no obvious fault. Two rounds of tuning went into that picture before the
+    giveaway, which was that turning the environment term to zero changed
+    nothing. **If a knob does nothing, distrust the harness before the
+    shader.**
+  - **Glint was the pixellation, and cell size was why.** At 70 cells/m the
+    cells were centimetres across — several chunky pixels each — so a gilded
+    surface came back scattered with hard little squares. Cubes hashed in
+    object space give square patches, and a patch is not a sparkle. At 160/m
+    they are a pixel or so and read as fine glitter. Gilt then lost its glint
+    entirely — gold leaf is laid smooth, and sparkle on it read as grit — so
+    the term moved to a `frost` fixture where the sparkle *is* the material.
+  - **A specular lobe narrower than a facet is not dim, it is absent.** Facets
+    on this kit's props are ten or twenty degrees apart; a lobe of a few
+    degrees falls between them and appears only when a facet swings through
+    the mirror angle. The metal orbs read as painted clay for exactly this
+    reason. The direct lobe now has a roughness floor of 0.16 — the
+    environment term keeps the true roughness, so smooth finishes still read
+    as smooth. The fixture orbs went from 80 faces to 320 for the same
+    reason: a fixture should not fight its own shape.
+  - **A tinted metal cannot reflect only the sky and come back right.** Gold
+    has almost no blue in it, the sky has almost nothing else, and the product
+    is olive. That is what a gold mirror in an empty blue room genuinely does,
+    and nothing like gilding — real gilding stands in a landscape that bounces
+    its own light back. The environment is now pulled toward its own
+    brightness in proportion to **how much the surface colours what it
+    reflects**, not to how metallic it is: chrome is a metal too, and a chrome
+    ball reflecting a grey sky would be the same mistake reversed. `PALETTE.GOLD`
+    was brightened alongside, because on a metal that entry is not a colour, it
+    is the reflectance, and a mid-tone ochre had nothing to give back.
+  - **The cloth was missing its geometric attenuation.** A constant stood in
+    for the Smith visibility term, which is exactly right head-on and badly
+    wrong at grazing, where Fresnel climbs to white with nothing holding it
+    down — so every hem and edge wore a hard pale line. The honest term costs
+    two square roots and evaluates to *the same 0.25* at normal incidence, so
+    nothing tuned head-on moved and only the blow-out went. Alongside it,
+    **sheen now replaces the specular lobe rather than adding to it** (direct
+    and environment both): cloth scatters in its fibres and does not also
+    carry a dielectric mirror. Velvet asks for all of the sheen and therefore
+    none of the lobe, which is the whole difference between fabric and
+    something wrapped in film.
+- **M3 — the transmissive family.** The fourth material, its layer, its pass, the
+  refraction/dispersion/Beer–Lambert/fresnel stack, bubble preset, `marchReflection`
+  factored to a shared chunk. *Exit: a crystal fixture visibly refracts and
+  disperses the gallery behind it; the pass is skipped in zones without (readout);
+  the shadow-proxy question answered by looking.*
+- **M4 — general SSR.** *Parked until a prop wants a room reflection.* Mirrorness
+  into the normal target's alpha, the masked march in the effect slot. *Exit: a
+  chrome fixture reflects the gallery; the pass reads zero-cost in a zone with no
+  mirror pixels.*
+
+Player options: **none.** A finish is what a prop is made of, like its colour — the
+water rule. Costs are carried in zone budgets, like any prop's. (If M4 ever ships a
+frame-filling mirror floor, its march can ride the existing water-reflections
+switch rather than growing a new one.)
+
+### Dependency summary
+
+```
+M0 ──► M1 (cloth)
+  ├──► M2 (glint, iridescence, SSS)
+  ├──► M3 (transmissive)  — independent of M1/M2, wants M0's gallery
+  └──► M4 (general SSR)   — parked; wants M0's attributes
 ```

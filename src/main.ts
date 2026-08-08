@@ -332,8 +332,19 @@ if (dev.gui) {
   bloom.add(r.bloom, 'strength', 0, 2, 0.05).onChange(refresh);
   bloom.add(r.bloom, 'radius', 0.25, 4, 0.05).onChange(refresh);
 
+  // Dev-only, like the fog volumes: a finish is what a prop is made of. The
+  // profiles themselves live in `FINISHES`; these scale the two lobes globally.
+  const finishState = {
+    enabled: true,
+    apply: (): void => postfx.setFinish(finishState.enabled),
+  };
+  const finishFolder = dev.gui.addFolder('material finish');
+  finishFolder.add(finishState, 'enabled').onChange(finishState.apply);
+  finishFolder.add(r.finish, 'specular', 0, 2, 0.05).onChange(refresh);
+  finishFolder.add(r.finish, 'environment', 0, 2, 0.05).onChange(refresh);
+
   // Not in the player's menu, and not because it was forgotten: a pond is part
-  // of the place, by SHADERS.md's line on what crosses into the options screen.
+  // of the place, by SHADERS-AND-MATERIALS.md's line on what crosses into the options screen.
   // Both of these are global because water is one material — how rough a
   // particular pool is rides on the geometry. See `art/water.ts`.
   const water = dev.gui.addFolder('water');
@@ -407,7 +418,7 @@ if (dev.gui) {
   lights.add(zones.lights.sun, 'intensity', 0, 5, 0.1).name('sun');
   lights.add(zones.lights.ambient, 'intensity', 0, 5, 0.1).name('ambient');
 
-  // Placed volumes, as opposed to the distance fog below — see SHADERS.md §2.
+  // Placed volumes, as opposed to the distance fog below — see SHADERS-AND-MATERIALS.md §2.
   // Only a switch, and deliberately: a volume's density, tint and size belong
   // to the zone that placed it, so there is nothing global here to tune. Not in
   // the player's menu either; see `PostFX.setFogVolumes`.

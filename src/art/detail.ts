@@ -37,7 +37,7 @@ import * as THREE from 'three';
  * `fwidth` of the view-space position is how many metres of surface one chunky
  * pixel actually covers, there, at that angle. It is the same quantity the GPU
  * uses to choose a mipmap level, it costs one instruction, and it is spatial
- * only — no history, so it stays inside SHADERS.md's ground rule 3.
+ * only — no history, so it stays inside SHADERS-AND-MATERIALS.md's ground rule 3.
  *
  * The fade runs from one pixel per feature to `DETAIL_SPAN` pixels per feature,
  * a couple of octaves, the way trilinear filtering blends between two levels

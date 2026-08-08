@@ -97,6 +97,22 @@ export const PALETTE = {
   BRONZE: 0x8a7038,
   PATINA: 0x5c7060,
   /**
+   * Gilding — leaf, not cast metal.
+   *
+   * **Bright, because on a metal this colour is not a colour — it is the
+   * reflectance.** A metal has no diffuse at all, so everything you see is the
+   * sky and the sun arriving through this multiply, and a mid-tone ochre took
+   * a blue sky down to a dull olive: the first version read as mustard paint.
+   * Real gold reflects about nine tenths of the red reaching it and a third of
+   * the blue, and the blue channel is the one that decides whether daylight
+   * comes back as gold or as clay. Set as sRGB and linearised on the way in,
+   * so it is brighter here than it looks.
+   */
+  GOLD: 0xf2ce6b,
+  /** Bright plate for the chrome finish. A metal's reflection is tinted by its
+   * own colour, so chrome has to be nearly white or the sky comes back grey. */
+  CHROME: 0xd9dcdf,
+  /**
    * Standing water seen from above.
    *
    * Dark and desaturated on purpose. Water is mostly a reflection of the sky,
@@ -114,6 +130,13 @@ export const PALETTE = {
    */
   LAMPLIGHT: 0xffe0a8,
   CLOTH: 0x8d8672,
+  /**
+   * Dyed cloth — the deep end, for hangings rather than working clothes.
+   *
+   * Dark on purpose: sheen is a rim of the surface's own colour, and a pale
+   * cloth has no room above itself to show one.
+   */
+  CLOTH_DEEP: 0x6d3242,
   SKIN: 0xa8927a,
 
   /**

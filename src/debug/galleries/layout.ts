@@ -227,7 +227,7 @@ export interface GalleryPlan {
   /** Anything not built from a builder — a fixture the gallery needs to make sense. */
   readonly extras?: () => THREE.Object3D[];
   /**
-   * Placed fog volumes (SHADERS.md §2), in the gallery's own space.
+   * Placed fog volumes (SHADERS-AND-MATERIALS.md §2), in the gallery's own space.
    *
    * Here rather than only on the Fog gallery, because a gallery is a room and
    * any room may want air in it — and threading it through the plan means the

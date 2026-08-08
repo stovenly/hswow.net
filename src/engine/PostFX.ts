@@ -18,6 +18,7 @@ import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
 import { detailUniforms } from '../art/detail';
+import { finishUniforms } from '../art/finish';
 import type { Viewport } from './Viewport';
 
 /**
@@ -29,7 +30,7 @@ import type { Viewport } from './Viewport';
  *          GTAO ─► water ─► fog ─► bloom, upscale  and sRGB     dither, quantize
  * ```
  *
- * `PixelStage` is ours (SHADERS.md, R0): it renders at chunky resolution,
+ * `PixelStage` is ours (SHADERS-AND-MATERIALS.md, R0): it renders at chunky resolution,
  * runs screen-space effects there, and upscales with the edge lines — the
  * job `RenderPixelatedPass` used to do, plus the effect slot it did not have.
  *
@@ -110,14 +111,14 @@ export interface RenderSettings {
   levels: number;
 
   /**
-   * Ambient occlusion (SHADERS.md §1). `strength` is how dark full occlusion
+   * Ambient occlusion (SHADERS-AND-MATERIALS.md §1). `strength` is how dark full occlusion
    * gets, 0..1; `radius` is the world-space reach in metres — how far apart
    * two surfaces can be and still shade each other.
    */
   ao: { strength: number; radius: number };
 
   /**
-   * Bloom (SHADERS.md §3). `strength` is how much of the blurred emitters is
+   * Bloom (SHADERS-AND-MATERIALS.md §3). `strength` is how much of the blurred emitters is
    * added back; `radius` is the spread, as a multiple of the blur chain's
    * own texel offsets.
    *
@@ -127,7 +128,7 @@ export interface RenderSettings {
   bloom: { strength: number; radius: number };
 
   /**
-   * Water (SHADERS.md §7). `waves` scales the wave amplitude for every body of
+   * Water (SHADERS-AND-MATERIALS.md §7). `waves` scales the wave amplitude for every body of
    * water in the game; `reflections` runs the screen-space march, and off it
    * falls back to the analytic sky alone — which is the same colour, minus the
    * huts and banks that would have been in it.
@@ -137,6 +138,15 @@ export interface RenderSettings {
    * attribute placed with the geometry. See `art/water.ts`.
    */
   water: { waves: number; reflections: boolean };
+
+  /**
+   * The finish stage (SHADERS-AND-MATERIALS.md, Track A / M0). `specular`
+   * scales the direct highlight, `environment` the sky/hemisphere reflection.
+   *
+   * Nothing per-prop here on purpose: what a surface is made of rides on a
+   * per-vertex attribute baked with the geometry. See `art/finish.ts`.
+   */
+  finish: { specular: number; environment: number };
 
   /**
    * Groundcover (GROUNDCOVER.md). Tuning multipliers over the type table.
@@ -242,6 +252,10 @@ export const DEFAULT_RENDER: RenderSettings = {
   // heights are authored in metres in `art/water.ts` against a pond you stand
   // beside, and this is the multiplier for asking what half of that looks like.
   water: { waves: 1, reflections: true },
+
+  // Unity both: the lobes are authored in the shader against these at 1, and
+  // the finish profiles themselves live in `FINISHES`, not here.
+  finish: { specular: 1, environment: 1 },
 
   // Unity: the type table in world/ground.ts is authored in real metres and
   // real blades per square metre, and these only bend it for tuning.
@@ -355,7 +369,7 @@ export interface ZoneAir {
   fogNear: number;
   fogFar: number;
   /**
-   * Placed fog volumes for this zone (SHADERS.md §2), in its world space.
+   * Placed fog volumes for this zone (SHADERS-AND-MATERIALS.md §2), in its world space.
    *
    * Distinct from the three fields above, and not a refinement of them: those
    * are the haze of *distance*, which every zone wears everywhere. These are
@@ -364,7 +378,7 @@ export interface ZoneAir {
    */
   fogVolumes?: readonly FogVolume[];
   /**
-   * Whether this zone has any water in it (SHADERS.md §7).
+   * Whether this zone has any water in it (SHADERS-AND-MATERIALS.md §7).
    *
    * A fact about the geometry rather than about the air, and it is here for the
    * same reason `fogVolumes` is: this is the one call that fires at every
@@ -409,12 +423,14 @@ export class PostFX {
   private glow = true;
   /** The accessibility switch, not a look setting. See `setWaterMotion`. */
   private waves = true;
+  /** Dev-only, like the fog volumes: a finish is what a prop is made of. */
+  private finished = true;
   /** The player's groundcover tier, `off` included. See `setGroundcover`. */
   private groundcover: CoverDensity = 'high';
   /**
    * Whether particles are drawn at all.
    *
-   * Not a player video option, by SHADERS.md's line: snow in a snowy zone is
+   * Not a player video option, by SHADERS-AND-MATERIALS.md's line: snow in a snowy zone is
    * the place, like a pond or a mist pool. This is the dev switch, and the
    * accessibility one — which removes weather only — lives in `art/particles`.
    */
@@ -443,6 +459,7 @@ export class PostFX {
       ao: { ...DEFAULT_RENDER.ao, ...saved.ao },
       bloom: { ...DEFAULT_RENDER.bloom, ...saved.bloom },
       water: { ...DEFAULT_RENDER.water, ...saved.water },
+      finish: { ...DEFAULT_RENDER.finish, ...saved.finish },
       // A preset saved by the shell-era cover stored different keys with
       // different units; carrying them over would misread badly.
       cover:
@@ -575,7 +592,7 @@ export class PostFX {
   /**
    * Multisamples the colour render, or does not.
    *
-   * A player option by SHADERS.md's rule: real per-frame cost, and nothing is
+   * A player option by SHADERS-AND-MATERIALS.md's rule: real per-frame cost, and nothing is
    * lost with it off but the smoothing. It is not a quality ladder — the sample
    * count is a developer's dial in `RenderSettings`, because two controls for
    * one thing on screen is one control too many.
@@ -591,7 +608,7 @@ export class PostFX {
   /**
    * Turns ambient occlusion off without disturbing its tuning.
    *
-   * A player option — see SHADERS.md's line on which effects cross into the
+   * A player option — see SHADERS-AND-MATERIALS.md's line on which effects cross into the
    * options screen: it is the most measurable per-frame cost in the pipeline
    * and purely additive shading, so off, the world is exactly the pre-AO
    * picture.
@@ -604,7 +621,7 @@ export class PostFX {
   /**
    * Turns placed fog volumes off. **Dev-facing only.**
    *
-   * Deliberately not a player option, by SHADERS.md's line on which effects
+   * Deliberately not a player option, by SHADERS-AND-MATERIALS.md's line on which effects
    * cross into the options screen: a volume is not a flourish over the world,
    * it is part of the world. A dungeon dressed in mist is a different room
    * without it and a rim wrapped in cloud is a backdrop with a visible edge, so
@@ -619,7 +636,7 @@ export class PostFX {
   /**
    * Turns bloom off without disturbing its tuning.
    *
-   * A player option, by SHADERS.md's rule: it is taste as much as performance —
+   * A player option, by SHADERS-AND-MATERIALS.md's rule: it is taste as much as performance —
    * some people find glow bleed distracting — and switching it off loses
    * nothing but the bleed. The emitters still glow, because the geometry *is*
    * the glow; what goes is the light spreading off it.
@@ -633,7 +650,7 @@ export class PostFX {
    * Stops the water moving, without disturbing its tuning.
    *
    * **An accessibility switch, not a graphics one.** Water is not a player
-   * video option — a pond is part of the place, by SHADERS.md's rule — but its
+   * video option — a pond is part of the place, by SHADERS-AND-MATERIALS.md's rule — but its
    * *motion* is one of the effects under reduced motion, beside wind sway and
    * head bob. The distinction is real: turning this off does not remove any
    * water from the world, it holds every surface of it still.
@@ -644,6 +661,16 @@ export class PostFX {
    */
   setWaterMotion(enabled: boolean): void {
     this.waves = enabled;
+    this.apply();
+  }
+
+  /**
+   * Turns the finish stage off. **Dev-facing only**, by the fog volumes'
+   * argument: a finish is what a prop is made of, like its colour. Off, every
+   * surface is exactly the Lambert it was before M0.
+   */
+  setFinish(enabled: boolean): void {
+    this.finished = enabled;
     this.apply();
   }
 
@@ -731,7 +758,7 @@ export class PostFX {
     this.fog.enabled = this.volumetrics && this.fog.hasVolumes;
 
     // Water is not a player option and is not a switch here either — a pond is
-    // part of the place, by SHADERS.md's line on what crosses into the options
+    // part of the place, by SHADERS-AND-MATERIALS.md's line on what crosses into the options
     // screen. The pass runs wherever there is water and nowhere else.
     this.water.enabled = this.water.hasWater;
     const w = WATER_MATERIAL.uniforms;
@@ -748,6 +775,14 @@ export class PostFX {
     this.bloom.enabled = this.glow && s.bloom.strength > 0;
     this.bloom.strength = s.bloom.strength;
     this.bloom.radius = s.bloom.radius;
+
+    // The finish stage lives in the shared art material, not in a pass; these
+    // are its uniforms. The sky flag mirrors the dome's own visibility below,
+    // so an interior's reflections come from the hemisphere pair instead.
+    finishUniforms.uFinishOn.value = this.finished ? 1 : 0;
+    finishUniforms.uFinishSpecular.value = s.finish.specular;
+    finishUniforms.uFinishEnv.value = s.finish.environment;
+    finishUniforms.uFinishSky.value = this.air === null || this.air.sky ? 1 : 0;
 
     setCoverDraw(
       this.groundcover !== 'off',

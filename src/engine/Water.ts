@@ -5,7 +5,7 @@ import { WATER_MATERIAL } from '../art/water';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * The water pass: the second-stage draw. SHADERS.md §7 / R6.
+ * The water pass: the second-stage draw. SHADERS-AND-MATERIALS.md §7 / R6.
  *
  * Every other entry in the effect slot is a texture-to-texture filter. This one
  * *draws*, and it is the second of two that do — bloom's emitters pass is the

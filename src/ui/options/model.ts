@@ -58,7 +58,7 @@ export interface Options {
    */
   antialias: boolean;
   /**
-   * Ambient occlusion. A player option by SHADERS.md's rule: real per-frame
+   * Ambient occlusion. A player option by SHADERS-AND-MATERIALS.md's rule: real per-frame
    * cost, purely additive shading — off, the world still reads as itself.
    */
   ambientOcclusion: boolean;

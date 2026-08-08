@@ -264,7 +264,7 @@ export interface ZoneDefinition {
    */
   readonly groundAt?: (x: number, z: number) => number;
   /**
-   * Placed fog volumes, in this zone's world space (SHADERS.md §2).
+   * Placed fog volumes, in this zone's world space (SHADERS-AND-MATERIALS.md §2).
    *
    * **On the definition rather than in `ZoneEnvironment`, and the reason is
    * positions.** Everything in the environment is a property a place can share
@@ -326,7 +326,7 @@ export class Zone {
   }
 
   /**
-   * Whether anything in this zone is water (SHADERS.md §7).
+   * Whether anything in this zone is water (SHADERS-AND-MATERIALS.md §7).
    *
    * **Observed rather than declared, unlike `fogVolumes` above**, and the
    * difference is that a fog volume has no geometry while water is nothing but
