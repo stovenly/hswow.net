@@ -11,6 +11,7 @@ import type { PortalDefinition, PortalEnd } from '../../world/Portal';
 import type { DoorMaterial } from '../../audio/models/door';
 import type { MeshBuilder } from '../../art/types';
 import type { FogVolume } from '../../engine/FogVolumes';
+import type { GlitchPlacement } from '../../engine/Glitch';
 import { markCollidable } from '../../player/Collider';
 import { markLabelled } from '../../world/Interaction';
 import { createRng } from '../../art/random';
@@ -235,6 +236,12 @@ export interface GalleryPlan {
    */
   readonly fogVolumes?: readonly FogVolume[];
   /**
+   * Placed glitch volumes (GLITCH-SHADERS.md), in the gallery's own space —
+   * `fogVolumes`' thread, for its reason: the one place that turns a plan
+   * into a zone stays the one place that knows how.
+   */
+  readonly glitches?: readonly GlitchPlacement[];
+  /**
    * Overrides on the room's light and air. Applied last, so a gallery can put
    * out the sun — which is the only way to judge anything that emits.
    */
@@ -403,6 +410,7 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
     // forward is `(-sin yaw, 0, -cos yaw)`, so zero looks the way the rows run.
     spawn: { position: new THREE.Vector3(0, 0.1, DOOR_Z - 2), yaw: 0 },
     fogVolumes: plan.fogVolumes,
+    glitches: plan.glitches,
     floor: -20,
     // Flat by construction. Portal arrivals are derived by stepping out from a
     // door and keep the door's height, which is correct here and stated anyway

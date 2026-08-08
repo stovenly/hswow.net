@@ -3,6 +3,7 @@ import { ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
 import { applyFinish } from './finish';
+import { applyGlitch, applyGlitchDisplacement } from './glitch';
 import type { Weather } from '../audio/weather';
 
 /**
@@ -296,6 +297,13 @@ export function patchArtMaterial(): void {
   // colour ones, so it consumes whatever the three stages above decided the
   // surface is. See `applyFinish`.
   applyFinish(ART_MATERIAL);
+  // And the glitch stage wraps after even that: it corrupts the *lit result*,
+  // finish and all, which is what makes it read as the signal going bad
+  // rather than the material changing. The depth material takes the
+  // displacement half too — shadows re-render every frame, and a convulsing
+  // object with a calm shadow is the sway bug over again. See `art/glitch.ts`.
+  applyGlitch(ART_MATERIAL);
+  applyGlitchDisplacement(SWAY_DEPTH_MATERIAL);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */

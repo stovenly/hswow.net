@@ -14,6 +14,8 @@ import { glassUniforms } from '../art/glass';
 import { ParticlesEffect } from './Particles';
 import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
+import { GlitchEffect } from './Glitch';
+import { applyGlitchDisplacement, glitchUniforms } from '../art/glitch';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
@@ -423,6 +425,7 @@ export class PostFX {
   private readonly fog: FogVolumesEffect;
   private readonly particles: ParticlesEffect;
   private readonly bloom: BloomEffect;
+  private readonly glitchFx: GlitchEffect;
   private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
@@ -443,6 +446,8 @@ export class PostFX {
   private occlusion = true;
   /** Dev-only, unlike the others here. See `setFogVolumes`. */
   private volumetrics = true;
+  /** Dev-only, for the fog volumes' reason. See `setGlitch`. */
+  private glitching = true;
   private glow = true;
   /** The accessibility switch, not a look setting. See `setWaterMotion`. */
   private waves = true;
@@ -510,6 +515,10 @@ export class PostFX {
     // position it would have had standing still. A motionless ghost of its
     // own shape, and the reason this line exists.
     applySway(this.pixelStage.normalMaterial);
+    // The same lesson, one system later: the glitch stage displaces vertices
+    // too, and an outline traced around undisplaced geometry would stand as a
+    // calm ghost of the shape mid-convulsion. See `art/glitch.ts`.
+    applyGlitchDisplacement(this.pixelStage.normalMaterial);
 
     // The effect slot, in order. Registered once each; on/off is the effect's
     // own flag, set in `apply`.
@@ -538,6 +547,12 @@ export class PostFX {
     // see `Particles.ts`.
     this.particles = new ParticlesEffect();
     this.bloom = new BloomEffect();
+    // Last in the chain, and the position is a statement: corruption tears
+    // everything the object contributes — its bloom halo, the fog in front of
+    // it — and still lands upstream of the retro pass, so the whole mess gets
+    // dithered and quantized into the world's look rather than floating over
+    // it. When god rays claim the final slot the two will have to argue.
+    this.glitchFx = new GlitchEffect();
     this.pixelStage.effects.push(
       this.gtao,
       this.water,
@@ -546,6 +561,7 @@ export class PostFX {
       this.fog,
       this.particles,
       this.bloom,
+      this.glitchFx,
     );
 
     this.retroPass = new ShaderPass(RetroShader);
@@ -662,6 +678,16 @@ export class PostFX {
   setFogVolumes(enabled: boolean): void {
     this.volumetrics = enabled;
     this.apply();
+  }
+
+  /**
+   * Turns the glitch stage's screen pass off. **Dev-facing only**, by the fog
+   * volumes' argument exactly: a placed corruption is part of the world, not a
+   * flourish over it. The in-scene half follows the same uniform count, so an
+   * empty zone pays nothing either way.
+   */
+  setGlitch(enabled: boolean): void {
+    this.glitching = enabled;
   }
 
   /**
@@ -952,9 +978,15 @@ export class PostFX {
     // Costs a handful of box tests in a zone with water and nothing at all
     // anywhere else — see `WaterEffect.submersion`.
     this.underwater.setDepth(this.water.submersion(this.viewport.scene, this.viewport.camera));
-    // The same clock the sky drifts on, handed to the effect chain. Fog volumes
-    // are the only reader today; see `EffectContext.time` on why knowing the
-    // time is not the temporal accumulation the ground rules forbid.
+    // Decided per frame rather than in `apply`, because the count changes as
+    // the player walks — `GlitchActivity` packs the store just before this.
+    // Zero volumes skips the pass outright, which is every zone that placed
+    // none.
+    this.glitchFx.enabled = this.glitching && glitchUniforms.uGlitchCount.value > 0;
+    // The same clock the sky drifts on, handed to the effect chain; the fog
+    // volumes and the glitch pass read it. See `EffectContext.time` on why
+    // knowing the time is not the temporal accumulation the ground rules
+    // forbid.
     this.pixelStage.time = elapsed;
     this.composer.render();
   }
