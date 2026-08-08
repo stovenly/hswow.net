@@ -121,6 +121,14 @@ export interface Options {
   reducedMotion: boolean;
   windSway: boolean;
   /**
+   * The cloth simulation, on or off — a real switch over real work, not a
+   * gate on other settings. Off freezes every cloth in its pre-draped settled
+   * pose: present, natural, still. Deliberately *not* under reduced motion —
+   * that option already stills cloth's wind response along with the trees',
+   * and the two compose without either becoming a no-op. See CLOTH.md §9.
+   */
+  clothSim: boolean;
+  /**
    * Waves, and the foam lapping the shore with them.
    *
    * Separate from `windSway` even though the two answer the same gust field,
@@ -188,6 +196,7 @@ export const DEFAULT_OPTIONS: Options = {
 
   reducedMotion: false,
   windSway: true,
+  clothSim: true,
   waterMotion: true,
   headBob: true,
   precipitation: true,
@@ -461,6 +470,12 @@ export const CATEGORIES: readonly Category[] = [
         label: 'wind sway',
         enabledWhen: motionAllowed,
         note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
+      },
+      {
+        kind: 'toggle',
+        key: 'clothSim',
+        label: 'cloth simulation',
+        note: (options) => (options.clothSim ? null : 'cloth hangs still, settled'),
       },
       {
         kind: 'toggle',

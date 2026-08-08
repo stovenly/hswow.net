@@ -148,6 +148,9 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   // things at head height, and things too small to get a foot on.
   'battered-book': null,
   banner: null,
+  'hanging-banner': null,
+  flag: null,
+  curtain: null,
   'silk-drape': null,
   'velvet-drape': null,
   bluebell: null,
