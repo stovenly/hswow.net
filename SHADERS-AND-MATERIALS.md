@@ -1598,6 +1598,38 @@ are independent of everything after M0's gallery exists to look at them in.
   factored to a shared chunk. *Exit: a crystal fixture visibly refracts and
   disperses the gallery behind it; the pass is skipped in zones without (readout);
   the shadow-proxy question answered by looking.*
+
+  **Status: built.** `art/glass.ts` is the material, `engine/Glass.ts` the pass,
+  `GLASS_LAYER` 6, and the march now lives in `engine/reflect.ts` where water
+  and glass both read it. Four fixtures: a cut gem, the same cut absorbing
+  hard, a flat pane with dispersion off, and a bubble. Three things the plan
+  did not have right:
+
+  - **The depth buffer cannot measure a crystal's thickness.** The plan took
+    the path length from the depth difference, the way water takes its column
+    — but water sits *on* its bed, and a gem does not. That difference is the
+    air gap to the wall behind, so a stone against a distant sky would read as
+    infinitely deep and one against a wall as paper thin. The chord through a
+    convex solid is what is wanted, and for a sphere of diameter `d` it is
+    exactly `d·cos θ` with `cos θ = dot(N, V)`: thickest through the middle,
+    vanishing at the silhouette. One dot product already in hand, and on flat
+    facets it steps face to face — which is a cut stone showing each face its
+    own depth of colour, not an artefact.
+  - **A hull with no depth test may carry no interior face.** The pass
+    composites in draw order, so a cylinder's end cap left inside the gem
+    paints over the outside of it. Every transmissive hull is built open-ended
+    and convex; front faces of a convex hull cannot overlap in screen space,
+    which is the whole reason this material is safe without a depth buffer.
+  - **`SKY_GLSL` does not carry its own noise.** It leaves `fbm` to the caller
+    so a shader that already has it does not declare it twice — glass needs
+    `NOISE_GLSL` alongside it or nothing compiles.
+
+  Faceting is decided by the geometry rather than a flag: the shader reads the
+  interpolated vertex normal, so un-indexed geometry with face normals gives
+  hard facets and a smooth sphere gives a bubble. Shadow proxies were not
+  needed — nothing placed yet reads as floating. No player option, by the water
+  rule; the dev panel gets a refraction scale and glass rides water's
+  reflection switch rather than growing a second one.
 - **M4 — general SSR.** *Parked until a prop wants a room reflection.* Mirrorness
   into the normal target's alpha, the masked march in the effect slot. *Exit: a
   chrome fixture reflects the gallery; the pass reads zero-cost in a zone with no
