@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-import type { MeshBuilder } from '../types';
+import type { BuildOptions, BuilderWith } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng, type Rng } from '../random';
 import { PALETTE } from '../palette';
+import { ClothSim, type ClothCollider } from '../cloth';
+import { clothPanel } from '../clothMesh';
 
 /**
  * A standing figure. Person-shaped, person-sized, and not quite a person.
@@ -161,7 +163,7 @@ interface Fitting {
   build(rng: Rng, m: Measurements, side: number): Part[];
 }
 
-interface Measurements {
+export interface Measurements {
   height: number;
   shoulder: number;
   hip: number;
@@ -172,6 +174,19 @@ interface Measurements {
   hold: number;
   /** Half-depth of the torso — where the front of the chest is. */
   depth: number;
+}
+
+/**
+ * A collider capsule worn cloth is projected out of, declared relative to a
+ * named node. On today's static figure both nodes are the mesh root; when
+ * Phase 7 splits the figure into animated objects the capsules ride their
+ * nodes with zero changes here.
+ */
+export interface FigureCollider {
+  node: 'torso' | 'head';
+  a: readonly [number, number, number];
+  b: readonly [number, number, number];
+  radius: number;
 }
 
 /**
@@ -431,12 +446,19 @@ function pickFitting(rng: Rng): Fitting {
   return FITTINGS[0];
 }
 
-export const figure: MeshBuilder = {
+export interface FigureOptions extends BuildOptions {
+  /** One worn item at most — a cape or a scarf, simulated. See CLOTH.md §7. */
+  wearing?: 'cape' | 'scarf';
+  /** A `FABRICS` name. Cape defaults to canvas, scarf to sheer. */
+  fabric?: string;
+}
+
+export const figure: BuilderWith<FigureOptions> = {
   name: 'figure',
   category: 'people',
   radius: 0.55,
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, wearing, fabric }: FigureOptions = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
@@ -485,6 +507,10 @@ export const figure: MeshBuilder = {
     head.computeBoundingBox();
     const sink = headSize * HEAD_SINK[shape];
     head.translate(0, shoulder + neckLength - sink - (head.boundingBox?.min.y ?? 0), 0);
+    head.computeBoundingBox();
+    // Where the head actually ends, measured — the head-and-neck collider and
+    // anything worn against it are placed off this rather than a guess.
+    const headTop = head.boundingBox?.max.y ?? shoulder + neckLength + headSize * 2;
     parts.push({ geometry: head, color: covered ? cloth : PALETTE.SKIN, sway: 0 });
 
     // --- limbs --------------------------------------------------------------
@@ -544,6 +570,155 @@ export const figure: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'figure', 0);
+    const mesh = finish(geometry, 'figure', 0);
+
+    // Measured anatomy, exported: worn cloth — and eventually anything else —
+    // is placed against these rather than guessed offsets. The capsules
+    // overlap deliberately, torso through neck through head; gaps between
+    // colliders are where cloth edges get through, and the rule is no gaps.
+    const s = scale;
+    const torsoRadius = (Math.max(chest * 1.05, halfDepth) + 0.02) * s;
+    const headRadius = Math.max(headSize * 1.25, 0.09) * s;
+    const headCapTop = Math.max(headTop - headRadius / s * 0.6, shoulder + 0.05) * s;
+    const figureColliders: FigureCollider[] = [
+      {
+        node: 'torso',
+        a: [0, (hip - 0.05) * s, 0],
+        b: [0, shoulder * s, 0],
+        radius: torsoRadius,
+      },
+      {
+        node: 'head',
+        a: [0, (shoulder - 0.02) * s, 0],
+        b: [0, headCapTop, 0],
+        radius: headRadius,
+      },
+    ];
+    mesh.userData.measurements = {
+      height: height * s,
+      shoulder: shoulder * s,
+      hip: hip * s,
+      chest: chest * s,
+      reach: measurements.reach * s,
+      hold: measurements.hold * s,
+      depth: halfDepth * s,
+    } satisfies Measurements;
+    mesh.userData.colliders = figureColliders;
+
+    if (wearing) {
+      const clothColliders: ClothCollider[] = [
+        ...figureColliders.map(
+          (capsule): ClothCollider => ({
+            kind: 'capsule',
+            a: capsule.a,
+            b: capsule.b,
+            radius: capsule.radius,
+          }),
+        ),
+        { kind: 'ground', y: 0 },
+      ];
+      const worn =
+        wearing === 'cape'
+          ? buildCape(rng, fabric ?? 'canvas', s, {
+              shoulder: shoulder * s,
+              hip: hip * s,
+              reach: measurements.reach * s,
+              torsoRadius,
+            })
+          : buildScarf(rng, fabric ?? 'sheer', s, {
+              neckY: (shoulder + neckLength * 0.5) * s,
+              headRadius,
+              chest: chest * s,
+              torsoRadius,
+              hold: measurements.hold * s,
+            });
+      const sim = new ClothSim({ ...worn, colliders: clothColliders, seed });
+      // Worn cloth pre-drapes longer than a hanging sheet: it has a body to
+      // find its way around before it is ever seen.
+      sim.settle(48);
+      const panel = clothPanel(sim, { name: 'figure', color: worn.color });
+      mesh.add(panel.mesh);
+    }
+
+    return mesh;
   },
 };
+
+/** The cape: pinned across the shoulder line at the torso's measured back face. */
+function buildCape(
+  rng: Rng,
+  fabric: string,
+  s: number,
+  m: { shoulder: number; hip: number; reach: number; torsoRadius: number },
+): { cols: number; rows: number; rest: Float32Array; pins: number[]; fabric: string; color: number } {
+  const COLS = 9;
+  const ROWS = 10;
+  const width = Math.max(m.reach * 1.9, 0.46 * s);
+  const top = m.shoulder + 0.02 * s;
+  const bottom = m.hip * 0.3;
+  const back = -(m.torsoRadius + 0.02 * s);
+  const rest = new Float32Array(COLS * ROWS * 3);
+  const pins: number[] = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const i = r * COLS + c;
+      rest[i * 3] = -width / 2 + (c / (COLS - 1)) * width;
+      rest[i * 3 + 1] = top - (r / (ROWS - 1)) * (top - bottom);
+      rest[i * 3 + 2] = back;
+      if (r === 0) pins.push(i);
+    }
+  }
+  const color = rng.pick([PALETTE.RUST, PALETTE.CLOTH, PALETTE.STONE_DARK]);
+  return { cols: COLS, rows: ROWS, rest, pins, fabric, color };
+}
+
+/**
+ * The scarf: a strip whose middle wraps the back of the neck — those rows are
+ * the pins — with both ends hanging free down the chest. The liveliest thing
+ * in the set, and the best stress test of the margin rule, because it lies
+ * directly on the smallest colliders.
+ */
+function buildScarf(
+  rng: Rng,
+  fabric: string,
+  s: number,
+  m: { neckY: number; headRadius: number; chest: number; torsoRadius: number; hold: number },
+): { cols: number; rows: number; rest: Float32Array; pins: number[]; fabric: string; color: number } {
+  const COLS = 3;
+  const ROWS = 14;
+  const width = 0.11 * s;
+  const wrapR = m.headRadius + 0.015 * s;
+  // Rows 0..3 are one tail, 4..9 the wrap, 10..13 the other tail — authored
+  // as a path; the settle finds the real drape.
+  const wrapStart = 4;
+  const wrapEnd = 9;
+  const tailDrop = Math.max(m.neckY - m.hold, 0.5 * s);
+  const rest = new Float32Array(COLS * ROWS * 3);
+  const pins: number[] = [];
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const i = r * COLS + c;
+      const across = (c - 1) * (width / 2);
+      if (r >= wrapStart && r <= wrapEnd) {
+        // Around the back: φ sweeps from one side of the neck to the other.
+        const t = (r - wrapStart) / (wrapEnd - wrapStart);
+        const phi = Math.PI * (0.5 + t);
+        rest[i * 3] = Math.sin(phi) * wrapR;
+        rest[i * 3 + 1] = m.neckY + across;
+        rest[i * 3 + 2] = Math.cos(phi) * wrapR;
+        pins.push(i);
+      } else {
+        // A tail, hanging in front of the chest from its own side of the neck.
+        const first = r < wrapStart;
+        const side = first ? 1 : -1;
+        const t = first ? (wrapStart - r) / wrapStart : (r - wrapEnd) / (ROWS - 1 - wrapEnd);
+        rest[i * 3] = side * (m.chest * 0.55) + across;
+        rest[i * 3 + 1] = m.neckY - t * tailDrop;
+        rest[i * 3 + 2] = m.torsoRadius + 0.02 * s;
+      }
+    }
+  }
+  const color = rng.pick([PALETTE.RUST, PALETTE.MARKER_YELLOW, PALETTE.WOOL]);
+  return { cols: COLS, rows: ROWS, rest, pins, fabric, color };
+}

@@ -9,6 +9,8 @@ import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
+import { ClothActivity } from '../engine/ClothActivity';
+import type { Weather } from '../audio/weather';
 import { PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
@@ -126,6 +128,8 @@ export class ZoneManager {
   private clutterHidden = false;
   /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
   private readonly activity = new LightActivity();
+  /** Every simulated cloth in every built zone. See `ClothActivity`. */
+  private readonly cloth = new ClothActivity();
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -347,6 +351,7 @@ export class ZoneManager {
       // shaped exactly like the one eviction exists to prevent.
       this.clutter.delete(zone.id);
       this.activity.release(zone.id);
+      this.cloth.release(zone.id);
       for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
 
       const soundscape = this.soundscapes.get(zone.id);
@@ -620,7 +625,10 @@ export class ZoneManager {
       // it without knowing particles exist.
       if (object instanceof THREE.Light) object.layers.enable(PARTICLE_LAYER);
       if (!(object instanceof THREE.Mesh)) return;
-      const glow = object.userData.noCollide === true;
+      // A cloth panel is `noCollide` — its triangles stay out of the octree —
+      // but it is solid to light: the sim moves the actual buffer, so its
+      // shadow follows the drape with nothing to patch.
+      const glow = object.userData.noCollide === true && object.userData.cloth === undefined;
       const ground =
         object.name === 'flatGround' ||
         object.name === 'terrain' ||
@@ -654,6 +662,7 @@ export class ZoneManager {
 
     this.clutter.set(zone.id, clutter);
     this.activity.collect(zone.id, root);
+    this.cloth.collect(zone.id, root);
 
     return root;
   }
@@ -794,5 +803,24 @@ export class ZoneManager {
     this.doored.clear();
     this.clutter.clear();
     this.activity.clear();
+    this.cloth.clear();
+  }
+
+  /**
+   * Steps the active zone's cloths. Called from the loop after the wind ships,
+   * so the cloth answers the same frame's weather the trees do.
+   */
+  updateCloth(dt: number, weather: Weather): void {
+    this.cloth.update(this.active?.id ?? null, dt, weather, this.options.player.camera.position);
+  }
+
+  /** Collider wireframes for the fabrics gallery's no-clipping row. Dev only. */
+  setClothWireframes(on: boolean): void {
+    this.cloth.setWireframes(on);
+  }
+
+  /** Cloths stepped last frame, for readouts. */
+  get clothAwake(): number {
+    return this.cloth.awake;
   }
 }
