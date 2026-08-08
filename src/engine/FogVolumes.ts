@@ -5,7 +5,7 @@ import { windUniforms } from '../art/sway';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Placed fog volumes, at chunky resolution. SHADERS.md §2 / R2.
+ * Placed fog volumes, at chunky resolution. SHADERS-AND-MATERIALS.md §2 / R2.
  *
  * **No global height fog.** A zone-wide mist layer is weather the whole place
  * wears whether it suits or not. What is wanted is fog as *set dressing* —

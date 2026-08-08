@@ -10,7 +10,7 @@ found only after the feature shipped invisible: the hardware depth test in §2,
 which killed every fragment, and the room in §12, which stood its stations
 further away than §3's own arithmetic says a particle can be seen from.
 
-A companion to [SHADERS.md](SHADERS.md) rather than a section of it. That document
+A companion to [SHADERS-AND-MATERIALS.md](SHADERS-AND-MATERIALS.md) rather than a section of it. That document
 is the screen-space roadmap — things that happen to the frame after the scene is
 drawn. Particles are *geometry*, drawn from the scene graph with a vertex shader,
 and only the pass that composites them touches the effect chain. The two meet in
@@ -20,13 +20,13 @@ Scope: snow, rain, ash, motes, smoke, steam, sparks, embers, spray, falling
 leaves. One system, one material family, one draw call each.
 
 Heat shimmer is **not** here. It is a screen-space distortion and it already has a
-home — SHADERS.md §8 tier 1, R7 — and nothing in this document is waiting on it.
+home — SHADERS-AND-MATERIALS.md §8 tier 1, R7 — and nothing in this document is waiting on it.
 
 ---
 
 ## The rules this inherits
 
-From SHADERS.md's ground rules, unchanged, because they are properties of the
+From SHADERS-AND-MATERIALS.md's ground rules, unchanged, because they are properties of the
 pipeline rather than of any one feature:
 
 - **No texture assets.** A particle's shape is geometry or a shader; nothing here
@@ -645,7 +645,7 @@ stops — and `frustumCulled = false`, for the reason in §7.
 ### One intensity, heard and seen
 
 `audio/models/rain.ts` exists and is good, and there has never been any rain to
-look at — the same situation SHADERS.md §7 described for water, in reverse.
+look at — the same situation SHADERS-AND-MATERIALS.md §7 described for water, in reverse.
 
 When they meet, **there must be one intensity, read by both.** A zone whose
 soundscape declares rain at 0.6 and whose environment declares rain particles at
@@ -725,7 +725,7 @@ Ten things, each of which produces a plausible-looking picture that is wrong.
 
 ## 8. Options
 
-**No player video option.** By SHADERS.md's line — an option is something a
+**No player video option.** By SHADERS-AND-MATERIALS.md's line — an option is something a
 player may reasonably want off while the world still reads as itself — snow in a
 snowy zone is the place, like a pond or a mist pool. Tuning lives in
 `RenderSettings.particles` (`density`, `size`, `shutter`) with a dev-panel folder
@@ -807,7 +807,7 @@ budget, before anything is measured:
   which is most of the cost of the feature for one system.
 - **Lit smoke.** Lambert gives a puff the sun and the room; what it does not give
   is the puff self-shadowing or a torch scattering through it. Same trade
-  SHADERS.md §2 makes for fog volumes, and the same answer: the tint is chosen for
+  SHADERS-AND-MATERIALS.md §2 makes for fog volumes, and the same answer: the tint is chosen for
   the scene.
 - **Per-particle sorting.** §3 has the argument and the escape hatch.
 - **A GPU simulation tier.** If something one day genuinely needs state, it is a
@@ -853,11 +853,11 @@ suites passing says nothing about any of it.
 
 ## 12. Phases
 
-**P** for particles, deliberately not R — this sits beside SHADERS.md's render
+**P** for particles, deliberately not R — this sits beside SHADERS-AND-MATERIALS.md's render
 phases rather than inside them. P1 blocks everything; after that the order can
 bend.
 
-Every phase lands the four things SHADERS.md already requires and this document
+Every phase lands the four things SHADERS-AND-MATERIALS.md already requires and this document
 does not restate: its tuning block in `RenderSettings`, one honest toggle layered
 over the preset, a dev-panel folder, and its cost read off the existing readouts.
 

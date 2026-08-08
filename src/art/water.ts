@@ -5,7 +5,7 @@ import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import { windUniforms } from './sway';
 
 /**
- * Stylized water. SHADERS.md §7 plus §8 tier 2 / R6 — the design and the tuning
+ * Stylized water. SHADERS-AND-MATERIALS.md §7 plus §8 tier 2 / R6 — the design and the tuning
  * live there, not here.
  *
  * The third shared material, beside `ART_MATERIAL` and `GLOW_MATERIAL`.

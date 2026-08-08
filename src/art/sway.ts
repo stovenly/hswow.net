@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
+import { applyFinish } from './finish';
 import type { Weather } from '../audio/weather';
 
 /**
@@ -291,6 +292,10 @@ export function patchArtMaterial(): void {
   // And detail fading wraps that, in this order: it dissolves the finished
   // surface colour, weathering included. See `applyDetail`.
   applyDetail(ART_MATERIAL);
+  // The finish stage wraps last. It hooks the lighting chunks rather than the
+  // colour ones, so it consumes whatever the three stages above decided the
+  // surface is. See `applyFinish`.
+  applyFinish(ART_MATERIAL);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */

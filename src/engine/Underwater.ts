@@ -4,7 +4,7 @@ import { WATER_MATERIAL, MURK_MIX } from '../art/water';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Being *in* the water. SHADERS.md §7.
+ * Being *in* the water. SHADERS-AND-MATERIALS.md §7.
  *
  * `Water.ts` draws the surface; this is the volume on the near side of it, so it
  * runs over every pixel rather than over the pixels a pond covers. Beer-Lambert

@@ -19,7 +19,7 @@ import { createRng } from '../art/random';
  * is free.
  *
  * **The texture is built at boot from arithmetic, not shipped.** Ground rule 5
- * in SHADERS.md: no texture assets anywhere in this project. The wind field in
+ * in SHADERS-AND-MATERIALS.md: no texture assets anywhere in this project. The wind field in
  * `art/sway.ts` is the precedent, and this is the same move at a different
  * size.
  */
