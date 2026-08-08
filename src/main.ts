@@ -27,6 +27,7 @@ import { STAGE_STATIONS } from './debug/SoundStage';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
+import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
 import { updateCover } from './art/cover';
 import { updateParticles } from './art/particles';
 import { installReloadBanner } from './debug/HotReload';
@@ -545,6 +546,23 @@ if (dev.gui) {
   // judged — or turned off — without re-tuning seventy builders against each
   // other. `art/flex.ts` holds the per-species part.
   weather.add(windUniforms.swayAmount, 'value', 0, 2, 0.01).name('sway');
+
+  // The fabrics gallery's station controls (CLOTH.md §10): a wind override so
+  // calm, breeze and gale can be reproduced on demand, the collider
+  // wireframes behind the no-clipping test, and a freeze switch mirroring the
+  // options toggle without fighting it.
+  const clothFolder = dev.gui.addFolder('cloth');
+  const clothState = { wind: 'live', frozen: false, wireframes: false };
+  clothFolder
+    .add(clothState, 'wind', ['live', 'calm', 'breeze', 'gale'])
+    .onChange((wind: string) =>
+      setClothWindOverride(wind === 'live' ? null : wind === 'calm' ? 0 : wind === 'breeze' ? 0.45 : 0.7),
+    );
+  clothFolder.add(clothState, 'frozen').onChange((on: boolean) => setClothFrozen(on));
+  clothFolder
+    .add(clothState, 'wireframes')
+    .name('collider wireframes')
+    .onChange((on: boolean) => zones.setClothWireframes(on));
   // Bound through the active zone's soundscape rather than to a model directly.
   // A zone declares its sound as data and the models are built on entry, so a
   // panel that captured one at startup would be tuning the proving ground's
@@ -836,6 +854,10 @@ loop.add((dt, elapsed) => {
   // rustle answered the next, which is a whole frame of drift between a sight
   // and a sound that are meant to be one event.
   updateWind(audio.weather, elapsed);
+  // After the wind for the same reason again: each cloth samples the same
+  // field the trees just bent to, so a gust arrives at the flag and the tree
+  // beside it on the same frame.
+  zones.updateCloth(dt, audio.weather);
   // After the wind, for the same reason: the cover reads the gust field the
   // trees just took. This ships the width clamp, the tread and the backlight.
   updateCover(viewport.camera, postfx.artHeight, player.position, zones.lights.sun);

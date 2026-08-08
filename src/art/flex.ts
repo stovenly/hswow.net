@@ -75,11 +75,9 @@ export const FLEX: Record<string, number> = {
   // vertex sway goes wrong.
   sunflower: 0.2,
 
-  // Not a plant, but cloth on poles obeys the same wind. The banner's own
-  // weights pin the fixings and free the belly; this says how far the belly
-  // goes. Kept modest — a banner that billows like a sail reads as a storm,
-  // and the lettering on it has to stay readable while it moves.
-  banner: 0.35,
+  // Cloth is deliberately absent: banners, flags and curtains are simulated
+  // now (CLOTH.md), and their sway weights are zero — the wind shader leaves
+  // them alone, so there is no double displacement.
 
   // Moss is deliberately absent. It was here at 0.05, on the reasoning that a
   // dead thing in a moving field draws the eye — which is true of a plant and

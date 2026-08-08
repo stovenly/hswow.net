@@ -8,6 +8,7 @@ import { fogShowcasePlan } from './fog';
 import { readablesGalleryPlan } from './readables';
 import { readablesShowcasePlan } from './readables-showcase';
 import { materialsGalleryPlan } from './materials';
+import { fabricsGalleryPlan } from './fabrics';
 import {
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
@@ -40,6 +41,7 @@ export const GALLERIES: readonly GalleryPlan[] = [
   readablesGalleryPlan,
   readablesShowcasePlan,
   materialsGalleryPlan,
+  fabricsGalleryPlan,
 ];
 
 export { galleryZone, galleryDoor, galleryPortal, rowPosition } from './layout';
@@ -53,6 +55,7 @@ export { ZONE_FOG_SHOWCASE } from './fog';
 export { ZONE_READABLES_GALLERY } from './readables';
 export { ZONE_READABLES_SHOWCASE } from './readables-showcase';
 export { ZONE_MATERIALS_GALLERY } from './materials';
+export { ZONE_FABRICS_GALLERY } from './fabrics';
 export {
   ZONE_GALLERY_VILLAGE_INTERIOR,
   ZONE_GALLERY_VILLAGE_EXTERIOR,
