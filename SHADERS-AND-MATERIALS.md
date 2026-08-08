@@ -1610,11 +1610,24 @@ are independent of everything after M0's gallery exists to look at them in.
     — but water sits *on* its bed, and a gem does not. That difference is the
     air gap to the wall behind, so a stone against a distant sky would read as
     infinitely deep and one against a wall as paper thin. The chord through a
-    convex solid is what is wanted, and for a sphere of diameter `d` it is
-    exactly `d·cos θ` with `cos θ = dot(N, V)`: thickest through the middle,
-    vanishing at the silhouette. One dot product already in hand, and on flat
-    facets it steps face to face — which is a cut stone showing each face its
-    own depth of colour, not an artefact.
+    convex solid is what is wanted, and for a body `d` deep it is `d·cos θ`
+    with `cos θ = dot(N, V)`: thickest through the middle, vanishing at the
+    silhouette. One dot product already in hand, and on flat facets it steps
+    face to face — which is a cut stone showing each face its own depth of
+    colour, not an artefact.
+
+    **And `d` is per face, along that face's own normal.** Measuring it from
+    the bounding sphere is right for a gem or a bubble and absurd for a sheet:
+    a 3 cm windowpane 1.6 m tall claimed to be 1.85 m deep and refracted like
+    a slab of ice, throwing the image so far it landed on the frame's own
+    posts. Both attempts to catch that in the shader — rejecting the read, then
+    shortening it by bisection — treated the symptom, and the second banded
+    visibly. The measurement is the box's width along the vertex normal, capped
+    by the bounding sphere so a diagonal cannot claim the corner-to-corner
+    reach. A pane's faces then read 3 cm, and its *edge strips* read the full
+    width, which is correct — edge-on into a sheet really is a metre of glass —
+    and is why the pane fixture is now a 15 cm slab: window glass bends the
+    room behind it by about a millimetre, which is true and nothing to look at.
   - **A hull with no depth test may carry no interior face.** The pass
     composites in draw order, so a cylinder's end cap left inside the gem
     paints over the outside of it. Every transmissive hull is built open-ended
