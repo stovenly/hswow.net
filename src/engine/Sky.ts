@@ -68,7 +68,7 @@ export const SKY_FRACTION = 0.95;
  * Held here rather than cloned per material for the reason `windUniforms` is:
  * **there is one sky, and everything that asks what colour it is has to get the
  * same answer.** The dome is only the first caller. Water reflects into the sky
- * where its screen-space march finds nothing (SHADERS.md §8), and a reflection
+ * where its screen-space march finds nothing (SHADERS-AND-MATERIALS.md §8), and a reflection
  * evaluated against a second copy of these numbers would drift from the sky it
  * is supposed to be reflecting the moment either was tuned.
  *
@@ -103,7 +103,7 @@ export const skyUniforms = {
  * and halo, then the cloud layer. Nothing about the sky is different for having
  * a name.
  *
- * It has a name because of what SHADERS.md §8 calls the quiet advantage of a
+ * It has a name because of what SHADERS-AND-MATERIALS.md §8 calls the quiet advantage of a
  * procedural sky. Screen-space reflection can only reflect what is on screen,
  * and the miss case — a ray that leaves the frame, which for a near-horizontal
  * surface is most of them — is where every SSR implementation looks broken.

@@ -7,7 +7,7 @@ import { drawCoverNormals } from '../art/cover';
  *
  * This replaces three's `RenderPixelatedPass`, which did render-and-upscale
  * in one opaque step — and the slot between those two halves is where every
- * planned screen-space feature wants to live (SHADERS.md, R0). Owning the
+ * planned screen-space feature wants to live (SHADERS-AND-MATERIALS.md, R0). Owning the
  * stage turns that slot into a real thing:
  *
  * ```
@@ -72,7 +72,7 @@ export interface EffectContext {
 
 /**
  * A chunky-resolution effect. One value per chunky pixel, no temporal state —
- * the ground rules in SHADERS.md. A disabled effect is skipped entirely and
+ * the ground rules in SHADERS-AND-MATERIALS.md. A disabled effect is skipped entirely and
  * must cost nothing.
  */
 export interface PixelEffect {

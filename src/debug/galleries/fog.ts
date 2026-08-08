@@ -6,7 +6,7 @@ import { markCollidable } from '../../player/Collider';
 /**
  * The Fog Showcase: where placed fog volumes are judged.
  *
- * Volumes make three claims (SHADERS.md §2), and all three are claims about
+ * Volumes make three claims (SHADERS-AND-MATERIALS.md §2), and all three are claims about
  * what something looks like from inside a room, which no headless check can
  * settle. So each gets a station, and each station has the *geometry* the claim
  * needs — because a volume alone proves nothing. Mist with nothing standing in

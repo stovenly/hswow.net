@@ -4,7 +4,7 @@ import { GLOW_LAYER } from '../layers';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Selective bloom, via the glow material. SHADERS.md §3 / R3.
+ * Selective bloom, via the glow material. SHADERS-AND-MATERIALS.md §3 / R3.
  *
  * **Thresholded bloom is the wrong tool here.** Nothing in this scene is
  * HDR-bright — vertex colours cap at 1 — so a brightness threshold either

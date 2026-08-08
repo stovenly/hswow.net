@@ -11,7 +11,7 @@ import { createRng } from '../art/random';
 /**
  * The Water Showcase: a jetty with four pools off it.
  *
- * Water makes three claims (SHADERS.md §7) and every one of them is a claim
+ * Water makes three claims (SHADERS-AND-MATERIALS.md §7) and every one of them is a claim
  * about what a surface looks like from a particular place, which no headless
  * check can settle. So each gets a pool, and each pool has the *geometry* the
  * claim needs — because water over nothing proves nothing. A reflection with
@@ -51,7 +51,7 @@ import { createRng } from '../art/random';
  * ## Why this room is not silent
  *
  * Galleries are, and for a good reason — see `galleries/layout.ts`. This is not
- * a rank of rows, and the pairing is the whole point: SHADERS.md §7 opens by
+ * a rank of rows, and the pairing is the whole point: SHADERS-AND-MATERIALS.md §7 opens by
  * observing that this project has had water *audio* since Phase 3 and no water
  * surface to put it on. Four pools with nothing coming off them would be the
  * same omission read from the other side.

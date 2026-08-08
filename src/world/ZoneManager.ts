@@ -6,6 +6,7 @@ import { labelOf, type Interaction } from './Interaction';
 import { noteById, type Note } from '../content/notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
+import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { PARTICLE_LAYER } from '../layers';
@@ -645,6 +646,10 @@ export class ZoneManager {
       const cover = coverFor(mesh);
       if (cover) mesh.add(cover);
     }
+
+    // Every star site in the zone as one instanced draw. See `art/sparkle.ts`.
+    const sparkles = buildZoneSparkles(root);
+    if (sparkles) root.add(sparkles);
 
     this.clutter.set(zone.id, clutter);
     this.activity.collect(zone.id, root);

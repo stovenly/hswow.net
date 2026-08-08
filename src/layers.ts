@@ -9,7 +9,7 @@
  * become the same feature.
  *
  * **This is written down because it happened.** Bloom's emitters pass wanted a
- * layer to select the glow meshes with (SHADERS.md §3) and took layer 1. Layer 1
+ * layer to select the glow meshes with (SHADERS-AND-MATERIALS.md §3) and took layer 1. Layer 1
  * is the collision layer, which `markCollidable` enables and the collider's
  * octree filters on — so every flame, lamp shaft and lit window in the game
  * became solid geometry. The symptom was four portal arrivals in the world check
@@ -51,7 +51,7 @@ export const GLOW_LAYER = 2;
  * clears layer 0 — a water plane is on this layer and *only* this layer, so it
  * is invisible to every pass that does not name it.
  *
- * That is not an optimisation, it is the whole design (SHADERS.md §7). Water has
+ * That is not an optimisation, it is the whole design (SHADERS-AND-MATERIALS.md §7). Water has
  * to read the colour and the depth of everything behind it, and nothing can
  * sample the buffer it is rendering into — so water cannot be in the opaque
  * pass. Being off layer 0 removes it from that pass, from the normal pass the

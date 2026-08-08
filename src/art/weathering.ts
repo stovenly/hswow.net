@@ -114,6 +114,11 @@ export function applyWear(material: THREE.Material): void {
 
         // (No backticks anywhere below: this is a template literal, and one
         // would end it mid-GLSL. Same note as the sway patch.)
+
+        // The hand-off to the finish stage: 1 where wear replaced the surface,
+        // so rusted gilt goes matte. Read in art/finish.ts.
+        float finishWorn = 0.0;
+
         float wearHash(vec3 p) {
           return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
         }
@@ -150,6 +155,7 @@ export function applyWear(material: THREE.Material): void {
             // from a third scale of the same noise, so no second attribute.
             float depth = wearNoise(vWearPos * 23.0 + 11.0);
             diffuseColor.rgb = vWearTint * (0.72 + 0.42 * depth);
+            finishWorn = 1.0;
           }
         }
         `,

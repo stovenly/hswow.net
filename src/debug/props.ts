@@ -23,6 +23,7 @@ import { lightShowcasePlan } from './galleries/light';
 import { fogShowcasePlan } from './galleries/fog';
 import { readablesGalleryPlan } from './galleries/readables';
 import { readablesShowcasePlan } from './galleries/readables-showcase';
+import { materialsGalleryPlan } from './galleries/materials';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
@@ -118,7 +119,7 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  * one on it, which is why these are on half-metres.
  */
 const SHOWCASE_SLOTS = [
-  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5,
+  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5,
 ] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
@@ -393,5 +394,9 @@ export function propPortals(
     // questions, so they get separate rooms standing side by side.
     galleryPortal(readablesGalleryPlan, gridDoor(8, 'timber', 6441)),
     galleryPortal(readablesShowcasePlan, gridDoor(9, 'timber', 6442)),
+    // The finish fixtures. Appended east rather than re-centring the rank —
+    // existing doors keep their positions, and the half-metre asymmetry is
+    // cheaper than moving ten doors.
+    galleryPortal(materialsGalleryPlan, gridDoor(10, 'timber', 6443)),
   ];
 }
