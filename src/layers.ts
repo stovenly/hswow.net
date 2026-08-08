@@ -109,3 +109,23 @@ export const COVER_LAYER = 4;
  * in bloom's emitters pass with no code in `Bloom.ts`.
  */
 export const PARTICLE_LAYER = 5;
+
+/**
+ * Crystal, glass and bubbles — **the third exception to the additive rule.**
+ *
+ * `glassMesh` calls `layers.set`, so a transmissive prop is on this layer and
+ * nothing else. Water's line, for water's reasons (SHADERS-AND-MATERIALS.md
+ * Track B): a surface that has to read the colour and depth of everything
+ * behind it cannot be in the opaque pass, because nothing can sample the buffer
+ * it is rendering into.
+ *
+ * - **No outline.** The fresnel rim *is* the outline, and a drawn one over it
+ *   would read as a sticker of a gem rather than a gem.
+ * - **No shadow, and no self-shadowing** of a surface light goes through. If a
+ *   chunky crystal ever reads as floating, the escape hatch is a shadow proxy:
+ *   a copy of the hull on layer 0 with `colorWrite` and `depthWrite` off, which
+ *   draws nothing and occludes nothing but appears in the shadow map.
+ * - **The refraction ray cannot hit the glass it left.** Absent from the depth
+ *   buffer, a transmissive surface has nothing of its own to intersect.
+ */
+export const GLASS_LAYER = 6;
