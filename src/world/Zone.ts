@@ -3,6 +3,7 @@ import type { RoomName } from '../audio/reverb';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
 import type { FogVolume } from '../engine/FogVolumes';
+import type { GlitchPlacement } from '../engine/Glitch';
 
 /**
  * A zone is a place: one contiguous piece of world you can walk around in.
@@ -202,6 +203,8 @@ const SETTLE_CLEARANCE = 0.12;
 
 /** Shared, so the common case of no fog allocates nothing on every crossing. */
 const EMPTY_FOG: readonly FogVolume[] = [];
+/** The same, for the common case of nothing corrupting. */
+const EMPTY_GLITCH: readonly GlitchPlacement[] = [];
 
 /** Where the player stands, and which way they look. */
 export interface Placement {
@@ -280,6 +283,17 @@ export interface ZoneDefinition {
    * uniforms on entry, the way the air is. At most eight are live at once.
    */
   readonly fogVolumes?: readonly FogVolume[];
+  /**
+   * Placed glitch volumes (GLITCH-SHADERS.md), in this zone's world space.
+   *
+   * On the definition rather than in `ZoneEnvironment` for `fogVolumes`'
+   * reason exactly: a volume has coordinates, so it cannot be shared between
+   * places. These are the free-standing kind — corruption that belongs to a
+   * *spot*. Corruption that belongs to an *object* is declared on the object
+   * with `markGlitched` (art/glitch.ts) and collected off the built zone, and
+   * it follows the object rather than the place.
+   */
+  readonly glitches?: readonly GlitchPlacement[];
   /** Builds the zone's geometry. Called once, lazily, on first entry. */
   build(): THREE.Group;
 }
@@ -325,6 +339,11 @@ export class Zone {
   /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
   get fogVolumes(): readonly FogVolume[] {
     return this.definition.fogVolumes ?? EMPTY_FOG;
+  }
+
+  /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
+  get glitches(): readonly GlitchPlacement[] {
+    return this.definition.glitches ?? EMPTY_GLITCH;
   }
 
   /**

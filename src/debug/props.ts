@@ -25,6 +25,7 @@ import { readablesGalleryPlan } from './galleries/readables';
 import { readablesShowcasePlan } from './galleries/readables-showcase';
 import { materialsGalleryPlan } from './galleries/materials';
 import { fabricsGalleryPlan } from './galleries/fabrics';
+import { glitchShowcasePlan } from './galleries/glitch';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
@@ -120,7 +121,7 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  * one on it, which is why these are on half-metres.
  */
 const SHOWCASE_SLOTS = [
-  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5,
+  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5,
 ] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
@@ -401,5 +402,8 @@ export function propPortals(
     galleryPortal(materialsGalleryPlan, gridDoor(10, 'timber', 6443)),
     // Fabric belongs to no setting either — it is a system, not a place.
     galleryPortal(fabricsGalleryPlan, gridDoor(11, 'timber', 6444)),
+    // Corruption is a system, not a place. Iron, because what is behind this
+    // door is a rig — a rank of figures being taken apart on purpose.
+    galleryPortal(glitchShowcasePlan, gridDoor(12, 'iron', 6445)),
   ];
 }

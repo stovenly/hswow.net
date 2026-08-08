@@ -10,6 +10,7 @@ import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { ClothActivity } from '../engine/ClothActivity';
+import { GlitchActivity } from '../engine/GlitchActivity';
 import type { Weather } from '../audio/weather';
 import { PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
@@ -130,6 +131,8 @@ export class ZoneManager {
   private readonly activity = new LightActivity();
   /** Every simulated cloth in every built zone. See `ClothActivity`. */
   private readonly cloth = new ClothActivity();
+  /** Every glitch volume in every built zone. See `GlitchActivity`. */
+  private readonly glitch = new GlitchActivity();
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -352,6 +355,7 @@ export class ZoneManager {
       this.clutter.delete(zone.id);
       this.activity.release(zone.id);
       this.cloth.release(zone.id);
+      this.glitch.release(zone.id);
       for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
 
       const soundscape = this.soundscapes.get(zone.id);
@@ -663,6 +667,9 @@ export class ZoneManager {
     this.clutter.set(zone.id, clutter);
     this.activity.collect(zone.id, root);
     this.cloth.collect(zone.id, root);
+    // Both attachment routes in one call: the definition's free-standing
+    // placements, and whatever a builder marked with `markGlitched`.
+    this.glitch.collect(zone.id, root, zone.glitches);
 
     return root;
   }
@@ -804,6 +811,7 @@ export class ZoneManager {
     this.clutter.clear();
     this.activity.clear();
     this.cloth.clear();
+    this.glitch.clear();
   }
 
   /**
@@ -812,6 +820,16 @@ export class ZoneManager {
    */
   updateCloth(dt: number, weather: Weather): void {
     this.cloth.update(this.active?.id ?? null, dt, weather, this.options.player.camera.position);
+  }
+
+  /**
+   * Packs the active zone's glitch volumes into the shared uniform store.
+   * Called from the loop after the clock is current and before the frame that
+   * reads it — attached volumes re-read their object's world matrix here,
+   * which is what lets corruption follow a thing rather than a place.
+   */
+  updateGlitch(elapsed: number): void {
+    this.glitch.update(this.active?.id ?? null, elapsed, this.options.player.camera.position);
   }
 
   /** Collider wireframes for the fabrics gallery's no-clipping row. Dev only. */

@@ -28,6 +28,7 @@ import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
+import { setGlitchOverride, setGlitchFrozen } from './engine/GlitchActivity';
 import { updateCover } from './art/cover';
 import { updateParticles } from './art/particles';
 import { installReloadBanner } from './debug/HotReload';
@@ -563,6 +564,21 @@ if (dev.gui) {
     .add(clothState, 'wireframes')
     .name('collider wireframes')
     .onChange((on: boolean) => zones.setClothWireframes(on));
+
+  // The glitch showcase's station controls (GLITCH-SHADERS.md §7): a steady
+  // strength override so any rung of the ladder can be judged without waiting
+  // on a burst, a freeze that holds the clock mid-burst, and the pass switch.
+  // Not in the player's menu; see `PostFX.setGlitch`.
+  const glitchFolder = dev.gui.addFolder('glitch');
+  const glitchState = { enabled: true, override: false, strength: 0.5, frozen: false };
+  const applyGlitchOverride = (): void =>
+    setGlitchOverride(glitchState.override ? glitchState.strength : null);
+  glitchFolder
+    .add(glitchState, 'enabled')
+    .onChange((on: boolean) => postfx.setGlitch(on));
+  glitchFolder.add(glitchState, 'override').name('steady override').onChange(applyGlitchOverride);
+  glitchFolder.add(glitchState, 'strength', 0, 1, 0.01).onChange(applyGlitchOverride);
+  glitchFolder.add(glitchState, 'frozen').onChange((on: boolean) => setGlitchFrozen(on));
   // Bound through the active zone's soundscape rather than to a model directly.
   // A zone declares its sound as data and the models are built on entry, so a
   // panel that captured one at startup would be tuning the proving ground's
@@ -858,6 +874,10 @@ loop.add((dt, elapsed) => {
   // field the trees just bent to, so a gust arrives at the flag and the tree
   // beside it on the same frame.
   zones.updateCloth(dt, audio.weather);
+  // Packs the active zone's glitch volumes for the frame about to be drawn —
+  // attached volumes follow their object's matrix, so this has to run after
+  // everything that moves and before the render that reads the uniforms.
+  zones.updateGlitch(elapsed);
   // After the wind, for the same reason: the cover reads the gust field the
   // trees just took. This ships the width clamp, the tread and the backlight.
   updateCover(viewport.camera, postfx.artHeight, player.position, zones.lights.sun);
