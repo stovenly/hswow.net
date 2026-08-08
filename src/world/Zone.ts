@@ -299,6 +299,8 @@ export class Zone {
   private group: THREE.Group | null = null;
   /** Set when the zone is built, by looking. See `hasWater`. */
   private water = false;
+  /** The same, for the transmissive pass. See `hasGlass`. */
+  private glass = false;
 
   constructor(definition: ZoneDefinition) {
     this.definition = definition;
@@ -344,6 +346,14 @@ export class Zone {
     return this.water;
   }
 
+  /**
+   * Whether anything in this zone is transmissive (Track B). Observed on the
+   * build traversal above, for `hasWater`'s reasons exactly.
+   */
+  get hasGlass(): boolean {
+    return this.glass;
+  }
+
   get floor(): number {
     return this.definition.floor ?? -20;
   }
@@ -374,8 +384,10 @@ export class Zone {
       // Once, here, rather than on every crossing: the answer cannot change
       // without the geometry being rebuilt, and this is where that happens.
       this.water = false;
+      this.glass = false;
       this.group.traverse((object) => {
         if (object.userData.water === true) this.water = true;
+        if (object.userData.glass === true) this.glass = true;
       });
     }
     return this.group;
@@ -416,5 +428,6 @@ export class Zone {
     // Recomputed on the next build. Left true, a released zone would have the
     // water pass running in whatever room the player walked into instead.
     this.water = false;
+    this.glass = false;
   }
 }

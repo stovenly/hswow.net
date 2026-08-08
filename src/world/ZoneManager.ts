@@ -482,6 +482,7 @@ export class ZoneManager {
       // Read off what was actually built rather than off a declaration, which
       // is why this is safe to ask here: `root()` ran a few lines up.
       water: zone.hasWater,
+      glass: zone.hasGlass,
     });
 
     this.lights.sun.intensity = env.sunIntensity;

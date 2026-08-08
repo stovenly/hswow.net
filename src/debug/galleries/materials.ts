@@ -17,6 +17,10 @@ import { waxenOrb } from '../../art/builders/waxen-orb';
 import { marbleOrb } from '../../art/builders/marble-orb';
 import { silkDrape } from '../../art/builders/silk-drape';
 import { velvetDrape } from '../../art/builders/velvet-drape';
+import { crystalGem } from '../../art/builders/crystal-gem';
+import { amethystGem } from '../../art/builders/amethyst-gem';
+import { bubbleOrb } from '../../art/builders/bubble-orb';
+import { glassPaneProp } from '../../art/builders/glass-pane';
 
 /**
  * The Materials Gallery: the finish stage, judged in daylight.
@@ -59,6 +63,14 @@ const MATERIAL_BUILDERS = [
   // Cloth, which wants a different shape entirely.
   silkDrape,
   velvetDrape,
+  // The transmissive family — a different material and a different pass, so
+  // they stand last. Each isolates one term: the gem is refraction broken by
+  // facets, the amethyst is the same cut absorbing hard, the pane is one flat
+  // normal with no dispersion, and the bubble is fresnel and film alone.
+  crystalGem,
+  amethystGem,
+  glassPaneProp,
+  bubbleOrb,
 ];
 
 export const materialsGalleryPlan: GalleryPlan = {

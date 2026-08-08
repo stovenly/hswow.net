@@ -354,6 +354,12 @@ if (dev.gui) {
     .name('screen-space reflections')
     .onChange(refresh);
 
+  // Dev-only for water's reason — a crystal is part of the place. The recipes
+  // live in `GLASSES`; this scales how far the image behind is bent, and the
+  // march rides water's own switch above rather than growing a second one.
+  const glass = dev.gui.addFolder('glass');
+  glass.add(r.glass, 'refraction', 0, 2, 0.05).onChange(refresh);
+
   // The player has one dropdown; the shape is tuned here, as multipliers over
   // the type table in world/ground.ts, which is authored in real units.
   const cover = dev.gui.addFolder('groundcover');

@@ -9,6 +9,8 @@ import { FogVolumesEffect, type FogVolume } from './FogVolumes';
 import { WaterEffect } from './Water';
 import { UnderwaterEffect } from './Underwater';
 import { WATER_MATERIAL } from '../art/water';
+import { GlassEffect } from './Glass';
+import { glassUniforms } from '../art/glass';
 import { ParticlesEffect } from './Particles';
 import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
@@ -149,6 +151,17 @@ export interface RenderSettings {
   finish: { specular: number; environment: number };
 
   /**
+   * The transmissive family (Track B / M3). `refraction` scales how far the
+   * image behind a crystal is bent — 0 is a clear pane, 1 is what the indices
+   * in `GLASSES` actually say.
+   *
+   * Nothing per-prop here for the same reason water has nothing per-pond: a
+   * recipe rides on per-vertex attributes placed with the geometry. The march
+   * is not duplicated either — glass rides `water.reflections`.
+   */
+  glass: { refraction: number };
+
+  /**
    * Groundcover (GROUNDCOVER.md). Tuning multipliers over the type table.
    *
    * `density` is the fraction of sampled blades drawn, 0..1 — the cost knob.
@@ -256,6 +269,10 @@ export const DEFAULT_RENDER: RenderSettings = {
   // Unity both: the lobes are authored in the shader against these at 1, and
   // the finish profiles themselves live in `FINISHES`, not here.
   finish: { specular: 1, environment: 1 },
+
+  // Unity: the indices in `GLASSES` are real refractive indices, and this is
+  // the multiplier for asking what half of that looks like.
+  glass: { refraction: 1 },
 
   // Unity: the type table in world/ground.ts is authored in real metres and
   // real blades per square metre, and these only bend it for tuning.
@@ -386,6 +403,11 @@ export interface ZoneAir {
    * in a room with no pond. Observed, not declared — see `Zone.hasWater`.
    */
   water?: boolean;
+  /**
+   * Whether this zone has any crystal, glass or bubbles in it (Track B).
+   * Observed, not declared — see `Zone.hasGlass`.
+   */
+  glass?: boolean;
 }
 
 export class PostFX {
@@ -397,6 +419,7 @@ export class PostFX {
   private readonly gtao: GTAOEffect;
   private readonly water: WaterEffect;
   private readonly underwater: UnderwaterEffect;
+  private readonly glass: GlassEffect;
   private readonly fog: FogVolumesEffect;
   private readonly particles: ParticlesEffect;
   private readonly bloom: BloomEffect;
@@ -460,6 +483,7 @@ export class PostFX {
       bloom: { ...DEFAULT_RENDER.bloom, ...saved.bloom },
       water: { ...DEFAULT_RENDER.water, ...saved.water },
       finish: { ...DEFAULT_RENDER.finish, ...saved.finish },
+      glass: { ...DEFAULT_RENDER.glass, ...saved.glass },
       // A preset saved by the shell-era cover stored different keys with
       // different units; carrying them over would misread badly.
       cover:
@@ -506,6 +530,9 @@ export class PostFX {
     // water rather than its boundary, so it runs over every pixel in the frame
     // rather than over the pixels a pond covers. See `Underwater.ts`.
     this.underwater = new UnderwaterEffect();
+    // The last of the surfaces, and the one that reads all the others: a
+    // crystal over a pond refracts the pond. See `Glass.ts`.
+    this.glass = new GlassEffect();
     this.fog = new FogVolumesEffect();
     // After the fog and before bloom, and both of those are load-bearing —
     // see `Particles.ts`.
@@ -515,6 +542,7 @@ export class PostFX {
       this.gtao,
       this.water,
       this.underwater,
+      this.glass,
       this.fog,
       this.particles,
       this.bloom,
@@ -548,6 +576,9 @@ export class PostFX {
     // Same instant, same reason. A pass that walks the scene graph looking for
     // water must not be running in a room that has none.
     this.water.setActive(air?.water ?? false);
+    // Same instant, same reason: the transmissive pass walks the scene graph
+    // and must not run in a room with no glass in it.
+    this.glass.setActive(air?.glass ?? false);
     this.apply();
   }
 
@@ -771,6 +802,16 @@ export class PostFX {
     // every reflection is the analytic sky, which is what a miss would have
     // returned anyway.
     w.uReflections.value = s.water.reflections ? 1 : 0;
+
+    // Glass follows water exactly: part of the place rather than a player
+    // option, so the pass runs wherever a crystal stands and nowhere else. It
+    // rides water's reflection switch — one march, one decision about it.
+    this.glass.enabled = this.glass.hasGlass;
+    glassUniforms.uGlassReflections.value = s.water.reflections ? 1 : 0;
+    glassUniforms.uGlassRefraction.value = s.glass.refraction;
+    // The same flag the finish stage reads: indoors there is no sky to mirror,
+    // and a crystal reflecting one would be a hole in the ceiling.
+    glassUniforms.uGlassSky.value = this.air === null || this.air.sky ? 1 : 0;
 
     this.bloom.enabled = this.glow && s.bloom.strength > 0;
     this.bloom.strength = s.bloom.strength;

@@ -1,9 +1,11 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MeshBuilder } from './types';
 import { assemble, finish, type Part } from './assemble';
 import { createRng } from './random';
 import { PALETTE } from './palette';
 import type { Finish, FinishName, Grain } from './finish';
+import { glassMesh, type Glass, type GlassName } from './glass';
 
 /**
  * Gallery fixtures for the finish stage (SHADERS-AND-MATERIALS.md, M0–M2): a
@@ -292,6 +294,180 @@ export function finishColumn(name: string, color: number, coat: FinishName | Fin
       geometry.rotateY(turn);
       if (scale !== 1) geometry.scale(scale, scale, scale);
       return finish(geometry, name, 0);
+    },
+  };
+}
+
+/**
+ * A cut gem on a plinth — the transmissive fixture (Track B / M3).
+ *
+ * **Faceted on purpose, and the facets are the whole demonstration.** The
+ * refracted image is computed per fragment from that fragment's normal, so a
+ * hard facet boundary makes the world behind the gem *jump* across it — which
+ * is what a cut stone does and what separates crystal from a bubble of glass.
+ * `toNonIndexed` then `computeVertexNormals` is what makes them hard: on
+ * un-indexed geometry that assigns each triangle its own face normal.
+ *
+ * A crown over a pavilion, eight facets round, which is the classic silhouette
+ * at the fewest triangles that still reads as cut.
+ */
+export function glassGem(name: string, kind: GlassName | Glass): MeshBuilder {
+  return {
+    name,
+    category: 'objects',
+    radius: 0.7,
+
+    build({ seed = 1, scale = 1 } = {}) {
+      const rng = createRng(seed);
+
+      const stand = rng.range(0.5, 0.75);
+      const across = rng.range(0.34, 0.46);
+      const plinth = new THREE.BoxGeometry(across, stand, across);
+      plinth.translate(0, stand / 2, 0);
+      plinth.rotateY(rng.around(0, 0.4));
+      const base = finish(
+        assemble([{ geometry: plinth, color: PALETTE.STONE_DARK, sway: 0 }]),
+        name,
+        0,
+      );
+
+      const girdle = rng.range(0.17, 0.24);
+      const crownHeight = girdle * rng.range(0.5, 0.7);
+      const pavilionDepth = girdle * rng.range(1.2, 1.6);
+      const table = girdle * rng.range(0.5, 0.62);
+
+      // **Open-ended, and the hull carries no interior face anywhere.** The
+      // glass pass does not depth test — it composites in draw order — so a
+      // cap left inside the stone would simply paint over the outside of it.
+      // A convex hull of front faces alone cannot overlap itself, which is what
+      // makes the whole material safe without a depth buffer.
+      const crown = new THREE.CylinderGeometry(
+        table,
+        girdle,
+        crownHeight,
+        8,
+        1,
+        true,
+      ).toNonIndexed();
+      crown.translate(0, pavilionDepth + crownHeight / 2, 0);
+      // Radius zero at the bottom: a true apex, so the point needs no cap.
+      const pavilion = new THREE.CylinderGeometry(
+        girdle,
+        0,
+        pavilionDepth,
+        8,
+        1,
+        true,
+      ).toNonIndexed();
+      pavilion.translate(0, pavilionDepth / 2, 0);
+      // The table, the one flat face a cut stone has. Its fan starts at the
+      // same angle the cylinders' rings do, so the rim meets the crown exactly.
+      const top = new THREE.CircleGeometry(table, 8).toNonIndexed();
+      top.rotateX(-Math.PI / 2);
+      top.translate(0, pavilionDepth + crownHeight, 0);
+
+      const hull = mergeGeometries([crown, pavilion, top], false);
+      crown.dispose();
+      pavilion.dispose();
+      top.dispose();
+      if (!hull) throw new Error('glassGem: hull did not merge');
+      hull.computeVertexNormals();
+      hull.rotateY(rng() * Math.PI);
+      hull.translate(0, stand + girdle * 0.35, 0);
+      if (scale !== 1) hull.scale(scale, scale, scale);
+
+      base.add(glassMesh(hull, kind, `${name}-hull`));
+      return base;
+    },
+  };
+}
+
+/**
+ * A bubble, floating just clear of its plinth.
+ *
+ * The same material at the thin-film limit: an index barely above air, almost
+ * nothing to absorb, and all of its colour in the fresnel rim. Smooth-normalled
+ * rather than faceted — a bubble has no facets, and leaving the sphere's own
+ * normals alone is how it says so.
+ */
+export function glassBubble(name: string, kind: GlassName | Glass): MeshBuilder {
+  return {
+    name,
+    category: 'objects',
+    radius: 0.7,
+
+    build({ seed = 1, scale = 1 } = {}) {
+      const rng = createRng(seed);
+
+      const stand = rng.range(0.4, 0.6);
+      const across = rng.range(0.34, 0.46);
+      const plinth = new THREE.BoxGeometry(across, stand, across);
+      plinth.translate(0, stand / 2, 0);
+      plinth.rotateY(rng.around(0, 0.4));
+      const base = finish(
+        assemble([{ geometry: plinth, color: PALETTE.STONE_DARK, sway: 0 }]),
+        name,
+        0,
+      );
+
+      const radius = rng.range(0.26, 0.34);
+      const shell = new THREE.SphereGeometry(radius, 20, 14);
+      shell.translate(0, stand + radius * 1.25, 0);
+      if (scale !== 1) shell.scale(scale, scale, scale);
+
+      base.add(glassMesh(shell, kind, `${name}-shell`));
+      return base;
+    },
+  };
+}
+
+/**
+ * An upright slab in a timber frame — glass with the dispersion turned off.
+ *
+ * The flat counterpart to the gem: one normal over the whole sheet, so the
+ * image behind shifts as a body instead of breaking facet to facet. The thing
+ * to look at when asking whether the refraction offset is honest.
+ */
+export function glassPane(name: string, kind: GlassName | Glass): MeshBuilder {
+  return {
+    name,
+    category: 'objects',
+    radius: 0.9,
+
+    build({ seed = 1, scale = 1 } = {}) {
+      const rng = createRng(seed);
+      const parts: Part[] = [];
+
+      const span = rng.range(0.9, 1.2);
+      const stand = rng.range(1.5, 1.8);
+      const post = 0.07;
+      // A slab rather than a sheet. The shader measures depth along each face's
+      // own normal, so window glass refracts by about a millimetre — true, and
+      // nothing to look at. This is thick enough to shift the room behind it.
+      const thickness = rng.range(0.13, 0.17);
+      const frame = thickness + post * 0.6;
+
+      for (const side of [-1, 1]) {
+        const leg = new THREE.BoxGeometry(post, stand, frame);
+        leg.translate((side * span) / 2, stand / 2, 0);
+        parts.push({ geometry: leg, color: PALETTE.TIMBER_DARK, sway: 0 });
+      }
+      const rail = new THREE.BoxGeometry(span + post * 1.7, post * 0.85, frame);
+      rail.translate(0, stand - post * 0.55, 0);
+      parts.push({ geometry: rail, color: PALETTE.TIMBER_DARK, sway: 0 });
+      const sill = new THREE.BoxGeometry(span + post * 1.7, post * 0.85, frame);
+      sill.translate(0, post * 1.4, 0);
+      parts.push({ geometry: sill, color: PALETTE.TIMBER_DARK, sway: 0 });
+
+      const base = finish(assemble(parts), name, 0);
+
+      const height = stand - post * 2.4;
+      const glass = new THREE.BoxGeometry(span - post * 1.4, height, thickness);
+      glass.translate(0, post * 1.9 + height / 2, 0);
+      if (scale !== 1) glass.scale(scale, scale, scale);
+
+      base.add(glassMesh(glass, kind, `${name}-pane`));
+      return base;
     },
   };
 }
