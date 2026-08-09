@@ -27,6 +27,16 @@ import type { GlitchEffectName, GlitchSpec } from '../engine/Glitch';
  * to invalidate on a zone crossing, and the depth pass hashes the same slots
  * the colour pass does, so a shattered face casts the shadow of where it went.
  *
+ * **The underside of a volume is a cut, not a fade.** Every other face feathers
+ * over its outer third so the volume never shows its own edge; below
+ * `centre.y - size.y` a volume simply stops, and between the base and the
+ * centre there is no vertical falloff at all. Site the base at the underside of
+ * what the volume is for and the thing is covered whole with nothing beneath it
+ * touched — which a soft bottom cannot do, since a volume must reach an
+ * object's base to cover it, an object on the ground has its base at the
+ * ground, and this pass corrupts whatever a pixel hit without knowing which
+ * mesh drew it.
+ *
  * Per-face effects lean on the kit being non-indexed: three consecutive
  * vertices are one triangle, so gl_VertexID / 3 is a stable face id in every
  * pass. If kit geometry is ever re-indexed or instanced, shatter, erode and
@@ -144,7 +154,10 @@ function vertexChunk(varyings: boolean): string {
       float gSeed = 0.0;
       for (int gi = 0; gi < ${MAX_GLITCHES}; gi++) {
         if (gi >= uGlitchCount) break;
-        vec3 gd = abs(glitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
+        vec3 grel = (glitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
+        // The underside is a cut, not a fade. See the note on the store.
+        if (grel.y < -1.0) continue;
+        vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
         float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
         float gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
         if (gin > gAmt) {
@@ -242,7 +255,9 @@ if (uGlitchCount > 0) {
   vec4 gParams = vec4(0.0);
   for (int gi = 0; gi < ${MAX_GLITCHES}; gi++) {
     if (gi >= uGlitchCount) break;
-    vec3 gd = abs(vGlitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
+    vec3 grel = (vGlitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
+    if (grel.y < -1.0) continue;
+    vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
     float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
     float gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
     if (gin > gAmt) {

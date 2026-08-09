@@ -447,11 +447,18 @@ Both tiers shipped together, with these deltas from the plan above:
   WebGL2) rather than the finish stage's `aFace` attribute, because the
   depth and normal materials don't carry the finish patch and a duplicate
   attribute declaration would break the surface program.
-- **The showcase is rows-by-effect**: walking west to east crosses
-  `all-effects`, the fifteen effects in ladder order, three combination
-  recipes (`bad-signal`, `data-rot`, `coming-apart` — working names), a
-  `fully-corrupt` centrepiece, and the free-standing `anomaly`. Strength
-  climbs down every row, faint at the sign.
+- **The showcase is rows-by-effect, and only that**: walking west to east
+  crosses the fifteen effects in ladder order, then the free-standing
+  `anomaly`. Strength climbs down every row, faint at the sign, with the steps
+  placed inside each effect's own onset..1 span.
+- **Combinations moved out** to the `object-effects` room (door 14), shared
+  with the horror system — the recipes (`bad-signal`, `data-rot`,
+  `coming-apart`, all working names), each system's whole ladder, the
+  crossings between the two, and everything at once. Down each of its rows the
+  combination is held and the *subject* changes — figure, bovine, barrel,
+  crate, chair, small-oak, hanging orb — which is the question a rank of
+  identical figures cannot answer. Two axes, two rooms: a station here differs
+  from its neighbour in exactly one way.
 - The dev override is **steady** (bursts suspended) since it exists for
   judging; `frozen` holds the burst clock instead.
 

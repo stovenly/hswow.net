@@ -16,6 +16,8 @@ import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
 import { GlitchEffect } from './Glitch';
 import { applyGlitchDisplacement, glitchUniforms } from '../art/glitch';
+import { HorrorEffect } from './Horror';
+import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
@@ -426,6 +428,7 @@ export class PostFX {
   private readonly particles: ParticlesEffect;
   private readonly bloom: BloomEffect;
   private readonly glitchFx: GlitchEffect;
+  private readonly horrorFx: HorrorEffect;
   private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
@@ -448,6 +451,8 @@ export class PostFX {
   private volumetrics = true;
   /** Dev-only, for the fog volumes' reason. See `setGlitch`. */
   private glitching = true;
+  /** Dev-only, glitch's twin. See `setHorror`. */
+  private haunting = true;
   private glow = true;
   /** The accessibility switch, not a look setting. See `setWaterMotion`. */
   private waves = true;
@@ -519,6 +524,8 @@ export class PostFX {
     // too, and an outline traced around undisplaced geometry would stand as a
     // calm ghost of the shape mid-convulsion. See `art/glitch.ts`.
     applyGlitchDisplacement(this.pixelStage.normalMaterial);
+    // And once more for horror: a trembling figure's outline trembles with it.
+    applyHorrorDisplacement(this.pixelStage.normalMaterial);
 
     // The effect slot, in order. Registered once each; on/off is the effect's
     // own flag, set in `apply`.
@@ -547,6 +554,9 @@ export class PostFX {
     // see `Particles.ts`.
     this.particles = new ParticlesEffect();
     this.bloom = new BloomEffect();
+    // The horror shroud sits just under the glitch pass: darkness pools over
+    // the bloomed, fogged scene, and corruption can still tear the darkness.
+    this.horrorFx = new HorrorEffect();
     // Last in the chain, and the position is a statement: corruption tears
     // everything the object contributes — its bloom halo, the fog in front of
     // it — and still lands upstream of the retro pass, so the whole mess gets
@@ -561,6 +571,7 @@ export class PostFX {
       this.fog,
       this.particles,
       this.bloom,
+      this.horrorFx,
       this.glitchFx,
     );
 
@@ -688,6 +699,11 @@ export class PostFX {
    */
   setGlitch(enabled: boolean): void {
     this.glitching = enabled;
+  }
+
+  /** Turns the horror stage's screen pass off. **Dev-facing only**, as glitch. */
+  setHorror(enabled: boolean): void {
+    this.haunting = enabled;
   }
 
   /**
@@ -983,6 +999,7 @@ export class PostFX {
     // Zero volumes skips the pass outright, which is every zone that placed
     // none.
     this.glitchFx.enabled = this.glitching && glitchUniforms.uGlitchCount.value > 0;
+    this.horrorFx.enabled = this.haunting && horrorUniforms.uHorrorCount.value > 0;
     // The same clock the sky drifts on, handed to the effect chain; the fog
     // volumes and the glitch pass read it. See `EffectContext.time` on why
     // knowing the time is not the temporal accumulation the ground rules

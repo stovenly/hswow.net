@@ -4,6 +4,7 @@ import type { SurfaceName } from '../audio/models/footsteps';
 import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
 import type { FogVolume } from '../engine/FogVolumes';
 import type { GlitchPlacement } from '../engine/Glitch';
+import type { HorrorPlacement } from '../engine/Horror';
 
 /**
  * A zone is a place: one contiguous piece of world you can walk around in.
@@ -205,6 +206,8 @@ const SETTLE_CLEARANCE = 0.12;
 const EMPTY_FOG: readonly FogVolume[] = [];
 /** The same, for the common case of nothing corrupting. */
 const EMPTY_GLITCH: readonly GlitchPlacement[] = [];
+/** And the same again, for the common case of nothing haunted. */
+const EMPTY_HORROR: readonly HorrorPlacement[] = [];
 
 /** Where the player stands, and which way they look. */
 export interface Placement {
@@ -294,6 +297,12 @@ export interface ZoneDefinition {
    * it follows the object rather than the place.
    */
   readonly glitches?: readonly GlitchPlacement[];
+  /**
+   * Placed horror volumes (HORROR-SHADERS.md), in this zone's world space —
+   * `glitches`' twin. Object-bound hauntings are declared with `markHaunted`
+   * (art/horror.ts) and collected off the built zone instead.
+   */
+  readonly horrors?: readonly HorrorPlacement[];
   /** Builds the zone's geometry. Called once, lazily, on first entry. */
   build(): THREE.Group;
 }
@@ -344,6 +353,11 @@ export class Zone {
   /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
   get glitches(): readonly GlitchPlacement[] {
     return this.definition.glitches ?? EMPTY_GLITCH;
+  }
+
+  /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
+  get horrors(): readonly HorrorPlacement[] {
+    return this.definition.horrors ?? EMPTY_HORROR;
   }
 
   /**

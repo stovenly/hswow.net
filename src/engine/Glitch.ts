@@ -215,7 +215,13 @@ function createGlitchMaterial(): THREE.ShaderMaterial {
         float gSeed = 0.0;
         for (int i = 0; i < ${MAX_GLITCHES}; i++) {
           if (i >= uCount) break;
-          vec3 d = abs(world - uCentre[i].xyz) / uSize[i].xyz;
+          vec3 rel = (world - uCentre[i].xyz) / uSize[i].xyz;
+          // The underside is a cut, not a fade — see art/glitch.ts. This is
+          // the pass the rule exists for: it corrupts whatever a pixel hit, and
+          // a volume reaching below its subject tears the floor beneath it.
+          // (No backticks in this source: it is a template literal.)
+          if (rel.y < -1.0) continue;
+          vec3 d = vec3(abs(rel.x), max(rel.y, 0.0), abs(rel.z));
           float e = uCentre[i].w > 0.5 ? max(d.x, max(d.y, d.z)) : length(d);
           // Feathered toward the shell, so the volume never shows its own edge.
           float w = (1.0 - smoothstep(0.7, 1.0, e)) * uSize[i].w;

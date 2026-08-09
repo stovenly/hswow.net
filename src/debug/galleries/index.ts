@@ -10,6 +10,8 @@ import { readablesShowcasePlan } from './readables-showcase';
 import { materialsGalleryPlan } from './materials';
 import { fabricsGalleryPlan } from './fabrics';
 import { glitchShowcasePlan } from './glitch';
+import { horrorShowcasePlan } from './horror';
+import { objectEffectsPlan } from './object-effects';
 import {
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
@@ -44,6 +46,8 @@ export const GALLERIES: readonly GalleryPlan[] = [
   materialsGalleryPlan,
   fabricsGalleryPlan,
   glitchShowcasePlan,
+  horrorShowcasePlan,
+  objectEffectsPlan,
 ];
 
 export { galleryZone, galleryDoor, galleryPortal, rowPosition } from './layout';
@@ -59,6 +63,8 @@ export { ZONE_READABLES_SHOWCASE } from './readables-showcase';
 export { ZONE_MATERIALS_GALLERY } from './materials';
 export { ZONE_FABRICS_GALLERY } from './fabrics';
 export { ZONE_GLITCH_SHOWCASE } from './glitch';
+export { ZONE_HORROR_SHOWCASE } from './horror';
+export { ZONE_OBJECT_EFFECTS } from './object-effects';
 export {
   ZONE_GALLERY_VILLAGE_INTERIOR,
   ZONE_GALLERY_VILLAGE_EXTERIOR,
