@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EFFECT_ATTRIBUTE } from './effectId';
 import type { GlitchEffectName, GlitchSpec } from '../engine/Glitch';
 
 /**
@@ -27,15 +28,13 @@ import type { GlitchEffectName, GlitchSpec } from '../engine/Glitch';
  * to invalidate on a zone crossing, and the depth pass hashes the same slots
  * the colour pass does, so a shattered face casts the shadow of where it went.
  *
- * **The underside of a volume is a cut, not a fade.** Every other face feathers
- * over its outer third so the volume never shows its own edge; below
- * `centre.y - size.y` a volume simply stops, and between the base and the
- * centre there is no vertical falloff at all. Site the base at the underside of
- * what the volume is for and the thing is covered whole with nothing beneath it
- * touched — which a soft bottom cannot do, since a volume must reach an
- * object's base to cover it, an object on the ground has its base at the
- * ground, and this pass corrupts whatever a pixel hit without knowing which
- * mesh drew it.
+ * **Attached volumes are gated by identity, free-standing ones by space.** An
+ * attached volume (owner id folded into `uGlitchCentre.w`, see
+ * art/effectId.ts) corrupts exactly the vertices and pixels carrying its id —
+ * whole object, full strength, floor immune at any distance. A free-standing
+ * volume keeps the spatial test, and for it the underside is a cut rather
+ * than a fade: below `centre.y - size.y` it simply stops, so one sited on a
+ * surface covers what stands there without corrupting what it stands on.
  *
  * Per-face effects lean on the kit being non-indexed: three consecutive
  * vertices are one triangle, so gl_VertexID / 3 is a stable face id in every
@@ -89,7 +88,7 @@ function vec4Array(length: number): THREE.Vector4[] {
  * every compiled art program *and* the screen pass — the `windUniforms`
  * mechanism. Lane packing is fixed and mirrored in `GlitchActivity.pack`:
  *
- * - `uGlitchCentre`  xyz centre, w shape (0 sphere, 1 box)
+ * - `uGlitchCentre`  xyz centre, w = shape (0 sphere, 1 box) + 2 × owner id
  * - `uGlitchSize`    xyz radii / half-extents, w strength × burst
  * - `uGlitchVertexW`  jitter, slice, shatter, stutter
  * - `uGlitchSurfaceW` palette-rot, facet-flash, crush, static-fill
@@ -126,7 +125,11 @@ function vertexDecls(varyings: boolean): string {
   uniform vec4 uGlitchSize[${MAX_GLITCHES}];
   uniform vec4 uGlitchVertexW[${MAX_GLITCHES}];
   uniform vec4 uGlitchParams[${MAX_GLITCHES}];
-  ${varyings ? 'varying vec3 vGlitchWorld;\n  varying float vGlitchFace;' : ''}
+  #ifndef EFFECT_OWNER_ATTRIBUTE
+  #define EFFECT_OWNER_ATTRIBUTE
+  attribute float ${EFFECT_ATTRIBUTE};
+  #endif
+  ${varyings ? 'varying vec3 vGlitchWorld;\n  varying float vGlitchFace;\n  varying float vGlitchId;' : ''}
 
   float glitchHash(vec2 p) {
     return fract(sin(dot(p, vec2(41.3457, 289.97))) * 43758.5453);
@@ -147,6 +150,7 @@ function vertexDecls(varyings: boolean): string {
 function vertexChunk(varyings: boolean): string {
   return /* glsl */ `
   {
+    ${varyings ? `vGlitchId = ${EFFECT_ATTRIBUTE};` : ''}
     if (uGlitchCount > 0) {
       vec3 glitchWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
       float gAmt = 0.0;
@@ -154,12 +158,20 @@ function vertexChunk(varyings: boolean): string {
       float gSeed = 0.0;
       for (int gi = 0; gi < ${MAX_GLITCHES}; gi++) {
         if (gi >= uGlitchCount) break;
-        vec3 grel = (glitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
-        // The underside is a cut, not a fade. See the note on the store.
-        if (grel.y < -1.0) continue;
-        vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
-        float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
-        float gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
+        float gOwn = floor(uGlitchCentre[gi].w * 0.5 + 0.25);
+        float gin;
+        if (gOwn > 0.5) {
+          // Owned: membership is identity, not geometry — the whole object at
+          // full strength, and nothing that is not it. See art/effectId.ts.
+          gin = abs(${EFFECT_ATTRIBUTE} - gOwn) < 0.5 ? uGlitchSize[gi].w : 0.0;
+        } else {
+          vec3 grel = (glitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
+          // The underside is a cut, not a fade. See the note on the store.
+          if (grel.y < -1.0) continue;
+          vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
+          float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
+          gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
+        }
         if (gin > gAmt) {
           gAmt = gin;
           gVertW = uGlitchVertexW[gi];
@@ -236,6 +248,7 @@ uniform vec4 uGlitchSurfaceW[${MAX_GLITCHES}];
 uniform vec4 uGlitchParams[${MAX_GLITCHES}];
 varying vec3 vGlitchWorld;
 varying float vGlitchFace;
+varying float vGlitchId;
 
 float glitchHash(vec2 p) {
   return fract(sin(dot(p, vec2(41.3457, 289.97))) * 43758.5453);
@@ -255,11 +268,17 @@ if (uGlitchCount > 0) {
   vec4 gParams = vec4(0.0);
   for (int gi = 0; gi < ${MAX_GLITCHES}; gi++) {
     if (gi >= uGlitchCount) break;
-    vec3 grel = (vGlitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
-    if (grel.y < -1.0) continue;
-    vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
-    float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
-    float gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
+    float gOwn = floor(uGlitchCentre[gi].w * 0.5 + 0.25);
+    float gin;
+    if (gOwn > 0.5) {
+      gin = abs(vGlitchId - gOwn) < 0.5 ? uGlitchSize[gi].w : 0.0;
+    } else {
+      vec3 grel = (vGlitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
+      if (grel.y < -1.0) continue;
+      vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
+      float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
+      gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
+    }
     if (gin > gAmt) {
       gAmt = gin;
       gSurfW = uGlitchSurfaceW[gi];
@@ -357,6 +376,7 @@ export function applyGlitch(material: THREE.Material): void {
       .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${FRAGMENT_CHUNK}`);
   };
 
+  defaultEffectAttribute(material);
   material.customProgramCacheKey = () => 'sway-wear-detail-finish-glitch';
   material.needsUpdate = true;
 }
@@ -378,6 +398,20 @@ export function applyGlitchDisplacement(material: THREE.Material): void {
       .replace('#include <skinning_vertex>', `#include <skinning_vertex>\n${vertexChunk(false)}`);
   };
 
+  defaultEffectAttribute(material);
   material.customProgramCacheKey = () => 'sway-glitch';
   material.needsUpdate = true;
+}
+
+/**
+ * Unmarked geometry reads owner 0 — sway's `defaultAttributeValues` mechanism,
+ * for sway's reason: a missing attribute otherwise reads whatever the last
+ * draw left in the slot.
+ */
+function defaultEffectAttribute(material: THREE.Material): void {
+  const holder = material as { defaultAttributeValues?: Record<string, number[]> };
+  holder.defaultAttributeValues = {
+    ...holder.defaultAttributeValues,
+    [EFFECT_ATTRIBUTE]: [0],
+  };
 }

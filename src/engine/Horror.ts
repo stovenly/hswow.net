@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { horrorUniforms, HORROR_ONSETS, MAX_HORRORS } from '../art/horror';
+import { maskUniforms } from '../art/effectId';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
@@ -130,6 +131,7 @@ function createHorrorMaterial(): THREE.ShaderMaterial {
       uSize: horrorUniforms.uHorrorSize,
       uSurfaceW: horrorUniforms.uHorrorSurfaceW,
       uParams: horrorUniforms.uHorrorParams,
+      tEffectMask: maskUniforms.tEffectMask,
       uInverseProjectionView: { value: new THREE.Matrix4() },
       uCameraPosition: { value: new THREE.Vector3() },
       uFar: { value: 500 },
@@ -147,6 +149,7 @@ function createHorrorMaterial(): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform sampler2D tDiffuse;
       uniform sampler2D tDepth;
+      uniform sampler2D tEffectMask;
       uniform int uCount;
       uniform vec4 uCentre[${MAX_HORRORS}];
       uniform vec4 uSize[${MAX_HORRORS}];
@@ -204,24 +207,52 @@ function createHorrorMaterial(): THREE.ShaderMaterial {
           world = hit.xyz / hit.w;
         }
 
+        // The owner ids this pixel and a ring of neighbours show, 0 for none.
+        // An owned shroud clings to the silhouette rather than filling a box:
+        // full over the object itself, fading over the taps — darkness bleeding
+        // a few chunky pixels into the air around the thing. Free-standing
+        // volumes keep the spatial test; a wrong *place* wants the floor dark
+        // too. See art/effectId.ts. (No backticks in this source.)
+        vec2 mpx = 1.0 / uResolution;
+        float mask0 = texture2D(tEffectMask, vUv).r;
+        float ring1[4];
+        float ring2[4];
+        for (int k = 0; k < 4; k++) {
+          vec2 dir = k == 0 ? vec2(1.0, 0.0)
+            : k == 1 ? vec2(-1.0, 0.0)
+            : k == 2 ? vec2(0.0, 1.0)
+            : vec2(0.0, -1.0);
+          ring1[k] = texture2D(tEffectMask, vUv + dir * mpx * 2.0).r;
+          ring2[k] = texture2D(tEffectMask, vUv + dir * mpx * 4.0).r;
+        }
+
         // Shroud amount: strongest at a volume's heart, gone at its shell.
         float sh = 0.0;
         float shSeed = 0.0;
         float shPace = 1.0;
         for (int i = 0; i < ${MAX_HORRORS}; i++) {
           if (i >= uCount) break;
-          vec3 rel = (world - uCentre[i].xyz) / uSize[i].xyz;
-          // The underside is a cut, not a fade — see art/horror.ts. This is
-          // the pass the rule exists for: it grades whatever a pixel hit, and
-          // a volume reaching below its subject grades the floor beneath it.
-          // (No backticks in this source: it is a template literal.)
-          if (rel.y < -1.0) continue;
-          vec3 d = vec3(abs(rel.x), max(rel.y, 0.0), abs(rel.z));
-          float e = uCentre[i].w > 0.5 ? max(d.x, max(d.y, d.z)) : length(d);
-          float w = (1.0 - smoothstep(0.7, 1.0, e)) * uSize[i].w;
-          if (w <= 0.0) continue;
-          float a = smoothstep(${on('shroud')}, 1.0, w) * uSurfaceW[i].z;
-          float body = 1.0 - smoothstep(0.0, 1.0, e);
+          float own = uParams[i].w;
+          float a;
+          float body;
+          if (own > 0.5) {
+            a = smoothstep(${on('shroud')}, 1.0, uSize[i].w) * uSurfaceW[i].z;
+            body = abs(mask0 - own) < 0.5 ? 1.0 : 0.0;
+            for (int k = 0; k < 4; k++) {
+              if (abs(ring1[k] - own) < 0.5) body = max(body, 0.55);
+              if (abs(ring2[k] - own) < 0.5) body = max(body, 0.25);
+            }
+          } else {
+            vec3 rel = (world - uCentre[i].xyz) / uSize[i].xyz;
+            // The underside is a cut, not a fade — see art/horror.ts.
+            if (rel.y < -1.0) continue;
+            vec3 d = vec3(abs(rel.x), max(rel.y, 0.0), abs(rel.z));
+            float e = uCentre[i].w > 0.5 ? max(d.x, max(d.y, d.z)) : length(d);
+            float w = (1.0 - smoothstep(0.7, 1.0, e)) * uSize[i].w;
+            if (w <= 0.0) continue;
+            a = smoothstep(${on('shroud')}, 1.0, w) * uSurfaceW[i].z;
+            body = 1.0 - smoothstep(0.0, 1.0, e);
+          }
           if (a * body > sh) {
             sh = a * body;
             shSeed = uParams[i].x;

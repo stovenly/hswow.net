@@ -461,6 +461,15 @@ Both tiers shipped together, with these deltas from the plan above:
   from its neighbour in exactly one way.
 - The dev override is **steady** (bursts suspended) since it exists for
   judging; `frozen` holds the burst clock instead.
+- **Attached volumes are gated by owner identity, not by their faces**
+  (HORROR-SHADERS.md §3, shared machinery in art/effectId.ts and
+  engine/EffectMask.ts): a marked object's id is baked as a vertex attribute
+  and drawn into a chunky id mask each frame, and both the in-scene and
+  screen halves compare ids instead of testing the volume's geometry — whole
+  object, full strength, floor and neighbours immune. The owner id rides in
+  `uGlitchCentre.w` alongside the shape flag (`w = shape + 2 × id`).
+  Free-standing volumes keep the spatial test, with a hard-cut underside so a
+  placed anomaly can sit on a floor it deliberately corrupts.
 
 ## 12. Future-work interactions
 

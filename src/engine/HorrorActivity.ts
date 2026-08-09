@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { horrorUniforms, MAX_HORRORS } from '../art/horror';
+import { ownerIdFor, maskState } from '../art/effectId';
 import type { HorrorEffectName, HorrorPlacement, HorrorSpec } from './Horror';
 
 /**
@@ -54,6 +55,8 @@ interface Tracked {
   shape: number;
   seed: number;
   intSeed: number;
+  /** Owner id for attached volumes, 0 for free-standing. See art/effectId.ts. */
+  owner: number;
   /** Resolved weights, in `LANES` order. */
   lanes: Float32Array;
   distSq: number;
@@ -127,6 +130,7 @@ export class HorrorActivity {
 
       if (near.length > MAX_HORRORS) near.sort((a, b) => a.distSq - b.distSq);
 
+      let owned = 0;
       for (let i = 0; i < near.length && count < MAX_HORRORS; i++, count++) {
         const entry = near[i];
         const spec = entry.spec;
@@ -142,6 +146,7 @@ export class HorrorActivity {
           steady = strength;
           fit = Math.min(strength * sampleFit(entry.intSeed, spec.tempo ?? 1, strength, t), 1);
         }
+        if (entry.owner && steady > 0.004) owned++;
         const l = entry.lanes;
 
         (u.uHorrorCentre.value[count] as THREE.Vector4).set(
@@ -164,8 +169,16 @@ export class HorrorActivity {
           0,
         );
         (u.uHorrorSurfaceW.value[count] as THREE.Vector4).set(l[6], l[7], l[8], 0);
-        (u.uHorrorParams.value[count] as THREE.Vector4).set(entry.seed, fit, spec.tempo ?? 1, 0);
+        (u.uHorrorParams.value[count] as THREE.Vector4).set(
+          entry.seed,
+          fit,
+          spec.tempo ?? 1,
+          entry.owner,
+        );
       }
+      maskState.horror = owned;
+    } else {
+      maskState.horror = 0;
     }
 
     u.uHorrorCount.value = count;
@@ -203,6 +216,9 @@ function entryFor(
     shape: spec.shape === 'box' ? 1 : 0,
     seed: intSeed / 4294967296,
     intSeed,
+    // Assigning the id also bakes it into the object's geometry and puts the
+    // meshes on the mask layer — membership by identity, not by the volume.
+    owner: object ? ownerIdFor(object) : 0,
     lanes,
     distSq: 0,
   };

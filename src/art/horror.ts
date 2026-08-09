@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EFFECT_ATTRIBUTE } from './effectId';
 import type { HorrorEffectName, HorrorSpec } from '../engine/Horror';
 
 /**
@@ -66,26 +67,24 @@ function vec4Array(length: number): THREE.Vector4[] {
  * - `uHorrorVertexA`  tremor, judder, headshake, breathe
  * - `uHorrorVertexB`  stretch, lean, grounded flag, (spare)
  * - `uHorrorSurfaceW` pallor, flicker, shroud, (spare)
- * - `uHorrorParams`   seed, strength × fit envelope, tempo, (spare)
+ * - `uHorrorParams`   seed, strength × fit envelope, tempo, owner id
  *
  * Two strengths on purpose: the steady one drives the effects that must not
  * blink (a corpse-grey figure stays corpse-grey), the fit one drives the
  * motion effects, which arrive as fits between stillness.
  *
- * ## The underside of a volume is a cut, not a fade
+ * ## Attached volumes are gated by identity, free-standing ones by space
  *
- * Every other face feathers over its outer third so the volume never shows its
- * own edge. The bottom does not: below `centre.y - size.y` a volume simply
- * stops, and between the base and the centre there is no vertical falloff at
- * all. Site the base at the underside of what the volume is for and the thing
- * is covered whole, floor to top, with nothing underneath it touched.
- *
- * A soft bottom cannot do that job. A volume has to reach an object's base to
- * cover its base, an object standing on the ground has its base *at* the
- * ground, and the screen passes grade whatever a pixel hit without knowing
- * which mesh drew it — so any bottom falloff wide enough to be soft is wide
- * enough to grade the floor, and every choice of shape and padding only
- * decides whether the patch under the object is a square or a circle.
+ * An attached volume (owner id in `uHorrorParams.w`, see art/effectId.ts)
+ * affects exactly the vertices carrying its id, whole object at full strength,
+ * and its faces only anchor the effects — no spatial test can tell an
+ * object's base from the floor a centimetre under it, so every attempt left
+ * either the feet uncovered or the floor corrupted. A free-standing
+ * volume keeps the spatial test: its claim is that a *place* is wrong. For
+ * those, the underside is a cut rather than a fade — below `centre.y - size.y`
+ * the volume simply stops, with no vertical falloff between base and centre —
+ * so one sited on a surface can cover what stands there without grading what
+ * it stands on.
  */
 export const horrorUniforms = {
   uHorrorCount: { value: 0 },
@@ -115,7 +114,11 @@ function vertexDecls(varyings: boolean): string {
   uniform vec4 uHorrorVertexA[${MAX_HORRORS}];
   uniform vec4 uHorrorVertexB[${MAX_HORRORS}];
   uniform vec4 uHorrorParams[${MAX_HORRORS}];
-  ${varyings ? 'varying vec3 vHorrorWorld;' : ''}
+  #ifndef EFFECT_OWNER_ATTRIBUTE
+  #define EFFECT_OWNER_ATTRIBUTE
+  attribute float ${EFFECT_ATTRIBUTE};
+  #endif
+  ${varyings ? 'varying vec3 vHorrorWorld;\n  varying float vHorrorId;' : ''}
 
   float horrorHash(vec2 p) {
     return fract(sin(dot(p, vec2(37.219, 217.63))) * 43758.5453);
@@ -136,6 +139,7 @@ function vertexDecls(varyings: boolean): string {
 function vertexChunk(varyings: boolean): string {
   return /* glsl */ `
   {
+    ${varyings ? `vHorrorId = ${EFFECT_ATTRIBUTE};` : ''}
     if (uHorrorCount > 0) {
       vec3 hWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
       float hAmt = 0.0;
@@ -148,12 +152,20 @@ function vertexChunk(varyings: boolean): string {
       float hPace = 1.0;
       for (int hi = 0; hi < ${MAX_HORRORS}; hi++) {
         if (hi >= uHorrorCount) break;
-        vec3 hrel = (hWorld - uHorrorCentre[hi].xyz) / uHorrorSize[hi].xyz;
-        // The underside is a cut, not a fade. See the note on the store.
-        if (hrel.y < -1.0) continue;
-        vec3 hd = vec3(abs(hrel.x), max(hrel.y, 0.0), abs(hrel.z));
-        float he = uHorrorCentre[hi].w > 0.5 ? max(hd.x, max(hd.y, hd.z)) : length(hd);
-        float feather = 1.0 - smoothstep(0.7, 1.0, he);
+        float hOwn = uHorrorParams[hi].w;
+        float feather;
+        if (hOwn > 0.5) {
+          // Owned: membership is identity, not geometry — the whole object at
+          // full strength, and nothing that is not it. See art/effectId.ts.
+          feather = abs(${EFFECT_ATTRIBUTE} - hOwn) < 0.5 ? 1.0 : 0.0;
+        } else {
+          vec3 hrel = (hWorld - uHorrorCentre[hi].xyz) / uHorrorSize[hi].xyz;
+          // The underside is a cut, not a fade. See the note on the store.
+          if (hrel.y < -1.0) continue;
+          vec3 hd = vec3(abs(hrel.x), max(hrel.y, 0.0), abs(hrel.z));
+          float he = uHorrorCentre[hi].w > 0.5 ? max(hd.x, max(hd.y, hd.z)) : length(hd);
+          feather = 1.0 - smoothstep(0.7, 1.0, he);
+        }
         float hin = feather * uHorrorSize[hi].w;
         if (hin > hAmt) {
           hAmt = hin;
@@ -279,6 +291,7 @@ uniform vec4 uHorrorSize[${MAX_HORRORS}];
 uniform vec4 uHorrorSurfaceW[${MAX_HORRORS}];
 uniform vec4 uHorrorParams[${MAX_HORRORS}];
 varying vec3 vHorrorWorld;
+varying float vHorrorId;
 
 float horrorHash(vec2 p) {
   return fract(sin(dot(p, vec2(37.219, 217.63))) * 43758.5453);
@@ -323,11 +336,17 @@ if (uHorrorCount > 0) {
   float hPace = 1.0;
   for (int hi = 0; hi < ${MAX_HORRORS}; hi++) {
     if (hi >= uHorrorCount) break;
-    vec3 hrel = (vHorrorWorld - uHorrorCentre[hi].xyz) / uHorrorSize[hi].xyz;
-    if (hrel.y < -1.0) continue;
-    vec3 hd = vec3(abs(hrel.x), max(hrel.y, 0.0), abs(hrel.z));
-    float he = uHorrorCentre[hi].w > 0.5 ? max(hd.x, max(hd.y, hd.z)) : length(hd);
-    float hin = (1.0 - smoothstep(0.7, 1.0, he)) * uHorrorSize[hi].w;
+    float hOwn = uHorrorParams[hi].w;
+    float hin;
+    if (hOwn > 0.5) {
+      hin = abs(vHorrorId - hOwn) < 0.5 ? uHorrorSize[hi].w : 0.0;
+    } else {
+      vec3 hrel = (vHorrorWorld - uHorrorCentre[hi].xyz) / uHorrorSize[hi].xyz;
+      if (hrel.y < -1.0) continue;
+      vec3 hd = vec3(abs(hrel.x), max(hrel.y, 0.0), abs(hrel.z));
+      float he = uHorrorCentre[hi].w > 0.5 ? max(hd.x, max(hd.y, hd.z)) : length(hd);
+      hin = (1.0 - smoothstep(0.7, 1.0, he)) * uHorrorSize[hi].w;
+    }
     if (hin > hAmt) {
       hAmt = hin;
       hSurf = uHorrorSurfaceW[hi];
@@ -385,6 +404,7 @@ export function applyHorror(material: THREE.Material): void {
       .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${FRAGMENT_CHUNK}`);
   };
 
+  defaultEffectAttribute(material);
   material.customProgramCacheKey = () => 'sway-wear-detail-finish-glitch-horror';
   material.needsUpdate = true;
 }
@@ -405,6 +425,20 @@ export function applyHorrorDisplacement(material: THREE.Material): void {
       .replace('#include <skinning_vertex>', `#include <skinning_vertex>\n${vertexChunk(false)}`);
   };
 
+  defaultEffectAttribute(material);
   material.customProgramCacheKey = () => 'sway-glitch-horror';
   material.needsUpdate = true;
+}
+
+/**
+ * Unmarked geometry reads owner 0 — sway's `defaultAttributeValues` mechanism,
+ * for sway's reason: a missing attribute otherwise reads whatever the last
+ * draw left in the slot.
+ */
+function defaultEffectAttribute(material: THREE.Material): void {
+  const holder = material as { defaultAttributeValues?: Record<string, number[]> };
+  holder.defaultAttributeValues = {
+    ...holder.defaultAttributeValues,
+    [EFFECT_ATTRIBUTE]: [0],
+  };
 }

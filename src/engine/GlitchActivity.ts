@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { glitchUniforms, MAX_GLITCHES } from '../art/glitch';
+import { ownerIdFor, maskState } from '../art/effectId';
 import type { GlitchEffectName, GlitchPlacement, GlitchSpec } from './Glitch';
 
 /**
@@ -74,6 +75,8 @@ interface Tracked {
   /** The shader's 0..1 seed and the burst hash's integer one. */
   seed: number;
   intSeed: number;
+  /** Owner id for attached volumes, 0 for free-standing. See art/effectId.ts. */
+  owner: number;
   /** Resolved weights, in `LANES` order. */
   lanes: Float32Array;
   /** Set during the cull, read by the nearest-first sort. */
@@ -156,6 +159,7 @@ export class GlitchActivity {
       // also the ones being looked at.
       if (near.length > MAX_GLITCHES) near.sort((a, b) => a.distSq - b.distSq);
 
+      let owned = 0;
       for (let i = 0; i < near.length && count < MAX_GLITCHES; i++, count++) {
         const entry = near[i];
         const spec = entry.spec;
@@ -165,13 +169,14 @@ export class GlitchActivity {
         const burst =
           override !== null ? 1 : sampleBurst(entry.intSeed, spec.tempo ?? 1, strength, t);
         const w = Math.min(strength * burst, 1);
+        if (entry.owner && w > 0.004) owned++;
         const l = entry.lanes;
 
         (u.uGlitchCentre.value[count] as THREE.Vector4).set(
           entry.at.x,
           entry.at.y,
           entry.at.z,
-          entry.shape,
+          entry.shape + 2 * entry.owner,
         );
         (u.uGlitchSize.value[count] as THREE.Vector4).set(
           entry.size.x,
@@ -184,6 +189,9 @@ export class GlitchActivity {
         (u.uGlitchScreenW.value[count] as THREE.Vector4).set(l[8], l[9], l[10], l[11]);
         (u.uGlitchParams.value[count] as THREE.Vector4).set(entry.seed, l[12], l[13], l[14]);
       }
+      maskState.glitch = owned;
+    } else {
+      maskState.glitch = 0;
     }
 
     u.uGlitchCount.value = count;
@@ -222,6 +230,9 @@ function entryFor(
     shape: spec.shape === 'box' ? 1 : 0,
     seed: intSeed / 4294967296,
     intSeed,
+    // Assigning the id also bakes it into the object's geometry and puts the
+    // meshes on the mask layer — membership by identity, not by the volume.
+    owner: object ? ownerIdFor(object) : 0,
     lanes,
     distSq: 0,
   };

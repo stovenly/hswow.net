@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { glitchUniforms, GLITCH_ONSETS, MAX_GLITCHES } from '../art/glitch';
+import { maskUniforms } from '../art/effectId';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
@@ -148,6 +149,7 @@ function createGlitchMaterial(): THREE.ShaderMaterial {
       uSize: glitchUniforms.uGlitchSize,
       uScreenW: glitchUniforms.uGlitchScreenW,
       uParams: glitchUniforms.uGlitchParams,
+      tEffectMask: maskUniforms.tEffectMask,
       uInverseProjectionView: { value: new THREE.Matrix4() },
       uCameraPosition: { value: new THREE.Vector3() },
       uFar: { value: 500 },
@@ -165,6 +167,7 @@ function createGlitchMaterial(): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform sampler2D tDiffuse;
       uniform sampler2D tDepth;
+      uniform sampler2D tEffectMask;
       uniform int uCount;
       uniform vec4 uCentre[${MAX_GLITCHES}];
       uniform vec4 uSize[${MAX_GLITCHES}];
@@ -213,18 +216,26 @@ function createGlitchMaterial(): THREE.ShaderMaterial {
         float aSalt = 0.0;
         float gAny = 0.0;
         float gSeed = 0.0;
+        // Which marked object this pixel shows, 0 for none. Owned volumes are
+        // gated by this identity rather than by reconstructed position, which
+        // cannot tell an object's base from the floor it stands on at range.
+        // See art/effectId.ts. (No backticks in this source.)
+        float gMask = texture2D(tEffectMask, vUv).r;
         for (int i = 0; i < ${MAX_GLITCHES}; i++) {
           if (i >= uCount) break;
-          vec3 rel = (world - uCentre[i].xyz) / uSize[i].xyz;
-          // The underside is a cut, not a fade — see art/glitch.ts. This is
-          // the pass the rule exists for: it corrupts whatever a pixel hit, and
-          // a volume reaching below its subject tears the floor beneath it.
-          // (No backticks in this source: it is a template literal.)
-          if (rel.y < -1.0) continue;
-          vec3 d = vec3(abs(rel.x), max(rel.y, 0.0), abs(rel.z));
-          float e = uCentre[i].w > 0.5 ? max(d.x, max(d.y, d.z)) : length(d);
-          // Feathered toward the shell, so the volume never shows its own edge.
-          float w = (1.0 - smoothstep(0.7, 1.0, e)) * uSize[i].w;
+          float own = floor(uCentre[i].w * 0.5 + 0.25);
+          float w;
+          if (own > 0.5) {
+            w = abs(gMask - own) < 0.5 ? uSize[i].w : 0.0;
+          } else {
+            vec3 rel = (world - uCentre[i].xyz) / uSize[i].xyz;
+            // The underside is a cut, not a fade — see art/glitch.ts.
+            if (rel.y < -1.0) continue;
+            vec3 d = vec3(abs(rel.x), max(rel.y, 0.0), abs(rel.z));
+            float e = uCentre[i].w > 0.5 ? max(d.x, max(d.y, d.z)) : length(d);
+            // Feathered toward the shell, so the volume never shows its edge.
+            w = (1.0 - smoothstep(0.7, 1.0, e)) * uSize[i].w;
+          }
           if (w <= 0.0) continue;
           if (w > gAny) {
             gAny = w;

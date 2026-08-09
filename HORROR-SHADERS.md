@@ -100,21 +100,28 @@ general case is the one this room exists to show. Volumes are **measured** off
 each built mesh rather than authored: hand-authored extents gave `crate`
 (radius 1.2) a half-extent of 0.6, and its volume sat inside it doing nothing.
 
-**A volume's underside is a cut, not a fade, and belongs on its subject's
-base.** Every other face feathers over its outer third; the bottom stops dead
-at `centre.y - size.y`, with no vertical falloff between the base and the
-centre. So a volume sited on an object's underside covers it whole, feet to
-crown, and touches nothing below it. Authors pad sideways and upward, never
-down.
+**Attached volumes are gated by identity, not by their faces** (shared with
+glitch — art/effectId.ts). Every marked object gets an owner id, baked into
+its geometry as a vertex attribute and drawn per frame into a chunky
+one-channel id mask (`engine/EffectMask.ts`, a passthrough pass that runs only
+when an activity packed an owned volume). The in-scene halves compare the
+attribute, the screen halves compare the mask, and the volume's box only
+anchors the effects and carries the spec — whole object at full strength, feet
+included, floor and neighbours immune at any distance.
 
-The soft-bottom version cannot work, and the reason is worth keeping: the
-screen passes grade whatever a pixel hit without knowing which mesh drew it, a
-volume must reach an object's base to cover its base, and an object standing on
-the ground has its base *at* the ground — so any bottom falloff wide enough to
-be soft is wide enough to grade the floor, and the choice of shape only decides
-whether the patch under the object is a square or a circle. Free-standing
-volumes still reach the ground by simply being sited lower, which is what an
-anomaly wants: its claim is that a *place* is wrong, floor included.
+Why no geometry could do this: the gap between an object's base and the floor
+is a centimetre, and the screen passes reconstruct position from a depth
+buffer whose grazing-range error is several centimetres — the multisample
+depth resolve picks an arbitrary sample, not the pixel centre. Every siting of
+a volume's underside therefore either clipped the feet or graded the floor,
+distance-dependently. Identity sidesteps the measurement entirely.
+
+Free-standing volumes keep the spatial test — their claim is that a *place* is
+wrong, floor included — and for them the underside is a cut, not a fade: below
+`centre.y - size.y` the volume stops dead, so one sited on a surface covers
+what stands there without grading what it stands on. An owned shroud clings to
+the silhouette with a few chunky pixels of mask-dilated halo rather than
+filling its box.
 
 Showcase tempo is 10 in both rooms; world placements default to 1. Tempo drives the fit
 rate *and* the slow drift clocks (stretch, lean, pallor mottle, shroud smoke)
@@ -131,14 +138,16 @@ steady override, strength, freeze.
 - A free-standing volume's centre doubles as the anchor `breathe` swells away
   from, so a volume floating well above its subjects inflates them downward.
   Site the centre at the height of what it haunts.
-- **The screen passes have no silhouette mask**, so they cannot tell an object
-  from anything else standing inside its volume. The hard bottom handles the
-  ground, which is the case that matters; a wall or a prop close behind a
-  haunted thing would still be graded with it. The fix if that ever bites:
-  render the affected meshes (the activities already track and cull them) into
-  a one-channel target at chunky resolution, patched with the same displacement
-  chain the normal material carries, and multiply the screen passes by it —
-  skipping the mask for free-standing volumes, which want the whole spot.
+- **Toggling at runtime**: `strength` is re-read from the spec every frame, so
+  gameplay code can zero or tween a marked object's corruption live. What is
+  *not* live is marking a new object after its zone was prepared — collection
+  happens once at zone build; a runtime-attach API is a small addition if
+  dynamically spawned haunted things ever exist.
+- **Mask precision**: the id mask is drawn non-multisampled at chunky
+  resolution against the resolved scene depth (with a little polygon offset to
+  beat the sample-picked resolve), so an owned screen effect can be one chunky
+  pixel off at silhouettes. Invisible in this aesthetic; noted so nobody hunts
+  it as a bug.
 - Per-face effects assume non-indexed kit geometry (`gl_VertexID / 3`) —
   glitch's assumption site, shared.
 - The long-exposure echo from the research was dropped: it needs extra draw

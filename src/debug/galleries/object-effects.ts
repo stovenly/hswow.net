@@ -76,21 +76,13 @@ const VOLUME_PAD = 1.5;
 /**
  * The volume that covers a built mesh, measured rather than authored.
  *
- * Hand-authored extents were how this room got its first bug: `crate` has a
- * radius of 1.2 and was given a half-extent of 0.6, so its volume sat *inside*
- * it and the horror stage did nothing to it at all. A builder knows its own
- * size and nothing else reliably does — `MeshBuilder.radius` is a spacing hint
- * by its own documentation, and says nothing about height — so the honest
- * answer is to measure what was actually built.
- *
- * **The underside sits exactly on the mesh's own base**, and the padding grows
- * sideways and upward only. There is nothing below a thing's base to cover,
- * and a volume that reached down there graded the floor inside it — the screen
- * passes test a pixel's world position and neither know nor care which mesh
- * drew it — which read as a pedestal under every object. The bottom face is a
- * hard cut with no vertical falloff above it (`art/horror.ts`), so the base
- * lands on the floor and the object is covered whole rather than fading out at
- * the feet.
+ * Since membership for an attached volume is by owner id (art/effectId.ts),
+ * these faces decide nothing about what is affected — the box only anchors
+ * the horror effects (breathe's swell centre, headshake's height mask, the
+ * pivots) and carries the spec. Measured rather than authored because a wrong
+ * anchor still reads wrong, and hand-authored extents were how this room got
+ * its first bug: `crate` has a radius of 1.2 and was given a half-extent of
+ * 0.6. A builder knows its own size and nothing else reliably does.
  */
 function volumeFor(mesh: THREE.Object3D): { size: THREE.Vector3; offset: THREE.Vector3 } {
   mesh.updateMatrixWorld(true);
@@ -104,12 +96,6 @@ function volumeFor(mesh: THREE.Object3D): { size: THREE.Vector3; offset: THREE.V
   const halfX = Math.max((extent.x * (1 + grow)) / 2, 0.2);
   const halfZ = Math.max((extent.z * (1 + grow)) / 2, 0.2);
   const top = box.max.y + extent.y * grow;
-  // The standing plane, not the measured bottom. Builders are not tidy about
-  // y = 0 — `barrel` reaches 12 mm below its own origin, `bovine` 6 mm — and
-  // the floor sits at −10 mm, so the raw bounding box puts the volume's
-  // underside *below the floor* for some props. Clamped to zero it snaps to
-  // where things stand: a centimetre clear of the floor, and the only
-  // geometry left out is what pokes under the floor and cannot be seen.
   const bottom = Math.max(box.min.y, 0);
   const halfY = Math.max((top - bottom) / 2, 0.2);
   return {

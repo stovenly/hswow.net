@@ -63,10 +63,9 @@ const WEST = -((ROWS - 1) * ROW_SPACING) / 2;
 /**
  * A volume sized to a standing figure.
  *
- * The half-height and the offset match, which puts the underside of the volume
- * exactly on the floor rather than under it — and the underside is a hard cut,
- * so the figure is covered from its feet up and the floor beneath it is not
- * touched at all. See `art/glitch.ts`.
+ * Membership is by owner id (art/effectId.ts), so these faces decide nothing —
+ * the volume carries the spec and the seed, and its centre steadies the
+ * band-based effects' addressing.
  */
 function figureSpec(spec: Omit<GlitchSpec, 'size' | 'offset'>): GlitchSpec {
   return {
