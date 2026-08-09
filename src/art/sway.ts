@@ -4,6 +4,7 @@ import { applyWear } from './weathering';
 import { applyDetail } from './detail';
 import { applyFinish } from './finish';
 import { applyGlitch, applyGlitchDisplacement } from './glitch';
+import { applyHorror, applyHorrorDisplacement } from './horror';
 import type { Weather } from '../audio/weather';
 
 /**
@@ -304,6 +305,11 @@ export function patchArtMaterial(): void {
   // object with a calm shadow is the sway bug over again. See `art/glitch.ts`.
   applyGlitch(ART_MATERIAL);
   applyGlitchDisplacement(SWAY_DEPTH_MATERIAL);
+  // Horror wraps outermost, and lands *before* glitch in the compiled shader:
+  // the body goes wrong first, then the signal of it corrupts on top. Depth
+  // gets the displacement half for the same live-shadow reason as glitch.
+  applyHorror(ART_MATERIAL);
+  applyHorrorDisplacement(SWAY_DEPTH_MATERIAL);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */

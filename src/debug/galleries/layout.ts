@@ -12,6 +12,7 @@ import type { DoorMaterial } from '../../audio/models/door';
 import type { MeshBuilder } from '../../art/types';
 import type { FogVolume } from '../../engine/FogVolumes';
 import type { GlitchPlacement } from '../../engine/Glitch';
+import type { HorrorPlacement } from '../../engine/Horror';
 import { markCollidable } from '../../player/Collider';
 import { markLabelled } from '../../world/Interaction';
 import { createRng } from '../../art/random';
@@ -241,6 +242,8 @@ export interface GalleryPlan {
    * into a zone stays the one place that knows how.
    */
   readonly glitches?: readonly GlitchPlacement[];
+  /** Placed horror volumes (HORROR-SHADERS.md) — `glitches`' thread exactly. */
+  readonly horrors?: readonly HorrorPlacement[];
   /**
    * Overrides on the room's light and air. Applied last, so a gallery can put
    * out the sun — which is the only way to judge anything that emits.
@@ -411,6 +414,7 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
     spawn: { position: new THREE.Vector3(0, 0.1, DOOR_Z - 2), yaw: 0 },
     fogVolumes: plan.fogVolumes,
     glitches: plan.glitches,
+    horrors: plan.horrors,
     floor: -20,
     // Flat by construction. Portal arrivals are derived by stepping out from a
     // door and keep the door's height, which is correct here and stated anyway

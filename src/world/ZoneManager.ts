@@ -11,6 +11,7 @@ import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { ClothActivity } from '../engine/ClothActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
+import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
 import { PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
@@ -133,6 +134,8 @@ export class ZoneManager {
   private readonly cloth = new ClothActivity();
   /** Every glitch volume in every built zone. See `GlitchActivity`. */
   private readonly glitch = new GlitchActivity();
+  /** Every horror volume in every built zone. See `HorrorActivity`. */
+  private readonly horror = new HorrorActivity();
   private transitioning = false;
   private hovered: PortalSide | null = null;
 
@@ -356,6 +359,7 @@ export class ZoneManager {
       this.activity.release(zone.id);
       this.cloth.release(zone.id);
       this.glitch.release(zone.id);
+      this.horror.release(zone.id);
       for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
 
       const soundscape = this.soundscapes.get(zone.id);
@@ -670,6 +674,7 @@ export class ZoneManager {
     // Both attachment routes in one call: the definition's free-standing
     // placements, and whatever a builder marked with `markGlitched`.
     this.glitch.collect(zone.id, root, zone.glitches);
+    this.horror.collect(zone.id, root, zone.horrors);
 
     return root;
   }
@@ -812,6 +817,7 @@ export class ZoneManager {
     this.activity.clear();
     this.cloth.clear();
     this.glitch.clear();
+    this.horror.clear();
   }
 
   /**
@@ -830,6 +836,11 @@ export class ZoneManager {
    */
   updateGlitch(elapsed: number): void {
     this.glitch.update(this.active?.id ?? null, elapsed, this.options.player.camera.position);
+  }
+
+  /** Packs the active zone's horror volumes, glitch's twin. */
+  updateHorror(elapsed: number): void {
+    this.horror.update(this.active?.id ?? null, elapsed, this.options.player.camera.position);
   }
 
   /** Collider wireframes for the fabrics gallery's no-clipping row. Dev only. */

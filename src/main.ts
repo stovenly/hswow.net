@@ -29,6 +29,7 @@ import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
 import { setGlitchOverride, setGlitchFrozen } from './engine/GlitchActivity';
+import { setHorrorOverride, setHorrorFrozen } from './engine/HorrorActivity';
 import { updateCover } from './art/cover';
 import { updateParticles } from './art/particles';
 import { installReloadBanner } from './debug/HotReload';
@@ -579,6 +580,16 @@ if (dev.gui) {
   glitchFolder.add(glitchState, 'override').name('steady override').onChange(applyGlitchOverride);
   glitchFolder.add(glitchState, 'strength', 0, 1, 0.01).onChange(applyGlitchOverride);
   glitchFolder.add(glitchState, 'frozen').onChange((on: boolean) => setGlitchFrozen(on));
+
+  // The horror showcase's station controls — glitch's, one system over.
+  const horrorFolder = dev.gui.addFolder('horror');
+  const horrorState = { enabled: true, override: false, strength: 0.5, frozen: false };
+  const applyHorrorOverride = (): void =>
+    setHorrorOverride(horrorState.override ? horrorState.strength : null);
+  horrorFolder.add(horrorState, 'enabled').onChange((on: boolean) => postfx.setHorror(on));
+  horrorFolder.add(horrorState, 'override').name('steady override').onChange(applyHorrorOverride);
+  horrorFolder.add(horrorState, 'strength', 0, 1, 0.01).onChange(applyHorrorOverride);
+  horrorFolder.add(horrorState, 'frozen').onChange((on: boolean) => setHorrorFrozen(on));
   // Bound through the active zone's soundscape rather than to a model directly.
   // A zone declares its sound as data and the models are built on entry, so a
   // panel that captured one at startup would be tuning the proving ground's
@@ -878,6 +889,9 @@ loop.add((dt, elapsed) => {
   // attached volumes follow their object's matrix, so this has to run after
   // everything that moves and before the render that reads the uniforms.
   zones.updateGlitch(elapsed);
+  // And the horror volumes beside them, for the same reason — plus the
+  // unwatched gate, which reads the camera this same frame.
+  zones.updateHorror(elapsed);
   // After the wind, for the same reason: the cover reads the gust field the
   // trees just took. This ships the width clamp, the tread and the backlight.
   updateCover(viewport.camera, postfx.artHeight, player.position, zones.lights.sun);

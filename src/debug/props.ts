@@ -26,6 +26,8 @@ import { readablesShowcasePlan } from './galleries/readables-showcase';
 import { materialsGalleryPlan } from './galleries/materials';
 import { fabricsGalleryPlan } from './galleries/fabrics';
 import { glitchShowcasePlan } from './galleries/glitch';
+import { horrorShowcasePlan } from './galleries/horror';
+import { objectEffectsPlan } from './galleries/object-effects';
 import { soundStagePortal } from './SoundStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
@@ -121,7 +123,7 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  * one on it, which is why these are on half-metres.
  */
 const SHOWCASE_SLOTS = [
-  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5,
+  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5,
 ] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
@@ -405,5 +407,10 @@ export function propPortals(
     // Corruption is a system, not a place. Iron, because what is behind this
     // door is a rig — a rank of figures being taken apart on purpose.
     galleryPortal(glitchShowcasePlan, gridDoor(12, 'iron', 6445)),
+    // And its sibling: dread is a system too. Iron for the same reason.
+    galleryPortal(horrorShowcasePlan, gridDoor(13, 'iron', 6446)),
+    // Where the two of them meet, on things that are not all figures. Last in
+    // the rank because it only makes sense having seen both rooms before it.
+    galleryPortal(objectEffectsPlan, gridDoor(14, 'iron', 6447)),
   ];
 }
