@@ -77,6 +77,11 @@ export interface EffectContext {
  */
 export interface PixelEffect {
   enabled: boolean;
+  /**
+   * True for an effect that renders to its own target rather than into the
+   * chain — the effect-mask pass. The chain's colour passes it untouched.
+   */
+  readonly passthrough?: boolean;
   setSize(width: number, height: number): void;
   render(renderer: THREE.WebGLRenderer, context: EffectContext): void;
   dispose(): void;
@@ -284,6 +289,9 @@ export class PixelStage extends Pass {
         scene: this.scene,
         time: this.time,
       });
+      // A passthrough effect drew to its own target; the chain's colour is
+      // untouched and the ping-pong slot stays free.
+      if (effect.passthrough) continue;
       colour = write.texture;
       next = 1 - next;
     }

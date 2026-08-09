@@ -18,6 +18,8 @@ import { GlitchEffect } from './Glitch';
 import { applyGlitchDisplacement, glitchUniforms } from '../art/glitch';
 import { HorrorEffect } from './Horror';
 import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
+import { EffectMaskPass } from './EffectMask';
+import { maskState } from '../art/effectId';
 import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
@@ -429,6 +431,7 @@ export class PostFX {
   private readonly bloom: BloomEffect;
   private readonly glitchFx: GlitchEffect;
   private readonly horrorFx: HorrorEffect;
+  private readonly maskFx: EffectMaskPass;
   private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
@@ -554,6 +557,10 @@ export class PostFX {
     // see `Particles.ts`.
     this.particles = new ParticlesEffect();
     this.bloom = new BloomEffect();
+    // The owner-id mask both corruption passes are gated by, drawn just
+    // before the first of them. A passthrough: it writes its own target and
+    // leaves the chain's colour alone.
+    this.maskFx = new EffectMaskPass();
     // The horror shroud sits just under the glitch pass: darkness pools over
     // the bloomed, fogged scene, and corruption can still tear the darkness.
     this.horrorFx = new HorrorEffect();
@@ -571,6 +578,7 @@ export class PostFX {
       this.fog,
       this.particles,
       this.bloom,
+      this.maskFx,
       this.horrorFx,
       this.glitchFx,
     );
@@ -1000,6 +1008,11 @@ export class PostFX {
     // none.
     this.glitchFx.enabled = this.glitching && glitchUniforms.uGlitchCount.value > 0;
     this.horrorFx.enabled = this.haunting && horrorUniforms.uHorrorCount.value > 0;
+    // The mask draws only when an activity packed an owned volume this frame,
+    // and only for the passes that will actually read it.
+    this.maskFx.enabled =
+      (this.glitchFx.enabled && maskState.glitch > 0) ||
+      (this.horrorFx.enabled && maskState.horror > 0);
     // The same clock the sky drifts on, handed to the effect chain; the fog
     // volumes and the glitch pass read it. See `EffectContext.time` on why
     // knowing the time is not the temporal accumulation the ground rules

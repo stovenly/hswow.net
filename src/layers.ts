@@ -129,3 +129,14 @@ export const PARTICLE_LAYER = 5;
  *   buffer, a transmissive surface has nothing of its own to intersect.
  */
 export const GLASS_LAYER = 6;
+
+/**
+ * Meshes owned by an attached effect volume — glitch or horror — additive like
+ * collision and glow.
+ *
+ * Enabled by `ownerIdFor` (art/effectId.ts) on every mesh under a marked
+ * object, read by the effect-mask pass (engine/EffectMask.ts), which points
+ * the camera at this layer alone to draw the owned silhouettes into the id
+ * mask the screen-space corruption passes are gated by.
+ */
+export const EFFECT_MASK_LAYER = 7;

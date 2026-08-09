@@ -45,10 +45,9 @@ const WEST = -((ROWS - 1) * ROW_SPACING) / 2;
 /**
  * A volume sized to a standing figure, and it has feet.
  *
- * The half-height and the offset match, which puts the underside of the volume
- * exactly on the floor rather than under it — and the underside is a hard cut,
- * so the figure is covered from its feet up and the floor beneath it is not
- * touched at all. See `art/horror.ts`.
+ * Membership is by owner id (art/effectId.ts), so these faces only anchor the
+ * effects — breathe's swell centre mid-torso, headshake's height mask from the
+ * chest up, the lean and stretch pivots.
  */
 function figureSpec(spec: Omit<HorrorSpec, 'size' | 'offset'>): HorrorSpec {
   return {
