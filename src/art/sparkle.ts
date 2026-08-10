@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLINT_ATTRIBUTE } from './finish';
-import { EXOTIC_ATTRIBUTE, EXOTICS } from './exotic';
+import { RECIPE_ATTRIBUTE, RECIPE_INDEX } from './recipes';
 import { windUniforms } from './sway';
 import { particleUniforms } from './particles';
 import { PARTICLE_LAYER, GLOW_LAYER } from '../layers';
@@ -59,8 +59,8 @@ export function collectSparkleSites(geometry: THREE.BufferGeometry): void {
 
   const position = geometry.getAttribute('position');
   const colour = geometry.getAttribute('color');
-  const exotic = geometry.getAttribute(EXOTIC_ATTRIBUTE);
-  const exoticLanes = exotic ? (exotic.array as Uint8Array) : null;
+  const recipe = geometry.getAttribute(RECIPE_ATTRIBUTE);
+  const recipeLanes = recipe ? (recipe.array as Uint8Array) : null;
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
@@ -72,7 +72,7 @@ export function collectSparkleSites(geometry: THREE.BufferGeometry): void {
   for (let i = 0; i < position.count; i += 3) {
     const star = lanes[i * 2 + 1] / 255;
     if (star <= 0) continue;
-    const sprite = exoticLanes && exoticLanes[i] === EXOTICS.nacreous ? 1 : 0;
+    const sprite = recipeLanes && recipeLanes[i] === RECIPE_INDEX.nacreous ? 1 : 0;
     a.fromBufferAttribute(position, i);
     b.fromBufferAttribute(position, i + 1);
     c.fromBufferAttribute(position, i + 2);

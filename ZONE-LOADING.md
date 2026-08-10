@@ -1,7 +1,7 @@
 # Zone loading: shader compiles, code chunks, and the catalogue
 
 The plan for keeping zone entry fast while the catalogue of builders, finishes
-and exotic recipes grows without bound. Five phases, in the order they should
+and recipes grows without bound. Five phases, in the order they should
 land. A and B are small and kill today's hitch; C is the structural change that
 makes the material catalogue scale; D does the same for the JS catalogue; E is
 the stand-in hotswap, and it falls out of C almost for free.
@@ -16,7 +16,7 @@ them. What remains is content migration under D.
 Zone entry hitches because of a multiplication:
 
 - **One shared material carries every shader stage, always.** `applyFinish`
-  splices the whole of `EXOTIC_GLSL` into `ART_MATERIAL` unconditionally
+  splices the whole of `RECIPE_GLSL` into `ART_MATERIAL` unconditionally
   (finish.ts), plus the speck field, the film, and every other finish feature —
   whether the zone contains any of it or not. Every material added grows every
   program ever compiled.
@@ -123,12 +123,12 @@ fragment byte for byte; the lean fragment is 73% smaller). Masks live per
 material, so no merge split was needed; `assemble` stamps the union of its
 parts' masks on `userData.finishMask` and `artMaterialFor` (art/sway.ts) does
 the rest. And star has no bit — it draws as sparkle quads, never in this
-shader. There is no exotic-vs-regular distinction anywhere in the result:
+shader. There is no recipe-vs-regular distinction anywhere in the result:
 every feature and every recipe is one bit in one mask, and nothing compiles
 unless a part in the prop declares it.
 
 **Goal:** a zone compiles only the shader features its own props declare. Gold
-glint, frost's field, the film, the star, every exotic recipe — each is a
+glint, frost's field, the film, the star, every recipe — each is a
 chunk that most zones never pay for, in compile time or per-fragment cost.
 Adding recipe #30 to the game costs nothing anywhere it doesn't stand.
 
@@ -144,29 +144,29 @@ Two kinds of gate, because the catalogue has two kinds of thing in it:
   `FINISH_ANISO` (brushed, silk). The base specular lobe stays unconditional
   within the finish stage — nearly everything polished uses it and it is
   small.
-- **Recipe flags** per exotic: `EXOTIC_SCHILLER`, `EXOTIC_QUICKMETAL`, … Each
+- **Recipe flags** per recipe: `RECIPE_SCHILLER`, `RECIPE_QUICKMETAL`, … Each
   recipe's GLSL and its hook bodies (the `lights_fragment_end` block, the
-  direct-lobe branch, the env branch) wrap in its `#ifdef`. Shared exotic
-  helpers (`exoticHash3`, `exoticCell`, `exoticWarp`, `EXOTIC_TILT`, the
-  drift/star kit) compile under an umbrella `EXOTIC_ANY`, or per-helper
+  direct-lobe branch, the env branch) wrap in its `#ifdef`. Shared recipe
+  helpers (`recipeHash3`, `recipeCell`, `recipeWarp`, `RECIPE_TILT`, the
+  drift/star kit) compile under an umbrella `RECIPE_ANY`, or per-helper
   `#if defined(...)||…` where only one recipe uses a helper.
 
-Restructure `exotic.ts` into a registry — a hand-written table, not
+Restructure `recipe.ts` into a registry — a hand-written table, not
 `import.meta.glob`, because the headless checks reach this code through
 esbuild:
 
 ```ts
-interface ExoticRecipe {
+interface Recipe {
   name: string;        // 'voidstone'
-  index: number;       // the aExotic byte; retired indices stay retired
-  define: string;      // 'EXOTIC_VOIDSTONE'
+  index: number;       // the aRecipe byte; retired indices stay retired
+  define: string;      // 'RECIPE_VOIDSTONE'
   glsl: string;        // helpers + fields, already #ifdef-wrapped
   directHook?: string; // spliced into the direct-light block
   envHook?: string;    // spliced into the env block
 }
 ```
 
-The assembled `EXOTIC_GLSL` is the concatenation, unchanged in content — the
+The assembled `RECIPE_GLSL` is the concatenation, unchanged in content — the
 defines decide what survives preprocessing. **The compiled output at
 mask=everything must be byte-identical to today's shader**, which is both the
 correctness argument and what preserves the browser disk cache for the
@@ -174,7 +174,7 @@ gallery.
 
 ### C2. The mask, from `assemble`, for free
 
-`resolveFinish` already maps a finish name to its lanes and exotic index at
+`resolveFinish` already maps a finish name to its lanes and recipe index at
 bake time (assemble.ts). Extend it to also return a feature bitmask (low bits
 the feature flags, high bits the recipe indices). `assemble` ORs each part's
 mask into the geometry it merges and stamps the union on
@@ -202,7 +202,7 @@ unpatched ones and does the same job here with more information). Whatever
 places the merged meshes assigns `artMaterialFor(geometry.userData.finishMask)`.
 
 Uniforms stay shared: every clone receives the same `finishUniforms` /
-`exoticUniforms` / wind uniform objects by reference, so the per-frame update
+`recipeUniforms` / wind uniform objects by reference, so the per-frame update
 path doesn't change and doesn't multiply.
 
 **Variant explosion is the risk to manage, not to fear.** Masks cluster in
@@ -215,8 +215,8 @@ whether it's needed.
 **Depth and normal materials are untouched** — they carry no finish stage, so
 shadows and outlines keep exactly one program each.
 
-**Acceptance:** a countryside zone with no exotic props compiles a program
-whose fragment source contains no exotic or speck code (assert by inspecting
+**Acceptance:** a countryside zone with no recipe props compiles a program
+whose fragment source contains no recipe or speck code (assert by inspecting
 `renderer.info` or a dev-only source dump); the materials galleries still
 render byte-identically at mask=everything; program count across a ten-zone
 walk stays within the Phase A plateau plus the handful of masks actually used.
@@ -312,15 +312,23 @@ and only the first prop of a never-seen mask stands in lean. So the pop happens
 at most once per finish per session, never on a revisit, and never for the many
 props whose mask is 0.
 
-The compile-before-assign is an **invisible probe hung off the live zone root**.
-This is the part worth remembering: three gathers lights with `traverseVisible`
-and materials with a plain `traverse` (checked against the installed 0.170
-source, not assumed), so a hidden group under the active zone compiles its
-materials against *that zone's real light census* and never draws a pixel. A
-detached stand-in cannot do this — it has the global rig and none of the zone's
-own lights, so its programs would be the wrong ones and the first drawn frame
-would compile after all. The probe borrows a waiting mesh's geometry rather
-than inventing one, because the program key depends on what the buffers carry.
+The compile-before-assign is an **invisible probe hung off the root `enter()` is
+about to compile**, in the same pass as the rest of the room and before the
+swap. This is the part worth remembering: three gathers lights with
+`traverseVisible` and materials with a plain `traverse` (checked against the
+installed 0.170 source, not assumed), so a hidden group under the root has its
+materials compiled and never draws a pixel — including during the frames the
+entry still spends showing the zone being left. `compileAsync` then waits on
+`isReady()` for every material it gathered, the probe's included, so the await
+that already gated the fade now also covers the variants. The probe borrows a
+waiting mesh's geometry rather than inventing one, because the program key
+depends on what the buffers carry.
+
+**The census is right, and an earlier note here was wrong about why.** The
+detached branch of `compile` passes the root as `scene` and the stand-in as
+`targetScene`; three gathers lights from *both* when they differ, so the zone's
+own lights are counted alongside the global rig. The probe therefore compiles
+under exactly the census the first real frame renders under.
 
 `pendingArtProbe()` hands back the masks it covers and `resolveArtVariants`
 takes them, which closes the one real hole: a zone built *while* the compile is
@@ -329,28 +337,40 @@ those ready with no program behind them.
 
 **Why the light census cannot bite later.** A mask marked compiled means the
 variant exists, not that it exists for every census. That is safe because
-`enter()` still compiles the whole root before the swap (Phase B) — a zone at a
+`enter()` compiles the whole root before the swap (Phase B) — a zone at a
 different light tier compiles its own programs behind the fade, as it always
-did. E only removes the *uncompiled variants of the current entry* from what
-gates the fade.
+did.
 
-**A crossing mid-compile abandons the swap** rather than forcing it: the probe
-hung off a root that may no longer be in the scene, so its programs may not
-exist. The meshes keep the lean material, the masks stay on the waiting list,
-and the next entry retries.
+**A crossing mid-compile leaves the meshes lean** rather than forcing the swap:
+the entry returns on its staleness check without resolving, the masks stay on
+the waiting list, and the next entry retries.
+
+**Corrected after the fact: the upgrade does not run on arrival.** It first
+landed as an unawaited pass after the bar hid, on the theory that one program
+should gate the fade instead of one per finish in the room. In the second
+materials gallery that read as a bug — the room appeared in flat stand-in
+materials, hung while the whole batch of variants compiled on a rendering
+frame, then corrected itself. Moving the probe into the pre-swap compile costs
+a longer bar on the first entry to a room full of novel finishes, which is time
+the player has already agreed to spend, and the room arrives correct. The
+deferral still earns its place: it is what lets every mesh in a room being
+built carry one material, so a single compile covers the lot, and it keeps a
+variant from ever being compiled for a mask no zone actually uses. The lean
+material is now a build-time placeholder that is never rendered.
 
 **Verified** with a throwaway probe: uncompiled variants stand in lean, every
 mesh of a mask swaps together, a mask compiled once is assigned outright
 thereafter, a mesh registered mid-flight is not swept up by the resolve, and
 mask 0 never leaves the shared material.
 
-**Not done, and deliberately:** the background `precompile` does *not* carry a
-probe. It compiles a detached root, so resolving off it would hand the
-*currently active* zone materials compiled under another zone's census — and
-that zone is already in the scene, with no further compile between the
-assignment and the next frame. That is the one arrangement that would
-reintroduce the hitch. The upgrade therefore only ever runs off the zone the
-player is standing in.
+**Not done:** `precompile` does not carry a probe. It could — attaching one and
+*not* resolving would warm the programs so the entry's compile hits the cache
+and the bar is shorter — but `precompile` is called exactly once, at boot, for
+the countryside, so today it would buy nothing for the rooms that actually feel
+this. If the neighbour prefetch (Phase D) ever grows to compile as well as
+load, that is where this belongs. Resolving off it would still be wrong: it
+would hand meshes materials compiled under another zone's census with no
+compile between the assignment and the next frame.
 
 ---
 
@@ -363,7 +383,7 @@ swap, same geometry, no second mesh.
 With C in place this is nearly free, because it's a *material* swap, not a
 mesh swap:
 
-1. When a zone's exotic batch is placed, assign it the **lean** material
+1. When a zone's recipe batch is placed, assign it the **lean** material
    (mask stripped to base finish) immediately. The prop renders at once with
    its base FINISHES parameters — the frost orb is a matte white stone, the
    schiller orb a dark glossy one. Correct silhouette, correct base colour,
@@ -403,7 +423,7 @@ itself wanting a stand-in *mesh*, it has misread this phase.
 | B — compileAsync | — | small | remaining compiles leave the critical frame | landed |
 | C — feature/recipe gating | B (for E later) | large | material catalogue scales; per-frame cost drops | landed |
 | D — code splitting | — | medium | builder/zone catalogue scales; boot stays flat | landed, migrating |
-| E — stand-in hotswap | C | small | complex materials never gate first paint | landed |
+| E — stand-in hotswap | C | small | a room compiles one variant per finish it actually holds, once | landed |
 
 All five are in. D is the only one with work left, and it is content work
 rather than engineering: `load` is optional, so zones move a group at a time.
@@ -411,7 +431,10 @@ Migrated so far are the two hub interiors and the three countryside homes. The
 galleries stay eager on purpose — see the note under D.
 
 **What now bounds a cold entry**, with all five landed: one light-tier census
-(A), one lean program plus whatever variants that zone has already paid for
-(C + E), compiled behind the fade rather than on the first frame (B), against
-code that arrived while the player was in the previous room (D). None of those
-four terms grows with the size of the catalogue. That was the whole point.
+(A), one lean program plus one variant per finish the room actually holds and
+has not paid for before (C + E), compiled behind the fade rather than on the
+first frame (B), against code that arrived while the player was in the previous
+room (D). None of those four terms grows with the size of the catalogue — the
+variant term grows with the finishes in *this room*, which is why a materials
+gallery is the slowest thing in the game to enter and an ordinary room is not.
+That was the whole point.

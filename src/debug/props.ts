@@ -413,7 +413,7 @@ export function propPortals(
     // Where the two of them meet, on things that are not all figures. Last in
     // the rank because it only makes sense having seen both rooms before it.
     galleryPortal(objectEffectsPlan, gridDoor(14, 'iron', 6447)),
-    // The exotic recipes. A second materials room rather than ten more rows in
+    // The recipes. A second materials room rather than ten more rows in
     // the first — see `galleries/materials2.ts` for why the scale in there is
     // worth not breaking. Timber, because what is behind it is a set of
     // materials rather than a rig.

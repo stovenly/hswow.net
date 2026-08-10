@@ -1,4 +1,4 @@
-# Exotic materials — the next set of finishes
+# Material recipes — the next set of finishes
 
 A companion to [SHADERS-AND-MATERIALS.md](SHADERS-AND-MATERIALS.md), which designed and
 built the finish stage (M0–M2) and the transmissive family (M3). This proposes what
@@ -56,20 +56,20 @@ finish stage's memory to buy a set of props you could count on two hands.
 So: **do not widen the parameter set. Add a recipe index.**
 
 ```ts
-/** Which exotic optical model runs, if any. 0 is none, which is nearly everything. */
-export const EXOTIC_ATTRIBUTE = 'aExotic';   // one byte
+/** Which recipe optical model runs, if any. 0 is none, which is nearly everything. */
+export const RECIPE_ATTRIBUTE = 'aRecipe';   // one byte
 ```
 
 One byte per vertex (~2.7 MB across the world, measured against M2's figures), holding
-a small integer that selects one entry from a **uniform table of exotic recipes**. Each
+a small integer that selects one entry from a **uniform table of recipes**. Each
 recipe brings its own constants — colours, rates, densities, depths — as uniforms, not
-as vertex lanes. Add a tenth exotic and it costs a uniform slot and some shader, and
+as vertex lanes. Add a tenth recipe and it costs a uniform slot and some shader, and
 nothing per vertex at all.
 
 **This is not the mode-switched lane M2 ruled out, and the difference is load-bearing.**
 The thing that was rejected was one number whose *units* changed depending on another
 number — you read a 0.6 and could not say what it meant. Here no existing lane changes
-meaning: metallic is still metallic, glint is still glint, and the exotic lane selects a
+meaning: metallic is still metallic, glint is still glint, and the recipe lane selects a
 *block of code* which arrives carrying every constant it needs. Nothing is reinterpreted;
 something extra is switched on.
 
@@ -78,7 +78,7 @@ Three details that make it safe:
 - **It is constant per triangle**, because `Part.finish` is per part and `assemble`
   bakes per part — so the three vertices of any triangle always agree, exactly as
   `aFace` already relies on. There is no interpolated-integer hazard.
-- **It gates behind `if (vExotic > 0.5)`**, so the matte 95% of the world pays one more
+- **It gates behind `if (vRecipe > 0.5)`**, so the matte 95% of the world pays one more
   attribute fetch and a branch that is coherent across whole draws.
 - **The branch is per recipe and the recipes are few.** Six or eight is fine; thirty
   would grow the shared program past where a boot-time compile is comfortable, and that
@@ -122,7 +122,7 @@ is worth landing *only once*.
 
 ## The recipes
 
-Costs are per *exotic* fragment, at chunky resolution, and should be read against the
+Costs are per *recipe* fragment, at chunky resolution, and should be read against the
 calibration `SHADERS-AND-MATERIALS.md` already established: GTAO spends 48 texture taps
 on every pixel of every frame and was signed off as carryable.
 
@@ -201,7 +201,7 @@ rather than the sum — a sum draws a bright blob at the crossing, a maximum dra
 that meet. The fibre direction wants a little noise on it (a few degrees, from
 `wearNoise(vWearPos)`) or the arms are geometrically perfect and read as a decal.
 
-*Cost: ~+30 ALU on the direct lobe, on exotic pixels only. Nothing else changes; the
+*Cost: ~+30 ALU on the direct lobe, on recipe pixels only. Nothing else changes; the
 environment term, the fresnel cap and the sheen interaction all stand.*
 
 **Fixture:** an orb on a plinth in the sun. This one wants R4's moving sun more than
@@ -347,7 +347,7 @@ why the cloth fixtures exist.
   refracted terms and mixes them by fresnel:** tint one by `C`, the other by `1 − C`.
   Nothing in the document is cheaper for how strange it looks.
 
-None of these need the exotic lane; they are entries in `GLASSES` plus, for amber's
+None of these need the recipe lane; they are entries in `GLASSES` plus, for amber's
 inclusions, one shared chunk with recipe 1.
 
 ---
@@ -595,10 +595,10 @@ cheaper.
 
 ---
 
-### M5 — the exotic lane *(infrastructure; blocks everything in Track A)*
+### M5 — the recipe lane *(infrastructure; blocks everything in Track A)*
 
-`aExotic`, the recipe uniform table, the gated branch, the packing in `assemble`, the
-`check:art` additions (indices in range; every recipe's constants sane; exotic zero
+`aRecipe`, the recipe uniform table, the gated branch, the packing in `assemble`, the
+`check:art` additions (indices in range; every recipe's constants sane; recipe zero
 bit-identical to today, probe-asserted the way M0's was).
 
 Ships with **exactly two recipes**, chosen to prove the architecture rather than to look
@@ -700,15 +700,15 @@ these that needs the fixture placed so you can walk behind it.*
 
 ### Status: M5–M8 built; four recipes cut in review
 
-`art/exotic.ts` is the lane and the recipes; `art/finish.ts` grew the hooks they
+`art/recipes.ts` is the lane and the recipes; `art/finish.ts` grew the hooks they
 reach through. **Asterism (5), grating (6), aventurine (8) and retroreflect (9) were
 cut in review** — their indices are retired, not reused. **Nacre was renamed
 `nacreous`** (same index, 4). The survivors: schiller, quickmetal, tenebrescent,
-nacreous, pointillist, voidstone. `aExotic` is one **un-normalized** byte baked by
+nacreous, pointillist, voidstone. `aRecipe` is one **un-normalized** byte baked by
 `assemble`, and the measured cost is exactly the one predicted — one byte a vertex,
 ~2.7 MB across the resident world, and nothing per recipe after the first. The gallery
 is `debug/galleries/materials2.ts`, twelve rows, an orb and a column apiece, hanging
-off showcase slot fifteen. `uExoticOn` sits beside the finish toggle in the dev panel;
+off showcase slot fifteen. `uRecipeOn` sits beside the finish toggle in the dev panel;
 their clocks ride the reduced-motion switch alongside the water.
 
 **Verified under SwiftShader**, headless Chrome driving the real material: the patched
@@ -728,7 +728,7 @@ against — and it wants running before anything here is believed.
   that follows the *surface*. On anything curved it swirls, so each facet drew its
   arms somewhere different and no star ever assembled. Fibres in a crystal are fixed
   in the *stone*, which needs a basis anchored to the object rather than to the
-  surface: `vExoticSide` carries a second axis through the normal matrix, and the
+  surface: `vRecipeSide` carries a second axis through the normal matrix, and the
   first one was already there.
 - **Where a star sits is not where its arms point.** Fixed frame in hand, the star was
   then centred on the crystal axis, which is defensible and wrong — it meant the star
@@ -740,11 +740,11 @@ against — and it wants running before anything here is believed.
   slightly-less-dark red patch on a dark red ball. Rutile needles are not the colour of
   the corundum around them.
 - **The cell size was written down twice.** Pointillist computes a cell density in
-  `exoticFilm` and the reflectance override computed it again; three tuning passes
+  `recipeFilm` and the reflectance override computed it again; three tuning passes
   moved the first one and the berry never changed, because the second is the one that
   decides what the surface returns. They had drifted by a factor of five with nothing
   failing, because each is correct alone and only their disagreement is wrong. One
-  `exoticCellLod()` now, called from both.
+  `recipeCellLod()` now, called from both.
 - **Restraint is the whole job, and every first draft failed it the same way.**
   Labradorite is a *dark grey stone* that goes blue in one place for a moment;
   the first pass shimmered everywhere in every colour and was an oil slick. A pearl is
@@ -775,16 +775,16 @@ Three causes, each producing the same fault on all ten recipes.
 draws the sun as a disc inside a 260-power halo, and a flat-shaded facet has one
 reflected direction — so a facet whose direction lands on the sun returns `uSunColor`
 over its whole area. `Sky.ts` now exposes `skyColourWithSun(dir, sunScale)`, with
-`skyColour` a wrapper at scale 1, so nothing else moves; `exoticSunGlare` sets the
-scale per recipe. The environment is also sampled off the smooth normal for exotics,
+`skyColour` a wrapper at scale 1, so nothing else moves; `recipeSunGlare` sets the
+scale per recipe. The environment is also sampled off the smooth normal for recipes,
 so a reflection is a gradient over the stone rather than one flat triangle per face.
 
 **`dot(N, H)` and `dot(N, V)` are constant across a flat-shaded facet**, so every
 recipe keyed on them produced triangle-shaped patches — the "pixelated, blocky"
 complaint — and lived only in the specular highlight. Recipes are now driven by
-object-space position and object-space directions: `vExoticView`, and
-`exoticToObject()` for the lights. Where a surface normal is genuinely needed,
-`exoticSmoothNormal()` is the interpolated attribute normal — smooth on lathes and
+object-space position and object-space directions: `vRecipeView`, and
+`recipeToObject()` for the lights. Where a surface normal is genuinely needed,
+`recipeSmoothNormal()` is the interpolated attribute normal — smooth on lathes and
 subdivided polyhedra, the face normal on a box, so flat-sided props are unaffected.
 
 **A structure keyed on the half vector exists only where the sun is.** A lamella has
@@ -822,7 +822,7 @@ judgement above came from stills.
 ### Dependency summary
 
 ```
-M5 (the exotic lane) ──┬──► M6  free recipes  — tenebrescent, nacre, asterism,
+M5 (the recipe lane) ──┬──► M6  free recipes  — tenebrescent, nacre, asterism,
                        │                        grating, pointillist
                        ├──► M7  parallax      — aventurine, retroreflect
                        ├──► M8  environment   — voidstone, deepstone, starfall
@@ -838,7 +838,7 @@ Chunks shared outward: M8's starfield → R4c's night sky.
 ### If it is cut short
 
 **The one phase that must not be skipped is M5**, and not because of the recipes in it —
-because a second exotic added without the lane means a fourth attribute, and then the
+because a second recipe added without the lane means a fourth attribute, and then the
 memory argument at the top of this document has been lost by accident rather than
 decided.
 
