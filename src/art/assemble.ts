@@ -354,9 +354,9 @@ export function finish(
     weights.needsUpdate = true;
   }
 
-  // The variant carrying exactly the finish chunks this prop's parts declared
-  // — `ART_MATERIAL` itself for the many props that declared none, and for a
-  // variant whose program does not exist yet. See `dressArtMesh`.
+  // The lean material, and a note of what this prop's parts declared. The room
+  // it ends up in decides which variant it actually draws with, once it knows
+  // what else is standing in it. See `dressArtMesh`.
   const mesh = new THREE.Mesh(geometry, ART_MATERIAL);
   dressArtMesh(mesh, (geometry.userData.finishMask as number | undefined) ?? 0);
   mesh.name = name;
