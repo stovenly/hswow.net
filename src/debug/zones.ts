@@ -2,41 +2,13 @@ import * as THREE from 'three';
 import { type ZoneDefinition, OUTDOOR_ENVIRONMENT, INDOOR_ENVIRONMENT } from '../world/Zone';
 import type { SoundscapeSpec } from '../audio/Soundscape';
 import type { PortalDefinition, PortalEnd } from '../world/Portal';
-import { buildInterior, HOUSE_STYLE, WORKS_STYLE } from '../world/interior';
 import { markCollidable } from '../player/Collider';
-import { PALETTE, shade } from '../art/palette';
 import { ProvingGround, SPAWN } from './ProvingGround';
 // Builders are imported directly rather than through `art/registry`, which is
-// Vite-only. The headless zone check reaches this file through esbuild.
+// Vite-only. The headless zone check reaches this file through esbuild. Only
+// the hub's own is here now — the two interiors' builders went with their
+// geometry into `interiors.build.ts`.
 import { hut, hutDoorAnchor } from '../art/builders/hut';
-import { crate } from '../art/builders/crate';
-import { barrel } from '../art/builders/barrel';
-import { bed } from '../art/builders/bed';
-import { table } from '../art/builders/table';
-import { chair } from '../art/builders/chair';
-import { stool } from '../art/builders/stool';
-import { figure } from '../art/builders/figure';
-import { machine } from '../art/builders/machine';
-import { sink } from '../art/builders/sink';
-import { candle } from '../art/builders/candle';
-import { floodlight } from '../art/builders/floodlight';
-import { pipes } from '../art/builders/pipes';
-import { tank } from '../art/builders/tank';
-import { vent } from '../art/builders/vent';
-import { railing } from '../art/builders/railing';
-import { chainlink } from '../art/builders/chainlink';
-import { fireplace } from '../art/builders/fireplace';
-import { stove } from '../art/builders/stove';
-import { windowBuilder } from '../art/builders/window';
-import { dresser } from '../art/builders/dresser';
-import { chest } from '../art/builders/chest';
-import { washtub } from '../art/builders/washtub';
-import { broom } from '../art/builders/broom';
-import { hangingHerbs } from '../art/builders/hanging-herbs';
-import { spinningWheel } from '../art/builders/spinning-wheel';
-import { wallPegs } from '../art/builders/wall-pegs';
-import { hoist } from '../art/builders/hoist';
-import { lantern } from '../art/builders/lantern';
 import {
   countrysideZone,
   countrysideTerrain,
@@ -156,12 +128,16 @@ const PROP_RANK = new THREE.Vector3(-10, 0, 22);
 const PROP_SPACING = 5;
 const PROP_YAW = Math.PI;
 
-/** Interior dimensions, shared by the zone builder and the portal placement. */
+/**
+ * Interior dimensions, shared by the zone builder and the portal placement.
+ * Exported for `interiors.build.ts`, which holds the builder half of that
+ * sharing now that the geometry loads on demand.
+ */
 // Roomy rather than snug. The first version was 6.4 x 5.2 and read as a
 // cupboard the moment there was furniture in it — at eye height a room needs
 // enough floor that you can walk *around* something, not just past it.
-const HUT_ROOM_SHELL = { width: 10, depth: 8, height: 3.4 };
-const FACTORY = { width: 15, depth: 11, height: 5.6 };
+export const HUT_ROOM_SHELL = { width: 10, depth: 8, height: 3.4 };
+export const FACTORY = { width: 15, depth: 11, height: 5.6 };
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -173,19 +149,19 @@ const UP = new THREE.Vector3(0, 1, 0);
  * moved without its noise following it, which is exactly what went wrong the
  * first time an emitter was given coordinates of its own.
  */
-const ENGINE_X = -5.4;
-const ENGINE_Z = [-2.4, 1.1, 4.4] as const;
+export const ENGINE_X = -5.4;
+export const ENGINE_Z = [-2.4, 1.1, 4.4] as const;
 /** The engine pulled out into the aisle, part-way through being worked on. */
-const STRIPPED_AT: readonly [number, number, number] = [1.5, 0.9, 1.9];
+export const STRIPPED_AT: readonly [number, number, number] = [1.5, 0.9, 1.9];
 /** The gantry straddling the aisle, and the height of its trolley. */
-const GANTRY_AT: readonly [number, number, number] = [-1.8, 2.6, 2.4];
+export const GANTRY_AT: readonly [number, number, number] = [-1.8, 2.6, 2.4];
 /**
  * The pipe run on the east wall, and roughly the height of its main.
  *
  * `FACTORY.width / 2 − 0.34` — written out because this is read before
  * `buildFactory` declares its local `halfW`, and the two must not drift.
  */
-const PIPE_RUN: readonly [number, number, number] = [15 / 2 - 0.34, 1.5, 1.6];
+export const PIPE_RUN: readonly [number, number, number] = [15 / 2 - 0.34, 1.5, 1.6];
 
 /**
  * The factory hall.
@@ -446,7 +422,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       // The floor is at y = 0 and the room is sealed, so anything below this is
       // a bug rather than a fall — but the recovery still has to exist.
       floor: -5,
-      build: () => buildVillagerHut(),
+      load: () => import('./interiors.build').then((m) => m.buildVillagerHut),
     },
 
     {
@@ -491,7 +467,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       },
       spawn: { position: new THREE.Vector3(0, 0.1, 2), yaw: Math.PI },
       floor: -5,
-      build: () => buildFactory(),
+      load: () => import('./interiors.build').then((m) => m.buildFactory),
     },
 
     countrysideZone(),
@@ -593,347 +569,4 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   zones.push(particleShowcaseZone());
 
   return { zones, portals };
-}
-
-/**
- * A small timber room: floor, four walls, ceiling, and somebody's things in it.
- *
- * Furnished rather than empty because an empty sealed box proves the zone
- * system works and proves nothing about whether it is worth having. A bed
- * against one wall, a table with chairs pulled up to it and a figure standing
- * by are what make walking through the door land as arriving somewhere.
- *
- * Everything is placed by hand here. There are a dozen objects and a Phase 6
- * editor or a JSON file would be doing exactly this from data — the point is
- * that the placement is the only thing that would move.
- */
-function buildVillagerHut(): THREE.Group {
-  const root = new THREE.Group();
-  root.add(
-    buildInterior({ ...HUT_ROOM_SHELL, seed: 4400, style: HOUSE_STYLE, planks: true, beams: 3 }),
-  );
-
-  const halfW = HUT_ROOM_SHELL.width / 2;
-  const halfD = HUT_ROOM_SHELL.depth / 2;
-
-  // --- a room somebody lives in --------------------------------------------
-  //
-  // Rearranged around the fireplace, because a hearth is not furniture — it is
-  // the thing a room is *organised by*. Everything here now answers to it: the
-  // seating faces it, the bed is out of its draught, the work that needs light
-  // is under the windows, and the storage is in the dead corner behind the
-  // door. Before this the pieces were spaced to be looked at individually,
-  // which is what a gallery is for.
-  //
-  // The door is in the north wall at x = 0, so the strip in front of it is kept
-  // clear — the world check verifies you can walk forward off the arrival
-  // marker, and it is also simply how a room works.
-
-  // The hearth, central on the west wall and facing into the room. Built with
-  // its back at z = 0 projecting +Z, so a quarter turn puts it against −X.
-  place(root, fireplace.build({ seed: 8801 }), -halfW + 0.12, 0, 0.4, Math.PI / 2);
-
-  // Two windows in the south wall, either side of centre. Facing −Z, into the
-  // room. They are the reason the south half is where the daytime work happens.
-  place(root, windowBuilder.build({ seed: 8810 }), -2.6, 0, halfD - 0.1, Math.PI);
-  place(root, windowBuilder.build({ seed: 8811 }), 2.4, 0, halfD - 0.1, Math.PI);
-
-  // The stove on the east wall — a second, smaller heat source at the far end
-  // from the hearth, which is what a room this long would actually have.
-  place(root, stove.build({ seed: 8820 }), halfW - 0.35, 0, -1.6, -Math.PI / 2);
-
-  // Bed in the north-west corner: out of the hearth's radiant heat, out of the
-  // window light, and away from the door. Beds are built lying along Z, so the
-  // west wall needs no rotation.
-  place(root, bed.build({ seed: 3120 }), -halfW + 0.95, 0, -2.5, 0);
-  // The chest at its foot, which is where a chest goes.
-  const foot = chest.build({ seed: 8830 });
-  place(root, foot, -halfW + 1.0, 0, -1.0, 0.06);
-
-  // Table and seating pulled in toward the fire rather than pushed to the far
-  // wall. Two chairs and a stool round it, the chairs on the hearth side.
-  const board = table.build({ seed: 2077 });
-  place(root, board, 0.6, 0, 0.9, 0.08);
-  place(root, chair.build({ seed: 411 }), -0.5, 0, 1.5, Math.PI * 0.4);
-  place(root, chair.build({ seed: 412 }), 0.9, 0, -0.4, 0.1);
-  place(root, stool.build({ seed: 413 }), 1.7, 0, 0.4, 0.4);
-  // One drawn up to the fire itself, turned to face it.
-  place(root, stool.build({ seed: 415 }), -halfW + 1.6, 0, 0.2, -0.5);
-
-  // The spinning wheel under the west window, because it is the piece that
-  // most needs light to work at — and putting it there is the cheapest way to
-  // say the windows are for something.
-  place(root, spinningWheel.build({ seed: 8840 }), -2.9, 0, halfD - 2.2, Math.PI * 0.85);
-
-  // A side table against the south wall between the windows, with the clutter.
-  const side = table.build({ seed: 2078 });
-  place(root, side, -0.2, 0, halfD - 0.8, Math.PI);
-
-  // The dresser on the north wall, east of the door, facing into the room.
-  place(root, dresser.build({ seed: 8850 }), 2.6, 0, -halfD + 0.35, 0);
-
-  // Washing in the corner by the hearth, where the water would be heated.
-  place(root, washtub.build({ seed: 8860 }), -halfW + 0.75, 0, 3.3, 0.4);
-  // Herbs drying on the wall above it — the overhead register, and the only
-  // thing in the room whose geometry starts above head height.
-  place(root, hangingHerbs.build({ seed: 8870 }), -halfW + 0.16, 0, 2.4, Math.PI / 2);
-  // Pegs by the door, where coats come off.
-  place(root, wallPegs.build({ seed: 8880 }), -1.5, 0, -halfD + 0.14, 0);
-  // And the broom leaning beside them.
-  place(root, broom.build({ seed: 8890 }), -2.3, 0, -halfD + 0.45, 0.25);
-
-  // Somebody home. Static — Phase 7 is where figures start moving — but a room
-  // with a person standing in it reads completely differently from one without,
-  // and this is the fixture the animation work will be judged against. Stood at
-  // the table rather than in open floor, which is where a person actually is.
-  place(root, figure.build({ seed: 6602 }), 0.4, 0, 2.1, Math.PI * 0.9);
-
-  // Storage in the dead corner behind the door, which is where it goes in a
-  // real room: the space nobody walks through and nobody sits in.
-  const crateA = crate.build({ seed: 61 });
-  place(root, crateA, halfW - 0.9, 0, -halfD + 1.0, 0.4);
-  // **The second crate is gone.** It rolls very nearly a metre across, and
-  // there is nowhere left in a ten-by-eight room with a hearth, a stove, a
-  // dresser and two windows in it that a metre-wide box can stand without
-  // fouling something — it was inside the dresser in one position and standing
-  // in the daylight from the south window in the next. One crate is enough.
-  place(root, barrel.build({ seed: 67 }), halfW - 0.7, 0, -0.2, 0.2);
-
-  // --- light you can see ---------------------------------------------------
-  //
-  // The interior's own lighting is a sun at a tenth strength and a generous
-  // ambient — enough to read the room by and no reason for any of it. These are
-  // the reason: four small sources, each standing on something, so the light in
-  // here is *coming from* things rather than being a property of the air.
-  //
-  // Four rather than a dozen. Each carries a `PointLight`, and every one of
-  // those is another iteration in the shader for every lit fragment in the
-  // room. Four is enough to give the space a direction and a couple of pools of
-  // warmth; a candle on every surface would cost real frames for a difference
-  // that reads as "the lights are on".
-  //
-  // Stood on measured surfaces rather than at guessed heights — see `topOf`.
-  place(root, candle.build({ seed: 7101 }), 0.75, topOf(board), 0.65, 0.6);
-  place(root, candle.build({ seed: 7102 }), -0.35, topOf(side), halfD - 0.85, -0.4);
-  // On a crate rather than beside it. A lantern on the floor of a room this
-  // size lights the boards and nothing else; up on a box it reaches the wall.
-  place(root, lantern.build({ seed: 7103 }), halfW - 0.95, topOf(crateA), -halfD + 1, 0.9);
-  // And one genuinely on the floor, by the bed, where somebody set it down.
-  // Standing *on* the chest at the foot of the bed, not inside it. Read off
-  // the chest's own geometry rather than assumed — the lid height is rolled.
-  place(root, lantern.build({ seed: 7104 }), -halfW + 1.05, topOf(foot), -1.05, -0.5);
-
-  return markCollidable(root);
-}
-
-/**
- * Inside the factory: a large stone hall with engines in it.
- *
- * The machinery is the point of the room. An empty industrial shell is just a
- * bigger version of the other interior, and the two are supposed to prove that
- * crossing a threshold puts you somewhere *different* — so this one has a line
- * of engines down it, a working aisle, and enough clutter to look used.
- */
-function buildFactory(): THREE.Group {
-  const root = new THREE.Group();
-  // **No beams.** `buildInterior` puts timber joists across the ceiling, which
-  // is right for a dwelling and wrong here — a works is not roofed in wood, and
-  // a room dressed with steel plant under oak beams reads as a barn somebody
-  // put machinery in. The overhead structure is pipework instead, below.
-  root.add(buildInterior({ ...FACTORY, seed: 7700, style: WORKS_STYLE, planks: false, beams: 0 }));
-
-  const halfW = FACTORY.width / 2;
-  const halfD = FACTORY.depth / 2;
-
-  // Laid out in three lanes across the width: engines west, an open aisle up
-  // the middle where the door lets you in, and storage east. The door is in the
-  // north wall at x = 0, so the strip around z = -4 is kept clear — the check
-  // verifies the arrival marker itself is not inside anything, and separately
-  // that you can walk forward off it, which is what this lane is for.
-  const engineX = ENGINE_X;
-
-  // --- the plant -----------------------------------------------------------
-  //
-  // A row of engines along the west wall, turned to face the aisle. Different
-  // seeds, so they read as the same kind of machine rather than as three
-  // copies of one.
-  //
-  // Positions from `ENGINE_Z`, shared with `FACTORY_SOUND`. Typing them twice
-  // is how an engine ends up standing a metre from its own noise.
-  ENGINE_Z.forEach((z, index) => {
-    place(root, machine.build({ seed: 3301 + index }), engineX, 0, z, Math.PI / 2);
-  });
-
-  // The vessel along the east wall, lying across the room. The biggest single
-  // mass in here and the only thing that breaks the sightline down the hall,
-  // which is what stops a shed reading as one empty box.
-  place(root, tank.build({ seed: 4401 }), 5.1, 0, 2.1, Math.PI / 2);
-
-  // And one engine pulled out into the open, at an angle, part-way through
-  // being worked on — the reason anyone would be in here, and what the clatter
-  // in `FACTORY_SOUND` is coming off.
-  place(root, machine.build({ seed: 3304 }), STRIPPED_AT[0], 0, STRIPPED_AT[2], -0.35);
-
-  // --- pipework, on the walls ---------------------------------------------
-  //
-  // Along the walls and not across the ceiling. Pipes overhead were standing in
-  // for the timber joists that were removed, and they were the wrong shape for
-  // the job — a pipe run is a *service*, something that goes from one machine
-  // to another at working height, and hanging four of them across a roof reads
-  // as decoration. The roof is carried by trusses below, which is what actually
-  // carries a roof.
-  //
-  // `pipes` builds its main at a fixed 2 m along +X, so a wall run is a
-  // rotation and a nudge and nothing else.
-  const wallRuns: [number, number, number][] = [
-    [-3.6, -halfD + 0.34, 0],
-    [3.6, -halfD + 0.34, 0],
-    // Shared with `FACTORY_SOUND`, which puts the air in this one. Same rule
-    // as the engines and the gantry: the emitter is derived from the object.
-    [PIPE_RUN[0], PIPE_RUN[2], Math.PI / 2],
-    [halfW - 0.34, -2.4, Math.PI / 2],
-  ];
-  for (let i = 0; i < wallRuns.length; i++) {
-    const [a, b, yaw] = wallRuns[i];
-    const run = pipes.build({ seed: 9101 + i });
-    run.position.set(yaw === 0 ? a : a, 0, yaw === 0 ? b : b);
-    run.rotation.y = yaw;
-    root.add(run);
-  }
-
-  // Extract high on the east wall. Vents build about a fixed 1.7 m sill, so
-  // this is lifted the same way a wall pipe run is turned.
-  const extract = vent.build({ seed: 9201 });
-  extract.position.set(halfW - 0.22, 1.4, -1.4);
-  extract.rotation.y = -Math.PI / 2;
-  root.add(extract);
-
-  // --- roof trusses --------------------------------------------------------
-  //
-  // Steel, and built here rather than by `buildInterior`, whose `beams` are
-  // timber joists — right for a dwelling, wrong for a works, and the reason
-  // they were turned off. But turning them off left the ceiling as one
-  // unbroken plane fifteen metres across, and an unbroken plane lit from a
-  // single direction is a flat field of one colour whatever that colour is.
-  // Pipes alone are too thin to break it.
-  //
-  // A truss is a top chord, a bottom chord and a zigzag of webs between them.
-  // That is three cheap boxes and a loop, and it is unmistakably industrial in
-  // a way a single beam is not — the diagonals are the whole read.
-  const truss = new THREE.MeshLambertMaterial({
-    color: shade(PALETTE.IRON, 0.92),
-    flatShading: true,
-  });
-  const trussTop = FACTORY.height - 0.12;
-  const trussDepth = 0.42;
-
-  for (const z of [-4.2, -1.4, 1.4, 4.2]) {
-    const bay = new THREE.Group();
-
-    for (const [y, thick] of [
-      [trussTop, 0.13],
-      [trussTop - trussDepth, 0.1],
-    ] as const) {
-      const chord = new THREE.Mesh(
-        new THREE.BoxGeometry(FACTORY.width, thick, thick * 1.25),
-        truss,
-      );
-      chord.position.set(0, y, 0);
-      bay.add(chord);
-    }
-
-    // The webs. Alternating lean, so consecutive panels form the W that says
-    // "this is carrying a load" rather than a ladder, which says nothing.
-    const panels = 9;
-    const pitch = FACTORY.width / panels;
-    for (let i = 0; i < panels; i++) {
-      const web = new THREE.Mesh(
-        new THREE.BoxGeometry(0.07, Math.hypot(pitch, trussDepth), 0.09),
-        truss,
-      );
-      web.position.set(-FACTORY.width / 2 + pitch * (i + 0.5), trussTop - trussDepth / 2, 0);
-      web.rotation.z = (i % 2 === 0 ? 1 : -1) * Math.atan2(pitch, trussDepth);
-      bay.add(web);
-    }
-
-    bay.position.z = z;
-    root.add(bay);
-  }
-
-  // --- keeping people out of the plant -------------------------------------
-  //
-  // A railing between the aisle and the engine row, and a fenced-off corner at
-  // the south end. Both are the cheapest way to say that this is a place with
-  // rules in it: a machine you can walk straight into is scenery, and one
-  // behind a rail is equipment.
-  place(root, railing.build({ seed: 9301 }), engineX + 1.9, 0, 1, Math.PI / 2);
-  place(root, chainlink.build({ seed: 9302 }), 2.4, 0, halfD - 0.7, 0);
-
-  // The wash-up, in the corner by the door. Every works has one and it is the
-  // one object in here at human scale.
-  place(root, sink.build({ seed: 9401 }), halfW - 0.55, 0, -halfD + 1.5, -Math.PI / 2);
-
-  // --- the gantry ----------------------------------------------------------
-  //
-  // Straddling the aisle rather than standing over the plant, because the
-  // point of a hoist is the empty floor underneath it: something gets lifted
-  // *off* a machine and set down where there is room to work on it, and the
-  // engine pulled out at an angle a couple of metres away is that job. Turned
-  // to run along the hall so the beam does not block the walk down it.
-  //
-  // **This is the object the creak comes from.** The friction emitter in the
-  // factory soundscape sits at the trolley, and it was placed here first — a
-  // rope groaning out of clear air in the middle of a room reads as a bug.
-  place(root, hoist.build({ seed: 8110 }), GANTRY_AT[0], 0, GANTRY_AT[2], Math.PI / 2);
-
-  // --- lit for work --------------------------------------------------------
-  //
-  // Aimed at things, not scattered. `floodlight` builds pointing +Z and takes
-  // no facing of its own, so the yaw here is the whole aim — which is the only
-  // reason it is possible to say "this one lights the engine row" and be right.
-  //
-  // Aimed *across* the hall rather than down it, for a second reason: the beam
-  // is visible geometry, and a beam pointing away from you is a bright disc
-  // while a beam crossing your view is a shaft. The shaft is the entire value
-  // of drawing the cone.
-  //
-  // Three, and not one per machine. Each carries a `SpotLight`, which is the
-  // most expensive light in the API — a cone test and a penumbra falloff for
-  // every lit fragment, on top of a shadow map when shadows are on.
-  //
-  // Onto the engine row from across the aisle, facing -X.
-  place(root, floodlight.build({ seed: 5501 }), -0.6, 0, -2.4, -Math.PI / 2);
-  place(root, floodlight.build({ seed: 5502 }), -0.6, 0, 4.4, -Math.PI / 2);
-  // And onto the tank from the aisle, facing +X.
-  place(root, floodlight.build({ seed: 5503 }), 1.2, 0, -0.6, Math.PI / 2);
-
-
-  return markCollidable(root);
-}
-
-/**
- * The height of the top of a placed prop, in its parent's space.
- *
- * Measured off the geometry rather than looked up. Every builder rolls its own
- * dimensions from its seed — a table is between 0.68 and 0.78 m tall — so the
- * only way to stand something *on* one and be right about it is to ask the mesh
- * that was actually built. A constant here would be correct for one seed and
- * put a candle through the boards or hovering above them for every other.
- */
-function topOf(mesh: THREE.Mesh): number {
-  mesh.geometry.computeBoundingBox();
-  return (mesh.geometry.boundingBox?.max.y ?? 0) + mesh.position.y;
-}
-
-function place(
-  parent: THREE.Object3D,
-  mesh: THREE.Mesh,
-  x: number,
-  y: number,
-  z: number,
-  yaw: number,
-): void {
-  mesh.position.set(x, y, z);
-  mesh.rotation.y = yaw;
-  parent.add(mesh);
 }

@@ -4,7 +4,7 @@ import { CLUTTER } from './clutter';
 import { MATERIALS } from './underfoot';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
-import { SWAY_DEPTH_MATERIAL } from './sway';
+import { SWAY_DEPTH_MATERIAL, dressArtMesh } from './sway';
 import { WEAR_ATTRIBUTE, WEAR_TINT_ATTRIBUTE } from './weathering';
 import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE } from './detail';
 import {
@@ -168,6 +168,9 @@ export interface Part {
 }
 
 export function assemble(parts: Part[]): THREE.BufferGeometry {
+  // The union of the parts' finish chunks, stamped on the merged geometry so
+  // `finish` can pick the material variant that compiles exactly those.
+  let finishMask = 0;
   const prepared = parts.map((part) => {
     // Everything is un-indexed first. `mergeGeometries` refuses to mix indexed
     // and non-indexed inputs and returns null rather than saying so, and
@@ -262,6 +265,7 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
     const exoticLanes = new Uint8Array(count);
     if (part.finish !== undefined) {
       const lanes = resolveFinish(part.finish, part.grain);
+      finishMask |= lanes.mask;
       for (let i = 0; i < count; i++) {
         for (let lane = 0; lane < 4; lane++) {
           finishLanes[i * 4 + lane] = Math.round(lanes.finish[lane] * 255);
@@ -304,6 +308,7 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
   const merged = mergeGeometries(prepared, false);
   for (const geometry of prepared) geometry.dispose();
   if (!merged) throw new Error('assemble: geometries did not share an attribute set');
+  merged.userData.finishMask = finishMask;
   // Star sparkle sites, scattered over whatever triangles carry the star lane.
   collectSparkleSites(merged);
   return merged;
@@ -349,7 +354,11 @@ export function finish(
     weights.needsUpdate = true;
   }
 
+  // The variant carrying exactly the finish chunks this prop's parts declared
+  // — `ART_MATERIAL` itself for the many props that declared none, and for a
+  // variant whose program does not exist yet. See `dressArtMesh`.
   const mesh = new THREE.Mesh(geometry, ART_MATERIAL);
+  dressArtMesh(mesh, (geometry.userData.finishMask as number | undefined) ?? 0);
   mesh.name = name;
   mesh.userData.swayPhase = phase;
   // Stamped here rather than looked up in the zone manager, because by the time

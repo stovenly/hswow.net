@@ -1010,6 +1010,11 @@ export class PostFX {
     return this.pixelStage.renderHeight;
   }
 
+  /** The renderer, for `ZoneManager`'s ahead-of-time shader compiles. */
+  get renderer(): THREE.WebGLRenderer {
+    return this.viewport.renderer;
+  }
+
   render(elapsed: number): void {
     // Both of these are per-frame counterparts to switches turned off in
     // `Viewport`, and both belong here rather than at the call site because

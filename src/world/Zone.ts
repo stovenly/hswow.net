@@ -304,7 +304,16 @@ export interface ZoneDefinition {
    */
   readonly horrors?: readonly HorrorPlacement[];
   /** Builds the zone's geometry. Called once, lazily, on first entry. */
-  build(): THREE.Group;
+  readonly build?: () => THREE.Group;
+  /**
+   * Resolves the build function from its own chunk, for zones whose geometry
+   * code should stay out of the boot bundle — written as
+   * `() => import('./foo').then((m) => m.build)`, which esbuild and Vite both
+   * understand. A definition carries this or `build`. Entry and prebuild await
+   * it, and every arrival prefetches the chunks of the zones within the
+   * residency ring, so the door click rarely waits on the network.
+   */
+  readonly load?: () => Promise<() => THREE.Group>;
 }
 
 /**
@@ -320,6 +329,10 @@ export interface ZoneDefinition {
 export class Zone {
   readonly definition: ZoneDefinition;
   private group: THREE.Group | null = null;
+  /** The build function, once known — from the definition or from `load`. */
+  private builder: (() => THREE.Group) | null;
+  /** The in-flight `load()`, so concurrent callers share one import. */
+  private loading: Promise<void> | null = null;
   /** Set when the zone is built, by looking. See `hasWater`. */
   private water = false;
   /** The same, for the transmissive pass. See `hasGlass`. */
@@ -327,6 +340,7 @@ export class Zone {
 
   constructor(definition: ZoneDefinition) {
     this.definition = definition;
+    this.builder = definition.build?.bind(definition) ?? null;
   }
 
   get id(): ZoneId {
@@ -406,10 +420,35 @@ export class Zone {
     return { position, yaw: placement.yaw };
   }
 
+  /**
+   * Resolves the build function, for zones whose geometry code lives in its
+   * own chunk. Instant when the definition carries `build` or the chunk has
+   * already arrived. A failed import clears itself, so the entry that actually
+   * needs the zone retries rather than inheriting a prefetch's dead promise.
+   */
+  ensureLoaded(): Promise<void> {
+    if (this.builder || !this.definition.load) return Promise.resolve();
+    this.loading ??= this.definition.load().then(
+      (build) => {
+        this.builder = build;
+      },
+      (error: unknown) => {
+        this.loading = null;
+        throw error;
+      },
+    );
+    return this.loading;
+  }
+
   /** Builds on first call, returns the same group after that. */
   root(): THREE.Group {
     if (this.group === null) {
-      this.group = this.definition.build();
+      if (!this.builder) {
+        // A programming error, not a race: every path that builds a zone is
+        // required to await `ensureLoaded` first.
+        throw new Error(`zone "${this.definition.id}" built before its code loaded`);
+      }
+      this.group = this.builder();
       this.group.name = `zone:${this.definition.id}`;
       // World matrices have to be current before the collider reads triangles
       // out of the graph, and this subtree has never been rendered.

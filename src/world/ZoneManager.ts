@@ -7,7 +7,7 @@ import { noteById, type Note } from '../content/notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
-import { setZoneWind } from '../art/sway';
+import { setZoneWind, pendingArtProbe, resolveArtVariants } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { ClothActivity } from '../engine/ClothActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
@@ -68,6 +68,12 @@ export interface ZoneAudio {
   engine: AudioEngine;
   footsteps: Footsteps;
 }
+
+// three keys its program cache on per-type light counts, so every distinct
+// census is a full shader recompile. Zones pad up to these tiers so the
+// census takes a handful of values game-wide. See `padLights`.
+const POINT_TIERS = [0, 4, 8] as const;
+const SPOT_TIERS = [0, 2] as const;
 
 export class ZoneManager {
   readonly zones = new Map<ZoneId, Zone>();
@@ -290,15 +296,46 @@ export class ZoneManager {
    * For the loading screen. A big zone's first entry otherwise pays its whole
    * build cost behind the fade, which is only a third of a second of black.
    */
-  prebuild(id: ZoneId): void {
+  async prebuild(id: ZoneId): Promise<void> {
     const zone = this.zones.get(id);
     if (!zone) return;
+    await zone.ensureLoaded();
     const root = this.prepare(zone);
     root.updateWorldMatrix(true, true);
     this.options.collider.warm(root, zone.id);
     // Prebuilding pays the whole cost up front, so entering later must take the
     // silent path — that is the entire point of doing it at boot.
     this.warmed.add(zone.id);
+  }
+
+  /**
+   * Compiles a zone's shader programs ahead of entry. Safe to fire unawaited:
+   * parallel compile runs on driver threads, and an entry that arrives first
+   * just awaits the remainder behind its fade.
+   */
+  async precompile(id: ZoneId): Promise<void> {
+    const zone = this.zones.get(id);
+    if (!zone) return;
+    await zone.ensureLoaded();
+    await this.compile(this.prepare(zone));
+  }
+
+  /** Compiles every program the root needs, off the critical frame. */
+  private async compile(root: THREE.Group): Promise<void> {
+    const { scene, player, postfx } = this.options;
+    if (root.parent === scene) {
+      await postfx.renderer.compileAsync(scene, player.camera);
+      return;
+    }
+    // A detached root compiles against a stand-in holding clones of the global
+    // rig: the real scene may hold another zone's lights (a combined census
+    // compiles a program nothing renders with), and passing the root as the
+    // pre-add object to its own scene would count its lights twice.
+    const stand = new THREE.Scene();
+    stand.fog = scene.fog;
+    stand.environment = scene.environment;
+    stand.add(this.lights.sun.clone(), this.lights.fill.clone(), this.lights.ambient.clone());
+    await postfx.renderer.compileAsync(root, player.camera, stand);
   }
 
   /**
@@ -460,27 +497,44 @@ export class ZoneManager {
       if (stale()) return;
     }
 
-    if (this.active && this.active !== zone) scene.remove(this.active.root());
+    // The zone's code, if it lives in its own chunk. The prefetch on the last
+    // arrival usually means this is already resolved; a miss waits on the
+    // network here, under the indicator or the fade.
+    await zone.ensureLoaded();
+    if (stale()) return;
 
     const root = this.prepare(zone);
     if (cold) {
-      // Still indeterminate: indexing the octree is the longer of the two and
-      // is equally unable to say how far through it is.
+      // Still indeterminate: neither the compile below nor the octree can say
+      // how far through they are.
       await this.building.step('settling the ground');
       if (stale()) return;
     }
-    scene.add(root);
-    this.active = zone;
 
     // Triangles are read straight out of the graph, and this subtree may never
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
+
+    // **Compiled before anything is swapped.** This await is the long pole on
+    // a cold entry, and every frame it yields still shows the old zone, whole,
+    // with the player standing on its collider. Compiling after the swap put
+    // rendered frames between the collider changing and the teleport — on a
+    // doorless jump the player fell through a world they were not in yet.
+    // The stand-in census in `compile` matches the scene the root is about to
+    // join, so the programs are the ones the first real frame asks for.
+    if (cold) await this.building.step('almost there', 0.96);
+    await this.compile(root);
+    if (stale()) return;
+
+    // From here to the teleport nothing yields: the swap, the collider and
+    // the player's arrival land in one task, so no frame renders mid-swap.
+    if (this.active && this.active !== zone) scene.remove(this.active.root());
+    scene.add(root);
+    this.active = zone;
     // Keyed by zone, so re-entering a place the player has been before costs
-    // nothing. See `Collider.build`. This is the single most expensive step on
-    // a dense zone, which is why it gets the yield before it rather than after.
+    // nothing. See `Collider.build`.
     collider.build(root, zone.id);
     this.warmed.add(zone.id);
-    if (cold) await this.building.step('almost there', 0.96);
 
     const env = zone.environment;
     postfx.setEnvironment({
@@ -543,6 +597,53 @@ export class ZoneManager {
     // earlier means freeing buffers that the transition still has in hand. The
     // player is standing still on their marker by the time this runs.
     this.evict();
+    this.prefetch();
+    void this.upgradeMaterials(zone);
+  }
+
+  /**
+   * Compiles the finish variants this zone deferred, then swaps them in
+   * (ZONE-LOADING.md Phase E).
+   *
+   * **Unawaited, and that is the whole point.** The entry above compiled the
+   * zone with every uncompiled variant standing in as the lean material, so
+   * what gated the fade was one program rather than one per finish in the
+   * room. The real materials arrive a beat later, and because the probe is
+   * compiled before anything is assigned, the frame that first draws them is
+   * never the frame that compiles them.
+   *
+   * A crossing that lands mid-compile abandons the swap rather than forcing
+   * it: the probe hung off a root that is no longer in the scene, so its
+   * programs may not exist. The waiting meshes keep the lean material and the
+   * next entry retries.
+   */
+  private async upgradeMaterials(zone: Zone): Promise<void> {
+    const pending = pendingArtProbe();
+    if (!pending) return;
+
+    const root = zone.root();
+    root.add(pending.probe);
+    try {
+      await this.compile(root);
+    } finally {
+      root.remove(pending.probe);
+    }
+    if (this.active !== zone) return;
+    resolveArtVariants(pending.masks);
+  }
+
+  /**
+   * Fires the chunk load for every zone within the residency ring, so the
+   * code behind each reachable door is cached before it is asked for. Every
+   * door the player can see leads one hop out, well inside the ring.
+   * Fire-and-forget: a failure clears itself and is retried, and surfaced, by
+   * whichever entry actually needs the zone.
+   */
+  private prefetch(): void {
+    if (!this.active) return;
+    for (const id of residentZones(this.portals, this.active.id, KEEP_WITHIN)) {
+      void this.zones.get(id)?.ensureLoaded().catch(() => {});
+    }
   }
 
   private applyAudio(zone: Zone): void {
@@ -623,6 +724,8 @@ export class ZoneManager {
     //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
     const clutter: THREE.Mesh[] = [];
+    let points = 0;
+    let spots = 0;
     root.traverse((object) => {
       // **Every light is shown to the particle pass.** That pass restricts the
       // camera to `PARTICLE_LAYER`, and three collects only the lights a camera
@@ -631,7 +734,11 @@ export class ZoneManager {
       // not set, so nothing about ordinary rendering changes; and done here
       // rather than in the builders so a forge lights the embers drifting off
       // it without knowing particles exist.
-      if (object instanceof THREE.Light) object.layers.enable(PARTICLE_LAYER);
+      if (object instanceof THREE.Light) {
+        object.layers.enable(PARTICLE_LAYER);
+        if (object instanceof THREE.PointLight) points++;
+        if (object instanceof THREE.SpotLight) spots++;
+      }
       if (!(object instanceof THREE.Mesh)) return;
       // A cloth panel is `noCollide` — its triangles stay out of the octree —
       // but it is solid to light: the sim moves the actual buffer, so its
@@ -664,6 +771,8 @@ export class ZoneManager {
       if (cover) mesh.add(cover);
     }
 
+    this.padLights(root, zone.id, points, spots);
+
     // Every star site in the zone as one instanced draw. See `art/sparkle.ts`.
     const sparkles = buildZoneSparkles(root);
     if (sparkles) root.add(sparkles);
@@ -677,6 +786,37 @@ export class ZoneManager {
     this.horror.collect(zone.id, root, zone.horrors);
 
     return root;
+  }
+
+  /**
+   * Pads the zone's light census up to the nearest tier with black
+   * zero-intensity lights, so its shader programs are shared game-wide.
+   *
+   * A black light holds its slot in the shader's light loop and contributes
+   * nothing; the cost is a few dead loop iterations per fragment. Pads carry
+   * no `userData.activity`, so `LightActivity` never collects them. The rule
+   * that keeps this working: flames flicker *intensity*, never `visible` — a
+   * light toggling visible changes the census mid-zone and forces a compile.
+   */
+  private padLights(root: THREE.Group, id: ZoneId, points: number, spots: number): void {
+    const pad = (count: number, tiers: readonly number[], make: () => THREE.Light, kind: string): void => {
+      const ceiling = tiers.find((t) => t >= count);
+      if (ceiling === undefined) {
+        // One greedy zone mints a new shader permutation for the whole game.
+        console.warn(
+          `zone "${id}" carries ${count} ${kind} lights, over the top tier of ${tiers[tiers.length - 1]}`,
+        );
+        return;
+      }
+      for (let i = count; i < ceiling; i++) {
+        const light = make();
+        // Like every real light, so the particle pass sees the same census.
+        light.layers.enable(PARTICLE_LAYER);
+        root.add(light);
+      }
+    };
+    pad(points, POINT_TIERS, () => new THREE.PointLight(0x000000, 0), 'point');
+    pad(spots, SPOT_TIERS, () => new THREE.SpotLight(0x000000, 0), 'spot');
   }
 
   /**
@@ -792,6 +932,23 @@ export class ZoneManager {
     await this.options.fade.cover(async () => {
       await this.enter(side.target.zone, side.arrival);
       this.crossings++;
+    });
+
+    this.transitioning = false;
+  }
+
+  /**
+   * A doorless jump under the same fade a door gets: the debug menu's travel,
+   * and anything else scripted. Without the cover, the swap — however atomic —
+   * is a hard cut in full view.
+   */
+  async travel(id: ZoneId, at?: Placement): Promise<void> {
+    if (this.transitioning) return;
+    this.transitioning = true;
+    this.options.reticle.set(null);
+
+    await this.options.fade.cover(async () => {
+      await this.enter(id, at);
     });
 
     this.transitioning = false;
