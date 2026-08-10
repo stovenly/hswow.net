@@ -24,6 +24,7 @@ import { fogShowcasePlan } from './galleries/fog';
 import { readablesGalleryPlan } from './galleries/readables';
 import { readablesShowcasePlan } from './galleries/readables-showcase';
 import { materialsGalleryPlan } from './galleries/materials';
+import { materialsGallery2Plan } from './galleries/materials2';
 import { fabricsGalleryPlan } from './galleries/fabrics';
 import { glitchShowcasePlan } from './galleries/glitch';
 import { horrorShowcasePlan } from './galleries/horror';
@@ -123,7 +124,7 @@ const DOOR_SLOTS = [-9, -3, 3, 9] as const;
  * one on it, which is why these are on half-metres.
  */
 const SHOWCASE_SLOTS = [
-  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5,
+  -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5, 52.5,
 ] as const;
 
 /** A showcase door standing free on the grid, facing the way home. */
@@ -412,5 +413,10 @@ export function propPortals(
     // Where the two of them meet, on things that are not all figures. Last in
     // the rank because it only makes sense having seen both rooms before it.
     galleryPortal(objectEffectsPlan, gridDoor(14, 'iron', 6447)),
+    // The exotic recipes. A second materials room rather than ten more rows in
+    // the first — see `galleries/materials2.ts` for why the scale in there is
+    // worth not breaking. Timber, because what is behind it is a set of
+    // materials rather than a rig.
+    galleryPortal(materialsGallery2Plan, gridDoor(15, 'timber', 6448)),
   ];
 }

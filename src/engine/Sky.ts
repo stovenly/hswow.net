@@ -136,9 +136,27 @@ export const SKY_GLSL = /* glsl */ `
   uniform float uSunGlow;
   uniform float uSunIntensity;
 
-  vec3 skyColour(vec3 direction) {
+  /**
+   * The sky, with the sun's own brightness under the caller's control.
+   *
+   * **Why anything would want less than all of it.** A flat-shaded facet has one
+   * normal, so it has one reflected direction, so when that direction lands on
+   * the sun the *entire triangle* comes back as uSunColor — a hard white polygon
+   * stuck to the side of an object. On the dome, where the direction varies per
+   * pixel, that is a sun; on a faceted prop reflecting it, that is a bug you
+   * cannot tune your way out of from the material side.
+   *
+   * The finish stage's roughness blur is no help either: it only starts mixing
+   * above roughness 0.15, and the surfaces this bites hardest are the smooth
+   * ones.
+   *
+   * So a reflector may ask for a fraction of the sun and get the rest of the sky
+   * unchanged — gradient, horizon, ground and clouds all exactly as drawn.
+   */
+  vec3 skyColourWithSun(vec3 direction, float sunScale) {
     float height = direction.y;
     float curve = max(uCurve, 0.01);
+    float sunPower = uSunIntensity * sunScale;
 
     vec3 above = mix(uHorizon, uZenith, pow(clamp(height, 0.0, 1.0), curve));
     vec3 below = mix(uHorizon, uGround, pow(clamp(-height, 0.0, 1.0), curve));
@@ -153,14 +171,14 @@ export const SKY_GLSL = /* glsl */ `
     //
     // uSunSize is a cosine rather than an angle, so the comparison is against
     // the dot product directly and no inverse cosine runs per pixel.
-    if (uSunIntensity > 0.0) {
+    if (sunPower > 0.0) {
       float toSun = dot(direction, normalize(uSunDirection));
       float halo = pow(max(toSun, 0.0), uSunGlow);
-      colour = mix(colour, uSunColor, clamp(halo * 0.6, 0.0, 1.0) * uSunIntensity);
+      colour = mix(colour, uSunColor, clamp(halo * 0.6, 0.0, 1.0) * sunPower);
       // A soft edge on the disc. Hard-edged, it aliases badly against a
       // pipeline that renders at a third of display resolution.
       float disc = smoothstep(uSunSize - 0.0004, uSunSize + 0.0004, toSun);
-      colour = mix(colour, uSunColor, disc * uSunIntensity);
+      colour = mix(colour, uSunColor, disc * sunPower);
     }
 
     if (height > 0.0) {
@@ -181,6 +199,15 @@ export const SKY_GLSL = /* glsl */ `
     }
 
     return colour;
+  }
+
+  /**
+   * The sky as the dome draws it, and as everything drew it before the
+   * parameter above existed. Bit-identical: sunScale 1.0 multiplies
+   * uSunIntensity by one.
+   */
+  vec3 skyColour(vec3 direction) {
+    return skyColourWithSun(direction, 1.0);
   }
 `;
 

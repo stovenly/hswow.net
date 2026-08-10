@@ -27,6 +27,7 @@ import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/gl
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
 import { detailUniforms } from '../art/detail';
 import { finishUniforms } from '../art/finish';
+import { exoticUniforms } from '../art/exotic';
 import type { Viewport } from './Viewport';
 
 /**
@@ -461,6 +462,8 @@ export class PostFX {
   private waves = true;
   /** Dev-only, like the fog volumes: a finish is what a prop is made of. */
   private finished = true;
+  /** Dev-only, `finished`'s companion. See `setExotics`. */
+  private exotics = true;
   /** The player's groundcover tier, `off` included. See `setGroundcover`. */
   private groundcover: CoverDensity = 'high';
   /**
@@ -756,6 +759,20 @@ export class PostFX {
   }
 
   /**
+   * Turns the exotic recipes off, leaving the finish underneath them.
+   *
+   * A separate switch from `setFinish` and not a redundant one: off, a
+   * labradorite orb is still a metal orb with a roughness, which is what the
+   * recipe is *added to*. Judging a domain flood against plain Lambert says
+   * nothing about the flood; judging it against the finish it stands on says
+   * everything. Dev-facing, for the same reason `setFinish` is.
+   */
+  setExotics(enabled: boolean): void {
+    this.exotics = enabled;
+    this.apply();
+  }
+
+  /**
    * How much of the sampled field to draw, `off` being none of it.
    *
    * One setting rather than a switch and a tier: off is where thinning ends,
@@ -874,6 +891,13 @@ export class PostFX {
     finishUniforms.uFinishSpecular.value = s.finish.specular;
     finishUniforms.uFinishEnv.value = s.finish.environment;
     finishUniforms.uFinishSky.value = this.air === null || this.air.sky ? 1 : 0;
+    // The exotic recipes ride inside the finish stage, so the switch above
+    // already turns them off with it; this is the separate one, for judging a
+    // recipe against the plain finish it is standing on rather than against
+    // nothing. Their clocks ride the same reduced-motion switch the water does
+    // — a reflection that crawls is motion whatever it is crawling over.
+    exoticUniforms.uExoticOn.value = this.exotics ? 1 : 0;
+    exoticUniforms.uExoticMotion.value = this.waves ? 1 : 0;
 
     setCoverDraw(
       this.groundcover !== 'off',

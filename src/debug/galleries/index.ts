@@ -8,6 +8,7 @@ import { fogShowcasePlan } from './fog';
 import { readablesGalleryPlan } from './readables';
 import { readablesShowcasePlan } from './readables-showcase';
 import { materialsGalleryPlan } from './materials';
+import { materialsGallery2Plan } from './materials2';
 import { fabricsGalleryPlan } from './fabrics';
 import { glitchShowcasePlan } from './glitch';
 import { horrorShowcasePlan } from './horror';
@@ -44,6 +45,7 @@ export const GALLERIES: readonly GalleryPlan[] = [
   readablesGalleryPlan,
   readablesShowcasePlan,
   materialsGalleryPlan,
+  materialsGallery2Plan,
   fabricsGalleryPlan,
   glitchShowcasePlan,
   horrorShowcasePlan,
@@ -61,6 +63,7 @@ export { ZONE_FOG_SHOWCASE } from './fog';
 export { ZONE_READABLES_GALLERY } from './readables';
 export { ZONE_READABLES_SHOWCASE } from './readables-showcase';
 export { ZONE_MATERIALS_GALLERY } from './materials';
+export { ZONE_MATERIALS_GALLERY_2 } from './materials2';
 export { ZONE_FABRICS_GALLERY } from './fabrics';
 export { ZONE_GLITCH_SHOWCASE } from './glitch';
 export { ZONE_HORROR_SHOWCASE } from './horror';
