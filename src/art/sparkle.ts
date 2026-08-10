@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLINT_ATTRIBUTE } from './finish';
+import { EXOTIC_ATTRIBUTE, EXOTICS } from './exotic';
 import { windUniforms } from './sway';
 import { particleUniforms } from './particles';
 import { PARTICLE_LAYER, GLOW_LAYER } from '../layers';
@@ -28,8 +29,9 @@ const STAR_UNIT = 0.013;
 const QUAD_UNITS = 6;
 /** Cycles per second of a site's clock. The flash keeps its old half-second. */
 const RATE = 0.128;
-/** Floats per site: position, normal, colour, clock seed, bright seed, star. */
-const STRIDE = 12;
+/** Floats per site: position, normal, colour, clock seed, bright seed, star,
+ * sprite (0 the four-armed star, 1 the thin sliver). */
+const STRIDE = 13;
 
 export const sparkleUniforms = {
   /** Global scale on every star's brightness. Zero removes them. */
@@ -57,6 +59,8 @@ export function collectSparkleSites(geometry: THREE.BufferGeometry): void {
 
   const position = geometry.getAttribute('position');
   const colour = geometry.getAttribute('color');
+  const exotic = geometry.getAttribute(EXOTIC_ATTRIBUTE);
+  const exoticLanes = exotic ? (exotic.array as Uint8Array) : null;
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
@@ -68,6 +72,7 @@ export function collectSparkleSites(geometry: THREE.BufferGeometry): void {
   for (let i = 0; i < position.count; i += 3) {
     const star = lanes[i * 2 + 1] / 255;
     if (star <= 0) continue;
+    const sprite = exoticLanes && exoticLanes[i] === EXOTICS.nacreous ? 1 : 0;
     a.fromBufferAttribute(position, i);
     b.fromBufferAttribute(position, i + 1);
     c.fromBufferAttribute(position, i + 2);
@@ -111,6 +116,7 @@ export function collectSparkleSites(geometry: THREE.BufferGeometry): void {
         roll(),
         roll(),
         star,
+        sprite,
       );
     }
   }
@@ -121,8 +127,8 @@ const SPARKLE_VERTEX = /* glsl */ `
 attribute vec3 iPos;
 attribute vec3 iNormal;
 attribute vec3 iColour;
-// clock seed, brightness seed, star strength
-attribute vec3 iSpark;
+// clock seed, brightness seed, star strength, sprite
+attribute vec4 iSpark;
 
 uniform float swayTime;
 uniform float uPixelsPerRadian;
@@ -133,6 +139,8 @@ varying vec3 vColour;
 varying float vAlpha;
 varying vec2 vCentreUV;
 varying float vCentreDepth;
+varying float vSprite;
+varying float vAngle;
 
 void main() {
   vec3 world = (modelMatrix * vec4(iPos, 1.0)).xyz;
@@ -147,7 +155,8 @@ void main() {
 
   // The surface version's envelope: a fast rise, a slower fall, most sites
   // faint and a few bright.
-  float phase = fract(iSpark.x + swayTime * ${RATE.toFixed(3)});
+  // Slivers cycle a little faster than the stars.
+  float phase = fract(iSpark.x + swayTime * ${RATE.toFixed(3)} * mix(1.0, 1.45, iSpark.w));
   float live = smoothstep(0.0, 0.012, phase) * (1.0 - smoothstep(0.012, 0.068, phase));
   float bright = 0.44 + 1.56 * iSpark.y * iSpark.y;
   vAlpha = live * bright * facing * iSpark.z * uSparkle;
@@ -156,6 +165,10 @@ void main() {
   // legibility and never swamping a close surface.
   float unitPx = clamp(${STAR_UNIT.toFixed(3)} * uPixelsPerRadian / dist, 0.7, 5.0);
   float halfWidth = ${QUAD_UNITS.toFixed(1)} * unitPx * dist / max(uPixelsPerRadian, 1.0);
+  // Slivers sit smaller than the stars.
+  halfWidth *= mix(1.0, 0.6, iSpark.w);
+  vSprite = iSpark.w;
+  vAngle = iSpark.y * 37.7;
   // A dark sparkle covers no pixels at all.
   float on = vAlpha > 0.004 ? 1.0 : 0.0;
 
@@ -186,6 +199,8 @@ varying vec3 vColour;
 varying float vAlpha;
 varying vec2 vCentreUV;
 varying float vCentreDepth;
+varying float vSprite;
+varying float vAngle;
 
 float sceneDistance(vec2 uv) {
   float d = texture2D(tDepth, uv).x;
@@ -206,7 +221,17 @@ void main() {
   float arms = (1.0 - smoothstep(0.0, 0.25, min(abs(s.x), abs(s.y))))
     * (1.0 - smoothstep(0.6, 5.0, d));
   float halo = (1.0 - smoothstep(0.0, 3.2, d)) * 0.18;
-  float shape = max(max(core, arms), halo);
+  float star = max(max(core, arms), halo);
+
+  // The sliver: one thin line at the site's own angle, with a small core.
+  float cA = cos(vAngle);
+  float sA = sin(vAngle);
+  vec2 r = vec2(cA * s.x + sA * s.y, cA * s.y - sA * s.x);
+  float sliver = (1.0 - smoothstep(0.0, 3.4, abs(r.x)))
+    * (1.0 - smoothstep(0.0, 0.32, abs(r.y)));
+  float thin = max(sliver, (1.0 - smoothstep(0.0, 0.8, d)) * 0.5);
+
+  float shape = mix(star, thin, vSprite);
 
   float glow = shape * vAlpha;
   if (glow <= 0.002) discard;
@@ -275,7 +300,7 @@ export function buildZoneSparkles(root: THREE.Object3D): THREE.Mesh | null {
   const pos = new Float32Array(total * 3);
   const nor = new Float32Array(total * 3);
   const col = new Float32Array(total * 3);
-  const spark = new Float32Array(total * 3);
+  const spark = new Float32Array(total * 4);
 
   const p = new THREE.Vector3();
   const n = new THREE.Vector3();
@@ -299,9 +324,10 @@ export function buildZoneSparkles(root: THREE.Object3D): THREE.Mesh | null {
       // The clock seed takes where the site stands, so two copies of one prop
       // never flash together.
       const shift = Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453;
-      spark[at * 3] = (s[i + 9] + shift - Math.floor(shift)) % 1;
-      spark[at * 3 + 1] = s[i + 10];
-      spark[at * 3 + 2] = s[i + 11];
+      spark[at * 4] = (s[i + 9] + shift - Math.floor(shift)) % 1;
+      spark[at * 4 + 1] = s[i + 10];
+      spark[at * 4 + 2] = s[i + 11];
+      spark[at * 4 + 3] = s[i + 12];
     }
   }
 
@@ -312,7 +338,7 @@ export function buildZoneSparkles(root: THREE.Object3D): THREE.Mesh | null {
   geometry.setAttribute('iPos', new THREE.InstancedBufferAttribute(pos, 3));
   geometry.setAttribute('iNormal', new THREE.InstancedBufferAttribute(nor, 3));
   geometry.setAttribute('iColour', new THREE.InstancedBufferAttribute(col, 3));
-  geometry.setAttribute('iSpark', new THREE.InstancedBufferAttribute(spark, 3));
+  geometry.setAttribute('iSpark', new THREE.InstancedBufferAttribute(spark, 4));
 
   const mesh = new THREE.Mesh(geometry, material());
   mesh.name = 'sparkles';

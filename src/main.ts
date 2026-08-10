@@ -339,10 +339,18 @@ if (dev.gui) {
   // profiles themselves live in `FINISHES`; these scale the two lobes globally.
   const finishState = {
     enabled: true,
-    apply: (): void => postfx.setFinish(finishState.enabled),
+    // The exotic recipes, separately. Off leaves the finish they are added to,
+    // which is the only useful thing to compare them against — see
+    // `PostFX.setExotics`.
+    exotics: true,
+    apply: (): void => {
+      postfx.setFinish(finishState.enabled);
+      postfx.setExotics(finishState.exotics);
+    },
   };
   const finishFolder = dev.gui.addFolder('material finish');
   finishFolder.add(finishState, 'enabled').onChange(finishState.apply);
+  finishFolder.add(finishState, 'exotics').name('exotic recipes').onChange(finishState.apply);
   finishFolder.add(r.finish, 'specular', 0, 2, 0.05).onChange(refresh);
   finishFolder.add(r.finish, 'environment', 0, 2, 0.05).onChange(refresh);
 
