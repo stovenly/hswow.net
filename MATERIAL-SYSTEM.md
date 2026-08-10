@@ -181,7 +181,8 @@ instead of weather: give it a row.
 recipe-carrying program and zero on a lean one. Glitch and horror already
 declare four banks of 16 each on every art fragment shader — 128 vec4 before
 this — so the union sits around 144 against a GLES3 floor of 224. Comfortable
-on anything this game targets, worth watching if R3's ramps add another bank.
+on anything this game targets; R3's ramps did add a bank, and the running
+total is kept there.
 
 **Verified** by a throwaway probe, 52 assertions: each row equals the
 constants parsed back out of the previous commit's finish.ts; each lands at
@@ -198,27 +199,70 @@ proving the scanner fires on a planted `float flat`).
 four sliders each. Twenty-four values that until now could only be changed by
 editing GLSL and reloading.
 
-### R3 — ramps into a table
+### R3 — ramps into a table *(landed)*
 
 **Goal:** colour becomes data; the five ramp functions become one chunk.
 
-**Change:** a ramp is N segments of `(edge0, edge1, rgb)`; one GLSL function
-`recipeRamp(int row, float t)` evaluates the same overlapping-smoothstep chain
-the five hand-written ramps use, reading stops from `uRampStops`. A TS table
-holds today's constants verbatim: labrador, berry, star, burn, ice. Which ramp
-rows a material uses belongs beside its knobs — R2's `uRecipeKnobs` row is a
-full vec4, so this is a second component of the row rather than a spare in the
-first, and `RecipeKnobs` grows the fields.
+**As landed:** `src/art/ramp.ts` holds the five ramps as data — a base colour,
+up to four stops of `(start, end, rgb)` mixed over it in order, and a pull
+toward grey — and one GLSL function `rampColour(int row, float t)` runs that
+chain reading `uRampStops`. `recipeLabradorTint`, `recipeStarTint` and
+`finishIceTint` are gone entirely, their call sites naming a row instead;
+`recipeBerryTint` and `recipeBurn` keep their wrappers because what they do
+before the ramp — thinning by view angle, threshold grain and creep — is not
+ramp business. Every number was lifted verbatim and checked against the
+previous commit.
 
-**Watch for:** the existing ramps are *overlapping* smoothstep mixes, not
-linear gradients — the generic evaluator must reproduce the same chain order
-(later stops mixed over earlier), or hues shift where windows overlap. Port
-one ramp, diff against the closed form at a few dozen sampled t values in a
-throwaway node probe, then port the rest.
+**The overlap was the whole risk, and it was real.** These are not gradients
+between neighbouring stops: labrador's second window opens at 0.44 while its
+first closed at 0.36, burn's third opens at 0.52 before its second closes at
+0.55. Every stop is mixed over whatever the chain has produced so far, so
+where two windows overlap three colours are in play and the *order* decides
+the hue. The evaluator runs the same chain in the same order, which is why
+this is a port and not a re-tune.
 
-**Acceptance:** same stops → same colours. Ramps join the dev GUI. A
-recoloured pointillist is now a data row — the first material added for zero
-code.
+**Deviation from the plan above:** the row a material reads is a constant
+interpolated into its GLSL, not a field on `RecipeKnobs`. Which ramp a recipe
+uses is registry data either way — only the binding time differs — and the
+recipe's own source is already generated per recipe, so a literal costs no
+uniform slot, no dynamic index and no vec4 of knob bank doubled to hold
+numbers that never change. The ice ramp settles it: frost is a finish feature
+with no recipe byte at all, so there is no knob row for it to live in. `grey`
+is stored as the pull rather than as what survives it, so the four ramps that
+do not want it mix by zero — the identity however a driver spells `mix`.
+
+**Layout:** six vec4 per ramp — the base with the grey pull in its `w`, four
+stop colours each carrying the `t` it starts at, then the four `t` they finish
+at. Unused stops sit in a window past 1 and change nothing, so the evaluator
+is one loop with a constant bound and no per-ramp count. Thirty rows for five
+ramps, spliced wherever a ramp is read: any recipe, or frost on its own.
+
+**Uniform budget:** 30 vec4 on a program that reads a ramp, on top of R2's 16
+and the 128 glitch and horror already declare — about 174 against a GLES3
+floor of 224, and zero on a program with neither frost nor a recipe. This is
+now the number to watch: R4 adds no bank, but a sixth ramp costs six more
+rows, and if the floor is ever the real constraint the packing has room (three
+of the five ramps use only three stops).
+
+**Verified** by a throwaway probe, 95 assertions: each ramp diffed against its
+closed form, hand-transcribed from the shader it replaces, at 2001 values of t
+plus four outside 0..1 — **bit-identical on berry, star, burn and ice, and
+within a third of a float32 ulp on labrador**, which is the one whose grey
+pull is re-associated; every base, stop, window and pull equal to the
+constants parsed back out of the previous commit; the bank layout the shader
+indexes; padding stops past 1; a GUI edit reaching the bank; the evaluator
+byte-identical across frost-alone, each of the six single-recipe masks and the
+union; all seven call sites naming an integer row start that is a real ramp;
+no surviving hand-written constant (`0.3333` appears exactly once, in the
+evaluator); a lean program declaring neither bank nor evaluator; frost alone
+getting the evaluator without dragging in the recipe kit; braces balanced and
+no template marker or backtick leaking into source; and the reserved-word scan
+with its self-test.
+
+**The dev folder:** `material finish → ramps`, a subfolder per ramp with a
+base swatch, a grey slider and a folder per stop — colour, start, end. A
+recoloured pointillist is now a swatch drag, and the first material added for
+zero code is one row in `RAMPS`.
 
 ### R4 — fields into slots, primitives into one library
 
@@ -235,7 +279,9 @@ of today's hand-written `isRecipe` blocks per recipe per hook. A new material
 with a new field = one file exporting slot GLSL + a registry entry + a knob
 row. finish.ts is never edited again for content.
 
-**Change, cross-system:** one `src/art/glsl/` chunk library. The hashes
+**Change, cross-system:** one `src/art/glsl/` chunk library, of which R3's
+`art/ramp.ts` is the first tenant — a table and its evaluator in one file,
+spliced by whoever needs it. The hashes
 (`finishHash3`, `recipeHash3`, `glitchHash`, horror's copy) become named
 primitives in one file — **same constants per call site, single-sourced
 declarations**; changing a hash's constants changes a look, so none do. The
@@ -279,14 +325,14 @@ whole argument, and it should land last, after R2–R4 have proven the tables.
 | R0 — vocabulary | — | mechanical | the concept matches the code *(landed)* |
 | R1 — room union | — | small | cold room gates on one compile *(landed)* |
 | R2 — knob table | R0 | small | source stops varying by recipe set; live tuning *(landed)* |
-| R3 — ramp table | R2 | medium | colour is data; first zero-code material |
+| R3 — ramp table | R2 | medium | colour is data; first zero-code material *(landed)* |
 | R4 — slots + shared chunks | R2 | large | new fields without touching finish.ts; glitch/horror single-sourced |
 | R5 — standing set | R1, R2 | negative | two programs, boot-compiled; Phase E machinery deleted |
 
 R1 landed alone, as planned — it fixes the materials2 bar by itself and
-nothing else depends on it. R2 landed alone too, so R3 pays a second cache
-invalidation; it is one reload and the tables were worth proving separately.
-R4 is
+nothing else depends on it. R2 and R3 landed alone too, each paying its own
+cache invalidation; that is one reload apiece and the tables were worth proving
+separately. R4 is
 the long pole and is almost entirely mechanical restructuring with
 byte-comparable checkpoints. R5 is a deletion pass with a decision gate.
 
