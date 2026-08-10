@@ -515,6 +515,14 @@ export class ZoneManager {
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
 
+    // The finish variants this room needs and nobody has compiled yet, hung off
+    // the root so they compile in the same pass as everything else (see
+    // `pendingArtProbe`). Compiling them after the arrival instead put the whole
+    // batch on a rendering frame: the room appeared in flat stand-in materials,
+    // hung, and then corrected itself. The bar is the right place to spend it.
+    const pending = pendingArtProbe();
+    if (pending) root.add(pending.probe);
+
     // **Compiled before anything is swapped.** This await is the long pole on
     // a cold entry, and every frame it yields still shows the old zone, whole,
     // with the player standing on its collider. Compiling after the swap put
@@ -523,8 +531,18 @@ export class ZoneManager {
     // The stand-in census in `compile` matches the scene the root is about to
     // join, so the programs are the ones the first real frame asks for.
     if (cold) await this.building.step('almost there', 0.96);
-    await this.compile(root);
+    try {
+      await this.compile(root);
+    } finally {
+      if (pending) root.remove(pending.probe);
+    }
     if (stale()) return;
+
+    // Assigned only now, with the programs behind them already built, so the
+    // first frame that draws these meshes is never the frame that compiles
+    // them. A crossing that lands mid-compile returns above and leaves the
+    // meshes on the stand-in material for the next entry to pick up.
+    if (pending) resolveArtVariants(pending.masks);
 
     // From here to the teleport nothing yields: the swap, the collider and
     // the player's arrival land in one task, so no frame renders mid-swap.
@@ -598,38 +616,6 @@ export class ZoneManager {
     // player is standing still on their marker by the time this runs.
     this.evict();
     this.prefetch();
-    void this.upgradeMaterials(zone);
-  }
-
-  /**
-   * Compiles the finish variants this zone deferred, then swaps them in
-   * (ZONE-LOADING.md Phase E).
-   *
-   * **Unawaited, and that is the whole point.** The entry above compiled the
-   * zone with every uncompiled variant standing in as the lean material, so
-   * what gated the fade was one program rather than one per finish in the
-   * room. The real materials arrive a beat later, and because the probe is
-   * compiled before anything is assigned, the frame that first draws them is
-   * never the frame that compiles them.
-   *
-   * A crossing that lands mid-compile abandons the swap rather than forcing
-   * it: the probe hung off a root that is no longer in the scene, so its
-   * programs may not exist. The waiting meshes keep the lean material and the
-   * next entry retries.
-   */
-  private async upgradeMaterials(zone: Zone): Promise<void> {
-    const pending = pendingArtProbe();
-    if (!pending) return;
-
-    const root = zone.root();
-    root.add(pending.probe);
-    try {
-      await this.compile(root);
-    } finally {
-      root.remove(pending.probe);
-    }
-    if (this.active !== zone) return;
-    resolveArtVariants(pending.masks);
   }
 
   /**

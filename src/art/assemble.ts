@@ -17,7 +17,7 @@ import {
   type FinishName,
   type Grain,
 } from './finish';
-import { EXOTIC_ATTRIBUTE } from './exotic';
+import { RECIPE_ATTRIBUTE } from './recipes';
 import { collectSparkleSites } from './sparkle';
 
 /**
@@ -53,19 +53,19 @@ import { collectSparkleSites } from './sparkle';
  * | `wear`, `wearTint` | float + vec3 | 16 | weathering (`art/weathering`) |
  * | `detail`, `detailTint` | float + vec3 | 16 | detail fade (`art/detail`) |
  * | `aFinish`, `aGrain`, `aGlint`, `aFace` | u8 vec4 ×2 + u8 vec2 + u8 | 11 | finish (`art/finish`) |
- * | `aExotic` | u8 | 1 | which optical model (`art/exotic`) |
+ * | `aRecipe` | u8 | 1 | which optical model (`art/recipes`) |
  *
  * Thirteen attributes of the sixteen WebGL guarantees, and 84 bytes a vertex.
  * The finish lanes are normalized bytes rather than floats for exactly this
  * reason: as floats they would have been the largest entry in the table
  * instead of the smallest, for nine numbers that are all 0..1 knobs.
  *
- * `aExotic` is the same argument taken one step further. Ten more optical
+ * `aRecipe` is the same argument taken one step further. Ten more optical
  * models wanting a lane each would have been two more vec4s and ~21 MB across
  * the resident world; as an index into a table of recipes they are one byte
  * between them, and the eleventh costs nothing per vertex at all. It is the
  * one lane here that is *not* normalized — an index is an exact integer, not a
- * fraction of anything. See `art/exotic.ts`.
+ * fraction of anything. See `art/recipes.ts`.
  *
  * ## Collision is a decision that has to be made here
  *
@@ -262,7 +262,7 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
     const finishLanes = new Uint8Array(count * 4);
     const grainLanes = new Uint8Array(count * 4);
     const glintLanes = new Uint8Array(count * 2);
-    const exoticLanes = new Uint8Array(count);
+    const recipeLanes = new Uint8Array(count);
     if (part.finish !== undefined) {
       const lanes = resolveFinish(part.finish, part.grain);
       finishMask |= lanes.mask;
@@ -273,7 +273,7 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
         }
         glintLanes[i * 2] = Math.round(lanes.glint[0] * 255);
         glintLanes[i * 2 + 1] = Math.round(lanes.glint[1] * 255);
-        exoticLanes[i] = lanes.exotic;
+        recipeLanes[i] = lanes.recipe;
       }
     }
     geometry.setAttribute(FINISH_ATTRIBUTE, new THREE.BufferAttribute(finishLanes, 4, true));
@@ -283,7 +283,7 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
     // against whole numbers, and a recipe index scaled to 0..1 and multiplied
     // back up is a rounding decision nobody asked for. Constant across a
     // triangle by construction, since a finish is declared per part.
-    geometry.setAttribute(EXOTIC_ATTRIBUTE, new THREE.BufferAttribute(exoticLanes, 1, false));
+    geometry.setAttribute(RECIPE_ATTRIBUTE, new THREE.BufferAttribute(recipeLanes, 1, false));
 
     // One random draw per triangle, the same on all three of its vertices.
     // The geometry is un-indexed here by construction, so consecutive triples

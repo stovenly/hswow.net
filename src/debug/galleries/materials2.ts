@@ -13,7 +13,7 @@ import { voidstoneOrb } from '../../art/builders/voidstone-orb';
 import { voidstoneColumn } from '../../art/builders/voidstone-column';
 
 /**
- * Materials 2: the exotic recipes (EXOTIC-MATERIALS.md, M5–M8).
+ * Materials 2: the recipes (MATERIAL-RECIPES.md, M5–M8).
  *
  * A second room rather than ten more rows in the first one, and the reason is
  * what the first room is *for*. The Materials Gallery is a scale: chrome at the

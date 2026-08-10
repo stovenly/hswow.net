@@ -348,7 +348,7 @@ export function artMaterialFor(mask: number): THREE.MeshLambertMaterial {
  * material, which every zone compiles before it is ever shown.
  */
 const COMPILED = new Set<number>([0]);
-/** Meshes drawing lean until their variant is ready, by mask. See `dressArtMesh`. */
+/** Meshes holding the lean material until their variant is ready, by mask. */
 const DEFERRED = new Map<number, THREE.Mesh[]>();
 
 /**
@@ -357,10 +357,14 @@ const DEFERRED = new Map<number, THREE.Mesh[]>();
  *
  * The stand-in is not authored — it is the same prop with its finish chunks
  * stripped to the base lobe, so a frost orb is a matte white stone and a
- * schiller orb a dark glossy one. Correct silhouette, correct base colour, and
- * derived from what the parts already declare rather than modelled twice.
- * Deferral happens at most once per mask per session; after that the variant is
- * assigned outright and nothing pops.
+ * schiller orb a dark glossy one.
+ *
+ * It is not meant to be seen. Entry compiles the waiting variants and assigns
+ * them before the room is swapped in, so what the deferral buys is a room whose
+ * meshes all carry one material while it is being built — which is what lets a
+ * single compile cover every finish in it — rather than a first frame drawn
+ * lean. Handing these out on arrival instead showed the room flat, hung on the
+ * batch, and then corrected itself.
  */
 export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
   if (COMPILED.has(mask)) {
@@ -378,11 +382,11 @@ export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
  * zone and compile, plus the masks it covers.
  *
  * **Invisible, and that is what makes it work.** three gathers lights from the
- * visible graph and materials from all of it, so a hidden probe under a live
- * zone root compiles against that zone's real light census — the thing a
- * detached stand-in cannot supply — while never drawing a pixel. The geometry
- * is borrowed from a waiting mesh rather than made up, because the program key
- * depends on what the buffers carry.
+ * visible graph and materials from all of it, so a hidden probe hung off the
+ * root being compiled picks up that root's census and its programs while never
+ * drawing a pixel — and never showing during the frames the entry still spends
+ * on the zone being left. The geometry is borrowed from a waiting mesh rather
+ * than made up, because the program key depends on what the buffers carry.
  *
  * The masks come back with it because a zone built while the compile is in
  * flight adds more, and those have not been compiled by this pass. Resolving
