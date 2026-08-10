@@ -29,12 +29,78 @@ export const RECIPE_INDEX = {
 
 export type RecipeName = keyof typeof RECIPE_INDEX;
 
+/**
+ * How a recipe answers the shared lighting stage.
+ *
+ * These were spliced constants — `if (isRecipe(3.0)) { recipeGloss = 0.04; … }`,
+ * one branch per recipe per knob — so a program's source depended on which
+ * recipes were in its mask. They are rows of a uniform table now, read by the
+ * recipe byte, and every art program compiles the same text whatever it
+ * carries. MATERIAL-SYSTEM.md R2.
+ */
+export interface RecipeKnobs {
+  /**
+   * How much of the plain specular lobe the recipe wants under it.
+   *
+   * **Nearly none of them want all of it.** The lobe has a roughness floor of
+   * 0.16, because a lobe narrower than a facet is not dim but *absent* — which
+   * is right for metal and wrong for almost everything here. On a 320-face orb
+   * it lands as one blown white triangle, and a stone with a mirror flash stuck
+   * to one of its faces reads as plastic whatever else is happening on it.
+   * Frost and gilt get away with it because they are a rough dielectric and a
+   * smooth metal; a labradorite is neither.
+   */
+  gloss: number;
+  /**
+   * How much of the grazing-angle sky the recipe reflects.
+   *
+   * The environment fresnel climbs toward f90 at the silhouette, and f90 is
+   * capped by roughness — so a *smooth* finish gets a strong one, and every
+   * smooth recipe here came back wearing the same blue ring round its edge. It
+   * is the correct answer for chrome and quickmetal and it is noise on
+   * everything else: eight orbs sharing one rim read as eight orbs sharing a
+   * bug.
+   */
+  rim: number;
+  /**
+   * How much of the sun the environment sample keeps.
+   *
+   * **This is where the white triangles were actually coming from**, and no
+   * amount of damping the specular lobe was ever going to reach them. The
+   * environment term is skyColour(reflected direction), and the sky draws the
+   * sun as a disc inside a 260-power halo — so a facet whose one reflected
+   * direction lands on the sun returns uSunColor over its whole area. Not a
+   * highlight: a white polygon.
+   */
+  sunGlare: number;
+  /** Scale on the plain sky-mirror term. Most stones want very little. */
+  envGain: number;
+}
+
+/** Rows in the knob table. Recipe bytes index it directly, so it spans them. */
+const KNOB_ROWS = 16;
+
+/**
+ * Row 0, and every row no recipe claims: the finish stage with no recipe on
+ * it. One is the sky and the lobe as everything has always seen them, so a
+ * plain surface, a stray byte and the `uRecipeOn` toggle all land on the same
+ * answers. The GLSL globals are initialised from here, so they cannot drift.
+ */
+export const PLAIN_KNOBS: RecipeKnobs = { gloss: 1, rim: 1, sunGlare: 1, envGain: 1 };
+
+const KNOB_BANK = new Float32Array(KNOB_ROWS * 4);
+
 export const recipeUniforms = {
   /** Dev toggle. Zero leaves the plain finish underneath. */
   uRecipeOn: { value: 1 },
   /** Scales every clock here. Rides the reduced-motion setting. */
   uRecipeMotion: { value: 1 },
+  /** One row per recipe byte: gloss, rim, sunGlare, envGain. */
+  uRecipeKnobs: { value: KNOB_BANK },
 };
+
+/** The array size the shader declares. Interpolated, so it stays byte-stable. */
+export const RECIPE_KNOB_ROWS = KNOB_ROWS;
 
 function id(name: RecipeName): string {
   return RECIPE_INDEX[name].toFixed(1);
@@ -53,6 +119,8 @@ function id(name: RecipeName): string {
 const RECIPE_SHARED = /* glsl */ `
   uniform float uRecipeOn;
   uniform float uRecipeMotion;
+  /** The knob table. Row 0 is no recipe; see RecipeKnobs in this file. */
+  uniform vec4 uRecipeKnobs[${KNOB_ROWS}];
 
   /** The light direction in object space, captured from the brightest light. */
   vec3 recipeSunObj = vec3(0.0, 1.0, 0.0);
@@ -744,19 +812,81 @@ export interface Recipe {
   readonly index: number;
   /** The recipe's own helpers and fields. */
   readonly glsl: string;
+  /** Where its row differs from `PLAIN_KNOBS`. Data, not source. */
+  readonly knobs?: Partial<RecipeKnobs>;
   /** Finish features the recipe's shader cannot stand without. */
   readonly implies?: readonly FinishFeatureName[];
 }
 
 /** In splice order, which is the order the sections have always compiled in. */
 export const RECIPES: readonly Recipe[] = [
-  { name: 'schiller', index: RECIPE_INDEX.schiller, glsl: SCHILLER_GLSL },
-  { name: 'quickmetal', index: RECIPE_INDEX.quickmetal, glsl: QUICKMETAL_GLSL },
-  { name: 'tenebrescent', index: RECIPE_INDEX.tenebrescent, glsl: TENEBRESCENT_GLSL },
-  { name: 'nacreous', index: RECIPE_INDEX.nacreous, glsl: NACREOUS_GLSL, implies: ['film'] },
-  { name: 'pointillist', index: RECIPE_INDEX.pointillist, glsl: POINTILLIST_GLSL },
-  { name: 'voidstone', index: RECIPE_INDEX.voidstone, glsl: VOIDSTONE_GLSL },
+  {
+    name: 'schiller',
+    index: RECIPE_INDEX.schiller,
+    glsl: SCHILLER_GLSL,
+    // No surface shine at all: the flood is the only light schiller returns, so
+    // the stone reads as colour inside rather than gloss on top.
+    knobs: { gloss: 0, rim: 0, sunGlare: 0, envGain: 0.02 },
+  },
+  {
+    name: 'quickmetal',
+    index: RECIPE_INDEX.quickmetal,
+    glsl: QUICKMETAL_GLSL,
+    // A mirror with no per-facet lobe at all: everything it shows comes through
+    // the smooth-normal environment, so no triangle ever flashes.
+    knobs: { gloss: 0, rim: 0.85, sunGlare: 0.12, envGain: 1.25 },
+  },
+  {
+    name: 'tenebrescent',
+    index: RECIPE_INDEX.tenebrescent,
+    glsl: TENEBRESCENT_GLSL,
+    knobs: { gloss: 0.04, rim: 0.2, sunGlare: 0.02, envGain: 0.25 },
+  },
+  {
+    name: 'nacreous',
+    index: RECIPE_INDEX.nacreous,
+    glsl: NACREOUS_GLSL,
+    knobs: { gloss: 0.06, rim: 0.12, sunGlare: 0.02, envGain: 0.24 },
+    implies: ['film'],
+  },
+  {
+    name: 'pointillist',
+    index: RECIPE_INDEX.pointillist,
+    glsl: POINTILLIST_GLSL,
+    knobs: { gloss: 0.05, rim: 0.11, sunGlare: 0.02, envGain: 0.16 },
+  },
+  {
+    name: 'voidstone',
+    index: RECIPE_INDEX.voidstone,
+    glsl: VOIDSTONE_GLSL,
+    // The void is not a sky reflection, so its gain is its own business.
+    knobs: { gloss: 0, rim: 0, sunGlare: 0, envGain: 0 },
+  },
 ];
+
+/** Each recipe's row, resolved. Mutable: the dev sliders edit these in place. */
+export const RECIPE_KNOBS = Object.fromEntries(
+  RECIPES.map((recipe) => [recipe.name, { ...PLAIN_KNOBS, ...recipe.knobs }]),
+) as Record<RecipeName, RecipeKnobs>;
+
+function writeKnobRow(row: number, knobs: RecipeKnobs): void {
+  const at = row * 4;
+  KNOB_BANK[at] = knobs.gloss;
+  KNOB_BANK[at + 1] = knobs.rim;
+  KNOB_BANK[at + 2] = knobs.sunGlare;
+  KNOB_BANK[at + 3] = knobs.envGain;
+}
+
+/**
+ * Pushes `RECIPE_KNOBS` into the uniform bank. Every unclaimed row carries the
+ * plain values, so a byte with no recipe behind it draws an ordinary finish.
+ */
+export function uploadRecipeKnobs(): void {
+  for (let row = 0; row < KNOB_ROWS; row++) writeKnobRow(row, PLAIN_KNOBS);
+  for (const recipe of RECIPES) writeKnobRow(recipe.index, RECIPE_KNOBS[recipe.name]);
+}
+
+uploadRecipeKnobs();
 
 /**
  * The recipe stage for a set of recipes: the shared kit, each recipe's own

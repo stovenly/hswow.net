@@ -142,25 +142,61 @@ lean, a twin room needs no second compile, materials-gallery-1's different
 union (15) gets its own, an abandoned entry retries, a dressed room has nothing
 pending, and a room with no finishes offers no probe.
 
-### R2 — knobs into a uniform table
+### R2 — knobs into a uniform table *(landed)*
 
 **Goal:** program source stops varying by *which* recipes are in the mask —
 only by which field code is included.
 
-**Change:** a TS table `RECIPE_KNOBS: Record<RecipeName, {gloss, rim,
-sunGlare, envGain, filmMix, …}>` feeds `uRecipeKnobs[16]` (two vec4 banks,
-indexed directly by the recipe byte; sparse rows stay zero — sixteen vec4s is
-nothing, see MAX_GLITCHES). The spliced per-recipe constant blocks in the
-surface-state section of finish.ts are replaced by one indexed read. Values
-are today's constants verbatim.
+**As landed:** `RecipeKnobs` (gloss, rim, sunGlare, envGain) is a registry
+member — `Recipe.knobs`, a partial over `PLAIN_KNOBS` — resolved into
+`RECIPE_KNOBS` and written to `uRecipeKnobs[16]`, one vec4 row indexed
+directly by the recipe byte. The six spliced constant blocks in finish.ts
+became one indexed read, clamped because the byte arrives as an attribute and
+an index off the end is undefined. Values are the old constants verbatim,
+checked against them.
 
-**Also here:** the speck knobs (`finishSpeckParallax/Lively/Spread/Gate`)
-join the table; they are the same kind of thing.
+Row 0 is not a material, it is the absence of one: it holds the plain-finish
+values, so a fragment with no recipe and the whole table with `uRecipeOn` off
+both land on today's answers without a comparison per recipe. Every unclaimed
+row carries the same, so a stray byte draws an ordinary surface rather than a
+black one. The GLSL globals are still initialised in source — a lean program
+has no bank to read — but from `PLAIN_KNOBS` rather than by hand, so the two
+cannot drift.
 
-**Acceptance:** with the same knob values, output is visually identical (not
-byte-identical in source — that is the point). The knob table gets a dev
-folder in the GUI: every material's response tunable live, which has never
-been possible.
+**The knob docs moved with the knobs.** Why almost every stone wants a
+fraction of the plain lobe, where the white triangles were actually coming
+from, why a smooth recipe needs its rim pulled back — that is written up on
+`RecipeKnobs` in art/recipes.ts now, beside the numbers it explains, instead
+of on four globals in the middle of a shader.
+
+**Deviation from the plan above:** the speck knobs
+(`finishSpeckParallax/Lively/Spread/Gate`) and `recipeFilmMix` stayed put.
+They read like per-recipe knobs but nothing overrides them — they are hooks
+with one value each, spliced identically into every program, so they never
+made source vary and moving them would have bought a second uniform bank and
+nothing else. The mechanism is there the day a recipe wants sealed specks
+instead of weather: give it a row.
+
+**Uniform budget, noted because it is not free:** the bank is 16 vec4 on a
+recipe-carrying program and zero on a lean one. Glitch and horror already
+declare four banks of 16 each on every art fragment shader — 128 vec4 before
+this — so the union sits around 144 against a GLES3 floor of 224. Comfortable
+on anything this game targets, worth watching if R3's ramps add another bank.
+
+**Verified** by a throwaway probe, 52 assertions: each row equals the
+constants parsed back out of the previous commit's finish.ts; each lands at
+its own byte; unclaimed rows are the plain row; a GUI edit reaches the bank;
+the union declares and reads the bank exactly once and carries no surviving
+per-recipe constant; **the knob block is byte-identical across all six
+single-recipe masks and the union** — which is the phase's actual claim; the
+lean program declares no bank; braces balance and no template marker or
+backtick escapes into the source for lean, union and single-recipe masks; and
+no GLSL reserved word is declared anywhere in the union (with a self-test
+proving the scanner fires on a planted `float flat`).
+
+**The dev folder:** `material finish → recipe knobs`, a subfolder per recipe,
+four sliders each. Twenty-four values that until now could only be changed by
+editing GLSL and reloading.
 
 ### R3 — ramps into a table
 
@@ -169,8 +205,10 @@ been possible.
 **Change:** a ramp is N segments of `(edge0, edge1, rgb)`; one GLSL function
 `recipeRamp(int row, float t)` evaluates the same overlapping-smoothstep chain
 the five hand-written ramps use, reading stops from `uRampStops`. A TS table
-holds today's constants verbatim: labrador, berry, star, burn, ice. Rows are
-addressed from the knob table, so a material's palette is part of its row.
+holds today's constants verbatim: labrador, berry, star, burn, ice. Which ramp
+rows a material uses belongs beside its knobs — R2's `uRecipeKnobs` row is a
+full vec4, so this is a second component of the row rather than a spare in the
+first, and `RecipeKnobs` grows the fields.
 
 **Watch for:** the existing ramps are *overlapping* smoothstep mixes, not
 linear gradients — the generic evaluator must reproduce the same chain order
@@ -240,13 +278,15 @@ whole argument, and it should land last, after R2–R4 have proven the tables.
 |-------|-----------|------|--------------|
 | R0 — vocabulary | — | mechanical | the concept matches the code *(landed)* |
 | R1 — room union | — | small | cold room gates on one compile *(landed)* |
-| R2 — knob table | R0 | small | source stops varying by recipe set; live tuning |
+| R2 — knob table | R0 | small | source stops varying by recipe set; live tuning *(landed)* |
 | R3 — ramp table | R2 | medium | colour is data; first zero-code material |
 | R4 — slots + shared chunks | R2 | large | new fields without touching finish.ts; glitch/horror single-sourced |
 | R5 — standing set | R1, R2 | negative | two programs, boot-compiled; Phase E machinery deleted |
 
 R1 landed alone, as planned — it fixes the materials2 bar by itself and
-nothing else depends on it. R2+R3 bundle well (one cache invalidation). R4 is
+nothing else depends on it. R2 landed alone too, so R3 pays a second cache
+invalidation; it is one reload and the tables were worth proving separately.
+R4 is
 the long pole and is almost entirely mechanical restructuring with
 byte-comparable checkpoints. R5 is a deletion pass with a decision gate.
 
