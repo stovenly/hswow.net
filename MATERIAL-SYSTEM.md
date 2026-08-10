@@ -112,26 +112,35 @@ byte-stability rule from ZONE-LOADING.md stands throughout.
 and comments swept (EXOTIC-MATERIALS.md → MATERIAL-RECIPES.md). Verified:
 zero case-insensitive matches outside git history, tsc clean, build clean.
 
-### R1 — one material per room
+### R1 — one material per room *(landed)*
 
 **Goal:** the compile a cold room gates on stops being one program per finish
 and becomes one program, full stop.
 
-**Change:** `dressArtMesh` stops assigning per-prop variants. At zone build,
-every mesh records its declared mask (`mesh.userData.finishMask`, already
-stamped on the geometry); `ZoneManager.prepare()` ORs them into the room's
-union; every mesh whose mask is non-zero gets `artMaterialFor(union)`, mask-0
-meshes keep `ART_MATERIAL`. The variant cache stays keyed by mask, so two rooms
-with the same union share one program. The Phase E probe carries exactly one
-mesh — or dies here entirely if R5 lands in the same bundle.
+**As landed:** `dressArtMesh` no longer decides anything — it hands out the
+lean material and stamps `mesh.userData.finishMask`. `pendingRoomFinish(root)`
+(art/sway.ts) walks a built room once, unions the declared masks, and returns
+the meshes waiting plus a one-mesh invisible probe carrying the union variant;
+`dressRoom` hands the material out and marks the root. `enter()` calls the
+first before its pre-swap compile and the second after, in place of the Phase E
+pair. The variant cache stays keyed by mask, so two rooms with the same union
+share one program, and a union already compiled comes back with no probe.
+
+The root is marked in `dressRoom` rather than in the walk, so an entry
+abandoned mid-compile leaves the room undressed for the next one to retry
+rather than stranding it lean forever.
 
 **What it costs:** a prop with a cheap finish in a room with an expensive one
 runs the expensive program's occupancy. Accepted on the R5 evidence; the
-per-prop masks remain stamped on the geometry, so reverting to per-prop
+per-prop masks stay stamped on both mesh and geometry, so reverting to per-prop
 variants is a one-line policy change if a weak GPU ever says otherwise.
 
-**Acceptance:** materials2 cold entry gates on one new program (plus lean).
-Geometry, portals and every prop's declared mask byte-identical to before.
+**Verified** with a throwaway probe over the real galleries: materials-gallery-2
+declares six distinct masks across 96 finished meshes and now gates on **one**
+program (union 1014); all 96 end on one material, its 12 plain art meshes stay
+lean, a twin room needs no second compile, materials-gallery-1's different
+union (15) gets its own, an abandoned entry retries, a dressed room has nothing
+pending, and a room with no finishes offers no probe.
 
 ### R2 — knobs into a uniform table
 
@@ -230,16 +239,16 @@ whole argument, and it should land last, after R2–R4 have proven the tables.
 | Phase | Depends on | Size | What it buys |
 |-------|-----------|------|--------------|
 | R0 — vocabulary | — | mechanical | the concept matches the code *(landed)* |
-| R1 — room union | — | small | cold room gates on one compile |
+| R1 — room union | — | small | cold room gates on one compile *(landed)* |
 | R2 — knob table | R0 | small | source stops varying by recipe set; live tuning |
 | R3 — ramp table | R2 | medium | colour is data; first zero-code material |
 | R4 — slots + shared chunks | R2 | large | new fields without touching finish.ts; glitch/horror single-sourced |
 | R5 — standing set | R1, R2 | negative | two programs, boot-compiled; Phase E machinery deleted |
 
-R1 can land alone and immediately — it fixes the materials2 bar on its own.
-R2+R3 bundle well (one cache invalidation). R4 is the long pole and is almost
-entirely mechanical restructuring with byte-comparable checkpoints. R5 is a
-deletion pass with a decision gate.
+R1 landed alone, as planned — it fixes the materials2 bar by itself and
+nothing else depends on it. R2+R3 bundle well (one cache invalidation). R4 is
+the long pole and is almost entirely mechanical restructuring with
+byte-comparable checkpoints. R5 is a deletion pass with a decision gate.
 
 ## What is given up
 

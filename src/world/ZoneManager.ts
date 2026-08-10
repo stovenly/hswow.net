@@ -7,7 +7,7 @@ import { noteById, type Note } from '../content/notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
-import { setZoneWind, pendingArtProbe, resolveArtVariants } from '../art/sway';
+import { setZoneWind, pendingRoomFinish, dressRoom } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { ClothActivity } from '../engine/ClothActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
@@ -515,13 +515,13 @@ export class ZoneManager {
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
 
-    // The finish variants this room needs and nobody has compiled yet, hung off
-    // the root so they compile in the same pass as everything else (see
-    // `pendingArtProbe`). Compiling them after the arrival instead put the whole
-    // batch on a rendering frame: the room appeared in flat stand-in materials,
-    // hung, and then corrected itself. The bar is the right place to spend it.
-    const pending = pendingArtProbe();
-    if (pending) root.add(pending.probe);
+    // The one material this room's finishes union to, hung off the root so it
+    // compiles in the same pass as everything else (see `pendingRoomFinish`).
+    // Compiling after the arrival instead put the whole batch on a rendering
+    // frame: the room appeared in flat stand-in materials, hung, and then
+    // corrected itself. The bar is the right place to spend it.
+    const room = pendingRoomFinish(root);
+    if (room?.probe) root.add(room.probe);
 
     // **Compiled before anything is swapped.** This await is the long pole on
     // a cold entry, and every frame it yields still shows the old zone, whole,
@@ -534,15 +534,15 @@ export class ZoneManager {
     try {
       await this.compile(root);
     } finally {
-      if (pending) root.remove(pending.probe);
+      if (room?.probe) root.remove(room.probe);
     }
     if (stale()) return;
 
-    // Assigned only now, with the programs behind them already built, so the
-    // first frame that draws these meshes is never the frame that compiles
-    // them. A crossing that lands mid-compile returns above and leaves the
-    // meshes on the stand-in material for the next entry to pick up.
-    if (pending) resolveArtVariants(pending.masks);
+    // Assigned only now, with the program behind it already built, so the first
+    // frame that draws these meshes is never the frame that compiles them. A
+    // crossing that lands mid-compile returns above and leaves the room on the
+    // stand-in material for the next entry to pick up.
+    if (room) dressRoom(room);
 
     // From here to the teleport nothing yields: the swap, the collider and
     // the player's arrival land in one task, so no frame renders mid-swap.

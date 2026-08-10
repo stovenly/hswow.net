@@ -348,76 +348,90 @@ export function artMaterialFor(mask: number): THREE.MeshLambertMaterial {
  * material, which every zone compiles before it is ever shown.
  */
 const COMPILED = new Set<number>([0]);
-/** Meshes holding the lean material until their variant is ready, by mask. */
-const DEFERRED = new Map<number, THREE.Mesh[]>();
 
 /**
- * Puts a mesh in its finish variant, or in the lean material if that variant
- * has never been compiled.
+ * Puts a mesh in the lean material and records what its parts declared.
  *
- * The stand-in is not authored — it is the same prop with its finish chunks
- * stripped to the base lobe, so a frost orb is a matte white stone and a
- * schiller orb a dark glossy one.
- *
- * It is not meant to be seen. Entry compiles the waiting variants and assigns
- * them before the room is swapped in, so what the deferral buys is a room whose
- * meshes all carry one material while it is being built — which is what lets a
- * single compile cover every finish in it — rather than a first frame drawn
- * lean. Handing these out on arrival instead showed the room flat, hung on the
- * batch, and then corrected itself.
+ * **Nothing is decided here.** A material per prop is a program per finish,
+ * and a program per finish is what made a room full of them wait on a dozen
+ * compiles at the door. What a prop declares is stamped and the room decides —
+ * see `pendingRoomFinish`, which unions the lot. The mask stays on the mesh
+ * (and on its geometry, from `assemble`) so a policy of one material per prop
+ * is still one line away if a weak GPU ever asks for it.
  */
 export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
-  if (COMPILED.has(mask)) {
-    mesh.material = artMaterialFor(mask);
-    return;
-  }
   mesh.material = ART_MATERIAL;
-  const waiting = DEFERRED.get(mask);
-  if (waiting) waiting.push(mesh);
-  else DEFERRED.set(mask, [mesh]);
+  if (mask !== 0) mesh.userData.finishMask = mask;
+}
+
+/** A room's finish, resolved once: what it needs, and who is waiting for it. */
+export interface RoomFinish {
+  /** The union of every finish the room's props declared. */
+  readonly mask: number;
+  /** The meshes that declared one. Empty for a room with no finishes at all. */
+  readonly meshes: readonly THREE.Mesh[];
+  /** One mesh carrying the variant, to compile before it is handed out. */
+  readonly probe: THREE.Group | null;
+  readonly root: THREE.Object3D;
 }
 
 /**
- * One mesh per variant still waiting, in a group for the caller to hang off a
- * zone and compile, plus the masks it covers.
+ * What a freshly built room needs compiled before it can be shown.
  *
- * **Invisible, and that is what makes it work.** three gathers lights from the
- * visible graph and materials from all of it, so a hidden probe hung off the
- * root being compiled picks up that root's census and its programs while never
- * drawing a pixel — and never showing during the frames the entry still spends
- * on the zone being left. The geometry is borrowed from a waiting mesh rather
- * than made up, because the program key depends on what the buffers carry.
+ * **One program for the room, not one per finish in it.** The union carries
+ * every chunk any prop asked for, so a plain chair in a room with a pointillist
+ * orb runs the orb's program — which costs about what the heaviest finish in
+ * the room costs anyway, since registers coalesce across branches that cannot
+ * both run. What it buys is that the door waits on one compile however many
+ * materials stand behind it.
  *
- * The masks come back with it because a zone built while the compile is in
- * flight adds more, and those have not been compiled by this pass. Resolving
- * the whole waiting list would mark them ready without a program behind them.
+ * **The probe is invisible, and that is what makes it work.** three gathers
+ * lights from the visible graph and materials from all of it, so a hidden mesh
+ * hung off the root being compiled picks up that root's census and its program
+ * while never drawing a pixel — and never showing during the frames the entry
+ * still spends on the zone being left. Its geometry is borrowed from a waiting
+ * mesh rather than made up, because the program key depends on what the buffers
+ * carry. Null when this union has been compiled before, which is every room
+ * after the first that shares it.
  *
- * Leaves the list alone otherwise: `resolveArtVariants` is what clears it, so a
- * compile abandoned half way is simply retried on the next entry.
+ * Returns null for a room already dressed: the meshes keep their material for
+ * as long as the geometry lives, so re-entry has nothing to do.
  */
-export function pendingArtProbe(): { probe: THREE.Group; masks: number[] } | null {
-  if (DEFERRED.size === 0) return null;
-  const probe = new THREE.Group();
-  probe.name = 'art:probe';
-  probe.visible = false;
-  const masks: number[] = [];
-  for (const [mask, meshes] of DEFERRED) {
+export function pendingRoomFinish(root: THREE.Object3D): RoomFinish | null {
+  if (root.userData.finishUnion !== undefined) return null;
+
+  const meshes: THREE.Mesh[] = [];
+  let mask = 0;
+  root.traverse((object) => {
+    const declared = object.userData.finishMask as number | undefined;
+    if (declared === undefined) return;
+    mask |= declared;
+    meshes.push(object as THREE.Mesh);
+  });
+
+  let probe: THREE.Group | null = null;
+  if (mask !== 0 && !COMPILED.has(mask)) {
+    probe = new THREE.Group();
+    probe.name = 'art:probe';
+    probe.visible = false;
     probe.add(new THREE.Mesh(meshes[0].geometry, artMaterialFor(mask)));
-    masks.push(mask);
   }
-  return { probe, masks };
+  return { mask, meshes, probe, root };
 }
 
-/** Hands the waiting meshes their variant. Call once the probe has compiled. */
-export function resolveArtVariants(masks: readonly number[]): void {
-  for (const mask of masks) {
-    const meshes = DEFERRED.get(mask);
-    if (!meshes) continue;
-    const material = artMaterialFor(mask);
-    for (const mesh of meshes) mesh.material = material;
-    DEFERRED.delete(mask);
-    COMPILED.add(mask);
-  }
+/**
+ * Hands the room's meshes their material. Call once the probe has compiled.
+ *
+ * Marking the root is what makes this once per build rather than once per
+ * entry — and it is done here rather than in the query above so that an entry
+ * abandoned mid-compile leaves the room undressed for the next one to retry.
+ */
+export function dressRoom(room: RoomFinish): void {
+  room.root.userData.finishUnion = room.mask;
+  if (room.mask === 0) return;
+  const material = artMaterialFor(room.mask);
+  for (const mesh of room.meshes) mesh.material = material;
+  COMPILED.add(room.mask);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */

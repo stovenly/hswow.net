@@ -303,14 +303,24 @@ countryside homes. A zone without `load` behaves exactly as today.
 a cold door-open after a hover shows no added latency; `check:world` still
 passes under esbuild.
 
-## Phase E — the stand-in hotswap *(landed)*
+## Phase E — the stand-in hotswap *(landed, then superseded)*
 
-**As landed, the deferral is per *mask*, once per session, and it is decided at
-the material rather than at the batch.** `dressArtMesh` (art/sway.ts) is the
-single gate: a prop whose variant has already been compiled takes it outright,
-and only the first prop of a never-seen mask stands in lean. So the pop happens
-at most once per finish per session, never on a revisit, and never for the many
-props whose mask is 0.
+**Superseded by MATERIAL-SYSTEM.md R1.** What is described below is the shape
+this phase held for one day. The per-mask deferral is gone: `dressArtMesh` now
+only hands out the lean material and stamps what a prop declared, and a room is
+resolved as a whole — `pendingRoomFinish` unions its masks and `dressRoom`
+hands out the single variant, in the same two places in `enter()` that the
+probe and resolve occupied. Everything below about *why* the compile happens
+before the swap, and about the invisible probe and the light census, is still
+exactly how it works; only the granularity changed, from one variant per finish
+to one per room.
+
+**As it landed first, the deferral was per *mask*, once per session, decided at
+the material rather than at the batch.** `dressArtMesh` was the single gate: a
+prop whose variant had already been compiled took it outright, and only the
+first prop of a never-seen mask stood in lean. So the pop happened at most once
+per finish per session, never on a revisit, and never for the many props whose
+mask is 0.
 
 The compile-before-assign is an **invisible probe hung off the root `enter()` is
 about to compile**, in the same pass as the rest of the room and before the
