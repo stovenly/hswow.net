@@ -141,7 +141,8 @@ await loader.step('settling the world', 0.6, () => zones.enter(ZONE_EXTERIOR));
 
 // Built now rather than on first entry. A zone this size takes longer to raise
 // than the transition fade is black for, so paying it here keeps the doorway
-// instant — and the collider caches it, so it is paid exactly once.
+// instant — and the collider caches it, so it is paid exactly once. Its shader
+// compile is NOT here: that fires in the background after boot, below.
 await loader.step('raising the countryside', 0.78, () => zones.prebuild(ZONE_COUNTRYSIDE));
 
 // --- audio ----------------------------------------------------------------
@@ -676,6 +677,9 @@ if (dev.gui) {
     // to make that true.
     draws: 0,
     drawn: '0',
+    // Should plateau after the first few zones of a cold walk — a count that
+    // climbs with every doorway means the light tiers are not holding.
+    programs: 0,
     heap: '—',
     // Zones currently holding memory, and how many have been released. Together
     // these are the readable form of the residency policy: the first should
@@ -709,6 +713,7 @@ if (dev.gui) {
   state.add(readout, 'emitters').name('hrtf / panned / virtual').listen().disable();
   state.add(readout, 'draws').name('draw calls').listen().disable();
   state.add(readout, 'drawn').name('drawn tris').listen().disable();
+  state.add(readout, 'programs').name('shader programs').listen().disable();
   state.add(readout, 'heap').listen().disable();
   state.add(readout, 'resident').name('zones built / evicted').listen().disable();
   // Triangles change with the zone now, so this has to be watched rather than
@@ -733,7 +738,7 @@ if (dev.gui) {
   const travel = dev.gui.addFolder('zones');
   const all = [...zones.zones.values()];
   const go = (folder: typeof travel, id: string, name: string): void => {
-    folder.add({ go: () => void zones.enter(id) }, 'go').name(name);
+    folder.add({ go: () => void zones.travel(id) }, 'go').name(name);
   };
 
   for (const zone of all) {
@@ -832,6 +837,7 @@ if (dev.gui) {
     const info = viewport.renderer.info.render;
     readout.draws = info.calls;
     readout.drawn = info.triangles.toLocaleString();
+    readout.programs = viewport.renderer.info.programs?.length ?? 0;
     // Chrome only, and behind a flag on some builds. Absent is a normal answer
     // rather than an error — this is the one number in the panel that says
     // whether a long session is leaking, and it is worth showing when it exists.
@@ -942,3 +948,8 @@ postfx.render(0);
 
 await loader.done();
 loop.start();
+
+// Unawaited on purpose: the countryside's programs compile on driver threads
+// while the player stands at spawn. Reaching its door first just means the
+// entry awaits the remainder behind the fade.
+void zones.precompile(ZONE_COUNTRYSIDE);

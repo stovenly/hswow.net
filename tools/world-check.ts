@@ -117,6 +117,12 @@ const world = createTestWorld(ground);
 const zones = new Map<string, Zone>();
 for (const definition of world.zones) zones.set(definition.id, new Zone(definition));
 
+// Every zone whose geometry lives in its own chunk, resolved up front. The game
+// awaits this per zone behind a fade (ZONE-LOADING.md Phase D); the check calls
+// `root()` synchronously from a hundred places, so it pays the whole cost here
+// instead. esbuild turns these dynamic imports into ordinary ones.
+await Promise.all([...zones.values()].map((zone) => zone.ensureLoaded()));
+
 const portals = new PortalGraph();
 for (const portal of world.portals) {
   portals.add(portal, (id) => zones.get(id)?.name ?? id);

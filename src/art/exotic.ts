@@ -41,15 +41,16 @@ function id(name: ExoticName): string {
 }
 
 /**
- * Spliced into the shared art material by `applyFinish`, after the finish
- * stage's helpers and before its `RE_Direct`. Requires `vExotic`,
- * `vExoticView`, `vExoticSide`, `vExoticUp`, `vExoticNormal`, `vWearPos`,
- * `vObjectPhase`, `vDetailView`, `swayTime`, `wearNoise`, `finishHash3`,
- * `exoticToObject`, `exoticSmoothNormal` and `skyColourWithSun` in scope.
+ * The shared exotic kit — helpers every recipe leans on — spliced by
+ * `applyFinish` whenever any recipe is in the mask. Each recipe's own GLSL
+ * follows it, from `EXOTIC_RECIPES`. Requires `vExotic`, `vExoticView`,
+ * `vExoticSide`, `vExoticUp`, `vExoticNormal`, `vWearPos`, `vObjectPhase`,
+ * `vDetailView`, `swayTime`, `wearNoise`, `finishHash3`, `exoticToObject`,
+ * `exoticSmoothNormal` and `skyColourWithSun` in scope.
  *
- * (No backticks below: this is a template literal.)
+ * (No backticks below: these are template literals.)
  */
-export const EXOTIC_GLSL = /* glsl */ `
+const EXOTIC_SHARED = /* glsl */ `
   uniform float uExoticOn;
   uniform float uExoticMotion;
 
@@ -161,7 +162,9 @@ export const EXOTIC_GLSL = /* glsl */ `
     border = second - best;
     return vec4(best, bestCell);
   }
+`;
 
+const SCHILLER_GLSL = /* glsl */ `
   // --- schiller: labradorite ------------------------------------------------
   //
   // Twinned domains, each a stack of lamellae at its own angle inside the
@@ -253,7 +256,9 @@ export const EXOTIC_GLSL = /* glsl */ `
       * (0.055 + 0.05 * base) * (0.35 + 0.65 * abs(driveObj.y));
     return flood + rest;
   }
+`;
 
+const QUICKMETAL_GLSL = /* glsl */ `
   // --- quickmetal: mercury --------------------------------------------------
   //
   // A mirror reflecting an invented, violently contrasted surroundings: dark
@@ -347,7 +352,9 @@ export const EXOTIC_GLSL = /* glsl */ `
     float warmth = exoticFbm(vWearPos * 1.8 + vec3(t * 0.5, 0.0, 0.0));
     return vec2(warmth, sheet);
   }
+`;
 
+const TENEBRESCENT_GLSL = /* glsl */ `
   // --- tenebrescence: hackmanite --------------------------------------------
   //
   // Sunlight darkens it; shade leaves it pale. Everything interesting is at the
@@ -446,7 +453,9 @@ export const EXOTIC_GLSL = /* glsl */ `
     vec3 tint = mix(vec3(0.85, 0.93, 1.0), vec3(1.0, 0.72, 0.86), state);
     return tint * (spot * lit * shimmer * gate * fade);
   }
+`;
 
+const NACREOUS_GLSL = /* glsl */ `
   // --- nacreous: pearl ------------------------------------------------------
   //
   // Warm near-white body, a deep lustre from under the surface, curved growth
@@ -491,7 +500,9 @@ export const EXOTIC_GLSL = /* glsl */ `
     float cloud = 0.80 + 0.32 * exoticFbm(vWearPos * 3.4 + vec3(0.0, t, 7.7));
     return (rim + body) * cloud;
   }
+`;
 
+const POINTILLIST_GLSL = /* glsl */ `
   // --- pointillist: the marble berry ----------------------------------------
   //
   // Bragg stacks whose layer thickness differs cell to cell. Cells come from a
@@ -559,7 +570,9 @@ export const EXOTIC_GLSL = /* glsl */ `
     film *= 0.80 + 0.20 * smoothstep(0.0, soft * 1.6, underBorder);
     return vec3(thickness, shade, film);
   }
+`;
 
+const VOIDSTONE_GLSL = /* glsl */ `
   // --- voidstone ------------------------------------------------------------
   //
   // A night sky as a function of direction. Layers drift on their own axes at
@@ -720,9 +733,42 @@ export const EXOTIC_GLSL = /* glsl */ `
     // only thing that says it is one.
     return exoticKnee(sky, 0.90);
   }
+`;
 
+export type FinishFeatureName = 'glint' | 'film' | 'translucency' | 'anisotropy';
+
+/** One recipe: the byte baked into geometry, and the GLSL it costs to draw. */
+export interface ExoticRecipe {
+  readonly name: ExoticName;
+  /** The aExotic byte. Retired indices stay retired. */
+  readonly index: number;
+  /** The recipe's own helpers and fields. */
+  readonly glsl: string;
+  /** Finish features the recipe's shader cannot stand without. */
+  readonly implies?: readonly FinishFeatureName[];
+}
+
+/** In splice order, which is the order the sections have always compiled in. */
+export const EXOTIC_RECIPES: readonly ExoticRecipe[] = [
+  { name: 'schiller', index: EXOTICS.schiller, glsl: SCHILLER_GLSL },
+  { name: 'quickmetal', index: EXOTICS.quickmetal, glsl: QUICKMETAL_GLSL },
+  { name: 'tenebrescent', index: EXOTICS.tenebrescent, glsl: TENEBRESCENT_GLSL },
+  { name: 'nacreous', index: EXOTICS.nacreous, glsl: NACREOUS_GLSL, implies: ['film'] },
+  { name: 'pointillist', index: EXOTICS.pointillist, glsl: POINTILLIST_GLSL },
+  { name: 'voidstone', index: EXOTICS.voidstone, glsl: VOIDSTONE_GLSL },
+];
+
+/**
+ * The exotic stage for a set of recipes: the shared kit, each recipe's own
+ * GLSL, and `exoticFilm` assembled from whoever overrides it. With every
+ * recipe selected the output is byte-identical to the un-split shader.
+ */
+export function exoticGlsl(recipes: readonly ExoticRecipe[]): string {
+  const nacre = recipes.some((recipe) => recipe.name === 'nacreous');
+  const film = /* glsl */ `
   float exoticFilm(float base) {
-    if (isExotic(${id('nacreous')})) return exoticNacreThickness();
-    return base;
+${nacre ? `    if (isExotic(${id('nacreous')})) return exoticNacreThickness();\n` : ''}    return base;
   }
 `;
+  return EXOTIC_SHARED + recipes.map((recipe) => recipe.glsl).join('') + film;
+}

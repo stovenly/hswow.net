@@ -296,8 +296,9 @@ export function patchArtMaterial(): void {
   applyDetail(ART_MATERIAL);
   // The finish stage wraps last. It hooks the lighting chunks rather than the
   // colour ones, so it consumes whatever the three stages above decided the
-  // surface is. See `applyFinish`.
-  applyFinish(ART_MATERIAL);
+  // surface is. Mask 0: the shared material carries only the base finish, and
+  // anything needing more gets a variant from `artMaterialFor`.
+  applyFinish(ART_MATERIAL, 0);
   // And the glitch stage wraps after even that: it corrupts the *lit result*,
   // finish and all, which is what makes it read as the signal going bad
   // rather than the material changing. The depth material takes the
@@ -310,6 +311,109 @@ export function patchArtMaterial(): void {
   // gets the displacement half for the same live-shadow reason as glitch.
   applyHorror(ART_MATERIAL);
   applyHorrorDisplacement(SWAY_DEPTH_MATERIAL);
+}
+
+/** Mask-keyed variants of the art material, one per finish-chunk set. */
+const ART_VARIANTS = new Map<number, THREE.MeshLambertMaterial>();
+
+/**
+ * The art material carrying exactly the finish chunks `mask` names.
+ *
+ * Mask 0 is `ART_MATERIAL` itself — most of the kit. Anything else is a
+ * fresh material run through the same patch chain, sharing every uniform
+ * object by reference, cached so each mask compiles once per session. The
+ * cache key is set after the chain because each stage sets its own constant
+ * key, and the last one would hand two masks the same program.
+ */
+export function artMaterialFor(mask: number): THREE.MeshLambertMaterial {
+  if (mask === 0) return ART_MATERIAL;
+  let material = ART_VARIANTS.get(mask);
+  if (material) return material;
+
+  patchArtMaterial();
+  material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  applySway(material);
+  applyWear(material);
+  applyDetail(material);
+  applyFinish(material, mask);
+  applyGlitch(material);
+  applyHorror(material);
+  material.customProgramCacheKey = () => 'art:' + mask;
+  ART_VARIANTS.set(mask, material);
+  return material;
+}
+
+/**
+ * Masks whose program is known to exist this session. Mask 0 is the shared
+ * material, which every zone compiles before it is ever shown.
+ */
+const COMPILED = new Set<number>([0]);
+/** Meshes drawing lean until their variant is ready, by mask. See `dressArtMesh`. */
+const DEFERRED = new Map<number, THREE.Mesh[]>();
+
+/**
+ * Puts a mesh in its finish variant, or in the lean material if that variant
+ * has never been compiled.
+ *
+ * The stand-in is not authored — it is the same prop with its finish chunks
+ * stripped to the base lobe, so a frost orb is a matte white stone and a
+ * schiller orb a dark glossy one. Correct silhouette, correct base colour, and
+ * derived from what the parts already declare rather than modelled twice.
+ * Deferral happens at most once per mask per session; after that the variant is
+ * assigned outright and nothing pops.
+ */
+export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
+  if (COMPILED.has(mask)) {
+    mesh.material = artMaterialFor(mask);
+    return;
+  }
+  mesh.material = ART_MATERIAL;
+  const waiting = DEFERRED.get(mask);
+  if (waiting) waiting.push(mesh);
+  else DEFERRED.set(mask, [mesh]);
+}
+
+/**
+ * One mesh per variant still waiting, in a group for the caller to hang off a
+ * zone and compile, plus the masks it covers.
+ *
+ * **Invisible, and that is what makes it work.** three gathers lights from the
+ * visible graph and materials from all of it, so a hidden probe under a live
+ * zone root compiles against that zone's real light census — the thing a
+ * detached stand-in cannot supply — while never drawing a pixel. The geometry
+ * is borrowed from a waiting mesh rather than made up, because the program key
+ * depends on what the buffers carry.
+ *
+ * The masks come back with it because a zone built while the compile is in
+ * flight adds more, and those have not been compiled by this pass. Resolving
+ * the whole waiting list would mark them ready without a program behind them.
+ *
+ * Leaves the list alone otherwise: `resolveArtVariants` is what clears it, so a
+ * compile abandoned half way is simply retried on the next entry.
+ */
+export function pendingArtProbe(): { probe: THREE.Group; masks: number[] } | null {
+  if (DEFERRED.size === 0) return null;
+  const probe = new THREE.Group();
+  probe.name = 'art:probe';
+  probe.visible = false;
+  const masks: number[] = [];
+  for (const [mask, meshes] of DEFERRED) {
+    probe.add(new THREE.Mesh(meshes[0].geometry, artMaterialFor(mask)));
+    masks.push(mask);
+  }
+  return { probe, masks };
+}
+
+/** Hands the waiting meshes their variant. Call once the probe has compiled. */
+export function resolveArtVariants(masks: readonly number[]): void {
+  for (const mask of masks) {
+    const meshes = DEFERRED.get(mask);
+    if (!meshes) continue;
+    const material = artMaterialFor(mask);
+    for (const mesh of meshes) mesh.material = material;
+    DEFERRED.delete(mask);
+    COMPILED.add(mask);
+  }
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */

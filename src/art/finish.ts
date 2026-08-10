@@ -3,10 +3,12 @@ import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import {
   EXOTIC_ATTRIBUTE,
-  EXOTIC_GLSL,
+  EXOTIC_RECIPES,
   EXOTICS,
+  exoticGlsl,
   exoticUniforms,
   type ExoticName,
+  type FinishFeatureName,
 } from './exotic';
 /**
  * The finish stage: specular, metal, cloth and film terms on the shared art
@@ -108,6 +110,30 @@ export type FinishName = keyof typeof FINISHES;
 /** A grain axis in object space. Defaults to up. */
 export type Grain = readonly [number, number, number];
 
+/**
+ * Bits for the gated shader chunks. A geometry's mask is the union of its
+ * parts' masks (`assemble` stamps it on `userData.finishMask`) and the
+ * material compiled for it carries only the chunks the mask names. The base
+ * specular lobe and sheen stay unconditional — nearly everything polished
+ * uses them and they are small.
+ */
+export const FINISH_FEATURE: Record<FinishFeatureName, number> = {
+  glint: 1 << 0,
+  film: 1 << 1,
+  translucency: 1 << 2,
+  anisotropy: 1 << 3,
+};
+
+/** Recipe bits sit above the feature bits, in registry order. */
+const RECIPE_SHIFT = 4;
+
+export function exoticMaskBit(name: ExoticName): number {
+  return 1 << (RECIPE_SHIFT + EXOTIC_RECIPES.findIndex((recipe) => recipe.name === name));
+}
+
+/** Every feature and recipe: compiles byte-identically to the un-split shader. */
+export const FINISH_MASK_ALL = (1 << (RECIPE_SHIFT + EXOTIC_RECIPES.length)) - 1;
+
 export interface FinishLanes {
   /** metallic, roughness, sheen, iridescence. */
   finish: [number, number, number, number];
@@ -117,6 +143,8 @@ export interface FinishLanes {
   glint: [number, number];
   /** Which exotic recipe, 0 for none. An index, not a knob — never scaled. */
   exotic: number;
+  /** Which gated shader chunks this finish needs. See `FINISH_FEATURE`. */
+  mask: number;
 }
 
 /** A `Part.finish` and `Part.grain` as the lanes the shader reads. */
@@ -137,6 +165,19 @@ export function resolveFinish(finish: FinishName | Finish, grain?: Grain): Finis
     gz = -gz;
   }
 
+  // Star is absent on purpose: it draws as its own quad (art/sparkle.ts), so
+  // it costs the shared shader nothing.
+  let mask = 0;
+  if ((f.glint ?? 0) > 0) mask |= FINISH_FEATURE.glint;
+  if ((f.iridescence ?? 0) > 0) mask |= FINISH_FEATURE.film;
+  if ((f.translucency ?? 0) > 0) mask |= FINISH_FEATURE.translucency;
+  if ((f.anisotropy ?? 0) > 0) mask |= FINISH_FEATURE.anisotropy;
+  if (f.exotic !== undefined) {
+    mask |= exoticMaskBit(f.exotic);
+    const recipe = EXOTIC_RECIPES.find((entry) => entry.name === f.exotic);
+    for (const implied of recipe?.implies ?? []) mask |= FINISH_FEATURE[implied];
+  }
+
   return {
     finish: [clamp(f.metallic), clamp(f.roughness), clamp(f.sheen ?? 0), clamp(f.iridescence ?? 0)],
     grain: [
@@ -150,6 +191,7 @@ export function resolveFinish(finish: FinishName | Finish, grain?: Grain): Finis
     // this is a name written as an integer. Putting it through `clamp` would
     // typecheck and quietly turn recipe 10 into recipe 1.
     exotic: f.exotic === undefined ? 0 : EXOTICS[f.exotic],
+    mask,
   };
 }
 
@@ -169,8 +211,19 @@ export const finishUniforms = {
  * detail patches. Surface material only.
  *
  * Reads `finishWorn`, `vWearPos` and `vDetailView` from those earlier patches.
+ *
+ * `mask` picks which gated chunks compile. `FINISH_MASK_ALL` produces the
+ * un-split shader byte for byte; anything smaller is a leaner program.
  */
-export function applyFinish(material: THREE.Material): void {
+export function applyFinish(material: THREE.Material, mask: number): void {
+  const glint = (mask & FINISH_FEATURE.glint) !== 0;
+  const film = (mask & FINISH_FEATURE.film) !== 0;
+  const trans = (mask & FINISH_FEATURE.translucency) !== 0;
+  const aniso = (mask & FINISH_FEATURE.anisotropy) !== 0;
+  const recipes = EXOTIC_RECIPES.filter((recipe) => (mask & exoticMaskBit(recipe.name)) !== 0);
+  const on = (name: ExoticName): boolean => recipes.some((recipe) => recipe.name === name);
+  const exotic = recipes.length > 0;
+
   const prior = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
@@ -403,7 +456,7 @@ export function applyFinish(material: THREE.Material): void {
          * still read as smooth, because what makes them read is the
          * environment term below, which keeps its true roughness.
          */
-        /** The anisotropic form, about a frame given rather than the global one. */
+${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rather than the global one. */
         float finishDAxis(vec3 N, vec3 H, vec3 T, vec3 B) {
           float lobe = max(finishRough, 0.16);
           float a = max(lobe * lobe, 0.002);
@@ -424,7 +477,12 @@ export function applyFinish(material: THREE.Material): void {
             return (a * a) / (PI * d * d);
           }
           return finishDAxis(N, H, finishTangent, finishBitangent);
-        }
+        }` : /* glsl */ `        float finishD(vec3 N, vec3 H) {
+          float lobe = max(finishRough, 0.16);
+          float a = max(lobe * lobe, 0.002);
+          float d = pow2(dot(N, H)) * (a * a - 1.0) + 1.0;
+          return (a * a) / (PI * d * d);
+        }`}
 
         /**
          * Smith height-correlated visibility — how much of the micro-surface
@@ -480,7 +538,7 @@ export function applyFinish(material: THREE.Material): void {
           return fract(sin(p) * 43758.5453);
         }
 
-        /**
+${glint ? /* glsl */ `        /**
          * What a grain of ice does to the light it passes.
          *
          * Ice disperses far less than water, so its optics are pale rather than
@@ -615,9 +673,9 @@ export function applyFinish(material: THREE.Material): void {
             finishSpeckStack(dotNH, gate, density / exp2(coarse + 1.0)),
             steps - coarse
           );
-        }
+        }` : ''}
 
-        /**
+${film ? /* glsl */ `        /**
          * Thin film, as a hue walk rather than a spectral integral.
          *
          * Quantization is per channel, so it keeps differences in hue and
@@ -636,9 +694,9 @@ export function applyFinish(material: THREE.Material): void {
         /** How thick the film is where a recipe has not said otherwise. */
         float finishFilmThickness() {
           return 0.72 + 0.56 * wearNoise(vWearPos * 13.0);
-        }
+        }` : ''}
 
-        ${EXOTIC_GLSL}
+${exotic ? /* glsl */ `        ${exoticGlsl(recipes)}` : ''}
 
         void RE_Direct_Finish(
           const in IncidentLight directLight,
@@ -672,7 +730,7 @@ export function applyFinish(material: THREE.Material): void {
 
           reflectedLight.directSpecular += directLight.color * F
             * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * exoticGloss * uFinishSpecular);
-
+${glint ? /* glsl */ `
           if (finishGlint > 0.0) {
             // Pushed most of the way to white and hard: a grain is a fraction
             // of a chunky pixel, so what makes it read is how bright it is,
@@ -686,7 +744,7 @@ export function applyFinish(material: THREE.Material): void {
             reflectedLight.directSpecular +=
               directLight.color * spark * (finishSparkle(dotNH, 1.0) * finishGlint * dotNL * uFinishSpecular);
           }
-
+` : ''}
 
           // Velvet: bright where the surface turns away from the eye. Tinted by
           // the cloth's own colour, because this is fibre scatter rather than a
@@ -696,7 +754,7 @@ export function applyFinish(material: THREE.Material): void {
             reflectedLight.directSpecular +=
               directLight.color * finishSheenColour * (finishSheen * rim * dotNL * uFinishSpecular);
           }
-
+${trans ? /* glsl */ `
           if (finishTrans > 0.0) {
             // Wrap: the terminator softens instead of cutting at ninety
             // degrees. Added as the *difference* over Lambert, so the term is
@@ -714,7 +772,7 @@ export function applyFinish(material: THREE.Material): void {
             reflectedLight.directDiffuse +=
               directLight.color * material.diffuseColor * (through * finishTrans * 0.35);
           }
-
+` : ''}${exotic ? /* glsl */ `
           // Recipes answering a light. Object-space half vector, so they vary
           // per fragment instead of per facet.
           if (finishExoticAny) {
@@ -727,7 +785,7 @@ export function applyFinish(material: THREE.Material): void {
               exoticSunWeight = weight;
               exoticSunObj = lightObj;
             }
-
+${on('schiller') ? /* glsl */ `
             if (isExotic(${EXOTICS.schiller.toFixed(1)})) {
               // Kneed: a domain at its brightest is deep saturated blue, never
               // white. Off the smooth normal so no facet shapes the flood.
@@ -735,7 +793,7 @@ export function applyFinish(material: THREE.Material): void {
                 directLight.color * exoticSchiller(halfObj) * (smoothNL * 1.5), 0.55
               ) * uFinishSpecular;
             }
-
+` : ''}${on('quickmetal') ? /* glsl */ `
             if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) {
               // A restrained sheen along the ridged streaks. finishF0 rather
               // than the facet Fresnel, so no triangle steps brighter.
@@ -743,13 +801,13 @@ export function applyFinish(material: THREE.Material): void {
               reflectedLight.directSpecular += directLight.color * finishF0
                 * (body.y * 0.7 * smoothNL * uFinishSpecular);
             }
-
+` : ''}${on('nacreous') ? /* glsl */ `
             if (isExotic(${EXOTICS.nacreous.toFixed(1)})) {
               float nacreNV = saturate(dot(exoticSmoothNormal(), geometryViewDir));
               reflectedLight.directDiffuse += directLight.color * finishSheenColour
                 * exoticNacreSheen(nacreNV) * (exoticOrient(nacreNV) * 0.40 * smoothNL);
             }
-
+` : ''}${on('tenebrescent') ? /* glsl */ `
             if (isExotic(${EXOTICS.tenebrescent.toFixed(1)})) {
               // A polished-gem highlight off the smooth normal: a tight core
               // inside a soft bloom, curving round the stone rather than
@@ -761,9 +819,9 @@ export function applyFinish(material: THREE.Material): void {
                 0.55
               ) * uFinishSpecular;
             }
-
+` : ''}
           }
-        }
+` : ''}        }
 
         #undef RE_Direct
         #define RE_Direct RE_Direct_Finish
@@ -784,7 +842,7 @@ export function applyFinish(material: THREE.Material): void {
           finishAniso = clamp(vFinishExtra.x, 0.0, 0.95) * finishStrength;
           finishTrans = vFinishExtra.y * finishStrength;
           finishGlint = vFinishExtra.z * finishStrength;
-
+${aniso ? /* glsl */ `
           // The tangent falls out of the axis and the *facet* normal, which is
           // what lets one axis per part serve a whole turned or folded surface.
           // Where the axis stands along the normal there is no grain direction
@@ -797,33 +855,33 @@ export function applyFinish(material: THREE.Material): void {
             finishTangent = across / max(spread, 1e-4);
             finishBitangent = cross(normal, finishTangent);
           }
-
+` : ''}${exotic ? /* glsl */ `
           // Gloss, rim and sun glare per recipe. Gloss scales the plain
           // specular lobe, rim the grazing-angle sky, glare how much of the sun
           // disc the environment sample keeps.
           finishExoticAny = uExoticOn > 0.5 && vExotic > 0.5;
-          // Schiller has no surface shine at all: the flood is the only light
+${on('schiller') ? /* glsl */ `          // Schiller has no surface shine at all: the flood is the only light
           // it returns, so the stone reads as colour inside, not gloss on top.
           if (isExotic(${EXOTICS.schiller.toFixed(1)})) { exoticGloss = 0.0; exoticRim = 0.0; exoticSunGlare = 0.0; exoticEnvGain = 0.02; }
-          // A mirror with no per-facet lobe at all: everything it shows comes
+` : ''}${on('quickmetal') ? /* glsl */ `          // A mirror with no per-facet lobe at all: everything it shows comes
           // through the smooth-normal environment, so no triangle ever flashes.
           if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) { exoticGloss = 0.0; exoticRim = 0.85; exoticSunGlare = 0.12; exoticEnvGain = 1.25; }
-          if (isExotic(${EXOTICS.tenebrescent.toFixed(1)})) { exoticGloss = 0.04; exoticRim = 0.20; exoticSunGlare = 0.02; exoticEnvGain = 0.25; }
-          if (isExotic(${EXOTICS.nacreous.toFixed(1)})) { exoticGloss = 0.06; exoticRim = 0.12; exoticSunGlare = 0.02; exoticEnvGain = 0.24; }
-          if (isExotic(${EXOTICS.pointillist.toFixed(1)})) { exoticGloss = 0.05; exoticRim = 0.11; exoticSunGlare = 0.02; exoticEnvGain = 0.16; }
-          // The void is not a sky reflection, so its gain is its own business.
+` : ''}${on('tenebrescent') ? /* glsl */ `          if (isExotic(${EXOTICS.tenebrescent.toFixed(1)})) { exoticGloss = 0.04; exoticRim = 0.20; exoticSunGlare = 0.02; exoticEnvGain = 0.25; }
+` : ''}${on('nacreous') ? /* glsl */ `          if (isExotic(${EXOTICS.nacreous.toFixed(1)})) { exoticGloss = 0.06; exoticRim = 0.12; exoticSunGlare = 0.02; exoticEnvGain = 0.24; }
+` : ''}${on('pointillist') ? /* glsl */ `          if (isExotic(${EXOTICS.pointillist.toFixed(1)})) { exoticGloss = 0.05; exoticRim = 0.11; exoticSunGlare = 0.02; exoticEnvGain = 0.16; }
+` : ''}${on('voidstone') ? /* glsl */ `          // The void is not a sky reflection, so its gain is its own business.
           if (isExotic(${EXOTICS.voidstone.toFixed(1)})) { exoticGloss = 0.0; exoticRim = 0.0; exoticSunGlare = 0.0; exoticEnvGain = 0.0; }
-          // Every recipe here samples the environment off the smooth normal.
+` : ''}          // Every recipe here samples the environment off the smooth normal.
           // The diffuse stays faceted, so the props still read low-poly; what
           // goes is the reflection landing as one hard triangle per face.
           exoticSmoothEnv = finishExoticAny;
-
+${on('schiller') ? /* glsl */ `
           if (isExotic(${EXOTICS.schiller.toFixed(1)})) {
             material.diffuseColor *= exoticSchillerSeam();
           }
-
+` : ''}` : ''}${film ? /* glsl */ `
           float filmNV = saturate(dot(normal, normalize(vViewPosition)));
-          vec3 film = finishFilm(filmNV, exoticFilm(finishFilmThickness()));
+          vec3 film = finishFilm(filmNV, ${exotic ? 'exoticFilm(finishFilmThickness())' : 'finishFilmThickness()'});
           // **A pearl's colour is a wash, not a spectrum.** Three quarters of
           // the hue walk is thrown away right here, and what survives is the
           // faint rose-and-green cast a real pearl carries over a warm white
@@ -835,10 +893,10 @@ export function applyFinish(material: THREE.Material): void {
           // that is exactly what it looked like. A pearl's colour is quiet, not
           // absent: you should be able to find the rose and the green on it
           // without hunting.
-          if (isExotic(${EXOTICS.nacreous.toFixed(1)})) film = mix(vec3(1.0), film, 0.66);
-          vec3 tint = mix(vec3(1.0), film, vFinish.w * finishStrength * exoticFilmMix);
-          finishF0 = mix(vec3(0.05), material.diffuseColor, finishMetal) * finishStrength * tint;
-
+${on('nacreous') ? /* glsl */ `          if (isExotic(${EXOTICS.nacreous.toFixed(1)})) film = mix(vec3(1.0), film, 0.66);
+` : ''}          vec3 tint = mix(vec3(1.0), film, vFinish.w * finishStrength * exoticFilmMix);
+` : ''}          finishF0 = mix(vec3(0.05), material.diffuseColor, finishMetal) * finishStrength${film ? ' * tint' : ''};
+${on('pointillist') ? /* glsl */ `
           if (isExotic(${EXOTICS.pointillist.toFixed(1)})) {
             float cellNV = saturate(dot(exoticSmoothNormal(), normalize(vViewPosition)));
             vec3 cell = exoticBerryCell(exoticCellDensity());
@@ -850,7 +908,7 @@ export function applyFinish(material: THREE.Material): void {
               - min(min(finishF0.r, finishF0.g), finishF0.b);
             material.diffuseColor *= 0.35;
           }
-          finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
+` : ''}          finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
             - min(min(finishF0.r, finishF0.g), finishF0.b);
           material.diffuseColor *= 1.0 - finishMetal;
         }
@@ -866,21 +924,21 @@ export function applyFinish(material: THREE.Material): void {
           vec3 finishBounce = reflect(
             -geometryViewDir, exoticSmoothEnv ? exoticSmoothNormal() : geometryNormal);
           vec3 finishWorld = inverseTransformDirection(finishBounce, viewMatrix);
-          // Quickmetal leans the ray and nothing else. The geometric normal is
+${on('quickmetal') ? /* glsl */ `          // Quickmetal leans the ray and nothing else. The geometric normal is
           // untouched, so the silhouette, the outline and the shadow are all
           // exactly today's — only what the surface is looking at moves.
           if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) finishWorld = exoticWobble(finishWorld);
-          vec3 finishEnv = vec3(0.0);
+` : ''}          vec3 finishEnv = vec3(0.0);
           #if NUM_HEMI_LIGHTS > 0
             finishEnv = getHemisphereLightIrradiance(hemisphereLights[0], finishBounce);
           #endif
-          // Voidstone ignores uFinishSky: the sky is in the stone, indoors too.
+          ${on('voidstone') ? /* glsl */ `// Voidstone ignores uFinishSky: the sky is in the stone, indoors too.
           if (isExotic(${EXOTICS.voidstone.toFixed(1)})) {
             // The raw view ray, untouched: every fragment looks straight out
             // along its own eye ray, so the stone is a flat window on the
             // void at every angle.
             finishEnv = exoticVoid(inverseTransformDirection(-geometryViewDir, viewMatrix));
-          } else if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) {
+          } else ` : ''}${on('quickmetal') ? /* glsl */ `if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) {
             // Mercury reflects its own invented surroundings — the real sky has
             // too little ground-to-horizon contrast for the wobble to show.
             // Indoors the same contrast curve rides the hemisphere light.
@@ -890,17 +948,17 @@ export function applyFinish(material: THREE.Material): void {
               finishEnv *= 0.18 + 1.5 * smoothstep(-0.045, 0.09, finishWorld.y)
                 + exp(-finishWorld.y * finishWorld.y * 130.0) * 0.7;
             }
-          } else if (uFinishSky > 0.5) {
+          } else ` : ''}if (uFinishSky > 0.5) {
             vec3 finishSky = skyColourWithSun(finishWorld, exoticSunGlare);
             finishEnv = mix(finishSky, mix(uHorizon, uZenith, 0.4),
               smoothstep(0.15, 0.85, finishRough));
           }
-          // A mirror bright enough to clip loses the very thing it is for: the
+${on('quickmetal') ? /* glsl */ `          // A mirror bright enough to clip loses the very thing it is for: the
           // detail in what it is reflecting. Kneed rather than scaled down, so
           // the dark half keeps its contrast.
           if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) {
             finishEnv = exoticKnee(finishEnv, 0.92);
-          }
+          }` : ''}
           // **A tinted metal cannot reflect only the sky and come back right.**
           // Gold has almost no blue in it and the sky has almost nothing else,
           // so a gilded ball outdoors renders olive-green — which is what a
@@ -930,7 +988,7 @@ export function applyFinish(material: THREE.Material): void {
           // mirror, which is the plastic look arriving by the other door.
           reflectedLight.indirectSpecular +=
             finishEnv * envF * ((1.0 - finishSheen) * exoticEnvGain * uFinishEnv);
-
+${glint ? /* glsl */ `
           // Frost's ambient half: the same grains catching the sky, so the
           // whole object is frosted rather than only its lit side. Against the
           // ambient's brightness, not its colour, or every grain comes back
@@ -939,7 +997,7 @@ export function applyFinish(material: THREE.Material): void {
             reflectedLight.indirectSpecular += mix(finishEnv, vec3(envLuma), 0.8)
               * finishSparkle(0.0, 0.0) * (finishGlint * 1.5 * uFinishEnv);
           }
-
+` : ''}${exotic ? /* glsl */ `
           // The ambient half of each recipe: keyed on the object-space view
           // direction, which is defined over every pixel of the object, so the
           // direct halves above are peaks rather than the only place it exists.
@@ -947,13 +1005,13 @@ export function applyFinish(material: THREE.Material): void {
             vec3 normalObj = exoticToObject(exoticSmoothNormal());
             float smoothNV = saturate(dot(exoticSmoothNormal(), geometryViewDir));
             vec3 neutral = mix(finishEnv, vec3(envLuma), 0.55);
-
+${on('schiller') ? /* glsl */ `
             if (isExotic(${EXOTICS.schiller.toFixed(1)})) {
               reflectedLight.indirectSpecular += exoticKnee(
                 neutral * exoticSchiller(vExoticView) * 1.15, 0.50
               ) * uFinishEnv;
             }
-
+` : ''}${on('quickmetal') ? /* glsl */ `
             if (isExotic(${EXOTICS.quickmetal.toFixed(1)})) {
               // The metal's own cast, and the streaks as shading on the mirror
               // itself — multiplied, never added, so nothing hazes over it.
@@ -962,24 +1020,24 @@ export function applyFinish(material: THREE.Material): void {
               reflectedLight.indirectSpecular *= mix(vec3(1.0), metal, uFinishEnv);
               reflectedLight.indirectSpecular *= mix(1.0, 0.86 + body.y * 0.30, uFinishEnv);
             }
-
+` : ''}${on('pointillist') ? /* glsl */ `
             if (isExotic(${EXOTICS.pointillist.toFixed(1)})) {
               reflectedLight.indirectSpecular += finishEnv * finishF0 * (1.8 * uFinishEnv);
             }
-
+` : ''}${on('nacreous') ? /* glsl */ `
             if (isExotic(${EXOTICS.nacreous.toFixed(1)})) {
               // The lustre, tinted by the interference: pearl's rainbow is *in*
               // the depth rather than laid on the surface over it.
               reflectedLight.indirectDiffuse += finishEnv * finishSheenColour
                 * exoticNacreSheen(smoothNV) * (exoticOrient(smoothNV) * 1.35 * uFinishEnv);
             }
-
+` : ''}${on('voidstone') ? /* glsl */ `
             if (isExotic(${EXOTICS.voidstone.toFixed(1)})) {
               // Flat: what you are looking at is behind the surface, so it is
               // not rationed by how obliquely you meet that surface.
               reflectedLight.indirectSpecular += finishEnv * (1.05 * uFinishEnv);
             }
-
+` : ''}${on('tenebrescent') ? /* glsl */ `
             if (isExotic(${EXOTICS.tenebrescent.toFixed(1)})) {
               // Exposure comes from the dominant light alone, so the boundary
               // is that light's terminator — one clean great circle. Summing
@@ -996,8 +1054,8 @@ export function applyFinish(material: THREE.Material): void {
                 exoticTeneSparkle(normalize(vExoticView + exoticSunObj), exoticBurnT)
                 * ((0.35 + envLuma) * (0.4 + 0.6 * saturate(exoticSunWeight)) * uFinishEnv);
             }
-          }
-        }
+` : ''}          }
+` : ''}        }
         `,
       )
       .replace(
@@ -1019,6 +1077,6 @@ export function applyFinish(material: THREE.Material): void {
     [EXOTIC_ATTRIBUTE]: [0],
   };
 
-  material.customProgramCacheKey = () => 'sway-wear-detail-finish';
+  material.customProgramCacheKey = () => 'sway-wear-detail-finish:' + mask;
   material.needsUpdate = true;
 }
