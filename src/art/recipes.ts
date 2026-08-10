@@ -1,3 +1,4 @@
+import { RAMP_ROW } from './ramp';
 /**
  * The recipe lane: ten optical models selected by a one-byte recipe index
  * rather than by ten more per-vertex parameters. See MATERIAL-RECIPES.md.
@@ -112,7 +113,7 @@ function id(name: RecipeName): string {
  * follows it, from `RECIPES`. Requires `vRecipe`, `vRecipeView`,
  * `vRecipeSide`, `vRecipeUp`, `vRecipeNormal`, `vWearPos`, `vObjectPhase`,
  * `vDetailView`, `swayTime`, `wearNoise`, `finishHash3`, `recipeToObject`,
- * `recipeSmoothNormal` and `skyColourWithSun` in scope.
+ * `recipeSmoothNormal`, `rampColour` and `skyColourWithSun` in scope.
  *
  * (No backticks below: these are template literals.)
  */
@@ -240,15 +241,6 @@ const SCHILLER_GLSL = /* glsl */ `
   // which is independent of the surface — so the flood is smooth across facets
   // and different domains answer all over the stone at once.
 
-  /** Weighted blue, then teal, green uncommon, gold rare. Pulled toward grey. */
-  vec3 recipeLabradorTint(float draw) {
-    vec3 c = mix(vec3(0.16, 0.30, 0.72), vec3(0.14, 0.44, 0.78), smoothstep(0.0, 0.36, draw));
-    c = mix(c, vec3(0.16, 0.55, 0.66), smoothstep(0.44, 0.68, draw));
-    c = mix(c, vec3(0.30, 0.62, 0.46), smoothstep(0.74, 0.88, draw));
-    c = mix(c, vec3(0.78, 0.64, 0.32), smoothstep(0.91, 1.0, draw));
-    return mix(vec3(dot(c, vec3(0.3333))), c, 0.74);
-  }
-
   /** The domain field, warped so boundaries interlock rather than tile. */
   vec2 recipePlates() {
     vec3 w = recipeWarp(vWearPos, 3.1, 0.16, 0.02);
@@ -300,7 +292,7 @@ const SCHILLER_GLSL = /* glsl */ `
     structure = mix(1.0, structure, 1.0 - smoothstep(0.004, 0.017, recipeFootprint()));
 
     // Fringes run a little further round the wheel than the core of a flood.
-    vec3 tint = recipeLabradorTint(fract(draw.y + draw.z * 0.31 + (1.0 - lit) * 0.10));
+    vec3 tint = rampColour(${RAMP_ROW.labrador}, fract(draw.y + draw.z * 0.31 + (1.0 - lit) * 0.10));
     return tint * (lit * structure);
   }
 
@@ -320,7 +312,7 @@ const SCHILLER_GLSL = /* glsl */ `
     // A low sheen over the whole stone, from the coarse field's own plane: a
     // labradorite that is not flooding still catches light off its twins.
     float base = 0.5 + 0.5 * sin(dot(vWearPos, normalize(vec3(coarse, 0.5) * 2.0 - 1.0)) * 40.0);
-    vec3 rest = recipeLabradorTint(fract(coarse.x * 3.0 + 0.2))
+    vec3 rest = rampColour(${RAMP_ROW.labrador}, fract(coarse.x * 3.0 + 0.2))
       * (0.055 + 0.05 * base) * (0.35 + 0.65 * abs(driveObj.y));
     return flood + rest;
   }
@@ -485,9 +477,7 @@ const TENEBRESCENT_GLSL = /* glsl */ `
     t = saturate(t + recipeCreep() * 0.85 * edge);
     t = t * t * (3.0 - 2.0 * t);
 
-    vec3 c = mix(vec3(1.0, 0.99, 0.97), vec3(0.90, 0.55, 0.58), smoothstep(0.0, 0.26, t));
-    c = mix(c, vec3(0.52, 0.17, 0.44), smoothstep(0.22, 0.55, t));
-    c = mix(c, vec3(0.24, 0.07, 0.30), smoothstep(0.52, 1.0, t));
+    vec3 c = rampColour(${RAMP_ROW.burn}, t);
     // A warm lift right at the front, and the edge-glow weight read back by
     // the finish stage.
     float halo = 4.0 * t * (1.0 - t);
@@ -577,12 +567,9 @@ const POINTILLIST_GLSL = /* glsl */ `
   // Worley lattice and are shaded as domes, so they interlock instead of
   // tiling.
 
+  /** Thicker stacks run redder, and a grazing view thins what it looks through. */
   vec3 recipeBerryTint(float thickness, float smoothNV) {
-    float h = saturate(thickness - (1.0 - smoothNV) * 0.20);
-    vec3 c = mix(vec3(0.09, 0.20, 0.74), vec3(0.10, 0.42, 0.88), smoothstep(0.0, 0.38, h));
-    c = mix(c, vec3(0.16, 0.63, 0.60), smoothstep(0.40, 0.66, h));
-    c = mix(c, vec3(0.44, 0.62, 0.26), smoothstep(0.68, 0.86, h));
-    return mix(c, vec3(0.88, 0.68, 0.26), smoothstep(0.88, 1.0, h));
+    return rampColour(${RAMP_ROW.berry}, saturate(thickness - (1.0 - smoothNV) * 0.20));
   }
 
   /** (stack thickness, dome shading, how much film the cell carries). */
@@ -654,17 +641,6 @@ const VOIDSTONE_GLSL = /* glsl */ `
   }
 
   /**
-   * Star colour by surface temperature. Weighted heavily to the cool white end,
-   * because that is what a naked eye resolves; the orange ones are the rare
-   * bright giants and are worth having for exactly that reason.
-   */
-  vec3 recipeStarTint(float h) {
-    vec3 c = mix(vec3(0.72, 0.80, 1.00), vec3(0.94, 0.96, 1.00), smoothstep(0.0, 0.42, h));
-    c = mix(c, vec3(1.00, 0.95, 0.86), smoothstep(0.40, 0.76, h));
-    return mix(c, vec3(1.00, 0.78, 0.55), smoothstep(0.80, 1.0, h));
-  }
-
-  /**
    * A dense field of faint stars.
    *
    * Gaussian rather than a thresholded disc: a hard edge on a point smaller
@@ -698,7 +674,7 @@ const VOIDSTONE_GLSL = /* glsl */ `
           // a star is a point of light rather than a smudge, and alias-free.
           float g = dot(delta, delta) / r2eff;
           float star = exp(-g * g) * (r2 / r2eff);
-          total += recipeStarTint(draw.y) * (star * magnitude);
+          total += rampColour(${RAMP_ROW.star}, draw.y) * (star * magnitude);
         }
       }
     }
@@ -754,7 +730,7 @@ const VOIDSTONE_GLSL = /* glsl */ `
               + exp(-(delta.x * delta.x + delta.z * delta.z) / w2 - delta.y * delta.y / l2);
             core += spikes * bright * 0.55 * (rr * 0.16 / w2);
           }
-          total += recipeStarTint(draw.y) * ((core + halo) * magnitude);
+          total += rampColour(${RAMP_ROW.star}, draw.y) * ((core + halo) * magnitude);
         }
       }
     }

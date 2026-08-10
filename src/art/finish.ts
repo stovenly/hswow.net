@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
+import { RAMP_GLSL, RAMP_ROW, rampUniforms } from './ramp';
 import {
   RECIPE_ATTRIBUTE,
   RECIPES,
@@ -230,7 +231,7 @@ export function applyFinish(material: THREE.Material, mask: number): void {
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
 
-    Object.assign(shader.uniforms, finishUniforms, recipeUniforms, skyUniforms);
+    Object.assign(shader.uniforms, finishUniforms, recipeUniforms, rampUniforms, skyUniforms);
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -507,27 +508,10 @@ ${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rath
                    dot(p, vec3(113.5, 271.9, 124.6)));
           return fract(sin(p) * 43758.5453);
         }
+${glint || anyRecipe ? /* glsl */ `        ${RAMP_GLSL}` : ''}
 
-${glint ? /* glsl */ `        /**
-         * What a grain of ice does to the light it passes.
-         *
-         * Ice disperses far less than water, so its optics are pale rather than
-         * spectral — a sun dog runs red nearest the sun through orange to a
-         * white-blue tail, and iridescent cirrus is pastel pink and cyan. So
-         * this is a light ramp, never a rainbow: rose to peach to cream to a
-         * cold cyan, with a little violet at the far end. Every stop is high
-         * value on purpose; the moment one of them darkens it stops reading as
-         * ice and starts reading as painted glass.
-         */
-        vec3 finishIceTint(float h) {
-          vec3 c = mix(vec3(1.00, 0.44, 0.66), vec3(1.00, 0.68, 0.42), smoothstep(0.0, 0.30, h));
-          c = mix(c, vec3(1.00, 0.95, 0.84), smoothstep(0.28, 0.55, h));
-          c = mix(c, vec3(0.42, 0.80, 1.00), smoothstep(0.55, 0.80, h));
-          return mix(c, vec3(0.66, 0.52, 1.00), smoothstep(0.80, 1.0, h));
-        }
-
-        vec3 finishGrainTint(float h, float depth) {
-          return finishIceTint(h);
+${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
+          return rampColour(${RAMP_ROW.ice}, h);
         }
 
         /**

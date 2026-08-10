@@ -28,6 +28,7 @@ import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
 import { RECIPE_KNOBS, uploadRecipeKnobs, type RecipeName } from './art/recipes';
+import { RAMPS, uploadRamps } from './art/ramp';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
 import { setGlitchOverride, setGlitchFrozen } from './engine/GlitchActivity';
 import { setHorrorOverride, setHorrorFrozen } from './engine/HorrorActivity';
@@ -368,6 +369,22 @@ if (dev.gui) {
     row.add(knobs, 'rim', 0, 1, 0.01).onChange(uploadRecipeKnobs);
     row.add(knobs, 'sunGlare', 0, 1, 0.01).name('sun glare').onChange(uploadRecipeKnobs);
     row.add(knobs, 'envGain', 0, 2, 0.01).name('env gain').onChange(uploadRecipeKnobs);
+  }
+
+  // The colour tables. A stop arrives over a window of t and is mixed over
+  // everything before it, so the windows overlap on purpose — dragging one
+  // start past the previous end opens a gap where the ramp holds one colour.
+  const rampFolder = finishFolder.addFolder('ramps').close();
+  for (const ramp of RAMPS) {
+    const row = rampFolder.addFolder(ramp.name).close();
+    row.addColor(ramp, 'base').onChange(uploadRamps);
+    row.add(ramp, 'grey', 0, 1, 0.01).name('toward grey').onChange(uploadRamps);
+    ramp.stops.forEach((stop, i) => {
+      const at = row.addFolder(`stop ${i + 1}`).close();
+      at.addColor(stop, 'rgb').name('colour').onChange(uploadRamps);
+      at.add(stop, 'start', 0, 1, 0.01).onChange(uploadRamps);
+      at.add(stop, 'end', 0, 1, 0.01).onChange(uploadRamps);
+    });
   }
 
   // Not in the player's menu, and not because it was forgotten: a pond is part
