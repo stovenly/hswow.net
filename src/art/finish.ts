@@ -7,6 +7,8 @@ import {
   RECIPE_INDEX,
   recipeGlsl,
   recipeUniforms,
+  PLAIN_KNOBS,
+  RECIPE_KNOB_ROWS,
   type RecipeName,
   type FinishFeatureName,
 } from './recipes';
@@ -395,48 +397,16 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         float finishSpeckGate = 0.972;
         /** How much film a recipe wants laid on. Pointillist kills whole cells. */
         float recipeFilmMix = 1.0;
-        /**
-         * How much of the plain specular lobe a recipe wants under it.
-         *
-         * **Nearly none of them want all of it.** The lobe has a roughness
-         * floor of 0.16, because a lobe narrower than a facet is not dim but
-         * *absent* — which is right for metal and wrong for almost everything
-         * here. On a 320-face orb it lands as one blown white triangle, and a
-         * stone with a mirror flash stuck to one of its faces reads as plastic
-         * whatever else is happening on it. Frost and gilt get away with it
-         * because they are a rough dielectric and a smooth metal; a
-         * labradorite is neither.
-         */
-        float recipeGloss = 1.0;
-        /**
-         * How much of the grazing-angle sky the recipe reflects.
-         *
-         * The environment fresnel climbs toward f90 at the silhouette, and f90
-         * is capped by roughness — so a *smooth* finish gets a strong one, and
-         * every smooth recipe here came back wearing the same blue ring round
-         * its edge. It is the correct answer for chrome and quickmetal and it
-         * is noise on everything else: eight orbs sharing one rim read as eight
-         * orbs sharing a bug.
-         */
-        float recipeRim = 1.0;
-        /**
-         * How much of the sun the environment sample keeps.
-         *
-         * **This is where the white triangles were actually coming from**, and
-         * no amount of damping the specular lobe was ever going to reach them.
-         * The environment term is skyColour(reflected direction), and the sky
-         * draws the sun as a disc inside a 260-power halo — so a facet whose one
-         * reflected direction lands on the sun returns uSunColor over its whole
-         * area. Not a highlight: a white polygon.
-         *
-         * One is the sky as everything has always seen it, so nothing that does
-         * not set this moves by a bit.
-         */
-        float recipeSunGlare = 1.0;
+        // The four below are a row of uRecipeKnobs, read once the recipe byte
+        // is known. What each one is for, and why almost every stone wants far
+        // less of it than the plain finish gives, is written up on RecipeKnobs
+        // in art/recipes.ts. These initialisers are row 0 — no recipe.
+        float recipeGloss = ${PLAIN_KNOBS.gloss.toFixed(2)};
+        float recipeRim = ${PLAIN_KNOBS.rim.toFixed(2)};
+        float recipeSunGlare = ${PLAIN_KNOBS.sunGlare.toFixed(2)};
+        float recipeEnvGain = ${PLAIN_KNOBS.envGain.toFixed(2)};
         /** Sample the environment off the smooth normal instead of the facet. */
         bool recipeSmoothEnv = false;
-        /** Scale on the plain sky-mirror term. Most stones want very little. */
-        float recipeEnvGain = 1.0;
         /** True on any recipe fragment, so the hooks cost one branch elsewhere. */
         bool finishRecipeAny = false;
 
@@ -856,22 +826,21 @@ ${aniso ? /* glsl */ `
             finishBitangent = cross(normal, finishTangent);
           }
 ` : ''}${anyRecipe ? /* glsl */ `
-          // Gloss, rim and sun glare per recipe. Gloss scales the plain
-          // specular lobe, rim the grazing-angle sky, glare how much of the sun
-          // disc the environment sample keeps.
           finishRecipeAny = uRecipeOn > 0.5 && vRecipe > 0.5;
-${on('schiller') ? /* glsl */ `          // Schiller has no surface shine at all: the flood is the only light
-          // it returns, so the stone reads as colour inside, not gloss on top.
-          if (isRecipe(${RECIPE_INDEX.schiller.toFixed(1)})) { recipeGloss = 0.0; recipeRim = 0.0; recipeSunGlare = 0.0; recipeEnvGain = 0.02; }
-` : ''}${on('quickmetal') ? /* glsl */ `          // A mirror with no per-facet lobe at all: everything it shows comes
-          // through the smooth-normal environment, so no triangle ever flashes.
-          if (isRecipe(${RECIPE_INDEX.quickmetal.toFixed(1)})) { recipeGloss = 0.0; recipeRim = 0.85; recipeSunGlare = 0.12; recipeEnvGain = 1.25; }
-` : ''}${on('tenebrescent') ? /* glsl */ `          if (isRecipe(${RECIPE_INDEX.tenebrescent.toFixed(1)})) { recipeGloss = 0.04; recipeRim = 0.20; recipeSunGlare = 0.02; recipeEnvGain = 0.25; }
-` : ''}${on('nacreous') ? /* glsl */ `          if (isRecipe(${RECIPE_INDEX.nacreous.toFixed(1)})) { recipeGloss = 0.06; recipeRim = 0.12; recipeSunGlare = 0.02; recipeEnvGain = 0.24; }
-` : ''}${on('pointillist') ? /* glsl */ `          if (isRecipe(${RECIPE_INDEX.pointillist.toFixed(1)})) { recipeGloss = 0.05; recipeRim = 0.11; recipeSunGlare = 0.02; recipeEnvGain = 0.16; }
-` : ''}${on('voidstone') ? /* glsl */ `          // The void is not a sky reflection, so its gain is its own business.
-          if (isRecipe(${RECIPE_INDEX.voidstone.toFixed(1)})) { recipeGloss = 0.0; recipeRim = 0.0; recipeSunGlare = 0.0; recipeEnvGain = 0.0; }
-` : ''}          // Every recipe here samples the environment off the smooth normal.
+          {
+            // The recipe's response, read rather than branched to. Row 0 holds
+            // the plain values, so a fragment with no recipe on it and the
+            // whole table with the dev toggle off both land on today's answers
+            // without a comparison per recipe. Clamped because an array index
+            // off the end is undefined, and the byte arrives as an attribute.
+            int row = finishRecipeAny ? clamp(int(vRecipe + 0.5), 0, ${RECIPE_KNOB_ROWS - 1}) : 0;
+            vec4 knobs = uRecipeKnobs[row];
+            recipeGloss = knobs.x;
+            recipeRim = knobs.y;
+            recipeSunGlare = knobs.z;
+            recipeEnvGain = knobs.w;
+          }
+          // Every recipe here samples the environment off the smooth normal.
           // The diffuse stays faceted, so the props still read low-poly; what
           // goes is the reflection landing as one hard triangle per face.
           recipeSmoothEnv = finishRecipeAny;

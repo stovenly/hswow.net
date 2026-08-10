@@ -27,6 +27,7 @@ import { STAGE_STATIONS } from './debug/SoundStage';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
+import { RECIPE_KNOBS, uploadRecipeKnobs, type RecipeName } from './art/recipes';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
 import { setGlitchOverride, setGlitchFrozen } from './engine/GlitchActivity';
 import { setHorrorOverride, setHorrorFrozen } from './engine/HorrorActivity';
@@ -354,6 +355,20 @@ if (dev.gui) {
   finishFolder.add(finishState, 'recipes').name('recipes').onChange(finishState.apply);
   finishFolder.add(r.finish, 'specular', 0, 2, 0.05).onChange(refresh);
   finishFolder.add(r.finish, 'environment', 0, 2, 0.05).onChange(refresh);
+
+  // How each recipe answers the shared lighting. These were constants spliced
+  // into the shader until MATERIAL-SYSTEM.md R2 made them a uniform row, so
+  // nothing here recompiles — and until R2 there was no way to move them at all
+  // short of an edit and a reload.
+  const knobFolder = finishFolder.addFolder('recipe knobs').close();
+  for (const name of Object.keys(RECIPE_KNOBS) as RecipeName[]) {
+    const knobs = RECIPE_KNOBS[name];
+    const row = knobFolder.addFolder(name).close();
+    row.add(knobs, 'gloss', 0, 1, 0.01).onChange(uploadRecipeKnobs);
+    row.add(knobs, 'rim', 0, 1, 0.01).onChange(uploadRecipeKnobs);
+    row.add(knobs, 'sunGlare', 0, 1, 0.01).name('sun glare').onChange(uploadRecipeKnobs);
+    row.add(knobs, 'envGain', 0, 2, 0.01).name('env gain').onChange(uploadRecipeKnobs);
+  }
 
   // Not in the player's menu, and not because it was forgotten: a pond is part
   // of the place, by SHADERS-AND-MATERIALS.md's line on what crosses into the options screen.
