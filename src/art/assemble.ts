@@ -65,7 +65,7 @@ import { collectSparkleSites } from './sparkle';
  * the resident world; as an index into a table of recipes they are one byte
  * between them, and the eleventh costs nothing per vertex at all. It is the
  * one lane here that is *not* normalized — an index is an exact integer, not a
- * fraction of anything. See `art/recipes.ts`.
+ * fraction of anything. See `art/recipes/`.
  *
  * ## Collision is a decision that has to be made here
  *

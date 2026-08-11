@@ -28,7 +28,7 @@ import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
 import { RECIPE_KNOBS, uploadRecipeKnobs, type RecipeName } from './art/recipes';
-import { RAMPS, uploadRamps } from './art/ramp';
+import { RAMPS, uploadRamps } from './art/glsl/ramp';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
 import { setGlitchOverride, setGlitchFrozen } from './engine/GlitchActivity';
 import { setHorrorOverride, setHorrorFrozen } from './engine/HorrorActivity';
