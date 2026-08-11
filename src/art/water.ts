@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { WATER_LAYER } from '../layers';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
@@ -6,20 +6,20 @@ import { REFLECT_GLSL } from '../engine/reflect';
 import { windUniforms } from './sway';
 
 /**
- * Stylized water. SHADERS-AND-MATERIALS.md Â§7 plus Â§8 tier 2 / R6 â€” the design and the tuning
+ * Stylized water. SHADERS-AND-MATERIALS.md §7 plus §8 tier 2 / R6 — the design and the tuning
  * live there, not here.
  *
  * The third shared material, beside `ART_MATERIAL` and `GLOW_MATERIAL`.
  *
- * Everything it does is a function of what is *behind* it â€” shore shading, body
- * colour, reflection â€” and nothing can sample the buffer it renders into, so it
+ * Everything it does is a function of what is *behind* it — shore shading, body
+ * colour, reflection — and nothing can sample the buffer it renders into, so it
  * draws in the effect chain rather than the opaque pass, with that pass's colour
  * and depth bound as textures. `engine/Water.ts` is the pass; `layers.ts` covers
  * how one line of layer setting keeps it out of everything that must not see it.
  * The depth test is done in the shader, which is why the target it draws into
  * never has the depth texture attached.
  *
- * Per-pool variation is per-vertex â€” `aChop` (wave height) and `aFlow`
+ * Per-pool variation is per-vertex — `aChop` (wave height) and `aFlow`
  * (velocity), the same trick `SWAY_ATTRIBUTE` uses. Colour is global: every body
  * of water in the game is the same water.
  */
@@ -30,7 +30,7 @@ const SEGMENT = 0.5;
 /**
  * Wavelengths in metres, and the amplitude of each train.
  *
- * Two trains, crossing, at wavelengths that do not divide evenly â€” the same
+ * Two trains, crossing, at wavelengths that do not divide evenly — the same
  * reasoning as the two sway frequencies in `art/sway.ts`, and for the same
  * reason: a single ridge line reads as corduroy, and two that repeat together
  * read as a pattern.
@@ -39,7 +39,7 @@ const SEGMENT = 0.5;
  * per quad a 2.6 m wave gets five vertices, which is about the least that still
  * looks like a wave rather than a zigzag. Shortening it means subdividing the
  * plane, and the fine detail is far cheaper as a normal perturbation in the
- * fragment shader â€” which is what the ripple below is.
+ * fragment shader — which is what the ripple below is.
  */
 const WAVE_LONG = 4.3;
 const WAVE_SHORT = 2.6;
@@ -54,7 +54,7 @@ const K_SHORT = (2 * Math.PI) / WAVE_SHORT;
  *
  * Derived from the angular frequencies the pools were tuned at rather than
  * chosen, so still water is unchanged by flow existing: a train that was
- * running at `swayTime * 1.05` radians is running at `k Â· celerity` metres per
+ * running at `swayTime * 1.05` radians is running at `k · celerity` metres per
  * second, and writing it this way is what lets the flow speed be *added* to it
  * in the units it is authored in.
  */
@@ -63,14 +63,14 @@ const CELERITY_SHORT = 1.63 / K_SHORT;
 
 /**
  * What the far field goes to underwater, blending deep toward shallow. Shared
- * with `engine/Underwater` â€” the two murk different pixels of the same frame.
+ * with `engine/Underwater` — the two murk different pixels of the same frame.
  */
 export const MURK_MIX = 0.42;
 
 /**
  * The shared water material. One instance, for every pond in the game.
  *
- * `depthTest` and `depthWrite` are both off and that is not an oversight â€” see
+ * `depthTest` and `depthWrite` are both off and that is not an oversight — see
  * the header. `transparent` is on for its *sorting* effect only: the blending
  * is off, because this shader composites what is behind it itself rather than
  * letting the blender do it, and the transparent list is simply the one that
@@ -80,7 +80,7 @@ export const MURK_MIX = 0.42;
 export const WATER_MATERIAL = new THREE.ShaderMaterial({
   name: 'Water',
   uniforms: {
-    // The scene so far â€” opaque colour with the outline already on it â€” and the
+    // The scene so far — opaque colour with the outline already on it — and the
     // depth it was drawn with. Bound per frame by `WaterEffect`.
     tScene: { value: null },
     tDepth: { value: null },
@@ -94,13 +94,13 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     /**
      * The reduced-motion switch, 0 or 1. Its own uniform rather than a ride on
      * `swayAmount`, so turning wind sway off does not also stop the ponds. Stops
-     * the waves *and* the noise scroll â€” a creeping waterline is motion too.
+     * the waves *and* the noise scroll — a creeping waterline is motion too.
      */
     uWaterMotion: { value: 1 },
-    /** Whether the screen-space march runs at all. A real switch â€” see `Water.ts`. */
+    /** Whether the screen-space march runs at all. A real switch — see `Water.ts`. */
     uReflections: { value: 1 },
 
-    // Set by `engine/Underwater`, which shares both of these â€” it imports this
+    // Set by `engine/Underwater`, which shares both of these — it imports this
     // material, so they live here.
     uSubmerged: { value: 0 },
     uMurkDensity: { value: 0.085 },
@@ -125,14 +125,14 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
     // And the sky's own, for the same reason. Where the reflection march finds
     // nothing, this shader asks the sky what colour it is in that direction and
-    // gets exactly what the dome would have drawn â€” sun disc, halo and clouds.
+    // gets exactly what the dome would have drawn — sun disc, halo and clouds.
     // A cloned set would be a second sky, and the reflection would part company
     // with the real one the first time either was tuned.
     ...skyUniforms,
   },
   // The renderer fills `fogColor`, `fogNear` and `fogFar` from the scene's fog
   // when this is true. The shader applies them by hand rather than through the
-  // usual include, because only part of this pixel is the water's to fog â€” see
+  // usual include, because only part of this pixel is the water's to fog — see
   // the note at the bottom of the fragment shader.
   fog: true,
   transparent: true,
@@ -170,7 +170,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
       // **The same lookup the plants do**, texel for texel: how far downwind
       // this point stands decides which gust it is in. See art/sway.ts, which
-      // owns this window and rebuilds it from the audio weather every frame â€”
+      // owns this window and rebuilds it from the audio weather every frame —
       // so a gust that quickens a rustle roughens the water it crosses at the
       // same moment, without either side reimplementing the field.
       float lag = dot(world.xz, windDir) * windLagScale;
@@ -178,7 +178,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float gust = texture2D(gustField, vec2(u, 0.5)).r;
 
       // Never all the way to nothing: water in a lull is calmer, not glass.
-      // uWaterMotion is the accessibility switch, and it is a hard zero â€” a
+      // uWaterMotion is the accessibility switch, and it is a hard zero — a
       // pond that has stopped is glass, which is the point of asking for it.
       float chop = aChop * uWaveScale * uWaterMotion * (0.35 + 0.65 * gust);
 
@@ -215,7 +215,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       vChop = chop;
       vCrest = height / max(a1 + a2, 1e-4);
       // What the fragment stage advects its noise along. Still water still
-      // drifts, slowly, downwind â€” a surface pattern nailed to the world reads
+      // drifts, slowly, downwind — a surface pattern nailed to the world reads
       // as ice.
       vFlow = rate > 0.001 ? aFlow : windDir * 0.25;
       // Zero on still water, which is what keeps a pond from looking combed.
@@ -291,7 +291,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
      *
      * **This is what makes flow read as flow rather than as texture sliding
      * about.** Isotropic noise carried downstream moves, and moving is all it
-     * does â€” nothing in the pattern says which way. Compressing the coordinate
+     * does — nothing in the pattern says which way. Compressing the coordinate
      * along the flow stretches every feature *out* along it in world space, and
      * what comes back is streaklines: the shape water actually draws on itself,
      * and the shape a photograph of a river is made of.
@@ -301,7 +301,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
      * lines, side by side, with nothing else different between them.
      *
      * And it is the whole answer to a bend. The frame is built from a varying,
-     * so it rotates across the surface exactly as the flow does â€” the streaks
+     * so it rotates across the surface exactly as the flow does — the streaks
      * bend round the corner because they are drawn in the water's own frame
      * rather than in the world's. A height field cannot do this (see the note on
      * shear on WaterPlaneOptions.flow); noise can, and does it for free.
@@ -338,7 +338,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // world, which is the whole of what makes flowing water read as flowing:
       // the wave trains say which way it is going and this says that the
       // *stuff* is going with them. It is a varying, so a channel can turn a
-      // corner and the pattern turns with it â€” noise shears cleanly where a
+      // corner and the pattern turns with it — noise shears cleanly where a
       // height field would tear.
       //
       // **The honest limit**: this grows without bound, and the value noise is
@@ -349,7 +349,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // wraps and therefore cannot drift out of precision.
       vec2 stream = vFlow * (swayTime * uWaterMotion);
 
-      // The frame the surface pattern is drawn in â€” see streaked above. Still water
+      // The frame the surface pattern is drawn in — see streaked above. Still water
       // gets a stretch of exactly 1, which is no streaking at all: a pond that
       // looked combed downwind would be a worse lie than one that looked
       // featureless.
@@ -358,8 +358,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float stretch = 1.0 + min(vStreak, 3.0) * 1.15;
 
       // **How broken the surface is, which is not the same as how big its waves
-      // are.** A race carries almost no swell â€” its wave trains have to stay
-      // small, because a channel that turns shears the phase â€” and the first
+      // are.** A race carries almost no swell — its wave trains have to stay
+      // small, because a channel that turns shears the phase — and the first
       // version therefore came out glassy: a mirror with a pattern sliding over
       // it, which reads as still water with something wrong about it. Fast water
       // is not smooth. Speed drives the surface break directly here, so a
@@ -376,7 +376,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         float gx = streaked(q + vec2(e, 0.0), along, stretch, 1.35) - n0;
         float gz = streaked(q + vec2(0.0, e), along, stretch, 1.35) - n0;
         // **Small.** This tilts the normal, and the normal decides both the
-        // fresnel weight and where the reflection ray goes â€” so at anything
+        // fresnel weight and where the reflection ray goes — so at anything
         // past about ten degrees the reflected image stops being a reflection
         // and becomes a warp. Ripple is meant to make the surface *sparkle*,
         // which is a few degrees of scatter; the shape of the water is the
@@ -391,7 +391,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       //
       // Snell's window: light from above reaches an eye in water only through a
       // cone about 49 degrees wide, cos = sqrt(1 - 1/1.333^2) = 0.661. Outside
-      // it, total internal reflection â€” the same march, pointed down at the bed.
+      // it, total internal reflection — the same march, pointed down at the bed.
       if (!gl_FrontFacing) {
         vec3 upward = -view;
         float facing = clamp(dot(normal, upward), 0.0, 1.0);
@@ -469,7 +469,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // Schlick, with water's own 0.02 at normal incidence. Looking straight
       // down you see the bed; looking along the pool you see the sky. That is
       // not a stylistic choice, it is what the number does, and it is why the
-      // still pool is long â€” the reflection lives at the far end of it.
+      // still pool is long — the reflection lives at the far end of it.
       float fresnel = clamp(
         0.02 + 0.98 * pow(1.0 - clamp(dot(normal, view), 0.0, 1.0), 5.0),
         0.0,
@@ -489,7 +489,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // Three layers at slightly different rates, because water is not one
       // sheet: the fine ripple above rides fastest, the crest speckle goes with
       // the body, and the waterline lags. All of them are carried by the stream above,
-      // so the motion switch stops every one of them â€” a waterline undulating
+      // so the motion switch stops every one of them — a waterline undulating
       // around an otherwise dead pond is the exact thing somebody turning
       // reduced motion on is asking to be rid of.
       float lap = streaked(vWorld.xz - stream * 0.85, along, stretch, 0.55);
@@ -504,7 +504,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // **Crest foam has to be broken up, because the waves are a grid.**
       // Two crossed sine trains interfere into a perfectly regular lattice, and
       // a plain threshold on wave height therefore puts a white speck at every
-      // node of it â€” which reads as a pattern sliding across the pool rather
+      // node of it — which reads as a pattern sliding across the pool rather
       // than as water breaking. So the threshold is *lowered* by a drifting
       // noise field instead of being a constant: foam is possible where the
       // noise is high, and even there only the tallest crests reach it. Same
@@ -526,8 +526,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // **Only the part of this pixel that is ours gets fogged.** The bed came
       // out of tScene already fogged for its own distance, and so did anything
       // the reflection march found; fogging the composite again would haze both
-      // of them twice. What is genuinely this shader's â€” the body colour, a sky
-      // reflection, the foam â€” is fogged for the surface's distance, which is
+      // of them twice. What is genuinely this shader's — the body colour, a sky
+      // reflection, the foam — is fogged for the surface's distance, which is
       // what the rest of the world would have done with it.
       float own = mix(opacity, 1.0 - hit, fresnel);
       own = mix(own, 1.0, wash);
@@ -539,7 +539,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 });
 
 // A geometry without the attribute would otherwise read whatever the last draw
-// left in the slot, exactly as the sway weight would â€” see `applySway`. Nothing
+// left in the slot, exactly as the sway weight would — see `applySway`. Nothing
 // but `waterPlane` builds water, and it always sets one; this is here so that
 // staying true costs nothing to check.
 (WATER_MATERIAL as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
@@ -556,7 +556,7 @@ export interface WaterPlaneOptions {
    *
    * The plane places itself, rather than being positioned afterwards, because
    * `flow` is authored in world coordinates and has to be evaluated per vertex
-   * â€” which cannot happen before the plane knows where it is.
+   * — which cannot happen before the plane knows where it is.
    */
   at: THREE.Vector3;
   /**
@@ -564,7 +564,7 @@ export interface WaterPlaneOptions {
    *
    * Baked per vertex rather than set as a uniform, which is what lets one
    * material serve a still pool and a choppy one in the same room. Values above
-   * 1 are a swell rather than a ripple and are entirely allowed â€” 2.5 is a
+   * 1 are a swell rather than a ripple and are entirely allowed — 2.5 is a
    * quarter-metre wave.
    *
    * **A function makes a beach.** Evaluated per vertex in world coordinates, so
@@ -578,7 +578,7 @@ export interface WaterPlaneOptions {
    *
    * Omitted, the surface is still and answers the wind, which is what every
    * pond does. A vector makes a race; **a function makes a race that turns a
-   * corner**, because it is evaluated per vertex â€” and that is the reason this
+   * corner**, because it is evaluated per vertex — and that is the reason this
    * is an attribute rather than a uniform.
    *
    * The flow rotates the wave trains and speeds them up, and it carries the
@@ -633,7 +633,7 @@ export function waterPlane(options: WaterPlaneOptions): THREE.Mesh {
   geometry.setAttribute('aChop', new THREE.BufferAttribute(chopValues, 1));
 
   // Zero everywhere unless a flow was authored, which is the still case and by
-  // far the common one â€” the shader reads a zero-length flow as "answer the
+  // far the common one — the shader reads a zero-length flow as "answer the
   // wind" rather than as "go nowhere".
   const flowValues = new Float32Array(count * 2);
   if (flow) {
@@ -657,7 +657,7 @@ export function waterPlane(options: WaterPlaneOptions): THREE.Mesh {
   mesh.userData.noCollide = true;
   // How the zone finds out it has water in it without being told twice. The
   // pass that draws water is skipped entirely in a zone with none, and a
-  // declaration on the zone could disagree with what was actually built â€” so
+  // declaration on the zone could disagree with what was actually built — so
   // the geometry is what says so. See `Zone.hasWater`.
   mesh.userData.water = true;
   return mesh;
