@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { EFFECT_ATTRIBUTE } from './effectId';
+import { sinHash2, sinHash2x3, sinHash31 } from './glsl/hash';
+import { indent } from './glsl/text';
+import { volumeMembership } from './glsl/volume';
 import type { HorrorEffectName, HorrorSpec } from '../engine/Horror';
 
 /**
@@ -105,6 +108,27 @@ export function markHaunted<T extends THREE.Object3D>(object: T, spec: HorrorSpe
   return object;
 }
 
+/** Horror's own seeding, its own constants — nothing shared with glitch's. */
+const HASH = sinHash2('horrorHash', [37.219, 217.63]);
+const HASH3 = sinHash2x3('horrorHash3', 'horrorHash', [13.7, 41.9]);
+const HASH31 = sinHash31('horrorHash31', [17.1, 31.7, 11.3]);
+
+/**
+ * Which volume owns this vertex or fragment. Horror keeps the owner id in its
+ * own lane rather than folded into the centre, so the read is direct.
+ */
+function membership(world: string, id: string, capture: string): string {
+  return volumeMembership({
+    system: 'Horror',
+    prefix: 'h',
+    max: MAX_HORRORS,
+    world,
+    id,
+    owner: 'uHorrorParams[hi].w',
+    capture,
+  });
+}
+
 /** Uniform and helper declarations for the vertex stage. */
 function vertexDecls(varyings: boolean): string {
   return /* glsl */ `
@@ -120,13 +144,9 @@ function vertexDecls(varyings: boolean): string {
   #endif
   ${varyings ? 'varying vec3 vHorrorWorld;\n  varying float vHorrorId;' : ''}
 
-  float horrorHash(vec2 p) {
-    return fract(sin(dot(p, vec2(37.219, 217.63))) * 43758.5453);
-  }
+  ${indent(HASH, 2)}
 
-  vec3 horrorHash3(vec2 p) {
-    return vec3(horrorHash(p), horrorHash(p + 13.7), horrorHash(p + 41.9));
-  }
+  ${indent(HASH3, 2)}
   `;
 }
 
@@ -150,34 +170,20 @@ function vertexChunk(varyings: boolean): string {
       vec4 hS = vec4(1.0);
       float hSeed = 0.0;
       float hPace = 1.0;
-      for (int hi = 0; hi < ${MAX_HORRORS}; hi++) {
-        if (hi >= uHorrorCount) break;
-        float hOwn = uHorrorParams[hi].w;
-        float feather;
-        if (hOwn > 0.5) {
-          // Owned: membership is identity, not geometry — the whole object at
-          // full strength, and nothing that is not it. See art/effectId.ts.
-          feather = abs(${EFFECT_ATTRIBUTE} - hOwn) < 0.5 ? 1.0 : 0.0;
-        } else {
-          vec3 hrel = (hWorld - uHorrorCentre[hi].xyz) / uHorrorSize[hi].xyz;
-          // The underside is a cut, not a fade. See the note on the store.
-          if (hrel.y < -1.0) continue;
-          vec3 hd = vec3(abs(hrel.x), max(hrel.y, 0.0), abs(hrel.z));
-          float he = uHorrorCentre[hi].w > 0.5 ? max(hd.x, max(hd.y, hd.z)) : length(hd);
-          feather = 1.0 - smoothstep(0.7, 1.0, he);
-        }
-        float hin = feather * uHorrorSize[hi].w;
-        if (hin > hAmt) {
-          hAmt = hin;
-          hFit = feather * uHorrorParams[hi].y;
-          hVertA = uHorrorVertexA[hi];
-          hVertB = uHorrorVertexB[hi];
-          hC = uHorrorCentre[hi];
-          hS = uHorrorSize[hi];
-          hSeed = uHorrorParams[hi].x;
-          hPace = max(uHorrorParams[hi].z, 1.0);
-        }
-      }
+      ${indent(
+        membership(
+          'hWorld',
+          EFFECT_ATTRIBUTE,
+          `hFit = hFeather * uHorrorParams[hi].y;
+           hVertA = uHorrorVertexA[hi];
+           hVertB = uHorrorVertexB[hi];
+           hC = uHorrorCentre[hi];
+           hS = uHorrorSize[hi];
+           hSeed = uHorrorParams[hi].x;
+           hPace = max(uHorrorParams[hi].z, 1.0);`,
+        ),
+        6,
+      )}
       if (hAmt > 0.004 || hFit > 0.004) {
         float hT = swayTime;
         // Two copies of a prop share object space; where they stand differs.
@@ -293,13 +299,9 @@ uniform vec4 uHorrorParams[${MAX_HORRORS}];
 varying vec3 vHorrorWorld;
 varying float vHorrorId;
 
-float horrorHash(vec2 p) {
-  return fract(sin(dot(p, vec2(37.219, 217.63))) * 43758.5453);
-}
+${HASH}
 
-float horrorHash31(vec3 p) {
-  return fract(sin(dot(p, vec3(17.1, 31.7, 11.3))) * 43758.5453);
-}
+${HASH31}
 
 // Small 3D value noise: mottle and runnels want patches, not static.
 float horrorNoise(vec3 p) {
@@ -334,26 +336,16 @@ if (uHorrorCount > 0) {
   vec4 hSurf = vec4(0.0);
   float hSeed = 0.0;
   float hPace = 1.0;
-  for (int hi = 0; hi < ${MAX_HORRORS}; hi++) {
-    if (hi >= uHorrorCount) break;
-    float hOwn = uHorrorParams[hi].w;
-    float hin;
-    if (hOwn > 0.5) {
-      hin = abs(vHorrorId - hOwn) < 0.5 ? uHorrorSize[hi].w : 0.0;
-    } else {
-      vec3 hrel = (vHorrorWorld - uHorrorCentre[hi].xyz) / uHorrorSize[hi].xyz;
-      if (hrel.y < -1.0) continue;
-      vec3 hd = vec3(abs(hrel.x), max(hrel.y, 0.0), abs(hrel.z));
-      float he = uHorrorCentre[hi].w > 0.5 ? max(hd.x, max(hd.y, hd.z)) : length(hd);
-      hin = (1.0 - smoothstep(0.7, 1.0, he)) * uHorrorSize[hi].w;
-    }
-    if (hin > hAmt) {
-      hAmt = hin;
-      hSurf = uHorrorSurfaceW[hi];
-      hSeed = uHorrorParams[hi].x;
-      hPace = max(uHorrorParams[hi].z, 1.0);
-    }
-  }
+  ${indent(
+    membership(
+      'vHorrorWorld',
+      'vHorrorId',
+      `hSurf = uHorrorSurfaceW[hi];
+       hSeed = uHorrorParams[hi].x;
+       hPace = max(uHorrorParams[hi].z, 1.0);`,
+    ),
+    2,
+  )}
   if (hAmt > 0.004) {
     float hT = swayTime;
 

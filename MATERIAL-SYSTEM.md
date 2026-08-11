@@ -244,6 +244,11 @@ now the number to watch: R4 adds no bank, but a sixth ramp costs six more
 rows, and if the floor is ever the real constraint the packing has room (three
 of the five ramps use only three stops).
 
+R4 measured it rather than estimating it, and the estimate was right: the
+fragment stage is 46 + 64 + 64 = **174** exactly, and R4 left it there. The
+vertex stage — which has its own budget, and which nothing above counted — is
+glitch's 64 plus horror's 80 = **144** against a floor of 256.
+
 **Verified** by a throwaway probe, 95 assertions: each ramp diffed against its
 closed form, hand-transcribed from the shader it replaces, at 2001 values of t
 plus four outside 0..1 — **bit-identical on berry, star, burn and ice, and
@@ -264,35 +269,89 @@ base swatch, a grey slider and a folder per stop — colour, start, end. A
 recoloured pointillist is now a swatch drag, and the first material added for
 zero code is one row in `RAMPS`.
 
-### R4 — fields into slots, primitives into one library
+### R4 — fields into slots, primitives into one library *(landed)*
 
 **Goal:** the structural half becomes a registry of small chunks; new recipes
 stop touching finish.ts.
 
-**Change, materials:** each recipe's GLSL is split into named slot functions —
-`surface` (F0/diffuse override), `direct` (answer to a light), `envSource`
-(replace the reflection), `envBend` (lean the ray), `ambient` (view-keyed
-add), `grade` (multiply the lit result) — matching the six hook classes the
-review identified in finish.ts. The `Recipe` registry entry grows optional
-slot members; finish.ts splices one dispatcher per hook mechanically instead
-of today's hand-written `isRecipe` blocks per recipe per hook. A new material
-with a new field = one file exporting slot GLSL + a registry entry + a knob
-row. finish.ts is never edited again for content.
+**What landed, materials:** `src/art/recipes.ts` is now `src/art/recipes/`,
+one file per recipe. Each holds its helpers, its knob row, and the blocks it
+splices into the finish stage; `index.ts` holds the registry and the
+dispatchers; `types.ts` holds the shape both need. Every `if (isRecipe(N))`
+block that stood in finish.ts moved to the recipe that owns it, and finish.ts
+now splices one dispatcher per hook without knowing what is in it. **It no
+longer contains the name of a single recipe, nor one `isRecipe` guard, nor one
+call into a recipe's helpers** — that is the phase, in one sentence.
 
-**Change, cross-system:** one `src/art/glsl/` chunk library, of which R3's
-`art/ramp.ts` is the first tenant — a table and its evaluator in one file,
-spliced by whoever needs it. The hashes
-(`finishHash3`, `recipeHash3`, `glitchHash`, horror's copy) become named
-primitives in one file — **same constants per call site, single-sourced
-declarations**; changing a hash's constants changes a look, so none do. The
-glitch/horror membership loop becomes one shared chunk parameterised by its
-uniform bank; both systems splice it. Their per-effect code stays put — it is
-already in its end state.
+**Deviation from the plan above, on the slots.** The plan named six hooks; the
+code had eight. `surface` is two positions, not one — the diffuse body before
+the film and F0 are worked out (schiller's seam) and the reflectance after
+(pointillist's cells) — so it is `body` and `surface`. The film is two more:
+`thickness`, an expression feeding `recipeFilm`, and `film`, a statement over
+the computed colour, both nacreous's. And `grade` does not exist: the one
+thing that grades a lit result (tenebrescent's burn) does it inside `ambient`,
+where the value it needs already is. So: `body`, `thickness`, `film`,
+`surface`, `direct`, `envBend`, `envSource`, `ambient`.
 
-**Acceptance:** full-union program byte-comparable before/after the mechanical
-re-slotting (the splice output should reorder nothing within a hook); glitch
-and horror showcases unchanged; a demo material (the R3 recolour plus one knob
-change) lands with zero finish.ts edits.
+**Deviation, on the dispatchers.** The plan said slot *functions*. They are
+inline splices instead. A function would have to be handed every local the
+block reads — `directLight`, `reflectedLight`, `halfObj`, `smoothNL`,
+`finishEnv`, `envLuma`, `neutral`, `film`, `finishF0` — as arguments, which is
+nine chances to pass the wrong one for no gain, since the blocks are already
+written against exactly those names. Spliced inline, a slot reaches precisely
+what the hand-written block beside it reached, and the emitted program is the
+same statements it always was. That is what made the acceptance test below
+possible at all.
+
+**What landed, cross-system:** `src/art/glsl/` — `ramp.ts` (moved there,
+unchanged), `hash.ts`, `volume.ts` and `text.ts`. The hashes are *generators*,
+not bodies: `sinHash2`, `sinHash31`, `sinHash2x3`, `sinHash3` and `pcgHash3`
+emit a named declaration from constants the call site still writes down. That
+is the distinction the plan asked for — the shape is single-sourced, the
+constants stay local, because a hash's constants are a look and reseeding one
+moves every speck it scatters. Glitch and horror each declared theirs twice
+(vertex and fragment) and now declare them once. The membership loop —
+sphere-or-box, feathered over the outer third, owned volumes taking their
+object whole, underside a cut not a fade — was four copies and is now one
+chunk with four splices.
+
+**One arithmetic change, and it is exact.** Glitch's owned branch selected
+`uGlitchSize[i].w` or zero; it now selects 1 or 0 and multiplies, which is the
+form horror already used and the only way one body serves both. `1.0 * x == x`
+and `0.0 * x == 0.0` for every finite `x`, and that `w` is `min(strength ×
+burst, 1)`, so the values are identical rather than close.
+
+**Acceptance, run:** the emitted fragment program was captured for **all 1024
+masks** before and after. Comments stripped, every `isRecipe` block lifted out:
+the remaining scaffolding is **identical**, and within each hook, each recipe's
+statements are **identical**. 6401 assertions, none failed. What differs is the
+order of blocks *between* recipes — they splice in registry order now rather
+than in the order they were typed — and one fragment carries one recipe byte
+against guards on distinct constants, so at most one block per hook runs and
+the permutation cannot be observed. The one merge (quickmetal's environment
+knee, which stood after the chain and is now the last line of quickmetal's own
+arm of it) is asserted separately: the probe checks that what sat between the
+two was the chain's final `else` arm, which an arm already taken cannot enter.
+The comparison was self-tested by mutating two constants in the output — one
+inside a recipe block, one in the scaffolding — and confirming it failed.
+
+A second probe, 197 assertions: finish.ts naming no recipe and calling none of
+their helpers; a fabricated seventh recipe filling all eight slots and reaching
+the emitted program through the same dispatchers, with nothing edited; every
+registered slot appearing in the union exactly once and in no lean program;
+each recipe alone dragging in no other; the hash generators reproducing, byte
+for byte, the declarations they replace, read back out of the previous commit;
+each system's two stages proved to be one membership body by substituting one
+stage's arguments into the other's output; the reserved-word scan with its
+self-test; braces, backticks and template markers; and the register count.
+
+Glitch and horror were diffed the same way: the whole change is the feather
+split above and two comments the shared chunk carries that the fragment copies
+had lost.
+
+**What is still finish.ts's:** the named finishes. `FINISHES` is the palette a
+prop picks a look from, so a new recipe that wants a name gets a row there —
+one line of table, not a line of shader. Nothing else about it comes back.
 
 ### R5 — the standing set
 
@@ -315,6 +374,7 @@ which shipped, plus glitch and horror, which were always ungated anyway.
 ever shows the union hurting fill rate, stop at R1's per-room unions — every
 other phase is unaffected. R5 deletes the most code of any phase; that is its
 whole argument, and it should land last, after R2–R4 have proven the tables.
+They have; R5 is the only phase left.
 
 ---
 
@@ -326,15 +386,17 @@ whole argument, and it should land last, after R2–R4 have proven the tables.
 | R1 — room union | — | small | cold room gates on one compile *(landed)* |
 | R2 — knob table | R0 | small | source stops varying by recipe set; live tuning *(landed)* |
 | R3 — ramp table | R2 | medium | colour is data; first zero-code material *(landed)* |
-| R4 — slots + shared chunks | R2 | large | new fields without touching finish.ts; glitch/horror single-sourced |
+| R4 — slots + shared chunks | R2 | large | new fields without touching finish.ts; glitch/horror single-sourced *(landed)* |
 | R5 — standing set | R1, R2 | negative | two programs, boot-compiled; Phase E machinery deleted |
 
 R1 landed alone, as planned — it fixes the materials2 bar by itself and
-nothing else depends on it. R2 and R3 landed alone too, each paying its own
+nothing else depends on it. R2, R3 and R4 landed alone too, each paying its own
 cache invalidation; that is one reload apiece and the tables were worth proving
-separately. R4 is
-the long pole and is almost entirely mechanical restructuring with
-byte-comparable checkpoints. R5 is a deletion pass with a decision gate.
+separately. R4 was the long pole and was, as expected, almost entirely
+mechanical — the checkpoint turned out to be stronger than "byte-comparable":
+the same statements in the same hooks across every one of the 1024 masks, with
+only the order between different recipes permuted. R5 is a deletion pass with a
+decision gate.
 
 ## What is given up
 

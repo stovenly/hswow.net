@@ -1,12 +1,16 @@
 import * as THREE from 'three';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
-import { RAMP_GLSL, RAMP_ROW, rampUniforms } from './ramp';
+import { sinHash3 } from './glsl/hash';
+import { RAMP_GLSL, RAMP_ROW, rampUniforms } from './glsl/ramp';
+import { indent } from './glsl/text';
 import {
   RECIPE_ATTRIBUTE,
   RECIPES,
   RECIPE_INDEX,
+  recipeChain,
   recipeGlsl,
+  recipeSlot,
   recipeUniforms,
   PLAIN_KNOBS,
   RECIPE_KNOB_ROWS,
@@ -36,6 +40,13 @@ export const FACE_ATTRIBUTE = 'aFace';
 /** Glint cells per metre. */
 const GLINT_DENSITY = 140;
 
+/** The finish stage's own hash. Cheap and periodic; the lattices use pcg3d. */
+const FINISH_HASH3 = sinHash3('finishHash3', [
+  [127.1, 311.7, 74.7],
+  [269.5, 183.3, 246.1],
+  [113.5, 271.9, 124.6],
+]);
+
 export interface Finish {
   /** 0 dielectric, 1 metal: tints the highlight, dims the diffuse. */
   metallic: number;
@@ -55,7 +66,7 @@ export interface Finish {
   star?: number;
   /**
    * An optical model that is not a parameter — labradorite's domains, a
-   * starfield behind a black mirror. See `art/recipes.ts`, which explains at
+   * starfield behind a black mirror. See `art/recipes/`, which explains at
    * length why these are a recipe index rather than ten more lanes.
    *
    * Composes with everything above: the recipe is added to the finish, not
@@ -224,8 +235,10 @@ export function applyFinish(material: THREE.Material, mask: number): void {
   const trans = (mask & FINISH_FEATURE.translucency) !== 0;
   const aniso = (mask & FINISH_FEATURE.anisotropy) !== 0;
   const recipes = RECIPES.filter((recipe) => (mask & recipeMaskBit(recipe.name)) !== 0);
-  const on = (name: RecipeName): boolean => recipes.some((recipe) => recipe.name === name);
   const anyRecipe = recipes.length > 0;
+  /** A hook, filled by whichever recipes in the mask joined at it. See RecipeSlots. */
+  const slot = (name: Parameters<typeof recipeSlot>[1], spaces: number): string =>
+    anyRecipe ? recipeSlot(recipes, name, spaces) : '';
 
   const prior = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
@@ -401,7 +414,7 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         // The four below are a row of uRecipeKnobs, read once the recipe byte
         // is known. What each one is for, and why almost every stone wants far
         // less of it than the plain finish gives, is written up on RecipeKnobs
-        // in art/recipes.ts. These initialisers are row 0 — no recipe.
+        // in art/recipes/types.ts. These initialisers are row 0 — no recipe.
         float recipeGloss = ${PLAIN_KNOBS.gloss.toFixed(2)};
         float recipeRim = ${PLAIN_KNOBS.rim.toFixed(2)};
         float recipeSunGlare = ${PLAIN_KNOBS.sunGlare.toFixed(2)};
@@ -502,12 +515,7 @@ ${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rath
           return normalize(vRecipeNormal);
         }
 
-        vec3 finishHash3(vec3 p) {
-          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-                   dot(p, vec3(269.5, 183.3, 246.1)),
-                   dot(p, vec3(113.5, 271.9, 124.6)));
-          return fract(sin(p) * 43758.5453);
-        }
+        ${indent(FINISH_HASH3, 8)}
 ${glint || anyRecipe ? /* glsl */ `        ${RAMP_GLSL}` : ''}
 
 ${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
@@ -739,41 +747,7 @@ ${trans ? /* glsl */ `
               recipeSunWeight = weight;
               recipeSunObj = lightObj;
             }
-${on('schiller') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.schiller.toFixed(1)})) {
-              // Kneed: a domain at its brightest is deep saturated blue, never
-              // white. Off the smooth normal so no facet shapes the flood.
-              reflectedLight.directSpecular += recipeKnee(
-                directLight.color * recipeSchiller(halfObj) * (smoothNL * 1.5), 0.55
-              ) * uFinishSpecular;
-            }
-` : ''}${on('quickmetal') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.quickmetal.toFixed(1)})) {
-              // A restrained sheen along the ridged streaks. finishF0 rather
-              // than the facet Fresnel, so no triangle steps brighter.
-              vec2 body = recipeQuickBody();
-              reflectedLight.directSpecular += directLight.color * finishF0
-                * (body.y * 0.7 * smoothNL * uFinishSpecular);
-            }
-` : ''}${on('nacreous') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.nacreous.toFixed(1)})) {
-              float nacreNV = saturate(dot(recipeSmoothNormal(), geometryViewDir));
-              reflectedLight.directDiffuse += directLight.color * finishSheenColour
-                * recipeNacreSheen(nacreNV) * (recipeOrient(nacreNV) * 0.40 * smoothNL);
-            }
-` : ''}${on('tenebrescent') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.tenebrescent.toFixed(1)})) {
-              // A polished-gem highlight off the smooth normal: a tight core
-              // inside a soft bloom, curving round the stone rather than
-              // landing facet by facet.
-              vec3 glossHalf = normalize(directLight.direction + geometryViewDir);
-              float glossNH = saturate(dot(recipeSmoothNormal(), glossHalf));
-              reflectedLight.directSpecular += recipeKnee(
-                directLight.color * (pow(glossNH, 110.0) * 0.9 + pow(glossNH, 24.0) * 0.18),
-                0.55
-              ) * uFinishSpecular;
-            }
-` : ''}
+            ${slot('direct', 12)}
           }
 ` : ''}        }
 
@@ -828,40 +802,15 @@ ${aniso ? /* glsl */ `
           // The diffuse stays faceted, so the props still read low-poly; what
           // goes is the reflection landing as one hard triangle per face.
           recipeSmoothEnv = finishRecipeAny;
-${on('schiller') ? /* glsl */ `
-          if (isRecipe(${RECIPE_INDEX.schiller.toFixed(1)})) {
-            material.diffuseColor *= recipeSchillerSeam();
-          }
-` : ''}` : ''}${film ? /* glsl */ `
+          ${slot('body', 10)}
+` : ''}${film ? /* glsl */ `
           float filmNV = saturate(dot(normal, normalize(vViewPosition)));
           vec3 film = finishFilm(filmNV, ${anyRecipe ? 'recipeFilm(finishFilmThickness())' : 'finishFilmThickness()'});
-          // **A pearl's colour is a wash, not a spectrum.** Three quarters of
-          // the hue walk is thrown away right here, and what survives is the
-          // faint rose-and-green cast a real pearl carries over a warm white
-          // body. Everything that makes nacre read as nacre is elsewhere — the
-          // curved growth lines and the orient — and if this term is the one
-          // doing the work, it is wrong.
-          // Raised from a quarter. At that strength the wash was so faint that
-          // what was left was a smooth pale dielectric — which is marble, and
-          // that is exactly what it looked like. A pearl's colour is quiet, not
-          // absent: you should be able to find the rose and the green on it
-          // without hunting.
-${on('nacreous') ? /* glsl */ `          if (isRecipe(${RECIPE_INDEX.nacreous.toFixed(1)})) film = mix(vec3(1.0), film, 0.66);
-` : ''}          vec3 tint = mix(vec3(1.0), film, vFinish.w * finishStrength * recipeFilmMix);
+          ${slot('film', 10)}
+          vec3 tint = mix(vec3(1.0), film, vFinish.w * finishStrength * recipeFilmMix);
 ` : ''}          finishF0 = mix(vec3(0.05), material.diffuseColor, finishMetal) * finishStrength${film ? ' * tint' : ''};
-${on('pointillist') ? /* glsl */ `
-          if (isRecipe(${RECIPE_INDEX.pointillist.toFixed(1)})) {
-            float cellNV = saturate(dot(recipeSmoothNormal(), normalize(vViewPosition)));
-            vec3 cell = recipeBerryCell();
-            // The cell colour is the reflectance: a structural colour has no
-            // pigment behind it, so a wash over a dark body renders as dim
-            // confetti.
-            finishF0 = recipeBerryTint(cell.x, cellNV) * (finishStrength * cell.z * cell.y * 0.95);
-            finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
-              - min(min(finishF0.r, finishF0.g), finishF0.b);
-            material.diffuseColor *= 0.35;
-          }
-` : ''}          finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
+          ${slot('surface', 10)}
+          finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
             - min(min(finishF0.r, finishF0.g), finishF0.b);
           material.diffuseColor *= 1.0 - finishMetal;
         }
@@ -877,41 +826,16 @@ ${on('pointillist') ? /* glsl */ `
           vec3 finishBounce = reflect(
             -geometryViewDir, recipeSmoothEnv ? recipeSmoothNormal() : geometryNormal);
           vec3 finishWorld = inverseTransformDirection(finishBounce, viewMatrix);
-${on('quickmetal') ? /* glsl */ `          // Quickmetal leans the ray and nothing else. The geometric normal is
-          // untouched, so the silhouette, the outline and the shadow are all
-          // exactly today's — only what the surface is looking at moves.
-          if (isRecipe(${RECIPE_INDEX.quickmetal.toFixed(1)})) finishWorld = recipeWobble(finishWorld);
-` : ''}          vec3 finishEnv = vec3(0.0);
+          ${slot('envBend', 10)}
+          vec3 finishEnv = vec3(0.0);
           #if NUM_HEMI_LIGHTS > 0
             finishEnv = getHemisphereLightIrradiance(hemisphereLights[0], finishBounce);
           #endif
-          ${on('voidstone') ? /* glsl */ `// Voidstone ignores uFinishSky: the sky is in the stone, indoors too.
-          if (isRecipe(${RECIPE_INDEX.voidstone.toFixed(1)})) {
-            // The raw view ray, untouched: every fragment looks straight out
-            // along its own eye ray, so the stone is a flat window on the
-            // void at every angle.
-            finishEnv = recipeVoid(inverseTransformDirection(-geometryViewDir, viewMatrix));
-          } else ` : ''}${on('quickmetal') ? /* glsl */ `if (isRecipe(${RECIPE_INDEX.quickmetal.toFixed(1)})) {
-            // Mercury reflects its own invented surroundings — the real sky has
-            // too little ground-to-horizon contrast for the wobble to show.
-            // Indoors the same contrast curve rides the hemisphere light.
-            if (uFinishSky > 0.5) {
-              finishEnv = recipeChromeEnv(finishWorld);
-            } else {
-              finishEnv *= 0.18 + 1.5 * smoothstep(-0.045, 0.09, finishWorld.y)
-                + exp(-finishWorld.y * finishWorld.y * 130.0) * 0.7;
-            }
-          } else ` : ''}if (uFinishSky > 0.5) {
+          ${anyRecipe ? recipeChain(recipes, 'envSource', 10) : ''}if (uFinishSky > 0.5) {
             vec3 finishSky = skyColourWithSun(finishWorld, recipeSunGlare);
             finishEnv = mix(finishSky, mix(uHorizon, uZenith, 0.4),
               smoothstep(0.15, 0.85, finishRough));
           }
-${on('quickmetal') ? /* glsl */ `          // A mirror bright enough to clip loses the very thing it is for: the
-          // detail in what it is reflecting. Kneed rather than scaled down, so
-          // the dark half keeps its contrast.
-          if (isRecipe(${RECIPE_INDEX.quickmetal.toFixed(1)})) {
-            finishEnv = recipeKnee(finishEnv, 0.92);
-          }` : ''}
           // **A tinted metal cannot reflect only the sky and come back right.**
           // Gold has almost no blue in it and the sky has almost nothing else,
           // so a gilded ball outdoors renders olive-green — which is what a
@@ -958,56 +882,8 @@ ${glint ? /* glsl */ `
             vec3 normalObj = recipeToObject(recipeSmoothNormal());
             float smoothNV = saturate(dot(recipeSmoothNormal(), geometryViewDir));
             vec3 neutral = mix(finishEnv, vec3(envLuma), 0.55);
-${on('schiller') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.schiller.toFixed(1)})) {
-              reflectedLight.indirectSpecular += recipeKnee(
-                neutral * recipeSchiller(vRecipeView) * 1.15, 0.50
-              ) * uFinishEnv;
-            }
-` : ''}${on('quickmetal') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.quickmetal.toFixed(1)})) {
-              // The metal's own cast, and the streaks as shading on the mirror
-              // itself — multiplied, never added, so nothing hazes over it.
-              vec2 body = recipeQuickBody();
-              vec3 metal = mix(vec3(0.74, 0.76, 0.83), vec3(0.98, 0.92, 0.78), body.x);
-              reflectedLight.indirectSpecular *= mix(vec3(1.0), metal, uFinishEnv);
-              reflectedLight.indirectSpecular *= mix(1.0, 0.86 + body.y * 0.30, uFinishEnv);
-            }
-` : ''}${on('pointillist') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.pointillist.toFixed(1)})) {
-              reflectedLight.indirectSpecular += finishEnv * finishF0 * (1.8 * uFinishEnv);
-            }
-` : ''}${on('nacreous') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.nacreous.toFixed(1)})) {
-              // The lustre, tinted by the interference: pearl's rainbow is *in*
-              // the depth rather than laid on the surface over it.
-              reflectedLight.indirectDiffuse += finishEnv * finishSheenColour
-                * recipeNacreSheen(smoothNV) * (recipeOrient(smoothNV) * 1.35 * uFinishEnv);
-            }
-` : ''}${on('voidstone') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.voidstone.toFixed(1)})) {
-              // Flat: what you are looking at is behind the surface, so it is
-              // not rationed by how obliquely you meet that surface.
-              reflectedLight.indirectSpecular += finishEnv * (1.05 * uFinishEnv);
-            }
-` : ''}${on('tenebrescent') ? /* glsl */ `
-            if (isRecipe(${RECIPE_INDEX.tenebrescent.toFixed(1)})) {
-              // Exposure comes from the dominant light alone, so the boundary
-              // is that light's terminator — one clean great circle. Summing
-              // every light let fill lights drag violet down the shaded side.
-              float exposure = saturate(dot(normalObj, recipeSunObj))
-                * saturate(recipeSunWeight);
-              vec3 burn = recipeBurn(exposure);
-              reflectedLight.directDiffuse *= burn;
-              reflectedLight.indirectDiffuse *= burn;
-              // The changing edge is the show: a soft violet light along it.
-              reflectedLight.indirectDiffuse += vec3(0.46, 0.20, 0.58) * recipeBurnHalo;
-              // State-aware sparkle, keyed on the dominant light's half vector.
-              reflectedLight.indirectSpecular +=
-                recipeTeneSparkle(normalize(vRecipeView + recipeSunObj), recipeBurnT)
-                * ((0.35 + envLuma) * (0.4 + 0.6 * saturate(recipeSunWeight)) * uFinishEnv);
-            }
-` : ''}          }
+            ${slot('ambient', 12)}
+          }
 ` : ''}        }
         `,
       )

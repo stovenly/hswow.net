@@ -700,8 +700,9 @@ these that needs the fixture placed so you can walk behind it.*
 
 ### Status: M5–M8 built; four recipes cut in review
 
-`art/recipes.ts` is the lane and the recipes; `art/finish.ts` grew the hooks they
-reach through. **Asterism (5), grating (6), aventurine (8) and retroreflect (9) were
+`art/recipes/` is the lane and the recipes, one file each; `art/finish.ts` grew the
+hooks they reach through, and since MATERIAL-SYSTEM.md R4 it splices them without
+naming any of them. **Asterism (5), grating (6), aventurine (8) and retroreflect (9) were
 cut in review** — their indices are retired, not reused. **Nacre was renamed
 `nacreous`** (same index, 4). The survivors: schiller, quickmetal, tenebrescent,
 nacreous, pointillist, voidstone. `aRecipe` is one **un-normalized** byte baked by

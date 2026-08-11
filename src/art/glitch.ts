@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { EFFECT_ATTRIBUTE } from './effectId';
+import { sinHash2, sinHash2x3 } from './glsl/hash';
+import { indent } from './glsl/text';
+import { volumeMembership } from './glsl/volume';
 import type { GlitchEffectName, GlitchSpec } from '../engine/Glitch';
 
 /**
@@ -117,6 +120,27 @@ export function markGlitched<T extends THREE.Object3D>(object: T, spec: GlitchSp
   return object;
 }
 
+/** Glitch's own seeding. Both stages declare it, and it must be the same one. */
+const HASH = sinHash2('glitchHash', [41.3457, 289.97]);
+const HASH3 = sinHash2x3('glitchHash3', 'glitchHash', [19.19, 47.5]);
+
+/**
+ * Which volume owns this vertex or fragment. The owner id shares
+ * `uGlitchCentre.w` with the shape bit — doubled and offset, so the floor
+ * recovers it and the fractional half is the sphere-or-box flag.
+ */
+function membership(world: string, id: string, capture: string): string {
+  return volumeMembership({
+    system: 'Glitch',
+    prefix: 'g',
+    max: MAX_GLITCHES,
+    world,
+    id,
+    owner: 'floor(uGlitchCentre[gi].w * 0.5 + 0.25)',
+    capture,
+  });
+}
+
 /** Uniform and helper declarations for the vertex stage. */
 function vertexDecls(varyings: boolean): string {
   return /* glsl */ `
@@ -131,13 +155,9 @@ function vertexDecls(varyings: boolean): string {
   #endif
   ${varyings ? 'varying vec3 vGlitchWorld;\n  varying float vGlitchFace;\n  varying float vGlitchId;' : ''}
 
-  float glitchHash(vec2 p) {
-    return fract(sin(dot(p, vec2(41.3457, 289.97))) * 43758.5453);
-  }
+  ${indent(HASH, 2)}
 
-  vec3 glitchHash3(vec2 p) {
-    return vec3(glitchHash(p), glitchHash(p + 19.19), glitchHash(p + 47.5));
-  }
+  ${indent(HASH3, 2)}
   `;
 }
 
@@ -156,28 +176,15 @@ function vertexChunk(varyings: boolean): string {
       float gAmt = 0.0;
       vec4 gVertW = vec4(0.0);
       float gSeed = 0.0;
-      for (int gi = 0; gi < ${MAX_GLITCHES}; gi++) {
-        if (gi >= uGlitchCount) break;
-        float gOwn = floor(uGlitchCentre[gi].w * 0.5 + 0.25);
-        float gin;
-        if (gOwn > 0.5) {
-          // Owned: membership is identity, not geometry — the whole object at
-          // full strength, and nothing that is not it. See art/effectId.ts.
-          gin = abs(${EFFECT_ATTRIBUTE} - gOwn) < 0.5 ? uGlitchSize[gi].w : 0.0;
-        } else {
-          vec3 grel = (glitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
-          // The underside is a cut, not a fade. See the note on the store.
-          if (grel.y < -1.0) continue;
-          vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
-          float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
-          gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
-        }
-        if (gin > gAmt) {
-          gAmt = gin;
-          gVertW = uGlitchVertexW[gi];
-          gSeed = uGlitchParams[gi].x;
-        }
-      }
+      ${indent(
+        membership(
+          'glitchWorld',
+          EFFECT_ATTRIBUTE,
+          `gVertW = uGlitchVertexW[gi];
+           gSeed = uGlitchParams[gi].x;`,
+        ),
+        6,
+      )}
       // Kit geometry is non-indexed, so three consecutive vertices are one
       // triangle and this is constant across it — the per-face address.
       float gFace = fract(sin((float(gl_VertexID / 3) + 1.0) * 12.9898) * 43758.5453);
@@ -250,9 +257,7 @@ varying vec3 vGlitchWorld;
 varying float vGlitchFace;
 varying float vGlitchId;
 
-float glitchHash(vec2 p) {
-  return fract(sin(dot(p, vec2(41.3457, 289.97))) * 43758.5453);
-}
+${HASH}
 `;
 
 /**
@@ -266,25 +271,15 @@ if (uGlitchCount > 0) {
   float gAmt = 0.0;
   vec4 gSurfW = vec4(0.0);
   vec4 gParams = vec4(0.0);
-  for (int gi = 0; gi < ${MAX_GLITCHES}; gi++) {
-    if (gi >= uGlitchCount) break;
-    float gOwn = floor(uGlitchCentre[gi].w * 0.5 + 0.25);
-    float gin;
-    if (gOwn > 0.5) {
-      gin = abs(vGlitchId - gOwn) < 0.5 ? uGlitchSize[gi].w : 0.0;
-    } else {
-      vec3 grel = (vGlitchWorld - uGlitchCentre[gi].xyz) / uGlitchSize[gi].xyz;
-      if (grel.y < -1.0) continue;
-      vec3 gd = vec3(abs(grel.x), max(grel.y, 0.0), abs(grel.z));
-      float ge = uGlitchCentre[gi].w > 0.5 ? max(gd.x, max(gd.y, gd.z)) : length(gd);
-      gin = (1.0 - smoothstep(0.7, 1.0, ge)) * uGlitchSize[gi].w;
-    }
-    if (gin > gAmt) {
-      gAmt = gin;
-      gSurfW = uGlitchSurfaceW[gi];
-      gParams = uGlitchParams[gi];
-    }
-  }
+  ${indent(
+    membership(
+      'vGlitchWorld',
+      'vGlitchId',
+      `gSurfW = uGlitchSurfaceW[gi];
+       gParams = uGlitchParams[gi];`,
+    ),
+    2,
+  )}
   if (gAmt > 0.004) {
     float gT = swayTime;
     float gSeed = gParams.x;
