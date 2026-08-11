@@ -303,17 +303,29 @@ countryside homes. A zone without `load` behaves exactly as today.
 a cold door-open after a hover shows no added latency; `check:world` still
 passes under esbuild.
 
-## Phase E — the stand-in hotswap *(landed, then superseded)*
+## Phase E — the stand-in hotswap *(landed, then retired)*
 
-**Superseded by MATERIAL-SYSTEM.md R1.** What is described below is the shape
-this phase held for one day. The per-mask deferral is gone: `dressArtMesh` now
-only hands out the lean material and stamps what a prop declared, and a room is
-resolved as a whole — `pendingRoomFinish` unions its masks and `dressRoom`
-hands out the single variant, in the same two places in `enter()` that the
-probe and resolve occupied. Everything below about *why* the compile happens
-before the swap, and about the invisible probe and the light census, is still
-exactly how it works; only the granularity changed, from one variant per finish
-to one per room.
+**Retired by MATERIAL-SYSTEM.md R5. None of the machinery below still exists.**
+`dressArtMesh` now picks one of two shared materials — lean, or every finish
+chunk — from the mask a prop declared, at the moment the mesh is made, and that
+is the whole of it. No deferral, no per-mask variant cache, no probe, no second
+pass over the graph, nothing resolved per room: every mesh already carries the
+material it will keep by the time `enter()` compiles the root, so the ordinary
+compile covers it. `pendingArtProbe`, `resolveArtVariants`, `artMaterialFor`,
+`pendingRoomFinish` and `dressRoom` are all gone.
+
+**What survives is the reason, not the mechanism.** The compile still happens
+before the swap and behind the bar, for exactly the reasons written up below and
+in Phase B, and the light-census argument still holds — there is simply nothing
+special left to arrange for it.
+
+**Two supersessions, and the sequence is the lesson.** R1 first replaced the
+per-mask deferral with a per-room union, which fixed the real bug — a room full
+of finishes waiting on a dozen compiles at the door — and cost a probe, a cache
+and a deferral to do it. R5 then found the union could just be *all of it*,
+always, and deleted the lot. The one wide program was the kit's shape before any
+of this and it shipped; both clever versions were answers to a question that
+turned out not to need asking. What follows describes the first of the three.
 
 **As it landed first, the deferral was per *mask*, once per session, decided at
 the material rather than at the batch.** `dressArtMesh` was the single gate: a
