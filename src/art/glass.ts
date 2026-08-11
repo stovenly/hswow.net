@@ -8,12 +8,13 @@ import { REFLECT_GLSL } from '../engine/reflect';
  * The transmissive family: crystal, glass, bubble. SHADERS-AND-MATERIALS.md
  * Track B / M3.
  *
- * The fourth shared material, beside `ART_MATERIAL`, `GLOW_MATERIAL` and
- * `WATER_MATERIAL` — and water paid nearly every design cost this needs, because
- * water *is* a transmissive material with a wave generator attached. What
- * transfers verbatim: drawn in the effect chain with the opaque pass's colour
- * and depth bound as textures, its own exclusive layer, the hand depth test, and
- * pass gating from what the zone actually built. `engine/Glass.ts` is the pass.
+ * The fifth shared material, beside `ART_MATERIAL`, `ART_FINISHED_MATERIAL`,
+ * `GLOW_MATERIAL` and `WATER_MATERIAL` — and water paid nearly every design cost
+ * this needs, because water *is* a transmissive material with a wave generator
+ * attached. What transfers verbatim: drawn in the effect chain with the opaque
+ * pass's colour and depth bound as textures, its own exclusive layer, the hand
+ * depth test, and pass gating from what the zone actually built.
+ * `engine/Glass.ts` is the pass.
  *
  * Per-prop variation is per-vertex — `aGlass` and `aTint` — so several glass
  * props in one zone could merge into a single draw the way the art kit's parts

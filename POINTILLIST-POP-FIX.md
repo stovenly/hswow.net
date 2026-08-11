@@ -11,9 +11,9 @@ two states.
 
 The jumps were ugly rather than merely visible because this was not a mip chain.
 `recipeCell` hashes `floor(p)` at the already-scaled position
-(`src/art/recipes.ts:139`), so halving the density regenerated the entire lattice —
-new cell boundaries, new per-cell colours everywhere. Each step was a different
-skin, not a coarser one.
+(`src/art/recipes/shared.ts:87`), so halving the density regenerated the entire
+lattice — new cell boundaries, new per-cell colours everywhere. Each step was a
+different skin, not a coarser one.
 
 ## What landed
 
@@ -22,9 +22,9 @@ skin, not a coarser one.
 surface from contact to fade-out and the material reads at range exactly as it
 reads up close. Whatever the sampling does with it at distance, it does.
 
-`soft` (`src/art/recipes.ts:555`) is unchanged and still widens the cell edge with
-the pixel footprint, as it did before any of this. That is the material's own
-long-standing edge treatment, not a level of detail.
+`soft` (`src/art/recipes/pointillist.ts:56`) is unchanged and still widens the
+cell edge with the pixel footprint, as it did before any of this. That is the
+material's own long-standing edge treatment, not a level of detail.
 
 ## What was tried and rejected
 
