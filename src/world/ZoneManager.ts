@@ -7,7 +7,7 @@ import { noteById, type Note } from '../content/notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
-import { setZoneWind, pendingRoomFinish, dressRoom } from '../art/sway';
+import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { ClothActivity } from '../engine/ClothActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
@@ -515,14 +515,6 @@ export class ZoneManager {
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
 
-    // The one material this room's finishes union to, hung off the root so it
-    // compiles in the same pass as everything else (see `pendingRoomFinish`).
-    // Compiling after the arrival instead put the whole batch on a rendering
-    // frame: the room appeared in flat stand-in materials, hung, and then
-    // corrected itself. The bar is the right place to spend it.
-    const room = pendingRoomFinish(root);
-    if (room?.probe) root.add(room.probe);
-
     // **Compiled before anything is swapped.** This await is the long pole on
     // a cold entry, and every frame it yields still shows the old zone, whole,
     // with the player standing on its collider. Compiling after the swap put
@@ -530,19 +522,15 @@ export class ZoneManager {
     // doorless jump the player fell through a world they were not in yet.
     // The stand-in census in `compile` matches the scene the root is about to
     // join, so the programs are the ones the first real frame asks for.
+    //
+    // There is nothing to arrange first. Every mesh already carries the one of
+    // two art materials it will keep (see `dressArtMesh`), so this pass
+    // compiles what the first real frame will ask for, and there is no second
+    // pass handing anything out afterwards. It used to need a probe and a
+    // deferral; MATERIAL-SYSTEM.md R5 retired both.
     if (cold) await this.building.step('almost there', 0.96);
-    try {
-      await this.compile(root);
-    } finally {
-      if (room?.probe) root.remove(room.probe);
-    }
+    await this.compile(root);
     if (stale()) return;
-
-    // Assigned only now, with the program behind it already built, so the first
-    // frame that draws these meshes is never the frame that compiles them. A
-    // crossing that lands mid-compile returns above and leaves the room on the
-    // stand-in material for the next entry to pick up.
-    if (room) dressRoom(room);
 
     // From here to the teleport nothing yields: the swap, the collider and
     // the player's arrival land in one task, so no frame renders mid-swap.

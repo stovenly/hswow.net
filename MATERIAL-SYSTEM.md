@@ -353,28 +353,60 @@ had lost.
 prop picks a look from, so a new recipe that wants a name gets a row there —
 one line of table, not a line of shader. Nothing else about it comes back.
 
-### R5 — the standing set
+### R5 — the standing set *(landed)*
 
 **Goal:** the compile story ends: two art programs per light tier, ever,
 compiled at boot behind the loader.
 
-**Change:** the full-union variant (every field, every feature) is compiled
-once at boot alongside `ART_MATERIAL`; rooms stop computing unions; every
-finished mesh takes the full variant, every plain mesh the lean one. Retire:
-the per-mask variant cache, `dressArtMesh`'s deferral, `pendingArtProbe`,
-`resolveArtVariants`, and ZONE-LOADING Phase E's machinery (its spec entry
-gets the correction note). The finish *feature* bits stay in `assemble`'s
-stamp — they still gate nothing at runtime but they document what a prop
-declares, and R1's revert path wants them.
+**What landed:** `ART_FINISHED_MATERIAL` stands beside `ART_MATERIAL` in
+`art/assemble.ts`, and `patchArtMaterial` runs the same chain over both — mask
+0 on one, `FINISH_MASK_ALL` on the other — at boot, from `main.ts`. A prop that
+declared any finish takes the finished one; everything else takes the lean one;
+`dressArtMesh` decides it from the mask when the mesh is made, and nothing
+decides anything about materials afterwards. The mask is still stamped and now
+gates nothing at runtime, which is what the revert path below wants.
 
-**Why this is safe:** finding 6. This *is* the pre-Phase-C shader's shape,
-which shipped, plus glitch and horror, which were always ungated anyway.
+**Retired:** `artMaterialFor`, the `ART_VARIANTS` cache, the `COMPILED` set,
+`RoomFinish`, `pendingRoomFinish`, `dressRoom`, the `finishUnion` marker on the
+root, and — in `ZoneManager.enter` — the probe being hung off the root, the
+`try`/`finally` that took it down again, and the second pass that handed
+materials out after the compile. That last one is now three lines shorter than
+it was before R1 ever touched it. ZONE-LOADING Phase E is marked retired, with
+the sequence kept.
 
-**Decision point, not a foregone one:** if profiling on the weakest target GPU
-ever shows the union hurting fill rate, stop at R1's per-room unions — every
-other phase is unaffected. R5 deletes the most code of any phase; that is its
-whole argument, and it should land last, after R2–R4 have proven the tables.
-They have; R5 is the only phase left.
+**Deviation: the retire list named machinery that R1 had already replaced.**
+`pendingArtProbe` and `resolveArtVariants` were gone before this phase started;
+what actually stood there was R1's `pendingRoomFinish` and `dressRoom`. Same
+job, one generation on, and retired here.
+
+**Deviation: nothing is force-compiled at boot, and nothing needs to be.** The
+plan said the union variant is "compiled once at boot alongside `ART_MATERIAL`",
+which would take a boot-time compile pass that does not exist — `ART_MATERIAL`
+is not force-compiled at boot either. It compiles with the first zone that uses
+it, behind the loading bar, because `enter()` compiles the whole root before the
+swap and every mesh in that root already carries its final material. The goal —
+no program ever compiled on a rendering frame — holds without adding anything,
+which is the correct amount of machinery for a deletion phase.
+
+**What it costs, precisely:** a mesh that declares a finish now runs the program
+with every finish in it rather than the one its *room* unioned to. Plain meshes
+are untouched and still take the lean material, exactly as under R1 — R1 only
+ever upgraded the meshes that declared something, and so does this. So the
+change is per-room union → global union, on those meshes alone.
+
+**Verified** by a throwaway probe, 78 assertions: two materials with two
+distinct program keys; every stage present on both; every recipe, both uniform
+banks and all four gated features present on the finished one and absent from
+the lean one; `dressArtMesh` returning the right material and the right stamp
+for mask 0 and seven nonzero masks; and every retired name absent from both
+files. **R5 changed no shader source** — asked of `git diff` against the R4
+commit for `art/finish.ts`, `art/recipes/` and `art/glsl/` rather than of a
+captured artefact, so it cannot pass by comparing R5's output with R5's.
+
+**The decision point, taken.** If profiling on the weakest target GPU ever shows
+the union hurting fill rate, the revert is `dressArtMesh` handing out
+`artMaterialFor(mask)` again — which is why the mask is still stamped on the
+mesh and on its geometry. Every other phase is unaffected either way.
 
 ---
 
@@ -387,7 +419,7 @@ They have; R5 is the only phase left.
 | R2 — knob table | R0 | small | source stops varying by recipe set; live tuning *(landed)* |
 | R3 — ramp table | R2 | medium | colour is data; first zero-code material *(landed)* |
 | R4 — slots + shared chunks | R2 | large | new fields without touching finish.ts; glitch/horror single-sourced *(landed)* |
-| R5 — standing set | R1, R2 | negative | two programs, boot-compiled; Phase E machinery deleted |
+| R5 — standing set | R1, R2 | negative | two programs, patched at boot; Phase E machinery deleted *(landed)* |
 
 R1 landed alone, as planned — it fixes the materials2 bar by itself and
 nothing else depends on it. R2, R3 and R4 landed alone too, each paying its own
@@ -395,12 +427,14 @@ cache invalidation; that is one reload apiece and the tables were worth proving
 separately. R4 was the long pole and was, as expected, almost entirely
 mechanical — the checkpoint turned out to be stronger than "byte-comparable":
 the same statements in the same hooks across every one of the 1024 masks, with
-only the order between different recipes permuted. R5 is a deletion pass with a
-decision gate.
+only the order between different recipes permuted. R5 was the deletion pass, and
+it deleted R1's machinery along with Phase E's — the decision gate was taken in
+its favour. Every phase has landed.
 
 ## What is given up
 
-- Per-prop program leanness inside a finished room (R1, revertable).
+- Per-prop program leanness inside a finished room (R1), and then per-room
+  leanness too (R5). Both revertable, which is why the mask is still stamped.
 - The theoretical minimum register footprint (R5) — traded against the
   evidence that the maximum has already shipped.
 - Byte-frozen palettes and knobs: once they are uniforms, the browser cache

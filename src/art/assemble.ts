@@ -109,6 +109,24 @@ export const ART_MATERIAL = new THREE.MeshLambertMaterial({
   flatShading: true,
 });
 
+/**
+ * The same material with every finish chunk in it.
+ *
+ * **Two programs, and that is the whole set.** A prop that declares any finish
+ * takes this one; everything else takes the lean one above; and both are built
+ * by `patchArtMaterial` before a zone is ever shown. There is no third, no
+ * per-mask cache and nothing computed per room — which is the shape the kit had
+ * before any of this, and which shipped. MATERIAL-SYSTEM.md R5.
+ *
+ * What it costs is a wider program on props that do not need all of it. What it
+ * buys is that no door ever waits on a compile it could not have done earlier,
+ * and that the answer to "which program is this mesh on" is one of two.
+ */
+export const ART_FINISHED_MATERIAL = new THREE.MeshLambertMaterial({
+  vertexColors: true,
+  flatShading: true,
+});
+
 export interface Part {
   geometry: THREE.BufferGeometry;
   /**

@@ -474,7 +474,8 @@ export class Zone {
    * Releases the zone's geometry.
    *
    * **Geometry only — materials are deliberately left alone.** The art kit
-   * shares one `ART_MATERIAL` across every mesh it has ever built, and the
+   * shares two materials — `ART_MATERIAL` and `ART_FINISHED_MATERIAL` — across
+   * every mesh it has ever built, and the
    * Proving Ground shares one material per surface family. Disposing a
    * material here would free it out from under every other zone still using
    * it, and the failure would show up as untextured black geometry somewhere

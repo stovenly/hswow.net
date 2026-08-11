@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
+import { ART_FINISHED_MATERIAL, ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
-import { applyFinish } from './finish';
+import { applyFinish, FINISH_MASK_ALL } from './finish';
 import { applyGlitch, applyGlitchDisplacement } from './glitch';
 import { applyHorror, applyHorrorDisplacement } from './horror';
 import type { Weather } from '../audio/weather';
@@ -296,8 +296,8 @@ export function patchArtMaterial(): void {
   applyDetail(ART_MATERIAL);
   // The finish stage wraps last. It hooks the lighting chunks rather than the
   // colour ones, so it consumes whatever the three stages above decided the
-  // surface is. Mask 0: the shared material carries only the base finish, and
-  // anything needing more gets a variant from `artMaterialFor`.
+  // surface is. Mask 0: the lean material carries only the base finish, and
+  // anything that declared one takes `ART_FINISHED_MATERIAL` below.
   applyFinish(ART_MATERIAL, 0);
   // And the glitch stage wraps after even that: it corrupts the *lit result*,
   // finish and all, which is what makes it read as the signal going bad
@@ -311,127 +311,42 @@ export function patchArtMaterial(): void {
   // gets the displacement half for the same live-shadow reason as glitch.
   applyHorror(ART_MATERIAL);
   applyHorrorDisplacement(SWAY_DEPTH_MATERIAL);
-}
 
-/** Mask-keyed variants of the art material, one per finish-chunk set. */
-const ART_VARIANTS = new Map<number, THREE.MeshLambertMaterial>();
-
-/**
- * The art material carrying exactly the finish chunks `mask` names.
- *
- * Mask 0 is `ART_MATERIAL` itself — most of the kit. Anything else is a
- * fresh material run through the same patch chain, sharing every uniform
- * object by reference, cached so each mask compiles once per session. The
- * cache key is set after the chain because each stage sets its own constant
- * key, and the last one would hand two masks the same program.
- */
-export function artMaterialFor(mask: number): THREE.MeshLambertMaterial {
-  if (mask === 0) return ART_MATERIAL;
-  let material = ART_VARIANTS.get(mask);
-  if (material) return material;
-
-  patchArtMaterial();
-  material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-  applySway(material);
-  applyWear(material);
-  applyDetail(material);
-  applyFinish(material, mask);
-  applyGlitch(material);
-  applyHorror(material);
-  material.customProgramCacheKey = () => 'art:' + mask;
-  ART_VARIANTS.set(mask, material);
-  return material;
+  // The finished twin: the same chain, with every finish chunk rather than
+  // none. Built here rather than on demand so both programs exist before any
+  // zone compiles, and so a room never decides anything about materials.
+  //
+  // **The cache key is set after the chain, and has to be.** Each stage sets
+  // its own constant key and the last one wins, so without this the two
+  // materials would ask three for the same program and one of them would get
+  // the other's.
+  applySway(ART_FINISHED_MATERIAL);
+  applyWear(ART_FINISHED_MATERIAL);
+  applyDetail(ART_FINISHED_MATERIAL);
+  applyFinish(ART_FINISHED_MATERIAL, FINISH_MASK_ALL);
+  applyGlitch(ART_FINISHED_MATERIAL);
+  applyHorror(ART_FINISHED_MATERIAL);
+  ART_FINISHED_MATERIAL.customProgramCacheKey = () => 'art:finished';
 }
 
 /**
- * Masks whose program is known to exist this session. Mask 0 is the shared
- * material, which every zone compiles before it is ever shown.
- */
-const COMPILED = new Set<number>([0]);
-
-/**
- * Puts a mesh in the lean material and records what its parts declared.
+ * Puts a mesh in one of the two art materials: lean, or finished.
  *
- * **Nothing is decided here.** A material per prop is a program per finish,
- * and a program per finish is what made a room full of them wait on a dozen
- * compiles at the door. What a prop declares is stamped and the room decides —
- * see `pendingRoomFinish`, which unions the lot. The mask stays on the mesh
- * (and on its geometry, from `assemble`) so a policy of one material per prop
- * is still one line away if a weak GPU ever asks for it.
+ * **The decision is the mask being nonzero, and there is nothing else to it.**
+ * This went through two earlier shapes. A material per prop was a program per
+ * finish, and a room full of them waited at the door on a dozen compiles. A
+ * material per room's union was one compile per door, which fixed that but put
+ * a probe, a cache, a deferral and a second pass over the graph in the way of
+ * it. Both were answers to a question that turned out not to need asking: the
+ * kit had one wide program before any of it, and that shipped.
+ *
+ * The mask is still stamped, and still means what a prop declared. Nothing
+ * reads it at runtime now — it is what the revert path in MATERIAL-SYSTEM.md
+ * R5 would need, and what the debug readouts show.
  */
 export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
-  mesh.material = ART_MATERIAL;
+  mesh.material = mask === 0 ? ART_MATERIAL : ART_FINISHED_MATERIAL;
   if (mask !== 0) mesh.userData.finishMask = mask;
-}
-
-/** A room's finish, resolved once: what it needs, and who is waiting for it. */
-export interface RoomFinish {
-  /** The union of every finish the room's props declared. */
-  readonly mask: number;
-  /** The meshes that declared one. Empty for a room with no finishes at all. */
-  readonly meshes: readonly THREE.Mesh[];
-  /** One mesh carrying the variant, to compile before it is handed out. */
-  readonly probe: THREE.Group | null;
-  readonly root: THREE.Object3D;
-}
-
-/**
- * What a freshly built room needs compiled before it can be shown.
- *
- * **One program for the room, not one per finish in it.** The union carries
- * every chunk any prop asked for, so a plain chair in a room with a pointillist
- * orb runs the orb's program — which costs about what the heaviest finish in
- * the room costs anyway, since registers coalesce across branches that cannot
- * both run. What it buys is that the door waits on one compile however many
- * materials stand behind it.
- *
- * **The probe is invisible, and that is what makes it work.** three gathers
- * lights from the visible graph and materials from all of it, so a hidden mesh
- * hung off the root being compiled picks up that root's census and its program
- * while never drawing a pixel — and never showing during the frames the entry
- * still spends on the zone being left. Its geometry is borrowed from a waiting
- * mesh rather than made up, because the program key depends on what the buffers
- * carry. Null when this union has been compiled before, which is every room
- * after the first that shares it.
- *
- * Returns null for a room already dressed: the meshes keep their material for
- * as long as the geometry lives, so re-entry has nothing to do.
- */
-export function pendingRoomFinish(root: THREE.Object3D): RoomFinish | null {
-  if (root.userData.finishUnion !== undefined) return null;
-
-  const meshes: THREE.Mesh[] = [];
-  let mask = 0;
-  root.traverse((object) => {
-    const declared = object.userData.finishMask as number | undefined;
-    if (declared === undefined) return;
-    mask |= declared;
-    meshes.push(object as THREE.Mesh);
-  });
-
-  let probe: THREE.Group | null = null;
-  if (mask !== 0 && !COMPILED.has(mask)) {
-    probe = new THREE.Group();
-    probe.name = 'art:probe';
-    probe.visible = false;
-    probe.add(new THREE.Mesh(meshes[0].geometry, artMaterialFor(mask)));
-  }
-  return { mask, meshes, probe, root };
-}
-
-/**
- * Hands the room's meshes their material. Call once the probe has compiled.
- *
- * Marking the root is what makes this once per build rather than once per
- * entry — and it is done here rather than in the query above so that an entry
- * abandoned mid-compile leaves the room undressed for the next one to retry.
- */
-export function dressRoom(room: RoomFinish): void {
-  room.root.userData.finishUnion = room.mask;
-  if (room.mask === 0) return;
-  const material = artMaterialFor(room.mask);
-  for (const mesh of room.meshes) mesh.material = material;
-  COMPILED.add(room.mask);
 }
 
 /** Set by `patchArtMaterial`. Held so late arrivals can be patched too. */
