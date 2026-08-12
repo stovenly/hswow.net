@@ -48,7 +48,7 @@ import { excite } from '../dsp/impact';
  * hertz. Without it the tail is dead and synthetic; with it the bell breathes.
  */
 
-interface Partial {
+export interface Partial {
   /** Ratio to the strike note. */
   ratio: number;
   /** Decay as a fraction of the bell's longest. */
@@ -62,8 +62,11 @@ interface Partial {
  * Low partials ring far longer than high ones — which is why a bell gets darker
  * and purer as it dies, and why a bell whose partials all decay together sounds
  * like a synthesiser patch of a bell.
+ *
+ * Shared with the melodic bell in `music/instruments/bell.ts` — the tuning of
+ * a bell is a fact about bells, not about which system rang one.
  */
-const PARTIALS: readonly Partial[] = [
+export const PARTIALS: readonly Partial[] = [
   { ratio: 0.5, decay: 1, level: 0.5 }, // hum
   { ratio: 1, decay: 0.72, level: 0.85 }, // prime — the strike note
   { ratio: 1.2, decay: 0.55, level: 0.7 }, // tierce — the minor third

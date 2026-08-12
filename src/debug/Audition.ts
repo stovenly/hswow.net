@@ -13,6 +13,17 @@ import { createWater } from '../audio/models/water';
 import { createCrowd } from '../audio/models/crowd';
 import { createFriction } from '../audio/models/friction';
 import { createWaveguide, type WaveguideModel } from '../audio/models/waveguide';
+import type { AudioEngine } from '../audio/AudioEngine';
+import type { Instrument } from '../audio/music/instruments/voice';
+import { createStrings } from '../audio/music/instruments/strings';
+import { createBrass } from '../audio/music/instruments/brass';
+import { createFlute } from '../audio/music/instruments/flute';
+import { createChoir } from '../audio/music/instruments/choir';
+import { createBells } from '../audio/music/instruments/bell';
+import { createPluck, type PluckInstrument } from '../audio/music/instruments/pluck';
+import { createGuitar } from '../audio/music/instruments/guitar';
+import { createBass } from '../audio/music/instruments/bass';
+import { createKick, createSnare, createHat } from '../audio/music/instruments/drums';
 import baselines from '../audio/baselines.json';
 
 /**
@@ -115,6 +126,64 @@ function oneShot(name: string, shot: OneShotSpec, every: number, seconds = 8): S
   };
 }
 
+/** A fixed cycle of pitches for `played`. Each step is the notes struck together. */
+interface Line {
+  /** Seconds between steps. */
+  every: number;
+  steps: readonly (readonly number[])[];
+  /** Sounding length handed to the sustained families. Struck ones ignore it. */
+  duration?: number;
+}
+
+/**
+ * An instrument rendered as a played line.
+ *
+ * The pitches are a fixed cycle, so the render is of the voice rather than of
+ * a melody's luck; the velocities vary, because successive notes differing
+ * from one another is half of what the humanization contract claims. The
+ * sustained families play legato and are judged as textures; the struck ones
+ * are silence with transients in it, which is an event.
+ */
+function played(
+  name: string,
+  kind: Kind,
+  seconds: number,
+  build: (engine: AudioEngine) => Instrument,
+  line: Line,
+): Subject {
+  return {
+    name,
+    kind,
+    seconds,
+    build(engine) {
+      const instrument = build(engine);
+      let next = 0;
+      let step = 0;
+      const model: SoundModel & { ready?: Promise<unknown> } = {
+        output: instrument.output,
+        update(dt) {
+          next -= dt;
+          if (next > 0) return;
+          next = line.every;
+          for (const freq of line.steps[step++ % line.steps.length]) {
+            instrument.noteOn(
+              engine.context.currentTime + 0.05,
+              freq,
+              0.45 + Math.random() * 0.55,
+              line.duration,
+            );
+          }
+        },
+        dispose: () => instrument.dispose(),
+      };
+      // The two that load the Faust tier carry a `ready`; the rest do not.
+      if ('ready' in instrument) model.ready = (instrument as PluckInstrument).ready;
+      return model;
+    },
+    ready: (model) => (model as { ready?: Promise<unknown> }).ready ?? Promise.resolve(),
+  };
+}
+
 /**
  * The library, as it is measured.
  *
@@ -167,6 +236,68 @@ const SUBJECTS: readonly Subject[] = [
   oneShot('animal', { sound: 'animal' }, 1.8),
   oneShot('drip', { sound: 'drip' }, 0.9),
   oneShot('bell', { sound: 'bell' }, 3.5, 12),
+  // --- the music rack -------------------------------------------------------
+  //
+  // The director's instrument voices (Phase 6c), each played as a fixed line
+  // at defaults. The pitches are unremarkable on purpose — a mid-register
+  // handful per voice, chords without thirds where a voice plays chords.
+  played('music-strings', 'texture', 14, (engine) => createStrings(engine), {
+    every: 3.5,
+    duration: 3.4,
+    steps: [
+      [146.83, 220, 293.66],
+      [130.81, 196, 261.63],
+      [164.81, 246.94, 329.63],
+    ],
+  }),
+  played('music-brass', 'texture', 10, (engine) => createBrass(engine), {
+    every: 1.4,
+    duration: 1.2,
+    steps: [[146.83], [196], [174.61], [130.81]],
+  }),
+  played('music-flute', 'texture', 10, (engine) => createFlute(engine), {
+    every: 1.1,
+    duration: 0.95,
+    steps: [[587.33], [659.25], [523.25], [783.99]],
+  }),
+  played('music-choir', 'texture', 12, (engine) => createChoir(engine), {
+    every: 2.8,
+    duration: 2.6,
+    steps: [
+      [220, 329.63],
+      [196, 293.66],
+      [246.94, 369.99],
+    ],
+  }),
+  played('music-bells', 'event', 14, (engine) => createBells(engine), {
+    every: 3.2,
+    steps: [[523.25], [659.25], [440]],
+  }),
+  played('music-pluck', 'event', 10, (engine) => createPluck(engine), {
+    every: 0.7,
+    steps: [[293.66], [440], [349.23], [523.25], [392]],
+  }),
+  played('music-guitar', 'event', 10, (engine) => createGuitar(engine), {
+    every: 0.8,
+    steps: [[196], [146.83], [220], [164.81]],
+  }),
+  played('music-bass', 'texture', 10, (engine) => createBass(engine), {
+    every: 0.9,
+    duration: 0.85,
+    steps: [[73.42], [98], [87.31], [65.41]],
+  }),
+  played('music-kick', 'event', 8, (engine) => createKick(engine), {
+    every: 0.55,
+    steps: [[55]],
+  }),
+  played('music-snare', 'event', 8, (engine) => createSnare(engine), {
+    every: 0.7,
+    steps: [[190]],
+  }),
+  played('music-hat', 'event', 8, (engine) => createHat(engine), {
+    every: 0.35,
+    steps: [[8000]],
+  }),
 ];
 
 export interface AuditionRow {

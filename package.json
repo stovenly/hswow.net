@@ -11,7 +11,7 @@
     "check:movement": "esbuild tools/movement-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/movement-check.mjs && node node_modules/.cache/movement-check.mjs",
     "check:audio": "esbuild tools/audio-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/audio-check.mjs && node node_modules/.cache/audio-check.mjs",
     "check": "npm run check:movement && npm run check:audio && npm run check:world && npm run check:faust",
-    "check:world": "esbuild tools/world-check.ts --bundle --platform=node --format=esm --log-level=warning --external:../faust/* --outfile=node_modules/.cache/world-check.mjs && node --max-old-space-size=8192 node_modules/.cache/world-check.mjs",
+    "check:world": "esbuild tools/world-check.ts --bundle --platform=node --format=esm --log-level=warning --external:../faust/* --external:../../faust/* --outfile=node_modules/.cache/world-check.mjs && node --max-old-space-size=8192 node_modules/.cache/world-check.mjs",
     "build:faust": "esbuild tools/faust-build.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/faust-build.mjs && node node_modules/.cache/faust-build.mjs",
     "render:footsteps": "esbuild tools/footstep-render.ts --bundle --platform=node --format=esm --log-level=warning --external:node-web-audio-api --outfile=node_modules/.cache/footstep-render.mjs && node node_modules/.cache/footstep-render.mjs",
     "check:faust": "esbuild tools/faust-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/faust-check.mjs && node node_modules/.cache/faust-check.mjs",

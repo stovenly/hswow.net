@@ -44,6 +44,8 @@ export interface AudioSettings {
   airAbsorption: number;
   /** How much a wall between you and a sound muffles it, 0..1. */
   occlusion: number;
+  /** The music director's level. The gain exists whether or not a zone is scored. */
+  musicVolume: number;
 }
 
 export const DEFAULT_AUDIO: AudioSettings = {
@@ -51,6 +53,7 @@ export const DEFAULT_AUDIO: AudioSettings = {
   reverbAmount: 1,
   airAbsorption: 0.65,
   occlusion: 0.8,
+  musicVolume: 0.3,
 };
 
 /** Raycasts listener→emitter cost real time; they do not need doing every frame. */

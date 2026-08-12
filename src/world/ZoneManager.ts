@@ -22,6 +22,7 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import type { Footsteps, SurfaceName } from '../audio/models/footsteps';
 import { DoorAudio } from '../audio/models/door';
 import { Soundscape } from '../audio/Soundscape';
+import { MusicDirector } from '../audio/music/director';
 import type { Reticle, Fade } from '../ui/Reticle';
 
 /**
@@ -90,6 +91,11 @@ export class ZoneManager {
   private readonly options: ZoneManagerOptions;
   private audio: ZoneAudio | null = null;
   private doorAudio: DoorAudio | null = null;
+  /**
+   * The music director: one for the whole world, because a piece outlives any
+   * single zone — the drone retunes across a border rather than restarting.
+   */
+  private director: MusicDirector | null = null;
 
   /**
    * One soundscape per zone that has been entered, kept for the session.
@@ -448,6 +454,7 @@ export class ZoneManager {
   attachAudio(audio: ZoneAudio): void {
     this.audio = audio;
     this.doorAudio = new DoorAudio(audio.engine);
+    this.director = new MusicDirector(audio.engine);
     // The zone was entered before the audio existed, so its acoustics and its
     // floor material were never applied. Do it now.
     if (this.active) this.applyAudio(this.active);
@@ -645,6 +652,8 @@ export class ZoneManager {
     // against the collider, and the collider no longer holds the world they
     // live in, so every one of them would report itself unobstructed.
     for (const [id, other] of this.soundscapes) other.setActive(id === zone.id);
+
+    this.director?.setZone(zone.environment.music ?? null);
   }
 
   /**
@@ -657,6 +666,12 @@ export class ZoneManager {
   updateSound(dt: number, retestOcclusion: boolean): void {
     if (!this.active) return;
     this.soundscapes.get(this.active.id)?.update(dt, this.options.collider, retestOcclusion);
+    this.director?.update(dt);
+  }
+
+  /** The music director, for the debug readout and the stage. */
+  get music(): MusicDirector | null {
+    return this.director;
   }
 
   /** The active zone's soundscape, for tuning panels and readouts. */
@@ -950,6 +965,8 @@ export class ZoneManager {
     scene.remove(this.lights.sun, this.lights.fill, this.lights.ambient);
     for (const soundscape of this.soundscapes.values()) soundscape.dispose();
     this.soundscapes.clear();
+    this.director?.dispose();
+    this.director = null;
     for (const zone of this.zones.values()) zone.dispose();
     this.zones.clear();
     this.doored.clear();

@@ -11,6 +11,7 @@ import { createWater, type WaterOptions } from './models/water';
 import { createCrowd, type CrowdOptions } from './models/crowd';
 import { createFriction, type FrictionOptions } from './models/friction';
 import { createWaveguide, type WaveguideOptions } from './models/waveguide';
+import { createPlayed, type PlayedOptions } from './music/played';
 import { ScatterField, type ScatterSpec } from './Scatter';
 import type { Collider } from '../player/Collider';
 
@@ -57,7 +58,10 @@ export type ModelSpec =
   | { model: 'water'; options?: WaterOptions }
   | { model: 'crowd'; options?: CrowdOptions }
   | { model: 'friction'; options?: FrictionOptions }
-  | { model: 'waveguide'; options?: WaveguideOptions };
+  | { model: 'waveguide'; options?: WaveguideOptions }
+  // Options required, not optional: a played instrument with no voice named
+  // is not a default anything, so there is nothing sensible to fall back to.
+  | { model: 'played'; options: PlayedOptions };
 
 /** A model somewhere in particular. */
 export type EmitterSpec = ModelSpec & {
@@ -127,6 +131,8 @@ function build(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createFriction(engine, spec.options);
     case 'waveguide':
       return createWaveguide(engine, spec.options);
+    case 'played':
+      return createPlayed(engine, spec.options);
   }
 }
 

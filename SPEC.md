@@ -18,8 +18,11 @@ prior conversation context. Update it as decisions change.
 | 3 — Procedural audio engine | **Complete** |
 | 4 — Procedural art kit | **Complete** |
 | 5 — Zones and portals | **Complete** (trigger volumes and prop streaming deferred) |
-| 6 — Procedural audio: the sound of places | **In progress** — library and zone soundscapes built; friction and the sound stage remain |
-| 6b — Galleries, and objects for the sounds | Planned, to be done before 6 closes |
+| 6 — Procedural audio: the sound of places | **Complete** |
+| 6b — Galleries, and objects for the sounds | **Complete** |
+| 6c — Procedural music | **Complete through musicality (steps 1–7)** |
+| 6d — The voicing pass | **Built, awaiting the listening pass** — baselines to re-capture after it |
+| 6e — The vibe book | **Built, awaiting the audition pass** — the table in the phase is the tunable |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |
 | 9 — Autosave, touch controls, performance | Not started |
@@ -308,6 +311,116 @@ steps are exact, so a texture rendered twice is identical where the same model o
 
 ---
 
+## The music system
+
+*Planned — Phase 6c. Spec written ahead of the build.*
+
+A non-diegetic score, generated like everything else: no composed tracks, no note data in a
+file pretending not to be an asset. A **director** reads the zone's declared mode, palette
+and density and plays — or, most of the time, deliberately does not. The library today can
+make places; this is the layer that says how a place *feels*.
+
+### What the acclaimed ones actually do
+
+The case studies — Soule's Elder Scrolls scores, Minecraft, Breath of the Wild, Journey,
+No Man's Sky, Spore — converge on one sentence: **every acclaimed exploration score is a
+scarcity system.** Harmonically ambiguous, percussion-free, soft-attack material in one
+locked scale, where the thing being generated is mostly *time*. The notes are conservative;
+the silences are the design.
+
+Four lessons carried whole:
+
+- **Silence is the primary anti-fatigue tool.** Minecraft waits a randomized 10–20 minutes
+  between tracks, and that scarcity is what turns background music into an event. Oblivion
+  played its explore playlist wall-to-wall and is remembered as wearying; Skyrim added
+  silence spacers on purpose. Silence is a valid outcome of every scheduling decision.
+- **Scale-lock everything.** Eno's week on Spore: day one was random note sequences, day
+  two was filtering them into modes, and that one filter is what turned noise into music.
+  One mode per zone; no voice ever sounds a note outside it.
+- **Intensity is layer count.** No Man's Sky raises stakes by enabling more instruments at
+  once, not by pushing volume or tempo. And exits happen by *removing* layers — Journey's
+  transitions are successive subtraction, never a cut.
+- **Seeds are motifs.** Spore stored its RNG seeds and re-rolled them later, so a pattern
+  could recur: recognition without literal repetition, and without storing a bar of
+  composed data. Each zone keeps its seeds, so its music is *its* music on every visit.
+
+### The grammar
+
+| Parameter | Rule |
+|---|---|
+| Tempo | 50–70 BPM felt pulse, or pulse-free. No percussion in calm states |
+| Drone | Root + fifth, **no third** — major/minor stays undecided, so nothing demands resolution |
+| Harmonic rhythm | One chord per 2–8 bars; modal and relative moves, never dominant cadences |
+| Melody | 2–6 note cells, one leap then steps, scale-locked; cells written order-independent so any permutation connects |
+| Texture | Three strata: low drone, mid ostinato, sparse high melody. Melody is an event; texture is what persists |
+| Silence | Duty cycle well under half; gaps randomized, never a fixed timer |
+| Intensity | Concurrent layer count, nothing else |
+| Variants | Day/night is the same seeds with different timbre and rhythm, not different music |
+| Sitting behind | Keep 1–4 kHz sparse — speech and SFX live there. Soft attacks, low dynamic range, generous reverb send so entries and exits blur |
+
+### The instruments
+
+Native node graphs, tier 2, the same `{ output, update, setActive, dispose }` contract as
+every model — **not Faust**, for one decisive reason: Faust parameters travel by
+`postMessage` and land on a render-quantum boundary, which is inaudible on a pad swell and
+ruinous on a drum, and a beat grid is the one place the ear forgives nothing. Native nodes
+schedule onsets sample-accurately with the pooled envelope curves the library already owns.
+The second reason is flexibility: every family below is oscillators, biquads and gains, so
+a new zone's genre is a new patch, not a new toolchain artifact. The one thing native
+genuinely cannot do — a pitched feedback loop above the 128-sample delay clamp (~F♯4) — is
+already covered by the committed waveguide.
+
+| Family | Recipe |
+|---|---|
+| Strings / pads | Two or three saws detuned ±10 cents through a dual-rate chorus. The chorus *is* the section: each player of a real section drifts independently, and modulated detune is that drift. Attack 80 ms–2 s; something always moving |
+| Brass | Saw into a lowpass whose cutoff **overshoots** on attack and settles — higher harmonics speak late, and that bloom is the single most brass-identifying cue |
+| Flute | Saw, highpassed then lowpassed ~2 kHz, vibrato at 5–6 Hz applied to *brightness*, not pitch — players vary breath pressure, and broadband hiss makes it less convincing, not more |
+| Choir | Detuned saw pair through the existing formant bank, drifting slowly between vowels — a static vowel is a doorbell |
+| Bells | The additive bell, adapted to take a frequency |
+| Plucks / chimes / harp | The waveguide, struck on schedule from TypeScript, as `pipe-air` and the chimes already are |
+| Bass | One saw, one lowpass, keytracked |
+| Kick / snare / hat | Sine pitch-drop with a thump; noise burst into a modal snap; filtered noise tick — all assembled from `dsp/impact` and `dsp/phisem` |
+| Electric guitar | Waveguide into a `WaveShaperNode` and a cabinet-ish lowpass. The string exists; distortion is a native node |
+
+**What makes a synth read as fake is stasis, not synthesis.** Demoscene 64k intros carried
+whole orchestras on saw-filter-chorus-reverb; the ear forgives "synthetic" instantly and
+never forgives static or disjoint. So the humanization is the voice contract, not a
+per-instrument nicety: no instant envelopes anywhere; vibrato that arrives late (building
+over 0.3–1 s, rate jittered a few percent per note); per-note randomization of ±5 cents,
+±15 % velocity, ±15 ms timing; velocity into brightness and not merely level; and every
+voice sends into the **one shared FDN**, because a common room is most of what glues
+admittedly-fake sources into an ensemble — and it is already paid for.
+
+### The director
+
+One non-positional system beside the beds: its own gain into `dry` and `send`, outside the
+24-voice emitter budget entirely, with a music slider in options (the gain node exists
+regardless). Zones opt in through one optional field — `ZoneEnvironment.music` declaring
+root, mode, palette, density and pulse — and **absent means silent**, so every existing
+zone is untouched until it is scored on purpose.
+
+Three strata, scheduled by `dsp/clock` against the audio clock:
+
+1. **Drone** — root + fifth pad, near-continuous while a piece plays. It crossfades and
+   retunes across zone borders, which is what makes crossing a portal a change of key
+   rather than a change of track.
+2. **Texture** — ostinato or slow arpeggio cells at the felt pulse, from the zone's seeds.
+3. **Melody** — sparse order-independent cells on a solo voice. Enters rarely, states a
+   phrase, leaves.
+
+Above them a scarcity state machine: pieces a few minutes long, then long randomized
+silence; intensity mapped to layer count; every exit by subtraction. Note generation is
+seeded and scale-locked — the Spore recipe — so motifs recur per zone without any authored
+score. Day/night variants reuse the same seeds with different timbre; the director takes a
+time-of-day input that is stubbed until a day/night cycle exists to feed it.
+
+The theory and pattern code — note-to-Hz, mode tables, the scale lock, cell generation — is
+pure arithmetic with no audio context in it, which puts it in `check:audio` territory:
+assert every generated note lands in the declared mode, every cell obeys
+one-leap-then-steps, every permutation of a cell connects.
+
+---
+
 ## The dialogue system
 
 Keyword-driven, after Morrowind and Final Fantasy II. Progression is knowing *what* to ask
@@ -408,8 +521,12 @@ Checked items are decided. Unchecked are open.
 - [x] Everything in the audio section above
 - [x] Water, fire, bird models — *built in Phase 6, with rain, crowd and scatter one-shots*
 - [x] Zone-declared soundscapes; panner LOD and voice cap; FDN room acoustics
-- [ ] Friction family (stick-slip, needs Faust) — Phase 6
-- [ ] Sound stage and the rendering half of the audition harness — Phase 6
+- [x] Friction family (stick-slip, needs Faust) — *built in Phase 6*
+- [x] Sound stage and the rendering half of the audition harness — *built in Phase 6*
+- [ ] Music: instrument rack (native voices over the model contract) — Phase 6c
+- [ ] Music: theory and seeded pattern generation, asserted in `check:audio` — Phase 6c
+- [ ] Music: the director, `ZoneEnvironment.music`, options slider — Phase 6c
+- [ ] Music: showcase zone with instrument stations and sample vibes — Phase 6c
 
 ### Actors and animation
 - [x] Procedural jointed figures from primitives
@@ -1015,6 +1132,222 @@ good argument with nothing standing under it; it has a yard now.
 > Proving Ground's, not higher. If a flat floor costs more than a terrain, the follower-mesh
 > mistake has been made by accident.
 
+### Phase 6c — Procedural music
+
+The music system as specified above. Decided before the build, after the research pass:
+constrained note generation with seeded motifs rather than authored cells (nothing in this
+project ships composed data, and seeds give zones recurring identity for free); native Web
+Audio instruments rather than new Faust modules (sample-accurate onsets, no toolchain step,
+and the waveguide already covers the one case native cannot do); the full three-strata
+director in one phase rather than piecewise, proven on a showcase zone.
+
+#### Work order
+
+1. **The instrument rack** — `audio/music/instruments/`: a voice contract
+   (`noteOn(at, freq, velocity)` over the standard model contract) with the humanization
+   baked in, then the families: strings/pads, brass, flute, choir, bells, plucks, bass,
+   kick/snare/hat, electric guitar. Each gets audition subjects and baseline rows; the
+   existing meter and solo tooling come along free.
+2. **Theory and patterns** — `audio/music/theory.ts` and `patterns.ts`: note math, mode
+   tables, scale lock, seeded cell generators. Pure arithmetic, asserted in `check:audio`.
+3. **The director** — the strata, the scarcity state machine, zone transitions,
+   `ZoneEnvironment.music`, the options slider. Existing zones stay silent.
+4. **The music stage** — a showcase zone on the sound-stage pattern: a door beside the
+   other showcases, stations to solo each instrument (walking to a plinth is the solo —
+   a station's reach ends before its neighbour begins), and a panel of sample vibes to
+   switch between, with a night toggle to prove same-seeds-different-timbre. The original
+   pastoral and industrial samples served here and retired when Phase 6e's book replaced
+   them. Name and fiction to be settled with the repo owner; the id is a placeholder
+   until then.
+
+*Done when you can stand on the music stage and solo every instrument, play vibes that
+flow without a seam or a metronome in them, and walk between two scored zones hearing
+the drone change key rather than the track change.*
+
+#### Second pass — musicality and voicing
+
+The first pass proved the machinery and exposed what it lacks: a piece holds one chord for
+its whole length, every stratum is nailed to one register, the dynamics sit in one band,
+and the melody states a cell and stops. Listening found the gap the checks cannot.
+
+5. **Modal chord motion** — the harmonic rhythm made real. Every 2–8 bars the harmonic
+   centre steps to another degree of the mode, weighted toward the classic modal moves and
+   never a dominant, with the texture and melody re-rolled over the new centre while the
+   drone pedals on. The first pass only re-rolled the ostinato over a fixed root, which is
+   one chord per piece — harmonic rhythm in name only.
+6. **Melody phrasing** — a statement cell and an answer, the answer transposed to land on
+   the root or the fifth; a velocity arc across the phrase; the register free to drop an
+   octave between phrases. Still seeded, still the zone's motifs — the change is shape,
+   not material.
+7. **A dynamics arc over the piece** — soft in, fullest in the middle, soft out, scaling
+   every stratum's velocities together. Velocity is brightness in every voice, so this
+   moves the tone and not merely the level.
+8. **The voicing pass** — the rank report came in and the research answered it at a size
+   one step could not hold. It stands as Phase 6d.
+
+*Done when a piece moves — chord to chord, phrase to phrase, soft to full and back. The
+rank's own listening test moved to Phase 6d with the step that answers it.*
+
+### Phase 6d — The voicing pass
+
+Step 8 of the music phase, grown into a phase of its own once the rank report and the
+research landed. The report: the winds sound fine but stop harshly — the notes want to
+glide in and out, not gate off; the plucks are harsh and the flute can be shrill; and all
+of it is background music with no business distracting. The research went family by
+family through the classic patch literature — the Synth Secrets series, the
+Karplus-Strong papers, the measured Roland service data — and every change below is that
+reference disagreeing with a first instinct, not a new instinct.
+
+Two findings frame the whole pass. First, the harsh stops are an architecture problem,
+not an envelope problem: a wind phrase is one breath, and building it from independent
+per-note oscillators re-tongues every join and gates the last note off. Second, most of
+the harshness elsewhere is velocity curves living in the loud half of a real player's
+range — the fix is almost never *quieter*, it is *darker sooner*.
+
+#### Work order
+
+1. **The mono wind core** — flute and brass each become a small pool (two or three) of
+   persistent monophonic players: one oscillator–filter–gain chain each, alive for the
+   whole piece. A note arriving while a player still sounds nearby in pitch *glides* to
+   it (~20 ms, with a small breath dip) instead of restarting; the envelope attacks from
+   zero only at phrase starts and releases only at phrase ends, where it tapers — a
+   decrescendo to about half level over the last half second, then a slow release with
+   the filter darkening alongside the gain. The director already schedules phrase notes
+   overlapping, so legato is read from timing alone and the voice contract does not
+   change. Allocation is by nearest pitch, so a drone's root and fifth land on separate
+   players. This is Minimoog single-trigger behaviour, and it is what the measured
+   flute-transition literature says a slur is.
+2. **Flute** — the saw source is the shrillness: a real flute is nearly all fundamental.
+   Rebuilt on a ~40% pulse, ceiling near 2 kHz, partial keytracking (~65%), vibrato kept
+   on brightness rather than pitch — the one part that was already right.
+3. **Brass** — the overshoot-then-settle filter is canonical and stays; its numbers were
+   a lead's, not a horn's. Filter attack 150–350 ms and settle τ 300–500 ms (was 90 ms);
+   an absolute cutoff ceiling near 1.8 kHz (it could reach twelve times the fundamental);
+   two saws detuned ±6 cents with a quiet sine under them for the section; the periodic
+   vibrato replaced by ±3–6 cents of slow random drift — orchestral horn is straight-tone,
+   and a steady LFO is the classic "sounds electronic" tell.
+4. **Pluck** — the excitation is the harshness: `900 + velocity × 5200 Hz` is a
+   fortissimo harp, and the literature calls this filter the *dynamic level* control.
+   Becomes roughly `800 + velocity × 1800` capped near 2.6 kHz; the noise burst
+   envelope-shaped rather than rectangular (the square edge is the slap); brightness
+   keytracked *down* as pitch rises so high notes never go glassy; pick position at a
+   soft mid-string ~0.4; and a simple body — a gentle lowpass near 4 kHz over a low
+   warmth peak.
+5. **Guitar** — a bright string into saturation is the ice-pick recipe: the string
+   darkened (bright 0.75 → ~0.55) with a pre-shaper lowpass, drive scaled by velocity so
+   quiet notes run the amp nearly clean, and a second-order cabinet — first-order at
+   3.4 kHz is too shallow to kill the fizz the shaper makes.
+6. **Strings** — closest to reference already; the recipe *is* the string machine. A
+   third chorus line at 120° (two lines cannot hide their moments of common motion), base
+   delays shortened to 8–12 ms, the mix turned wet-dominant — the dry saw is the buzz —
+   the ceiling down to ~6.5 kHz over a gentle highpass near 200 Hz, and the fast shimmer
+   halved: ±19 cents reads seasick.
+7. **Choir** — the vowel drift was the research's biggest flag: a moving mouth is a
+   foreground effect, and the canonical machine fixes its vowels per registration. Frozen
+   on one dark vowel with only slight slow drift, never passing through the nasal e/i
+   region; a lowpass ~3.5 kHz above the formants; vibrato onset delayed; the attack a
+   touch longer.
+8. **Bells** — the partial table is a church bell; the music wants a chime. Tierce and
+   uppers attenuated, the clapper duller (~5× the prime, capped 6 kHz) and scaled with
+   velocity² so soft strokes have almost no strike, a global lowpass near 5 kHz. The
+   decay structure stays — the hum already outlives everything, which the reference
+   confirms is right.
+9. **Bass** — a quiet sine under the saw for fundamental weight, and a small ~300 ms
+   filter-envelope pluck on the non-drone role only; the drone keeps its static filter.
+10. **Drums** — the kick sweep lands *below* its tuning (2.2f → 0.75f over 280 ms) and
+    becomes ~1.8f → 1.0f over ~60 ms: a heartbeat, not a boom. The snare's noise moves
+    darker and longer (~1.2 kHz, ~100 ms), the hat gets a 20 ms floor and a fizz-killing
+    lowpass, and every transient layer — beater, wires, clapper — scales with velocity²,
+    so soft hits go round instead of clicky.
+11. **Re-audition and re-capture** — the rank walked again, the eleven `music-*`
+    baselines re-captured, `check:audio` green.
+
+*Done when the winds glide in and out instead of stopping, and every station on the rank
+survives being listened to alone — as background: nothing on it earns a glance from a
+player doing something else.*
+
+### Phase 6e — The vibe book
+
+The stage's three vibes proved the machinery; the game needs a book of them — one
+composition per kind of place, so a zone declares what it is and sounds like it. Music
+only: a place's *noise* — birds, water, wind, drips — is the soundscape system's job
+(Phase 6) and nothing in this phase touches it. Where a line below reaches for an image
+like drips or light on water, it describes what the notes evoke, not a sound effect. The
+archetypes wanted: village, village interior, farm, two contrasting forests, two
+contrasting forest paths, riverside, cave. Researched against how exploration-game and
+ambient composers actually score these places (the Zelda mode analyses, Stardew's
+documented palette, Skyrim's town-versus-wild split, the BOTW near-silence practice,
+dungeon-synth convention for the underground; the pastoral drone topic runs from
+Beethoven's bare fifth straight to this project's root+fifth grammar).
+
+Three findings carry the book:
+
+- **Settlements pulse, wilderness floats.** Towns get a steady gentle pulse and the
+  fullest arrangements; open country runs rubato fragments over long silence. Pulse and
+  drums are the single strongest "people live here" lever.
+- **Mode is the character.** The associations named again and again in the analyses:
+  lydian is the enchanted forest (Saria's Song), dorian is water (Serenade of Water) and
+  the habitable dark, mixolydian is relaxed folk (Stardew), phrygian is the underground,
+  pentatonics are the safe naive tunes. Plain ionian is rarer than assumed.
+- **An interior is a reduction, not a piece.** Indoors keeps the settlement's root, mode
+  and *seed* — the same motifs — with the arrangement thinned: fewer layers, no drums,
+  the pad swapped for a quiet bass. The player hears "indoors", not "elsewhere".
+
+#### The table
+
+The tunable heart of the phase. Roots chosen so neighbouring archetypes differ; seeds
+distinct except the interior, which shares the village's on purpose.
+
+| Vibe | Root | Mode | Drone | Texture | Melody | Pulse | Density | Drums | Seed |
+|---|---|---|---|---|---|---|---|---|---|
+| village | C3 130.81 | mixolydian | strings | pluck | flute | 65 | 0.85 | yes | 48 |
+| village interior | C3 130.81 | mixolydian | bass | pluck | flute | 55 | 0.4 | no | 48 |
+| farm | F3 174.61 | ionian | strings | guitar | flute | 70 | 0.8 | yes | 49 |
+| forest a | A3 220.00 | lydian | strings | pluck | flute | 58 | 0.6 | no | 50 |
+| forest b | E2 82.41 | dorian | choir | strings | bells | — | 0.35 | no | 51 |
+| forest path a | G3 196.00 | pentatonic-major | bass | guitar | pluck | 68 | 0.55 | yes | 52 |
+| forest path b | E3 164.81 | pentatonic-minor | flute | strings | pluck | — | 0.25 | no | 53 |
+| riverside | D3 146.83 | dorian | strings | pluck | bells | 56 | 0.5 | no | 54 |
+| cave | A2 110.00 | phrygian | choir | bass | bells | — | 0.2 | no | 55 |
+
+The characters, briefly: the village is the fullest, warmest thing in the game; its
+interior is the same tunes played small. The farm is the working tempo — top of the
+grammar's range — with the guitar as the porch instrument. Forest a is sun through
+leaves: lydian lilt, high and bright. Forest b is the forest that watches back:
+pulse-free, a low choir, bells glimpsed between the trees, and a hollow middle register
+that is what makes it feel vast. Path a is the walking-song — pentatonic pluck tune over
+a footstep pulse, nothing on it able to sound wrong; path b is the path where you lower
+your voice, sharing forest b's key family, mostly silence. The riverside is D dorian —
+the documented water mode — with the pluck rippling and bells as light on the surface.
+The cave is the register split taken to its end: low choir, low bass, rare high pings as
+drips, the emptiest density in the book. Brass sits the book out deliberately — it is
+the alternate drone for the cave or forest b if either wants more distance later.
+
+The contrast pairs run on one axis, motion versus stillness: forest a lilts while forest
+b holds still; path a walks while path b holds its breath. The pairs read as kin because
+each path shares register or key with its forest.
+
+#### Work order
+
+1. **Density becomes a dice roll.** The director derives layers from density
+   deterministically, so anything under 0.75 *never* states its melody — but the sparse
+   places above are built on rare fragments, not absent ones. Layer count becomes a
+   per-piece roll weighted by density (intensity is still layer count, decided once per
+   piece; the grammar holds). The one director change in the phase.
+2. **The vibe book** — a module exporting the nine specs above as constants. The
+   stage's original three retire in its favour: the stage zone declares the village,
+   the annex the cave (the book's farthest pair, so the border test is the hardest
+   one), and night becomes the toggle it always was. The archetype labels are working
+   names; real zones adopt a vibe by declaring it, and any renaming that fiction wants
+   is the repo owner's.
+3. **The stage panel** learns all nine, so the book can be walked in one sitting with
+   play-the-vibe.
+4. **The audition pass** — the repo owner listens; the table above is what gets tuned,
+   not the code.
+
+*Done when all nine can be told apart blind from the stage panel, the pairs contrast on
+the axis they were built on, and the interior reads as the village heard from indoors.*
+
 ### Phase 7 — Actors and ambient motion
 
 NPC figures, procedural animation, patrol and idle, look-at. Proving Ground gains a
@@ -1307,3 +1640,15 @@ Research behind the audio system:
 - [music-dsp: Wind in Trees, how to synthesize](https://music-dsp.music.columbia.narkive.com/sRNWKJyD/wind-in-trees-how-to-synthesize)
 - [Synthetic Wilderness: recreating nature sounds](https://www.knobulism.com/2025/01/29/synthetic-wilderness-recreating-nature-sounds/)
 - [Andy Farnell, *Designing Sound*](https://mitpress.mit.edu/9780262014410/designing-sound/) — the standard reference for procedural audio models
+
+Research behind the music system:
+
+- [Skyrim and immersion: Soule's ostinatos and instrumentation — USU theory analysis](https://usutheoryiv.wordpress.com/2016/10/27/skyrim-and-immersion-jeremy-soules-use-of-ostinatos-and-instrumentation/) — the root-and-fifth ostinato, the three-strata texture
+- [The Sound of No Man's Sky — Paul Weir, GDC 2017](https://www.gdcvault.com/play/1024067/The-Sound-of-No-Man) — contexts, instruments, intensity as layer count
+- [Procedural Music in Spore — Jolly & McLeran, GDC 2008](https://www.gdcvault.com/play/323/Procedural-Music-in) — scale-locked generation, seeds as motifs
+- [Minecraft — Twenty Thousand Hertz interview with C418](https://www.20k.org/episodes/minecraft) — randomized silence as the design
+- [Breath of the Wild soundtrack analysis — kylydian](https://kylydian.tumblr.com/post/172277263339/breath-of-the-wild-soundtrack-analysis-day-5) — order-independent melody fragments
+- [From Journey to Erica — Austin Wintory](https://awintory.medium.com/from-journey-to-erica-214355002896) — transitions by successive removal of layers
+- [Synthesizing Strings — Sound on Sound](https://www.soundonsound.com/techniques/synthesizing-strings-pwm-string-sounds), [Brass](https://www.soundonsound.com/techniques/synthesizing-brass-instruments), [Flute](https://www.soundonsound.com/techniques/practical-flute-synthesis), [Formants](https://www.soundonsound.com/techniques/formant-synthesis) — the Gordon Reid synth-secrets recipes
+- [Extended Karplus-Strong — Julius O. Smith](https://ccrma.stanford.edu/~jos/pasp/Extended_Karplus_Strong_Algorithm.html)
+- [Csound formant tables](https://csound.com/docs/manual/MiscFormants.html) — vowel frequencies, amplitudes and bandwidths per voice type

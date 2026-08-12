@@ -60,7 +60,7 @@ const PITCH = GRID_TILE * 1.5;
 /** How far back the door stands. Enough to see the whole rank on arrival. */
 const DOOR_Z = 14;
 /** Pedestal top. Roughly chest height, so a source is not at your feet. */
-const PLINTH_H = 1.15;
+export const PLINTH_H = 1.15;
 
 /**
  * One entry in the rack.
@@ -268,9 +268,9 @@ const PLINTH_TOP = new THREE.MeshLambertMaterial({
  * Deliberately not an art-kit builder. Every builder in the kit is a *thing* —
  * a tree, an anvil, a hopper — and it carries associations that would be read
  * as part of the sound standing on it. A plain block carries none, which is
- * what a bench wants.
+ * what a bench wants. Exported for the music stage, whose bench it also is.
  */
-function plinth(name: string, x: number): THREE.Group {
+export function plinth(name: string, x: number): THREE.Group {
   const group = new THREE.Group();
   group.name = `station:${name}`;
 
