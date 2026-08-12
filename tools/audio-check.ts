@@ -23,6 +23,17 @@ import {
   panFor,
   lateralWeight,
 } from '../src/audio/models/footsteps';
+import {
+  MODES,
+  DRONE,
+  hz,
+  inMode,
+  lock,
+  centreMoves,
+  degreeToSemitone,
+  semitoneToDegree,
+} from '../src/audio/music/theory';
+import { melodyCell, textureCell, texturePool, CONNECT } from '../src/audio/music/patterns';
 
 let failures = 0;
 
@@ -662,6 +673,183 @@ for (const name of ['metal-solid', 'metal-ring', 'metal-hollow-small', 'metal-ho
   const LOOSE = ['gravel', 'cobble-loose', 'sand'];
   const deaf = LOOSE.filter((name) => SURFACES[name as keyof typeof SURFACES].scuff < 0.7);
   check('loose surfaces answer to speed', deaf.length === 0, deaf.join(', ') || `${LOOSE.length} checked`);
+}
+
+// --- the music grammar ------------------------------------------------------
+//
+// The grammar makes three promises the ear cannot audit note by note: every
+// note in the declared mode, one leap then steps, and cells that connect in
+// any order. Theory and patterns are pure arithmetic, so the promises are
+// checked exhaustively — every mode, a couple of hundred seeds each, every
+// permutation of every cell.
+
+/** Heap's algorithm. Yields the same array reordered in place — scan, don't keep. */
+function* permutations(cell: readonly number[]): Generator<readonly number[]> {
+  const a = cell.slice();
+  const c = new Array<number>(a.length).fill(0);
+  yield a;
+  let i = 0;
+  while (i < a.length) {
+    if (c[i] < i) {
+      const j = i % 2 === 0 ? 0 : c[i];
+      [a[j], a[i]] = [a[i], a[j]];
+      c[i]++;
+      i = 0;
+      yield a;
+    } else {
+      c[i++] = 0;
+    }
+  }
+}
+
+{
+  const modes = Object.entries(MODES);
+
+  check(
+    'mode tables are well formed',
+    modes.every(
+      ([, mode]) =>
+        mode[0] === 0 && mode.every((s, i) => s >= 0 && s < 12 && (i === 0 || s > mode[i - 1])),
+    ),
+    `${modes.length} modes start at the root and ascend inside the octave`,
+  );
+
+  check(
+    'note math holds',
+    Math.abs(hz(220, 12) - 440) < 1e-9 &&
+      Math.abs(hz(440, 0) - 440) < 1e-9 &&
+      Math.abs(hz(440, 7) - 440 * 2 ** (7 / 12)) < 1e-9,
+    'octave doubles, unison holds, a fifth is 2^(7/12)',
+  );
+
+  // The lock: lands in the mode, never moves further than the nearest degree
+  // can be, is idempotent, and passes in-mode notes through untouched.
+  let snapped = 0;
+  let lockOk = true;
+  for (const [, mode] of modes) {
+    for (let s = -24; s <= 24; s++) {
+      const l = lock(s, mode);
+      snapped++;
+      if (!inMode(l, mode) || Math.abs(l - s) > 2) lockOk = false;
+      if (lock(l, mode) !== l) lockOk = false;
+      if (inMode(s, mode) && l !== s) lockOk = false;
+    }
+  }
+  check('the scale lock locks', lockOk, `${snapped} notes snapped, none by more than a whole step`);
+
+  let degreesOk = true;
+  for (const [, mode] of modes) {
+    for (let d = -15; d <= 15; d++) {
+      const s = degreeToSemitone(mode, d);
+      if (!inMode(s, mode) || semitoneToDegree(mode, s) !== d) degreesOk = false;
+    }
+  }
+  check('degrees round-trip across octaves', degreesOk, '31 degrees in every mode, both ways');
+
+  check(
+    'the drone carries no third',
+    DRONE.length === 2 && DRONE[0] === 0 && DRONE[1] === 7,
+    'root and a perfect fifth, nothing else',
+  );
+
+  // The texture pool inherits the drone's ambiguity — a third under the
+  // melody decides major or minor, which is exactly what the drone refuses.
+  const decided = modes.filter(([, mode]) =>
+    texturePool(mode).some((s) => s % 12 === 3 || s % 12 === 4),
+  );
+  const thin = modes.filter(([, mode]) => texturePool(mode).length < 3);
+  check(
+    'texture pools stay ambiguous and playable',
+    decided.length === 0 && thin.length === 0,
+    [...decided, ...thin].map(([name]) => name).join(', ') ||
+      'no thirds, three notes or more, every mode',
+  );
+
+  // The harmonic centre: every mode has room to move, home is always in the
+  // bag, and no move lands on the fifth or the leading tone — the two degrees
+  // that turn a modal shift into a dominant cadence.
+  {
+    const still = modes.filter(([, mode]) => new Set(centreMoves(mode)).size < 3);
+    const homeless = modes.filter(([, mode]) => !centreMoves(mode).includes(0));
+    const cadence = modes.filter(([, mode]) =>
+      centreMoves(mode).some((degree) => {
+        const pc = ((degreeToSemitone(mode, degree) % 12) + 12) % 12;
+        return pc === 7 || pc === 11;
+      }),
+    );
+    check(
+      'the harmonic centre never moves onto a dominant',
+      still.length === 0 && homeless.length === 0 && cadence.length === 0,
+      [...still, ...homeless, ...cadence].map(([name]) => name).join(', ') ||
+        'three or more centres in every mode, none a fifth or leading tone',
+    );
+  }
+
+  const SEEDS = 200;
+  let notes = 0;
+  let cells = 0;
+  let inModeOk = true;
+  let shapeOk = true;
+  let connectOk = true;
+  let textureOk = true;
+  for (const [, mode] of modes) {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const cell = melodyCell(seed, mode);
+      cells++;
+      notes += cell.length;
+      if (cell.length < 2 || cell.length > 6) shapeOk = false;
+      for (const note of cell) if (!inMode(note, mode)) inModeOk = false;
+
+      // One leap then steps, judged in degree space — a pentatonic scale step
+      // is three semitones wide and still a step.
+      const degrees = cell.map((s) => semitoneToDegree(mode, s));
+      const leap = Math.abs(degrees[1] - degrees[0]);
+      if (leap < 2 || leap > 3) shapeOk = false;
+      for (let i = 2; i < degrees.length; i++) {
+        if (Math.abs(degrees[i] - degrees[i - 1]) !== 1) shapeOk = false;
+      }
+
+      for (const order of permutations(cell)) {
+        for (let i = 1; i < order.length; i++) {
+          if (Math.abs(order[i] - order[i - 1]) > CONNECT) connectOk = false;
+        }
+      }
+
+      const texture = textureCell(seed, mode);
+      notes += texture.length;
+      if (texture.length < 3 || texture.length > 5) textureOk = false;
+      for (const note of texture) if (!inMode(note, mode)) inModeOk = false;
+      for (let i = 1; i < texture.length; i++) {
+        if (texture[i] === texture[i - 1]) textureOk = false;
+      }
+    }
+  }
+  check(
+    'every generated note lands in its mode',
+    inModeOk,
+    `${notes} notes over ${modes.length} modes, ${SEEDS} seeds each`,
+  );
+  check('melody cells are one leap then steps', shapeOk, `${cells} cells, 2–6 notes, leap first`);
+  check(
+    'every permutation of every cell connects',
+    connectOk,
+    `no interval past ${CONNECT} semitones in any order`,
+  );
+  check('texture cells never stutter', textureOk, 'open intervals only, no repeated note');
+
+  // Seeds are motifs — the Spore recipe only works if a re-rolled seed is the
+  // same cell, and only matters if neighbouring seeds are not.
+  const rolled = Array.from({ length: SEEDS }, (_, i) => melodyCell(i + 1, MODES.dorian));
+  const identical = rolled.every(
+    (cell, i) => String(melodyCell(i + 1, MODES.dorian)) === String(cell),
+  );
+  const distinct = new Set(rolled.map(String)).size;
+  check('a seed is a motif', identical, `${SEEDS} seeds re-rolled into the same cells`);
+  check(
+    'neighbouring seeds are different music',
+    distinct > SEEDS * 0.4,
+    `${distinct} distinct cells from ${SEEDS} sequential seeds`,
+  );
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);

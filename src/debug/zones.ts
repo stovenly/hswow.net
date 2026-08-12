@@ -19,6 +19,7 @@ import { countrysideHomeZones, countrysideHomePortals } from './countryside-home
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
+import { musicStageZone, musicAnnexZone, musicStagePortal } from './MusicStage';
 import { waterShowcaseZone } from './WaterShowcase';
 import { waterShowcase2Zone } from './WaterShowcase2';
 import { footstepsShowcaseZone } from './FootstepsShowcase';
@@ -567,6 +568,12 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   zones.push(groundcoverShowcaseZone());
   // And the Particle Showcase, which is the air above it.
   zones.push(particleShowcaseZone());
+  // The Music Showcase and its annex — Phase 6c's stage. Its hall door is in
+  // `propPortals` with the other showcases; the portal here joins the pair,
+  // because the border retune the stage exists to prove has to be walked.
+  zones.push(musicStageZone());
+  zones.push(musicAnnexZone());
+  portals.push(musicStagePortal());
 
   return { zones, portals };
 }

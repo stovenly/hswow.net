@@ -24,6 +24,7 @@ import { Reticle, Fade } from './ui/Reticle';
 import { Crosshair } from './ui/Crosshair';
 import { createTestWorld, ZONE_EXTERIOR, ZONE_COUNTRYSIDE } from './debug/zones';
 import { STAGE_STATIONS } from './debug/SoundStage';
+import { VIBES } from './audio/music/vibes';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
@@ -577,6 +578,7 @@ if (dev.gui) {
 
   const sound = dev.gui.addFolder('audio');
   sound.add(audio.settings, 'masterVolume', 0, 1, 0.01).name('volume');
+  sound.add(audio.settings, 'musicVolume', 0, 1, 0.01).name('music');
   sound
     .add(audio.settings, 'reverbAmount', 0, 2, 0.01)
     .name('reverb')
@@ -744,6 +746,10 @@ if (dev.gui) {
     swell: '0.00',
     machine: '—',
     emitters: '—',
+    // The scarcity machine has no visible output either, and its timescale is
+    // minutes — without this line, "working" and "broken" look identical for
+    // the length of a rest.
+    music: '—',
   };
   const state = dev.gui.addFolder('state');
   state.add(readout, 'speed').listen().disable();
@@ -756,6 +762,7 @@ if (dev.gui) {
   state.add(readout, 'gust').listen().disable();
   state.add(readout, 'swell').listen().disable();
   state.add(readout, 'machine').listen().disable();
+  state.add(readout, 'music').listen().disable();
   state.add(readout, 'emitters').name('hrtf / panned / virtual').listen().disable();
   state.add(readout, 'draws').name('draw calls').listen().disable();
   state.add(readout, 'drawn').name('drawn tris').listen().disable();
@@ -846,6 +853,40 @@ if (dev.gui) {
   stage.add(stageState, 'audition').name('audition the library');
   stage.add(meter, 'visible').name('spectrum');
 
+  // --- the music stage --------------------------------------------------------
+  //
+  // Controls meant to be used together: pick a vibe, press play, and the
+  // whole thing — every layer — is stated within seconds. The vibe control
+  // hands the director a spec exactly as a border crossing does, so switching
+  // mid-piece *is* the retune, demonstrated on demand. 'zone' hands back
+  // whatever the current zone declares; the night toggle is the same spec
+  // under a different touch — same seeds, same rack — which is the claim it
+  // exists to prove. None of it follows the player through doors: any
+  // crossing re-applies the zone's own spec over the vibe control.
+  //
+  // No solo control for the instrument stations, because distance already is
+  // one: a station's reach ends before its neighbour begins, so standing at
+  // a plinth is the solo.
+  const music = dev.gui.addFolder('music stage').close();
+  const musicState = {
+    vibe: 'zone',
+    night: false,
+    play: () => zones.music?.playNow(),
+    stop: () => zones.music?.stopNow(),
+  };
+  music
+    .add(musicState, 'vibe', ['zone', ...Object.keys(VIBES)])
+    .onChange((value: string) => {
+      const director = zones.music;
+      if (!director) return;
+      director.setZone(value === 'zone' ? (zones.current?.environment.music ?? null) : VIBES[value]);
+    });
+  music.add(musicState, 'night').onChange((value: boolean) => {
+    zones.music?.setNight(value ? 1 : 0);
+  });
+  music.add(musicState, 'play').name('play the vibe');
+  music.add(musicState, 'stop').name('stop the vibe');
+
   // --- generated Faust panels ----------------------------------------------
   //
   // Not written, read. Every compiled module declares its controls' ranges and
@@ -904,6 +945,7 @@ if (dev.gui) {
     readout.gust = audio.weather.strength.toFixed(2);
     readout.swell = audio.weather.swell.toFixed(2);
     readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
+    readout.music = zones.music?.status ?? '—';
     // The voice budget, made visible. HRTF panning is the most expensive node
     // in the API, so "how many are running one" is the number that decides
     // whether a dense zone is affordable — and it is not a number worth

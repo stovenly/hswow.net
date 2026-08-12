@@ -37,6 +37,7 @@ export interface Options {
    * up can never push the limiter into working.
    */
   masterVolume: number;
+  musicVolume: number;
   ambientVolume: number;
   footstepVolume: number;
   creatureVolume: number;
@@ -163,6 +164,7 @@ export interface Options {
 
 export const DEFAULT_OPTIONS: Options = {
   masterVolume: 100,
+  musicVolume: 100,
   ambientVolume: 100,
   footstepVolume: 100,
   creatureVolume: 100,
@@ -325,7 +327,7 @@ const notWired = (): string => 'not connected yet';
 /**
  * The tabs, in the order they appear — and the first is the one the panel
  * opens on. Video leads because it is what somebody opens this menu to change:
- * the audio is one working slider and four that are waiting on a mixer, and
+ * the audio is two working sliders and four that are waiting on a mixer, and
  * putting those first means the panel opens on the page with the least in it.
  */
 export const CATEGORIES: readonly Category[] = [
@@ -429,6 +431,7 @@ export const CATEGORIES: readonly Category[] = [
     label: 'Audio',
     controls: [
       volume('masterVolume', 'master'),
+      volume('musicVolume', 'music'),
       { ...volume('ambientVolume', 'ambience'), note: notWired },
       { ...volume('footstepVolume', 'footsteps'), note: notWired },
       { ...volume('creatureVolume', 'creatures'), note: notWired },

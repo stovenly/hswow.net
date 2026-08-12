@@ -29,6 +29,7 @@ import { glitchShowcasePlan } from './galleries/glitch';
 import { horrorShowcasePlan } from './galleries/horror';
 import { objectEffectsPlan } from './galleries/object-effects';
 import { soundStagePortal } from './SoundStage';
+import { musicStageHallPortal } from './MusicStage';
 import { waterShowcasePortal } from './WaterShowcase';
 import { waterShowcase2Portal } from './WaterShowcase2';
 import { footstepsShowcasePortal } from './FootstepsShowcase';
@@ -416,5 +417,8 @@ export function propPortals(
     // Where the two of them meet, on things that are not all figures. Last in
     // the rank because it only makes sense having seen both rooms before it.
     galleryPortal(objectEffectsPlan, gridDoor(14, 'iron', 6447)),
+    // The Music Showcase, into the slot the materials wing freed. Iron, like
+    // the sound stage: what is behind it is a rig, not a place.
+    musicStageHallPortal(gridDoor(15, 'iron', 6448)),
   ];
 }

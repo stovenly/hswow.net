@@ -79,9 +79,10 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   const options = effective(stored);
 
   // --- audio ---------------------------------------------------------------
-  // Master only; the other four are stored, shown and marked as unconnected in
-  // the menu itself. See `notWired` in `model.ts` for what they are waiting on.
+  // Master and music; the other four are stored, shown and marked as unconnected
+  // in the menu itself. See `notWired` in `model.ts` for what they are waiting on.
   audio.settings.masterVolume = DEFAULT_AUDIO.masterVolume * (options.masterVolume / 100);
+  audio.settings.musicVolume = DEFAULT_AUDIO.musicVolume * (options.musicVolume / 100);
 
   // --- video ---------------------------------------------------------------
   // Snapped rather than eased — see `setFieldOfView`. A slider whose picture
