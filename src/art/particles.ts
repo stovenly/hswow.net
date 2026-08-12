@@ -562,6 +562,12 @@ export function updateParticles(camera: THREE.PerspectiveCamera, artHeight: numb
  * freeing geometry, and a shared buffer freed by one zone is missing from the
  * next. Materials are already an exception there, and one exception is a rule
  * with a footnote while two is a rule nobody trusts.
+ *
+ * **The rule was stated here and then broken three lines below it**, and in
+ * `art/cover.ts` and `art/sparkle.ts` as well: all three handed a module-level
+ * base geometry's index and vertex attributes straight to a per-zone instanced
+ * geometry. Everything above was true the whole time; nothing was cloning. They
+ * clone now, and the cost is a few vertices a system.
  */
 export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   const rng = createRng(seed);
@@ -570,10 +576,16 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   const base = solid ? (spec.shape as THREE.BufferGeometry) : BILLBOARD;
 
   const geometry = new THREE.InstancedBufferGeometry();
-  geometry.index = base.index;
-  geometry.setAttribute('position', base.getAttribute('position'));
-  if (base.getAttribute('normal')) geometry.setAttribute('normal', base.getAttribute('normal'));
-  if (base.getAttribute('uv')) geometry.setAttribute('uv', base.getAttribute('uv'));
+  // Cloned rather than referenced — the trap the note above names, which this
+  // function was falling into: `base` is a module-level billboard or a shape off
+  // the spec, shared by every system of that kind, and disposing one zone's
+  // geometry deletes the GPU buffers behind all of them.
+  const index = base.getIndex();
+  if (index) geometry.setIndex(index.clone());
+  for (const attr of ['position', 'normal', 'uv']) {
+    const attribute = base.getAttribute(attr) as THREE.BufferAttribute | undefined;
+    if (attribute) geometry.setAttribute(attr, attribute.clone());
+  }
   geometry.instanceCount = count;
   geometry.userData.count = count;
 
