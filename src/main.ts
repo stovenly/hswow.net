@@ -27,7 +27,7 @@ import { STAGE_STATIONS } from './debug/SoundStage';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
-import { RECIPE_KNOBS, uploadRecipeKnobs, type RecipeName } from './art/recipes';
+import { RECIPES, RECIPE_KNOBS, RECIPE_PARAMS, uploadRecipeKnobs } from './art/recipes';
 import { RAMPS, uploadRamps } from './art/glsl/ramp';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
 import { setGlitchOverride, setGlitchFrozen } from './engine/GlitchActivity';
@@ -357,18 +357,31 @@ if (dev.gui) {
   finishFolder.add(r.finish, 'specular', 0, 2, 0.05).onChange(refresh);
   finishFolder.add(r.finish, 'environment', 0, 2, 0.05).onChange(refresh);
 
-  // How each recipe answers the shared lighting. These were constants spliced
-  // into the shader until MATERIAL-SYSTEM.md R2 made them a uniform row, so
-  // nothing here recompiles — and until R2 there was no way to move them at all
-  // short of an edit and a reload.
-  const knobFolder = finishFolder.addFolder('recipe knobs').close();
-  for (const name of Object.keys(RECIPE_KNOBS) as RecipeName[]) {
-    const knobs = RECIPE_KNOBS[name];
-    const row = knobFolder.addFolder(name).close();
-    row.add(knobs, 'gloss', 0, 1, 0.01).onChange(uploadRecipeKnobs);
-    row.add(knobs, 'rim', 0, 1, 0.01).onChange(uploadRecipeKnobs);
-    row.add(knobs, 'sunGlare', 0, 1, 0.01).name('sun glare').onChange(uploadRecipeKnobs);
-    row.add(knobs, 'envGain', 0, 2, 0.01).name('env gain').onChange(uploadRecipeKnobs);
+  // Every look, under the field whose shader it drives. The four knobs were
+  // constants spliced into the shader until R2 and the three params until R6,
+  // so nothing in here recompiles — and before those phases there was no way to
+  // move any of it short of an edit and a reload.
+  //
+  // **The params are where a new colorway gets designed.** Drag them with the
+  // ramp folder open beside this one and what comes out is a table row.
+  const lookFolder = finishFolder.addFolder('recipe looks').close();
+  for (const recipe of RECIPES) {
+    const field = lookFolder.addFolder(recipe.name).close();
+    for (const variant of recipe.variants) {
+      const knobs = RECIPE_KNOBS[variant.name];
+      // Indexed by position, so lil-gui writes straight into the row the
+      // uploader reads. The labels come from the field, because `p1` on a
+      // slider is a number nobody can check.
+      const params = RECIPE_PARAMS[variant.name] as unknown as Record<string, number>;
+      const row = field.addFolder(variant.name).close();
+      row.add(knobs, 'gloss', 0, 1, 0.01).onChange(uploadRecipeKnobs);
+      row.add(knobs, 'rim', 0, 1, 0.01).onChange(uploadRecipeKnobs);
+      row.add(knobs, 'sunGlare', 0, 1, 0.01).name('sun glare').onChange(uploadRecipeKnobs);
+      row.add(knobs, 'envGain', 0, 2, 0.01).name('env gain').onChange(uploadRecipeKnobs);
+      recipe.params.forEach((label, i) => {
+        row.add(params, String(i), 0, 4, 0.01).name(label).onChange(uploadRecipeKnobs);
+      });
+    }
   }
 
   // The colour tables. A stop arrives over a window of t and is mixed over
@@ -719,6 +732,7 @@ if (dev.gui) {
     // first is settling because eviction is *working* rather than because
     // nowhere new has been visited.
     resident: '—',
+    buffers: '—',
     zone: '—',
     crossings: 0,
     room: '—',
@@ -748,6 +762,12 @@ if (dev.gui) {
   state.add(readout, 'programs').name('shader programs').listen().disable();
   state.add(readout, 'heap').listen().disable();
   state.add(readout, 'resident').name('zones built / evicted').listen().disable();
+  // **The number that says whether a long walk is leaking.** Geometries and
+  // textures the renderer is holding, which is not the same question as the JS
+  // heap: a buffer freed on the GPU and still referenced in JS shows up in one
+  // and not the other, and the reverse happens too. Walk a wing of galleries and
+  // come back: this should settle, not climb.
+  state.add(readout, 'buffers').name('geometries / textures').listen().disable();
   // Triangles change with the zone now, so this has to be watched rather than
   // read once — it is also the first place a collider leak would show up.
   //
@@ -876,6 +896,8 @@ if (dev.gui) {
     const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory;
     readout.heap = memory ? `${(memory.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'unavailable';
     readout.resident = `${zones.builtZones.length} / ${zones.evictions}`;
+    const held = viewport.renderer.info.memory;
+    readout.buffers = `${held.geometries} / ${held.textures}`;
     readout.room = audio.room ?? 'open';
     stageState.reverb = audio.reverbKind === 'fdn' ? 'fdn — tunable' : 'convolution — fixed';
     readout.audio = footsteps === null ? 'rendering…' : audio.context.state;

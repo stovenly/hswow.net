@@ -1,15 +1,29 @@
 import { indent, reindent } from '../glsl/text';
+import { RAMP_V } from '../glsl/ramp';
 import { RECIPE_SHARED } from './shared';
-import { KNOB_ROWS, PLAIN_KNOBS, type Recipe, type RecipeKnobs, type RecipeName, type RecipeSlots } from './types';
+import {
+  KNOB_ROWS,
+  PLAIN_KNOBS,
+  VARIANT_INDEX,
+  type Recipe,
+  type RecipeKnobs,
+  type RecipeName,
+  type RecipeSlots,
+  type RecipeVariant,
+  type VariantName,
+} from './types';
 import { schiller } from './schiller';
 import { quickmetal } from './quickmetal';
 import { tenebrescent } from './tenebrescent';
 import { nacreous } from './nacreous';
-import { pointillist } from './pointillist';
+import { stainedGlass } from './stained-glass';
 import { voidstone } from './voidstone';
+import { overcast } from './overcast';
+import { duskfall } from './duskfall';
+import { auroral } from './auroral';
 /**
- * The recipe lane: ten optical models selected by a one-byte recipe index
- * rather than by ten more per-vertex parameters. See MATERIAL-RECIPES.md.
+ * The recipe lane: an optical model selected by a one-byte index rather than by
+ * ten more per-vertex parameters. See MATERIAL-RECIPES.md.
  *
  * Recipes are driven by object-space position and object-space directions, not
  * by the fragment normal: the material is flat shaded, so `dot(N, H)` and
@@ -22,20 +36,26 @@ import { voidstone } from './voidstone';
  * Each recipe is evaluated twice: against the light (the peak) and against the
  * eye (everywhere).
  *
- * **One recipe is one file here.** Its helpers, its knob row and the blocks it
+ * **One field is one file here.** Its helpers, its variants and the blocks it
  * splices into the finish stage all sit together, and nothing outside this
  * folder names it: `art/finish.ts` asks for a slot and gets whoever fills it.
+ *
+ * **A field is code; a look is a row.** Nine fields carry thirty-five looks
+ * between them, and the difference between two looks of one field is two vec4
+ * of uniform — no branch, no source byte, no compile. MATERIAL-SYSTEM.md R6.
  */
 
 export {
   RECIPE_ATTRIBUTE,
-  RECIPE_INDEX,
+  VARIANT_INDEX,
   PLAIN_KNOBS,
   type FinishFeatureName,
   type Recipe,
   type RecipeKnobs,
   type RecipeName,
   type RecipeSlots,
+  type RecipeVariant,
+  type VariantName,
 } from './types';
 
 /** In splice order, which is the order the sections have always compiled in. */
@@ -44,28 +64,84 @@ export const RECIPES: readonly Recipe[] = [
   quickmetal,
   tenebrescent,
   nacreous,
-  pointillist,
+  stainedGlass,
   voidstone,
+  overcast,
+  duskfall,
+  auroral,
 ];
 
+/** Every look, in byte order. */
+export const VARIANTS: readonly RecipeVariant[] = RECIPES.flatMap((recipe) => recipe.variants);
+
+/**
+ * A field's byte range, and the check that it is one.
+ *
+ * **A gap here is silent and severe**: the guard is a range test, so a byte
+ * belonging to nobody that falls between two of a field's variants would run
+ * that field's shader against a row of zeros. Asserted at module load rather
+ * than tested, because there is no version of this that should ship broken.
+ */
+export interface FieldSpan {
+  readonly lo: number;
+  readonly hi: number;
+}
+
+export const FIELD_SPAN = Object.fromEntries(
+  RECIPES.map((recipe) => {
+    const bytes = recipe.variants.map((variant) => VARIANT_INDEX[variant.name]);
+    const lo = Math.min(...bytes);
+    const hi = Math.max(...bytes);
+    if (hi - lo + 1 !== bytes.length) {
+      throw new Error(`recipe '${recipe.name}': bytes ${lo}..${hi} are not contiguous`);
+    }
+    if (hi >= KNOB_ROWS) {
+      throw new Error(`recipe '${recipe.name}': byte ${hi} is past KNOB_ROWS`);
+    }
+    return [recipe.name, { lo, hi }];
+  }),
+) as Record<RecipeName, FieldSpan>;
+
+/** Which field a byte belongs to, if any. Zero and unclaimed bytes are none. */
+export function fieldOfByte(byte: number): RecipeName | undefined {
+  for (const recipe of RECIPES) {
+    const span = FIELD_SPAN[recipe.name];
+    if (byte >= span.lo && byte <= span.hi) return recipe.name;
+  }
+  return undefined;
+}
+
 const KNOB_BANK = new Float32Array(KNOB_ROWS * 4);
+const VAR_BANK = new Float32Array(KNOB_ROWS * 4);
 
 export const recipeUniforms = {
   /** Dev toggle. Zero leaves the plain finish underneath. */
   uRecipeOn: { value: 1 },
   /** Scales every clock here. Rides the reduced-motion setting. */
   uRecipeMotion: { value: 1 },
-  /** One row per recipe byte: gloss, rim, sunGlare, envGain. */
+  /** One row per byte: gloss, rim, sunGlare, envGain. */
   uRecipeKnobs: { value: KNOB_BANK },
+  /** Beside it: ramp V, p0, p1, p2. */
+  uRecipeVar: { value: VAR_BANK },
 };
 
 /** The array size the shader declares. Interpolated, so it stays byte-stable. */
 export const RECIPE_KNOB_ROWS = KNOB_ROWS;
 
-/** Each recipe's row, resolved. Mutable: the dev sliders edit these in place. */
+/** Each look's knob row, resolved. Mutable: the dev sliders edit these in place. */
 export const RECIPE_KNOBS = Object.fromEntries(
-  RECIPES.map((recipe) => [recipe.name, { ...PLAIN_KNOBS, ...recipe.knobs }]),
-) as Record<RecipeName, RecipeKnobs>;
+  VARIANTS.map((variant) => [variant.name, { ...PLAIN_KNOBS, ...variant.knobs }]),
+) as Record<VariantName, RecipeKnobs>;
+
+/** Each look's three numbers. Mutable, for the same reason. */
+export const RECIPE_PARAMS = Object.fromEntries(
+  VARIANTS.map((variant) => [variant.name, [...variant.params] as [number, number, number]]),
+) as Record<VariantName, [number, number, number]>;
+
+/** Which field owns each look, for the dev panel's folders and for labels. */
+export const VARIANT_FIELD = Object.fromEntries(
+  RECIPES.flatMap((recipe) => recipe.variants.map((variant) => [variant.name, recipe.name])),
+) as Record<VariantName, RecipeName>;
 
 function writeKnobRow(row: number, knobs: RecipeKnobs): void {
   const at = row * 4;
@@ -76,12 +152,26 @@ function writeKnobRow(row: number, knobs: RecipeKnobs): void {
 }
 
 /**
- * Pushes `RECIPE_KNOBS` into the uniform bank. Every unclaimed row carries the
- * plain values, so a byte with no recipe behind it draws an ordinary finish.
+ * Pushes `RECIPE_KNOBS` and `RECIPE_PARAMS` into the banks. Every unclaimed row
+ * carries the plain values and a zero variant row, so a byte with no look
+ * behind it draws an ordinary surface — and cannot reach a field's shader at
+ * all, because unclaimed bytes lie outside every span.
  */
 export function uploadRecipeKnobs(): void {
-  for (let row = 0; row < KNOB_ROWS; row++) writeKnobRow(row, PLAIN_KNOBS);
-  for (const recipe of RECIPES) writeKnobRow(recipe.index, RECIPE_KNOBS[recipe.name]);
+  for (let row = 0; row < KNOB_ROWS; row++) {
+    writeKnobRow(row, PLAIN_KNOBS);
+    VAR_BANK.fill(0, row * 4, row * 4 + 4);
+  }
+  for (const variant of VARIANTS) {
+    const row = VARIANT_INDEX[variant.name];
+    writeKnobRow(row, RECIPE_KNOBS[variant.name]);
+    const at = row * 4;
+    VAR_BANK[at] = variant.ramp === undefined ? 0 : RAMP_V[variant.ramp];
+    const params = RECIPE_PARAMS[variant.name];
+    VAR_BANK[at + 1] = params[0];
+    VAR_BANK[at + 2] = params[1];
+    VAR_BANK[at + 3] = params[2];
+  }
 }
 
 uploadRecipeKnobs();
@@ -89,9 +179,10 @@ uploadRecipeKnobs();
 /** Slots that are statement blocks. `thickness` is an expression; see below. */
 type BlockSlot = Exclude<keyof RecipeSlots, 'thickness'>;
 
-/** The byte, from the registry entry rather than the name: one source, not two. */
+/** The field's span, from the registry rather than the name: one source, not two. */
 function guard(recipe: Recipe): string {
-  return `isRecipe(${recipe.index.toFixed(1)})`;
+  const { lo, hi } = FIELD_SPAN[recipe.name];
+  return `isField(${lo.toFixed(1)}, ${hi.toFixed(1)})`;
 }
 
 function guarded(recipe: Recipe, body: string): string {
@@ -134,10 +225,13 @@ export function recipeChain(
 }
 
 /**
- * The recipe stage for a set of recipes: the shared kit, each recipe's own
- * GLSL, and `recipeFilm` assembled from whoever overrides the film thickness.
+ * The recipe stage for a set of fields: the shared kit, each field's own GLSL,
+ * and `recipeFilm` assembled from whoever overrides the film thickness.
  */
 export function recipeGlsl(recipes: readonly Recipe[]): string {
+  // Deduplicated by identity, so four scenes in one mask declare one drift
+  // rotation rather than four — which is a redeclaration and will not compile.
+  const shared = [...new Set(recipes.map((recipe) => recipe.shared).filter(Boolean))].join('');
   const thickness = recipes
     .filter((recipe) => recipe.slots.thickness !== undefined)
     .map((recipe) => `    if (${guard(recipe)}) return ${recipe.slots.thickness};\n`)
@@ -147,5 +241,5 @@ export function recipeGlsl(recipes: readonly Recipe[]): string {
 ${thickness}    return base;
   }
 `;
-  return RECIPE_SHARED + recipes.map((recipe) => recipe.glsl).join('') + film;
+  return RECIPE_SHARED + shared + recipes.map((recipe) => recipe.glsl).join('') + film;
 }

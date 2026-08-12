@@ -13,7 +13,7 @@ import { barrel } from '../../art/builders/barrel';
 import { crate } from '../../art/builders/crate';
 import { chair } from '../../art/builders/chair';
 import { smallOak } from '../../art/builders/small-oak';
-import { marbleOrb } from '../../art/builders/marble-orb';
+import { quartzOrb } from '../../art/builders/quartz-orb';
 
 /**
  * The Object Effect Showcase: what the effect systems make *together*, and on
@@ -119,7 +119,7 @@ const SUBJECTS: readonly Subject[] = [
   { name: 'small-oak', builder: smallOak },
   // Hanging, so there is nothing under it to hold still even if this room
   // asked things to — which it does not.
-  { name: 'marble-orb', builder: marbleOrb, lift: 1.3 },
+  { name: 'quartz-orb', builder: quartzOrb, lift: 1.3 },
 ];
 
 interface Recipe {

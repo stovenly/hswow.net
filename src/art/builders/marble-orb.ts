@@ -1,5 +1,5 @@
 import { finishOrb } from '../fixture';
 import { PALETTE } from '../palette';
 
-/** The dielectric fixture: a stone polish, highlight without metal tint. */
+/** Translucency: the terminator softens instead of cutting facet to facet. */
 export const marbleOrb = finishOrb('marble-orb', PALETTE.STONE_PALE, 'marble');

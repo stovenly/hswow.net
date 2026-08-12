@@ -7,8 +7,7 @@ import { lightShowcasePlan } from './light';
 import { fogShowcasePlan } from './fog';
 import { readablesGalleryPlan } from './readables';
 import { readablesShowcasePlan } from './readables-showcase';
-import { materialsGalleryPlan } from './materials';
-import { materialsGallery2Plan } from './materials2';
+import { MATERIALS_ROOMS } from './materials-wing';
 import { fabricsGalleryPlan } from './fabrics';
 import { glitchShowcasePlan } from './glitch';
 import { horrorShowcasePlan } from './horror';
@@ -44,8 +43,10 @@ export const GALLERIES: readonly GalleryPlan[] = [
   fogShowcasePlan,
   readablesGalleryPlan,
   readablesShowcasePlan,
-  materialsGalleryPlan,
-  materialsGallery2Plan,
+  // The Materials wing's rooms. Their doors stand inside the wing rather than
+  // in the showcase rank — see `galleries/materials-wing.ts` for why two rooms
+  // out there became one door and six in here.
+  ...MATERIALS_ROOMS,
   fabricsGalleryPlan,
   glitchShowcasePlan,
   horrorShowcasePlan,
@@ -62,8 +63,15 @@ export { ZONE_LIGHT_SHOWCASE } from './light';
 export { ZONE_FOG_SHOWCASE } from './fog';
 export { ZONE_READABLES_GALLERY } from './readables';
 export { ZONE_READABLES_SHOWCASE } from './readables-showcase';
-export { ZONE_MATERIALS_GALLERY } from './materials';
-export { ZONE_MATERIALS_GALLERY_2 } from './materials2';
+export {
+  ZONE_MATERIALS_WING,
+  ZONE_MATERIALS_METALS,
+  ZONE_MATERIALS_STONE,
+  ZONE_MATERIALS_GEMSTONE,
+  ZONE_MATERIALS_SHELL,
+  ZONE_MATERIALS_STAINED_GLASS,
+  ZONE_MATERIALS_PORTALS,
+} from './materials-wing';
 export { ZONE_FABRICS_GALLERY } from './fabrics';
 export { ZONE_GLITCH_SHOWCASE } from './glitch';
 export { ZONE_HORROR_SHOWCASE } from './horror';
