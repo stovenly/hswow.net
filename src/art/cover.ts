@@ -1402,9 +1402,16 @@ function chunkMesh(
   attributes: Record<string, [Float32Array, number]>,
 ): THREE.Mesh {
   const geometry = new THREE.InstancedBufferGeometry();
-  geometry.index = base.index;
+  // **Cloned, not shared, and `art/particles.ts` explains why at length.**
+  // `Zone.dispose` calls `dispose()` on this geometry, and three answers by
+  // deleting the GPU buffer behind every attribute it holds — so handing it the
+  // blade's own attributes meant releasing one zone tore the buffers out from
+  // under every chunk in every zone still standing. A blade is a handful of
+  // vertices; there was never anything worth sharing here.
+  const index = base.getIndex();
+  if (index) geometry.setIndex(index.clone());
   for (const [attr, attribute] of Object.entries(base.attributes)) {
-    geometry.setAttribute(attr, attribute);
+    geometry.setAttribute(attr, (attribute as THREE.BufferAttribute).clone());
   }
   geometry.setAttribute('iPlace', new THREE.InstancedBufferAttribute(place, 4));
   for (const [attr, [data, size]] of Object.entries(attributes)) {

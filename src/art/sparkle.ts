@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLINT_ATTRIBUTE } from './finish';
-import { RECIPE_ATTRIBUTE, RECIPE_INDEX } from './recipes';
+import { RECIPE_ATTRIBUTE, FIELD_SPAN } from './recipes';
 import { windUniforms } from './sway';
 import { particleUniforms } from './particles';
 import { PARTICLE_LAYER, GLOW_LAYER } from '../layers';
@@ -72,7 +72,11 @@ export function collectSparkleSites(geometry: THREE.BufferGeometry): void {
   for (let i = 0; i < position.count; i += 3) {
     const star = lanes[i * 2 + 1] / 255;
     if (star <= 0) continue;
-    const sprite = recipeLanes && recipeLanes[i] === RECIPE_INDEX.nacreous ? 1 : 0;
+    // Any nacreous look, not one of them: the sliver sprite belongs to the
+    // field, and all four of its variants are the same shell under the light.
+    const byte = recipeLanes ? recipeLanes[i] : 0;
+    const nacre = FIELD_SPAN.nacreous;
+    const sprite = byte >= nacre.lo && byte <= nacre.hi ? 1 : 0;
     a.fromBufferAttribute(position, i);
     b.fromBufferAttribute(position, i + 1);
     c.fromBufferAttribute(position, i + 2);
@@ -271,8 +275,28 @@ function material(): THREE.ShaderMaterial {
   return sparkleMaterial;
 }
 
-/** The quad every star is drawn on. Four vertices, shared by every zone. */
+/**
+ * The quad every star is drawn on. Four vertices, and **each zone gets its own
+ * copy of them.**
+ *
+ * It was one shared `PlaneGeometry` whose index and position attribute were
+ * handed straight to every zone's instanced geometry, which is free and wrong.
+ * `Zone.dispose` calls `dispose()` on the sparkle geometry; three.js answers
+ * that by deleting the GPU buffer behind *every attribute it holds* — and two
+ * of those were the shared quad's. So releasing one zone tore the buffers out
+ * from under the sparkles of every other zone still standing, and they had to
+ * be uploaded again the next time one of them drew.
+ *
+ * Six indices and twelve floats a zone is not a cost worth sharing to avoid.
+ */
 const QUAD = new THREE.PlaneGeometry(1, 1);
+
+/** A private index and position pair, so disposing one zone frees only its own. */
+function quadCopy(): { index: THREE.BufferAttribute; position: THREE.BufferAttribute } {
+  const index = QUAD.getIndex() as THREE.BufferAttribute;
+  const position = QUAD.getAttribute('position') as THREE.BufferAttribute;
+  return { index: index.clone(), position: position.clone() };
+}
 
 /**
  * Every site in the zone as one instanced mesh. Called by `ZoneManager.prepare`
@@ -332,8 +356,9 @@ export function buildZoneSparkles(root: THREE.Object3D): THREE.Mesh | null {
   }
 
   const geometry = new THREE.InstancedBufferGeometry();
-  geometry.index = QUAD.index;
-  geometry.setAttribute('position', QUAD.getAttribute('position'));
+  const quad = quadCopy();
+  geometry.setIndex(quad.index);
+  geometry.setAttribute('position', quad.position);
   geometry.instanceCount = total;
   geometry.setAttribute('iPos', new THREE.InstancedBufferAttribute(pos, 3));
   geometry.setAttribute('iNormal', new THREE.InstancedBufferAttribute(nor, 3));

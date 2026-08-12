@@ -22,8 +22,10 @@ export function residentZones(
   portals: PortalGraph,
   active: ZoneId,
   keepWithin: number,
+  cameFrom?: ZoneId | null,
 ): Set<ZoneId> {
   const keep = new Set<ZoneId>([active]);
+  if (cameFrom) keep.add(cameFrom);
   let frontier: ZoneId[] = [active];
 
   for (let hop = 0; hop < keepWithin; hop++) {
@@ -48,13 +50,38 @@ export function residentZones(
 /**
  * How many doors from the active zone a place may be and still be kept.
  *
- * **Two, and the second one is hysteresis rather than headroom.** The resident
- * set the policy actually aims at is the current zone plus everything one hop
- * away — under the finished shape that is one hub and its interiors, which is
- * the set the player can reach in a single action. Evicting at exactly that
- * boundary would drop a zone the moment you stepped through a door and rebuild
- * it the moment you stepped back, so a player pacing in and out of a doorway
- * would pay a full rebuild every crossing. Keeping the ring beyond it costs one
- * more layer of rooms and makes that free.
+ * **One, plus the room you just left.**
+ *
+ * It was two, and the second hop was described here as hysteresis rather than
+ * headroom: evicting at exactly one hop would drop a zone the moment you
+ * stepped through a door and rebuild it the moment you stepped back, so a
+ * player pacing in a doorway would pay a rebuild every crossing. That reasoning
+ * was right and the implementation of it was a blunt instrument — a whole extra
+ * ring of rooms to protect *one* of them, the one behind you.
+ *
+ * The Materials wing is what made the difference matter. It is a hub with seven
+ * heavy rooms hanging off it, and under a two-hop ring every one of those rooms
+ * is resident from inside any other one: walk the wing once and all seven stay
+ * built for the session, which is about ninety megabytes of vertex buffers and
+ * seven collision octrees that nothing will ever release. At one hop the wing
+ * costs the room you are in, the hub, and the room you came from.
+ *
+ * `cameFrom` is the hysteresis, stated exactly: one zone, the one a step back
+ * would return to, rather than everything a step-and-a-half might.
+ *
+ * **Doorless travel obeys this too, and harder.** The debug menu's jump goes
+ * through `ZoneManager.travel`, which is `enter` under a fade — so it sets
+ * `cameFrom` and evicts exactly as a door does. But a jump target usually
+ * shares no neighbour with wherever you jumped from, so nearly everything is
+ * released and the destination rebuilds. That is the right answer and it is a
+ * change in feel: hopping round the Materials wing used to be instant after the
+ * first visit *because* nothing was ever evicted, which is the same sentence as
+ * the crash. Jumping back and forth between two zones is still free, that being
+ * the one case `cameFrom` exists for.
+ *
+ * Measured over the real portal graph. Walking or jumping the whole wing peaks
+ * at two built zones against seven before; visiting all forty-four zones in a
+ * row peaks at three against eight; ping-ponging between two rooms is two
+ * either way.
  */
-export const KEEP_WITHIN = 2;
+export const KEEP_WITHIN = 1;

@@ -122,6 +122,12 @@ export class ZoneManager {
   private arrived = false;
 
   private active: Zone | null = null;
+  /**
+   * The zone the player stepped out of, kept resident so pacing in a doorway is
+   * free. The whole of what the residency ring's second hop used to buy, and
+   * one room instead of a ring of them. See `residency.ts`.
+   */
+  private cameFrom: ZoneId | null = null;
   /** Zones whose portal doors have been built into them. */
   private doored = new Set<ZoneId>();
   /**
@@ -381,7 +387,7 @@ export class ZoneManager {
    */
   private evict(): void {
     if (!this.active) return;
-    const keep = residentZones(this.portals, this.active.id, KEEP_WITHIN);
+    const keep = residentZones(this.portals, this.active.id, KEEP_WITHIN, this.cameFrom);
 
     for (const zone of this.zones.values()) {
       if (!zone.isBuilt || keep.has(zone.id)) continue;
@@ -534,7 +540,10 @@ export class ZoneManager {
 
     // From here to the teleport nothing yields: the swap, the collider and
     // the player's arrival land in one task, so no frame renders mid-swap.
-    if (this.active && this.active !== zone) scene.remove(this.active.root());
+    if (this.active && this.active !== zone) {
+      scene.remove(this.active.root());
+      this.cameFrom = this.active.id;
+    }
     scene.add(root);
     this.active = zone;
     // Keyed by zone, so re-entering a place the player has been before costs
@@ -615,7 +624,7 @@ export class ZoneManager {
    */
   private prefetch(): void {
     if (!this.active) return;
-    for (const id of residentZones(this.portals, this.active.id, KEEP_WITHIN)) {
+    for (const id of residentZones(this.portals, this.active.id, KEEP_WITHIN, this.cameFrom)) {
       void this.zones.get(id)?.ensureLoaded().catch(() => {});
     }
   }
