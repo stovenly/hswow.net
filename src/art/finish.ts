@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import { sinHash3 } from './glsl/hash';
-import { RAMP_GLSL, RAMP_ROW, rampUniforms } from './glsl/ramp';
+import { RAMP_GLSL, RAMP_V, rampUniforms } from './glsl/ramp';
 import { indent } from './glsl/text';
 import {
   RECIPE_ATTRIBUTE,
   RECIPES,
-  RECIPE_INDEX,
+  VARIANT_INDEX,
+  VARIANT_FIELD,
   recipeChain,
   recipeGlsl,
   recipeSlot,
@@ -15,6 +16,7 @@ import {
   PLAIN_KNOBS,
   RECIPE_KNOB_ROWS,
   type RecipeName,
+  type VariantName,
   type FinishFeatureName,
 } from './recipes';
 /**
@@ -67,46 +69,79 @@ export interface Finish {
   /**
    * An optical model that is not a parameter — labradorite's domains, a
    * starfield behind a black mirror. See `art/recipes/`, which explains at
-   * length why these are a recipe index rather than ten more lanes.
+   * length why these are an index rather than ten more lanes.
+   *
+   * A *look*, not a field: `cathedral` and `rosewindow` are one field's shader
+   * and two rows of a table. R6.
    *
    * Composes with everything above: the recipe is added to the finish, not
-   * substituted for it, so `nacreous` still wants its iridescence and star.
+   * substituted for it, so `pearl` still wants its iridescence and star.
    */
-  recipe?: RecipeName;
+  recipe?: VariantName;
 }
 
-/** Named finishes. Names are placeholders. */
+/**
+ * Named finishes.
+ *
+ * The base set is named for the *material* now rather than for the term it was
+ * isolating — `bronze` and not `polished`, `platinum` and not `brushed` — which
+ * is what the recipe looks have always done and what a palette a prop picks
+ * from should read like. `quartz` is the plain dielectric the old `marble` was;
+ * `marble` is the translucent one, which is what marble actually is.
+ */
 export const FINISHES = {
   gilt: { metallic: 1, roughness: 0.25, glint: 0, star: 0.9 },
-  polished: { metallic: 0.9, roughness: 0.15 },
+  bronze: { metallic: 0.9, roughness: 0.15 },
   chrome: { metallic: 1, roughness: 0.05 },
-  marble: { metallic: 0.15, roughness: 0.2 },
-  brushed: { metallic: 0.9, roughness: 0.4, anisotropy: 0.85 },
+  quartz: { metallic: 0.15, roughness: 0.2 },
+  platinum: { metallic: 0.9, roughness: 0.4, anisotropy: 0.85 },
   silk: { metallic: 0, roughness: 0.4, anisotropy: 0.8, sheen: 0.35 },
   velvet: { metallic: 0, roughness: 0.9, sheen: 1 },
-  shell: { metallic: 0.6, roughness: 0.3, iridescence: 0.8 },
-  waxen: { metallic: 0, roughness: 0.5, translucency: 0.8 },
+  iridescent: { metallic: 0.6, roughness: 0.3, iridescence: 0.8 },
+  marble: { metallic: 0, roughness: 0.5, translucency: 0.8 },
   frost: { metallic: 0.25, roughness: 0.5, glint: 1 },
 
-  // The recipes (MATERIAL-RECIPES.md, M5–M8). Each is an ordinary finish with a
-  // recipe on top — the base is what the surface does between flashes, and it
-  // matters: a recipe standing on nothing reads as an effect laid over a
-  // material rather than as a material.
-  // Feldspar: a glassy dielectric, dark and fairly smooth. The flood is
-  // bright enough on its own that a metallic base would only wash it out.
-  schiller: { metallic: 0.25, roughness: 0.18, recipe: 'schiller' },
-  // Low roughness on purpose. Blur the environment and there is nothing left to
-  // watch crawl, which is the whole recipe.
-  quickmetal: { metallic: 1, roughness: 0.045, recipe: 'quickmetal' },
-  // Sodalite is translucent, and it matters here more than anywhere: the
-  // edges of a tenebrescent piece pass light, so they stay pale while the
+  // --- the recipe looks ----------------------------------------------------
+  //
+  // Each is an ordinary finish with a look on top — the base is what the
+  // surface does between flashes, and it matters: a recipe standing on nothing
+  // reads as an effect laid over a material rather than as a material.
+  //
+  // **Nine fields, twenty-five rows.** The rows differing only in their `recipe`
+  // are the point of R6: same shader, same program, different table entry. The
+  // ones that also move the base lobe do so because the lobe is a genuinely
+  // different surface — a moonstone passes light and a labradorite does not.
+
+  // schiller. Feldspar: a glassy dielectric, dark and fairly smooth. The flood
+  // is bright enough on its own that a metallic base would only wash it out.
+  labradorite: { metallic: 0.25, roughness: 0.18, recipe: 'labradorite' },
+  spectrolite: { metallic: 0.2, roughness: 0.14, recipe: 'spectrolite' },
+  // Moonstone is translucent where labradorite is not, and that is most of why
+  // the sheen sits *in* it rather than on it.
+  moonsheen: { metallic: 0.1, roughness: 0.22, translucency: 0.35, recipe: 'moonsheen' },
+  // Copper platelets, so the base leans metallic and rougher.
+  sunstone: { metallic: 0.45, roughness: 0.24, recipe: 'sunstone' },
+
+  // quickmetal. Low roughness on purpose: blur the environment and there is
+  // nothing left to watch crawl, which is the whole recipe.
+  quicksilver: { metallic: 1, roughness: 0.045, recipe: 'quicksilver' },
+  nightsilver: { metallic: 1, roughness: 0.045, recipe: 'nightsilver' },
+  slowbrass: { metallic: 1, roughness: 0.09, recipe: 'slowbrass' },
+  stillglass: { metallic: 1, roughness: 0.03, recipe: 'stillglass' },
+
+  // tenebrescent. Sodalite is translucent, and it matters here more than
+  // anywhere: the edges of a piece pass light, so they stay pale while the
   // faces darken — which doubles the inversion the recipe is about.
-  tenebrescent: { metallic: 0, roughness: 0.42, translucency: 0.45, recipe: 'tenebrescent' },
-  // A pearl is a smooth translucent dielectric with a *low* film on it. The
-  // iridescence was at 0.95 and that was the whole problem: it is the orient
-  // and the growth lines that make nacre, and the film is a wash over them.
-  // The star lane rides the same quad sparkles gilt uses; nacreous sites draw
-  // the thin sliver sprite instead of the four-armed star.
+  violetbloom: { metallic: 0, roughness: 0.42, translucency: 0.45, recipe: 'violetbloom' },
+  emberstone: { metallic: 0, roughness: 0.42, translucency: 0.45, recipe: 'emberstone' },
+  // Bronze rather than stone, so it is the one that is not translucent.
+  verdigrist: { metallic: 0.25, roughness: 0.55, translucency: 0.2, recipe: 'verdigrist' },
+
+  // nacreous. A pearl is a smooth translucent dielectric with a *low* film on
+  // it. The iridescence was at 0.95 and that was the whole problem: it is the
+  // orient and the growth lines that make nacre, and the film is a wash over
+  // them. The star lane rides the same quad sparkles gilt uses; nacreous sites
+  // draw the thin sliver sprite instead of the four-armed star.
   nacreous: {
     metallic: 0.2,
     roughness: 0.12,
@@ -115,8 +150,31 @@ export const FINISHES = {
     star: 0.45,
     recipe: 'nacreous',
   },
-  pointillist: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'pointillist' },
+  lunacreous: {
+    metallic: 0.3,
+    roughness: 0.1,
+    iridescence: 0.6,
+    translucency: 0.15,
+    star: 0.5,
+    recipe: 'lunacreous',
+  },
+
+  // stained glass. Three of these four differ in nothing but their ramp row.
+  oceanglass: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'oceanglass' },
+  rosewindow: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'rosewindow' },
+  ivyglass: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'ivyglass' },
+  lapispane: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'lapispane' },
+
+  // The scene class. The base lobe barely reaches the surface — every one of
+  // these zeroes its knobs and replaces the environment outright — but a smooth
+  // metal is the honest description of a window with nothing in front of it.
   voidstone: { metallic: 1, roughness: 0.04, recipe: 'voidstone' },
+  overcast: { metallic: 1, roughness: 0.04, recipe: 'overcast' },
+  lakestill: { metallic: 1, roughness: 0.04, recipe: 'lakestill' },
+  duskstone: { metallic: 1, roughness: 0.04, recipe: 'duskstone' },
+  dawnstone: { metallic: 1, roughness: 0.04, recipe: 'dawnstone' },
+  daystone: { metallic: 1, roughness: 0.04, recipe: 'daystone' },
+  auroral: { metallic: 1, roughness: 0.04, recipe: 'auroral' },
 } as const satisfies Record<string, Finish>;
 
 export type FinishName = keyof typeof FINISHES;
@@ -138,7 +196,14 @@ export const FINISH_FEATURE: Record<FinishFeatureName, number> = {
   anisotropy: 1 << 3,
 };
 
-/** Recipe bits sit above the feature bits, in registry order. */
+/**
+ * Field bits sit above the feature bits, in registry order.
+ *
+ * One bit per *field*, not per look — six colorways of stained glass are one
+ * shader block and so one bit. That is why thirty-five looks did not cost this
+ * mask thirty-five bits, and why R5's two standing programs still cover
+ * everything.
+ */
 const RECIPE_SHIFT = 4;
 
 export function recipeMaskBit(name: RecipeName): number {
@@ -187,8 +252,9 @@ export function resolveFinish(finish: FinishName | Finish, grain?: Grain): Finis
   if ((f.translucency ?? 0) > 0) mask |= FINISH_FEATURE.translucency;
   if ((f.anisotropy ?? 0) > 0) mask |= FINISH_FEATURE.anisotropy;
   if (f.recipe !== undefined) {
-    mask |= recipeMaskBit(f.recipe);
-    const recipe = RECIPES.find((entry) => entry.name === f.recipe);
+    const field = VARIANT_FIELD[f.recipe];
+    mask |= recipeMaskBit(field);
+    const recipe = RECIPES.find((entry) => entry.name === field);
     for (const implied of recipe?.implies ?? []) mask |= FINISH_FEATURE[implied];
   }
 
@@ -203,8 +269,8 @@ export function resolveFinish(finish: FinishName | Finish, grain?: Grain): Finis
     glint: [clamp(f.glint ?? 0), clamp(f.star ?? 0)],
     // Not clamped and not scaled: every other number here is a 0..1 knob and
     // this is a name written as an integer. Putting it through `clamp` would
-    // typecheck and quietly turn recipe 10 into recipe 1.
-    recipe: f.recipe === undefined ? 0 : RECIPE_INDEX[f.recipe],
+    // typecheck and quietly turn look 10 into look 1.
+    recipe: f.recipe === undefined ? 0 : VARIANT_INDEX[f.recipe],
     mask,
   };
 }
@@ -519,7 +585,7 @@ ${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rath
 ${glint || anyRecipe ? /* glsl */ `        ${RAMP_GLSL}` : ''}
 
 ${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
-          return rampColour(${RAMP_ROW.ice}, h);
+          return rampColour(${RAMP_V.ice.toFixed(6)}, h);
         }
 
         /**
@@ -786,10 +852,10 @@ ${aniso ? /* glsl */ `
 ` : ''}${anyRecipe ? /* glsl */ `
           finishRecipeAny = uRecipeOn > 0.5 && vRecipe > 0.5;
           {
-            // The recipe's response, read rather than branched to. Row 0 holds
+            // The look's response, read rather than branched to. Row 0 holds
             // the plain values, so a fragment with no recipe on it and the
             // whole table with the dev toggle off both land on today's answers
-            // without a comparison per recipe. Clamped because an array index
+            // without a comparison per look. Clamped because an array index
             // off the end is undefined, and the byte arrives as an attribute.
             int row = finishRecipeAny ? clamp(int(vRecipe + 0.5), 0, ${RECIPE_KNOB_ROWS - 1}) : 0;
             vec4 knobs = uRecipeKnobs[row];
@@ -797,6 +863,9 @@ ${aniso ? /* glsl */ `
             recipeRim = knobs.y;
             recipeSunGlare = knobs.z;
             recipeEnvGain = knobs.w;
+            // And the variant's own row beside it: which ramp, and three
+            // numbers whose meaning is its field's business. R6.
+            recipeVar = uRecipeVar[row];
           }
           // Every recipe here samples the environment off the smooth normal.
           // The diffuse stays faceted, so the props still read low-poly; what

@@ -1,18 +1,18 @@
-import { RAMP_ROW } from '../glsl/ramp';
-import { RECIPE_INDEX, type Recipe } from './types';
+import { SCENE_SHARED, sceneSlots } from '../glsl/sky';
+import type { Recipe } from './types';
 
 const GLSL = /* glsl */ `
-  // --- voidstone ------------------------------------------------------------
+  // --- voidstone: a night sky -----------------------------------------------
   //
-  // A night sky as a function of direction. Layers drift on their own axes at
-  // their own rates, which is what makes it a volume rather than a turntable.
+  // A sky as a function of direction. Layers drift on their own axes at their
+  // own rates, which is what makes it a volume rather than a turntable.
 
-  vec3 recipeDrift(vec3 d, float rate, vec3 axis) {
-    float a = recipeTime() * rate;
-    float c = cos(a);
-    float s = sin(a);
-    return d * c + cross(axis, d) * s + axis * dot(axis, d) * (1.0 - c);
-  }
+  /** How much nebula there is to see. Zero is an empty sky, which is a look. */
+  float voidNebula() { return recipeVar.y; }
+  /** Star field density, both planes together. */
+  float voidStars() { return recipeVar.z; }
+  /** Shifts the cloud from the cool pair toward the warm one. */
+  float voidWarmth() { return recipeVar.w; }
 
   /**
    * A dense field of faint stars.
@@ -48,7 +48,7 @@ const GLSL = /* glsl */ `
           // a star is a point of light rather than a smudge, and alias-free.
           float g = dot(delta, delta) / r2eff;
           float star = exp(-g * g) * (r2 / r2eff);
-          total += rampColour(${RAMP_ROW.star}, draw.y) * (star * magnitude);
+          total += rampColour(recipeRamp(), draw.y) * (star * magnitude);
         }
       }
     }
@@ -104,7 +104,7 @@ const GLSL = /* glsl */ `
               + exp(-(delta.x * delta.x + delta.z * delta.z) / w2 - delta.y * delta.y / l2);
             core += spikes * bright * 0.55 * (rr * 0.16 / w2);
           }
-          total += rampColour(${RAMP_ROW.star}, draw.y) * ((core + halo) * magnitude);
+          total += rampColour(recipeRamp(), draw.y) * ((core + halo) * magnitude);
         }
       }
     }
@@ -124,16 +124,16 @@ const GLSL = /* glsl */ `
     vec3 warm = mix(vec3(0.16, 0.05, 0.13), vec3(0.13, 0.09, 0.04), wearNoise(slow * 2.2 + 8.1));
 
     vec3 base = vec3(0.010, 0.012, 0.030) + vec3(0.020, 0.014, 0.040) * haze;
-    vec3 cloud = cool * (broad * (0.55 + 0.75 * band))
-      + warm * (tight * broad * (0.50 + 0.80 * band));
+    // The two pairs weighted against each other rather than summed flat, so
+    // one number carries the whole cloud from cold hydrogen to a hot one.
+    float w = voidWarmth();
+    vec3 cloud = (cool * (broad * (0.55 + 0.75 * band)) * (1.0 - w * 0.75)
+      + warm * (tight * broad * (0.50 + 0.80 * band)) * (1.0 + w * 2.2)) * voidNebula();
 
     // Two planes only: star fields behind the nebula, dimmed by it, and the
     // sharp bright stars in front. No dust is ever drawn over the clouds.
     //
-    // Layer offsets are added AFTER the drift rotation. Added before, the
-    // rotation spins the offset vector too, which turns a slow rotation into
-    // a fast translation — the whole field sweeps across the window instead
-    // of drifting in place.
+    // Layer offsets are added AFTER the drift rotation; see recipeDrift.
     // Every plane turns at its own rate on its own axis, slowest at the back
     // and fastest in front (the nebula's 0.016 sits between), so the layers
     // shear against each other and the sky reads as a volume.
@@ -141,12 +141,13 @@ const GLSL = /* glsl */ `
     vec3 far2 = recipeDrift(d, 0.0120, normalize(vec3(0.35, 1.0, -0.15))) + 3.0;
     vec3 near = recipeDrift(d, 0.0300, normalize(vec3(-0.3, 0.8, 0.5))) + 17.0;
 
-    float behind = 1.0 - 0.80 * broad * (0.4 + 0.6 * band);
+    float stars = voidStars();
+    float behind = 1.0 - 0.80 * broad * (0.4 + 0.6 * band) * voidNebula();
     vec3 sky = base
-      + recipeStarDust(far, 135.0, 0.13, 9.0) * (1.4 * crowd) * behind
-      + recipeStarDust(far2, 92.0, 0.14, 7.5) * (1.05 * crowd) * behind;
+      + recipeStarDust(far, 135.0, 0.13, 9.0) * (1.4 * crowd * stars) * behind
+      + recipeStarDust(far2, 92.0, 0.14, 7.5) * (1.05 * crowd * stars) * behind;
     sky += cloud;
-    sky += recipeStarBright(near, 23.0, 0.10, 9.0, 1.0) * 1.35;
+    sky += recipeStarBright(near, 23.0, 0.10, 9.0, 1.0) * (1.35 * stars);
     // Kneed: a star that clips is a white disc, and the shape of a star is the
     // only thing that says it is one.
     return recipeKnee(sky, 0.90);
@@ -155,22 +156,17 @@ const GLSL = /* glsl */ `
 
 export const voidstone: Recipe = {
   name: 'voidstone',
-  index: RECIPE_INDEX.voidstone,
   glsl: GLSL,
-  // The void is not a sky reflection, so its gain is its own business.
-  knobs: { gloss: 0, rim: 0, sunGlare: 0, envGain: 0 },
-  slots: {
-    envSource: /* glsl */ `
-      // Voidstone ignores uFinishSky: the sky is in the stone, indoors too.
-      // The raw view ray, untouched: every fragment looks straight out
-      // along its own eye ray, so the stone is a flat window on the
-      // void at every angle.
-      finishEnv = recipeVoid(inverseTransformDirection(-geometryViewDir, viewMatrix));
-    `,
-    ambient: /* glsl */ `
-      // Flat: what you are looking at is behind the surface, so it is
-      // not rationed by how obliquely you meet that surface.
-      reflectedLight.indirectSpecular += finishEnv * (1.05 * uFinishEnv);
-    `,
-  },
+  shared: SCENE_SHARED,
+  params: ['nebula', 'stars', 'warmth'],
+  variants: [
+    {
+      name: 'voidstone',
+      ramp: 'star',
+      // The void is not a sky reflection, so its gain is its own business.
+      knobs: { gloss: 0, rim: 0, sunGlare: 0, envGain: 0 },
+      params: [1.0, 1.0, 0.0],
+    },
+  ],
+  slots: sceneSlots('recipeVoid', 1.05),
 };

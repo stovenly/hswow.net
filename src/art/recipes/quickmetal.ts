@@ -1,4 +1,4 @@
-import { RECIPE_INDEX, type Recipe } from './types';
+import type { Recipe } from './types';
 
 const GLSL = /* glsl */ `
   // --- quickmetal: mercury --------------------------------------------------
@@ -8,13 +8,33 @@ const GLSL = /* glsl */ `
   // own sky pair. The wobble bends the reflected ray across that horizon, so
   // bright and dark bands snake over the surface as it flows.
 
+  /** How fast the surface runs. Mercury's motion is most of what makes it that. */
+  float quickFlow() { return recipeVar.y; }
+  /** 0 keeps the invented world up the right way; 1 turns it over. */
+  float quickInvert() { return recipeVar.z; }
+  /** How far the flow bends the reflected ray. */
+  float quickWobble() { return recipeVar.w; }
+
+  /**
+   * Elevation, as this variant sees it.
+   *
+   * **The whole inversion is this line.** The invented surroundings are keyed on
+   * nothing but the bent ray's height, so mirroring the height mirrors the
+   * world — dark sky above and a burning floor below, out of the same code that
+   * draws the bright one. A lerp rather than a branch so it can also sit
+   * halfway, where the horizon flash doubles and the mirror reads as a slot.
+   */
+  float quickUp(float y) {
+    return y * (1.0 - 2.0 * quickInvert());
+  }
+
   /**
    * Four scales of flow: broad swells, a mid counter-swell drifting the other
    * way, a chop advected by the swells, and a fine ripple advected by the
    * chop. Each layer bends the reflected ray at its own rate.
    */
   vec3 recipeWobble(vec3 worldDir) {
-    float t = recipeTime() * 0.16;
+    float t = recipeTime() * 0.16 * quickFlow();
     vec3 q = vWearPos * 2.1 + vObjectPhase * 9.0;
     vec3 swell = vec3(
       wearNoise(q + vec3(t, 0.0, 0.0)),
@@ -40,7 +60,7 @@ const GLSL = /* glsl */ `
       wearNoise(r2), wearNoise(r2 * 1.09 + 31.7), wearNoise(r2 * 0.93 + 47.1)
     ) - 0.5) * 0.16;
 
-    return normalize(worldDir + swell + swell2 + chop + ripple);
+    return normalize(worldDir + (swell + swell2 + chop + ripple) * quickWobble());
   }
 
   /**
@@ -48,7 +68,7 @@ const GLSL = /* glsl */ `
    * edges on purpose: a mirror is only as crisp as what it reflects.
    */
   vec3 recipeChromeEnv(vec3 dir) {
-    float h = dir.y;
+    float h = quickUp(dir.y);
     vec3 ground = uHorizon * 0.08;
     vec3 upper = mix(uHorizon * 1.30, uZenith * 1.05, smoothstep(0.02, 0.75, h));
     vec3 env = mix(ground, upper, smoothstep(-0.015, 0.02, h));
@@ -64,7 +84,7 @@ const GLSL = /* glsl */ `
     // Two bright pillars turning slowly about the azimuth, for the mirror to
     // stretch and snap as the surface flows.
     float az = atan(dir.z, dir.x);
-    float tq = recipeTime();
+    float tq = recipeTime() * quickFlow();
     float pillar = exp(-pow2(sin((az - tq * 0.021) * 0.5)) * 150.0)
       + exp(-pow2(sin((az + 1.9 + tq * 0.013) * 0.5)) * 260.0) * 0.55;
     env += (uHorizon * 1.1 + uZenith * 0.45)
@@ -84,7 +104,7 @@ const GLSL = /* glsl */ `
    * running down the surface, sampled in a frame squeezed along the drain.
    */
   vec2 recipeQuickBody() {
-    float t = recipeTime() * 0.16;
+    float t = recipeTime() * 0.16 * quickFlow();
     vec3 q = vec3(vWearPos.x * 12.0, vWearPos.y * 3.2 - t * 2.4, vWearPos.z * 12.0);
     float sheet = wearNoise(q) * 0.52
       + wearNoise(q * 2.3 + 7.3) * 0.30
@@ -98,11 +118,46 @@ const GLSL = /* glsl */ `
 
 export const quickmetal: Recipe = {
   name: 'quickmetal',
-  index: RECIPE_INDEX.quickmetal,
   glsl: GLSL,
-  // A mirror with no per-facet lobe at all: everything it shows comes through
-  // the smooth-normal environment, so no triangle ever flashes.
-  knobs: { gloss: 0, rim: 0.85, sunGlare: 0.12, envGain: 1.25 },
+  params: ['flow', 'invert', 'wobble'],
+  variants: [
+    {
+      // Mercury, and the identity row: flow 1, no inversion, full wobble.
+      name: 'quicksilver',
+      ramp: 'silver',
+      // A mirror with no per-facet lobe at all: everything it shows comes
+      // through the smooth-normal environment, so no triangle ever flashes.
+      knobs: { gloss: 0, rim: 0.85, sunGlare: 0.12, envGain: 1.25 },
+      params: [1.0, 0.0, 1.0],
+    },
+    {
+      // The world turned over. A mirror is only what it reflects, so this is
+      // the same material looking at a different sky — dark above, molten
+      // below — and it reads as an entirely different metal for one lerp.
+      name: 'nightsilver',
+      ramp: 'nightmetal',
+      knobs: { gloss: 0, rim: 0.55, sunGlare: 0.06, envGain: 1.4 },
+      params: [0.9, 1.0, 1.0],
+    },
+    {
+      // Slowed to a third and coloured. Mercury's *motion* is most of what
+      // makes it mercury; take that away and the same field pours.
+      name: 'slowbrass',
+      ramp: 'brass',
+      knobs: { gloss: 0.05, rim: 0.7, sunGlare: 0.18, envGain: 1.1 },
+      params: [0.35, 0.0, 0.8],
+    },
+    {
+      // Nearly frozen, and the wobble pulled back with it — a ray bent hard by
+      // a field that is not moving reads as a dent rather than as flow. What is
+      // left is a crisp mirror onto the invented world, which is what
+      // architecture wants and what a moving one can never be.
+      name: 'stillglass',
+      ramp: 'silver',
+      knobs: { gloss: 0, rim: 0.95, sunGlare: 0.22, envGain: 1.3 },
+      params: [0.04, 0.0, 0.55],
+    },
+  ],
   slots: {
     direct: /* glsl */ `
       // A restrained sheen along the ridged streaks. finishF0 rather
@@ -124,8 +179,9 @@ export const quickmetal: Recipe = {
       if (uFinishSky > 0.5) {
         finishEnv = recipeChromeEnv(finishWorld);
       } else {
-        finishEnv *= 0.18 + 1.5 * smoothstep(-0.045, 0.09, finishWorld.y)
-          + exp(-finishWorld.y * finishWorld.y * 130.0) * 0.7;
+        float indoorUp = quickUp(finishWorld.y);
+        finishEnv *= 0.18 + 1.5 * smoothstep(-0.045, 0.09, indoorUp)
+          + exp(-indoorUp * indoorUp * 130.0) * 0.7;
       }
       // A mirror bright enough to clip loses the very thing it is for: the
       // detail in what it is reflecting. Kneed rather than scaled down, so
@@ -136,7 +192,7 @@ export const quickmetal: Recipe = {
       // The metal's own cast, and the streaks as shading on the mirror
       // itself — multiplied, never added, so nothing hazes over it.
       vec2 body = recipeQuickBody();
-      vec3 metal = mix(vec3(0.74, 0.76, 0.83), vec3(0.98, 0.92, 0.78), body.x);
+      vec3 metal = rampColour(recipeRamp(), body.x);
       reflectedLight.indirectSpecular *= mix(vec3(1.0), metal, uFinishEnv);
       reflectedLight.indirectSpecular *= mix(1.0, 0.86 + body.y * 0.30, uFinishEnv);
     `,

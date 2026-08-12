@@ -1,4 +1,8 @@
-# Pointillist pop fix
+# Stained glass pop fix
+
+*(Was the pointillist pop fix. The recipe was renamed in MATERIAL-SYSTEM.md R6;
+nothing below changed with it, and the conclusion survived the `density` param
+that phase added — see the last paragraph.)*
 
 Landed. The lattice no longer changes with distance; nothing replaces it.
 
@@ -11,18 +15,18 @@ two states.
 
 The jumps were ugly rather than merely visible because this was not a mip chain.
 `recipeCell` hashes `floor(p)` at the already-scaled position
-(`src/art/recipes/shared.ts:87`), so halving the density regenerated the entire
+(`src/art/recipes/shared.ts:108`), so halving the density regenerated the entire
 lattice — new cell boundaries, new per-cell colours everywhere. Each step was a
 different skin, not a coarser one.
 
 ## What landed
 
-`recipeCellDensity()` is gone. `recipeBerryCell()` takes no argument and holds
-`density` as a local `const float` of 26.0, so one lattice stays locked to the
+`recipeCellDensity()` is gone. `recipeStainedCell()` takes no argument and holds
+`density` as one number for the whole material, so one lattice stays locked to the
 surface from contact to fade-out and the material reads at range exactly as it
 reads up close. Whatever the sampling does with it at distance, it does.
 
-`soft` (`src/art/recipes/pointillist.ts:56`) is unchanged and still widens the
+`soft` (`src/art/recipes/stained-glass.ts:72`) is unchanged and still widens the
 cell edge with the pixel footprint, as it did before any of this. That is the
 material's own long-standing edge treatment, not a level of detail.
 
@@ -45,10 +49,22 @@ range, and the octave arithmetic is gone.
 
 ## Acceptance
 
-Walk out from a pointillist piece — `src/art/builders/pointillist-column.ts`,
-`src/art/builders/pointillist-orb.ts`, or the second materials gallery
-(`src/debug/galleries/materials2.ts`).
+Walk out from any stained-glass piece — the Stained Glass room in the Materials
+wing (`src/debug/galleries/materials-wing.ts`), which has six of them.
 
 - No discrete change in the pattern at any distance.
 - Standing at any distance and stepping back and forth produces no flapping.
 - Close range is pixel-identical to before the change.
+
+## What R6 did not undo
+
+R6 made the density a per-variant param — `mosaic` runs at eleven cells a metre
+and `grisaille` at forty. **That is not what this document rejected.** What
+looked bad was density changing *with distance*, one material regenerating its
+own skin as the camera walked toward it, because the hash is taken at the scaled
+position. A per-variant density is chosen once for a material and never moves,
+which is the ordinary business of being a different material.
+
+The distinction is written down beside the param as well, because it is exactly
+the sort of thing that gets optimised back in by someone who reads the parameter
+and not the history.

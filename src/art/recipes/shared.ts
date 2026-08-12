@@ -17,6 +17,8 @@ export const RECIPE_SHARED = /* glsl */ `
   uniform float uRecipeMotion;
   /** The knob table. Row 0 is no recipe; see RecipeKnobs in ./types.ts. */
   uniform vec4 uRecipeKnobs[${KNOB_ROWS}];
+  /** Beside it, per variant: (ramp row as a texture V, p0, p1, p2). */
+  uniform vec4 uRecipeVar[${KNOB_ROWS}];
 
   /** The light direction in object space, captured from the brightest light. */
   vec3 recipeSunObj = vec3(0.0, 1.0, 0.0);
@@ -26,8 +28,27 @@ export const RECIPE_SHARED = /* glsl */ `
   /** The tenebrescent state here: 0 pale, 1 violet. */
   float recipeBurnT = 0.0;
 
-  bool isRecipe(float which) {
-    return uRecipeOn > 0.5 && abs(vRecipe - which) < 0.5;
+  /**
+   * This fragment's variant row: (ramp V, p0, p1, p2). Read once by the finish
+   * stage; each field names its own three through accessors of its own, because
+   * "p1" at the point of use is a number nobody can check.
+   */
+  vec4 recipeVar = vec4(0.0);
+
+  /** Which ramp this look reads, as the V coordinate rampColour wants. */
+  float recipeRamp() {
+    return recipeVar.x;
+  }
+
+  /**
+   * Whether this fragment wears any variant of one field.
+   *
+   * A range rather than an equality, which is the whole of R6 in the shader:
+   * a field's looks take a contiguous span of bytes, so one comparison pair
+   * answers for all of them and six looks cost what one used to.
+   */
+  bool isField(float lo, float hi) {
+    return uRecipeOn > 0.5 && vRecipe > lo - 0.5 && vRecipe < hi + 0.5;
   }
 
   float recipeTime() {

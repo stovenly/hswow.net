@@ -1,3 +1,5 @@
+import type { RampName } from '../glsl/ramp';
+
 /**
  * What a recipe is, as far as the rest of the kit is concerned.
  *
@@ -5,31 +7,84 @@
  * imports the recipes: the names and the shape have to stand below both.
  */
 
-/** Which optical model runs, if any. One byte, un-normalized: 0 is none. */
+/** Which look runs, if any. One byte, un-normalized: 0 is none. */
 export const RECIPE_ATTRIBUTE = 'aRecipe';
 
-/** The recipes. Indices are written down because they are baked into geometry. */
-export const RECIPE_INDEX = {
-  schiller: 1,
-  quickmetal: 2,
-  tenebrescent: 3,
-  nacreous: 4,
-  pointillist: 7,
-  voidstone: 10,
+/**
+ * The fields: an optical *structure*, which is code and always will be. Six of
+ * them were the whole vocabulary until R6; the last three are the scene class,
+ * which is a window rather than a surface treatment. See `glsl/sky.ts`.
+ */
+export type RecipeName =
+  | 'schiller'
+  | 'quickmetal'
+  | 'tenebrescent'
+  | 'nacreous'
+  | 'stainedGlass'
+  | 'voidstone'
+  | 'overcast'
+  | 'duskfall'
+  | 'auroral';
+
+/**
+ * The looks, and the byte each one is.
+ *
+ * **A field's variants take a contiguous span**, which is what lets the guard
+ * around its shader block be one range test rather than a chain of equalities.
+ * Add a variant by extending its field's span and pushing everything after it
+ * along; the numbers exist as data, not as identity.
+ *
+ * They were described here as "baked into geometry", which was over-stated —
+ * `assemble` writes them from this table on every build and nothing serialises
+ * a `BufferGeometry`, so a byte lives exactly as long as the process does.
+ * Renumbering costs a stale browser shader cache and nothing else.
+ */
+export const VARIANT_INDEX = {
+  // schiller — labradorite and its relatives
+  labradorite: 1,
+  spectrolite: 2,
+  moonsheen: 3,
+  sunstone: 4,
+  // quickmetal — mercury and what else that flow can be
+  quicksilver: 5,
+  nightsilver: 6,
+  slowbrass: 7,
+  stillglass: 8,
+  // tenebrescent — what the light does to it. All three burn from one colour
+  // into another; none of them has a bare white side.
+  violetbloom: 9,
+  emberstone: 10,
+  verdigrist: 11,
+  // nacreous — the film, over a pale body and over a dark one
+  nacreous: 12,
+  lunacreous: 13,
+  // stained glass — the colorways, which is what R6 was argued for
+  oceanglass: 14,
+  rosewindow: 15,
+  ivyglass: 16,
+  lapispane: 17,
+  // the scene class: a window onto somewhere, not a surface
+  voidstone: 18,
+  overcast: 19,
+  lakestill: 20,
+  duskstone: 21,
+  dawnstone: 22,
+  daystone: 23,
+  auroral: 24,
 } as const satisfies Record<string, number>;
 
-export type RecipeName = keyof typeof RECIPE_INDEX;
+export type VariantName = keyof typeof VARIANT_INDEX;
 
 export type FinishFeatureName = 'glint' | 'film' | 'translucency' | 'anisotropy';
 
 /**
- * How a recipe answers the shared lighting stage.
+ * How a look answers the shared lighting stage.
  *
  * These were spliced constants — `if (isRecipe(3.0)) { recipeGloss = 0.04; … }`,
  * one branch per recipe per knob — so a program's source depended on which
  * recipes were in its mask. They are rows of a uniform table now, read by the
- * recipe byte, and every art program compiles the same text whatever it
- * carries. MATERIAL-SYSTEM.md R2.
+ * byte, and every art program compiles the same text whatever it carries.
+ * MATERIAL-SYSTEM.md R2; a row is per *variant* rather than per field as of R6.
  */
 export interface RecipeKnobs {
   /**
@@ -71,15 +126,21 @@ export interface RecipeKnobs {
 }
 
 /**
- * Row 0, and every row no recipe claims: the finish stage with no recipe on
+ * Row 0, and every row no variant claims: the finish stage with no recipe on
  * it. One is the sky and the lobe as everything has always seen them, so a
  * plain surface, a stray byte and the `uRecipeOn` toggle all land on the same
  * answers. The GLSL globals are initialised from here, so they cannot drift.
  */
 export const PLAIN_KNOBS: RecipeKnobs = { gloss: 1, rim: 1, sunGlare: 1, envGain: 1 };
 
-/** Rows in the knob table. Recipe bytes index it directly, so it spans them. */
-export const KNOB_ROWS = 16;
+/**
+ * Rows in the tables. Bytes index them directly, so it spans them.
+ *
+ * Twenty-four are claimed and four are spare. Each further row is two vec4 on
+ * every recipe-carrying program — see MATERIAL-SYSTEM.md R6b for what the
+ * fragment stage has left, which is the number that decides how far this can go.
+ */
+export const KNOB_ROWS = 28;
 
 /**
  * Where a recipe joins the finish stage.
@@ -88,8 +149,9 @@ export const KNOB_ROWS = 16;
  * one per recipe per hook, spread over three splices — so every new material
  * meant editing the file that draws all of them. They are strings on the
  * registry entry now, and finish.ts splices one dispatcher per hook without
- * knowing what is in it. A new material is a file in this folder, a registry
- * entry and a knob row; finish.ts is not touched. MATERIAL-SYSTEM.md R4.
+ * knowing what is in it. A new field is a file in this folder, a registry
+ * entry and a knob row; a new *look* on an existing field is a row and nothing
+ * else. MATERIAL-SYSTEM.md R4 and R6.
  *
  * Each is a statement block spliced into the hook named, and each is written
  * against the locals in scope *there* rather than against arguments — the
@@ -98,7 +160,7 @@ export const KNOB_ROWS = 16;
  * is written down below; `art/finish.ts` holds the other end.
  *
  * The order slots run in is registry order, and it does not matter: every
- * block is guarded by `isRecipe`, one recipe byte can satisfy one guard, and
+ * block is guarded by its field's byte span, one byte falls in one span, and
  * so at most one block per hook ever runs.
  */
 export interface RecipeSlots {
@@ -133,7 +195,7 @@ export interface RecipeSlots {
   /**
    * Replaces what the reflection samples. Sets `finishEnv`, and standing in
    * front of the sky rather than beside it — a recipe that fills this one is
-   * not looking at the sky at all.
+   * not looking at the sky at all. Every scene lives here.
    */
   envSource?: string;
   /**
@@ -144,17 +206,57 @@ export interface RecipeSlots {
   ambient?: string;
 }
 
-/** One recipe: the byte baked into geometry, and the GLSL it costs to draw. */
+/**
+ * One look: a byte, a colour ramp, a knob row and three numbers.
+ *
+ * **No GLSL.** That is the whole of R6 — a variant reaches the shader as two
+ * vec4 of uniform, so adding one costs no program, no compile and not even a
+ * changed source byte, which means it does not invalidate the browser's shader
+ * cache the way every phase before this one did.
+ */
+export interface RecipeVariant {
+  readonly name: VariantName;
+  /** Which ramp its field reads. Fields with no ramp of their own omit it. */
+  readonly ramp?: RampName;
+  /** Where its row differs from `PLAIN_KNOBS`. */
+  readonly knobs?: Partial<RecipeKnobs>;
+  /**
+   * p0, p1, p2, whose meanings are named on the field's `params`.
+   *
+   * Written out per variant rather than as overrides on a default, because the
+   * point of the table is that the looks can be read against each other — and
+   * three numbers you have to go and look up are three numbers nobody checks.
+   */
+  readonly params: readonly [number, number, number];
+}
+
+/**
+ * One field: the optical structure, and the GLSL it costs to draw.
+ *
+ * A field is code and stays code, which is the honest limit of this system —
+ * a Worley berry skin, a lamellar flood and a starfield share no math a
+ * parameter can select between. What varies *within* a field is `variants`.
+ */
 export interface Recipe {
   readonly name: RecipeName;
-  /** The aRecipe byte. Retired indices stay retired. */
-  readonly index: number;
-  /** The recipe's own helpers and fields. */
+  /** The field's own helpers and fields. */
   readonly glsl: string;
+  /**
+   * GLSL this field shares with its siblings — the scene class's kit, and
+   * whatever comes after it. Emitted **once** however many of the fields that
+   * declare it are in the mask, deduplicated by identity, so a family can have
+   * a common body without every member redeclaring it.
+   */
+  readonly shared?: string;
   /** Where it joins the finish stage. */
   readonly slots: RecipeSlots;
-  /** Where its row differs from `PLAIN_KNOBS`. Data, not source. */
-  readonly knobs?: Partial<RecipeKnobs>;
-  /** Finish features the recipe's shader cannot stand without. */
+  /**
+   * Its looks, in byte order. Their bytes must be contiguous — `index.ts`
+   * checks it, because a gap silently widens the guard onto a neighbour.
+   */
+  readonly variants: readonly RecipeVariant[];
+  /** What p0, p1 and p2 mean here. For the dev panel, and for readers. */
+  readonly params: readonly [string, string, string];
+  /** Finish features the field's shader cannot stand without. */
   readonly implies?: readonly FinishFeatureName[];
 }

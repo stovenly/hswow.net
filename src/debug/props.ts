@@ -23,8 +23,7 @@ import { lightShowcasePlan } from './galleries/light';
 import { fogShowcasePlan } from './galleries/fog';
 import { readablesGalleryPlan } from './galleries/readables';
 import { readablesShowcasePlan } from './galleries/readables-showcase';
-import { materialsGalleryPlan } from './galleries/materials';
-import { materialsGallery2Plan } from './galleries/materials2';
+import { materialsWingZone, materialsWingPortals } from './galleries/materials-wing';
 import { fabricsGalleryPlan } from './galleries/fabrics';
 import { glitchShowcasePlan } from './galleries/glitch';
 import { horrorShowcasePlan } from './galleries/horror';
@@ -239,6 +238,9 @@ export function propZones(): ZoneDefinition[] {
         return root;
       },
     },
+    // The Materials wing, which is a second antechamber a level deeper: it
+    // stands to its six rooms as this hall stands to the showcase rank.
+    materialsWingZone(),
   ];
 }
 
@@ -399,10 +401,11 @@ export function propPortals(
     // questions, so they get separate rooms standing side by side.
     galleryPortal(readablesGalleryPlan, gridDoor(8, 'timber', 6441)),
     galleryPortal(readablesShowcasePlan, gridDoor(9, 'timber', 6442)),
-    // The finish fixtures. Appended east rather than re-centring the rank —
-    // existing doors keep their positions, and the half-metre asymmetry is
-    // cheaper than moving ten doors.
-    galleryPortal(materialsGalleryPlan, gridDoor(10, 'timber', 6443)),
+    // The finish fixtures — one door now, into an antechamber with six rooms
+    // off it. It was two doors here, and R6's looks would have wanted five
+    // more; see `galleries/materials-wing.ts`. Slot 15 came free doing it,
+    // which is the first time this rank has ever got shorter.
+    ...materialsWingPortals(gridDoor(10, 'timber', 6443)),
     // Fabric belongs to no setting either — it is a system, not a place.
     galleryPortal(fabricsGalleryPlan, gridDoor(11, 'timber', 6444)),
     // Corruption is a system, not a place. Iron, because what is behind this
@@ -413,10 +416,5 @@ export function propPortals(
     // Where the two of them meet, on things that are not all figures. Last in
     // the rank because it only makes sense having seen both rooms before it.
     galleryPortal(objectEffectsPlan, gridDoor(14, 'iron', 6447)),
-    // The recipes. A second materials room rather than ten more rows in
-    // the first — see `galleries/materials2.ts` for why the scale in there is
-    // worth not breaking. Timber, because what is behind it is a set of
-    // materials rather than a rig.
-    galleryPortal(materialsGallery2Plan, gridDoor(15, 'timber', 6448)),
   ];
 }
