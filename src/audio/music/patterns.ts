@@ -54,6 +54,61 @@ export function melodyCell(seed: number, mode: Mode): Cell {
   return degrees.map((degree) => degreeToSemitone(mode, degree));
 }
 
+/** Semitone width of a degree line with one more note added to it. */
+const spanWith = (degrees: readonly number[], next: number, mode: Mode): number => {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const degree of degrees) {
+    const semitone = degreeToSemitone(mode, degree);
+    lo = Math.min(lo, semitone);
+    hi = Math.max(hi, semitone);
+  }
+  const added = degreeToSemitone(mode, next);
+  return Math.max(hi, added) - Math.min(lo, added);
+};
+
+/**
+ * The melodic rule re-applied to a line that has been developed: one leap of
+ * two or three degrees, then steps, and the whole line inside `CONNECT`.
+ * `melodyCell` guarantees all of that when it writes a head, and `applyOp`
+ * can lose it — a sequence most of all — so it is re-imposed rather than
+ * played as found. Direction is preserved throughout, so a sequence still
+ * sounds sequenced and an inversion still sounds inverted.
+ */
+export function connect(head: readonly number[], mode: Mode): readonly number[] {
+  if (head.length < 2) return head;
+  const leap = head[1] - head[0];
+  const up = leap >= 0 ? 1 : -1;
+  const out = [head[0], head[0] + up * Math.min(3, Math.max(2, Math.abs(leap)))];
+  for (let i = 2; i < head.length; i++) {
+    const want = Math.sign(head[i] - head[i - 1]) || -up;
+    let next = out[i - 1] + want;
+    // Turning inward can only revisit ground already inside the span.
+    if (spanWith(out, next, mode) > CONNECT) next = out[i - 1] - want;
+    out.push(next);
+  }
+  return out;
+}
+
+/**
+ * How closed a line's ending is, by as much of Narmour's checklist as a line
+ * of degrees can show: a large interval into a small one, a change of
+ * direction, and an arrival on the tonic. Rest, metrical position and the
+ * length of the last note belong to the director, not to the line.
+ */
+export function closure(line: readonly number[], mode: Mode): number {
+  if (line.length < 3) return 0;
+  const n = line.length;
+  const at = (i: number): number => degreeToSemitone(mode, line[i]);
+  const last = at(n - 1) - at(n - 2);
+  const prior = at(n - 2) - at(n - 3);
+  let score = 0;
+  if (Math.abs(last) < Math.abs(prior)) score++;
+  if (Math.sign(last) !== Math.sign(prior)) score++;
+  if ((((at(n - 1) % 12) + 12) % 12) === 0) score++;
+  return score;
+}
+
 /**
  * Notes the texture stratum may sit on: root, fourth, fifth, octave, ninth,
  * filtered to the mode. No third — the mid stratum keeps the drone's
@@ -119,6 +174,10 @@ export function periodFrom(head: readonly number[], mode: Mode): Period {
 
   // The open tail steps to the nearest open degree, in whichever octave is
   // closest — and never stands still: an unmoved question is no question.
+  // Where two are equally near, the one that carries on the way the head was
+  // going wins: a change of direction is one of Narmour's closure
+  // conditions, and a question is the half that fails to close.
+  const heading = head.length > 1 ? Math.sign(last - head[head.length - 2]) : 0;
   const candidates: number[] = [];
   for (const open of openDegrees(mode)) {
     for (let octave = -2; octave <= 2; octave++) candidates.push(open + octave * mode.length);
@@ -128,9 +187,11 @@ export function periodFrom(head: readonly number[], mode: Mode): Period {
   for (const candidate of candidates) {
     const distance = Math.abs(candidate - last);
     if (distance === 0) continue;
-    if (distance < best || (distance === best && candidate < open)) {
+    const turns = heading !== 0 && Math.sign(candidate - last) !== heading ? 0.5 : 0;
+    const cost = distance + turns;
+    if (cost < best || (cost === best && candidate < open)) {
       open = candidate;
-      best = distance;
+      best = cost;
     }
   }
 
@@ -146,18 +207,43 @@ export function periodFrom(head: readonly number[], mode: Mode): Period {
   };
 }
 
+/**
+ * Schoenberg's sentence, beside the period.
+ *
+ * Presentation — the basic idea, then the idea answered a degree away —
+ * continuation, which fragments the answer and states its front half twice,
+ * and the cadence, the same stepwise landing on the root the period closes
+ * with. Every part of it already existed in the grammar; what is new is a
+ * phrase of five gestures rather than a question and an answer.
+ */
+export function sentenceFrom(head: readonly number[], mode: Mode): readonly (readonly number[])[] {
+  const answer = connect(head.map((degree) => degree + 1), mode);
+  const front = answer.slice(0, Math.max(2, Math.ceil(answer.length / 2)));
+  const again = front.map((degree) => degree - 1);
+  const last = again[again.length - 1];
+  const root = mode.length * Math.floor(last / mode.length);
+  const cadence = last === root ? [last + 1, last] : stepsBetween(last, root);
+  return [head, answer, front, again, cadence];
+}
+
 /** How a later statement develops the motif. Augmentation is a duration op. */
 export type MotifOp = 'plain' | 'sequence' | 'inversion' | 'fragment';
 
-export function applyOp(head: readonly number[], op: MotifOp, rng: Rng): readonly number[] {
+/** Every developed head goes back through `connect` — the cell's own rule. */
+export function applyOp(
+  head: readonly number[],
+  op: MotifOp,
+  rng: Rng,
+  mode: Mode,
+): readonly number[] {
   switch (op) {
     case 'plain':
       return head;
     case 'sequence':
       // The whole idea restated a step away — up or down, all of it.
-      return head.map((degree) => degree + (rng.chance(0.5) ? 1 : -1));
+      return connect(head.map((degree) => degree + (rng.chance(0.5) ? 1 : -1)), mode);
     case 'inversion':
-      return head.map((degree) => head[0] - (degree - head[0]));
+      return connect(head.map((degree) => head[0] - (degree - head[0])), mode);
     case 'fragment':
       return head.slice(0, Math.max(2, Math.ceil(head.length / 2)));
   }

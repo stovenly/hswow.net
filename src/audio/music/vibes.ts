@@ -95,6 +95,10 @@ export const VILLAGE_2_VIBE: MusicSpec = {
     chordBars: 1,
     phraseRest: [9, 18],
     fragment: 0.1,
+    // A band in a square states a tune and works it, rather than asking and
+    // answering. The sentence goes where a pulse meets a chord a bar and a
+    // tune that is rarely a fragment; five vibes qualify. Flip it back here.
+    phrase: 'sentence',
     level: 1,
     droneLevel: 1,
   },
@@ -188,6 +192,7 @@ export const FARM_VIBE: MusicSpec = {
     chordBars: 1,
     phraseRest: [10, 20],
     fragment: 0.1,
+    phrase: 'sentence',
     level: 1,
     droneLevel: 1,
   },
@@ -238,10 +243,13 @@ export const FOREST_B_VIBE: MusicSpec = {
     textureOctave: 12,
     melodyOctave: 24,
     gait: [],
-    // Breath bars are long already; one per chord, or the pad turns to stone.
-    chordBars: 1,
-    phraseRest: [12, 24],
+    // Two, now that a breath bar is six and a half seconds rather than ten:
+    // this is a slower chord than the vibe asked for before and still moves
+    // more often, and the continuation halves it back to one.
+    chordBars: 2,
+    phraseRest: [10, 20],
     fragment: 0.5,
+    form: 'speac',
     level: 1,
     droneLevel: 1,
   },
@@ -272,6 +280,7 @@ export const FOREST_PATH_A_VIBE: MusicSpec = {
     chordBars: 1,
     phraseRest: [10, 20],
     fragment: 0.2,
+    phrase: 'sentence',
     level: 1,
     // Tuned when the bass held this seat; re-hear against the crank.
     droneLevel: 0.65,
@@ -298,9 +307,10 @@ export const FOREST_PATH_B_VIBE: MusicSpec = {
     textureOctave: 0,
     melodyOctave: 12,
     gait: [],
-    chordBars: 1,
-    phraseRest: [13, 24],
+    chordBars: 2,
+    phraseRest: [11, 20],
     fragment: 0.6,
+    form: 'speac',
     level: 1,
     // A pure held flute cuts harder than it measures.
     droneLevel: 0.6,
@@ -357,8 +367,9 @@ export const CAVE_VIBE: MusicSpec = {
     gait: [],
     // Two breath bars a chord — glacial, but no longer geological.
     chordBars: 2,
-    phraseRest: [14, 24],
+    phraseRest: [12, 21],
     fragment: 0.8,
+    form: 'speac',
     level: 1,
     droneLevel: 1,
   },
@@ -419,8 +430,11 @@ export const CAVE_DARK_VIBE: MusicSpec = {
     melodyOctave: 24,
     gait: [],
     chordBars: 2,
-    phraseRest: [15, 24],
+    phraseRest: [13, 21],
     fragment: 0.85,
+    // Nothing that is weather expects a verse and a chorus: every pulse-free
+    // vibe takes its form from its own seed. Flip it back here.
+    form: 'speac',
     level: 1,
     droneLevel: 1,
   },
@@ -446,8 +460,9 @@ export const SEWER_2_VIBE: MusicSpec = {
     melodyOctave: 12,
     gait: [],
     chordBars: 2,
-    phraseRest: [14, 24],
+    phraseRest: [12, 21],
     fragment: 0.75,
+    form: 'speac',
     level: 1,
     droneLevel: 1,
   },
@@ -472,9 +487,10 @@ export const SEWER_1_VIBE: MusicSpec = {
     textureOctave: 12,
     melodyOctave: 24,
     gait: [],
-    chordBars: 1,
-    phraseRest: [14, 24],
+    chordBars: 2,
+    phraseRest: [12, 21],
     fragment: 0.6,
+    form: 'speac',
     level: 1,
     // A held pipe down a pipe is already the loudest thing here.
     droneLevel: 0.7,
@@ -530,8 +546,9 @@ export const CAVE_2_VIBE: MusicSpec = {
     melodyOctave: 24,
     gait: [],
     chordBars: 2,
-    phraseRest: [14, 24],
+    phraseRest: [12, 21],
     fragment: 0.7,
+    form: 'speac',
     level: 1,
     droneLevel: 1,
   },
@@ -586,8 +603,9 @@ export const SCRAPYARD_VIBE: MusicSpec = {
     melodyOctave: 12,
     gait: [],
     chordBars: 2,
-    phraseRest: [13, 24],
+    phraseRest: [11, 20],
     fragment: 0.45,
+    form: 'speac',
     // The industrial voices read quiet; lifted against the farm.
     level: 1.1,
     droneLevel: 1,
@@ -615,6 +633,9 @@ export const SUBSTATION_1_VIBE: MusicSpec = {
     chordBars: 3,
     phraseRest: [12, 24],
     fragment: 0.25,
+    // The one powered place that takes the weather's form: it hums, it clicks
+    // and it never phrases, so a verse and a chorus were never right for it.
+    form: 'speac',
     // The industrial voices read quiet; lifted against the farm.
     level: 1.1,
     droneLevel: 1,
@@ -641,8 +662,9 @@ export const SUBSTATION_2_VIBE: MusicSpec = {
     melodyOctave: 12,
     gait: [],
     chordBars: 2,
-    phraseRest: [13, 24],
+    phraseRest: [11, 20],
     fragment: 0.5,
+    form: 'speac',
     // The industrial voices read quiet; lifted against the farm.
     level: 1.1,
     droneLevel: 0.75,
@@ -685,6 +707,7 @@ export const BEACH_VIBE: MusicSpec = {
     chordBars: 1,
     phraseRest: [7, 13],
     fragment: 0.2,
+    phrase: 'sentence',
     level: 1,
     // A bowed drone at this height cuts before it measures.
     droneLevel: 0.85,
@@ -715,6 +738,7 @@ export const BEACH_PATH_VIBE: MusicSpec = {
     chordBars: 1,
     phraseRest: [8, 15],
     fragment: 0.25,
+    phrase: 'sentence',
     // A step back from the water.
     level: 0.9,
     droneLevel: 0.85,

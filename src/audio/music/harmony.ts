@@ -198,10 +198,129 @@ export const GROUNDS: Record<ModeName, GroundBook> = {
   },
 };
 
+/**
+ * Lerdahl's chord distance, `d = j + k`: steps around the circle of fifths
+ * between the two roots, plus the pitch classes in the second chord's basic
+ * space that the first's does not already hold.
+ *
+ * Every chord here is a root and a perfect fifth standing on one sounding
+ * mode, so the mode level of the basic space is shared and cancels, and the
+ * triadic level repeats the root and fifth rather than adding a third. What
+ * is left is a small integer: 0 for no move, 4 for a plagal step or a fifth,
+ * 7 to 11 for anything further around the circle.
+ */
+export function chordDistance(x: number, y: number): number {
+  const pc = (note: number): number => ((note % 12) + 12) % 12;
+  const from = pc(x);
+  const to = pc(y);
+  // Seven semitones is one step of the circle, and 7 is its own inverse mod 12.
+  const round = pc((to - from) * 7);
+  const j = Math.min(round, 12 - round);
+  const held = [from, pc(from + 7)];
+  const wanted = [to, pc(to + 7)];
+  const missing = wanted.filter((note) => !held.includes(note)).length;
+  return j + (to === from ? 0 : 1) + missing * 2;
+}
+
+/**
+ * Every chord a mode can stand on: in the mode, with its own perfect fifth
+ * above it, and never the fifth or the leading tone — the same filter the
+ * ground loops are written under, so choosing by distance cannot reach a
+ * chord the ground book would have refused.
+ */
+export function chordCandidates(mode: ModeName): readonly number[] {
+  const scale = MODES[mode];
+  return scale.filter((pc) => pc !== 7 && pc !== 11 && inMode(pc + 7, scale));
+}
+
 /** A seed picks the same loop every time — a zone's ground is its ground. */
 export function groundFor(seed: number, mode: ModeName, side: 'home' | 'away'): Ground {
   const book = GROUNDS[mode];
   return createRng(seed).pick(side === 'home' ? book.home : book.away);
+}
+
+/** How far a loop moves, chord to chord, around its own cycle. */
+export function loopDistance(loop: Ground): number {
+  if (loop.length < 2) return 0;
+  let total = 0;
+  for (let i = 0; i < loop.length; i++) {
+    total += chordDistance(loop[i], loop[(i + 1) % loop.length]);
+  }
+  return total / loop.length;
+}
+
+/** How much better than the zone's own loop another has to be to be taken. */
+const OWN_GROUND_BIAS = 0.75;
+
+/**
+ * Where a tension lands inside a range. Distance targets have to be read off
+ * what a mode can actually reach: hirajoshi holds two chords and one move
+ * between them, pentatonic-major has no move under 7, and a target written as
+ * a book-wide constant asks both of them for something that does not exist.
+ */
+const toward = (tension: number, options: readonly number[]): number => {
+  const lo = Math.min(...options);
+  const hi = Math.max(...options);
+  return lo + Math.min(Math.max(tension, 0), 1) * (hi - lo);
+};
+
+/**
+ * The loop from a mode's book that moves by about as much as a section wants
+ * to move — the same chords a ground book already writes, entered in the
+ * order the arc asks for rather than the one order the seed drew.
+ *
+ * The zone's own loop is the prior and the tie-break, so a place still has a
+ * ground; what changes is that a section at rest and a section at the peak no
+ * longer walk the same one.
+ */
+export function groundToward(
+  mode: ModeName,
+  side: 'home' | 'away',
+  tension: number,
+  prior: Ground,
+): Ground {
+  const book = GROUNDS[mode][side];
+  const motions = [...book.map(loopDistance), loopDistance(prior)];
+  const target = toward(tension, motions);
+  let best = prior;
+  let cost = Math.abs(loopDistance(prior) - target) - OWN_GROUND_BIAS;
+  for (const loop of book) {
+    const miss = Math.abs(loopDistance(loop) - target);
+    if (miss < cost) {
+      cost = miss;
+      best = loop;
+    }
+  }
+  return best;
+}
+
+/**
+ * The chord a section wants to move to next: the one whose distance from the
+ * chord sounding is nearest what the tension asks for, read against the moves
+ * this mode has rather than against a constant. `written` is the ground's own
+ * chord and the prior, so a place still walks its ground.
+ */
+export function chordToward(
+  mode: ModeName,
+  from: number,
+  written: number,
+  tension: number,
+  bias: number,
+): number {
+  const options = chordCandidates(mode).filter((pc) => pc !== from);
+  if (options.length === 0) return written;
+  const distances = options.map((pc) => chordDistance(from, pc));
+  const target = toward(tension, distances);
+  let best = written;
+  let cost = Math.abs(chordDistance(from, written) - target) - bias;
+  options.forEach((pc, i) => {
+    const miss = Math.abs(distances[i] - target);
+    if (miss < cost) {
+      cost = miss;
+      best = pc;
+    }
+  });
+  return best;
 }
 
 /**
