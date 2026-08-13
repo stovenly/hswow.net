@@ -28,6 +28,25 @@ const RESOLVE_PASSES = 4;
 const STEP_DROP_SAMPLES = 6;
 
 /**
+ * How much quicker the debug camera is than walking.
+ *
+ * Fast enough to cross the vista band without it being a chore, slow enough to
+ * park next to a prop. Sprint multiplies it again.
+ */
+const NOCLIP_SCALE = 4;
+
+/**
+ * How far a step-up may climb past the last walkable ground, in step heights.
+ *
+ * Sized off the tallest ledge that is meant to be surmountable rather than
+ * chosen: the 0.5 m kerb in the gym is above `stepHeight` and climbs anyway
+ * because the capsule's shoulder carries it, so the budget has to cover that
+ * whole rise with a little room. Everything past it is a bank, and a bank gets
+ * about half a metre of scramble before the ground wins.
+ */
+const STEP_CLIMB_BUDGET = 1.5;
+
+/**
  * Ceiling on how far the camera may trail the feet, in metres.
  *
  * The steady state on a staircase is a few centimetres and this never fires
@@ -354,6 +373,7 @@ const _before = new THREE.Vector3();
 const _position = new THREE.Vector3();
 const _probeStart = new THREE.Vector3();
 const _probeEnd = new THREE.Vector3();
+
 const _probe = new Capsule();
 const _look = { x: 0, y: 0 };
 
@@ -394,6 +414,21 @@ export class Controller {
 
   private yaw = 0;
   private pitch = 0;
+
+  /**
+   * Fly, and pass through everything.
+   *
+   * A debug camera rather than a movement mode: gravity, friction, the slope
+   * limit, step-up and the collider are all skipped wholesale, so nothing here
+   * can be reached by ordinary play and nothing in the ordinary path has to
+   * test for it. Forward is wherever you are looking, pitch included; jump and
+   * crouch are up and down; sprint is fast.
+   *
+   * The one thing it deliberately leaves alone is the capsule's size, so what
+   * you fly *through* is still exactly the volume you would occupy standing
+   * there.
+   */
+  noclip = false;
   /** Whether the sprint widening is currently engaged. Latched, with
    * hysteresis — see `applyCamera`. */
   private zoomedOut = false;
@@ -462,6 +497,11 @@ export class Controller {
   private grounded = false;
   /** Set for the one sub-step a jump is launched on, so it isn't snapped back. */
   private jumped = false;
+  /**
+   * Height accumulated by step-ups since the player last stood on ground the
+   * slope limit allows. See `STEP_CLIMB_BUDGET`.
+   */
+  private stepClimb = 0;
   private timeOffGround = 0;
   /** Seconds standing since the last touchdown. Gates the take-off sound. */
   private timeSinceLand = Infinity;
@@ -649,6 +689,11 @@ export class Controller {
     const t = this.tuning;
     this.jumped = false;
 
+    if (this.noclip) {
+      this.fly(dt);
+      return;
+    }
+
     if (this.grounded) {
       this.timeOffGround = 0;
       this.timeSinceLand += dt;
@@ -679,6 +724,43 @@ export class Controller {
     }
 
     this.advanceBob(dt);
+  }
+
+  /**
+   * One sub-step of the debug camera.
+   *
+   * Velocity is *set* rather than accelerated toward — a fly camera that
+   * carries momentum overshoots everything you try to stop beside, and the
+   * whole point of this is getting a look at something. It is still written to
+   * `velocity` rather than kept locally so that switching noclip off mid-air
+   * hands the ordinary path a sensible starting speed instead of a stale one.
+   */
+  private fly(dt: number): void {
+    const t = this.tuning;
+    const speed = t.walkSpeed * NOCLIP_SCALE * (this.input.sprint ? t.sprintScale : 1);
+
+    // Pitch included, unlike `applyWish` — walking is over ground and flying is
+    // aiming.
+    const cosPitch = Math.cos(this.pitch);
+    _forward.set(-Math.sin(this.yaw) * cosPitch, Math.sin(this.pitch), -Math.cos(this.yaw) * cosPitch);
+    _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    _wish
+      .set(0, 0, 0)
+      .addScaledVector(_forward, this.input.moveZ)
+      .addScaledVector(_right, this.input.moveX);
+    _wish.y += (this.input.jumping ? 1 : 0) - (this.input.crouching ? 1 : 0);
+
+    if (_wish.lengthSq() > 1e-8) _wish.normalize().multiplyScalar(speed);
+    this.velocity.copy(_wish);
+    this.capsule.translate(_delta.copy(_wish).multiplyScalar(dt));
+
+    // Never standing, so leaving noclip inside geometry falls and depenetrates
+    // the ordinary way rather than believing it is on a floor.
+    this.grounded = false;
+    this.groundNormal.set(0, 1, 0);
+    this.stepClimb = 0;
+    this.wishX = 0;
+    this.wishZ = 0;
   }
 
   private applyFriction(dt: number): void {
@@ -850,6 +932,8 @@ export class Controller {
         this.grounded = true;
         this.groundNormal.copy(contact.normal);
         this.ground = contact.surface;
+        // Standing on ground the limit allows is what a climb is measured from.
+        this.stepClimb = 0;
       }
 
       const into = this.velocity.dot(contact.normal);
@@ -933,6 +1017,7 @@ export class Controller {
       this.grounded = true;
       this.groundNormal.copy(contact.normal);
       this.ground = contact.surface;
+      this.stepClimb = 0;
       return;
     }
   }
@@ -979,6 +1064,27 @@ export class Controller {
       if (contact) {
         // Back off to the last clear height and stand there.
         _probe.translate(_push.set(0, increment, 0));
+
+        // **A step-up may only carry you so far past real ground.**
+        //
+        // Climbing is a ratchet by design: a kerb is not cleared in one move,
+        // it is ridden up its own front edge a few centimetres per sub-step
+        // until the capsule's shoulder tops it. That is what makes stairs and
+        // kerbs work, so it cannot be forbidden — but unbounded it defeats the
+        // slope limit outright. The raised probe clears any bank shallower than
+        // about 80°, so holding forward ratchets up a hillside at full walking
+        // speed, and the flat normal reported below keeps `grounded` true so
+        // `snapToGround` never gets to apply the limit either.
+        //
+        // The difference is that a ledge *ends*. Climb a kerb and you are stood
+        // on genuinely walkable ground a moment later, which resets this; climb
+        // a bank and there is only more bank. So the budget is the total rise a
+        // step-up may accumulate since the last time the player stood on
+        // something the slope limit allows. A staircase resets on every tread.
+        const gain = _probe.start.y - this.capsule.start.y;
+        if (gain > 0 && this.stepClimb + gain > t.stepHeight * STEP_CLIMB_BUDGET) return false;
+        this.stepClimb += Math.max(gain, 0);
+
         this.capsule.copy(_probe);
         this.grounded = true;
         // A tread is flat by definition; the real normal is one frame away.
@@ -1051,7 +1157,9 @@ export class Controller {
     //
     // Held, not toggled: `crouching` is a live read of the key state, so
     // releasing it always stands you up the moment there is room.
-    const wanted = this.input.crouching || !this.headroom() ? 1 : 0;
+    // Crouch is the descend key while flying, and there is no floor to be
+    // short of — so the stance is left standing rather than following it.
+    const wanted = !this.noclip && (this.input.crouching || !this.headroom()) ? 1 : 0;
     this.crouch += (wanted - this.crouch) * Math.min(dt * t.crouchSpeed, 1);
     this.applyStance();
 

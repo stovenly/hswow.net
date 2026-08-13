@@ -13,8 +13,10 @@ import {
   coverThickness,
   groundJitter,
   type GroundName,
+  outlineDistance,
   type GroundPatch,
   type CoverPatch,
+  type PatchShape,
   type CoverName,
 } from './ground';
 import type { SurfaceName } from '../audio/models/footsteps';
@@ -131,6 +133,24 @@ export interface TerrainOptions {
   rockAngle?: number;
   /** What unpainted, unsteep ground is made of. */
   base?: GroundName;
+  /**
+   * Thins ground cover to nothing over the last stretch before the level's edge.
+   *
+   * **Because cover ending in a line is the loudest seam a vista has.** Beyond
+   * the boundary the skirt takes over, and the skirt grows nothing — so a field
+   * of grass that keeps full density right up to the last quad simply stops,
+   * and the eye reads the exact shape of the playable area. Ramped to zero over
+   * a band, the grass runs out the way it runs out onto a path, and where the
+   * level ends stops being a fact the player can see.
+   *
+   * `band` is metres, measured inward from `outline` — which defaults to the
+   * field's own square. A winding level states its shape here and the cover
+   * fades along the whole of it.
+   *
+   * Density only. The ground *material* is unchanged, so what is underfoot and
+   * what colour the face is painted do not move with it.
+   */
+  edgeFade?: { band: number; outline?: readonly PatchShape[] };
 }
 
 /** Smootherstep: zero gradient at both ends, so landforms blend without creases. */
@@ -157,6 +177,8 @@ export class Terrain {
   private readonly detail: readonly DetailRegion[];
   private readonly rockAngle: number;
   private readonly base: GroundName;
+  private readonly edgeFade: number;
+  private readonly edgeOutline: readonly PatchShape[];
 
   constructor(options: TerrainOptions) {
     this.size = options.size;
@@ -167,6 +189,22 @@ export class Terrain {
     this.detail = options.detail ?? [];
     this.rockAngle = options.rockAngle ?? 34;
     this.base = options.base ?? 'turf';
+    this.edgeFade = options.edgeFade?.band ?? 0;
+    this.edgeOutline = options.edgeFade?.outline ?? [
+      { kind: 'field', min: [-this.size / 2, -this.size / 2], max: [this.size / 2, this.size / 2] },
+    ];
+  }
+
+  /**
+   * How much cover survives here, 0 at the level's edge and 1 a band inward.
+   *
+   * Smootherstep rather than linear: a linear ramp puts its sharpest change in
+   * density right where the fade begins, which draws a line of its own a band's
+   * width inside the one it was meant to hide.
+   */
+  private edgeDensity(x: number, z: number): number {
+    if (this.edgeFade <= 0) return 1;
+    return ease(-outlineDistance(this.edgeOutline, x, z) / this.edgeFade);
   }
 
   /**
@@ -225,6 +263,17 @@ export class Terrain {
     }
 
     return height;
+  }
+
+  /**
+   * What unpainted ground here is made of.
+   *
+   * Exported so the skirt can take its colour from the level rather than being
+   * told it twice — a distant field that does not match the near one puts a
+   * value step exactly on the boundary the whole band exists to hide.
+   */
+  get baseMaterial(): GroundName {
+    return this.base;
   }
 
   /** The detail regions, so the check can measure the ground under their edges. */
@@ -380,7 +429,9 @@ export class Terrain {
                 const [feather, neighbor, blend] = this.coverEdge(cover, corner.x, corner.z);
                 covers.push(
                   cover,
-                  feather,
+                  // Thinned toward the level's edge, where the skirt takes over
+                  // and nothing grows. See `TerrainOptions.edgeFade`.
+                  feather * this.edgeDensity(corner.x, corner.z),
                   coverSwell(corner.x, corner.z),
                   coverThickness(corner.x, corner.z),
                 );

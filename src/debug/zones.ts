@@ -2,19 +2,9 @@ import * as THREE from 'three';
 import { type ZoneDefinition, OUTDOOR_ENVIRONMENT, INDOOR_ENVIRONMENT } from '../world/Zone';
 import type { SoundscapeSpec } from '../audio/Soundscape';
 import type { PortalDefinition, PortalEnd } from '../world/Portal';
-import { markCollidable } from '../player/Collider';
 import { ProvingGround, SPAWN } from './ProvingGround';
-// Builders are imported directly rather than through `art/registry`, which is
-// Vite-only. The headless zone check reaches this file through esbuild. Only
-// the hub's own is here now — the two interiors' builders went with their
-// geometry into `interiors.build.ts`.
-import { hut, hutDoorAnchor } from '../art/builders/hut';
-import {
-  countrysideZone,
-  countrysideTerrain,
-  COUNTRYSIDE_GATE,
-  ZONE_COUNTRYSIDE,
-} from './countryside';
+import { countrysideZone } from './countryside';
+import { demoZone, demoHallPortal, demoPortals } from './demos';
 import { countrysideHomeZones, countrysideHomePortals } from './countryside-homes';
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
@@ -25,28 +15,29 @@ import { waterShowcase2Zone } from './WaterShowcase2';
 import { footstepsShowcaseZone } from './FootstepsShowcase';
 import { groundcoverShowcaseZone } from './GroundcoverShowcase';
 import { particleShowcaseZone } from './ParticleShowcase';
+import { vistaShowcaseZone } from './VistaShowcase';
 import { chainZones, chainPortals } from './chains';
 
 /**
- * The test world: one exterior and two interiors, joined by two portals.
+ * The test world: the hub, and the two antechambers everything else hangs off.
  *
  * This is the Phase 5 fixture, in the same spirit as the movement gym and the
  * prop gallery — not content, but a place where the system can be exercised.
  *
- * **The first door is a few paces from spawn, on purpose.** A portal you have
- * to walk thirty seconds to reach is a portal that gets tested once; one you
- * are looking at the moment the game boots gets used every time anything
- * nearby changes. The second building is further out, which is the case that
- * matters for the *other* thing being tested — that a zone entered from cold,
- * after the first has already been built and left, comes up correctly.
+ * **The hub says two things.** Turn around for the kit: three prop halls, with
+ * the galleries and showcases inside them. Look forward for the world: the Demo
+ * Showcase, with every finished place behind it. The demos used to stand loose
+ * in the hub's own field — a hut a few paces off spawn, the village gate beside
+ * it, the factory door beside that — which was right at two and stopped being
+ * right at four. See `demos.ts`.
  *
- * Two portals rather than one because a single portal cannot show whether zone
- * state is being reset or merely swapped: with two interiors you can go in one
- * door, come out, go in the other, and any leak between them shows up as the
- * wrong room. They are deliberately unalike in every axis the zone system
- * controls — size, light, fog, floor material, acoustics — because the claim
- * of a zone is that crossing into it changes the place, and two rooms that
- * differ only in dimensions prove nothing.
+ * Two interiors rather than one because a single portal cannot show whether
+ * zone state is being reset or merely swapped: with two you can go in one door,
+ * come out, go in the other, and any leak between them shows up as the wrong
+ * room. They are deliberately unalike in every axis the zone system controls —
+ * size, light, fog, floor material, acoustics — because the claim of a zone is
+ * that crossing into it changes the place, and two rooms that differ only in
+ * dimensions prove nothing.
  *
  * **The names are placeholders.** They are what a door's tooltip shows, so
  * they are the most player-facing strings in the game so far, and naming is
@@ -59,54 +50,27 @@ export const ZONE_FACTORY = 'factory';
 export { ZONE_COUNTRYSIDE } from './countryside';
 
 /**
- * The near hut: just off spawn, facing back at it.
+ * The door to the Demo Showcase, directly ahead of spawn.
  *
- * Spawn is `(0, 0.1, 10)` looking down -Z, so a building at z = 6 sits
- * directly ahead and a little to the right, clear of the measured cubes at
- * z = 0 and well clear of the movement gym west of x = -4.
+ * Spawn is `(0, 0.1, 10)` looking down -Z, so a door at z = 6 sits in front of
+ * you the moment the game boots — which is the whole argument for where it is.
+ * A portal you have to walk thirty seconds to reach is a portal that gets
+ * tested once; one you are looking at on boot gets used every time anything
+ * behind it changes. It stands where the village gate used to, in the middle of
+ * the three doors it replaced, clear of the measured cubes at z = 0 and well
+ * clear of the movement gym west of x = -4.
  */
-const HUT_AT = new THREE.Vector3(5, 0, 6);
-/** Yaw 0 faces +Z — back toward spawn. */
-const HUT_YAW = 0;
-
-/**
- * The factory door, standing beside the village gate.
- *
- * **The shed it used to be set into is gone.** There was a hand-built exterior
- * out at x = 42, and the walk to it was most of the cost of using the fixture:
- * fifty metres each way to test a threshold, past nothing else that needed
- * testing. The doors that lead somewhere are worth far more standing together
- * where you spawn looking at them — and a door alone in open ground is exactly
- * as honest as a door in a hand-carved wall. Both are scaffolding, and one of
- * them is free.
- *
- * The building comes back when there is an industrial structure kit to build it
- * from, at which point it is content rather than a prop whittled in this file.
- */
-const FACTORY_DOOR_AT = new THREE.Vector3(14, 0, 6);
-/** Faces +Z, back toward spawn, square-on beside the gate. */
-const FACTORY_YAW = 0;
+const DEMO_DOOR_AT = new THREE.Vector3(10, 0, 6);
+/** Faces +Z, back toward spawn, so it is square-on the moment you look at it. */
+const DEMO_YAW = 0;
 
 /**
  * How far a portal door stands out from the wall it is set into.
  *
- * Small, but not zero. The hut paints a dark panel where its doorway is and
- * the interior shell is a sealed box; a door mesh exactly coplanar with either
- * would z-fight along every edge at every distance.
+ * Small, but not zero. The interior shells are sealed boxes; a door mesh
+ * exactly coplanar with one would z-fight along every edge at every distance.
  */
 const DOOR_PROUD = 0.07;
-
-/**
- * The gateway out to the village, immediately right of the near hut.
- *
- * Spawn looks down -Z, so "right" is +X, and the hut sits at x = 5 with a
- * radius of about three. Standing the gate just past it puts the two doors that
- * lead somewhere in the same glance: you boot, look forward, and both the
- * interior and the village are in front of you.
- */
-const GATE_AT = new THREE.Vector3(10, 0, 6);
-/** Faces +Z, back toward spawn, so it is square-on the moment you look at it. */
-const GATE_YAW = 0;
 
 /**
  * The rank of prop hall doors, directly behind spawn.
@@ -139,8 +103,6 @@ const PROP_YAW = Math.PI;
 // enough floor that you can walk *around* something, not just past it.
 export const HUT_ROOM_SHELL = { width: 10, depth: 8, height: 3.4 };
 export const FACTORY = { width: 15, depth: 11, height: 5.6 };
-
-const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * Where the plant in the factory hall actually stands.
@@ -338,18 +300,6 @@ function propHub(index: number, material: 'timber' | 'iron'): PortalEnd {
 }
 
 export function createTestWorld(ground: ProvingGround): TestWorld {
-  // Built eagerly, outside the zone builder, because the portal placement below
-  // has to measure the hut's doorway — and the doorway's position is rolled
-  // from the hut's seed, so it cannot be known before the mesh exists.
-  const hutMesh = hut.build({ seed: 5511 });
-  hutMesh.position.copy(HUT_AT);
-  hutMesh.rotation.y = HUT_YAW;
-
-  const anchor = hutDoorAnchor(hutMesh);
-  const hutDoor = new THREE.Vector3(anchor.x, 0, anchor.z + DOOR_PROUD)
-    .applyAxisAngle(UP, HUT_YAW)
-    .add(HUT_AT);
-
   const zones: ZoneDefinition[] = [
     {
       id: ZONE_EXTERIOR,
@@ -370,15 +320,8 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         // the hub it comes back empty. See `ProvingGround.populate`.
         const root = ground.populate();
 
-        // **Built fresh here, not the mesh measured above.** `hutMesh` exists
-        // only so the portal placement can read the doorway off it before any
-        // zone is built; adding *that* instance would put a mesh in the scene
-        // whose geometry is released the first time the hub is dropped, and it
-        // would come back invisible. The seed is fixed, so this is the same hut.
-        const shed = hut.build({ seed: 5511 });
-        shed.position.copy(HUT_AT);
-        shed.rotation.y = HUT_YAW;
-        root.add(markCollidable(shed));
+        // The hut that used to stand here went into the Demo Showcase with the
+        // door that was set into it — see `demos.ts`.
 
         // The sink and the cistern stood in the cell, which is gone with the
         // rest of the acoustics fixture. They were there for one reason —
@@ -471,6 +414,8 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       load: () => import('./interiors.build').then((m) => m.buildFactory),
     },
 
+    // The antechamber every finished place hangs off, and the places themselves.
+    demoZone(),
     countrysideZone(),
     // The three houses in it you can go into — see `countryside-homes.ts`.
     ...countrysideHomeZones(),
@@ -481,16 +426,20 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   ];
 
   const portals: PortalDefinition[] = [
-    {
-      id: 'hut-door',
-      a: {
-        zone: ZONE_EXTERIOR,
-        position: hutDoor,
-        yaw: HUT_YAW,
-        material: 'timber',
-        seed: 8801,
-      },
-      b: {
+    // The one door out of the hub that leads to a place rather than to a shelf
+    // of props.
+    demoHallPortal({
+      zone: ZONE_EXTERIOR,
+      position: DEMO_DOOR_AT,
+      yaw: DEMO_YAW,
+      material: 'timber',
+      seed: 6451,
+    }),
+    // And every door out of that room. The interior ends are ours because the
+    // shells are — `demos.ts` knows what hangs off it and nothing about the far
+    // side of its own doors.
+    ...demoPortals(
+      {
         zone: ZONE_HUT,
         // Set into the north wall, facing back into the room. This is the way
         // out — the same portal read from the other end.
@@ -499,46 +448,14 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         material: 'timber',
         seed: 8802,
       },
-    },
-    {
-      id: 'factory-door',
-      a: {
-        zone: ZONE_EXTERIOR,
-        position: FACTORY_DOOR_AT,
-        yaw: FACTORY_YAW,
-        material: 'iron',
-        seed: 9301,
-      },
-      b: {
+      {
         zone: ZONE_FACTORY,
         position: new THREE.Vector3(0, 0, -FACTORY.depth / 2 + DOOR_PROUD),
         yaw: 0,
         material: 'iron',
         seed: 9302,
       },
-    },
-    {
-      id: 'countryside-gate',
-      a: {
-        zone: ZONE_EXTERIOR,
-        position: GATE_AT,
-        yaw: GATE_YAW,
-        material: 'timber',
-        seed: 4712,
-      },
-      b: {
-        zone: ZONE_COUNTRYSIDE,
-        // On the lane at the north end of the valley, dropped onto the ground.
-        // The arrival marker is derived a stride in front of this, which the
-        // check confirms is walkable rather than halfway up the rim.
-        position: COUNTRYSIDE_GATE.clone().setY(
-          countrysideTerrain.heightAt(COUNTRYSIDE_GATE.x, COUNTRYSIDE_GATE.z),
-        ),
-        yaw: Math.PI,
-        material: 'timber',
-        seed: 4713,
-      },
-    },
+    ),
     // The doors in the three open houses. The exterior owns where they stand
     // and the homes own what is behind them, so neither can be authored without
     // the other agreeing.
@@ -568,6 +485,9 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   zones.push(groundcoverShowcaseZone());
   // And the Particle Showcase, which is the air above it.
   zones.push(particleShowcaseZone());
+  // The Vista Showcase, which is everything past the edge of both — see
+  // `VistaShowcase.ts` and VISTA.md.
+  zones.push(vistaShowcaseZone());
   // The Music Showcase and its annex — Phase 6c's stage. Its hall door is in
   // `propPortals` with the other showcases; the portal here joins the pair,
   // because the border retune the stage exists to prove has to be walked.

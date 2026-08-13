@@ -140,3 +140,23 @@ export const GLASS_LAYER = 6;
  * mask the screen-space corruption passes are gated by.
  */
 export const EFFECT_MASK_LAYER = 7;
+
+/**
+ * Out-of-bounds scenery — the vista band. Additive, like collision and glow:
+ * these meshes stay on layer 0 and are drawn with everything else.
+ *
+ * **It exists to take the outline off them.** `PixelStage` draws the scene a
+ * second time into the normal buffer restricted to this layer, with a material
+ * that writes zero alpha, and the edge shader reads that alpha as "no line
+ * here". Both kinds of edge go — the depth one as well as the normal one —
+ * because the alpha is sampled once and gates the result rather than either
+ * input.
+ *
+ * The reason is scale rather than taste. An outline is a constant width in
+ * pixels, so on a prop two metres across it is a drawn line and on a hillside
+ * a hundred and fifty metres away it is a hard black seam around a shape that
+ * fog has otherwise dissolved — the one thing in the frame that does not
+ * recede. Band 1 keeps its outlines, because band 1 is at arm's length and is
+ * ordinary world geometry; see `art/vista.ts`.
+ */
+export const VISTA_LAYER = 8;

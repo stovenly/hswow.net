@@ -38,6 +38,7 @@ import { NOTES, noteById } from '../src/content/notes';
 import { buildDoor, doorMetrics, doorName } from '../src/art/door';
 import { markCollidable } from '../src/player/Collider';
 import { createTestWorld, ZONE_EXTERIOR } from '../src/debug/zones';
+import { ZONE_DEMOS } from '../src/debug/demos';
 import { ZONE_FOOTSTEPS_SHOWCASE } from '../src/debug/FootstepsShowcase';
 import { GROUND, COVER_TYPES } from '../src/world/ground';
 import { COVER_ATTRIBUTE, coverCensus } from '../src/art/cover';
@@ -402,7 +403,10 @@ for (const zone of zones.values()) {
 // dispose itself. What it cannot see is the manager's bookkeeping around the
 // release, which is why that code is small and stated in one place.
 {
-  const walk = [ZONE_EXTERIOR, 'villager-hut', 'hut-room', 'hut-room-2'];
+  // A real path through the world, door by door — the hut hangs off the Demo
+  // Showcase now rather than off the hub, and a walk that skipped that hop
+  // would be measuring eviction over a route nobody can take.
+  const walk = [ZONE_EXTERIOR, ZONE_DEMOS, 'villager-hut', 'hut-room', 'hut-room-2'];
   const missing = walk.filter((id) => !zones.has(id));
 
   if (missing.length > 0) {
@@ -415,7 +419,7 @@ for (const zone of zones.values()) {
     // would have been satisfied by keeping everything.
     const far = residentZones(portals, 'hut-room-2', KEEP_WITHIN);
     check(
-      'the hub is released from three doors away',
+      'the hub is released from the end of a chain',
       !far.has(ZONE_EXTERIOR),
       `${far.size} zones resident from hut-room-2: ${[...far].sort().join(', ')}`,
     );

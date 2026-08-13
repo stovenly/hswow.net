@@ -195,6 +195,22 @@ for (const [index, degrees] of [10, 20, 30, 45].entries()) {
   );
 }
 
+// The 60° ramp behind the row, which is past the limit and has to hold. This
+// is the case `tryStepUp` used to defeat: raised by the step height and
+// reaching one sub-step forward, its probe cleared any slope under ~80°, so
+// holding forward walked straight up a bank at full speed.
+// Held for a long time on purpose: the budget lets you scramble a little way
+// up and then lose it, so the failure to look for is not one climb but a creep
+// — slide to the bottom, reset, gain a bit more. Ten seconds is forty attempts.
+reset(-6, 0.1, -9.5, 0);
+input.moveZ = 1;
+peak = run(10);
+check(
+  'the 60° bank refuses you',
+  peak < 1.4,
+  `peak y=${peak.toFixed(2)} of a 3.46 m wall, over 10 s of walking into it`,
+);
+
 // --- kerbs, either side of the step height --------------------------------
 // 0.5 m is expected to be climbed despite stepHeight being 0.45: the capsule's
 // own shoulder carries it. 0.9 m is the one that has to hold.

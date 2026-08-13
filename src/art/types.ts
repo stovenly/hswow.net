@@ -32,7 +32,14 @@ export type BuilderCategory =
   | 'structures'
   | 'furniture'
   | 'objects'
-  | 'people';
+  | 'people'
+  /**
+   * Scenery beyond the rim — seen, never visited. A family by its invariants
+   * rather than by its subject: never solid, never swaying, never clutter,
+   * never a shadow, and a few dozen triangles each. See `art/vista.ts` and
+   * VISTA.md.
+   */
+  | 'vista';
 
 /** Gallery order. Not alphabetical — this is the order they read best in. */
 export const CATEGORY_ORDER: readonly BuilderCategory[] = [
@@ -43,6 +50,8 @@ export const CATEGORY_ORDER: readonly BuilderCategory[] = [
   'furniture',
   'objects',
   'people',
+  // Last, because the gallery reads near to far.
+  'vista',
 ];
 
 export interface MeshBuilder {

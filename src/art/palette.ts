@@ -182,3 +182,19 @@ export function shade(hex: number, factor: number): number {
   const b = Math.min(255, Math.round((hex & 0xff) * factor));
   return (r << 16) | (g << 8) | b;
 }
+
+/**
+ * Mixes two packed colours.
+ *
+ * In sRGB, for the reason `shade` gives: converting to linear and back would
+ * make a half-way blend land somewhere other than half-way to the eye, which is
+ * the one thing every caller of this wants it to do.
+ */
+export function blend(a: number, b: number, t: number): number {
+  const k = t < 0 ? 0 : t > 1 ? 1 : t;
+  const mix = (shift: number): number => {
+    const from = (a >> shift) & 0xff;
+    return Math.round(from + (((b >> shift) & 0xff) - from) * k);
+  };
+  return (mix(16) << 16) | (mix(8) << 8) | mix(0);
+}
