@@ -25,15 +25,38 @@ import {
 } from '../src/audio/models/footsteps';
 import {
   MODES,
+  NEIGHBOURS,
   DRONE,
+  JUST,
   hz,
+  justHz,
   inMode,
   lock,
-  centreMoves,
   degreeToSemitone,
   semitoneToDegree,
+  type ModeName,
 } from '../src/audio/music/theory';
-import { melodyCell, textureCell, texturePool, CONNECT } from '../src/audio/music/patterns';
+import {
+  melodyCell,
+  textureCell,
+  texturePool,
+  motifHead,
+  periodFrom,
+  applyOp,
+  openDegrees,
+  CONNECT,
+  type MotifOp,
+} from '../src/audio/music/patterns';
+import { GROUNDS, groundFor, cadenceApproach } from '../src/audio/music/harmony';
+import {
+  BAR_BEATS,
+  RHYTHM_CELLS,
+  rhythmCell,
+  subdivide,
+  mutateOstinato,
+} from '../src/audio/music/rhythm';
+import { ritardCurve, phraseArch, SECTION_END_V, FINAL_V } from '../src/audio/music/tempo';
+import { createRng } from '../src/art/random';
 
 let failures = 0;
 
@@ -722,6 +745,55 @@ function* permutations(cell: readonly number[]): Generator<readonly number[]> {
     'octave doubles, unison holds, a fifth is 2^(7/12)',
   );
 
+  // The just table: pure where the drone demands it — unison, fourth, fifth,
+  // octave — never more than a comma-and-change from equal temperament, and
+  // octave-periodic across the whole range.
+  {
+    const cents = (ratio: number): number => 1200 * Math.log2(ratio);
+    let close = true;
+    for (let pc = 0; pc < 12; pc++) {
+      if (Math.abs(cents(JUST[pc]) - pc * 100) > 20) close = false;
+    }
+    let periodic = true;
+    for (let s = -25; s <= 25; s++) {
+      if (Math.abs(justHz(220, s + 12) - 2 * justHz(220, s)) > 1e-9) periodic = false;
+    }
+    check(
+      'just intonation stands on the drone',
+      JUST.length === 12 &&
+        Math.abs(justHz(220, 0) - 220) < 1e-9 &&
+        Math.abs(justHz(220, 7) - 330) < 1e-9 &&
+        Math.abs(justHz(220, 5) - 220 * (4 / 3)) < 1e-9 &&
+        Math.abs(justHz(220, 12) - 440) < 1e-9 &&
+        close &&
+        periodic,
+      'pure fifth and fourth, octaves double, all 12 within 20 cents of equal',
+    );
+  }
+
+  // The neighbour table: every step a bridge may take is symmetric, keeps
+  // the mode's size — degree space must carry over — and moves exactly one
+  // accidental. Blues sits out by design.
+  {
+    const faults: string[] = [];
+    for (const [from, tos] of Object.entries(NEIGHBOURS)) {
+      const a = MODES[from as ModeName];
+      for (const to of tos ?? []) {
+        const b = MODES[to];
+        if (!NEIGHBOURS[to]?.includes(from as ModeName)) faults.push(`${from}→${to} one-way`);
+        if (a.length !== b.length) faults.push(`${from}→${to} resized`);
+        const moved = a.filter((pc) => !b.includes(pc)).length;
+        if (moved !== 1) faults.push(`${from}→${to} moved ${moved}`);
+      }
+    }
+    if ('blues-hexatonic' in NEIGHBOURS) faults.push('blues stepped in');
+    check(
+      'mode neighbours move one accidental',
+      faults.length === 0,
+      faults.slice(0, 4).join(', ') || 'symmetric, same size, one accidental each way',
+    );
+  }
+
   // The lock: lands in the mode, never moves further than the nearest degree
   // can be, is idempotent, and passes in-mode notes through untouched.
   let snapped = 0;
@@ -765,23 +837,54 @@ function* permutations(cell: readonly number[]): Generator<readonly number[]> {
       'no thirds, three notes or more, every mode',
   );
 
-  // The harmonic centre: every mode has room to move, home is always in the
-  // bag, and no move lands on the fifth or the leading tone — the two degrees
-  // that turn a modal shift into a dominant cadence.
+  // The ground library: the generalized form of the old centre promise. No
+  // chord in any loop stands on the fifth or the leading tone — the two roots
+  // that turn a rocking bass into a dominant cadence — every chord is in its
+  // mode with its perfect fifth available, home loops start at home, away
+  // loops start away, and the borrowed chord is genuinely borrowed.
   {
-    const still = modes.filter(([, mode]) => new Set(centreMoves(mode)).size < 3);
-    const homeless = modes.filter(([, mode]) => !centreMoves(mode).includes(0));
-    const cadence = modes.filter(([, mode]) =>
-      centreMoves(mode).some((degree) => {
-        const pc = ((degreeToSemitone(mode, degree) % 12) + 12) % 12;
-        return pc === 7 || pc === 11;
-      }),
-    );
+    const faults: string[] = [];
+    for (const [name] of modes) {
+      const mode = MODES[name as ModeName];
+      const book = GROUNDS[name as ModeName];
+      for (const side of ['home', 'away'] as const) {
+        for (const loop of book[side]) {
+          if (loop.length < 2 || loop.length > 5) faults.push(`${name} ${side} length`);
+          if (side === 'home' && loop[0] !== 0) faults.push(`${name} home starts away`);
+          if (side === 'away' && loop[0] === 0) faults.push(`${name} away starts home`);
+          for (const pc of loop) {
+            if (!inMode(pc, mode)) faults.push(`${name} ${side} ${pc} out of mode`);
+            if (pc % 12 === 7 || pc % 12 === 11) faults.push(`${name} ${side} dominant`);
+            if (!inMode(pc + 7, mode)) faults.push(`${name} ${side} ${pc} fifthless`);
+          }
+        }
+      }
+      if (inMode(book.borrow, mode)) faults.push(`${name} borrow not borrowed`);
+      if (book.borrow % 12 === 7 || book.borrow % 12 === 11) faults.push(`${name} borrow dominant`);
+      const approach = cadenceApproach(name as ModeName);
+      if (!inMode(approach, mode) || approach === 0 || approach % 12 === 7 || approach % 12 === 11) {
+        faults.push(`${name} approach`);
+      }
+    }
     check(
-      'the harmonic centre never moves onto a dominant',
-      still.length === 0 && homeless.length === 0 && cadence.length === 0,
-      [...still, ...homeless, ...cadence].map(([name]) => name).join(', ') ||
-        'three or more centres in every mode, none a fifth or leading tone',
+      'no ground chord stands on a dominant',
+      faults.length === 0,
+      faults.slice(0, 4).join(', ') || 'every loop in-mode, fifths intact, borrows outside',
+    );
+
+    let steadyGrounds = true;
+    let variedGrounds = 0;
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      const a = groundFor(seed, 'mixolydian', 'home');
+      if (String(a) !== String(groundFor(seed, 'mixolydian', 'home'))) steadyGrounds = false;
+      seen.add(String(a));
+    }
+    variedGrounds = seen.size;
+    check(
+      'a seed is a ground',
+      steadyGrounds && variedGrounds > 1,
+      `60 seeds re-rolled steady, ${variedGrounds} loops drawn`,
     );
   }
 
@@ -850,6 +953,150 @@ function* permutations(cell: readonly number[]): Generator<readonly number[]> {
     distinct > SEEDS * 0.4,
     `${distinct} distinct cells from ${SEEDS} sequential seeds`,
   );
+
+  // The period: both halves open with the same head, the antecedent hangs on
+  // an open degree, and the consequent falls by step onto the root and lands
+  // there — that asymmetry is the whole difference between an answer and a
+  // transposition, and it has to hold for every developed head too.
+  {
+    const rng = createRng(6060);
+    let periods = 0;
+    let sharedHead = true;
+    let openEnd = true;
+    let landsRoot = true;
+    let descends = true;
+    for (const [, mode] of modes) {
+      const open = openDegrees(mode);
+      for (let seed = 1; seed <= SEEDS; seed++) {
+        const base = motifHead(seed, mode);
+        const ops: MotifOp[] = ['plain', 'sequence', 'inversion', 'fragment'];
+        for (const op of ops) {
+          const head = applyOp(base, op, rng);
+          const period = periodFrom(head, mode);
+          periods++;
+          const startsWith = (half: readonly number[]): boolean =>
+            head.every((degree, i) => half[i] === degree);
+          if (!startsWith(period.antecedent) || !startsWith(period.consequent)) sharedHead = false;
+
+          const question = period.antecedent[period.antecedent.length - 1];
+          const index = ((question % mode.length) + mode.length) % mode.length;
+          if (!open.includes(index)) openEnd = false;
+          if (question === head[head.length - 1]) openEnd = false;
+
+          const landing = period.consequent[period.consequent.length - 1];
+          if (degreeToSemitone(mode, landing) % 12 !== 0) landsRoot = false;
+          const tail = period.consequent.slice(head.length);
+          for (let i = 1; i < tail.length; i++) {
+            if (tail[i] - tail[i - 1] !== -1) descends = false;
+          }
+        }
+      }
+    }
+    check('a period shares its head', sharedHead, `${periods} periods, four ops each`);
+    check('a question hangs open', openEnd, 'antecedents end on the second or fifth, moved');
+    check('an answer lands on the root', landsRoot && descends, 'stepwise descent, root pitch class');
+  }
+
+  // Rhythm cells: every figure sums to its bar — on both rungs of the ladder
+  // — a seed owns one cell for good, and a vibe's gait genuinely narrows the
+  // draw to the cells it names.
+  {
+    const cells = Object.values(RHYTHM_CELLS);
+    const sums = [...cells, ...cells.map(subdivide)].every(
+      (cell) => Math.abs(cell.reduce((total, step) => total + step.beats, 0) - BAR_BEATS) < 1e-9,
+    );
+    const accents = cells.every((cell) =>
+      cell.every((step) => step.accent > 0 && step.accent <= 1),
+    );
+    const steady = Array.from({ length: 60 }, (_, i) => rhythmCell(i)).every(
+      (cell, i) => cell === rhythmCell(i),
+    );
+    const owned = Array.from({ length: 60 }, (_, i) => rhythmCell(i, ['snap'])).every(
+      (cell) => cell === RHYTHM_CELLS.snap,
+    );
+    check(
+      'rhythm cells sum to their bar',
+      sums && accents,
+      `${cells.length} figures, subdivided too, accents in (0, 1]`,
+    );
+    check('a seed owns its cell', steady, '60 seeds re-rolled onto the same figures');
+    check('a gait narrows the draw', owned, 'a one-cell gait always walks its cell');
+  }
+
+  // The ritard: monotone, bounded, committed — v(0) is full speed, v(1) is
+  // the declared end, and nothing in between overshoots either.
+  {
+    let curveOk = true;
+    for (const vEnd of [FINAL_V[0], FINAL_V[1], SECTION_END_V]) {
+      let previous = Infinity;
+      for (let i = 0; i <= 100; i++) {
+        const v = ritardCurve(i / 100, vEnd);
+        if (v > previous + 1e-12 || v > 1 + 1e-9 || v < vEnd - 1e-9) curveOk = false;
+        previous = v;
+      }
+      if (Math.abs(ritardCurve(0, vEnd) - 1) > 1e-9) curveOk = false;
+      if (Math.abs(ritardCurve(1, vEnd) - vEnd) > 1e-9) curveOk = false;
+    }
+    let archOk = true;
+    for (let i = 0; i <= 100; i++) {
+      const a = phraseArch(i / 100);
+      if (a < 0.9 || a > 1.15) archOk = false;
+    }
+    if (!(phraseArch(0) > phraseArch(0.5) && phraseArch(1) > phraseArch(0.5))) archOk = false;
+    check('the ritard is monotone and bounded', curveOk, 'v falls from 1 to v_end, never past');
+    check('phrase ends linger', archOk, 'the arch lifts the edges and presses the middle');
+  }
+
+  // The minimalist's rule, held to the letter: a mutation is exactly one
+  // edit — one note replaced, one added, one dropped, or one adjacent pair
+  // swapped — and the result still never stutters or leaves the pool.
+  {
+    const rng = createRng(4242);
+    let edits = 0;
+    let oneEdit = true;
+    let clean = true;
+    for (const [, mode] of modes) {
+      const pool = texturePool(mode);
+      for (let seed = 1; seed <= 60; seed++) {
+        let notes = textureCell(seed, mode);
+        for (let round = 0; round < 4; round++) {
+          const { notes: out, op } = mutateOstinato(rng, notes, pool);
+          edits++;
+          if (out.some((note, i) => i > 0 && note === out[i - 1])) clean = false;
+          if (out.some((note) => !pool.includes(note))) clean = false;
+          if (op === 'replace' || op === 'swap') {
+            if (out.length !== notes.length) oneEdit = false;
+            const moved = notes.map((note, i) => (out[i] !== note ? i : -1)).filter((i) => i >= 0);
+            if (op === 'replace' && moved.length !== 1) oneEdit = false;
+            if (
+              op === 'swap' &&
+              !(
+                moved.length === 2 &&
+                moved[1] === moved[0] + 1 &&
+                out[moved[0]] === notes[moved[1]] &&
+                out[moved[1]] === notes[moved[0]]
+              )
+            ) {
+              oneEdit = false;
+            }
+          } else if (op === 'add') {
+            const recovers = out.some(
+              (_, i) => String([...out.slice(0, i), ...out.slice(i + 1)]) === String(notes),
+            );
+            if (out.length !== notes.length + 1 || !recovers) oneEdit = false;
+          } else {
+            const recovers = notes.some(
+              (_, i) => String([...notes.slice(0, i), ...notes.slice(i + 1)]) === String(out),
+            );
+            if (out.length !== notes.length - 1 || !recovers) oneEdit = false;
+          }
+          notes = out;
+        }
+      }
+    }
+    check('a mutation changes exactly one element', oneEdit, `${edits} edits, all single`);
+    check('a mutated ostinato still holds the line', clean, 'no stutter, nothing outside the pool');
+  }
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);

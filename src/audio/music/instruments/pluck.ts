@@ -35,6 +35,18 @@ export interface PluckOptions {
   bright?: number;
   /** Pool size. More survives faster runs without audible retuning. */
   voices?: number;
+  /**
+   * Where the string is plucked, 0 edge to 0.5 dead centre. Centre is hollow
+   * (the harp), the edge is thin (the dulcimer). Jittered a little per note —
+   * no hand lands twice in the same place, and a fixed comb machine-guns.
+   */
+  place?: number;
+  /** The excitation filter: floor + velocity span, capped — the hand's hardness. */
+  strike?: { floor: number; span: number; cap: number; duration: number };
+  /** 2 fires a detuned pair per note, the second a breath late — hammered courses. */
+  courses?: number;
+  /** The course pair's spread, in cents. */
+  courseCents?: number;
 }
 
 export interface PluckInstrument extends Instrument {
@@ -72,6 +84,10 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
   const decay = options.decay ?? 2.4;
   const bright = options.bright ?? 0.45;
   const count = Math.max(2, options.voices ?? 6);
+  const place = options.place ?? 0.4;
+  const strikeSpec = options.strike ?? { floor: 800, span: 1800, cap: 2600, duration: 0.003 };
+  const courses = options.courses ?? 1;
+  const courseCents = options.courseCents ?? 3;
 
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
@@ -129,8 +145,7 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
       node.set('decay', decay);
       node.set('bright', bright);
       node.set('closed', 0);
-      // Soft mid-string: toward the edge is a twang, dead centre is hollow.
-      node.set('place', 0.4);
+      node.set('place', place);
       node.set('gain', 0.7);
       voices.push({ input, node });
     }
@@ -177,18 +192,27 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
         fallback(n.at, n.freq, n.velocity);
         return;
       }
-      const voice = voices[next++ % voices.length];
-      voice.node.set('pitch', n.freq);
-      // The excitation filter is the playing level of the pluck, and it
-      // tracks *down* the neck: a high string is stopped shorter and speaks
-      // purer, so the same finger reads darker up there.
-      const track = Math.min(1, Math.max(0.5, 1 - Math.max(n.freq - 260, 0) / 1600));
-      voice.input.frequency.setValueAtTime(
-        Math.min((800 + n.velocity * 1800) * track, 2600),
-        Math.max(n.at - 0.005, context.currentTime),
-      );
-      // A slightly longer, shaped burst — a fingertip, not a slap.
-      excite(context, white, voice.input, n.at, n.velocity * 0.5, 0.003, 0.001);
+      const strings = Math.min(courses, voices.length);
+      for (let course = 0; course < strings; course++) {
+        const voice = voices[next++ % voices.length];
+        const spread = strings > 1 ? (course === 0 ? -courseCents / 2 : courseCents / 2) : 0;
+        // The second string of a course lands a breath late and softer —
+        // the hammer's bounce, not a chorus effect.
+        const when = course === 0 ? n.at : n.at + 0.012 + Math.random() * 0.012;
+        const level = course === 0 ? n.velocity : n.velocity * 0.65;
+        voice.node.set('pitch', n.freq * 2 ** (spread / 1200));
+        voice.node.set('place', Math.min(Math.max(place + (Math.random() * 2 - 1) * 0.05, 0.08), 0.5));
+        // The excitation filter is the playing level of the pluck, and it
+        // tracks *down* the neck: a high string is stopped shorter and speaks
+        // purer, so the same finger reads darker up there.
+        const track = Math.min(1, Math.max(0.5, 1 - Math.max(n.freq - 260, 0) / 1600));
+        voice.input.frequency.setValueAtTime(
+          Math.min((strikeSpec.floor + level * strikeSpec.span) * track, strikeSpec.cap),
+          Math.max(when - 0.005, context.currentTime),
+        );
+        // A slightly longer, shaped burst — a fingertip, not a slap.
+        excite(context, white, voice.input, when, level * 0.5, strikeSpec.duration, 0.001);
+      }
     },
 
     dispose() {
@@ -205,3 +229,26 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
     },
   };
 }
+
+/** Plucked dead centre — the hollow, even-harmonic-poor warmth — soft and long. */
+export const createHarp = (engine: AudioEngine, options: PluckOptions = {}): PluckInstrument =>
+  createPluck(engine, {
+    bright: 0.3,
+    decay: 4.5,
+    place: 0.5,
+    strike: { floor: 500, span: 1200, cap: 2000, duration: 0.004 },
+    ...options,
+  });
+
+/** Struck near the bridge, in courses that never quite agree — the hammered ring. */
+export const createDulcimer = (engine: AudioEngine, options: PluckOptions = {}): PluckInstrument =>
+  createPluck(engine, {
+    bright: 0.7,
+    decay: 3.2,
+    place: 0.12,
+    strike: { floor: 1200, span: 2200, cap: 3400, duration: 0.0015 },
+    courses: 2,
+    courseCents: 3,
+    voices: 8,
+    ...options,
+  });
