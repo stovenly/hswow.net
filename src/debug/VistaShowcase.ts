@@ -58,11 +58,14 @@ import { rock } from '../art/builders/rock';
  *   silhouette that reads wrong out there gets taken apart here. Judge the fault
  *   here, never the look.
  * - **The ring** everywhere else — the whole roster, scattered through the band
- *   by `vistaRing` and merged into a handful of draws. Its outer fringe is a
- *   *parallax tier*: a group that slides with the camera at half its travel, so
- *   what is left over reads as twice the distance. Walk a straight line and
- *   watch it against the still band in front of it; `freeze parallax` in the
- *   `?debug` panel takes the motion out for comparison.
+ *   by `vistaRing` and merged into a handful of draws. Past the honest band are
+ *   two *parallax tiers*, sliding with the camera at half and three quarters of
+ *   its travel, so what is left over reads as two and four times their real
+ *   distance. Walk a straight line and watch them move against each other and
+ *   against the still band in front; `freeze parallax` in the `?debug` panel
+ *   puts them back where they were built, for comparison.
+ * - **The skyline** past all of it, which is not geometry — see `skyRidge` on
+ *   the environment below. It is the same parallax mechanism at k = 1.
  *
  * Fog runs 30 → 240 — see `FOG_FAR`, which is this room's own number and not
  * the countryside's. Silent, like the galleries.
@@ -167,6 +170,21 @@ const BAND = { inner: 15, outer: 82 };
  */
 const FRINGE = { k: 0.5, band: { inner: 113, outer: 137 } };
 
+/**
+ * The second moving tier, further out again and moving more.
+ *
+ * The separation rule is about *relative* motion, not absolute: two tiers swim
+ * through one another when the gap between them is less than the difference in
+ * how far they slide. This one is at `k` = 0.75, so against the fringe's 0.5 it
+ * slides an extra quarter of the traversable radius — about 14 m — and the 18 m
+ * between 137 and 155 covers it.
+ *
+ * At 0.75 it moves a quarter as much as the ground does, which reads as four
+ * times its own distance: 200 m posing as 800. Masses only, and only the vaguest
+ * — it sits at 76–94% fog, where nothing but value survives.
+ */
+const DISTANCE = { k: 0.75, band: { inner: 155, outer: 185 } };
+
 /** The three ranges a vista prop is judged at, north of the arrival. */
 const JUDGED = [60, 110, 165] as const;
 
@@ -226,6 +244,19 @@ export function vistaShowcaseZone(): ZoneDefinition {
       ...OUTDOOR_ENVIRONMENT,
       fogNear: FOG_NEAR,
       fogFar: FOG_FAR,
+      // Band 3: the land past where the fog has dissolved band 2, drawn in the
+      // sky's own shader for no triangles at all. Low and hazy — anything with
+      // a readable shape up here would compete with the geometry in front of it.
+      skyRidge: {
+        opacity: 1,
+        height: 0.045,
+        scale: 3.4,
+        roughness: 0.5,
+        tint: '#6c7f95',
+        shade: 0.34,
+        haze: 0.014,
+        seed: 3307,
+      },
       soundscape: SILENCE,
     },
     spawn: { position: onGround(0, VIEW_Z), yaw: Math.PI },
@@ -274,14 +305,26 @@ function buildRing(): THREE.Group {
     seed: 9040,
     band: BAND,
     // Index 0 is the honest band and never moves. See `FRINGE`.
-    tiers: [{ k: 0 }, { k: FRINGE.k }],
+    tiers: [{ k: 0 }, { k: FRINGE.k }, { k: DISTANCE.k }],
     // Measured from the arrival rather than from the origin, so the sign in
     // front of you is telling the truth.
-    place: JUDGED.map((distance, i) => ({
-      builder: vistaHill,
-      at: [0, VIEW_Z - distance] as const,
-      seed: 4100 + i * 31,
-    })),
+    place: [
+      ...JUDGED.map((distance, i) => ({
+        builder: vistaHill,
+        at: [0, VIEW_Z - distance] as const,
+        seed: 4100 + i * 31,
+      })),
+      // **The landmarks, by hand, and the spec is explicit that they must be.**
+      // Scattering something with a count of one into a band thirty props have
+      // already filled can only fail — and it did, silently, until the placer
+      // started saying so. It is also the wrong shape: which bearing a landmark
+      // sits on is composition, not luck.
+      //
+      // These two bearings are placeholders. Which places deserve an echo on
+      // the horizon is a fiction decision, and yours.
+      { builder: vistaTower, at: [86, -154] as const, scale: 1.35, seed: 5501 },
+      { builder: vistaHamlet, at: [-77, -123] as const, scale: 1.15, seed: 5502 },
+    ],
     scatter: [
       // Woodland first and most of it — a treeline is what fills a horizon, and
       // a band of bare hills reads as wallpaper.
@@ -348,6 +391,23 @@ function buildRing(): THREE.Group {
         band: FRINGE.band,
         scale: [1.5, 2.4],
         spacing: 34,
+      },
+      // --- the far tier ------------------------------------------------------
+      {
+        builder: vistaHill,
+        tier: 2,
+        count: 6,
+        band: DISTANCE.band,
+        scale: [2.4, 3.6],
+        spacing: 40,
+      },
+      {
+        builder: vistaForest,
+        tier: 2,
+        count: 4,
+        band: DISTANCE.band,
+        scale: [2.2, 3.2],
+        spacing: 40,
       },
     ],
   });

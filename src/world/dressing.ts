@@ -118,7 +118,8 @@ export function edgeDressing(options: DressingOptions): THREE.Group {
 
       let clear = true;
       for (const other of taken) {
-        if (Math.hypot(cx - other.x, cz - other.z) < other.keep + spacing) {
+        // A floor rather than a sum, as the ring does — see `vistaRing`.
+        if (Math.hypot(cx - other.x, cz - other.z) < Math.max(other.keep, spacing)) {
           clear = false;
           break;
         }

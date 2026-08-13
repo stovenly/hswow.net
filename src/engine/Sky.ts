@@ -49,6 +49,59 @@ export interface SkySettings {
   sunSize: number;
   /** How far the halo reaches. Larger is *tighter* — it is an exponent. */
   sunGlow: number;
+
+  /** The land on the horizon that is not geometry. See `SkyRidge`. */
+  ridge: SkyRidge;
+}
+
+/**
+ * Band 3 of the vista: a ridgeline drawn in the sky's own shader — VISTA.md.
+ *
+ * **It is the parallax idea at its limit.** A vista tier slides with the camera
+ * by a fraction `k` of its travel, and what is left over reads as distance; the
+ * dome is centred on the camera, so it is a tier at `k` = 1 and reads as
+ * infinitely far. That is not a metaphor — it is why this belongs in the same
+ * spec as the geometry bands rather than being an unrelated shader feature, and
+ * why it costs no triangles at all.
+ *
+ * Its job is to catch the eye past where the fog has dissolved band 2. Nothing
+ * here is meant to have a readable shape: it is a value, an outline and a hint
+ * of depth, and anything more would compete with the geometry in front of it.
+ *
+ * Two layers, always, because one is a wall and two are a landscape — the far
+ * one paler and lower, the near one darker and taller, which is the cheapest
+ * depth cue there is.
+ */
+export interface SkyRidge {
+  /** How much of it is drawn. 0 is off, and off costs one comparison. */
+  opacity: number;
+  /**
+   * Height of the near crest above the horizon, as a fraction of the dome.
+   *
+   * Small. This is measured in the same units as `direction.y`, so 0.05 is
+   * about three degrees — which is a serious mountain range at the distance the
+   * dome implies.
+   */
+  height: number;
+  /** How many peaks go round the compass. Higher is busier and smaller. */
+  scale: number;
+  /** How ragged the profile is, 0 for rolling and 1 for broken. */
+  roughness: number;
+  /**
+   * What the ridge is tinted toward, over the sky it is standing in front of.
+   *
+   * **A tint rather than a colour**, and mixed over whatever the sky is doing
+   * at that pixel — so when the sun moves the ridge moves with it, for free.
+   * A fixed colour would be a painted skybox feature by another name, which is
+   * the thing this whole spec exists to avoid.
+   */
+  tint: string;
+  /** How far toward `tint` the sky is pulled, 0..1. */
+  shade: number;
+  /** Softness of the crest, for haze. In `direction.y` units. */
+  haze: number;
+  /** Same seed, same skyline. A zone's horizon should not change under it. */
+  seed: number;
 }
 
 /** The size the dome is authored at. `follow` scales it from the far plane. */
@@ -92,6 +145,14 @@ export const skyUniforms = {
   uSunSize: { value: 0.9993 },
   uSunGlow: { value: 260 },
   uSunIntensity: { value: 1 },
+  uRidgeOpacity: { value: 0 },
+  uRidgeHeight: { value: 0.05 },
+  uRidgeScale: { value: 3.2 },
+  uRidgeRough: { value: 0.55 },
+  uRidgeTint: { value: new THREE.Color() },
+  uRidgeShade: { value: 0.32 },
+  uRidgeHaze: { value: 0.012 },
+  uRidgeSeed: { value: 0 },
 };
 
 /**
@@ -135,6 +196,50 @@ export const SKY_GLSL = /* glsl */ `
   uniform float uSunSize;
   uniform float uSunGlow;
   uniform float uSunIntensity;
+  uniform float uRidgeOpacity;
+  uniform float uRidgeHeight;
+  uniform float uRidgeScale;
+  uniform float uRidgeRough;
+  uniform vec3 uRidgeTint;
+  uniform float uRidgeShade;
+  uniform float uRidgeHaze;
+  uniform float uRidgeSeed;
+
+  /**
+   * The ridgeline: band 3, drawn where the dome meets the fog.
+   *
+   * Sampled on a circle through the noise field rather than against a bearing
+   * angle, which is the whole trick - atan wraps at pi and would put a seam
+   * due south that no amount of tuning removes. A circle has no ends.
+   *
+   * Two layers: a far one at half the height and half the shade, and a near one
+   * over it. Both are pulled from the sky colour at that pixel rather than from
+   * a colour of their own, so a moving sun relights them with nothing to keep
+   * in step.
+   */
+  vec3 skyRidgeOver(vec3 colour, vec3 direction) {
+    if (uRidgeOpacity <= 0.0) return colour;
+
+    vec2 compass = normalize(direction.xz + vec2(1e-5, 0.0));
+    float rough = clamp(uRidgeRough, 0.0, 1.0);
+
+    // Far layer first, then the near one over it.
+    for (int layer = 0; layer < 2; layer++) {
+      float far = layer == 0 ? 1.0 : 0.0;
+      float seed = uRidgeSeed + far * 37.0;
+      float scale = uRidgeScale * (far > 0.5 ? 0.7 : 1.0);
+      float profile = fbm(compass * scale + seed);
+      // Rolling at roughness 0, broken at 1: the same noise, contrasted.
+      profile = mix(0.5 + (profile - 0.5) * 0.45, profile, rough);
+
+      float crest = uRidgeHeight * (far > 0.5 ? 0.55 : 1.0) * profile;
+      float below = smoothstep(crest + uRidgeHaze, crest - uRidgeHaze, direction.y);
+      float weight = below * uRidgeOpacity * (far > 0.5 ? 0.55 : 1.0);
+      colour = mix(colour, mix(colour, uRidgeTint, uRidgeShade), weight);
+    }
+
+    return colour;
+  }
 
   /**
    * The sky, with the sun's own brightness under the caller's control.
@@ -198,7 +303,9 @@ export const SKY_GLSL = /* glsl */ `
       colour = mix(colour, uCloudColor, amount);
     }
 
-    return colour;
+    // Last, because it is land: it stands in front of the gradient, the sun and
+    // the clouds alike.
+    return skyRidgeOver(colour, direction);
   }
 
   /**
@@ -263,6 +370,23 @@ export const DEFAULT_SKY: SkySettings = {
   // than as the sun.
   sunSize: 1.1,
   sunGlow: 240,
+
+  /**
+   * Off by default, and off costs one comparison a pixel.
+   *
+   * A skyline belongs to a place. The preset carries these so the debug panel
+   * has something to turn, and every zone that wants one says so itself.
+   */
+  ridge: {
+    opacity: 0,
+    height: 0.05,
+    scale: 3.2,
+    roughness: 0.55,
+    tint: '#6f7f92',
+    shade: 0.32,
+    haze: 0.012,
+    seed: 11,
+  },
 };
 
 export class Sky {
@@ -315,6 +439,28 @@ export class Sky {
     // keeps the setting in units a person can reason about.
     u.uSunSize.value = Math.cos((settings.sunSize * Math.PI) / 180);
     u.uSunGlow.value = settings.sunGlow;
+    this.applyRidge(settings.ridge);
+  }
+
+  /**
+   * The horizon's ridgeline, separately from the rest of the sky.
+   *
+   * Its own method because the sky is a tuned *preset* and this is a fact about
+   * a *place* — the same split `ZoneAir` draws against `RenderSettings`. Two
+   * zones under one sky should not have the same skyline, and a zone must not
+   * be able to write its horizon into a preset the player has dialled in and
+   * have it saved that way.
+   */
+  applyRidge(ridge: SkyRidge): void {
+    const u = this.material.uniforms;
+    u.uRidgeOpacity.value = ridge.opacity;
+    u.uRidgeHeight.value = ridge.height;
+    u.uRidgeScale.value = ridge.scale;
+    u.uRidgeRough.value = ridge.roughness;
+    (u.uRidgeTint.value as THREE.Color).set(ridge.tint);
+    u.uRidgeShade.value = ridge.shade;
+    u.uRidgeHaze.value = ridge.haze;
+    u.uRidgeSeed.value = ridge.seed;
   }
 
   /**

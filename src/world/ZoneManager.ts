@@ -705,6 +705,8 @@ export class ZoneManager {
       fogColor: env.fogColor,
       fogNear: env.fogNear,
       fogFar: env.fogFar,
+      // The horizon this place has, if it has one. See `ZoneEnvironment`.
+      ridge: env.skyRidge,
       // Off the definition rather than the environment, because a volume has
       // coordinates and an environment is shared between zones. See
       // `ZoneDefinition.fogVolumes`.

@@ -66,8 +66,12 @@ import { outlineBounds, type Skirt } from './vista';
  * rather than one per prop. The first pass used 64 m and produced twenty-one
  * chunks for nineteen props — every merge a merge of one, which is all of the
  * bookkeeping and none of the saving. A cell wants to hold several things.
+ *
+ * Tiers multiply it: each one buckets separately, because a group that moves
+ * cannot share a buffer with one that does not. Three tiers is three times the
+ * floor, which is why this went up again when the second moving tier landed.
  */
-const CHUNK = 200;
+const CHUNK = 280;
 
 export interface VistaProp {
   builder: MeshBuilder;
@@ -178,7 +182,9 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
     // an arbitrary outline and there is no cheap way to sample it directly, so
     // this throws darts and keeps the ones that stick. Capped rather than
     // looped until full, because a band that cannot hold `count` would spin.
-    for (let attempt = 0; attempt < fill.count * 60 && landed < fill.count; attempt++) {
+    // Generous, because the band is a thin shell inside a square box and most
+    // darts miss it before spacing is even considered.
+    for (let attempt = 0; attempt < fill.count * 200 && landed < fill.count; attempt++) {
       const x = rng.range(bounds.min[0], bounds.max[0]);
       const z = rng.range(bounds.min[1], bounds.max[1]);
       const out = skirt.outside(x, z);
@@ -188,7 +194,13 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
       const keep = fill.builder.radius * scale;
       let clear = true;
       for (const other of taken) {
-        if (Math.hypot(x - other.x, z - other.z) < (keep + other.keep) * 0.5 + spacing) {
+        // **A floor, not an addition.** Adding `spacing` on top of the two
+        // radii double-counts: a forest mass declares a 34 m radius and may be
+        // scaled past 3, so its own half-extent is already a hundred metres,
+        // and another thirty on top put the exclusion beyond anything the band
+        // could hold. Four kinds silently placed nothing before this changed.
+        const clearance = Math.max((keep + other.keep) * 0.5, spacing);
+        if (Math.hypot(x - other.x, z - other.z) < clearance) {
           clear = false;
           break;
         }

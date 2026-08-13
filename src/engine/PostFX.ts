@@ -19,7 +19,7 @@ import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
 import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
-import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
+import { Sky, DEFAULT_SKY, type SkySettings, type SkyRidge } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
@@ -380,6 +380,15 @@ const COVER_TIERS: Record<CoverDensity, number> = {
 export interface ZoneAir {
   /** Whether the sky dome is drawn at all. Off indoors. */
   sky: boolean;
+  /**
+   * The skyline this place has, if any — band 3 of the vista (VISTA.md).
+   *
+   * Here rather than in `RenderSettings` for this interface's whole reason: a
+   * ridgeline is a fact about *where you are*, and two zones under one tuned
+   * sky should not share a horizon. Absent falls back to the preset's, which
+   * is off.
+   */
+  ridge?: SkyRidge;
   fogColor: string;
   fogNear: number;
   fogFar: number;
@@ -937,6 +946,8 @@ export class PostFX {
     u.uColorblindStrength.value = this.colorblindStrength;
 
     this.sky.apply(s.sky);
+    // After the preset, so the zone's own skyline wins over it. See `ZoneAir`.
+    if (this.air?.ridge) this.sky.applyRidge(this.air.ridge);
     this.sky.mesh.visible = this.air === null || this.air.sky;
 
     // The far plane, and with it the frustum culling every prop gets for free.
