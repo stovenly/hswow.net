@@ -34,6 +34,8 @@ export interface MonoVoice {
 export interface MonoPoolOptions {
   /** Pool size. Two carries a root-and-fifth drone; three is the default headroom. */
   voices?: number;
+  /** Max semitones a join may glide. A note farther out takes a fresh player. */
+  span?: number;
   /** Seconds the tongued front takes to speak; the time constant is a third. */
   attack: number;
   /** Seconds a phrase end takes to close; the time constant is a third. */
@@ -85,17 +87,21 @@ export function createMonoPool(
       const n = human(context, at, freq, velocity);
       const sounding = players.filter((p) => p.end > n.at && n.at - p.start >= SETTLED);
       const idle = players.filter((p) => p.end <= n.at);
-      // A note over a sounding player joins it, nearest pitch first. Failing
-      // that, the player quiet longest speaks fresh. Failing *that* — more
-      // simultaneous notes than players — the nearest is bent rather than
-      // re-struck, because a fresh attack on a sounding player is a click.
-      const join = sounding.length > 0 || idle.length === 0;
+      // A note over a sounding player joins it, nearest pitch first — but
+      // only within the voice's `span`: past it a glide is a swoop, and the
+      // note takes a fresh player instead. Failing that, the player quiet
+      // longest speaks fresh. Failing *that* — more simultaneous notes than
+      // players — the nearest is bent rather than re-struck, because a fresh
+      // attack on a sounding player is a click.
+      const reach = options.span ?? Infinity;
+      const joinable = sounding.filter((p) => Math.abs(Math.log2(n.freq / p.freq)) * 12 <= reach);
+      const join = joinable.length > 0 || idle.length === 0;
       const player =
-        sounding.length > 0
-          ? nearest(sounding, n.freq)
+        joinable.length > 0
+          ? nearest(joinable, n.freq)
           : idle.length > 0
             ? idle.reduce((a, b) => (a.end <= b.end ? a : b))
-            : nearest(players, n.freq);
+            : nearest(sounding.length > 0 ? sounding : players, n.freq);
 
       const peak = options.peak(n.velocity);
       const end = n.at + duration;

@@ -30,7 +30,7 @@ prior conversation context. Update it as decisions change.
 | 6j — Bows, bends and breath | **Built** — five performer voices into twelve palette seats; the recipes and levels are the tunable, and the audition pass awaits the owner's ear |
 | 6k — The old rules | **Built** — five of the six moves in (the echo waits on the listening pass by design); the just table, the neighbour steps and the ornament dice are the tunables |
 | 6l — The back of the wagon | **Built** — five voices in, eleven seats swapped; the audition pass and the three viol drone levels wait on the owner's ear |
-| 6m — The other side of things | **Specified** — night as inversion, not reduction: five moves on the existing night scalar |
+| 6m — The other side of things | **Built** — the five inversion moves ride the night scalar; the mid-piece toggle listening pass waits on the owner's ear |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |
 | 9 — Autosave, touch controls, performance | Not started |
@@ -2104,6 +2104,28 @@ All in the director, all riding the existing `night` scalar:
 
 *Done when flipping the night toggle mid-piece reads as the same place under the moon —
 the other side of the same music — and never as a darker track.*
+
+### Standing rule — nothing drones alone
+
+Long stretches of pad with nothing moving over it are the one thing the score must never
+do. Three separate reports of it traced to three causes, all now closed:
+
+- **Density was a coin flip on whether the melody existed.** A losing roll meant a whole
+  two-minute piece of pad and scattered texture. Every piece now gets all three strata;
+  `density` instead leans the rest between statements toward the short end of the vibe's
+  `phraseRest` span. How *much* the melody speaks is the tunable; whether it speaks is not.
+- **The entries and exits were counted in bars.** A breath bar is ten seconds, so "the
+  melody arrives with the second section, the texture leaves two bars early" spent half a
+  minute of bare pad at each end of a pulse-free piece. Both edges are now counted in
+  seconds and converted: a pulse-free piece concedes no intro at all, and the outros are
+  a few seconds rather than a few bars.
+- **The book's own numbers.** Rests ran to seventy seconds and densities to 0.15.
+  `check:audio` now fails the build on any vibe under 0.7 density or over a 24-second rest.
+
+Measured worst case across the book: no bare pad at all in the pulse-free vibes, under
+eight seconds in the pulsed ones, and at most twenty-odd seconds between melody statements
+anywhere — with the texture playing throughout. Sparseness belongs in the rests *between*
+pieces, never in a stratum holding still.
 
 ### Phase 7 — Actors and ambient motion
 

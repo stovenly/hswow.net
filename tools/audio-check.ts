@@ -56,6 +56,7 @@ import {
   mutateOstinato,
 } from '../src/audio/music/rhythm';
 import { ritardCurve, phraseArch, SECTION_END_V, FINAL_V } from '../src/audio/music/tempo';
+import { VIBES } from '../src/audio/music/vibes';
 import { createRng } from '../src/art/random';
 
 let failures = 0;
@@ -1097,6 +1098,47 @@ function* permutations(cell: readonly number[]): Generator<readonly number[]> {
     check('a mutation changes exactly one element', oneEdit, `${edits} edits, all single`);
     check('a mutated ostinato still holds the line', clean, 'no stutter, nothing outside the pool');
   }
+}
+
+// --- the vibe book's pacing floors ----------------------------------------
+// A drone with nothing moving over it is the one thing the score must never
+// do, and every instance of it so far came from a vibe's own numbers rather
+// than from the machinery. These are floors, not tuning: character lives in
+// register, gait, fragment length and palette, never in how long the pad is
+// left alone. Raising a rest past the cap or dropping a density under the
+// floor fails the build.
+{
+  const DENSITY_FLOOR = 0.7;
+  const REST_CAP = 24;
+
+  const thin = Object.entries(VIBES).filter(([, v]) => v.density < DENSITY_FLOOR);
+  check(
+    'no vibe leaves the melody to chance',
+    thin.length === 0,
+    thin.map(([name, v]) => `${name} ${v.density}`).join(', ') ||
+      `${Object.keys(VIBES).length} vibes, thinnest ${Math.min(
+        ...Object.values(VIBES).map((v) => v.density),
+      )}`,
+  );
+
+  const slow = Object.entries(VIBES).filter(([, v]) => v.character.phraseRest[1] > REST_CAP);
+  check(
+    'no vibe rests longer than the cap',
+    slow.length === 0,
+    slow.map(([name, v]) => `${name} ${v.character.phraseRest[1]}s`).join(', ') ||
+      `longest rest ${Math.max(
+        ...Object.values(VIBES).map((v) => v.character.phraseRest[1]),
+      )}s against a ${REST_CAP}s cap`,
+  );
+
+  const backwards = Object.entries(VIBES).filter(
+    ([, v]) => v.character.phraseRest[0] > v.character.phraseRest[1],
+  );
+  check(
+    'every phrase rest is a span',
+    backwards.length === 0,
+    backwards.map(([name]) => name).join(', ') || `${Object.keys(VIBES).length} spans in order`,
+  );
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
