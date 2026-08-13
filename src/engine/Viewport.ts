@@ -60,7 +60,7 @@ export class Viewport {
 
     // **And the frame counters are reset once a frame, for the same reason.**
     // `info.reset()` normally runs inside every `render()` call — *after* the
-    // shadow pass, and once per composer pass — so read at the end of a frame
+    // shadow pass, and once per `render()` call — so read at the end of a frame
     // `info.render.calls` would report the last fullscreen quad and nothing
     // else. Off, it accumulates across every pass and includes the shadow
     // draws, which is the number the debug readout is actually asking for.
@@ -68,6 +68,21 @@ export class Viewport {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, CAMERA_FAR);
+
+    // **And the world matrices are updated once a frame, by hand.** The third
+    // switch of the same shape as the two above, and the largest of the three.
+    // `WebGLRenderer.render` calls `scene.updateMatrixWorld()` on the way in,
+    // and this pipeline renders the scene up to eight times a frame — colour,
+    // the normal override, the cover normals, and one per layer pass. Nothing
+    // moves between those calls, so seven of the eight walks recompute matrices
+    // that already hold the right numbers.
+    //
+    // Off here, whoever draws does it once and says so: `PostFX.render` and
+    // `render` below, each on its way into the frame. That is where the first
+    // implicit walk used to happen, so nothing reads a matrix any staler than
+    // it did before.
+    this.scene.matrixAutoUpdate = false;
+    this.scene.matrixWorldAutoUpdate = false;
 
     this.resize();
     window.addEventListener('resize', this.handleResize);
@@ -102,6 +117,7 @@ export class Viewport {
   render(): void {
     this.renderer.info.reset();
     this.renderer.shadowMap.needsUpdate = true;
+    this.scene.updateMatrixWorld();
     this.renderer.render(this.scene, this.camera);
   }
 

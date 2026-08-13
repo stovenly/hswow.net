@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { drawCoverNormals } from '../art/cover';
+import { RetroShader } from './RetroShader';
 
 /**
  * The pixel stage: render at chunky resolution, run effects there, upscale.
@@ -15,8 +16,12 @@ import { drawCoverNormals } from '../art/cover';
  *       ─► normal target  (chunky, override material)
  *       ─► edges          (the outline, onto the surfaces)
  *       ─► [effects…]     (chunky → chunky, ping-pong)
- *       ─► upscale        (nearest-neighbour blit)
+ *       ─► upscale        (nearest blit, sRGB, dither, quantize)
  * ```
+ *
+ * The upscale is the only step in the pipeline that runs at device resolution,
+ * so everything that has to happen there happens in its one shader — see
+ * `RetroShader`.
  *
  * The edge shader came verbatim from the upstream pass — same maths, same
  * output — because R0's exit criterion was that nothing changes on screen. Its
@@ -143,7 +148,7 @@ export class PixelStage extends Pass {
   private readonly priorClear = new THREE.Color();
 
   private readonly edgeMaterial: THREE.ShaderMaterial;
-  private readonly blitMaterial: THREE.ShaderMaterial;
+  private readonly outputMaterial: THREE.ShaderMaterial;
   private readonly fsQuad: FullScreenQuad;
 
   constructor(pixelSize: number, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
@@ -167,8 +172,13 @@ export class PixelStage extends Pass {
     this.ping = [chunky(), chunky()];
 
     this.edgeMaterial = createEdgeMaterial();
-    this.blitMaterial = createBlitMaterial();
+    this.outputMaterial = createOutputMaterial();
     this.fsQuad = new FullScreenQuad(this.edgeMaterial);
+  }
+
+  /** The look's dials, written by `PostFX.apply`. See `RetroShader`. */
+  get outputUniforms(): Record<string, THREE.IUniform> {
+    return this.outputMaterial.uniforms;
   }
 
   override setSize(width: number, height: number): void {
@@ -219,7 +229,10 @@ export class PixelStage extends Pass {
     return this.renderResolution.y;
   }
 
-  override render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget): void {
+  override render(
+    renderer: THREE.WebGLRenderer,
+    writeBuffer: THREE.WebGLRenderTarget | null,
+  ): void {
     // --- the two scene renders, exactly as the upstream pass did them ------
     renderer.setRenderTarget(this.colourTarget);
     renderer.render(this.scene, this.camera);
@@ -297,11 +310,12 @@ export class PixelStage extends Pass {
     }
 
     // --- upscale ------------------------------------------------------------
-    // A nearest blit and nothing else now that the edges are drawn upstream.
     // Nearest is the whole of the pixelation: one chunky texel becomes a block
-    // of identical device pixels, with no filtering to soften the step.
-    this.blitMaterial.uniforms.tDiffuse.value = colour;
-    this.fsQuad.material = this.blitMaterial;
+    // of identical device pixels, with no filtering to soften the step. The
+    // display encode, the halftone and the quantizer ride along in the same
+    // shader, because this is the one place they can all see a device pixel.
+    this.outputMaterial.uniforms.tDiffuse.value = colour;
+    this.fsQuad.material = this.outputMaterial;
 
     if (this.renderToScreen) {
       renderer.setRenderTarget(null);
@@ -319,7 +333,7 @@ export class PixelStage extends Pass {
     for (const effect of this.effects) effect.dispose();
     this.normalMaterial.dispose();
     this.edgeMaterial.dispose();
-    this.blitMaterial.dispose();
+    this.outputMaterial.dispose();
     this.fsQuad.dispose();
   }
 }
@@ -453,32 +467,21 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
 }
 
 /**
- * The upscale: a nearest-neighbour blit, and deliberately nothing else.
+ * The upscale, and with it everything the frame owes device resolution.
  *
- * Everything this pass used to do besides the blit now happens upstream at
- * chunky resolution. What is left is the pixelation itself — one chunky texel
- * spread across a block of device pixels with no filtering, which is the only
- * step in the pipeline that has to happen at device resolution and the only
- * reason there is a pass here at all.
+ * It was three passes: this blit, three's `OutputPass` for the sRGB encode, and
+ * `RetroShader` for the halftone and the quantizer — three trivial shaders each
+ * reading and writing a full-resolution buffer, which at 1080p and a device
+ * pixel ratio of two is about 25 M fragments and 133 MB of bandwidth a frame
+ * spent moving a picture between targets. Concatenated they are one quad and
+ * one buffer, and the same numbers come out: the order the three ran in is the
+ * order the one shader does its work in.
  */
-function createBlitMaterial(): THREE.ShaderMaterial {
+function createOutputMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: { tDiffuse: { value: null } },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform sampler2D tDiffuse;
-      varying vec2 vUv;
-
-      void main() {
-        gl_FragColor = texture2D(tDiffuse, vUv);
-      }
-    `,
+    name: RetroShader.name,
+    uniforms: THREE.UniformsUtils.clone(RetroShader.uniforms),
+    vertexShader: RetroShader.vertexShader,
+    fragmentShader: RetroShader.fragmentShader,
   });
 }

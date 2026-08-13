@@ -1,7 +1,4 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { applySway } from '../art/sway';
 import { PixelStage } from './PixelStage';
 import { GTAOEffect } from './GTAO';
@@ -20,7 +17,7 @@ import { HorrorEffect } from './Horror';
 import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
 import { maskState } from '../art/effectId';
-import { RetroShader, COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
+import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
@@ -34,20 +31,24 @@ import type { Viewport } from './Viewport';
  * The render pipeline.
  *
  * ```
- * scene ─► PixelStage ──────────────────────────► OutputPass ─► RetroShader ─► screen
- *          chunky pixels, edge lines,              tone map     vignette,
- *          GTAO ─► water ─► fog ─► bloom, upscale  and sRGB     dither, quantize
+ * scene ─► PixelStage ─────────────────────────────────────────────────► screen
+ *          chunky pixels, edge lines,              upscale, sRGB,
+ *          GTAO ─► water ─► fog ─► bloom           dither, quantize
  * ```
  *
  * `PixelStage` is ours (SHADERS-AND-MATERIALS.md, R0): it renders at chunky resolution,
  * runs screen-space effects there, and upscales with the edge lines — the
  * job `RenderPixelatedPass` used to do, plus the effect slot it did not have.
+ * It is also the only pass: three's `OutputPass` and a `RetroShader` quad used
+ * to follow it, and both did their work at device resolution, so both were
+ * folded into the upscale that already had to be there. `EffectComposer` went
+ * with them — a chain of one is a call.
  *
- * The order is load-bearing. `OutputPass` is where linear light becomes sRGB,
- * and spacing quantization steps evenly is only correct on the display side of
- * that conversion — quantizing in linear light would bunch every level into
- * the shadows. The dither *within* a step is a separate question and is
- * resolved in linear light; see `quantizeLevels`.
+ * The order is load-bearing and survives the fold. The sRGB encode comes
+ * first, because spacing quantization steps evenly is only correct on the
+ * display side of that conversion — quantizing in linear light would bunch
+ * every level into the shadows. The dither *within* a step is a separate
+ * question and is resolved in linear light; see `quantizeLevels`.
  *
  * **The colour is the scene's.** No palette, no colour set, no swatches. Every
  * surface is flat-shaded vertex colour out of `art/palette.ts`, lit and fogged;
@@ -193,10 +194,6 @@ export interface RenderSettings {
    */
   clutterCull: number;
 
-  vignetteStrength: number;
-  vignetteRadius: number;
-  vignetteSoftness: number;
-
   sky: SkySettings;
   /**
    * Drive the fog colour from the sky's horizon.
@@ -293,13 +290,6 @@ export const DEFAULT_RENDER: RenderSettings = {
   // Three quarters, so grass thins out where the fog is already most of the
   // way through hiding it rather than evaporating in clear air ahead of you.
   clutterCull: 0.75,
-
-  // Off. It read as a bright oval hanging in the middle of the screen, which
-  // is what a vignette is, and it was not wanted. The shader path is still
-  // there in case a zone ever wants to close in around you; nothing uses it.
-  vignetteStrength: 0,
-  vignetteRadius: 0.5,
-  vignetteSoftness: 0.7,
 
   sky: { ...DEFAULT_SKY },
   linkFogToSky: true,
@@ -415,13 +405,21 @@ export interface ZoneAir {
    * Observed, not declared — see `Zone.hasGlass`.
    */
   glass?: boolean;
+  /**
+   * Whether anything in this zone is drawn on the particle layer (PARTICLES.md).
+   *
+   * Water's and glass's argument again, and the pass it gates is the same
+   * shape: a blit plus a whole-scene walk to draw nothing. Weather systems and
+   * sparkles both ride that layer, so this is observed by looking for the layer
+   * rather than for either of them — see `ZoneManager.prepare`.
+   */
+  particles?: boolean;
 }
 
 export class PostFX {
   readonly settings: RenderSettings;
 
   private readonly viewport: Viewport;
-  private readonly composer: EffectComposer;
   private readonly pixelStage: PixelStage;
   private readonly gtao: GTAOEffect;
   private readonly water: WaterEffect;
@@ -433,7 +431,6 @@ export class PostFX {
   private readonly glitchFx: GlitchEffect;
   private readonly horrorFx: HorrorEffect;
   private readonly maskFx: EffectMaskPass;
-  private readonly retroPass: ShaderPass;
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
   private air: ZoneAir | null = null;
@@ -517,8 +514,9 @@ export class PostFX {
     viewport.scene.add(this.sky.mesh);
     this.hideGlowFromEdges(viewport.scene);
 
-    this.composer = new EffectComposer(viewport.renderer);
     this.pixelStage = new PixelStage(1, viewport.scene, viewport.camera);
+    // The whole chain, so its upscale goes to the default framebuffer.
+    this.pixelStage.renderToScreen = true;
     // **The edge detector re-renders the whole scene with its own material.**
     // `PixelStage` swaps in a `MeshNormalMaterial` as `scene.overrideMaterial`
     // to build the normal buffer its outlines come from — which bypassed the
@@ -586,12 +584,6 @@ export class PostFX {
       this.glitchFx,
     );
 
-    this.retroPass = new ShaderPass(RetroShader);
-
-    this.composer.addPass(this.pixelStage);
-    this.composer.addPass(new OutputPass());
-    this.composer.addPass(this.retroPass);
-
     this.resize();
     this.apply();
   }
@@ -617,6 +609,10 @@ export class PostFX {
     // Same instant, same reason: the transmissive pass walks the scene graph
     // and must not run in a room with no glass in it.
     this.glass.setActive(air?.glass ?? false);
+    // And the third of them. Until this gate existed every zone but the
+    // particle showcase paid a full-screen blit and a scene walk a frame to
+    // draw nothing at all.
+    this.particles.setActive(air?.particles ?? false);
     this.apply();
   }
 
@@ -909,11 +905,14 @@ export class PostFX {
     detailUniforms.uDetailStart.value = s.detail.start;
     detailUniforms.uDetailSpan.value = s.detail.span;
 
-    this.particles.enabled = this.particulate;
+    // Presence as well as the switch, exactly as water and glass are gated: a
+    // zone with nothing on the particle layer skips the pass rather than
+    // walking the scene to find nothing.
+    this.particles.enabled = this.particulate && this.particles.hasParticles;
     setParticleDraw(this.particulate, s.particles.density, s.particles.size);
     particleUniforms.uShutter.value = s.particles.shutter;
 
-    const u = this.retroPass.uniforms;
+    const u = this.pixelStage.outputUniforms;
     u.uPixelSize.value = devicePixels;
     // Passed through in steps rather than converted to absolute colour: the
     // shader now works inside one step, so it is the natural unit on both
@@ -922,9 +921,6 @@ export class PostFX {
     u.uPeriod.value = s.screenPeriod;
     u.uQuantize.value = QUANTIZE_CODE[s.quantize];
     u.uLevels.value = s.levels;
-    u.uVignette.value = s.vignetteStrength;
-    u.uVignetteRadius.value = s.vignetteRadius;
-    u.uVignetteSoftness.value = s.vignetteSoftness;
     u.uColorblind.value = COLORBLIND_CODE[this.colorblind];
     u.uColorblindStrength.value = this.colorblindStrength;
 
@@ -1026,8 +1022,17 @@ export class PostFX {
     renderer.shadowMap.needsUpdate = true;
 
     this.sky.follow(this.viewport.camera, elapsed);
+    // **The frame's one matrix update.** `Viewport` turns three's automatic one
+    // off, because `renderer.render` walks the whole graph before every call
+    // and this pipeline calls it up to eight times a frame — the seven after
+    // the first recompute matrices nothing has touched since.
+    //
+    // Here rather than at the top of the loop, and after `sky.follow`, which is
+    // the last thing in the frame to write a transform. Everything below reads
+    // world matrices or draws; nothing below writes one.
+    this.viewport.scene.updateMatrixWorld();
     // Asked before the frame is drawn rather than during it, because the pass
-    // that needs the answer runs inside the composer and cannot go and look.
+    // that needs the answer runs inside the effect chain and cannot go and look.
     // Costs a handful of box tests in a zone with water and nothing at all
     // anywhere else — see `WaterEffect.submersion`.
     this.underwater.setDepth(this.water.submersion(this.viewport.scene, this.viewport.camera));
@@ -1047,13 +1052,14 @@ export class PostFX {
     // knowing the time is not the temporal accumulation the ground rules
     // forbid.
     this.pixelStage.time = elapsed;
-    this.composer.render();
+    this.pixelStage.render(renderer, null);
   }
 
   resize(): void {
-    const size = this.viewport.renderer.getSize(new THREE.Vector2());
-    this.composer.setPixelRatio(this.viewport.renderer.getPixelRatio());
-    this.composer.setSize(size.x, size.y);
+    // Drawing-buffer pixels, which is what the stage sizes its chunky targets
+    // off — `EffectComposer` used to do this multiply on the way through.
+    const size = this.viewport.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.pixelStage.setSize(size.x, size.y);
     // Device pixel ratio can change when a window moves between monitors, and
     // pixel size is derived from it.
     this.apply();
@@ -1079,6 +1085,5 @@ export class PostFX {
     this.viewport.scene.remove(this.sky.mesh);
     this.sky.dispose();
     this.pixelStage.dispose();
-    this.composer.dispose();
   }
 }

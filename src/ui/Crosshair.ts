@@ -68,7 +68,7 @@ export class Crosshair {
     this.countdown = INTERVAL;
 
     const gl = this.renderer.getContext();
-    // The composer may have left a target bound. Reading the wrong buffer would
+    // The pipeline may have left a target bound. Reading the wrong buffer would
     // sample an intermediate pass — usually the un-dithered scene, occasionally
     // a depth-normal buffer, and the failure looks like the dot deciding at
     // random.

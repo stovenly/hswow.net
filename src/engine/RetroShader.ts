@@ -1,13 +1,14 @@
 /**
- * Halftone dithering, colour quantization and vignette, in one pass.
+ * The display encode, halftone dithering and colour quantization, in one pass.
  *
  * They are together rather than chained because they are not independent: the
  * dither has to be resolved *against* the quantization — that is the entire
- * mechanism, trading spatial resolution for colour resolution — and the
- * vignette has to be applied before both, or its falloff is the smoothest
- * gradient on screen and bands worse than anything it was darkening.
+ * mechanism, trading spatial resolution for colour resolution — and both are
+ * only correct on the display side of the sRGB conversion, so the conversion
+ * is here too rather than in a full-screen quad of its own.
  *
- * Runs after `OutputPass`, so it sees display-referred sRGB values.
+ * This is the material `PixelStage` upscales with, so the whole of the
+ * device-resolution work in the pipeline is this one shader.
  *
  * ## The colour comes from the scene
  *
@@ -65,9 +66,6 @@ export const RetroShader = {
     /** 0 none, 1 per-channel levels. */
     uQuantize: { value: 1 },
     uLevels: { value: 16 },
-    uVignette: { value: 0.35 },
-    uVignetteRadius: { value: 0.55 },
-    uVignetteSoftness: { value: 0.6 },
     /** 0 off, 1 protanopia, 2 deuteranopia, 3 tritanopia. */
     uColorblind: { value: 0 },
     /** How much of the correction to apply, 0..1. */
@@ -90,13 +88,29 @@ export const RetroShader = {
     uniform float uPeriod;
     uniform int uQuantize;
     uniform float uLevels;
-    uniform float uVignette;
-    uniform float uVignetteRadius;
-    uniform float uVignetteSoftness;
     uniform int uColorblind;
     uniform float uColorblindStrength;
 
     varying vec2 vUv;
+
+    /**
+     * Linear light to display sRGB — what three's OutputPass used to do a
+     * full-screen quad earlier. (No backticks: this is a template literal, and
+     * one would end it mid-GLSL. The same note is further down, for the same
+     * reason, after making the same mistake twice.)
+     *
+     * Its constant, 0.41666 rather than 1.0 / 2.4, and deliberately: this is
+     * the encode every pixel in the game goes through, and folding it in here
+     * was meant to stop paying for a pass, not to change what one produces.
+     * The correction's own round trip below keeps its own exponent.
+     */
+    vec4 encodeSrgb(vec4 v) {
+      return vec4(
+        mix(pow(v.rgb, vec3(0.41666)) * 1.055 - vec3(0.055), v.rgb * 12.92,
+            vec3(lessThanEqual(v.rgb, vec3(0.0031308)))),
+        v.a
+      );
+    }
 
     /**
      * Colour vision deficiency **correction**, not simulation.
@@ -125,9 +139,9 @@ export const RetroShader = {
      * gamma-encoded values. Cone response is linear in light and sRGB is not,
      * so the matrices are being fed numbers that are not what they describe;
      * DaltonLens measured the result and a whole range of colours comes out
-     * far too dark. This pass runs *after* OutputPass, so it is handed sRGB
-     * and has to decode, work, and re-encode. Three pow calls each way, only
-     * when the filter is on.
+     * far too dark. The correction runs *after* the encode above, on
+     * display-referred sRGB, so it has to decode, work, and re-encode. Three
+     * pow calls each way, only when the filter is on.
      *
      * **Tritanopia uses two half-planes.** The single-matrix projection
      * everyone uses is Viénot 1999, and its own authors say it is only valid
@@ -239,7 +253,7 @@ export const RetroShader = {
      * The old form added the threshold to the colour and rounded. That is
      * wrong in a way that is easy to miss and affects every pixel in the game:
      * the eye and the display average two adjacent chunky pixels in *linear*
-     * light, but this pass runs after OutputPass on display-referred sRGB. A
+     * light, but the quantizer works on display-referred sRGB. A
      * half-and-half dither between 0 and 1 therefore reads as 0.73, not as
      * 0.5, so every tone between two levels came out too bright — at five
      * levels, the middle of the first band was 41% high.
@@ -282,16 +296,10 @@ export const RetroShader = {
     }
 
     void main() {
-      vec4 texel = texture2D(tDiffuse, vUv);
+      // The chunky colour, sampled nearest by the upscale that owns this
+      // material, and encoded for the display here rather than one pass ago.
+      vec4 texel = encodeSrgb(texture2D(tDiffuse, vUv));
       vec3 colour = texel.rgb;
-
-      vec2 offset = vUv - 0.5;
-      float radius = length(offset) * 2.0;
-      colour *= 1.0 - uVignette * smoothstep(
-        uVignetteRadius,
-        uVignetteRadius + uVignetteSoftness,
-        radius
-      );
 
       // **Before the quantizer, not after.** The correction moves colours by
       // small amounts, and doing it last would move them off the levels the
