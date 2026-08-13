@@ -31,8 +31,12 @@ import {
 import { createGuitar } from '../audio/music/instruments/guitar';
 import { createBass } from '../audio/music/instruments/bass';
 import { createAccordion, createOrgan, createHarmonica } from '../audio/music/instruments/reeds';
-import { createFiddle, createSaw } from '../audio/music/instruments/bowed';
+import { createFiddle, createSaw, createViol } from '../audio/music/instruments/bowed';
 import { createGurdy } from '../audio/music/instruments/gurdy';
+import { createWhistler } from '../audio/music/instruments/whistler';
+import { createBanjo } from '../audio/music/instruments/banjo';
+import { createJawHarp } from '../audio/music/instruments/jawharp';
+import { createWaterphone } from '../audio/music/instruments/waterphone';
 import {
   createMusicBox,
   createKalimba,
@@ -428,6 +432,31 @@ const SUBJECTS: readonly Subject[] = [
   played('music-deepdrum', 'event', 12, (engine) => createDeepDrum(engine), {
     every: 1.8,
     steps: [[130.81], [146.83], [110]],
+  }),
+  // The Phase 6l voices: the low bow, the person, the drum-head pluck, the
+  // reed in the mouth, the bowed pan.
+  played('music-viol', 'texture', 14, (engine) => createViol(engine), {
+    every: 2.8,
+    duration: 2.6,
+    steps: [[146.83], [110], [130.81]],
+  }),
+  played('music-whistler', 'texture', 10, (engine) => createWhistler(engine), {
+    every: 1.4,
+    duration: 1.2,
+    steps: [[587.33], [659.25], [523.25], [440]],
+  }),
+  played('music-banjo', 'event', 10, (engine) => createBanjo(engine), {
+    every: 0.7,
+    steps: [[293.66], [392], [329.63], [440]],
+  }),
+  played('music-jawharp', 'event', 10, (engine) => createJawHarp(engine), {
+    every: 1.0,
+    steps: [[220], [261.63], [196], [293.66]],
+  }),
+  played('music-waterphone', 'texture', 16, (engine) => createWaterphone(engine), {
+    every: 4.0,
+    duration: 5,
+    steps: [[440], [329.63], [392]],
   }),
   played('music-bass', 'texture', 10, (engine) => createBass(engine), {
     every: 0.9,

@@ -98,7 +98,8 @@ export const FARM_VIBE: MusicSpec = {
     drone: 'gurdy',
     texture: 'guitar',
     melody: 'trumpet',
-    altTexture: 'marimba',
+    // The barn dance's rhythm hand.
+    altTexture: 'banjo',
     // The barn dance, when the texture flips.
     altMelody: 'fiddle',
   },
@@ -179,7 +180,8 @@ export const FOREST_PATH_A_VIBE: MusicSpec = {
   palette: {
     // The walking drone.
     drone: 'gurdy',
-    texture: 'guitar',
+    // The walking band's strum, sharpened.
+    texture: 'banjo',
     melody: 'kalimba',
     altTexture: 'marimba',
     // The walker's pocket.
@@ -212,7 +214,8 @@ export const FOREST_PATH_B_VIBE: MusicSpec = {
     texture: 'marimba',
     melody: 'harp',
     altTexture: 'kalimba',
-    altMelody: 'ocarina',
+    // The idle walker's twang.
+    altMelody: 'jawharp',
   },
   character: {
     textureOctave: 0,
@@ -235,11 +238,13 @@ export const RIVERSIDE_VIBE: MusicSpec = {
   root: 146.83, // D3
   mode: 'dorian',
   palette: {
-    drone: 'strings',
+    // One bow by the water.
+    drone: 'viol',
     texture: 'tonguedrum',
     melody: 'bells',
     altTexture: 'harp',
-    altMelody: 'chimes',
+    // Someone by the water.
+    altMelody: 'whistler',
   },
   character: {
     textureOctave: 12,
@@ -249,6 +254,7 @@ export const RIVERSIDE_VIBE: MusicSpec = {
     phraseRest: [14, 30],
     fragment: 0.3,
     level: 1,
+    // Tuned against the section; re-hear against one bow.
     droneLevel: 1,
   },
   density: 0.5,
@@ -323,7 +329,8 @@ export const CAVE_DARK_VIBE: MusicSpec = {
     // there singing.
     melody: 'saw',
     altTexture: 'pipe',
-    altMelody: 'chimes',
+    // Something bowed answers the saw.
+    altMelody: 'waterphone',
   },
   character: {
     textureOctave: 12,
@@ -376,7 +383,8 @@ export const SEWER_1_VIBE: MusicSpec = {
     texture: 'glass',
     melody: 'bells',
     altTexture: 'oildrum',
-    altMelody: 'chimes',
+    // Water on metal, bowed.
+    altMelody: 'waterphone',
   },
   character: {
     textureOctave: 12,
@@ -484,7 +492,8 @@ export const SCRAPYARD_VIBE: MusicSpec = {
     drone: 'bass',
     texture: 'anvil',
     melody: 'guitar',
-    altTexture: 'oildrum',
+    // Junk twang over the heap.
+    altTexture: 'jawharp',
     // The literal one: a saw in the junk, played.
     altMelody: 'saw',
   },
@@ -561,7 +570,8 @@ export const BEACH_VIBE: MusicSpec = {
   root: 220, // A3
   mode: 'kumoi',
   palette: {
-    drone: 'strings',
+    // One cold bow on the shore.
+    drone: 'viol',
     texture: 'glass',
     melody: 'vibraphone',
     altTexture: 'harp',
@@ -577,6 +587,7 @@ export const BEACH_VIBE: MusicSpec = {
     phraseRest: [16, 34],
     fragment: 0.35,
     level: 1,
+    // Tuned against the section; re-hear against one bow.
     droneLevel: 1,
   },
   density: 0.4,
@@ -589,9 +600,11 @@ export const BEACH_PATH_VIBE: MusicSpec = {
   root: 220, // A3
   mode: 'kumoi',
   palette: {
-    drone: 'strings',
+    // The same bow, heard through trees.
+    drone: 'viol',
     texture: 'pluck',
-    melody: 'ocarina',
+    // Someone walking the shore path, whistling.
+    melody: 'whistler',
     altTexture: 'kalimba',
     altMelody: 'vibraphone',
   },
@@ -603,6 +616,7 @@ export const BEACH_PATH_VIBE: MusicSpec = {
     phraseRest: [20, 42],
     fragment: 0.5,
     level: 0.85,
+    // Tuned against the section; re-hear against one bow.
     droneLevel: 1,
   },
   density: 0.28,

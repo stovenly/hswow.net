@@ -29,7 +29,7 @@ prior conversation context. Update it as decisions change.
 | 6i — Rust and cold water | **Built** — eleven new vibes, five new modes, six new voices; every table in the phase is the tunable, and the audition pass awaits the owner's ear |
 | 6j — Bows, bends and breath | **Built** — five performer voices into twelve palette seats; the recipes and levels are the tunable, and the audition pass awaits the owner's ear |
 | 6k — The old rules | **Built** — five of the six moves in (the echo waits on the listening pass by design); the just table, the neighbour steps and the ornament dice are the tunables |
-| 6l — The back of the wagon | **Specified** — five voices for the rack's remaining holes, eleven seats; strings stops being the book's default weather |
+| 6l — The back of the wagon | **Built** — five voices in, eleven seats swapped; the audition pass and the three viol drone levels wait on the owner's ear |
 | 6m — The other side of things | **Specified** — night as inversion, not reduction: five moves on the existing night scalar |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |

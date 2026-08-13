@@ -4,19 +4,24 @@ import { vibrato, type Instrument } from './voice';
 import { createMonoPool, type MonoVoice } from './mono';
 
 /**
- * The bowed pair — the fiddle and the musical saw, bowed by the mono core.
+ * The bowed strings — the fiddle, the viol and the musical saw, bowed by the
+ * mono core.
  *
  * A bow is a breath that does not run out: a bowed phrase is one bow direction
- * the way a wind phrase is one lungful, so both voices live on persistent
+ * the way a wind phrase is one lungful, so these voices live on persistent
  * players and read legato from timing, and re-attacking a join would be the
  * same harsh stop-start the winds were cured of.
  *
  * These are the book's benders. A join's glide speed belongs to the voice, not
  * the pool: the fiddle shifts fast, a finger moving along a string, and the
  * saw travels slow, because the blade has to bend its whole body to the next
- * pitch. Both start a phrase *under* the note — the fiddle settles the last
- * few cents as the bow takes, the saw rises in from a third below and never
- * quite stops moving.
+ * pitch. All of them start a phrase *under* the note — the strings settle the
+ * last few cents as the bow takes, the saw rises in from a third below and
+ * never quite stops moving.
+ *
+ * The viol is the fiddle's recipe taken low and slow — darker formants, a
+ * lazier vibrato, a longer bow — so one player can stand where the string
+ * section used to be weather.
  */
 
 export interface BowedOptions {
@@ -25,7 +30,50 @@ export interface BowedOptions {
   release?: number;
 }
 
-function fiddlePlayer(context: BaseAudioContext, white: AudioBuffer, output: AudioNode): MonoVoice {
+/** What separates one bowed box from another: the body windows and the hands. */
+interface BowSpec {
+  air: { hz: number; q: number; gain: number };
+  bridge: { hz: number; q: number; gain: number };
+  /** The lid's resting place and how far velocity opens it. */
+  lid: number;
+  ceiling: (velocity: number) => number;
+  /** Join glide time constant — how fast the finger travels. */
+  glide: number;
+  /** Onset settle time constant, from a percent under the note. */
+  settle: number;
+  vibrato: { depth: number; rate: number };
+  /** Where the bow's grip noise sits, phrase starts only. */
+  grip: (freq: number) => number;
+}
+
+const FIDDLE: BowSpec = {
+  air: { hz: 300, q: 1.2, gain: 4 },
+  bridge: { hz: 2500, q: 1.8, gain: 5 },
+  lid: 3400,
+  ceiling: (velocity) => 1900 + velocity * 1700,
+  glide: 0.06,
+  settle: 0.05,
+  vibrato: { depth: 14, rate: 5.2 },
+  grip: (freq) => Math.min(freq * 6, 4200),
+};
+
+const VIOL: BowSpec = {
+  air: { hz: 190, q: 1.1, gain: 5 },
+  bridge: { hz: 1300, q: 1.5, gain: 4 },
+  lid: 2200,
+  ceiling: (velocity) => 1100 + velocity * 800,
+  glide: 0.09,
+  settle: 0.08,
+  vibrato: { depth: 10, rate: 4.2 },
+  grip: (freq) => Math.min(freq * 5, 2600),
+};
+
+function bowPlayer(
+  context: BaseAudioContext,
+  white: AudioBuffer,
+  output: AudioNode,
+  spec: BowSpec,
+): MonoVoice {
   const osc = context.createOscillator();
   osc.type = 'sawtooth';
 
@@ -33,19 +81,19 @@ function fiddlePlayer(context: BaseAudioContext, white: AudioBuffer, output: Aud
   // A raw saw is a synth; a saw heard through these two windows is a box.
   const air = context.createBiquadFilter();
   air.type = 'peaking';
-  air.frequency.value = 300;
-  air.Q.value = 1.2;
-  air.gain.value = 4;
+  air.frequency.value = spec.air.hz;
+  air.Q.value = spec.air.q;
+  air.gain.value = spec.air.gain;
 
   const bridge = context.createBiquadFilter();
   bridge.type = 'peaking';
-  bridge.frequency.value = 2500;
-  bridge.Q.value = 1.8;
-  bridge.gain.value = 5;
+  bridge.frequency.value = spec.bridge.hz;
+  bridge.Q.value = spec.bridge.q;
+  bridge.gain.value = spec.bridge.gain;
 
   const lid = context.createBiquadFilter();
   lid.type = 'lowpass';
-  lid.frequency.value = 3400;
+  lid.frequency.value = spec.lid;
   lid.Q.value = 0.6;
 
   const envelope = context.createGain();
@@ -60,7 +108,7 @@ function fiddlePlayer(context: BaseAudioContext, white: AudioBuffer, output: Aud
   bow.Q.value = 1.4;
   bow.connect(envelope);
 
-  let ceiling = 3400;
+  let ceiling = spec.lid;
 
   return {
     envelope,
@@ -68,21 +116,21 @@ function fiddlePlayer(context: BaseAudioContext, white: AudioBuffer, output: Aud
     tune(at, freq, velocity, glide, until) {
       osc.frequency.cancelScheduledValues(at);
       lid.frequency.cancelScheduledValues(at);
-      ceiling = 1900 + velocity * 1700;
+      ceiling = spec.ceiling(velocity);
       if (glide) {
         // A finger moving along the string: fast, but a travelled distance.
-        osc.frequency.setTargetAtTime(freq, at, 0.06);
+        osc.frequency.setTargetAtTime(freq, at, spec.glide);
       } else {
         // The onset settles: a few cents under, sliding true as the bow takes.
         osc.frequency.setValueAtTime(freq * 0.99, at);
-        osc.frequency.setTargetAtTime(freq, at, 0.05);
-        bow.frequency.setValueAtTime(Math.min(freq * 6, 4200), at);
+        osc.frequency.setTargetAtTime(freq, at, spec.settle);
+        bow.frequency.setValueAtTime(spec.grip(freq), at);
         excite(context, white, bow, at, velocity * 0.09, 0.09, 0.02);
       }
       lid.frequency.setTargetAtTime(ceiling, at, 0.03);
       // Pitch vibrato, and `vibrato` already makes it arrive late — the player
       // finds the note first and leans into it after.
-      vibrato(context, osc.detune, at, until, 14, 5.2);
+      vibrato(context, osc.detune, at, until, spec.vibrato.depth, spec.vibrato.rate);
     },
 
     taper(at, release) {
@@ -161,7 +209,7 @@ export function createFiddle(engine: AudioEngine, options: BowedOptions = {}): I
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
 
-  const pool = createMonoPool(context, () => fiddlePlayer(context, noise.white, output), {
+  const pool = createMonoPool(context, () => bowPlayer(context, noise.white, output, FIDDLE), {
     attack: options.attack ?? 0.18,
     release: options.release ?? 0.6,
     peak: (velocity) => velocity * 0.26,
@@ -171,6 +219,34 @@ export function createFiddle(engine: AudioEngine, options: BowedOptions = {}): I
     output,
 
     noteOn(at, freq, velocity, duration = 1.8) {
+      pool.note(at, freq, velocity, duration);
+    },
+
+    dispose() {
+      pool.dispose();
+      output.disconnect();
+    },
+  };
+}
+
+export function createViol(engine: AudioEngine, options: BowedOptions = {}): Instrument {
+  const context = engine.context;
+  const noise = engine.noise;
+  if (!noise) throw new Error('viol built before the noise buffers were ready');
+
+  const output = context.createGain();
+  output.gain.value = options.gain ?? 0.5;
+
+  const pool = createMonoPool(context, () => bowPlayer(context, noise.white, output, VIOL), {
+    attack: options.attack ?? 0.4,
+    release: options.release ?? 1.1,
+    peak: (velocity) => velocity * 0.25,
+  });
+
+  return {
+    output,
+
+    noteOn(at, freq, velocity, duration = 2.6) {
       pool.note(at, freq, velocity, duration);
     },
 
