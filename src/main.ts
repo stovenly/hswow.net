@@ -458,11 +458,6 @@ if (dev.gui) {
     .onChange(settings.commit);
   distance.add(r, 'clutterCull', 0.3, 1, 0.05).name('clutter at ×').onChange(refresh);
 
-  const vignette = dev.gui.addFolder('vignette').close();
-  vignette.add(r, 'vignetteStrength', 0, 1, 0.01).onChange(refresh);
-  vignette.add(r, 'vignetteRadius', 0, 1.5, 0.01).onChange(refresh);
-  vignette.add(r, 'vignetteSoftness', 0.01, 1.5, 0.01).onChange(refresh);
-
   const sky = dev.gui.addFolder('sky');
   sky.addColor(r.sky, 'zenith').onChange(refresh);
   sky.addColor(r.sky, 'horizon').onChange(refresh);
@@ -721,8 +716,8 @@ if (dev.gui) {
     position: '',
     triangles: collider.triangles,
     // What the frame actually costs, as opposed to what the arithmetic in
-    // SCALING.md predicts it costs. Accumulated across every composer pass and
-    // including the shadow draws — see `Viewport`, which turns `autoReset` off
+    // SCALING.md predicts it costs. Accumulated across every pass in the frame
+    // and including the shadow draws — see `Viewport`, which turns `autoReset` off
     // to make that true.
     draws: 0,
     drawn: '0',
@@ -1031,9 +1026,9 @@ loop.add((dt, elapsed) => {
 });
 
 // One frame drawn *before* the boot screen fades, so it reveals the world
-// rather than an empty canvas. The composer has never run at this point — its
-// render targets are allocated but nothing has been drawn into them — and
-// fading out over that shows black for the length of the fade.
+// rather than an empty canvas. Nothing has been drawn at this point — the
+// pipeline's targets are allocated and empty — and fading out over that shows
+// black for the length of the fade.
 //
 // The zero-length update is not a formality. `teleport` moves the *capsule*;
 // the camera is only placed by `applyCamera`, which runs at the end of an

@@ -42,6 +42,37 @@ import type { Reticle, Fade } from '../ui/Reticle';
  * not yet arrived is a frame of pure black that no fade is covering.
  */
 
+/** A `Layers` to test a mesh against, so the particle gate is one call. */
+const PARTICLE_MASK = new THREE.Layers();
+PARTICLE_MASK.set(PARTICLE_LAYER);
+
+/**
+ * Composes every matrix in a finished zone once, and stops three composing them
+ * again on every frame for the rest of the session.
+ *
+ * A prop is placed where it is built and never moves, so recomposing its matrix
+ * from a position, a quaternion and a scale sixty times a second produces the
+ * number it already holds. The root goes with them and has to: a group left on
+ * auto-update marks itself dirty every frame, and a dirty parent forces the
+ * whole subtree behind it whatever its children say.
+ *
+ * **Anything already off is left alone.** A builder that turned this off has
+ * written its own matrix — a window's light shaft is a sheared one, which no
+ * position and rotation can express — and composing it here would quietly
+ * replace it with an upright box.
+ *
+ * The flames are the exception in the other direction, and `LightActivity` turns
+ * their auto-update back on as it collects them: whatever moves a thing is what
+ * knows it moves.
+ */
+function freezeMatrices(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (!object.matrixAutoUpdate) return;
+    object.updateMatrix();
+    object.matrixAutoUpdate = false;
+  });
+}
+
 /**
  * What pressing the interact key would act on.
  *
@@ -146,6 +177,13 @@ export class ZoneManager {
   private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
   /** Whether anything is currently hidden, so the default path stays free. */
   private clutterHidden = false;
+  /**
+   * Built zones with anything on the particle layer in them, which is what
+   * decides whether the particle pass runs. Observed while the zone is prepared
+   * — see `prepare` — for the reason `Zone.hasWater` is observed rather than
+   * declared.
+   */
+  private readonly particled = new Set<ZoneId>();
   /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
   private readonly activity = new LightActivity();
   /** Every simulated cloth in every built zone. See `ClothActivity`. */
@@ -405,6 +443,7 @@ export class ZoneManager {
       // The meshes are about to be freed; holding them here would be a leak
       // shaped exactly like the one eviction exists to prevent.
       this.clutter.delete(zone.id);
+      this.particled.delete(zone.id);
       this.activity.release(zone.id);
       this.cloth.release(zone.id);
       this.glitch.release(zone.id);
@@ -572,6 +611,9 @@ export class ZoneManager {
       // is why this is safe to ask here: `root()` ran a few lines up.
       water: zone.hasWater,
       glass: zone.hasGlass,
+      // Off `prepare`'s walk rather than off the zone, because the sparkles are
+      // built after the zone is and ride the same layer.
+      particles: this.particled.has(zone.id),
     });
 
     this.lights.sun.intensity = env.sunIntensity;
@@ -724,6 +766,7 @@ export class ZoneManager {
     //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
     const clutter: THREE.Mesh[] = [];
+    let particles = false;
     let points = 0;
     let spots = 0;
     root.traverse((object) => {
@@ -740,6 +783,11 @@ export class ZoneManager {
         if (object instanceof THREE.SpotLight) spots++;
       }
       if (!(object instanceof THREE.Mesh)) return;
+      // What decides whether the particle pass runs here at all. The layer
+      // rather than the builder, because two unrelated things ride it — weather
+      // systems and the zone's sparkles — and a test that named either of them
+      // would go quietly wrong the first time the other one was alone in a zone.
+      if (object.layers.test(PARTICLE_MASK)) particles = true;
       // A cloth panel is `noCollide` — its triangles stay out of the octree —
       // but it is solid to light: the sim moves the actual buffer, so its
       // shadow follows the drape with nothing to patch.
@@ -774,10 +822,19 @@ export class ZoneManager {
     this.padLights(root, zone.id, points, spots);
 
     // Every star site in the zone as one instanced draw. See `art/sparkle.ts`.
+    // Built after the walk above, so it is counted here rather than found there.
     const sparkles = buildZoneSparkles(root);
-    if (sparkles) root.add(sparkles);
+    if (sparkles) {
+      root.add(sparkles);
+      particles = true;
+    }
+
+    // Last, so it catches the doors, the cover, the light pads and the sparkles
+    // as well as whatever the zone built.
+    freezeMatrices(root);
 
     this.clutter.set(zone.id, clutter);
+    if (particles) this.particled.add(zone.id);
     this.activity.collect(zone.id, root);
     this.cloth.collect(zone.id, root);
     // Both attachment routes in one call: the definition's free-standing
@@ -973,6 +1030,7 @@ export class ZoneManager {
     this.zones.clear();
     this.doored.clear();
     this.clutter.clear();
+    this.particled.clear();
     this.activity.clear();
     this.cloth.clear();
     this.glitch.clear();

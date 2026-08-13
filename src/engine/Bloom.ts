@@ -31,8 +31,8 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  *    bright texel does not decide the result. The details are on each material.
  *    A world whose lights are single-texel flames at an eighth resolution is
  *    close to the worst case for a bloom chain, so neither is optional.
- * 3. **Additive composite** onto the scene colour, in linear light, before
- *    `OutputPass` — which is the physically correct place and, more to the
+ * 3. **Additive composite** onto the scene colour, in linear light, before the
+ *    sRGB encode — which is the physically correct place and, more to the
  *    point here, puts the glow falloff through the tone map and the halftone
  *    like any other light in the picture. Bloom that reads as a modern layer
  *    over a retro look is bloom composited after the quantizer.

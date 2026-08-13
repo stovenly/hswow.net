@@ -20,13 +20,21 @@ Written to be read cold. Update it as decisions land.
 The pipeline today (`src/engine/PostFX.ts`):
 
 ```
-scene ─► PixelStage ──────────────────► OutputPass ─► RetroShader ─► screen
-         chunky pixels, edge lines,      tone map     halftone dither,
-         effect slot, upscale            and sRGB     quantize, vignette
+scene ─► PixelStage ─────────────────────────────────────────────► screen
+         chunky pixels, edge lines, effect slot,
+         upscale ─► sRGB ─► halftone dither ─► quantize
 ```
 
 (That was `RenderPixelatedPass` when this document was written. R0 replaced it;
 the shape is otherwise the same.)
+
+`OutputPass` and a `RetroShader` quad used to follow the stage. Both did their
+work at device resolution, so both were folded into the upscale that already
+had to happen there, and `EffectComposer` went with them — three trivial
+full-screen passes and two round trips through a full-resolution buffer became
+one shader. Nothing about the order changed: the sRGB encode still comes before
+the quantizer, because spacing levels evenly is only correct on the display
+side of it.
 
 Five constraints fall out of it, and every section below is written against them.
 

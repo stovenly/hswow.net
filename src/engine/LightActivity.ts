@@ -68,7 +68,13 @@ export class LightActivity {
       const glows: THREE.Mesh[] = [];
       object.traverse((child) => {
         if (child instanceof THREE.Light) lights.push(child);
-        else if (child instanceof THREE.Mesh && child.layers.test(EMISSIVE)) glows.push(child);
+        else if (child instanceof THREE.Mesh && child.layers.test(EMISSIVE)) {
+          // A zone's matrices are frozen once it is built — `freezeMatrices` in
+          // `ZoneManager` — and `swell` moves this one every frame, so it takes
+          // its own back.
+          child.matrixAutoUpdate = true;
+          glows.push(child);
+        }
       });
       if (!lights.length && !glows.length) return;
 

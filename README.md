@@ -72,5 +72,5 @@ procedural audio, art kit, zones and portals, and zone soundscapes.
 Click to capture the mouse, WASD to move, shift to sprint, space to jump, Escape to
 release. On a phone the left half of the screen is a stick and the right half is look.
 
-Open `?debug` to tune the look — pixel size, edge strength, levels, dither, vignette, fog
+Open `?debug` to tune the look — pixel size, edge strength, levels, dither, fog
 — then **preset → save** to keep it across reloads.

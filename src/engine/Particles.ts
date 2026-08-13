@@ -42,6 +42,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
 export class ParticlesEffect implements PixelEffect {
   enabled = false;
 
+  private present = false;
   private readonly blitMaterial: THREE.ShaderMaterial;
   private readonly quad: FullScreenQuad;
 
@@ -79,6 +80,22 @@ export class ParticlesEffect implements PixelEffect {
   setSize(): void {
     // Nothing of its own to resize. It draws into the chain's next link and
     // reads what it is handed, all at chunky resolution.
+  }
+
+  /**
+   * Whether the zone being entered has anything on the particle layer.
+   *
+   * Water's `setActive` exactly, and for its reason: the pass costs a
+   * full-screen blit and a whole-scene walk whether or not there is a flake in
+   * the zone, and most zones have none. Told at the threshold rather than
+   * looked for per frame — see `ZoneManager.prepare` for what does the looking.
+   */
+  setActive(present: boolean): void {
+    this.present = present;
+  }
+
+  get hasParticles(): boolean {
+    return this.present;
   }
 
   render(renderer: THREE.WebGLRenderer, context: EffectContext): void {
