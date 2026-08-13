@@ -42,17 +42,28 @@ import {
   texturePool,
   motifHead,
   periodFrom,
+  sentenceFrom,
   applyOp,
+  closure,
   openDegrees,
   CONNECT,
   type MotifOp,
 } from '../src/audio/music/patterns';
-import { GROUNDS, groundFor, cadenceApproach } from '../src/audio/music/harmony';
+import {
+  GROUNDS,
+  groundFor,
+  cadenceApproach,
+  chordDistance,
+  chordCandidates,
+} from '../src/audio/music/harmony';
+import { speacPlan, speacTensions, type SpeacId } from '../src/audio/music/form';
 import {
   BAR_BEATS,
   RHYTHM_CELLS,
   rhythmCell,
   subdivide,
+  metricWeight,
+  accentAt,
   mutateOstinato,
 } from '../src/audio/music/rhythm';
 import { ritardCurve, phraseArch, SECTION_END_V, FINAL_V } from '../src/audio/music/tempo';
@@ -972,7 +983,7 @@ function* permutations(cell: readonly number[]): Generator<readonly number[]> {
         const base = motifHead(seed, mode);
         const ops: MotifOp[] = ['plain', 'sequence', 'inversion', 'fragment'];
         for (const op of ops) {
-          const head = applyOp(base, op, rng);
+          const head = applyOp(base, op, rng, mode);
           const period = periodFrom(head, mode);
           periods++;
           const startsWith = (half: readonly number[]): boolean =>
@@ -996,6 +1007,232 @@ function* permutations(cell: readonly number[]): Generator<readonly number[]> {
     check('a period shares its head', sharedHead, `${periods} periods, four ops each`);
     check('a question hangs open', openEnd, 'antecedents end on the second or fifth, moved');
     check('an answer lands on the root', landsRoot && descends, 'stepwise descent, root pitch class');
+  }
+
+  // Phase 6o. `applyOp` used to hand the director a head that broke the rule
+  // its own cell was written under — a sequence widened the span past
+  // `CONNECT` and doubled the leaps. Every developed head now goes back
+  // through `connect`, so the promise the cells make is the promise the
+  // statements keep: one leap of two or three degrees, then steps, and every
+  // permutation still inside the span.
+  {
+    const rng = createRng(9091);
+    const ops: MotifOp[] = ['plain', 'sequence', 'inversion', 'fragment'];
+    let developed = 0;
+    let shaped = true;
+    let spans = true;
+    let arrives = true;
+    let widest = 0;
+    let questionScore = 0;
+    let answerScore = 0;
+    for (const [, mode] of modes) {
+      for (let seed = 1; seed <= SEEDS; seed++) {
+        const base = motifHead(seed, mode);
+        for (const op of ops) {
+          const head = applyOp(base, op, rng, mode);
+          developed++;
+          const leap = Math.abs(head[1] - head[0]);
+          if (leap < 2 || leap > 3) shaped = false;
+          for (let i = 2; i < head.length; i++) {
+            if (Math.abs(head[i] - head[i - 1]) !== 1) shaped = false;
+          }
+          const notes = head.map((degree) => degreeToSemitone(mode, degree));
+          const width = Math.max(...notes) - Math.min(...notes);
+          widest = Math.max(widest, width);
+          if (width > CONNECT) spans = false;
+
+          // The answer is the half that closes and the question is the half
+          // that does not. Of Narmour's conditions a line of degrees can show,
+          // arrival is the one that has to hold every time: the consequent
+          // always reaches the tonic, the antecedent never does. Shape — a
+          // large interval into a small one, a change of direction — is a
+          // question's too, so it is reported rather than required.
+          const period = periodFrom(head, mode);
+          const question = closure(period.antecedent, mode);
+          const answer = closure(period.consequent, mode);
+          questionScore += question;
+          answerScore += answer;
+          const lands = (line: readonly number[]): boolean =>
+            degreeToSemitone(mode, line[line.length - 1]) % 12 === 0;
+          if (!lands(period.consequent) || lands(period.antecedent) || answer < 1) arrives = false;
+        }
+      }
+    }
+    const questions = questionScore / (developed || 1);
+    const answers = answerScore / (developed || 1);
+    check(
+      'a developed head keeps the melodic rule',
+      shaped,
+      `${developed} heads over four ops, leap of 2–3 degrees then steps`,
+    );
+    check('a developed head still connects', spans, `widest developed head ${widest} st, cap ${CONNECT}`);
+    check(
+      'an answer closes and a question does not',
+      arrives && answers > questions,
+      `closure ${answers.toFixed(2)} against ${questions.toFixed(2)}; every consequent arrives, no antecedent does`,
+    );
+  }
+
+  // Phase 6s. The sentence: the idea, the idea a degree away, its front half
+  // twice as the continuation fragments, and the landing. Five gestures, the
+  // first one the head untouched, and the last one on the root — a phrase
+  // form that does not land is not a phrase form.
+  {
+    let sentences = 0;
+    let shaped = true;
+    let lands = true;
+    for (const [, mode] of modes) {
+      for (let seed = 1; seed <= SEEDS; seed++) {
+        const head = motifHead(seed, mode);
+        const parts = sentenceFrom(head, mode);
+        sentences++;
+        if (parts.length !== 5) shaped = false;
+        if (String(parts[0]) !== String(head)) shaped = false;
+        if (parts.some((part) => part.length === 0)) shaped = false;
+        const last = parts[4][parts[4].length - 1];
+        if (degreeToSemitone(mode, last) % 12 !== 0) lands = false;
+      }
+    }
+    check('a sentence presents, continues and cadences', shaped, `${sentences} sentences, five gestures each`);
+    check('a sentence lands on the root', lands, 'the cadence arrives, every mode and seed');
+  }
+
+  // Phase 6q. Lerdahl's chord distance, on the grammar's third-less chords.
+  // It has to be a metric — zero only on identity, symmetric — and it has to
+  // agree with the vocabulary: the plagal step and the fifth, the two moves
+  // the ground loops are built from, are the cheapest moves there are.
+  {
+    let metric = true;
+    const seen = new Set<number>();
+    for (let x = 0; x < 12; x++) {
+      for (let y = 0; y < 12; y++) {
+        const d = chordDistance(x, y);
+        seen.add(d);
+        if (d < 0 || d > 13) metric = false;
+        if ((d === 0) !== (x === y)) metric = false;
+        if (d !== chordDistance(y, x)) metric = false;
+      }
+    }
+    const cheapest = chordDistance(0, 5) === 4 && chordDistance(0, 7) === 4;
+    const further = [1, 2, 3, 4, 6, 8, 9, 10, 11].every((pc) => chordDistance(0, pc) > 4);
+    check(
+      'chord distance is a metric on the grammar',
+      metric && cheapest && further,
+      `${[...seen].sort((a, b) => a - b).join(', ')} over the 12 roots; plagal and fifth cheapest`,
+    );
+
+    // Choosing a chord by distance must not reach anything the ground book
+    // would have refused — in the mode, its own fifth available, never the
+    // fifth or the leading tone.
+    const faults: string[] = [];
+    for (const [name] of modes) {
+      const mode = MODES[name as ModeName];
+      const candidates = chordCandidates(name as ModeName);
+      if (candidates.length < 2) faults.push(`${name} has ${candidates.length}`);
+      for (const pc of candidates) {
+        if (!inMode(pc, mode)) faults.push(`${name} ${pc} out of mode`);
+        if (!inMode(pc + 7, mode)) faults.push(`${name} ${pc} fifthless`);
+        if (pc % 12 === 7 || pc % 12 === 11) faults.push(`${name} ${pc} dominant`);
+      }
+      for (const loop of GROUNDS[name as ModeName].home) {
+        for (const pc of loop) if (!candidates.includes(pc)) faults.push(`${name} ground ${pc} unreachable`);
+      }
+    }
+    check(
+      'a chord chosen by distance stays in the vocabulary',
+      faults.length === 0,
+      faults.slice(0, 4).join(', ') || 'every ground chord reachable, no dominant among them',
+    );
+  }
+
+  // Phase 6p. Accent is read from the bar, not stored per step — which is
+  // the whole reason a subdivided cell no longer inherits its parent's
+  // stress. The weights are Longuet-Higgins & Lee's, so the bar line is
+  // always the strongest position and nothing off the grid outranks it.
+  {
+    let ordered = true;
+    for (const beat of [0, 1, 2, 3, 0.5, 1.5, 1 / 3, 2 / 3, 0.25, 0.75]) {
+      if (accentAt(beat) <= 0 || accentAt(beat) > 1) ordered = false;
+      if (accentAt(beat) > accentAt(0)) ordered = false;
+    }
+    if (!(metricWeight(0) === 0 && metricWeight(2) === -1 && metricWeight(1) === -2)) ordered = false;
+    if (!(metricWeight(0.5) === -3 && metricWeight(1 / 3) === -3 && metricWeight(0.25) === -4)) {
+      ordered = false;
+    }
+    // A subdivided cell's halves rank by where they land, which is what the
+    // old copied accent lost — and the cell's own lean is carried across the
+    // split rather than thrown away, which is what a crooked gait needs.
+    let hierarchy = true;
+    for (const cell of Object.values(RHYTHM_CELLS)) {
+      const halves = subdivide(cell);
+      if (new Set(halves.map((step) => step.accent)).size < 2) hierarchy = false;
+      let at = 0;
+      let i = 0;
+      for (const step of cell) {
+        if (step.beats >= 1) {
+          const first = halves[i];
+          const second = halves[i + 1];
+          const weaker = metricWeight(at + step.beats / 2) < metricWeight(at);
+          if (weaker && !(second.accent < first.accent)) hierarchy = false;
+          if (!weaker && second.accent < first.accent) hierarchy = false;
+          i += 2;
+        } else {
+          i += 1;
+        }
+        at += step.beats;
+      }
+    }
+    check('metric weight ranks the bar', ordered, 'bar over half over beat over eighth over the rest');
+    check(
+      'subdivision keeps the hierarchy',
+      hierarchy,
+      'every half reads its accent from where it lands',
+    );
+  }
+
+  // Phase 6s. The SPEAC grammar's one hard rule: a form that opens something
+  // closes it. Every plan starts on a statement, ends on a consequent, holds
+  // at least one antecedent for that consequent to answer, and every step in
+  // it is a step the grammar allows.
+  {
+    const LEGAL: Record<SpeacId, readonly SpeacId[]> = {
+      S: ['P', 'E', 'A', 'C'],
+      P: ['S', 'A', 'C'],
+      E: ['E', 'P', 'A', 'C'],
+      A: ['E', 'C'],
+      C: ['S', 'E'],
+    };
+    let plans = 0;
+    let lawful = true;
+    let steady = true;
+    const shapes = new Set<string>();
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const count of [3, 4, 5]) {
+        const plan = speacPlan(seed, count);
+        plans++;
+        shapes.add(plan.join(''));
+        if (String(speacPlan(seed, count)) !== String(plan)) steady = false;
+        if (plan[0] !== 'S' || plan[plan.length - 1] !== 'C') lawful = false;
+        if (!plan.includes('A')) lawful = false;
+        if (plan.length !== Math.max(3, count)) lawful = false;
+        for (let i = 1; i < plan.length; i++) {
+          if (!LEGAL[plan[i - 1]].includes(plan[i])) lawful = false;
+        }
+        const tensions = speacTensions(plan);
+        if (tensions.length !== plan.length) lawful = false;
+        if (tensions.some((t) => t <= 0 || t > 1)) lawful = false;
+        // The arc is produced, not declared: the peak is the antecedent and
+        // it always outranks the consequent that answers it.
+        if (Math.max(...tensions) !== 1) lawful = false;
+        if (tensions[tensions.length - 1] >= Math.max(...tensions)) lawful = false;
+      }
+    }
+    check('every antecedent reaches a consequent', lawful, `${plans} plans, three lengths, all legal`);
+    check(
+      'a seed is a form',
+      steady && shapes.size > 4,
+      `${shapes.size} distinct plans from 200 seeds, each re-rolled the same`,
+    );
   }
 
   // Rhythm cells: every figure sums to its bar — on both rungs of the ladder
