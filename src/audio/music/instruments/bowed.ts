@@ -237,7 +237,11 @@ export function createViol(engine: AudioEngine, options: BowedOptions = {}): Ins
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
 
+  // Four bows with a short reach: a drone chord seats every tone on its own
+  // player, and a re-voicing is a fresh bow, never a slide between chord tones.
   const pool = createMonoPool(context, () => bowPlayer(context, noise.white, output, VIOL), {
+    voices: 4,
+    span: 2,
     attack: options.attack ?? 0.4,
     release: options.release ?? 1.1,
     peak: (velocity) => velocity * 0.25,

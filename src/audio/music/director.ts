@@ -151,7 +151,11 @@ export interface MusicSpec {
   mode: ModeName;
   palette: MusicPalette;
   character: MusicCharacter;
-  /** The melody's chance per piece: 0 is drone and texture, 1 is all three. */
+  /**
+   * How much the melody speaks. Every piece has one; this leans the rest
+   * between statements toward the short end of `phraseRest`. 1 is talkative,
+   * 0 is as still as the vibe's own span allows.
+   */
   density: number;
   /** Felt pulse as a BPM span — each piece rolls its own — or null for pulse-free. */
   pulse: Span | null;
@@ -182,7 +186,7 @@ const BREATH_BAR: Span = [8, 13];
 const DRONE_BREATH = 0.3;
 
 /** The whole score sits below the world, by the owner's ear. */
-const MUSIC_TRIM = 0.66;
+const MUSIC_TRIM = 0.76;
 
 /** Half-time for the night: adjacent steps merge, half the notes, same bar. */
 const halveFigure = (cell: RhythmCell): RhythmCell => {
@@ -292,12 +296,16 @@ export class MusicDirector {
   private earnedDrums = false;
   private textureFromBar = 0;
   private melodyFromBar = 0;
+  /** Where each stratum leaves. Counted from the end in seconds, not bars. */
+  private textureUntilBar = 0;
+  private melodyUntilBar = 0;
   private textureActive = false;
   private melodyActive = false;
   private drumsActive = false;
   private texAlt = false;
   private melAlt = false;
   private pieceTexAlt = false;
+  private pieceMelAlt = false;
 
   /** 0 day, 1 night. Stubbed — nothing feeds it until the day/night cycle exists. */
   private night = 0;
@@ -378,8 +386,11 @@ export class MusicDirector {
   }
 
   /**
-   * Day/night input: same seeds, softer touch, half-time texture.
-   * Stubbed until a day/night cycle exists to feed it.
+   * Day/night input. Night inverts instead of reducing: same seeds, same
+   * motifs, the other half of the vocabulary — the alternates become the
+   * usual draw, the registers flip, some answers go unsaid, the drone
+   * breathes out more, and the touch softens only a little. Stubbed until a
+   * day/night cycle exists to feed it.
    */
   setNight(night: number): void {
     this.night = Math.min(Math.max(night, 0), 1);
@@ -488,29 +499,36 @@ export class MusicDirector {
       }
     }
 
-    // A piece is more than its pad: the texture always plays, and density is
-    // the melody's chance, rolled once per piece. A drone left alone for two
-    // minutes reads as a broken pad, not a sparse place — sparseness lives in
-    // the rests between pieces and in the vibe's habits, never in a stratum
-    // holding still.
-    const density = Math.min(Math.max(spec.density, 0), 1);
+    // A piece is more than its pad. Every piece gets all three strata: this
+    // was a dice roll on whether the melody existed at all, and a losing roll
+    // meant two minutes of pad and scattered texture — which is a broken pad,
+    // not a sparse place. Sparseness lives in the rests between pieces and in
+    // how often the melody speaks, never in a stratum missing.
     this.earnedTexture = true;
-    this.earnedMelody = audition || Math.random() < density;
+    this.earnedMelody = true;
     this.earnedDrums = spec.drums ?? false;
 
-    // Growth is Sweden's: one voice per section, exits by subtraction. The
-    // texture owns the first section, the melody arrives with the second.
-    // Breath bars are long, so a pulse-free intro concedes one bar, not three.
-    this.textureFromBar =
-      audition || this.beatSec === 0 ? 1 : 1 + this.dice.int(0, 2);
-    this.melodyFromBar = audition
-      ? 2
-      : this.sections[1].fromBar + this.dice.int(0, Math.min(2, this.sections[1].bars - 1));
+    // Growth is Sweden's: one voice in at a time, exits by subtraction — but
+    // both edges are counted in SECONDS and converted, never in bars. A breath
+    // bar is ten seconds and a pulse-free piece is seven of them, so "the
+    // melody arrives with the second section, texture leaves two bars early"
+    // spent half a minute at each end on bare pad. What the ear is owed is a
+    // short intro and a short outro, whatever the bar happens to be worth.
+    // A breath bar is ten seconds, so a pulse-free piece concedes no intro at
+    // all: the texture is in from the downbeat and the growth is the melody.
+    const inBars = (seconds: number) => Math.max(1, Math.round(seconds / barSec));
+    this.textureFromBar = audition || this.beatSec === 0 ? 0 : inBars(2 + this.dice() * 4);
+    this.melodyFromBar = audition ? 1 : inBars(6 + this.dice() * 8);
+    this.textureUntilBar = this.totalBars - inBars(this.beatSec === 0 ? 4 : 5);
+    this.melodyUntilBar = this.totalBars - inBars(this.beatSec === 0 ? 8 : 9);
 
     // Per-piece orchestration: the alternates get a turn by seedless dice.
-    this.pieceTexAlt = rack.altTexture !== null && this.dice.chance(0.3);
+    // At night the dice flip — the other hands become the usual draw and the
+    // primaries the exception.
+    this.pieceTexAlt = rack.altTexture !== null && this.dice.chance(0.3 + this.night * 0.45);
+    this.pieceMelAlt = rack.altMelody !== null && this.dice.chance(this.night * 0.75);
     this.texAlt = this.pieceTexAlt;
-    this.melAlt = false;
+    this.melAlt = this.pieceMelAlt;
 
     this.phraseUntil = 0;
     this.melodyDueAt = 0;
@@ -687,9 +705,9 @@ export class MusicDirector {
     // Raise and subtract the strata in bar space. Texture leaves before the
     // final cadence, melody before that, drums keep only the arc's peak.
     this.textureActive =
-      this.earnedTexture && bar >= this.textureFromBar && bar <= this.totalBars - 2;
+      this.earnedTexture && bar >= this.textureFromBar && bar <= this.textureUntilBar;
     this.melodyActive =
-      this.earnedMelody && bar >= this.melodyFromBar && bar <= this.totalBars - 3;
+      this.earnedMelody && bar >= this.melodyFromBar && bar <= this.melodyUntilBar;
     this.drumsActive =
       this.earnedDrums && section.tension >= 0.6 && bar <= this.totalBars - 4;
 
@@ -723,7 +741,7 @@ export class MusicDirector {
       // away and re-enters rather than sounding for the whole piece.
       const refresh = this.beatSec === 0 ? barLen * 0.9 : barLen * 2;
       const stale = at - this.droneFiredAt > refresh;
-      if (pc !== this.dronePc || (stale && Math.random() > DRONE_BREATH)) {
+      if (pc !== this.dronePc || (stale && Math.random() > DRONE_BREATH + this.night * 0.15)) {
         this.fireDrone(at, pc, this.beatSec === 0 ? barLen + 3 : barLen * 2 + 2);
       }
       this.chordDegree = inMode(pc, mode) ? semitoneToDegree(mode, pc) : 0;
@@ -771,16 +789,31 @@ export class MusicDirector {
     // Re-orchestration on restatement is a chance, not a guarantee — an
     // alternate voice is a visit, and the return always takes the band back.
     if (section.kind === 'B') {
-      this.melAlt = rack.altMelody !== null && this.dice.chance(0.5);
+      this.melAlt =
+        rack.altMelody !== null &&
+        (this.dice.chance(0.5) ? !this.pieceMelAlt : this.pieceMelAlt);
       this.texAlt =
         rack.altTexture !== null && this.dice.chance(0.35) ? !this.pieceTexAlt : this.pieceTexAlt;
     } else {
-      this.melAlt = false;
+      this.melAlt = this.pieceMelAlt;
       this.texAlt = this.pieceTexAlt;
     }
   }
 
   // --- the strata -------------------------------------------------------------
+
+  /**
+   * The silence after a statement: the vibe's own span, leaned toward its
+   * short end by the vibe's density. Density is how *much* the melody speaks,
+   * not whether it speaks — a talkative place lives near the bottom of its
+   * span, a still one near the top, and neither ever exceeds it.
+   */
+  private restAfterPhrase(): number {
+    const spec = this.spec as MusicSpec;
+    const [lo, hi] = spec.character.phraseRest;
+    const lean = Math.min(Math.max(spec.density, 0), 1);
+    return lo + (hi - lo) * Math.random() * (1 - lean * 0.6);
+  }
 
   /** The felt beat under the current section's hand. */
   private beat(): number {
@@ -799,7 +832,8 @@ export class MusicDirector {
       : 1;
     const swell = 0.65 + 0.35 * Math.sin(Math.PI * p);
     const tension = this.sections[this.sectionAt]?.tension ?? 0.5;
-    return swell * (0.85 + 0.2 * tension) * (1 - this.night * 0.3);
+    // A little quiet for the moon, not a muffle — the night moves live elsewhere.
+    return swell * (0.85 + 0.2 * tension) * (1 - this.night * 0.12);
   }
 
   /**
@@ -857,7 +891,8 @@ export class MusicDirector {
     const rack = this.rack;
     if (!spec || !rack) return;
     const voice = this.texAlt && rack.altTexture ? rack.altTexture : rack.texture;
-    const octave = spec.character.textureOctave;
+    // At night the figure lifts an octave — moonlight on the same object.
+    const octave = spec.character.textureOctave + (this.night > 0.5 ? 12 : 0);
 
     if (this.beatSec === 0) {
       // Wilderness floats: a few unmetered notes scattered inside the breath
@@ -990,7 +1025,14 @@ export class MusicDirector {
     const fragmentary = this.dice.chance(spec.character.fragment);
     const head = applyOp(this.head, fragmentary ? 'fragment' : this.op, this.dice);
     const period = periodFrom(head, mode);
-    const halves = fragmentary ? [period.consequent] : [period.antecedent, period.consequent];
+    // At night some statements speak the question and withhold the answer —
+    // nothing new is said, something is left unsaid.
+    const withheld = !fragmentary && this.dice.chance(this.night * 0.4);
+    const halves = fragmentary
+      ? [period.consequent]
+      : withheld
+        ? [period.antecedent]
+        : [period.antecedent, period.consequent];
 
     // The bridge stands the whole period on its opening chord — both halves,
     // so the head stays shared and the landing agrees with the away bass.
@@ -1002,7 +1044,9 @@ export class MusicDirector {
     // A statement may sit an octave down between the arc's peaks — but only
     // where the vibe's seat leaves an octave to give.
     const mayDrop = spec.character.melodyOctave >= 24 && tension < 0.7;
-    const octave = spec.character.melodyOctave - (mayDrop && this.dice.chance(0.35) ? 12 : 0);
+    const octave =
+      spec.character.melodyOctave -
+      (mayDrop && this.dice.chance(0.35 + this.night * 0.4) ? 12 : 0);
     const voice = this.melAlt && rack.altMelody ? rack.altMelody : rack.melody;
     const stretch = this.augment ? 1.7 : 1;
 
@@ -1019,7 +1063,8 @@ export class MusicDirector {
 
     let t = at;
     halves.forEach((half, h) => {
-      const closingHalf = h === halves.length - 1;
+      // A withheld statement never closes: its last note hangs open.
+      const closingHalf = h === halves.length - 1 && !withheld;
       for (let i = 0; i < half.length; i++) {
         const progress = half.length > 1 ? i / (half.length - 1) : 1;
         const beats = this.beatSec > 0 ? this.cell[i % this.cell.length].beats : 0;
@@ -1049,13 +1094,14 @@ export class MusicDirector {
         }
         t += step * (closing ? hold * 0.8 : 1);
       }
-      // The breath between the question and its answer.
-      if (!closingHalf) t += this.beatSec > 0 ? this.beat() : between([1.2, 2]);
+      // The breath between the question and its answer. A withheld answer
+      // takes no breath: the phrase rest begins on the open note.
+      if (h < halves.length - 1) t += this.beatSec > 0 ? this.beat() : between([1.2, 2]);
     });
 
     this.statements++;
     this.phraseUntil = t;
-    this.melodyDueAt = t + between(spec.character.phraseRest);
+    this.melodyDueAt = t + this.restAfterPhrase();
   }
 
   /**
