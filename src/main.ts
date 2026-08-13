@@ -40,7 +40,7 @@ import { attachFaustPanel } from './debug/FaustPanel';
 import type { FrictionModel } from './audio/models/friction';
 import type { WaveguideModel } from './audio/models/waveguide';
 import { Loader } from './ui/Loader';
-import { installOptions, loadOptions } from './ui/options';
+import { audioLatencyHint, installOptions, loadOptions } from './ui/options';
 import { Reading } from './ui/Reading';
 import { READING_FIXTURES } from './debug/reading-fixtures';
 import { NOTES } from './content/notes';
@@ -152,7 +152,9 @@ await loader.step('raising the countryside', 0.78, () => zones.prebuild(ZONE_COU
 // The context is suspended until a gesture, but the noise buffers and the room
 // impulse responses are rendered offline regardless, and the emitters cannot be
 // built until they are done.
-const audio = new AudioEngine();
+// The buffer size is read here rather than in `applyOptions`: it can only be
+// chosen as the context is opened, which is this line.
+const audio = new AudioEngine(audioLatencyHint(options));
 
 /**
  * Your own feet, which belong to you rather than to any zone.

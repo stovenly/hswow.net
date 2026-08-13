@@ -18,8 +18,16 @@
  * mechanical, so it is worth having once.
  */
 
-/** How far ahead to queue. Longer survives worse frame hitches, at more latency. */
-const LOOKAHEAD = 0.14;
+/**
+ * How far ahead to queue.
+ *
+ * Sized against frame *gaps*, not frame time: any gap longer than this empties
+ * the queue and forces a resync, which is what a machine busy with something
+ * else sounds like from the inside. Reactive sounds are scheduled at
+ * `currentTime` and never come through here, so the only cost is that a source
+ * changing rate takes up to this long to be heard doing it.
+ */
+const LOOKAHEAD = 0.4;
 
 /**
  * Ceiling on events queued per pump.
@@ -27,8 +35,12 @@ const LOOKAHEAD = 0.14;
  * A guard against a pathological `dt` — an alt-tab, a breakpoint, a laptop
  * waking up — asking for tens of thousands of events at once and locking the
  * main thread. The cursor is reset rather than allowed to catch up.
+ *
+ * Scaled with the window: the densest texture in the game is rain on canopy at
+ * 420 events a second, which fills the lookahead with about 170. The cap has to
+ * sit well above that to stay a guard rather than a throttle.
  */
-const MAX_PER_PUMP = 160;
+const MAX_PER_PUMP = 400;
 
 /** Seconds until the next event. Return a fresh value per call. */
 export type Gap = () => number;
@@ -61,7 +73,7 @@ export interface EventClock {
    *
    * Called when a source comes back after being silent. Without it, a model
    * that went virtual for four minutes returns and tries to queue four minutes
-   * of backlog into the next 140 milliseconds.
+   * of backlog into the next lookahead window.
    */
   reset(): void;
 }

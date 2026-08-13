@@ -662,11 +662,13 @@ export class ZoneManager {
    * Separate from `update` on the loop because the listener has to be moved
    * before anything is judged against it — the caller pumps the engine first
    * and passes on whether the occlusion raycasts are due this frame.
+   *
+   * The music director is deliberately not here. It reads no frame state, so it
+   * runs on its own timer off the frame loop entirely — see `dsp/ticker.ts`.
    */
   updateSound(dt: number, retestOcclusion: boolean): void {
     if (!this.active) return;
     this.soundscapes.get(this.active.id)?.update(dt, this.options.collider, retestOcclusion);
-    this.director?.update(dt);
   }
 
   /** The music director, for the debug readout and the stage. */
