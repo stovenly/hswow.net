@@ -21,12 +21,14 @@ import type { PerformanceHud } from '../Performance';
  * faster and would also mean a dozen places to forget, and none of this costs
  * anything measurable. It runs when a slider moves, not sixty times a second.
  *
- * **Everything applies live.** Nothing here is read at boot and cached, so
+ * **Everything applies live, with one exception.** Nothing here is read at boot and cached, so
  * dragging the field of view moves the camera under the panel, dropping the
  * shadows re-walks the zone that is already standing, and the colourblind
  * correction changes the picture behind the menu as the slider moves. That is
  * the whole reason the scrim is barely tinted — the point of adjusting a video
- * setting is watching what it does.
+ * setting is watching what it does. The exception is the audio buffer, which
+ * `audioLatencyHint` below hands to the engine once, at boot, because a
+ * context's buffer size is fixed the moment it is opened.
  *
  * The unit conversions live here rather than in `model.ts` because they are
  * facts about the engine, not about the settings — a sensitivity of 5 means
@@ -67,6 +69,16 @@ const SENSITIVITY_MIDPOINT = 5;
  * up and the slider runs either side of it rather than only upwards.
  */
 const BASE_FONT_PX = 18;
+
+/**
+ * The one setting that cannot be applied live, resolved for the engine's
+ * constructor. Called from `main.ts` before the engine exists — which is the
+ * only moment it can be, and the reason it is a separate function rather than a
+ * line in `applyOptions`.
+ */
+export function audioLatencyHint(options: Options): AudioContextLatencyCategory {
+  return options.audioBuffer === 'large' ? 'playback' : 'interactive';
+}
 
 export function applyOptions(stored: Options, targets: OptionTargets): void {
   // `performance` is a global; bound to a short name here rather than

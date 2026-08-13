@@ -3,6 +3,7 @@ import { applyOptions, type OptionTargets } from './apply';
 import { saveOptions, type Options } from './model';
 
 export { loadOptions } from './model';
+export { audioLatencyHint } from './apply';
 export type { Options } from './model';
 
 /**

@@ -124,10 +124,16 @@ export class AudioEngine {
   /** Built on demand by `analyser`. Nothing in the game proper asks for it. */
   private tap: AnalyserNode | null = null;
 
-  constructor() {
-    // 'interactive' asks for the smallest buffer the device will give, because
-    // footsteps that arrive late feel like someone else's footsteps.
-    this.context = new AudioContext({ latencyHint: 'interactive' });
+  /**
+   * @param latencyHint How big a buffer to ask the device for. `'interactive'`
+   *   is the smallest it will give, because footsteps that arrive late feel
+   *   like someone else's footsteps; `'playback'` is at least 20 ms on Windows
+   *   and is what survives a machine that is busy with something else. A
+   *   context's buffer size is fixed once it is open, so this is the one player
+   *   setting that cannot be changed without a reload.
+   */
+  constructor(latencyHint: AudioContextLatencyCategory = 'interactive') {
+    this.context = new AudioContext({ latencyHint });
 
     this.master = this.context.createGain();
     this.duck = this.context.createGain();

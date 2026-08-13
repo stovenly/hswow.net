@@ -1,5 +1,6 @@
 import type { AudioEngine } from '../AudioEngine';
 import { createEventClock, type EventClock, type Gap } from '../dsp/clock';
+import { createTicker, type Ticker } from '../dsp/ticker';
 import { createRng, type Rng } from '../../art/random';
 import {
   MODES,
@@ -188,6 +189,14 @@ const DRONE_BREATH = 0.3;
 /** The whole score sits below the world, by the owner's ear. */
 const MUSIC_TRIM = 0.76;
 
+/**
+ * How often the bar clock is pumped, in milliseconds.
+ *
+ * Well under the clock's lookahead, so the window is topped up many times over
+ * before it could run dry. It is not a frame rate — nothing here is drawn.
+ */
+const PUMP_MS = 50;
+
 /** Half-time for the night: adjacent steps merge, half the notes, same bar. */
 const halveFigure = (cell: RhythmCell): RhythmCell => {
   const out: RhythmStep[] = [];
@@ -237,6 +246,8 @@ export class MusicDirector {
 
   /** The only clock. Every part of every bar is placed from it. */
   private readonly barClock: EventClock;
+  /** What pumps it. Not the frame loop — see `dsp/ticker.ts`. */
+  private readonly ticker: Ticker;
 
   private playing = false;
   /** When the next piece may begin. Infinity until a scored zone is entered. */
@@ -325,6 +336,7 @@ export class MusicDirector {
     this.reverb.connect(engine.send);
 
     this.barClock = createEventClock(context);
+    this.ticker = createTicker(PUMP_MS, this.pump);
   }
 
   /**
@@ -367,8 +379,14 @@ export class MusicDirector {
     }
   }
 
-  /** Pumped every frame from the zone manager, beside the soundscape. */
-  update(_dt: number): void {
+  /**
+   * Pumped from a worker timer, not from the frame loop.
+   *
+   * Nothing below reads frame state — every decision here is made against
+   * `context.currentTime` — so a late frame was never a reason for a bar to be
+   * late, and under a contended GPU it constantly was.
+   */
+  private readonly pump = (): void => {
     this.out.gain.value = this.engine.settings.musicVolume * MUSIC_TRIM;
     if (!this.spec || !this.rack || !this.engine.started) return;
     const now = this.engine.context.currentTime;
@@ -383,7 +401,7 @@ export class MusicDirector {
     }
 
     this.barClock.pump(this.fireBar, this.barGap);
-  }
+  };
 
   /**
    * Day/night input. Night inverts instead of reducing: same seeds, same
@@ -438,6 +456,7 @@ export class MusicDirector {
   }
 
   dispose(): void {
+    this.ticker.stop();
     for (const rack of this.racks.values()) {
       rack.drone.dispose();
       rack.texture.dispose();

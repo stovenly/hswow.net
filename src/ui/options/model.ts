@@ -25,6 +25,7 @@ import { fontNote } from './font';
 const PRESET = 'options';
 
 export type HoldMode = 'hold' | 'toggle';
+export type AudioBuffering = 'small' | 'large';
 export type { ColorblindMode };
 
 export interface Options {
@@ -42,6 +43,16 @@ export interface Options {
   footstepVolume: number;
   creatureVolume: number;
   npcVolume: number;
+  /**
+   * How big a buffer the audio device is asked for.
+   *
+   * The one setting in this file that does not apply live: a context's buffer
+   * size is fixed when it is opened, so this is read once at boot and the menu
+   * says so. Small is the lowest latency the device will give; large trades a
+   * few milliseconds of it for the headroom that stops audio breaking up while
+   * something else on the machine is competing for the CPU.
+   */
+  audioBuffer: AudioBuffering;
 
   // --- video ---------------------------------------------------------------
   fov: number;
@@ -169,6 +180,7 @@ export const DEFAULT_OPTIONS: Options = {
   footstepVolume: 100,
   creatureVolume: 100,
   npcVolume: 100,
+  audioBuffer: 'small',
 
   // Read off the movement tuning rather than restated, so the menu opens
   // showing the value the game actually boots with. Two constants would drift
@@ -327,8 +339,9 @@ const notWired = (): string => 'not connected yet';
 /**
  * The tabs, in the order they appear — and the first is the one the panel
  * opens on. Video leads because it is what somebody opens this menu to change:
- * the audio is two working sliders and four that are waiting on a mixer, and
- * putting those first means the panel opens on the page with the least in it.
+ * the audio is two working sliders, four that are waiting on a mixer and one
+ * setting that needs a reload, and putting those first means the panel opens on
+ * the page with the least in it.
  */
 export const CATEGORIES: readonly Category[] = [
   {
@@ -436,6 +449,22 @@ export const CATEGORIES: readonly Category[] = [
       { ...volume('footstepVolume', 'footsteps'), note: notWired },
       { ...volume('creatureVolume', 'creatures'), note: notWired },
       { ...volume('npcVolume', 'voices'), note: notWired },
+      {
+        kind: 'choice',
+        key: 'audioBuffer',
+        label: 'audio buffer',
+        choices: [
+          { value: 'small', label: 'small' },
+          { value: 'large', label: 'large' },
+        ],
+        // The only note in the menu that has to mention a reload. Said on both
+        // choices rather than only on the changed one, because somebody reading
+        // the row before touching it should already know what it will cost.
+        note: (options) =>
+          options.audioBuffer === 'small'
+            ? 'lowest delay; breaks up if the machine is busy — takes a reload'
+            : 'steady while the machine is busy, slightly more delay — takes a reload',
+      },
     ],
   },
   {
