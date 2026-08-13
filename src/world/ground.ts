@@ -101,6 +101,48 @@ export type PatchShape =
  */
 export type GroundPatch = PatchShape & { material: GroundName };
 
+/**
+ * Signed distance to a shape's edge: negative inside, positive outside.
+ *
+ * Here rather than with either caller because two of them want it for unrelated
+ * jobs — the skirt measures how far out of bounds a point is, and the terrain
+ * fades ground cover out as it approaches the level's edge — and a shape's
+ * distance from a point is a fact about the shape.
+ */
+export function shapeDistance(shape: PatchShape, x: number, z: number): number {
+  switch (shape.kind) {
+    case 'blot':
+      return Math.hypot(x - shape.at[0], z - shape.at[1]) - shape.radius;
+    case 'path': {
+      let nearest = Infinity;
+      for (let i = 0; i + 1 < shape.through.length; i++) {
+        const a = shape.through[i];
+        const b = shape.through[i + 1];
+        nearest = Math.min(nearest, toSegment(x, z, a[0], a[1], b[0], b[1]));
+      }
+      // A one-point route is a disc, which is what it should be.
+      if (shape.through.length === 1) {
+        nearest = Math.hypot(x - shape.through[0][0], z - shape.through[0][1]);
+      }
+      return nearest - shape.width / 2;
+    }
+    case 'field': {
+      // The standard box field: outside is the length of the positive part,
+      // inside is how far in the nearest face is.
+      const dx = Math.max(shape.min[0] - x, x - shape.max[0]);
+      const dz = Math.max(shape.min[1] - z, z - shape.max[1]);
+      return Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dz), 0);
+    }
+  }
+}
+
+/** The same, for a union of shapes. A list of shapes is one region. */
+export function outlineDistance(outline: readonly PatchShape[], x: number, z: number): number {
+  let nearest = Infinity;
+  for (const shape of outline) nearest = Math.min(nearest, shapeDistance(shape, x, z));
+  return nearest;
+}
+
 /** Shortest distance from a point to a line segment, in the XZ plane. */
 function toSegment(
   x: number,

@@ -356,6 +356,16 @@ export class ProvingGround {
       const rise = run * Math.tan((degrees * Math.PI) / 180);
       parent.add(box(2.5, 0.2, 2, this.materials.ramp, -6 - index * 4, rise - 0.2, -7));
     });
+
+    // **The one that has to refuse you**, behind the row so it needs no space
+    // of its own. Every ramp above is inside the slope limit, so until this
+    // existed the gym had never once asked whether a slope past the limit
+    // actually stops anybody — and it did not: `tryStepUp` climbed it a
+    // centimetre at a time regardless. A fixture that only ever passes is a
+    // fixture that proves nothing.
+    const steep = ramp(2.5, 2, 60, this.materials.ramp);
+    steep.position.set(-6, 0, -13);
+    parent.add(steep);
   }
 
   /**

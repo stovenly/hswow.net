@@ -3,6 +3,7 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { drawCoverNormals } from '../art/cover';
 import { RetroShader } from './RetroShader';
 import type { GpuClock } from './GpuClock';
+import { VISTA_LAYER } from '../layers';
 
 /**
  * The pixel stage: render at chunky resolution, run effects there, upscale.
@@ -136,6 +137,33 @@ export class PixelStage extends Pass {
 
   /** The override material for the normal render. The sway patch goes on this. */
   readonly normalMaterial = new THREE.MeshNormalMaterial();
+  /**
+   * The same, writing zero alpha — the "do not outline this" stamp.
+   *
+   * `MeshNormalMaterial` puts `opacity` into the alpha channel, so this
+   * overwrites the alpha of whatever the first pass drew and leaves the packed
+   * normal in the other three channels alone. See `VISTA_LAYER`.
+   *
+   * **`NoBlending` is what makes it work, and it is not an optimisation.**
+   * Three ends the normal shader with
+   *
+   * ```glsl
+   * #ifdef OPAQUE
+   *   gl_FragColor.a = 1.0;
+   * #endif
+   * ```
+   *
+   * and defines `OPAQUE` for any material that is `transparent: false` *and*
+   * on `NormalBlending`. So an ordinary opaque material has its alpha forced
+   * back to 1 no matter what `opacity` says, and the stamp silently does
+   * nothing — which is exactly how it shipped the first time. Dropping the
+   * blending mode clears the define, and since `NoBlending` writes the fragment
+   * raw there is nothing to blend the zero away either.
+   */
+  private readonly unlinedMaterial = new THREE.MeshNormalMaterial({
+    opacity: 0,
+    blending: THREE.NoBlending,
+  });
 
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
@@ -264,6 +292,28 @@ export class PixelStage extends Pass {
     renderer.setClearColor(FLAT_NORMAL, 1);
     this.scene.overrideMaterial = this.normalMaterial;
     renderer.render(this.scene, this.camera);
+
+    // **The vista band, again, stamping its alpha to zero.**
+    //
+    // An outline is a constant width in pixels, so the same line that reads as
+    // drawn ink around a barrel reads as a hard seam around a hillside the fog
+    // has otherwise dissolved — the one thing left in the frame that does not
+    // recede with distance. This second pass is how the band opts out: same
+    // depth, so it lands exactly on the pixels it drew a moment ago, and only
+    // the alpha changes. No clear, or it would wipe the pass above.
+    //
+    // Done with a layer and a second draw rather than a flag in the normal
+    // material because the normal pass is an `overrideMaterial` — there is one
+    // material for the whole scene and no way to vary it per mesh.
+    const priorAutoClear = renderer.autoClear;
+    const priorMask = this.camera.layers.mask;
+    renderer.autoClear = false;
+    this.scene.overrideMaterial = this.unlinedMaterial;
+    this.camera.layers.set(VISTA_LAYER);
+    renderer.render(this.scene, this.camera);
+    this.camera.layers.mask = priorMask;
+    renderer.autoClear = priorAutoClear;
+
     this.scene.overrideMaterial = priorOverride;
     renderer.setClearColor(this.priorClear, priorAlpha);
     // The groundcover draws itself in afterwards: the override cannot know its
@@ -356,6 +406,7 @@ export class PixelStage extends Pass {
     for (const target of this.ping) target.dispose();
     for (const effect of this.effects) effect.dispose();
     this.normalMaterial.dispose();
+    this.unlinedMaterial.dispose();
     this.edgeMaterial.dispose();
     this.outputMaterial.dispose();
     this.fsQuad.dispose();
@@ -417,6 +468,11 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
         return texture2D(tNormal, vUv + vec2(x, y) * resolution.zw).rgb * 2.0 - 1.0;
       }
 
+      // The outline mask: zero where something has asked not to be drawn.
+      float getOutlined(int x, int y) {
+        return texture2D(tNormal, vUv + vec2(x, y) * resolution.zw).a;
+      }
+
       float depthEdgeIndicator(float depth, vec3 normal) {
         float diff = 0.0;
         diff += clamp(getDepth(1, 0) - depth, 0.0, 1.0);
@@ -444,7 +500,16 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
         // this hard with sign(); same crossing point, graded across it.
         float depthIndicator = smoothstep(-0.014, -0.006, depthDiff);
 
-        return (1.0 - dot(normal, neighborNormal)) * depthIndicator * normalIndicator;
+        // Gated on the neighbour, not only on this pixel. A silhouette is
+        // shared by two pixels and only one of them draws the line; which one
+        // is decided by the normal comparison once the depth gate has let both
+        // through - and at long range it lets both through, because depth is
+        // nonlinear and a hill at 150 m and the sky dome at 475 m are four
+        // ten-thousandths apart. So the line for a vista silhouette against the
+        // sky was landing on the sky pixel, which is not vista and so was not
+        // masked: it showed against the sky and nowhere else.
+        return (1.0 - dot(normal, neighborNormal)) * depthIndicator * normalIndicator
+          * getOutlined(x, y);
       }
 
       float normalEdgeIndicator(float depth, vec3 normal) {
@@ -466,6 +531,13 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
       void main() {
         vec4 texel = texture2D(tDiffuse, vUv);
 
+        // Zero where something has asked not to be outlined — the vista band
+        // stamps it in a second normal pass. This gates the *result*, so it
+        // takes the depth edge with it as well as the normal one. It only
+        // covers lines drawn on a masked pixel; the ones drawn on its
+        // neighbours are gated in the neighbour indicator above.
+        float outlined = getOutlined(0, 0);
+
         float depth = 0.0;
         vec3 normal = vec3(0.0);
 
@@ -484,7 +556,7 @@ function createEdgeMaterial(): THREE.ShaderMaterial {
 
         float strength = dei > 0.0 ? (1.0 - depthEdgeStrength * dei) : (1.0 + normalEdgeStrength * nei);
 
-        gl_FragColor = texel * strength;
+        gl_FragColor = texel * mix(1.0, strength, outlined);
       }
     `,
   });

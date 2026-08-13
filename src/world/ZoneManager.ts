@@ -13,7 +13,7 @@ import { ClothActivity } from '../engine/ClothActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
 import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
-import { PARTICLE_LAYER } from '../layers';
+import { COLLISION_LAYER, PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';
@@ -45,6 +45,44 @@ import type { Reticle, Fade } from '../ui/Reticle';
 /** A `Layers` to test a mesh against, so the particle gate is one call. */
 const PARTICLE_MASK = new THREE.Layers();
 PARTICLE_MASK.set(PARTICLE_LAYER);
+
+/** The same, for spotting collision geometry. See `showBarriers`. */
+const COLLISION_MASK = new THREE.Layers();
+COLLISION_MASK.set(COLLISION_LAYER);
+
+/**
+ * What a revealed barrier is drawn with.
+ *
+ * Unlit, translucent and writing no depth, so overlapping slabs read as
+ * overlapping rather than as one solid, and the world behind stays legible —
+ * the question this answers is *where* the wall is, which cannot be answered by
+ * something that hides everything it is standing in front of.
+ */
+const BARRIER_MATERIAL = new THREE.MeshBasicMaterial({
+  color: 0xff5a3c,
+  transparent: true,
+  opacity: 0.22,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+});
+
+/**
+ * Shows or hides one piece of collision that is never drawn.
+ *
+ * The mesh's own material is put back on the way out rather than thrown away:
+ * an invisible collider still has one, and several of them share it.
+ */
+function revealBarrier(mesh: THREE.Mesh, shown: boolean): void {
+  if (shown) {
+    mesh.userData.hiddenMaterial ??= mesh.material;
+    mesh.material = BARRIER_MATERIAL;
+    mesh.visible = true;
+    return;
+  }
+  const original = mesh.userData.hiddenMaterial as THREE.Material | THREE.Material[] | undefined;
+  if (original) mesh.material = original;
+  mesh.visible = false;
+}
 
 /**
  * Composes every matrix in a finished zone once, and stops three composing them
@@ -188,6 +226,43 @@ export class ZoneManager {
    * `cullClutter`.
    */
   private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
+  /** Parallax layers per zone, collected on prepare. See `slideTiers`. */
+  private readonly tiers = new Map<ZoneId, THREE.Object3D[]>();
+  /** Collision geometry that is never drawn, per zone. See `showBarriers`. */
+  private readonly barriers = new Map<ZoneId, THREE.Mesh[]>();
+  private barriersShown = false;
+  /**
+   * Holds every vista tier where it stands.
+   *
+   * Inspection state, session-only, exactly like the layer-preview toggles:
+   * with tiers live, flying or walking slides the world under the prop being
+   * looked at, and there is no way to tell a placement that is wrong from a
+   * placement that is merely moving.
+   */
+  freezeVista = false;
+
+  /**
+   * Draws the collision the player can hit but never see.
+   *
+   * Not only the vista showcase's boundary: anything at all that is collidable
+   * and invisible, which is a real category — a stair's walkway is a ramp
+   * standing in for a flight of treads, and the boundary of a level with a view
+   * instead of a rim is a plane. Both are correct and both are impossible to
+   * place by looking, because looking is exactly what they avoid.
+   *
+   * Session-only inspection state, like `freezeVista`.
+   */
+  get showBarriers(): boolean {
+    return this.barriersShown;
+  }
+
+  set showBarriers(shown: boolean) {
+    if (shown === this.barriersShown) return;
+    this.barriersShown = shown;
+    for (const list of this.barriers.values()) {
+      for (const mesh of list) revealBarrier(mesh, shown);
+    }
+  }
   /** Whether anything is currently hidden, so the default path stays free. */
   private clutterHidden = false;
   /**
@@ -467,6 +542,8 @@ export class ZoneManager {
       // The meshes are about to be freed; holding them here would be a leak
       // shaped exactly like the one eviction exists to prevent.
       this.clutter.delete(zone.id);
+      this.tiers.delete(zone.id);
+      this.barriers.delete(zone.id);
       this.particled.delete(zone.id);
       this.activity.release(zone.id);
       this.cloth.release(zone.id);
@@ -808,6 +885,8 @@ export class ZoneManager {
     //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
     const clutter: THREE.Mesh[] = [];
+    const layers: THREE.Object3D[] = [];
+    const barriers: THREE.Mesh[] = [];
     let particles = false;
     let points = 0;
     let spots = 0;
@@ -824,7 +903,20 @@ export class ZoneManager {
         if (object instanceof THREE.PointLight) points++;
         if (object instanceof THREE.SpotLight) spots++;
       }
+      // A parallax layer, which is a group rather than a mesh — so this has to
+      // be asked before the mesh guard below. See `slideTiers`.
+      if (typeof object.userData.vistaK === 'number') layers.push(object);
       if (!(object instanceof THREE.Mesh)) return;
+      // Collidable and never drawn — see `showBarriers`. Caught before the
+      // shadow decision below because a revealed barrier must not start casting
+      // one; while it is hidden the flag means nothing either way.
+      if (!object.visible && object.layers.test(COLLISION_MASK)) {
+        barriers.push(object);
+        object.castShadow = false;
+        object.receiveShadow = false;
+        if (this.barriersShown) revealBarrier(object, true);
+        return;
+      }
       // What decides whether the particle pass runs here at all. The layer
       // rather than the builder, because two unrelated things ride it — weather
       // systems and the zone's sparkles — and a test that named either of them
@@ -842,8 +934,12 @@ export class ZoneManager {
       // The same tag decides the distance cull, and for the same reason it
       // decides shadows — see `cullClutter`.
       if (scatter) clutter.push(object);
-      object.castShadow = !glow && !ground && !scatter;
-      object.receiveShadow = !glow;
+      // Out-of-bounds scenery. The sun's shadow box is ±48 m and the vista band
+      // starts past it, so neither direction is ever going to do anything —
+      // stated on the tag rather than left depending on the box's size.
+      const vista = object.userData.vista === true;
+      object.castShadow = !glow && !ground && !scatter && !vista;
+      object.receiveShadow = !glow && !vista;
       // Walls opt in by stating a type — ivy on this one — without becoming
       // ground for shadows or anything else.
       if (ground || typeof object.userData.cover === 'string') grounds.push(object);
@@ -879,6 +975,16 @@ export class ZoneManager {
     freezeMatrices(root);
 
     this.clutter.set(zone.id, clutter);
+    // Kept even when empty, so `slideTiers` can tell "no tiers here" from "not
+    // prepared yet" without asking the scene graph again.
+    //
+    // Auto-update goes back **on**, after `freezeMatrices` has just turned it
+    // off across the whole zone. Same exception the flames take, for the same
+    // stated reason: whatever moves a thing is what knows it moves, and a tier
+    // with a frozen matrix would take its `position` and draw where it was.
+    for (const layer of layers) layer.matrixAutoUpdate = true;
+    this.tiers.set(zone.id, layers);
+    this.barriers.set(zone.id, barriers);
     if (particles) this.particled.add(zone.id);
     this.activity.collect(zone.id, root);
     this.cloth.collect(zone.id, root);
@@ -963,6 +1069,35 @@ export class ZoneManager {
   }
 
   /**
+   * Slides the vista's parallax layers under the camera.
+   *
+   * `position = k × camera`, and nothing else — **translate only, never
+   * rotate.** A tier that yaw-locks to the camera is a skybox, and the moment
+   * the band stops holding still under a turn it stops being a place. XZ only
+   * as well: vertical travel is a few metres and vertical slide against the
+   * horizon line is the most detectable kind there is.
+   *
+   * Zones are authored about their own origin, so the camera's position *is*
+   * its offset from that origin and there is nothing to subtract.
+   *
+   * Costs one `position.set` per tier per frame, and there are at most two.
+   */
+  private slideTiers(): void {
+    const list = this.active ? this.tiers.get(this.active.id) : undefined;
+    if (!list || list.length === 0) return;
+    const eye = this.options.player.camera.position;
+    for (const group of list) {
+      // **Frozen means as authored, not as you left it.** Holding a tier at
+      // whatever offset it had when the switch was thrown freezes a lie — the
+      // placement you would then be judging is the slide, not the thing that
+      // was placed. Zero puts every tier back where the ring built it, which is
+      // the state worth inspecting and the state the still band is already in.
+      const k = this.freezeVista ? 0 : (group.userData.vistaK as number);
+      group.position.set(eye.x * k, 0, eye.z * k);
+    }
+  }
+
+  /**
    * Per-frame: what is under the crosshair, and should the prompt be showing.
    *
    * Returns what the interact key would act on, so the caller can act on it
@@ -975,6 +1110,7 @@ export class ZoneManager {
     // its grass sorted out before it is first drawn rather than after, and a
     // hearth wants its light at the level it will be at rather than at rest.
     this.cullClutter();
+    this.slideTiers();
     this.activity.update(this.active?.id ?? null, elapsed, player.camera.position);
 
     if (this.transitioning) {

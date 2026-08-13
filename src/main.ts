@@ -293,6 +293,11 @@ if (dev.gui) {
     apply: (): void => postfx.setParticles(particleState.enabled),
   };
 
+  // At the top and outside any folder, because it is the one control here that
+  // changes what the world *is* rather than how it looks, and the one most
+  // often reached for.
+  dev.gui.add(player, 'noclip').name('noclip fly');
+
   const look = dev.gui.addFolder('look');
   // The same boolean the options menu edits, not a parallel one. Bound with
   // `.listen()` so a change made in the menu moves the control here, and routed
@@ -458,13 +463,23 @@ if (dev.gui) {
     .onChange(settings.commit);
   distance.add(r, 'clutterCull', 0.3, 1, 0.05).name('clutter at ×').onChange(refresh);
 
+  // Inspection state, session-only and deliberately not a player setting: with
+  // tiers live, walking slides the band under the prop being looked at, so
+  // there is no way to tell a placement that is wrong from one that is merely
+  // moving. VISTA.md.
+  const vista = dev.gui.addFolder('vista');
+  vista.add(zones, 'freezeVista').name('freeze parallax');
+  // Not vista-only despite living here: it reveals any collision that is never
+  // drawn, a stair's walkway included. See `ZoneManager.showBarriers`.
+  vista.add(zones, 'showBarriers').name('show invisible walls');
+
   const sky = dev.gui.addFolder('sky');
   sky.addColor(r.sky, 'zenith').onChange(refresh);
   sky.addColor(r.sky, 'horizon').onChange(refresh);
   sky.addColor(r.sky, 'ground').name('below horizon').onChange(refresh);
   sky.add(r.sky, 'curve', 0.1, 3, 0.05).onChange(refresh);
 
-  const clouds = dev.gui.addFolder('clouds');
+  const clouds = dev.gui.addFolder('sky clouds');
   clouds.addColor(r.sky, 'cloudColor').name('colour').onChange(refresh);
   clouds.add(r.sky, 'cloudCover', 0.1, 0.9, 0.01).name('cover').onChange(refresh);
   clouds.add(r.sky, 'cloudSoftness', 0.01, 0.6, 0.01).name('softness').onChange(refresh);
@@ -542,7 +557,7 @@ if (dev.gui) {
   ).name('copy JSON');
 
   const t = player.tuning;
-  const move = dev.gui.addFolder('movement');
+  const move = dev.gui.addFolder('player movement');
   move.add(t, 'walkSpeed', 1, 12, 0.1);
   move.add(t, 'sprintScale', 1, 3, 0.05);
   move.add(t, 'groundAccel', 1, 60, 0.5);
@@ -552,20 +567,20 @@ if (dev.gui) {
   move.add(t, 'jumpSpeed', 2, 14, 0.1);
   move.add(t, 'autoHop');
 
-  const contact = dev.gui.addFolder('contact').close();
+  const contact = dev.gui.addFolder('player contact').close();
   contact.add(t, 'slopeLimitDeg', 5, 85, 1);
   contact.add(t, 'stepHeight', 0, 1, 0.01);
   contact.add(t, 'coyoteTime', 0, 0.5, 0.01);
   contact.add(t, 'jumpBuffer', 0, 0.5, 0.01);
 
-  const view = dev.gui.addFolder('view');
+  const view = dev.gui.addFolder('player view');
   view.add(t, 'lookSensitivity', 0.0002, 0.008, 0.0001);
   view.add(t, 'invertY');
   view.add(t, 'eyeHeight', 1, 2, 0.01);
   view.add(t, 'fov', 50, 110, 1);
   view.add(t, 'sprintFovBoost', 0, 30, 1).name('sprint fov +');
 
-  const bob = dev.gui.addFolder('head bob').close();
+  const bob = dev.gui.addFolder('player head bob').close();
   bob.add(t, 'bobAmount', 0, 0.15, 0.001);
   bob.add(t, 'bobSway', 0, 0.15, 0.001);
   bob.add(t, 'bobRoll', 0, 0.05, 0.0005);
@@ -953,6 +968,39 @@ if (dev.gui) {
         ? '—'
         : `${voices.hrtf} / ${voices.panned} / ${voices.virtual} · ${zones.sound.occludedCount} occl`;
   });
+
+  // **Sorted and shut, last of all.**
+  //
+  // The panel has grown past thirty folders and a few hundred controls, and it
+  // was ordered by the accident of which feature was built first — so finding
+  // anything meant reading the whole list. Alphabetical is not better ordering,
+  // it is *predictable* ordering, which is the only kind that helps at this
+  // count. Closed for the same reason: opened, it is several screens tall and
+  // whatever is being looked for is below the fold.
+  //
+  // Done here rather than at each `addFolder` so both apply to a folder added
+  // later without anybody having to remember, and recursively so a nested wing
+  // is sorted and shut inside its parent too.
+  //
+  // Re-appending a node that is already in the DOM moves it, so appending every
+  // folder in sorted order is the reorder. Loose controllers are left where
+  // they are, which keeps `noclip fly` at the top where it was put on purpose.
+  // Names are load-bearing now that the order comes from them: a folder that
+  // belongs beside another has to be *named* beside it. Hence `sky clouds`, and
+  // the `player …` set — which also stops the controller's `view` sorting a
+  // dozen folders away from `view distance`, two unrelated things that used to
+  // sit together only because they were built at the same time.
+  const sortFolders = (gui: NonNullable<typeof dev.gui>): void => {
+    const byName = [...gui.folders].sort((a, b) =>
+      (a.$title.textContent ?? '').localeCompare(b.$title.textContent ?? ''),
+    );
+    for (const folder of byName) {
+      gui.$children.appendChild(folder.domElement);
+      sortFolders(folder);
+    }
+  };
+  sortFolders(dev.gui);
+  for (const folder of dev.gui.foldersRecursive()) folder.close();
 }
 
 loop.add((dt, elapsed) => {
@@ -962,7 +1010,9 @@ loop.add((dt, elapsed) => {
   // than permanent. Each zone sets its own — an interior's is just below its
   // floor, because down there is not a fall, it is a bug.
   const zone = zones.current;
-  if (zone && player.position.y < zone.floor) zones.respawn();
+  // Not while flying: the debug camera goes under the world on purpose, and
+  // being teleported back for it makes the mode useless.
+  if (zone && !player.noclip && player.position.y < zone.floor) zones.respawn();
 
   const focus = zones.update(elapsed);
   // Consumed unconditionally. Read only when something is in front of you, a
