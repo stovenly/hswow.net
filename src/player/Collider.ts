@@ -12,6 +12,10 @@ import type { SurfaceName } from '../audio/models/footsteps';
  * walls, ramps and stairs all reduce to them, and so will the sculpted terrain
  * in Phase 5. There is only ever one collision path to reason about.
  *
+ * What three ships is the *storage*. The two halves that decide what a query
+ * costs are both ours: `split` below, which decides where the tree stops
+ * dividing, and the gather that collects candidates. See `COLLISION-FIX.md`.
+ *
  * The narrow phase is ours. `Octree.capsuleIntersect` decides penetration from
  * the capsule's distance to the triangle's *plane*, which is wrong wherever a
  * capsule stands beside a small horizontal face: the tread of a stair reports
@@ -60,6 +64,13 @@ export interface Contact {
  */
 interface SurfacedTriangle extends THREE.Triangle {
   surface: SurfaceName | null;
+  /**
+   * The id of the last query that claimed this triangle. See `claim`.
+   *
+   * A triangle straddling a node boundary is stored in every node it touches,
+   * so one query reaches the same triangle many times over and has to notice.
+   */
+  stamp: number;
 }
 
 /**
@@ -92,7 +103,10 @@ function mark(node: THREE.Object3D): void {
   for (const child of node.children) mark(child);
 }
 
-const _candidates: THREE.Triangle[] = [];
+const _candidates: SurfacedTriangle[] = [];
+const _ray = new THREE.Ray();
+const _point = new THREE.Vector3();
+const _half = new THREE.Vector3();
 const _axis = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _planePoint = new THREE.Vector3();
@@ -107,6 +121,59 @@ const _corner = new THREE.Vector3();
 interface Index {
   octree: Octree;
   triangles: number;
+}
+
+/**
+ * The id of the query currently gathering candidates.
+ *
+ * **It must never be reset.** A stamp left over from an earlier query that
+ * happened to read as current would make the gather skip a triangle it has not
+ * actually seen, and a skipped triangle is a player walking through a wall
+ * once, unrepeatably, with nothing in the log. Only ever incremented, so a
+ * stale stamp is always smaller than the live one. A few hundred queries a
+ * frame outlives any session by a wide margin.
+ */
+let query = 0;
+
+/**
+ * Takes the triangles a node holds, each one only once per query.
+ *
+ * Three's own gatherers dedupe with `triangles.indexOf(t) === -1`, which is a
+ * linear scan of everything found so far, per entry visited — so the cost is
+ * the product of the two. In a dense interior that is tens of thousands of
+ * entries scanned against hundreds of candidates, for one query. A stamp on the
+ * triangle answers the same question in one comparison.
+ *
+ * Internal nodes hold no triangles of their own — `split` moves all of them
+ * down — so this does nothing above a leaf.
+ */
+function claim(node: Octree, out: SurfacedTriangle[]): void {
+  for (const triangle of node.triangles as SurfacedTriangle[]) {
+    if (triangle.stamp === query) continue;
+    triangle.stamp = query;
+    out.push(triangle);
+  }
+}
+
+/**
+ * Candidates for a capsule. Descends only into boxes it could touch.
+ *
+ * Two walks rather than one taking a box test, because one closure per query is
+ * one allocation per query, and this runs about three hundred times a frame.
+ */
+function gatherCapsule(node: Octree, capsule: Capsule, out: SurfacedTriangle[]): void {
+  claim(node, out);
+  for (const subTree of node.subTrees) {
+    if (subTree.box && capsule.intersectsBox(subTree.box)) gatherCapsule(subTree, capsule, out);
+  }
+}
+
+/** Candidates for a ray. `gatherCapsule`, with the other box test. */
+function gatherRay(node: Octree, ray: THREE.Ray, out: SurfacedTriangle[]): void {
+  claim(node, out);
+  for (const subTree of node.subTrees) {
+    if (subTree.box && ray.intersectsBox(subTree.box)) gatherRay(subTree, ray, out);
+  }
 }
 
 export class Collider {
@@ -173,12 +240,22 @@ export class Collider {
     // Not `octree.fromGraphNode`, which is the same walk without the one thing
     // wanted here: three's triangles do not remember which mesh they came from,
     // and that is the whole of what a footstep needs to know.
-    cut(octree, root);
-    octree.build();
-    return { octree, triangles: countTriangles(octree) };
+    const triangles = cut(octree, root);
+    // Not `octree.build()`, which is this pair with three's `split`.
+    octree.calcBox();
+    split(octree, 0);
+    return { octree, triangles };
   }
 
-  /** How much geometry is indexed — worth watching once zones stream in. */
+  /**
+   * How much geometry is indexed — worth watching once zones stream in.
+   *
+   * Unique triangles, counted as they are cut. It used to be the number of
+   * *entries* in the tree, which is a different and much larger number: a
+   * triangle is stored in every node it touches. A seven-thousand-triangle hut
+   * read back as three hundred thousand, which is most of the reason the cost
+   * of a query went unnoticed for as long as it did.
+   */
   get triangles(): number {
     return this.index.triangles;
   }
@@ -194,7 +271,8 @@ export class Collider {
    */
   intersectCapsule(capsule: Capsule): Contact | null {
     _candidates.length = 0;
-    this.index.octree.getCapsuleTriangles(capsule, _candidates);
+    query++;
+    gatherCapsule(this.index.octree, capsule, _candidates);
 
     let deepest = 0;
     let hit: SurfacedTriangle | null = null;
@@ -203,7 +281,7 @@ export class Collider {
       const depth = penetration(capsule, triangle);
       if (depth <= deepest) continue;
       deepest = depth;
-      hit = triangle as SurfacedTriangle;
+      hit = triangle;
       _contact.normal.copy(_offset);
     }
 
@@ -216,7 +294,8 @@ export class Collider {
   /** True if the capsule is inside anything. Stops at the first hit. */
   overlaps(capsule: Capsule): boolean {
     _candidates.length = 0;
-    this.index.octree.getCapsuleTriangles(capsule, _candidates);
+    query++;
+    gatherCapsule(this.index.octree, capsule, _candidates);
     for (const triangle of _candidates) {
       if (penetration(capsule, triangle) > 0) return true;
     }
@@ -226,15 +305,30 @@ export class Collider {
   /**
    * Nearest surface along a ray. Phase 3 uses this for audio occlusion and
    * Phase 8 for the interaction cursor.
+   *
+   * Three's `rayIntersect` also reports the triangle and the point, which
+   * neither caller wants; doing the loop here is what lets the ray and the hit
+   * point be reused rather than allocated per call, and audio occlusion casts
+   * one of these per emitter.
    */
   raycast(origin: THREE.Vector3, direction: THREE.Vector3): number | null {
-    // rayIntersect returns `undefined` for a zero-length direction and `false`
-    // for a miss, so neither can be tested for on its own.
-    const hit = this.index.octree.rayIntersect(new THREE.Ray(origin, direction)) as
-      | { distance: number }
-      | false
-      | undefined;
-    return hit ? hit.distance : null;
+    if (direction.lengthSq() === 0) return null;
+    _ray.set(origin, direction);
+
+    _candidates.length = 0;
+    query++;
+    gatherRay(this.index.octree, _ray, _candidates);
+
+    let nearest = Infinity;
+    for (const triangle of _candidates) {
+      // Backface culled, as three's own does: every collidable is a closed
+      // solid, so a face turned away is the far wall of something.
+      if (!_ray.intersectTriangle(triangle.a, triangle.b, triangle.c, true, _point)) continue;
+      const distance = _point.distanceTo(origin);
+      if (distance < nearest) nearest = distance;
+    }
+
+    return nearest < Infinity ? nearest : null;
   }
 }
 
@@ -295,8 +389,9 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
  * same handling of indexed geometry — with the surface stamped on and without
  * the `build()` at the end, so the caller can add from more than one root.
  */
-function cut(octree: Octree, root: THREE.Object3D): void {
+function cut(octree: Octree, root: THREE.Object3D): number {
   root.updateWorldMatrix(true, true);
+  let count = 0;
 
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh) || !octree.layers.test(object.layers)) return;
@@ -316,15 +411,108 @@ function cut(octree: Octree, root: THREE.Object3D): void {
           .applyMatrix4(object.matrixWorld);
       }
       triangle.surface = surface;
+      triangle.stamp = 0;
       octree.addTriangle(triangle);
+      count++;
     }
 
     if (indexed) geometry.dispose();
   });
+
+  return count;
 }
 
-function countTriangles(node: Octree): number {
-  let total = node.triangles.length;
-  for (const subTree of node.subTrees) total += countTriangles(subTree);
-  return total;
+/**
+ * How deep the tree may go. Three's own cap is 16, and every zone in the game
+ * hit it.
+ */
+const MAX_DEPTH = 11;
+
+/** A node holding no more than this is not worth dividing. Three's number. */
+const LEAF_SIZE = 8;
+
+/**
+ * Refuse to split if any one child would keep this share of the parent.
+ *
+ * The runaway case: a handful of large triangles that each straddle the whole
+ * box are still a handful in every child, and dividing again asks the same
+ * question of a smaller box and gets the same answer, all the way down.
+ */
+const NO_PROGRESS = 0.9;
+
+/** Refuse to split if the eight children between them would hold this many. */
+const MAX_DUPLICATION = 2.5;
+
+/**
+ * Above this, a node is divided whatever the two guards say.
+ *
+ * The guards ask whether dividing is worth what it costs, and the answer is
+ * always yes once a leaf is large enough that a query has to scan all of it —
+ * halving the box in each direction is progress even when nine tenths of the
+ * triangles go to one side of it.
+ */
+const SCAN_LIMIT = 192;
+
+/**
+ * Divides a node into eight, unless dividing is only making copies.
+ *
+ * Three's `split` asks one question — is this node still holding more than
+ * eight triangles, and is there depth left — and a triangle crossing a boundary
+ * is copied into every child it touches. Dense detail drives subdivision to the
+ * cap, and every large triangle passing through that volume is copied into all
+ * of the thousands of leaves that result. A doorway is exactly where those two
+ * meet: a door's hardware, and the wall and floor whose big triangles run
+ * through it.
+ *
+ * So this asks whether the split *separated* anything, and stays a leaf when it
+ * did not — up to `SCAN_LIMIT`, past which a leaf costs more to scan than the
+ * nodes cost to walk. Both halves are load-bearing: without the guards a
+ * doorway subdivides to the cap for nothing, and without the cap the guards
+ * leave single leaves holding thousands of triangles, which was the worse of
+ * the two.
+ */
+function split(node: Octree, level: number): void {
+  const box = node.box;
+  if (!box || node.triangles.length <= LEAF_SIZE || level >= MAX_DEPTH) return;
+
+  _half.copy(box.max).sub(box.min).multiplyScalar(0.5);
+
+  const boxes: THREE.Box3[] = [];
+  const buckets: THREE.Triangle[][] = [];
+  for (let x = 0; x < 2; x++) {
+    for (let y = 0; y < 2; y++) {
+      for (let z = 0; z < 2; z++) {
+        const child = new THREE.Box3();
+        child.min.set(box.min.x + x * _half.x, box.min.y + y * _half.y, box.min.z + z * _half.z);
+        child.max.copy(child.min).add(_half);
+        boxes.push(child);
+        buckets.push([]);
+      }
+    }
+  }
+
+  let total = 0;
+  let largest = 0;
+  for (const triangle of node.triangles) {
+    for (let i = 0; i < boxes.length; i++) {
+      if (!boxes[i].intersectsTriangle(triangle)) continue;
+      const held = buckets[i].push(triangle);
+      total++;
+      if (held > largest) largest = held;
+    }
+  }
+
+  const parent = node.triangles.length;
+  if (parent <= SCAN_LIMIT && (largest >= parent * NO_PROGRESS || total > parent * MAX_DUPLICATION)) {
+    return;
+  }
+
+  node.triangles.length = 0;
+  for (let i = 0; i < boxes.length; i++) {
+    if (buckets[i].length === 0) continue;
+    const subTree = new Octree(boxes[i]);
+    subTree.triangles = buckets[i];
+    node.subTrees.push(subTree);
+    split(subTree, level + 1);
+  }
 }
