@@ -98,7 +98,13 @@ export type MusicVoice =
   | 'gurdy'
   | 'saw'
   | 'harmonica'
-  | 'deepdrum';
+  | 'deepdrum'
+  // Phase 6l: the back of the wagon.
+  | 'viol'
+  | 'whistler'
+  | 'banjo'
+  | 'jawharp'
+  | 'waterphone';
 
 /**
  * Which instrument carries each stratum. The alternates are the band's other

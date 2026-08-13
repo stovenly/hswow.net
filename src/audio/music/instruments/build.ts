@@ -12,8 +12,12 @@ import { createBells } from './bell';
 import { createPluck, createHarp, createDulcimer } from './pluck';
 import { createGuitar } from './guitar';
 import { createAccordion, createOrgan, createHarmonica } from './reeds';
-import { createFiddle, createSaw } from './bowed';
+import { createFiddle, createSaw, createViol } from './bowed';
 import { createGurdy } from './gurdy';
+import { createWhistler } from './whistler';
+import { createBanjo } from './banjo';
+import { createJawHarp } from './jawharp';
+import { createWaterphone } from './waterphone';
 import {
   createMusicBox,
   createKalimba,
@@ -113,6 +117,16 @@ export function buildVoice(
       return createSaw(engine, slow ? { attack: 0.8, release: 1.6 } : {});
     case 'harmonica':
       return createHarmonica(engine, slow ? { attack: 0.4, release: 0.8 } : {});
+    case 'viol':
+      return createViol(engine, slow ? { attack: 1.6, release: 2.4 } : {});
+    case 'whistler':
+      return createWhistler(engine, slow ? { attack: 0.4, release: 0.8 } : {});
+    case 'banjo':
+      return createBanjo(engine);
+    case 'jawharp':
+      return createJawHarp(engine);
+    case 'waterphone':
+      return createWaterphone(engine, slow ? { attack: 2.2, release: 3 } : {});
     case 'deepdrum':
       return createDeepDrum(engine);
     case 'kick':
