@@ -24,6 +24,13 @@ export const MODES = {
   aeolian: [0, 2, 3, 5, 7, 8, 10],
   'pentatonic-major': [0, 2, 4, 7, 9],
   'pentatonic-minor': [0, 3, 5, 7, 10],
+  // Phase 6i: five scales the pastoral book had no use for. All keep the
+  // perfect fifth, so the drone still fits under every one of them.
+  'harmonic-minor': [0, 2, 3, 5, 7, 8, 11],
+  'phrygian-dominant': [0, 1, 4, 5, 7, 8, 10],
+  'blues-hexatonic': [0, 3, 5, 6, 7, 10],
+  hirajoshi: [0, 2, 3, 7, 8],
+  kumoi: [0, 2, 3, 7, 9],
 } as const satisfies Record<string, Mode>;
 // Locrian is left out on purpose. Its fifth is flat, and the drone is a root
 // and a perfect fifth — a zone cannot declare a mode that argues with its
@@ -31,12 +38,65 @@ export const MODES = {
 
 export type ModeName = keyof typeof MODES;
 
+/**
+ * The modes a bridge may step to — Phase 6k. One accidental apart and the
+ * same number of notes: the brightness chain, plus the edges the 6i scales
+ * added. Equal length is load-bearing — heads and ostinatos live in degree
+ * space, so a same-size neighbour re-says the same idea with one accidental
+ * moved. Blues has six notes and no same-size neighbour, so it sits out.
+ */
+export const NEIGHBOURS: Partial<Record<ModeName, readonly ModeName[]>> = {
+  lydian: ['ionian'],
+  ionian: ['lydian', 'mixolydian'],
+  mixolydian: ['ionian', 'dorian'],
+  dorian: ['mixolydian', 'aeolian'],
+  aeolian: ['dorian', 'phrygian', 'harmonic-minor'],
+  phrygian: ['aeolian', 'phrygian-dominant'],
+  'harmonic-minor': ['aeolian'],
+  'phrygian-dominant': ['phrygian'],
+  'pentatonic-major': ['kumoi'],
+  kumoi: ['pentatonic-major', 'hirajoshi'],
+  hirajoshi: ['kumoi'],
+};
+
 /** The drone, as the grammar writes it: root and fifth, no third. */
 export const DRONE: readonly number[] = [0, 7];
 
 /** Hertz for a note `semitones` above (or below) a root given in hertz. */
 export function hz(root: number, semitones: number): number {
   return root * 2 ** (semitones / 12);
+}
+
+/**
+ * Pure ratios per pitch class above the zone root — Phase 6k. Equal
+ * temperament makes every held interval beat slowly against the pad; drone
+ * traditions tune to the drone instead. 5-limit, except the flat fifth,
+ * which takes 7:5 — the blue note by ratio rather than by accident. The
+ * minor seventh is two pure fourths, the gentlest of its candidates.
+ */
+export const JUST: readonly number[] = [
+  1 / 1,
+  16 / 15,
+  9 / 8,
+  6 / 5,
+  5 / 4,
+  4 / 3,
+  7 / 5,
+  3 / 2,
+  8 / 5,
+  5 / 3,
+  16 / 9,
+  15 / 8,
+];
+
+/**
+ * `hz` retuned to the drone: pure octaves, pure ratios inside them. The
+ * music path's hertz — the reference is always the zone root, never the
+ * chord of the bar, because the drone is what the ear tunes to.
+ */
+export function justHz(root: number, semitones: number): number {
+  const pc = ((semitones % 12) + 12) % 12;
+  return root * JUST[pc] * 2 ** ((semitones - pc) / 12);
 }
 
 export function inMode(semitone: number, mode: Mode): boolean {
@@ -73,23 +133,4 @@ export function semitoneToDegree(mode: Mode, semitone: number): number {
   const index = mode.indexOf(semitone - octave * 12);
   if (index === -1) throw new Error(`semitone ${semitone} is not in the mode`);
   return octave * mode.length + index;
-}
-
-// Pitch class → weight for a harmonic centre. The classic modal moves — IV,
-// the seconds, the sixths and sevenths — weigh most; the fifth is a dominant
-// and the major seventh is its leading tone, and both pull the cadence the
-// grammar forbids, so both weigh zero.
-const CENTRE_WEIGHT: readonly number[] = [3, 2, 2, 1, 1, 3, 1, 0, 2, 2, 3, 0];
-
-/**
- * The degrees a harmonic centre may stand on, repeated by weight so a uniform
- * pick over the array is the weighted pick. The root is always in the bag —
- * going home is a move too.
- */
-export function centreMoves(mode: Mode): readonly number[] {
-  const moves: number[] = [];
-  mode.forEach((semitone, degree) => {
-    for (let i = 0; i < CENTRE_WEIGHT[semitone]; i++) moves.push(degree);
-  });
-  return moves;
 }

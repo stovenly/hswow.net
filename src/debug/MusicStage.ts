@@ -71,12 +71,36 @@ const line = (voice: PlayedVoice, octave: number, every: number): PlayedOptions 
  */
 const RACK: readonly { name: string; options: PlayedOptions }[] = [
   { name: 'strings', options: line('strings', 0, 3.2) },
+  { name: 'fiddle', options: line('fiddle', 12, 1.5) },
   { name: 'brass', options: line('brass', 0, 1.6) },
+  { name: 'trumpet', options: line('trumpet', 12, 1.4) },
+  { name: 'tuba', options: line('tuba', -12, 1.8) },
   { name: 'choir', options: line('choir', 0, 2.8) },
+  { name: 'monks', options: line('monks', -12, 3.0) },
   { name: 'flute', options: line('flute', 12, 1.2) },
+  { name: 'ocarina', options: line('ocarina', 12, 1.3) },
+  { name: 'pipe', options: line('pipe', 0, 1.6) },
+  { name: 'accordion', options: line('accordion', 0, 1.8) },
+  { name: 'harmonica', options: line('harmonica', 12, 1.3) },
+  { name: 'hurdy-gurdy', options: line('gurdy', 0, 2.4) },
+  { name: 'organ', options: line('organ', -12, 2.6) },
+  { name: 'glass', options: line('glass', 12, 4.0) },
+  { name: 'saw', options: line('saw', 12, 2.2) },
+  { name: 'hum', options: line('hum', -12, 3.0) },
   { name: 'bass', options: line('bass', -12, 1.4) },
   { name: 'bells', options: line('bells', 12, 2.6) },
+  { name: 'chimes', options: line('chimes', 12, 2.2) },
+  { name: 'music box', options: line('musicbox', 24, 1.0) },
+  { name: 'kalimba', options: line('kalimba', 12, 0.9) },
+  { name: 'tongue drum', options: line('tonguedrum', 0, 1.6) },
+  { name: 'deep drum', options: line('deepdrum', 0, 2.2) },
+  { name: 'marimba', options: line('marimba', 0, 1.1) },
+  { name: 'vibraphone', options: line('vibraphone', 12, 1.8) },
+  { name: 'anvil', options: line('anvil', 12, 1.0) },
+  { name: 'oil drum', options: line('oildrum', -12, 1.5) },
   { name: 'pluck', options: line('pluck', 12, 0.9) },
+  { name: 'harp', options: line('harp', 12, 1.1) },
+  { name: 'dulcimer', options: line('dulcimer', 12, 0.8) },
   { name: 'guitar', options: line('guitar', 0, 1.0) },
   { name: 'kick', options: line('kick', 0, 0.9) },
   { name: 'snare', options: line('snare', 0, 1.1) },
@@ -104,7 +128,7 @@ const STAGE_SOUND: SoundscapeSpec = {
 /** Wide enough for the rank plus the listening ground behind it. */
 function floorSize(): number {
   const span = (RACK.length - 1) * PITCH + DOOR_Z * 2 + 40;
-  return Math.min(200, Math.max(120, Math.ceil(span / 20) * 20));
+  return Math.min(240, Math.max(120, Math.ceil(span / 20) * 20));
 }
 
 export function musicStageZone(): ZoneDefinition {

@@ -17,15 +17,37 @@ import { createMonoPool, type MonoVoice } from './mono';
  * vibrato** — orchestral brass holds straight tone, and a steady LFO on a
  * horn is the fastest way to sound electronic. What it gets instead is a slow
  * random drift of a few cents, which is what lips actually do.
+ *
+ * The one player is the whole family: how far the bloom reaches, how fast it
+ * speaks and how much sine sits under it are what separate horn, trumpet and
+ * tuba — see the presets at the bottom.
  */
 
 export interface BrassOptions {
   gain?: number;
   attack?: number;
   release?: number;
+  /** Ceiling scale. 1 is the horn; the trumpet overshoots, the tuba stays home. */
+  bright?: number;
+  /** Bloom time scale. Under 1 speaks faster. */
+  speak?: number;
+  /** The sine of weight's gain. */
+  sub?: number;
+  /** Saw spread, in cents. */
+  detune?: number;
+  /** 80 Hz lip rasp on hard fresh attacks, 0..1. Trumpets only. */
+  rasp?: number;
 }
 
-function brassPlayer(context: BaseAudioContext, output: AudioNode): MonoVoice {
+interface BrassVoicing {
+  bright: number;
+  speak: number;
+  sub: number;
+  detune: number;
+  rasp: number;
+}
+
+function brassPlayer(context: BaseAudioContext, output: AudioNode, o: BrassVoicing): MonoVoice {
   const filter = context.createBiquadFilter();
   filter.type = 'lowpass';
   filter.frequency.value = 600;
@@ -35,7 +57,7 @@ function brassPlayer(context: BaseAudioContext, output: AudioNode): MonoVoice {
   envelope.gain.value = 0;
   filter.connect(envelope).connect(output);
 
-  const saws = [-6, 6].map((cents) => {
+  const saws = [-o.detune, o.detune].map((cents) => {
     const osc = context.createOscillator();
     osc.type = 'sawtooth';
     osc.detune.value = cents;
@@ -49,7 +71,7 @@ function brassPlayer(context: BaseAudioContext, output: AudioNode): MonoVoice {
   const sub = context.createOscillator();
   sub.type = 'sine';
   const weight = context.createGain();
-  weight.gain.value = 0.4;
+  weight.gain.value = o.sub;
   sub.connect(weight).connect(envelope);
   sub.start();
 
@@ -72,8 +94,8 @@ function brassPlayer(context: BaseAudioContext, output: AudioNode): MonoVoice {
       for (const saw of saws) saw.frequency.cancelScheduledValues(at);
       sub.frequency.cancelScheduledValues(at);
       filter.frequency.cancelScheduledValues(at);
-      const peak = Math.min(freq * (2.5 + 1.5 * velocity), 1800);
-      sustain = Math.min(freq * (1.5 + 0.7 * velocity), 1200);
+      const peak = Math.min(freq * (2.5 + 1.5 * velocity) * o.bright, 1800 * o.bright);
+      sustain = Math.min(freq * (1.5 + 0.7 * velocity) * o.bright, 1200 * o.bright);
       if (glide) {
         // A join is one breath continuing: no re-bloom, just a settle.
         for (const saw of saws) saw.frequency.setTargetAtTime(freq, at, 0.02);
@@ -81,12 +103,25 @@ function brassPlayer(context: BaseAudioContext, output: AudioNode): MonoVoice {
         filter.frequency.setTargetAtTime(sustain, at, 0.08);
       } else {
         // Harder blowing blooms faster: 350 ms at a whisper, 150 at forte.
-        const speak = 0.35 - 0.2 * velocity;
+        const speak = (0.35 - 0.2 * velocity) * o.speak;
         for (const saw of saws) saw.frequency.setValueAtTime(freq, at);
         sub.frequency.setValueAtTime(freq, at);
         filter.frequency.setValueAtTime(Math.max(freq * 1.1, 60), at);
         filter.frequency.exponentialRampToValueAtTime(peak, at + speak);
         filter.frequency.setTargetAtTime(sustain, at + speak, 0.4);
+        if (o.rasp > 0 && velocity > 0.55) {
+          // The lip rasp: 80 Hz on the cutoff for the first instants of a
+          // hard attack — the buzz before the note stands up.
+          const buzz = context.createOscillator();
+          buzz.type = 'triangle';
+          buzz.frequency.value = 80;
+          const depth = context.createGain();
+          depth.gain.setValueAtTime(sustain * 0.3 * o.rasp * velocity, at);
+          depth.gain.setTargetAtTime(0, at + 0.02, 0.02);
+          buzz.connect(depth).connect(filter.frequency);
+          buzz.start(at);
+          buzz.stop(at + 0.12);
+        }
       }
     },
 
@@ -114,10 +149,18 @@ function brassPlayer(context: BaseAudioContext, output: AudioNode): MonoVoice {
 export function createBrass(engine: AudioEngine, options: BrassOptions = {}): Instrument {
   const context = engine.context;
 
+  const voicing: BrassVoicing = {
+    bright: options.bright ?? 1,
+    speak: options.speak ?? 1,
+    sub: options.sub ?? 0.4,
+    detune: options.detune ?? 6,
+    rasp: options.rasp ?? 0,
+  };
+
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
 
-  const pool = createMonoPool(context, () => brassPlayer(context, output), {
+  const pool = createMonoPool(context, () => brassPlayer(context, output, voicing), {
     attack: options.attack ?? 0.09,
     release: options.release ?? 0.45,
     peak: (velocity) => velocity * 0.22,
@@ -136,3 +179,28 @@ export function createBrass(engine: AudioEngine, options: BrassOptions = {}): In
     },
   };
 }
+
+/** The bloom twice as fast and nearly twice as bright, rasp on hard attacks. */
+export const createTrumpet = (engine: AudioEngine, options: BrassOptions = {}): Instrument =>
+  createBrass(engine, {
+    attack: 0.035,
+    release: 0.4,
+    bright: 1.9,
+    speak: 0.45,
+    sub: 0.25,
+    detune: 4,
+    rasp: 1,
+    ...options,
+  });
+
+/** Sub-dominant and slow to speak, the ceiling never leaving the low harmonics. */
+export const createTuba = (engine: AudioEngine, options: BrassOptions = {}): Instrument =>
+  createBrass(engine, {
+    attack: 0.13,
+    release: 0.5,
+    bright: 0.55,
+    speak: 1.3,
+    sub: 0.9,
+    detune: 3,
+    ...options,
+  });

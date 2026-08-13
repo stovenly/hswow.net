@@ -22,6 +22,8 @@ import { human, hold, vibrato, type Instrument } from './voice';
 export interface ChoirOptions {
   gain?: number;
   release?: number;
+  /** The registration's one vowel. 'aah' is the choir; 'ooh' is the monks. */
+  vowel?: 'aah' | 'ooh';
 }
 
 /** A dark "aah" — the choir vowel, gently resonant, nothing nasal. */
@@ -31,20 +33,28 @@ const AAH: readonly Formant[] = [
   { hz: 2440, q: 25, level: 0.18 },
 ];
 
+/** The bass "oh/ooh" of the formant tables — closed, low, nothing projecting. */
+const OOH: readonly Formant[] = [
+  { hz: 400, q: 10, level: 1 },
+  { hz: 750, q: 9, level: 0.28 },
+  { hz: 2400, q: 24, level: 0.09 },
+];
+
 export function createChoir(engine: AudioEngine, options: ChoirOptions = {}): Instrument {
   const context = engine.context;
   const release = options.release ?? 0.7;
+  const vowel = options.vowel === 'ooh' ? OOH : AAH;
 
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
 
   const veil = context.createBiquadFilter();
   veil.type = 'lowpass';
-  veil.frequency.value = 3500;
+  veil.frequency.value = options.vowel === 'ooh' ? 2800 : 3500;
   veil.Q.value = 0.5;
   veil.connect(output);
 
-  const bank = createFormantBank(context, AAH, veil);
+  const bank = createFormantBank(context, vowel, veil);
 
   return {
     output,
@@ -53,7 +63,7 @@ export function createChoir(engine: AudioEngine, options: ChoirOptions = {}): In
       const n = human(context, at, freq, velocity);
 
       // The breath in the vowel: the same shape, never quite the same place.
-      const shape = AAH.map((formant) => ({
+      const shape = vowel.map((formant) => ({
         ...formant,
         hz: formant.hz * (1 + (Math.random() * 2 - 1) * 0.03),
       }));
@@ -83,3 +93,7 @@ export function createChoir(engine: AudioEngine, options: ChoirOptions = {}): In
     },
   };
 }
+
+/** The closed vowel an octave of intent lower — the same section, hooded. */
+export const createMonks = (engine: AudioEngine, options: ChoirOptions = {}): Instrument =>
+  createChoir(engine, { vowel: 'ooh', ...options });

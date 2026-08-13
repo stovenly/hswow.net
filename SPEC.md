@@ -23,6 +23,14 @@ prior conversation context. Update it as decisions change.
 | 6c — Procedural music | **Complete through musicality (steps 1–7)** |
 | 6d — The voicing pass | **Built, awaiting the listening pass** — baselines to re-capture after it |
 | 6e — The vibe book | **Built, awaiting the audition pass** — the table in the phase is the tunable |
+| 6f — The wider band | **Built, awaiting the audition pass** — both tables in the phase are the tunables |
+| 6g — The composed machine | **Built** — all six options in; the audition pass and the tunables (grounds, cells, tempo spans, alternates) await the owner's ear |
+| 6h — Nine places, one band | **Built** — character blocks, the one clock, the rarer hands; the character table is the tunable |
+| 6i — Rust and cold water | **Built** — eleven new vibes, five new modes, six new voices; every table in the phase is the tunable, and the audition pass awaits the owner's ear |
+| 6j — Bows, bends and breath | **Built** — five performer voices into twelve palette seats; the recipes and levels are the tunable, and the audition pass awaits the owner's ear |
+| 6k — The old rules | **Built** — five of the six moves in (the echo waits on the listening pass by design); the just table, the neighbour steps and the ornament dice are the tunables |
+| 6l — The back of the wagon | **Specified** — five voices for the rack's remaining holes, eleven seats; strings stops being the book's default weather |
+| 6m — The other side of things | **Specified** — night as inversion, not reduction: five moves on the existing night scalar |
 | 7 — Actors, animation, wind sway | Not started |
 | 8 — Keyword dialogue, quests, narrative | Not started |
 | 9 — Autosave, touch controls, performance | Not started |
@@ -1310,6 +1318,10 @@ distinct except the interior, which shares the village's on purpose.
 | riverside | D3 146.83 | dorian | strings | pluck | bells | 56 | 0.5 | no | 54 |
 | cave | A2 110.00 | phrygian | choir | bass | bells | — | 0.2 | no | 55 |
 
+*The drone/texture/melody columns above are the book as first written; Phase 6f
+re-spread them across its wider instrument list — its table is the current one. Roots,
+modes, pulses, densities and seeds are unchanged and this table remains their home.*
+
 The characters, briefly: the village is the fullest, warmest thing in the game; its
 interior is the same tunes played small. The farm is the working tempo — top of the
 grammar's range — with the guitar as the porch instrument. Forest a is sun through
@@ -1347,6 +1359,751 @@ each path shares register or key with its forest.
 
 *Done when all nine can be told apart blind from the stage panel, the pairs contrast on
 the axis they were built on, and the interior reads as the village heard from indoors.*
+
+### Phase 6f — The wider band
+
+The book proved the vibes contrast; the instruments inside them do not, yet. Eight
+melodic voices across nine vibes means the same waveguide pluck carries six of them, and
+a border crossing changes the key while the band stays. This phase doubles-and-a-half
+the voice list — thirteen new names — built on two research passes: which instruments
+*genuinely* synthesize well with oscillators, biquads and one Karplus-Strong waveguide,
+and which levers turn one existing engine into several instruments.
+
+The honesty findings that shaped the list (per the synthesis literature — Synth Secrets,
+the CCRMA percussion and physical-modeling notes, the measured-partial studies):
+
+- **Struck metal is the best deal in synthesis.** A music box tooth, a kalimba tine, a
+  tongue-drum tongue, a glockenspiel bar are all a handful of exponentially-decaying
+  sines over a click — the same machine as our bell, with a different partial table.
+  These sound *convincing*, not merely acceptable; the tongue drum (partials tuned 1:2:3
+  by construction) is the single best new-timbre-per-effort on the list.
+- **One waveguide is many strings.** Pluck position (mid-string is a hollow harp,
+  near-bridge is a thin dulcimer), excitation hardness, decay and paired courses are
+  what actually distinguish the plucked family — the samey-pluck problem is unexposed
+  parameters, not a missing engine.
+- **Trumpet is honest-but-synthy; sections and darkness forgive.** A solo trumpet will
+  never be mistaken for real; a faster bloom, a brighter ceiling and an 80 Hz rasp on
+  hard attacks get it to "good". Tuba and horn are nearly free and fully convincing.
+- **Free reeds and pipes are additive synths already.** An accordion is detuned saw
+  pairs beating in constant cents; an organ is a drawbar recipe on one periodic wave.
+  Both are sustained voices, which the drone role is short of.
+
+#### The instrument table
+
+The tunable heart of the phase. Working labels throughout — naming stays with the repo
+owner. "Engine" names the implementation the voice is a preset of.
+
+| Voice | Engine | The recipe, in brief | Sits best |
+|---|---|---|---|
+| music box | struck (new) | sine + one ~6.5× overtone (jittered per tooth), 4 kHz pin click, sounds an octave up | melody, high |
+| kalimba | struck | 1 : ~5.7 : 14, overtones dead in 200 ms, thumb click, 200 Hz box | texture/melody |
+| tongue drum | struck | 1 : 2 : 3 all strong, each partial a beating pair, soft thump, long ring | texture |
+| marimba | struck | 1 : 3.92 : 9.24, short loud fundamental (the resonator), mallet thump | texture |
+| chimes | struck | uniform bar 1 : 2.76 : 5.4, fast-dying overtones, sounds an octave up | texture/melody |
+| trumpet | brass | bloom ~2× faster and ~2× brighter than the horn, 80 Hz rasp on hard attacks | melody |
+| tuba | brass | sub-dominant, ceiling ~2× f0, slow speak, barely detuned | drone, low |
+| ocarina | flute | near-sine wave, sung vibrato (pitch + tone together), low fixed ceiling | melody |
+| accordion | reeds (new) | saw pair beating at constant cents (dry musette), 500 Hz body, onset sag | drone/texture |
+| organ | reeds | drawbar wave (principal mix), chiff grace at 3×, straight tone | drone |
+| harp | pluck | mid-string place (hollow), soft long excitation, slow decay | texture/melody |
+| dulcimer | pluck | near-bridge place, hard strike, paired courses a few cents apart, hammer bounce | texture |
+| monks | choir | the "oh" vowel of the bass row of the formant tables, lower veil | drone |
+
+And the levers now exposed on the old engines, so the table above stays tunable:
+pluck grows `place` (with a per-note jitter — the swept comb that stops machine-gun
+repeats), excitation floor/span/cap and courses; brass grows `bright`, `speak`, `sub`,
+`detune`, `rasp`; flute grows its wave and vibrato style; choir grows a vowel.
+
+#### The book, re-spread
+
+Same roots, modes, seeds, densities and pulses as 6e — this phase moves only the
+palette columns, so each vibe keeps its key and gets its own band. No struck voice
+carries two vibes except the guitar (farm and path a are kin on purpose) and the harp
+(forest a and path b, same family). Trumpet enters at the farm; brass-the-horn and
+tuba stay in reserve as alternate drones.
+
+| Vibe | Drone | Texture | Melody |
+|---|---|---|---|
+| village | strings | dulcimer | flute |
+| village interior | accordion | music box | flute |
+| farm | accordion | guitar | trumpet |
+| forest a | strings | harp | ocarina |
+| forest b | choir | strings | chimes |
+| forest path a | bass | guitar | kalimba |
+| forest path b | flute | marimba | harp |
+| riverside | strings | tongue drum | bells |
+| cave | organ | bass | bells |
+
+The characters of the changes: the village square gains the hammered dulcimer ring; its
+interior swaps to a wheezing accordion under a music box — the same tunes, heard as
+furniture. The farm gets the working band: accordion, porch guitar, a trumpet that
+calls across the field. Forest a ripples on a harp under an ocarina, the naive whistle.
+Forest b trades bells for colder chimes. Path a walks on a kalimba — the pentatonic
+thumb tune. Path b goes woody and hollow: marimba under a harp. The riverside's pluck
+becomes the tongue drum, water on metal. The cave goes full dungeon: organ under bass,
+the bell pings staying as drips.
+
+#### Work order
+
+1. **The struck engine** — one modal file, the five presets above. Partial tables and
+   decays from the measured studies; every overtone dies fast and the fundamental
+   rings, which is the family signature.
+2. **Brass becomes a family** — numeric levers on the one player, trumpet and tuba as
+   preset factories beside the horn.
+3. **The pluck opens up** — place, excitation and courses become options; harp and
+   dulcimer presets; per-note place jitter for everyone including the old pluck.
+4. **Ocarina** on the flute engine; **accordion and organ** on a new reeds engine over
+   the mono core (they are wind instruments in the way that matters: legato joins).
+5. **Monks** — the choir's second vowel.
+6. **The book re-spread** per the table, rack identity preserved (specs stay the
+   constants zones declare).
+7. **The rank and the rows** — every new voice gets a stage plinth and an audition
+   subject; baselines gain thirteen novel rows at the next capture.
+8. **The audition pass** — the repo owner listens; both tables above are the tunables.
+
+*Done when the nine vibes no longer share a band — blind at the stage panel, a border
+crossing changes instruments, not just key — and each required instrument (music box,
+kalimba, tongue drum, trumpet) reads as itself.*
+
+### Phase 6g — The composed machine
+
+The band is wide now; the writing is not. Three faults, all confirmed in the code, all
+named by the owner's ear: the drone is one chord forever (root+fifth refired for the
+whole piece — the centre shifts move only the upper strata, so nothing *felt* ever
+changes); the texture is a metronome (one note per beat, no rhythm, no rests, until a
+re-roll); the melody is a wanderer (a random walk with no rhythmic design, no relation
+to any chord, ending wherever the walk ends). The bar for this phase is the owner's:
+not music that exists and fits the checkbox — music players enjoy. Smart and full of
+variety, not busy.
+
+Two research passes stand under it. The theory pass (modal harmony practice, phrase
+form, the performance-timing literature) and the corpus pass (Hooktheory transcriptions
+of Volume Alpha, the C418 interviews, the cozy-game comparators) converge on the same
+sentence: **structure comes from scheduling, not from note choice.** What reads as
+"composed" is repetition with intent — a chord loop that returns, a phrase heard twice
+with a different ending, one rhythmic cell owned for a section — and none of it needs
+more notes than we play now.
+
+The findings that shaped the options:
+
+- **The floating drone is solved in folk practice by a rocking bass, not a progression.**
+  The "double tonic" — two chords a whole step apart, i↔bVII — is the oldest ground in
+  the islands' folk music, and the lament tetrachord and passamezzo grounds are 4-chord
+  seeds. All dominant-free, so our grammar keeps its one law.
+- **C418 writes major-mode loops of 2–5 third-less chords, one per bar, and never
+  resolves V–I.** Sweden's loop omits the third of its tonic; Wet Hands is two add9
+  chords rocking, Satie-style; Calm 1 is I–vi6 forever at 53 BPM. Our root+fifth
+  no-third rule is *already his ambiguity trick* — what's missing is only that our
+  chord never changes. One borrowed chord per loop (his single Mixolydian bVII in Wet
+  Hands) is the entire emotional event; dissonance is rationed, not sprinkled.
+- **A period is same head, different tail.** Antecedent and consequent open with the
+  same idea; the antecedent ends open (degree 2 or 5), the consequent descends stepwise
+  to 1 on a strong beat and holds. Our current answer transposes the *whole* cell,
+  which misses the trick that makes an answer an answer.
+- **Intentional rhythm is a repeated cell, not per-note dice.** Scotch snap, dotted
+  long-short, short-short-long: folk rhythm is a bar-length figure owned for a section.
+  Randomizing onsets independently is what a metronome with noise sounds like.
+- **Tempo lives.** The corpus drifts 3–5% between sections of one track (transcribers
+  assign different BPMs to sections); phrase ends lengthen; final ritards follow a
+  measured curve (Friberg & Sundberg: v(x) = (1+(v_end^q−1)x)^(1/q), q≈2). And the
+  per-piece tempo spread across the corpus (51–88 BPM) is itself variety our single
+  fixed pulse never gives.
+- **Sweden varies by adding voices, not changing notes.** Re-orchestration on
+  restatement — the same material handed to another instrument — is the corpus's
+  variation engine, and our rack machinery is already shaped for it.
+- **Our scarcity numbers are validated.** Minecraft plays ~2–4 minutes in every 15–20,
+  silence randomized at the composer's request. Piece/rest stays as built.
+
+#### The options
+
+Lettered for the cut line. Each names what it buys and what it costs. They interlock —
+A is the floor the others stand on.
+
+**A. The ground — harmony that moves.** Replace the eternal pedal with a seeded chord
+loop: 2–5 chords, one per bar, drawn from a small ground library — double tonic
+(i↔bVII), lament (i–bVII–bVI–bVII), the per-mode signature moves (mixolydian I–bVII,
+dorian i–IV, lydian I–II, phrygian i–bII) — every chord rendered as our third-less
+root+fifth, the drone voice walking the loop's bass with its long overlapping
+envelopes. Texture and melody read the chord-of-the-bar and agree with it. One
+borrowed-chord event allowed per piece, seeded, rare. No loop contains a dominant.
+*Buys: kills "one note the entire time" at the root. Cost: new `harmony.ts`, drone
+firing rewritten, texture/melody made chord-aware — the deepest single change.*
+
+**B. The period — melody that intends.** The phrase becomes a true period: one motif
+per piece; antecedent = head + open tail (ends degree 2 or 5); consequent = *same
+head* + closing tail (stepwise descent to 1, strong beat, final note held 2–4× and
+a breath between the halves). Later statements develop the motif by one operation —
+sequence, inversion, fragment, augmentation at section end — instead of re-rolling.
+Leap rules stay ("one leap then steps" survives); notes lean on the chord of the bar.
+*Buys: kills the wanderer; a zone's motif becomes recognizable across a whole piece.
+Cost: patterns.ts grows a period builder and the op set; firePhrase rewritten.*
+
+**C. The cell — rhythm with intent.** A rhythm-cell library (even, dotted long-short,
+scotch snap, short-short-long, 6/8 lilt); each section seeds ONE cell and owns it —
+texture states it bar over bar, melody phrases share its family. The texture gains a
+subdivision ladder (quarters under the melody, eighth-note broken-chord figures in the
+melody's silences — call-and-response for free) and the minimalist mutation rule: every
+4–8 repeats, exactly one element changes (a neighbor swap, a note added or dropped, an
+accent moved). Cadence approach = harmonic rhythm doubles in the penultimate bar.
+*Buys: kills the metronome; the texture becomes the thing worth listening to between
+phrases. Cost: new `rhythm.ts`, fireTexture rewritten onto the grid.*
+
+**D. The form — AABA and the arc.** The piece stops being one long window and becomes
+scheduled sections — A A B A (or the compact A A B): B shifts the centre and re-rolls
+the loop *with a guaranteed return*, so the existing centre machinery becomes a bridge
+instead of a drift. Each section takes a tension target on a low → peak (~2/3 in) →
+resolve arc, spent as register, subdivision level and layer count; growth is Sweden's
+— one voice added per section, exits by subtraction (the machinery exists). Section
+ends cadence (bVII–i or plagal, phrase-final lengthening); the last A ends the piece
+properly. *Buys: pieces become journeys with a shape you could hum back; the single
+biggest step from "exists" to "enjoy". Cost: a section scheduler replacing the flat
+piece windows in the director — the largest code motion after A.*
+
+**E. The clock — tempo that breathes.** The vibe's single pulse becomes a span; each
+piece rolls its tempo from it (the 51–88 corpus spread, mapped per vibe). Sections
+drift ±3–5%; phrases carry a light arch rubato; piece ends take the measured ritard
+(gentle at section ends, v_end ≈ 0.5–0.7 at the final cadence). Downbeats accent,
+offbeats soften. *Buys: kills "tempo never varies"; the sequencer feel dies with it.
+Cost: cheap — a tempo state object the clocks and cells read.*
+
+**F. The spread — the band into more hands.** Each vibe's palette gains alternates
+(a second texture and melody voice); a piece picks per seed, and under D a
+restatement may re-orchestrate (A on flute, A′ on music box). The thin-spread problem
+dies here: music box, kalimba, tongue drum, marimba and chimes each land in two or
+more vibes' pools. *Buys: the owner's missing instruments, heard; per-piece band
+variety. Cost: cheap — palette schema + rackFor grows alternates.*
+
+#### What the checks keep and lose
+
+`check:audio`'s grammar promises evolve, not vanish: "the centre never moves onto a
+dominant" generalizes to "no ground chord stands on the fifth or leading tone"; "one
+leap then steps" survives inside phrase heads; new assertions come free with the new
+maths (grounds stay in-mode and dominant-free, a period's two halves share their head,
+a consequent lands on the root, rhythm cells sum to their bar, the ritard curve is
+monotone and bounded, an ostinato mutation changes exactly one element). The bench and
+the plinth rank stay as they are — they audition voices, not the score.
+
+#### Work order (after the cut line)
+
+1. **A** — `harmony.ts`, the ground library, the chord-aware drone.
+2. **E** — the tempo state (small, and everything after reads it).
+3. **C** — `rhythm.ts`, the cell library, the texture on the grid.
+4. **B** — the period builder and motif ops in patterns.ts.
+5. **D** — the section scheduler in the director.
+6. **F** — palette alternates and the re-spread of the new band.
+7. `check:audio` grows the new grammar assertions alongside each step.
+8. **The audition pass** — the repo owner listens; the ground library, cell library
+   and per-vibe tempo spans are the tunables.
+
+*Done when a piece heard start to finish has a shape — a chord that moves and returns,
+a motif stated, answered and developed, a rhythm it owns, a tempo that breathes and an
+ending that lands — and two pieces from the same vibe are recognizably the same place
+without being the same music.*
+
+### Phase 6h — Nine places, one band
+
+The composed machine passed its first listening with three complaints against it, all
+the owner's ear and all traceable in the code:
+
+- **The vibes sound alike.** Root, mode, tempo span and palette differ; everything
+  *behavioural* is shared. Every vibe draws from the same five rhythm cells, builds the
+  same period shapes at the same phrase lengths, changes chords at the same one-per-bar
+  rate, plays texture at +12 and melody at +24 everywhere, and walks the same arc. One
+  composer, nine transpositions.
+- **The music box is everywhere.** It landed in five palette slots across four vibes,
+  and the bridge *guaranteed* the unused texture alternate a turn — so any vibe carrying
+  it played it in essentially every piece.
+- **The parts don't play together.** Four independent clocks: the drone fired on bar
+  boundaries, but the texture's figure started wherever its entry window opened and
+  wandered against the bars under drift and ritard; melody statements began mid-bar as
+  often as not; the kick's "one" was the kit's own counter. Harmonically correct in
+  isolation, rhythmically unrelated in ensemble — "goes off randomly."
+
+The letters below keep the numbering of the cut-line conversation. E — an audition
+button that rolls the vibe's true density instead of forcing every layer — was left at
+the cut line.
+
+**A. Register.** The spec grows a per-vibe character block, and the first thing in it
+is where each stratum sits: cave and overgrown path put the texture at the root and the
+melody low, the bright forest rings both strata high, settlements hold the middle.
+
+**B. Gait.** Each vibe owns a *subset* of the rhythm-cell library — the village dotted
+and snapped, the farm even-footed, the paths lilting — so the rhythmic fingerprint is
+the place's, not the engine's. Wilderness vibes stay cell-free.
+
+**C. Harmonic pace.** Bars-per-chord, per vibe: the village rocks every bar; riverside
+and the deep forest hold a chord for two to four bars and drift. Changes the felt speed
+of thought more than tempo does.
+
+**D. Phrase habit.** Per-vibe phrase rest spans and a fragment bias: settlements state
+full periods often; the cave and the overgrown path mostly drop short closing fragments
+into long silences.
+
+**F. The one clock.** The ensemble fix, and the deepest change: the bar clock becomes
+the *only* clock. Each bar, the director schedules everything the bar contains — the
+drone's chord, the texture figure with its downbeat *on* the downbeat, the kit's four
+beats, and any melody statement that has come due, started on the bar line. Chord
+changes and figure changes agree by construction; drift and ritard stretch every part
+identically because every part is placed from the same bar length. Three clocks and
+their resync rules are deleted, not replaced.
+
+**G. Rarer hands.** The music box falls back to the village interior plus the deep
+forest; the bridge's re-orchestration becomes a seeded *chance*, not a guarantee, so
+an alternate voice is a visit rather than a scheduled appearance.
+
+Alongside, from the same listening: the director's output takes a 20% master trim, and
+the character block carries a per-vibe level — the interior sits a further 40% down,
+because furniture music was arriving at concert volume.
+
+The character table in `vibes.ts` is the tunable, all of it: registers, gaits, chord
+pace, phrase habit, level. Working values are the builder's first guesses; the table is
+the owner's.
+
+*Done when the nine vibes are strangers who share a landscape — a blindfolded walk from
+the village to the cave could be narrated from the music alone — and any two strata
+heard at once are audibly playing the same bar of the same piece.*
+
+### Phase 6i — Rust and cold water
+
+Eleven more places, and every one of them falls outside what the book was built for. The
+nine vibes are a pastoral book: villages, farms, forests, water, one cave. The new list
+is three families the pastoral assumptions actively mislead — the underground, the
+industrial park, and a cold coast — so this phase extends the three tables the machine
+reads from (modes, voices, vibes) rather than adding behaviour to the director. The
+director is not touched.
+
+The new places, as the owner described them: **Cave 2** and **Cave Dark**, deeper and
+worse than the one cave the book has. **Factory 1** and **Factory 2**, the interior of
+the industrial park. **Sewer 1** and **Sewer 2**, inside a deep reverberating pipe and
+its maintenance areas. **Scrapyard**, mountains of trash under metal and fences.
+**Substation 1** and **Substation 2**, the industrial park's exterior innards — visible
+structures, chainlink and bollard mazes. **Beach**, a cold Atlantic coast. **Beach
+Path**, still in the woods on sand, the water barely audible.
+
+#### The four findings
+
+**1. The world will be loud where the music is.** The industrial places are getting
+machinery ambience — running plant, metal clangs, groaning beams — and the sewers are
+getting runoff and drips. None of that belongs in the score; all of it competes with it.
+Machine noise is broadband and owns the low-mid, so those vibes vacate that band on
+purpose: a tuned drone *underneath* the clatter, glints well above it, and a deliberately
+thin middle. They also sit lower in the mix — `level` 0.85–0.9 — because in those rooms
+the world is the foreground and the music is what is playing behind it.
+
+**2. Machines march even; people swing.** The strongest untouched lever in the character
+block is gait. Every folk cell in the library — the dotted pair, the scotch snap, the
+6/8 lilt — is a *human* rhythm, and the whole existing book uses them. The industrial
+vibes take `even` alone (or even plus short-short-long, which is a hammer, not a dance)
+with long chord holds: a machine states its cycle and does not phrase it. That single
+rule separates the two halves of the book before a note of timbre is chosen.
+
+**3. Seven folk modes cannot carry twenty places.** Nine vibes over eight modes was
+already close; twenty would mean two or three places per mode, and mode is the character.
+Five new scales, all of which keep a perfect fifth so no zone argues with its own drone
+(the reason locrian is still out), and all of which the ground library can serve.
+
+**4. The struck engine still has the cheapest new timbres in the project.** Junk metal is
+just a partial table that isn't a harmonic series — the same machine as the tongue drum
+with the ratios deliberately unmusical. Two of the six new voices are one table entry
+each; the other four are small.
+
+The beach is the one where the research is mostly negative. **Not tropical**: no steel
+pan, no bright major-key warmth, nothing that reads as a holiday. A Delaware coast is a
+beautiful view you don't want to sit in — so the mode is a minor third with a major sixth
+(picturesque and cold in the same five notes), the whole vibe sits high and thin with no
+depth under it (all sky and glare, no warm bottom), and there is no pulse at all, because
+the shore is weather.
+
+#### The new modes
+
+| Mode | Semitones | Where | Ground (home / away / borrow) |
+|---|---|---|---|
+| harmonic minor | 0 2 3 5 7 8 11 | cave dark | 0–8, 0–5, 0–8–5–8 / 5–8, 8–0–5–0 / borrow 10 |
+| phrygian dominant | 0 1 4 5 7 8 10 | factory 1, substation 2 | 0–10, 0–1, 0–10–1–10 / 10–1, 1–10 / borrow 3 |
+| blues hexatonic | 0 3 5 6 7 10 | factory 2, scrapyard | 0–10, 0–3, 0–5–3–5 / 5–10, 3–10 / borrow 8 |
+| hirajoshi | 0 2 3 7 8 | cave 2 | 0–8, 0–0–8–8 / 8–0, 8–8–0–0 / borrow 5 |
+| kumoi | 0 2 3 7 9 | beach, beach path | 0–2, 0–0–2–2 / 2–0, 2–2–0–0 / borrow 10 |
+
+All five obey the existing grammar unchanged: the fifth is in the mode, no ground roots
+on the fifth or the leading tone, and each borrow chord is out-of-mode and neither. The
+literature names are working labels.
+
+The grammar also decides how wide each book can be, which is why the last two are two
+chords across. A ground root is rendered as a root and a *perfect fifth*, so a degree
+whose own fifth is missing from the mode cannot be one — and in a five-note scale that
+leaves two candidates. Both places that use those modes barely move anyway, so the second
+loop is the slow one, two bars home and two away, rather than another pair of roots.
+
+The one deliberate risk is the blues hexatonic's flat fifth, a semitone off the droned
+fifth. Against a pastoral drone that would be a mistake; under a factory and a scrapyard
+it is the grind, and it is the reason those two places sound *wrong* on purpose. If it
+reads as broken rather than grimy on the listening pass, the fix is one line — drop the 6
+and the mode becomes the pentatonic minor already in the book.
+
+#### The new voices
+
+| Voice | Engine | The recipe, in brief | Sits best |
+|---|---|---|---|
+| anvil | struck | inharmonic steel, ratios ~1 : 2.4 : 3.6 : 5.4 : 7.2 with heavy per-note jitter, hard short strike, no body | texture, industrial |
+| oil drum | struck | a dull tuned head, 1 : 2.1 : 3.3, damped top, thump under it — a tongue drum that has been left outside | texture, low |
+| vibraphone | struck (+ tremolo) | arch-tuned metal bar, long decay, a slow shared tremolo over the output — the motor | melody, cold |
+| glass | new, small | rubbed rim: near-pure sines, no attack transient, seconds-long swell, a faint tremble | drone/texture |
+| hum | new, small | a tuned transformer: odd harmonics, two partials beating slowly, a faint octave hum, mains flutter | drone, low |
+| pipe | flute | the blown bottle — the ocarina's round wave, a low ceiling, and the breath the flute deliberately refuses | drone/melody |
+
+Alongside them, the four voices 6f built and the book never used are put to work: **monks**
+(cave 2's drone), **tuba** (factory 2), **brass** the horn (factory 2's melody), and the
+plain **pluck** (substation 1, beach path).
+
+#### The book, extended
+
+Roots continue the ladder rather than crowding it. The industrial and underground half
+takes the octaves below the settlements; the coast takes the one gap above them.
+
+| Vibe | Root | Mode | Pulse | Drone / Texture / Melody | Character |
+|---|---|---|---|---|---|
+| cave dark | G1 49 | harmonic minor | — | organ / glass / bells | tex +12, mel +24, 2 bars a chord, rests 30–70 s, 85% fragments, density 0.15 |
+| sewer 2 | B1 61.7 | phrygian | — | bass / oil drum / pipe | tex +12, mel +12 (low and close), rests 26–60 s, 75% fragments, density 0.2 |
+| sewer 1 | C2 65.4 | aeolian | — | pipe / glass / bells | tex +12, mel +24, 1 bar a chord, rests 24–52 s, drone 0.7, density 0.25 |
+| factory 2 | D2 73.4 | blues hexatonic | 72–84, **kit** | tuba / anvil / brass | even + short-short-long, tex +24, mel +24, rests 12–24 s, level 0.85, density 0.6 |
+| cave 2 | F2 87.3 | hirajoshi | — | monks / glass / vibraphone | tex +12, mel +24, 2 bars a chord, rests 22–48 s, 70% fragments, density 0.25 |
+| factory 1 | G2 98 | phrygian dominant | 46–54 | hum / anvil / chimes | even, 3 bars a chord, tex +24, **mel +36** — under the clatter and far above it, density 0.45 |
+| scrapyard | A2 110 | blues hexatonic | — | bass / anvil / guitar | tex +12, mel +12, rests 18–40 s, one lone detuned guitar over the junk, density 0.4 |
+| substation 1 | B2 123.5 | aeolian | 44–52 | hum / anvil / pluck | even, 3 bars a chord, tex +12, mel +24, level 0.9, density 0.4 |
+| substation 2 | F#3 185 | phrygian dominant | — | hum / glass / pluck | the whine, not the buzz: tex +0, mel +12, drone 0.75, density 0.3 |
+| beach | A3 220 | kumoi | — | strings / glass / vibraphone | tex +0, mel +12 — all sky, no bottom; 1 bar a chord, rests 16–34 s, density 0.4 |
+| beach path | A3 220 | kumoi | — | strings / pluck / ocarina | the beach's reduction: same root, mode and seed, wood for glass, level 0.85, density 0.28 |
+
+Where the table leaves a field unstated the built value follows the rule behind it: the
+pulse-free places hold a chord for two bars (one where the table says so), the industrial
+places that the table does not level explicitly sit at 0.85–0.9 with the rest of their
+half, and factory 2 holds four of its short pulsed bars a chord.
+
+Alternates, one pair each, drawn to keep any voice from carrying more than two vibes:
+cave dark pipe/chimes, sewer 2 anvil/kalimba, sewer 1 oil drum/chimes, factory 2
+guitar/trumpet, cave 2 pipe/chimes, factory 1 oil drum/vibraphone, scrapyard oil
+drum/dulcimer, substation 1 oil drum/vibraphone, substation 2 anvil/ocarina, beach
+harp/ocarina, beach path kalimba/vibraphone. New seeds 56–65 — the beach path shares the
+beach's, the way the village interior shares the village's; a place's motifs recur on
+every visit as before.
+
+Three shapes carry over from the existing book and are worth stating, because they are
+what stop twenty vibes from becoming twenty transpositions:
+
+- **Beach and beach path are a pair the way the village and its interior are** — same
+  root, same mode, same seed, thinner arrangement and different hands. Walking out of the
+  trees onto the sand is the same music opening up, not a track change.
+- **Only three of the eleven have a pulse.** Machinery is the only thing down there that
+  keeps time; the caves, sewers, scrapyard and coast are weather, and float. One kit in
+  eleven, at factory 2.
+- **Pulse-free chord holds stay at 1–2 bars.** A breath bar is 8–13 seconds, and 6h's
+  monotony bug was chord pace written for pulsed bars applied to those. None of the new
+  pulse-free vibes exceeds two.
+
+#### Work order
+
+1. **Five modes** into the mode table, and five ground books beside them — the grammar
+   checks (fifth in mode, no dominant grounds, borrow out-of-mode) run over the new
+   entries with the old ones.
+2. **The struck three** — anvil, oil drum, vibraphone as partial tables; a shared slow
+   tremolo on the output for the vibraphone's motor.
+3. **Glass and hum** — two small sustained files. Glass is additive sines with a
+   seconds-long swell and no transient; hum is the odd-harmonic buzz with a beat between
+   its two partials.
+4. **Pipe** — the flute engine gains breath (which the flute itself still refuses) and a
+   bottle preset over the round wave.
+5. **The eleven specs** per the table, rack identity preserved — zones declare the
+   constants, so a shared vibe is a shared rack and the border crossfade holds.
+6. **The rank and the rows** — six plinths on the music stage, six audition subjects,
+   the dev panel's vibe list grows to twenty.
+7. **The audition pass** — the owner listens. Every table above is the tunable, and the
+   two most likely redirections are named already: the blues flat fifth, and how far the
+   industrial vibes sit under the world.
+
+*Done when the industrial half of the map cannot be mistaken for the pastoral half with
+the ambience muted — no folk gait, no warm mode, nothing in the band the machines will
+occupy — and the beach reads as a cold coast rather than a warm one.*
+
+### Phase 6j — Bows, bends and breath
+
+Reading the twenty vibes as stories, every voice in the book is one of two things: a hand
+that releases a note and leaves (everything struck and plucked), or a vessel that sounds
+without anyone holding it (the winds, the pads, the hum — weather). Nothing is *performed*.
+And several areas share a narrator that should belong to one of them: strings drone five
+vibes, glass textures five, the ocarina sits in six palettes, anvil in five. This phase
+adds five performer voices and reseats twelve palette slots, so more places are told by
+someone rather than something — and so the glue voices thin out to the places that own them.
+
+#### The two gaps, and how they close
+
+**Nothing in the book is bowed solo.** The strings are a section and a pad — weather, not
+a person. The answer is the **fiddle**: one bowed line with a bow-noise onset and a vibrato
+that arrives late, the way a player settles into a note rather than starting inside it. A
+bow is a breath that does not run out, so it is built on the mono wind core, not on
+per-note oscillators: a fiddle phrase is one bow direction the way a flute phrase is one
+lungful, and re-attacking every join is the same harsh stop-start the winds were cured of.
+The section stays the section; the fiddle is the soloist in front of it.
+
+**Nothing bends between notes.** Every interval in the book is a step — noteOn, noteOff,
+no path travelled between pitches. The fix is two layers, neither of which touches the
+director:
+
+- **Onset bends, per instrument.** A note bends *into itself*: the harmonica scoops up
+  from below over its first tenth of a second, the fiddle slides the last few cents into
+  pitch as the vibrato wakes, the saw arrives from a third below and never quite stops
+  moving. Instrument-local, cheap, and each voice's bend is its signature.
+- **True between-note glides, from machinery that already exists.** The mono core reads
+  legato from timing alone — a note starting over a sounding player *joins* it, and the
+  join is a pitch glide, not a new attack. The winds glide in ~20 ms because a tongued
+  join is quick; but glide speed belongs to the voice's `tune`, not the pool. The fiddle
+  takes a fast audible shift (~60 ms — a finger moving along a string), and the saw takes
+  a slow one (~200 ms — the blade has to travel). The director already writes phrases
+  with overlapping notes, so portamento falls out of the existing contract: nothing
+  upstream declares a bend, the bendy voices simply answer overlap differently.
+
+#### The five voices
+
+| Voice | Engine | The recipe, in brief | The story |
+|---|---|---|---|
+| fiddle | mono core | sawtooth under two formant peaks, a breath of bowed noise at the front, vibrato ramping in late, fast glides at joins | the book's first performer — a person, where strings are weather |
+| hurdy-gurdy | new, small | a cranked drone: the melody string, a constant fifth under it, and the trompette — a buzzing bridge that ticks when the crank pushes | the folk instrument that is a machine; the hinge between the book's halves |
+| saw | mono core | a near-pure sine with one faint upper partial, deep slow vibrato, a rise into every note and slow glides between them | things singing where they shouldn't |
+| harmonica | mono core | a reed's square-saw blend with breath noise in the tone and a scoop up into each onset | the pocket instrument; the loneliest sound the book can make |
+| deep drum | struck | one table entry: ~70 Hz head, inharmonic skin partials, soft strike, long boom | ritual time, where the kit is human time |
+
+#### The seats
+
+Swaps inherit their seat — octave, role and level stay as tuned unless the row says
+otherwise. Twelve seats across eleven vibes:
+
+| Vibe | Seat | Was | Becomes | The story |
+|---|---|---|---|---|
+| village | alt melody | ocarina | fiddle | the evening fiddler |
+| farm | alt melody | kalimba | fiddle | the barn dance when the texture flips |
+| farm | drone | accordion | hurdy-gurdy | the working crank; the accordion becomes the interior's alone |
+| forest path a | drone | bass | hurdy-gurdy | the walking drone — `droneLevel` 0.65 was tuned against the bass and gets re-heard |
+| forest path a | alt melody | dulcimer | harmonica | the walker's pocket |
+| beach | alt melody | ocarina | harmonica | someone at the cold shore — the anchor placement |
+| sewer 2 | alt melody | kalimba | harmonica | someone lives down here |
+| scrapyard | alt melody | dulcimer | saw | the literal one: a saw in the junk, played |
+| cave dark | melody | bells | saw | bells say shrine; a glide in harmonic minor says something is down there singing |
+| substation 2 | alt melody | ocarina | saw | the whine's cousin, and the last pastoral stray leaves the industrial half |
+| cave | alt texture | tongue drum | deep drum | struck far off, felt more than heard |
+| cave 2 | alt texture | pipe | deep drum | monks over a ritual drum — the lived-in cave completes |
+
+The exposure ledger this settles: ocarina six palettes → three, kalimba five → three,
+dulcimer four → two, bells four → three, and the accordion sharpens to the interior alone.
+Each new voice lands in two or three vibes — the saw and harmonica take three, split
+across roles and halves of the book so neither becomes the new glue.
+
+Benched, considered and kept off: a **waterphone** (bowed junk metal — takes the saw's
+dark seats if the saw reads too tuneful on the listening pass) and a **celesta** (the
+music box and vibraphone already own that shelf).
+
+#### Work order
+
+1. **Fiddle** — a mono-core voice: formant body, bow-noise front, late vibrato, fast
+   joins. The bowed-solo gap closes here.
+2. **Saw** — the smallest mono-core voice, and the proof of the between-note bend: slow
+   glides at joins, a rise into every phrase start.
+3. **Harmonica** — mono-core reed with breath in the tone and the onset scoop.
+4. **Hurdy-gurdy** — the cranked drone with its constant fifth and trompette tick.
+5. **Deep drum** — one struck table entry.
+6. **The twelve seats** per the table — swaps inherit their seat's tuning; forest path
+   a's drone level gets re-heard against the gurdy.
+7. **The rank and the rows** — five plinths on the music stage, five audition subjects,
+   `build.ts` cases, the voice union.
+8. **The audition pass** — the owner listens. The named risks: the saw reading comic
+   rather than eerie, the gurdy's buzz crowding the path's band, and whether the
+   harmonica's scoop survives the beach's thin mix.
+
+*Done when a stranger walking the map could say who plays where — the fiddler in the
+village, the crank on the farm, the saw in the junk, the harmonica at the shore, the drum
+in the deep — and when at least one voice in the book audibly travels between two pitches
+instead of stepping.*
+
+### Phase 6k — The old rules
+
+The composed machine knows form — sections, periods, the four operations, the measured
+ritard — but every rule it has is about *which notes and when*. What it does not know is
+everything a band knows that never reaches the page: how notes are tuned against a drone,
+how a tune is decorated the second time through, how two players share one melody, and
+where a piece is allowed to go. Six moves close that, and all of them are old — most are
+older than the classical rules the grammar already refuses. Nothing here adds a voice or
+a vibe; the band gets smarter, not bigger.
+
+#### The six moves
+
+1. **Pure intervals over the drone.** `hz()` is equal temperament, so every held
+   interval beats slowly against the pad — the fifth two cents shy of pure, the sixth
+   sixteen wide. Drone traditions tune to the drone instead: a `JUST_CENTS` table in
+   `theory.ts`, one entry per pitch class above the **zone root** (3:2 for the fifth,
+   4:3, 9:8, 6:5 …), applied on the way to hertz by the music path alone — the world's
+   `hz` stays as it is. The reference is the zone root, never the chord of the bar,
+   because the drone is what the ear tunes to; octaves stay pure by construction. The
+   blues mode's flat fifth takes 7:5, which makes it the blue note by ratio rather than
+   by accident. The subtlest move in the phase and likely the deepest: held fifths and
+   fourths lock onto the pad instead of hovering near it.
+2. **The bridge changes mode, not just ground.** A `NEIGHBOURS` table in `theory.ts`:
+   pairs of equal-length modes one accidental apart — the brightness chain
+   lydian–ionian–mixolydian–dorian–aeolian–phrygian, plus aeolian↔harmonic-minor,
+   phrygian↔phrygian-dominant, pentatonic-major↔kumoi and kumoi↔hirajoshi.
+   Blues-hexatonic has six notes and no same-size neighbour, so it sits out. In
+   `onSection`, a B section may (dice, ~0.5) step one notch darker or brighter on the
+   same root. Heads and ostinatos already live in degree space, so equal length means
+   the same idea re-said with one accidental moved — the scale lock holds by
+   construction, and the drone survives every step because every mode in the book keeps
+   the fifth. The return to A was always the return home; now leaving means something.
+3. **Ornaments on restatement.** A small vocabulary: the cut (a short grace a degree
+   above, just ahead of the note), the mordent (note–lower neighbour–note), the
+   anticipation (the landing touched early and softly). Dice per long note in
+   `fireStatement`, scaled by tension — and never on a piece's first statement: plain,
+   then decorated, is a performer warming in. Rendered as short extra `noteOn`s, no
+   instrument changes anywhere; the mono voices read a tight leading grace as a join
+   and glide through it, which is a fiddle cut for free.
+4. **Heterophony — the other player knows the tune.** Where the alt melody voice is
+   not carrying the statement and tension sits high (~0.6 up), it shadows the melody:
+   the same notes 30–90 ms behind, at ~0.6 velocity, each passing note carrying a
+   chance (~0.25) of being skipped. Not a harmony line and not a doubling — one tune,
+   two players, the oldest ensemble texture there is.
+5. **The echo answer.** At low tension the consequent may return a bar later in the
+   idle alt voice — an octave away, quiet, alone: the hills answering. Cousin of move
+   4, riding the same idle-alt machinery. It lands last and only if the listening pass
+   wants more air filled — garnish, not default.
+6. **Suspensions, and the crooked bar.** At a chord change the texture may hold its
+   previous pitch through the figure's first step — the old chord suspended over the
+   new — then resolve by step into the new one: fourth into fifth, second into root,
+   never a third. And the rhythm library gains two aksak cells, 3+3+2 and 2+3+3 over
+   the same four beats — the crooked gaits; which vibes take one into their gait is a
+   per-vibe table choice, never a global one.
+
+#### Work order
+
+1. `JUST_CENTS` and a music-path `justHz` — hear the pad lock before anything else
+   moves.
+2. The `NEIGHBOURS` table and the B-section mutation.
+3. Ornaments in `fireStatement`.
+4. The heterophonic shadow.
+5. Suspensions in `fireFigure`; the two aksak cells and their gait-table seats.
+6. The echo answer — only on request, after the listening pass.
+7. The listening pass, and `check:audio` re-run — ornament and shadow change note
+   counts, so any moved crest or periodicity gets re-captured, not argued with.
+
+*Done when a held fifth sits still instead of shimmering, a bridge audibly goes
+somewhere and the return home is felt as a return, and no restatement of a motif is
+note-for-note the statement before it.*
+
+### Phase 6l — The back of the wagon
+
+After 6j the rack holds thirty-two voices, but mapped by family there are holes: nothing
+twangs (no swept-formant sound at all), nothing is bowed metal (the waterphone stayed on
+the bench), every plucked voice is sustain-pretty (harp, dulcimer, guitar — nothing
+percussive with a drum body), no voice is a *person* who is not playing an instrument,
+and strings still drones five vibes — the reseat question 6j left open. Five voices, and
+three of them (waterphone, jaw harp, viol) are allies of the night pass that follows:
+they land in alt seats, and at night the alternates become the usual draw.
+
+#### The five voices
+
+| Voice | Engine | The recipe, in brief | The story |
+|---|---|---|---|
+| jaw harp | new, small | one plucked burst through swept formant filters over a fixed fundamental — the mouth is the filter | the idle twang; mystery in the pocket |
+| waterphone | new, small | an inharmonic partial stack under a slow bowed swell, the pitch wandering as it rings | the promoted understudy — bowed junk metal, benched in 6j |
+| banjo | pluck family | a bright fast-decay pluck into a drum-head body resonance | the percussive pluck the sustain-pretty family lacks |
+| whistler | mono core | near-sine with breath in it, idle vibrato arriving late, portamento joins | not an instrument — a person, whistling |
+| viol | mono core | the fiddle recipe taken low and slow: darker formants, slower vibrato, a longer bow | a bowed drone, so strings can stop being the book's default weather |
+
+#### The seats
+
+Swaps inherit their seat's tuning as in 6j; the three drone seats get their `droneLevel`
+re-heard, since those numbers were tuned against the string section. Eleven seats across
+ten vibes:
+
+| Vibe | Seat | Was | Becomes | The story |
+|---|---|---|---|---|
+| riverside | drone | strings | viol | one bow by the water |
+| beach | drone | strings | viol | one cold bow on the shore |
+| beach path | drone | strings | viol | the same bow, heard through trees |
+| riverside | alt melody | chimes | whistler | someone by the water |
+| beach path | melody | ocarina | whistler | someone walking the shore path, whistling |
+| farm | alt texture | marimba | banjo | the barn dance gets its rhythm hand |
+| forest path a | texture | guitar | banjo | the walking band's strum sharpens |
+| forest path b | alt melody | ocarina | jaw harp | the idle walker's twang |
+| scrapyard | alt texture | oildrum | jaw harp | junk twang over the heap |
+| cave dark | alt melody | chimes | waterphone | something bowed answers the saw |
+| sewer 1 | alt melody | chimes | waterphone | water on metal, bowed |
+
+The exposure ledger this settles: strings five drones → two (village and forest a, the
+two brightest — a section again, not weather), chimes six seats → three, ocarina three
+→ one, oildrum five → four, marimba three → two, guitar five → four. Each new voice
+lands in two or three vibes, and the beach pair counts as one place twice.
+
+#### Work order
+
+1. **Viol** — the mono-core low bow, tuned in a drone seat from the start.
+2. **Whistler** — mono core; the risk is named early: it must read as a person, not a
+   flute patch.
+3. **Banjo** — the pluck family's percussive member.
+4. **Jaw harp** — the formant sweep; one dial from cartoon, so tuned carefully.
+5. **Waterphone** — the inharmonic bow.
+6. **The eleven seats** per the table; the three viol drone seats re-heard for level.
+7. **The rank and the rows** — five plinths on the music stage, five audition rows,
+   `build.ts` cases, the voice union, fresh baselines.
+8. **The audition pass** — the owner listens. Named risks: the whistler reading as a
+   patch rather than a person, the jaw harp reading comic, and the viol carrying a
+   whole shore alone where a section used to.
+
+*Done when the shore is a single cold bow instead of a section, somebody whistles on the
+path through the trees, and no glue voice holds more than three seats anywhere in the
+book.*
+
+### Phase 6m — The other side of things
+
+The score already has a night input — a 0..1 scalar on the director, fed by the dev
+panel's toggle until the day/night cycle exists to drive it. What it does today is
+reduction: touch cut 30 %, texture half-time, kit half-time. Velocity is brightness in
+every voice, so the result is the day turned down and dimmed — darker and sleepier, which
+is the wrong story. Night is not the day gone bad. We are under the moon now, not the
+blinding sun; the night is the other side of things — what we couldn't see during the day.
+
+So night inverts instead of reducing. Same seeds, same motifs, same places; the other
+half of the existing vocabulary. No new modes, no new voices — the night does not get its
+own vocabulary, it gets the rest of this one.
+
+#### The five moves
+
+All in the director, all riding the existing `night` scalar:
+
+1. **The other hands play.** The alternates' per-piece dice sit near 0.3 by day; at
+   night they flip to ~0.75, so the alt texture and alt melody become the usual draw and
+   the primaries the exception. The village's fiddle where the flute sang, the harp
+   where the dulcimer hammered — the hands the day never showed.
+2. **Registers invert instead of lights dimming.** The texture lifts an octave — the
+   same figure as glints, moonlight on the same object — and the melody drops one where
+   its seat leaves an octave to give (the existing may-drop rule, leaned on harder).
+   The village interior already proved inversion reads as the same music heard from
+   elsewhere, not a different track.
+3. **Questions outnumber answers.** A statement is a question that hangs open, then an
+   answer that lands on the root. At night ~40 % of statements speak the question and
+   withhold the answer — the phrase rest begins on the open note. Mystery as form, not
+   as a darker key: nothing new is said, something is left unsaid.
+4. **Hush, don't gloom.** The touch cut drops from 30 % to ~12 % — a little quiet for
+   the moon without muffling the tone. The half-time texture and kit stay: stillness is
+   not scariness.
+5. **More sky between sounds.** The drone's breath (a due pad refresh skipped so the pad
+   falls away and re-enters) rises from 30 % to ~45 % at night.
+
+#### Work order
+
+1. The alternate flip, the register inversion and the softened touch — one pass over
+   `level`, `fireFigure`, `fireStatement` and the per-piece orchestration dice.
+2. The withheld answer in `fireStatement`.
+3. The night breath in the ordinary-bar drone refresh.
+4. The listening pass — the owner flips the panel toggle mid-piece and judges whether
+   the place stayed the same place.
+
+*Done when flipping the night toggle mid-piece reads as the same place under the moon —
+the other side of the same music — and never as a darker track.*
 
 ### Phase 7 — Actors and ambient motion
 

@@ -1,5 +1,5 @@
-import { createRng } from '../../art/random';
-import { degreeToSemitone, inMode, type Mode } from './theory';
+import { createRng, type Rng } from '../../art/random';
+import { degreeToSemitone, inMode, semitoneToDegree, type Mode } from './theory';
 
 /**
  * Seeded cell generators — the Spore recipe. A zone stores seeds, never
@@ -73,4 +73,92 @@ export function textureCell(seed: number, mode: Mode): Cell {
     notes.push(rng.pick(pool.filter((note) => note !== notes[notes.length - 1])));
   }
   return notes;
+}
+
+// --- the period -------------------------------------------------------------
+//
+// A period is same head, different tail: antecedent and consequent open with
+// one idea, the antecedent ends open — a question — and the consequent
+// descends by step onto the root and stays there. That tail asymmetry is the
+// whole trick that makes an answer an answer; the old firePhrase transposed
+// the entire cell and missed it.
+
+/** A phrase, in mode degrees this time — the director owes it a rhythm. */
+export interface Period {
+  /** The shared opening, exactly as both halves state it. */
+  head: readonly number[];
+  /** Head plus the open tail, ending on the second or the fifth degree. */
+  antecedent: readonly number[];
+  /** Head plus the closing tail: a stepwise descent onto the root, held. */
+  consequent: readonly number[];
+}
+
+/** The degree indices a question may hang on — the second and the fifth. */
+export function openDegrees(mode: Mode): readonly number[] {
+  return mode.length === 7 ? [1, 4] : [1, 3];
+}
+
+/** A zone's motif, as degrees: the melody cell's leap-then-steps shape. */
+export function motifHead(seed: number, mode: Mode): readonly number[] {
+  return melodyCell(seed, mode).map((semitone) => semitoneToDegree(mode, semitone));
+}
+
+const stepsBetween = (from: number, to: number): number[] => {
+  const step = to > from ? 1 : -1;
+  const out: number[] = [];
+  for (let d = from + step; step > 0 ? d <= to : d >= to; d += step) out.push(d);
+  return out;
+};
+
+/**
+ * Deterministic on purpose — every restatement of a head gets the same
+ * tails, so a developed motif is still audibly the motif.
+ */
+export function periodFrom(head: readonly number[], mode: Mode): Period {
+  const last = head[head.length - 1];
+
+  // The open tail steps to the nearest open degree, in whichever octave is
+  // closest — and never stands still: an unmoved question is no question.
+  const candidates: number[] = [];
+  for (const open of openDegrees(mode)) {
+    for (let octave = -2; octave <= 2; octave++) candidates.push(open + octave * mode.length);
+  }
+  let open = last;
+  let best = Infinity;
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - last);
+    if (distance === 0) continue;
+    if (distance < best || (distance === best && candidate < open)) {
+      open = candidate;
+      best = distance;
+    }
+  }
+
+  // The closing tail falls by step to the root below; a head already on the
+  // root closes with the upper-neighbour return instead.
+  const root = mode.length * Math.floor(last / mode.length);
+  const closing = last === root ? [last + 1, last] : stepsBetween(last, root);
+
+  return {
+    head,
+    antecedent: [...head, ...stepsBetween(last, open)],
+    consequent: [...head, ...closing],
+  };
+}
+
+/** How a later statement develops the motif. Augmentation is a duration op. */
+export type MotifOp = 'plain' | 'sequence' | 'inversion' | 'fragment';
+
+export function applyOp(head: readonly number[], op: MotifOp, rng: Rng): readonly number[] {
+  switch (op) {
+    case 'plain':
+      return head;
+    case 'sequence':
+      // The whole idea restated a step away — up or down, all of it.
+      return head.map((degree) => degree + (rng.chance(0.5) ? 1 : -1));
+    case 'inversion':
+      return head.map((degree) => head[0] - (degree - head[0]));
+    case 'fragment':
+      return head.slice(0, Math.max(2, Math.ceil(head.length / 2)));
+  }
 }

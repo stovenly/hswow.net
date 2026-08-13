@@ -16,13 +16,34 @@ import { createWaveguide, type WaveguideModel } from '../audio/models/waveguide'
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Instrument } from '../audio/music/instruments/voice';
 import { createStrings } from '../audio/music/instruments/strings';
-import { createBrass } from '../audio/music/instruments/brass';
-import { createFlute } from '../audio/music/instruments/flute';
-import { createChoir } from '../audio/music/instruments/choir';
+import { createBrass, createTrumpet, createTuba } from '../audio/music/instruments/brass';
+import { createFlute, createOcarina, createPipe } from '../audio/music/instruments/flute';
+import { createGlass } from '../audio/music/instruments/glass';
+import { createHum } from '../audio/music/instruments/hum';
+import { createChoir, createMonks } from '../audio/music/instruments/choir';
 import { createBells } from '../audio/music/instruments/bell';
-import { createPluck, type PluckInstrument } from '../audio/music/instruments/pluck';
+import {
+  createPluck,
+  createHarp,
+  createDulcimer,
+  type PluckInstrument,
+} from '../audio/music/instruments/pluck';
 import { createGuitar } from '../audio/music/instruments/guitar';
 import { createBass } from '../audio/music/instruments/bass';
+import { createAccordion, createOrgan, createHarmonica } from '../audio/music/instruments/reeds';
+import { createFiddle, createSaw } from '../audio/music/instruments/bowed';
+import { createGurdy } from '../audio/music/instruments/gurdy';
+import {
+  createMusicBox,
+  createKalimba,
+  createTongueDrum,
+  createMarimba,
+  createChimes,
+  createAnvil,
+  createOilDrum,
+  createVibraphone,
+  createDeepDrum,
+} from '../audio/music/instruments/struck';
 import { createKick, createSnare, createHat } from '../audio/music/instruments/drums';
 import baselines from '../audio/baselines.json';
 
@@ -280,6 +301,133 @@ const SUBJECTS: readonly Subject[] = [
   played('music-guitar', 'event', 10, (engine) => createGuitar(engine), {
     every: 0.8,
     steps: [[196], [146.83], [220], [164.81]],
+  }),
+  // The Phase 6f voices, same manner: mid-register lines at defaults.
+  played('music-trumpet', 'texture', 10, (engine) => createTrumpet(engine), {
+    every: 1.2,
+    duration: 1.0,
+    steps: [[293.66], [392], [349.23], [261.63]],
+  }),
+  played('music-tuba', 'texture', 10, (engine) => createTuba(engine), {
+    every: 1.6,
+    duration: 1.4,
+    steps: [[87.31], [65.41], [98], [73.42]],
+  }),
+  played('music-ocarina', 'texture', 10, (engine) => createOcarina(engine), {
+    every: 1.1,
+    duration: 0.9,
+    steps: [[523.25], [587.33], [440], [659.25]],
+  }),
+  played('music-monks', 'texture', 12, (engine) => createMonks(engine), {
+    every: 3.0,
+    duration: 2.8,
+    steps: [
+      [110, 164.81],
+      [98, 146.83],
+      [123.47, 185],
+    ],
+  }),
+  played('music-accordion', 'texture', 10, (engine) => createAccordion(engine), {
+    every: 1.6,
+    duration: 1.4,
+    steps: [
+      [220, 329.63],
+      [196, 293.66],
+      [233.08, 349.23],
+    ],
+  }),
+  played('music-organ', 'texture', 12, (engine) => createOrgan(engine), {
+    every: 2.6,
+    duration: 2.4,
+    steps: [
+      [130.81, 196],
+      [110, 164.81],
+      [146.83, 220],
+    ],
+  }),
+  played('music-harp', 'event', 10, (engine) => createHarp(engine), {
+    every: 0.8,
+    steps: [[293.66], [440], [392], [523.25], [349.23]],
+  }),
+  played('music-dulcimer', 'event', 10, (engine) => createDulcimer(engine), {
+    every: 0.7,
+    steps: [[392], [440], [329.63], [493.88]],
+  }),
+  played('music-musicbox', 'event', 10, (engine) => createMusicBox(engine), {
+    every: 0.9,
+    steps: [[523.25], [659.25], [783.99], [587.33]],
+  }),
+  played('music-kalimba', 'event', 10, (engine) => createKalimba(engine), {
+    every: 0.75,
+    steps: [[440], [523.25], [392], [587.33]],
+  }),
+  played('music-tonguedrum', 'event', 12, (engine) => createTongueDrum(engine), {
+    every: 1.4,
+    steps: [[220], [261.63], [293.66], [196]],
+  }),
+  played('music-marimba', 'event', 10, (engine) => createMarimba(engine), {
+    every: 0.8,
+    steps: [[220], [293.66], [246.94], [329.63]],
+  }),
+  played('music-chimes', 'event', 12, (engine) => createChimes(engine), {
+    every: 1.6,
+    steps: [[659.25], [523.25], [783.99]],
+  }),
+  // The Phase 6i voices: junk metal, the motor, glass, the transformer, the
+  // bottle. Stated lower than the pastoral rack, where those places sit.
+  played('music-anvil', 'event', 10, (engine) => createAnvil(engine), {
+    every: 0.9,
+    steps: [[220], [261.63], [196], [293.66]],
+  }),
+  played('music-oildrum', 'event', 12, (engine) => createOilDrum(engine), {
+    every: 1.4,
+    steps: [[110], [98], [130.81], [87.31]],
+  }),
+  played('music-vibraphone', 'event', 14, (engine) => createVibraphone(engine), {
+    every: 1.8,
+    steps: [[440], [523.25], [392], [587.33]],
+  }),
+  played('music-glass', 'texture', 16, (engine) => createGlass(engine), {
+    every: 4.0,
+    duration: 6,
+    steps: [[329.63], [440], [392]],
+  }),
+  played('music-hum', 'texture', 12, (engine) => createHum(engine), {
+    every: 3.0,
+    duration: 3.4,
+    steps: [[98], [87.31], [110]],
+  }),
+  played('music-pipe', 'texture', 10, (engine) => createPipe(engine), {
+    every: 1.6,
+    duration: 1.5,
+    steps: [[196], [261.63], [220], [174.61]],
+  }),
+  // The Phase 6j performers. The steps leave gaps, so every note is a phrase
+  // start and the onset bends are what gets measured; the join glides only
+  // happen under the director's overlapping phrases.
+  played('music-fiddle', 'texture', 12, (engine) => createFiddle(engine), {
+    every: 1.5,
+    duration: 1.3,
+    steps: [[293.66], [392], [349.23], [440]],
+  }),
+  played('music-gurdy', 'texture', 12, (engine) => createGurdy(engine), {
+    every: 2.4,
+    duration: 2.2,
+    steps: [[174.61], [196], [146.83]],
+  }),
+  played('music-saw', 'texture', 14, (engine) => createSaw(engine), {
+    every: 2.0,
+    duration: 1.8,
+    steps: [[440], [523.25], [392]],
+  }),
+  played('music-harmonica', 'texture', 10, (engine) => createHarmonica(engine), {
+    every: 1.3,
+    duration: 1.1,
+    steps: [[392], [440], [329.63], [493.88]],
+  }),
+  played('music-deepdrum', 'event', 12, (engine) => createDeepDrum(engine), {
+    every: 1.8,
+    steps: [[130.81], [146.83], [110]],
   }),
   played('music-bass', 'texture', 10, (engine) => createBass(engine), {
     every: 0.9,

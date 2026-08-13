@@ -1,18 +1,8 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
-import { MODES, hz, type ModeName } from './theory';
+import { MODES, justHz, type ModeName } from './theory';
 import { melodyCell, type Cell } from './patterns';
-import type { Instrument } from './instruments/voice';
-import type { MusicVoice } from './director';
-import { createStrings } from './instruments/strings';
-import { createBrass } from './instruments/brass';
-import { createFlute } from './instruments/flute';
-import { createChoir } from './instruments/choir';
-import { createBass } from './instruments/bass';
-import { createBells } from './instruments/bell';
-import { createPluck } from './instruments/pluck';
-import { createGuitar } from './instruments/guitar';
-import { createKick, createSnare, createHat } from './instruments/drums';
+import { buildVoice, type BenchVoice } from './instruments/build';
 
 /**
  * An instrument being played, as a placeable sound model.
@@ -32,7 +22,7 @@ import { createKick, createSnare, createHat } from './instruments/drums';
  * voice playing cells.
  */
 
-export type PlayedVoice = MusicVoice | 'kick' | 'snare' | 'hat';
+export type PlayedVoice = BenchVoice;
 
 export interface PlayedOptions {
   voice: PlayedVoice;
@@ -48,35 +38,8 @@ export interface PlayedOptions {
   gain?: number;
 }
 
-/** Defaults throughout, for the sound stage's reason: a bench tuned to flatter each voice agrees with itself. */
-function buildVoice(engine: AudioEngine, voice: PlayedVoice): Instrument {
-  switch (voice) {
-    case 'strings':
-      return createStrings(engine);
-    case 'brass':
-      return createBrass(engine);
-    case 'flute':
-      return createFlute(engine);
-    case 'choir':
-      return createChoir(engine);
-    case 'bass':
-      return createBass(engine);
-    case 'bells':
-      return createBells(engine);
-    case 'pluck':
-      return createPluck(engine);
-    case 'guitar':
-      return createGuitar(engine);
-    case 'kick':
-      return createKick(engine);
-    case 'snare':
-      return createSnare(engine);
-    case 'hat':
-      return createHat(engine);
-  }
-}
-
 export function createPlayed(engine: AudioEngine, options: PlayedOptions): SoundModel {
+  // Bench role: every default, so the stage flatters nothing.
   const voice = buildVoice(engine, options.voice);
   const output = engine.context.createGain();
   output.gain.value = options.gain ?? 0.5;
@@ -108,9 +71,10 @@ export function createPlayed(engine: AudioEngine, options: PlayedOptions): Sound
         return;
       }
       next = every;
+      // The music path's tuning, so a station states what the score states.
       voice.noteOn(
         engine.context.currentTime + 0.05,
-        hz(root, cell[step++] + octave),
+        justHz(root, cell[step++] + octave),
         0.45 + Math.random() * 0.4,
         every * 0.9,
       );
