@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OUTDOOR_ENVIRONMENT, type ZoneDefinition } from '../world/Zone';
 import { SILENCE, type SoundscapeSpec, type EmitterSpec } from '../audio/Soundscape';
-import { VILLAGE_VIBE, CAVE_VIBE } from '../audio/music/vibes';
+import { VILLAGE_1_VIBE, CAVE_VIBE } from '../audio/music/vibes';
 import type { PlayedOptions, PlayedVoice } from '../audio/music/played';
 import type { PortalEnd, PortalDefinition } from '../world/Portal';
 import { flatGround, GRID_TILE } from '../world/floor';
@@ -56,9 +56,9 @@ const UNIFORM = { refDistance: 2, maxDistance: 6, rolloff: 1.4, reverb: 0.4 } as
 /** Every station states the stage's own material, in the stage's own key. */
 const line = (voice: PlayedVoice, octave: number, every: number): PlayedOptions => ({
   voice,
-  root: VILLAGE_VIBE.root,
-  mode: VILLAGE_VIBE.mode,
-  seed: VILLAGE_VIBE.seed,
+  root: VILLAGE_1_VIBE.root,
+  mode: VILLAGE_1_VIBE.mode,
+  seed: VILLAGE_1_VIBE.seed,
   octave,
   every,
 });
@@ -152,7 +152,7 @@ export function musicStageZone(): ZoneDefinition {
       // the listening ground is hearing the silence the scarcity machine
       // actually leaves.
       soundscape: STAGE_SOUND,
-      music: VILLAGE_VIBE,
+      music: VILLAGE_1_VIBE,
     },
     spawn: { position: new THREE.Vector3(0, 0.1, SPAWN_Z), yaw: 0 },
     floor: -20,
