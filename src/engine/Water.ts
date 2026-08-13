@@ -55,6 +55,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  * said it had none and did would have invisible ponds.
  */
 export class WaterEffect implements PixelEffect {
+  readonly label = 'water';
   enabled = false;
 
   private readonly blitMaterial: THREE.ShaderMaterial;

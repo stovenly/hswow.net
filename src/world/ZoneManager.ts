@@ -107,6 +107,17 @@ export interface ZoneAudio {
 const POINT_TIERS = [0, 4, 8] as const;
 const SPOT_TIERS = [0, 2] as const;
 
+/**
+ * How often what is under the crosshair is re-tested, in seconds.
+ *
+ * Eighteen times a second. The probe is two raycasts — a mesh cast over the
+ * registered interactables and a collider cast to check nothing is in the way —
+ * and it feeds a reticle, which is the slowest-moving thing on screen. At a
+ * walking pace nothing crosses the crosshair in under fifty milliseconds, so
+ * this is the same reticle for a third of the cost.
+ */
+const PROBE_INTERVAL = 1 / 18;
+
 export class ZoneManager {
   readonly zones = new Map<ZoneId, Zone>();
   readonly portals = new PortalGraph();
@@ -167,6 +178,8 @@ export class ZoneManager {
   private cameFrom: ZoneId | null = null;
   /** Zones whose portal doors have been built into them. */
   private doored = new Set<ZoneId>();
+  /** Preparations still running, so two callers share one. See `prepare`. */
+  private readonly preparing = new Map<ZoneId, Promise<THREE.Group>>();
   /**
    * The clutter in each built zone, collected while it was prepared.
    *
@@ -194,6 +207,10 @@ export class ZoneManager {
   private readonly horror = new HorrorActivity();
   private transitioning = false;
   private hovered: PortalSide | null = null;
+  /** What the last probe found, held between probes. See `update`. */
+  private focus: Focus | null = null;
+  /** When that probe ran, on the frame loop's own clock. */
+  private probed = -Infinity;
 
   /** Counts crossings, so the check suite can watch for growth across many. */
   crossings = 0;
@@ -317,7 +334,13 @@ export class ZoneManager {
    * turned them off would read as a bug the moment you walked back out of it.
    */
   setShadows(enabled: boolean): void {
-    this.lights.sun.castShadow = enabled;
+    const sun = this.lights.sun;
+    sun.castShadow = enabled;
+    // Three allocates the shadow map on first use and never gives it back, so
+    // the 4096² depth target — over a hundred megabytes, about half the game's
+    // video memory — stays resident for a setting that is switched off.
+    // Disposing releases it, and the next enable allocates a fresh one.
+    if (!enabled) sun.shadow.dispose();
   }
 
   register(definition: ZoneDefinition): Zone {
@@ -350,7 +373,7 @@ export class ZoneManager {
     const zone = this.zones.get(id);
     if (!zone) return;
     await zone.ensureLoaded();
-    const root = this.prepare(zone);
+    const root = await this.prepare(zone);
     root.updateWorldMatrix(true, true);
     this.options.collider.warm(root, zone.id);
     // Prebuilding pays the whole cost up front, so entering later must take the
@@ -367,7 +390,7 @@ export class ZoneManager {
     const zone = this.zones.get(id);
     if (!zone) return;
     await zone.ensureLoaded();
-    await this.compile(this.prepare(zone));
+    await this.compile(await this.prepare(zone));
   }
 
   /** Compiles every program the root needs, off the critical frame. */
@@ -439,6 +462,7 @@ export class ZoneManager {
       zone.dispose();
       this.options.collider.invalidate(zone.id);
       this.doored.delete(zone.id);
+      this.preparing.delete(zone.id);
       this.warmed.delete(zone.id);
       // The meshes are about to be freed; holding them here would be a leak
       // shaped exactly like the one eviction exists to prevent.
@@ -555,7 +579,8 @@ export class ZoneManager {
     await zone.ensureLoaded();
     if (stale()) return;
 
-    const root = this.prepare(zone);
+    const root = await this.prepare(zone);
+    if (stale()) return;
     if (cold) {
       // Still indeterminate: neither the compile below nor the octree can say
       // how far through they are.
@@ -731,8 +756,25 @@ export class ZoneManager {
    * have to know what is on the other side of its own walls. It also means the
    * door mesh and the arrival marker are derived from the same placement, so
    * they cannot disagree.
+   *
+   * Asynchronous for one reason: groundcover is sampled in a worker, and the
+   * point of that is not to hold this thread while a field is rolled. Every
+   * caller already awaits something either side of it.
+   *
+   * That await opens a window this used to be too short to have: a second
+   * caller arriving mid-preparation once saw the doors already claimed and took
+   * a root whose fields had not landed yet. In-flight work is shared instead, so
+   * both callers get the same finished zone.
    */
-  private prepare(zone: Zone): THREE.Group {
+  private prepare(zone: Zone): Promise<THREE.Group> {
+    const pending = this.preparing.get(zone.id);
+    if (pending) return pending;
+    const work = this.dress(zone).finally(() => this.preparing.delete(zone.id));
+    this.preparing.set(zone.id, work);
+    return work;
+  }
+
+  private async dress(zone: Zone): Promise<THREE.Group> {
     const root = zone.root();
     if (this.doored.has(zone.id)) return root;
     this.doored.add(zone.id);
@@ -814,10 +856,13 @@ export class ZoneManager {
     // moves. A mesh that grows nothing returns null and costs no draw. Attached
     // after the walk rather than during it, because adding to a tree you are
     // traversing is how you end up covering the cover.
-    for (const mesh of grounds) {
-      const cover = coverFor(mesh);
+    // Sampled together rather than one after another: the worker takes them in
+    // turn, and this thread is free for the whole of it either way.
+    const covers = await Promise.all(grounds.map((mesh) => coverFor(mesh)));
+    grounds.forEach((mesh, i) => {
+      const cover = covers[i];
       if (cover) mesh.add(cover);
-    }
+    });
 
     this.padLights(root, zone.id, points, spots);
 
@@ -934,9 +979,30 @@ export class ZoneManager {
 
     if (this.transitioning) {
       reticle.set(null);
+      this.focus = null;
+      // So the frame the fade lifts on probes rather than waiting its turn.
+      this.probed = -Infinity;
       return null;
     }
 
+    // The probe is where the raycasts live, and it is the same answer for
+    // several frames at a time — a reticle refreshed eighteen times a second
+    // is indistinguishable from one refreshed sixty times, and the reticle is
+    // the only thing that reads it. The answer is held between probes so the
+    // interact key acts on what is being shown rather than on nothing.
+    if (elapsed - this.probed < PROBE_INTERVAL) return this.focus;
+    this.probed = elapsed;
+    this.focus = this.lookAhead(interaction, collider, player, reticle);
+    return this.focus;
+  }
+
+  /** One probe's worth of work: what is under the crosshair, and its prompt. */
+  private lookAhead(
+    interaction: Interaction,
+    collider: Collider,
+    player: Controller,
+    reticle: Reticle,
+  ): Focus | null {
     const hover = interaction.probe(player.camera, collider);
     this.hovered = hover ? this.portals.sideOf(hover.object) : null;
     if (this.hovered) {

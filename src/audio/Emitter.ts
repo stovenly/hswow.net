@@ -309,13 +309,19 @@ export class Emitter {
       return;
     }
 
-    const distance = this.position.distanceTo(this.engine.listenerPosition);
-
     this.model.update?.(dt, this.engine, this.position);
 
-    if (retestOcclusion && !this.ignoreOcclusion) {
-      this.occluded = this.testOcclusion(collider, distance);
-    }
+    // **Everything below rides the occlusion tick rather than the frame.** The
+    // three writes at the end are `setTargetAtTime` with an 0.08 s time
+    // constant and a plain send level, so the filter already smooths five
+    // frames of them and a listener cannot tell 60 Hz from 8 Hz. Folding them
+    // in means one distance per emitter per tick serving the raycast, the
+    // absorption curve and the taper, instead of one per emitter per frame
+    // serving two of the three.
+    if (!retestOcclusion) return;
+
+    const distance = this.position.distanceTo(this.engine.listenerPosition);
+    if (!this.ignoreOcclusion) this.occluded = this.testOcclusion(collider, distance);
 
     const settings = this.engine.settings;
     const reach = Math.min(distance / this.maxDistance, 1);

@@ -239,7 +239,7 @@ if (isTouchDevice()) {
 // Named `perfHud` rather than `performance`, which is a global this file
 // already reads for the heap size — shadowing it here would break that at a
 // distance, in a readout, silently.
-const perfHud = new PerformanceHud(overlay, viewport.renderer);
+const perfHud = new PerformanceHud(overlay, viewport.renderer, postfx.gpu);
 
 // The reading screen. Not a pause: the world keeps running behind it, exactly
 // as it does behind the options panel — what stops is *steering*, and that
@@ -1016,7 +1016,7 @@ loop.add((dt, elapsed) => {
   postfx.render(elapsed);
   // After the render, and in the same frame: the default framebuffer is only
   // reliably readable before the browser composites it.
-  crosshair.update();
+  crosshair.update(player.camera);
   // After the render, so `renderer.info` describes the frame just drawn rather
   // than the one before it — `PostFX.render` resets those counters on its way
   // in. The debug readout reads them at the *top* of the frame and is a frame
@@ -1037,6 +1037,10 @@ loop.add((dt, elapsed) => {
 // world from ground level, and the player sees themselves half sunk into the
 // floor for a frame before the loop starts and pops them up to eye height.
 player.update(0);
+// Before that first real frame, and behind the boot screen: every effect pass
+// forced on for two throwaway frames, so water, glass, glitch, horror and the
+// effect mask compile here rather than on the frame a fade lifts. See `prewarm`.
+postfx.prewarm();
 postfx.render(0);
 
 await loader.done();

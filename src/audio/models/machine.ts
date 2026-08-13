@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
-import { createEventClock, periodic } from '../dsp/clock';
+import { createEventClock, periodicGap } from '../dsp/clock';
 import { strike } from '../dsp/envelopes';
 
 /**
@@ -147,6 +147,7 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
   // used, and a clank is percussive enough that the window length is audible
   // as latency if it grows.
   const clankClock = createEventClock(context, 0.15);
+  const clankGap = periodicGap(1, 0.06);
 
   let phase: PhaseName = 'steady';
   let phaseRemaining = 12;
@@ -251,8 +252,8 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
       // them. `'oneGap'` because a clank is individually audible: resuming
       // immediately after a hitch would fire one the instant the machine comes
       // back, which reads as a glitch rather than as the shaft coming round.
-      const period = 60 / Math.max(rpm, 3);
-      clankClock.pump(scheduleClank, periodic(period, 0.06), 'oneGap');
+      clankGap.rate = 60 / Math.max(rpm, 3);
+      clankClock.pump(scheduleClank, clankGap, 'oneGap');
     },
 
     dispose() {

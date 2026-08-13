@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
-import { createEventClock, poisson } from '../dsp/clock';
+import { createEventClock, poissonGap } from '../dsp/clock';
 import { popBubble, bubbleRadius, bubbleHz } from '../dsp/bubble';
 
 /**
@@ -157,6 +157,7 @@ export function createWater(engine: AudioEngine, options: WaterOptions = {}): Wa
   let rate = options.rate ?? 1;
   let active = true;
   const clock = createEventClock(context);
+  const popGap = poissonGap();
 
   const pop = (at: number): void => {
     popBubble(context, bubbleBus, at, {
@@ -197,7 +198,8 @@ export function createWater(engine: AudioEngine, options: WaterOptions = {}): Wa
         clock.reset();
         return;
       }
-      clock.pump(pop, poisson(kind.rate * rate));
+      popGap.rate = kind.rate * rate;
+      clock.pump(pop, popGap);
     },
 
     dispose() {

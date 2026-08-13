@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { glitchUniforms, MAX_GLITCHES } from '../art/glitch';
+import { glitchUniforms, MAX_GLITCHES, setGlitchErode } from '../art/glitch';
 import { ownerIdFor, maskState } from '../art/effectId';
 import type { GlitchEffectName, GlitchPlacement, GlitchSpec } from './Glitch';
 
@@ -130,6 +130,11 @@ export class GlitchActivity {
     const u = glitchUniforms;
     const tracked = id ? this.zones.get(id) : undefined;
     let count = 0;
+
+    // Per frame and free when nothing changed, which is every frame but the one
+    // you walk through a door on: the erode discard is compiled out of the art
+    // materials wherever there is nothing to erode. See `setGlitchErode`.
+    setGlitchErode(tracked !== undefined);
 
     if (tracked) {
       const near = this.near;

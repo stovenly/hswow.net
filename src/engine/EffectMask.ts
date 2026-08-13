@@ -32,6 +32,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  * against is sample-picked and would otherwise z-fight its own surface.
  */
 export class EffectMaskPass implements PixelEffect {
+  readonly label = 'mask';
   enabled = false;
   /** Draws to its own target; the chain's colour passes through untouched. */
   readonly passthrough = true;

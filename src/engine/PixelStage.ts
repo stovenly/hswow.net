@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { drawCoverNormals } from '../art/cover';
 import { RetroShader } from './RetroShader';
+import type { GpuClock } from './GpuClock';
 
 /**
  * The pixel stage: render at chunky resolution, run effects there, upscale.
@@ -82,6 +83,8 @@ export interface EffectContext {
  */
 export interface PixelEffect {
   enabled: boolean;
+  /** Short name for the GPU timing readout. See `GpuClock`. */
+  readonly label: string;
   /**
    * True for an effect that renders to its own target rather than into the
    * chain — the effect-mask pass. The chain's colour passes it untouched.
@@ -117,6 +120,12 @@ export class PixelStage extends Pass {
   depthEdgeStrength = 0.4;
   /** Seconds since start-up, pushed from `PostFX.render`. See `EffectContext`. */
   time = 0;
+
+  /**
+   * Where per-pass GPU milliseconds go. Null until `PostFX` hands one over, and
+   * a no-op while nothing is reading it. See `GpuClock`.
+   */
+  clock: GpuClock | null = null;
 
   /**
    * The effect slot. Enabled effects run in array order, each reading the
@@ -233,10 +242,18 @@ export class PixelStage extends Pass {
     renderer: THREE.WebGLRenderer,
     writeBuffer: THREE.WebGLRenderTarget | null,
   ): void {
+    const gpu = this.clock;
+
     // --- the two scene renders, exactly as the upstream pass did them ------
+    // The shadow map is drawn inside the first of these — `WebGLRenderer.render`
+    // calls the shadow pass before its own — so `scene` here is scene plus
+    // shadows, which is the honest grouping: they are one submission.
+    gpu?.begin('scene');
     renderer.setRenderTarget(this.colourTarget);
     renderer.render(this.scene, this.camera);
+    gpu?.end();
 
+    gpu?.begin('normals');
     const priorOverride = this.scene.overrideMaterial;
     const priorAlpha = renderer.getClearAlpha();
     renderer.getClearColor(this.priorClear);
@@ -253,6 +270,7 @@ export class PixelStage extends Pass {
     // instanced construction, and a normal buffer that ends at the ground lets
     // the edge pass outline whatever stands behind a blade straight through it.
     drawCoverNormals(renderer, this.scene, this.camera);
+    gpu?.end();
 
     // --- the edge lines, before anything is put in front of them ------------
     // **The outline belongs to the surface, so it is drawn onto the surface.**
@@ -275,6 +293,7 @@ export class PixelStage extends Pass {
     let colour: THREE.Texture = this.colourTarget.texture;
     let next = 0;
     if (this.normalEdgeStrength > 0 || this.depthEdgeStrength > 0) {
+      gpu?.begin('edges');
       const edges = this.edgeMaterial.uniforms;
       edges.tDiffuse.value = colour;
       edges.tDepth.value = this.depthTexture;
@@ -284,6 +303,7 @@ export class PixelStage extends Pass {
       this.fsQuad.material = this.edgeMaterial;
       renderer.setRenderTarget(this.ping[0]);
       this.fsQuad.render(renderer);
+      gpu?.end();
       colour = this.ping[0].texture;
       next = 1;
     }
@@ -291,6 +311,7 @@ export class PixelStage extends Pass {
     // --- the effect chain ---------------------------------------------------
     for (const effect of this.effects) {
       if (!effect.enabled) continue;
+      gpu?.begin(effect.label);
       const write = this.ping[next];
       effect.render(renderer, {
         colour,
@@ -302,6 +323,7 @@ export class PixelStage extends Pass {
         scene: this.scene,
         time: this.time,
       });
+      gpu?.end();
       // A passthrough effect drew to its own target; the chain's colour is
       // untouched and the ping-pong slot stays free.
       if (effect.passthrough) continue;
@@ -314,6 +336,7 @@ export class PixelStage extends Pass {
     // of identical device pixels, with no filtering to soften the step. The
     // display encode, the halftone and the quantizer ride along in the same
     // shader, because this is the one place they can all see a device pixel.
+    gpu?.begin('upscale');
     this.outputMaterial.uniforms.tDiffuse.value = colour;
     this.fsQuad.material = this.outputMaterial;
 
@@ -324,6 +347,7 @@ export class PixelStage extends Pass {
       if (this.clear) renderer.clear();
     }
     this.fsQuad.render(renderer);
+    gpu?.end();
   }
 
   override dispose(): void {

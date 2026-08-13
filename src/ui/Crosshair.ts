@@ -1,3 +1,4 @@
+import { Quaternion, Vector3 } from 'three';
 import type * as THREE from 'three';
 
 /**
@@ -23,6 +24,12 @@ import type * as THREE from 'three';
  * `INTERVAL` frames apart, which is far faster than the eye needs for something
  * that only changes when you look somewhere else.
  *
+ * And *only when you look somewhere else*: a full pipeline sync ten times a
+ * second while standing perfectly still buys nothing, because the pixel under
+ * the crosshair is the same pixel. A still camera drops to `STILL_INTERVAL`,
+ * which is slow enough to be nearly free and often enough that a flame guttering
+ * behind the dot is still noticed.
+ *
  * The pipeline chunks the image to three-pixel blocks before this runs, so the
  * sample is not a lone pixel of noise: it is the colour of the block the
  * crosshair is sitting in, which is exactly the thing it has to contrast with.
@@ -36,8 +43,20 @@ import type * as THREE from 'three';
  * meaningfully before the dot commits.
  */
 
-/** Frames between samples. Six is about ten reads a second at 60 fps. */
+/** Frames between samples while the view is moving. Six is about ten a second. */
 const INTERVAL = 6;
+/** And while it is not. A second apart, for whatever moves on its own. */
+const STILL_INTERVAL = 60;
+/**
+ * How much the camera has to move to count as moving.
+ *
+ * Squared metres against the position and one minus the dot product against the
+ * orientation, which for small angles is about half the angle squared — so this
+ * is a millimetre and a hundredth of a degree. Small enough that the mouse
+ * cannot be moved without tripping it, large enough that arithmetic noise in a
+ * standing pose cannot.
+ */
+const MOVED = 1e-6;
 /** Above this the background is light, so the dot goes dark. */
 const TO_DARK = 0.55;
 /** Below this the background is dark, so the dot goes light. */
@@ -49,6 +68,9 @@ export class Crosshair {
   private readonly pixel = new Uint8Array(4);
   private countdown = 0;
   private onLight = false;
+  /** Where the camera stood last frame, for the still test. */
+  private readonly at = new Vector3();
+  private readonly facing = new Quaternion();
 
   constructor(renderer: THREE.WebGLRenderer, element = document.getElementById('crosshair')) {
     this.renderer = renderer;
@@ -62,10 +84,25 @@ export class Crosshair {
    * framebuffer's contents are only reliably readable before the browser has
    * composited it.
    */
-  update(): void {
+  update(camera: THREE.Camera): void {
     if (!this.element) return;
-    if (this.countdown-- > 0) return;
-    this.countdown = INTERVAL;
+
+    // The world matrices are current: `PostFX.render` updates them and this is
+    // called straight afterwards.
+    _position.setFromMatrixPosition(camera.matrixWorld);
+    _quaternion.setFromRotationMatrix(camera.matrixWorld);
+    const moved =
+      _position.distanceToSquared(this.at) > MOVED ||
+      1 - Math.abs(_quaternion.dot(this.facing)) > MOVED;
+    this.at.copy(_position);
+    this.facing.copy(_quaternion);
+
+    this.countdown--;
+    // A view that has just started moving does not sit out the rest of a still
+    // interval — the dot would be a second behind the first flick of the mouse.
+    if (moved && this.countdown > INTERVAL) this.countdown = INTERVAL;
+    if (this.countdown > 0) return;
+    this.countdown = moved ? INTERVAL : STILL_INTERVAL;
 
     const gl = this.renderer.getContext();
     // The pipeline may have left a target bound. Reading the wrong buffer would
@@ -101,3 +138,7 @@ export class Crosshair {
     this.element.classList.toggle('on-light', next);
   }
 }
+
+/** Reused; the still test runs every frame and must allocate nothing. */
+const _position = new Vector3();
+const _quaternion = new Quaternion();

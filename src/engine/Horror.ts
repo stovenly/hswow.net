@@ -79,6 +79,7 @@ export interface HorrorPlacement extends HorrorSpec {
  * hole in the scene's light rather than a repainted mesh.
  */
 export class HorrorEffect implements PixelEffect {
+  readonly label = 'horror';
   enabled = false;
 
   private readonly material: THREE.ShaderMaterial;

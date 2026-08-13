@@ -114,6 +114,7 @@ const MAX_VOLUMES = 8;
 const STEPS = 8;
 
 export class FogVolumesEffect implements PixelEffect {
+  readonly label = 'fog';
   enabled = false;
 
   private volumes: readonly FogVolume[] = [];
