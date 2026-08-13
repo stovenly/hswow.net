@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { applySway } from '../art/sway';
 import { PixelStage } from './PixelStage';
+import { GpuClock } from './GpuClock';
 import { GTAOEffect } from './GTAO';
 import { FogVolumesEffect, type FogVolume } from './FogVolumes';
 import { WaterEffect } from './Water';
@@ -12,7 +13,7 @@ import { ParticlesEffect } from './Particles';
 import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
 import { GlitchEffect } from './Glitch';
-import { applyGlitchDisplacement, glitchUniforms } from '../art/glitch';
+import { applyGlitchDisplacement, glitchUniforms, setGlitchErode } from '../art/glitch';
 import { HorrorEffect } from './Horror';
 import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
@@ -481,6 +482,15 @@ export class PostFX {
   /** The far plane the camera was built with, and what `null` above means. */
   private readonly baseFar: number;
 
+  /**
+   * Per-pass GPU milliseconds. Idle until something switches it on, and false
+   * for `available` where the driver will not answer. See `GpuClock`.
+   */
+  readonly gpu: GpuClock;
+
+  /** Set for the duration of `prewarm`, and read by `render`. */
+  private warming = false;
+
   constructor(viewport: Viewport) {
     this.viewport = viewport;
     this.baseFar = viewport.camera.far;
@@ -515,6 +525,8 @@ export class PostFX {
     this.hideGlowFromEdges(viewport.scene);
 
     this.pixelStage = new PixelStage(1, viewport.scene, viewport.camera);
+    this.gpu = new GpuClock(viewport.renderer);
+    this.pixelStage.clock = this.gpu;
     // The whole chain, so its upscale goes to the default framebuffer.
     this.pixelStage.renderToScreen = true;
     // **The edge detector re-renders the whole scene with its own material.**
@@ -1011,6 +1023,33 @@ export class PostFX {
     return this.viewport.renderer;
   }
 
+  /**
+   * Compiles every screen-space program, by drawing frames nothing will see.
+   *
+   * A pass that is switched off has never been compiled, so the first pond, the
+   * first crystal and the first corrupted room each pay for their program on
+   * the frame a fade lifts — which is the one frame in the game where a stall is
+   * most visible, because the picture has just appeared. Here it lands during
+   * boot instead, behind the loading screen, where a few tenths of a second cost
+   * nothing.
+   *
+   * Two frames, not one: the art materials compile the glitch discard out where
+   * nothing is glitched, so an ordinary zone and a glitched one are genuinely
+   * different programs and both want compiling. See `setGlitchErode`.
+   */
+  prewarm(): void {
+    const held = this.pixelStage.effects.map((effect) => effect.enabled);
+    this.warming = true;
+    for (const eroding of [true, false]) {
+      setGlitchErode(eroding);
+      this.render(0);
+    }
+    this.warming = false;
+    this.pixelStage.effects.forEach((effect, i) => {
+      effect.enabled = held[i];
+    });
+  }
+
   render(elapsed: number): void {
     // Both of these are per-frame counterparts to switches turned off in
     // `Viewport`, and both belong here rather than at the call site because
@@ -1051,8 +1090,15 @@ export class PostFX {
     // volumes and the glitch pass read it. See `EffectContext.time` on why
     // knowing the time is not the temporal accumulation the ground rules
     // forbid.
+    // The warm frame runs every pass whatever the scene has in it. Last, so it
+    // overrides the presence gates rather than fighting them. See `prewarm`.
+    if (this.warming) for (const effect of this.pixelStage.effects) effect.enabled = true;
+
     this.pixelStage.time = elapsed;
     this.pixelStage.render(renderer, null);
+    // After the frame is submitted, and it collects whatever finished a few
+    // frames ago rather than waiting on this one — see `GpuClock.collect`.
+    this.gpu.collect();
   }
 
   resize(): void {

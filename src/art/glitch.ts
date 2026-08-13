@@ -261,12 +261,31 @@ ${HASH}
 `;
 
 /**
+ * Erode, the one effect that removes a fragment rather than grading it.
+ *
+ * Split out because a driver disables early depth rejection for any shader that
+ * *can* discard, whether or not it ever does — so left in the source
+ * unconditionally this costs every opaque pixel in the game its early-Z, in
+ * every zone, for an effect almost none of them use. See `setGlitchErode`.
+ */
+const ERODE = /* glsl */ `
+    // Erode: faces vanish on a hash schedule and holes open through the
+    // object. Surface only — the eroded face still casts and outlines, which
+    // is the known depth/normal gap, accepted for now.
+    float aErode = smoothstep(${on('erode')}, 1.0, gAmt) * gParams.y;
+    if (aErode > 0.001
+      && glitchHash(vec2(vGlitchFace * 137.0, floor(gT * 5.0) + gSeed * 31.0)) < aErode * 0.65) {
+      discard;
+    }
+`;
+
+/**
  * The fragment chunk, after the lighting has produced `outgoingLight`: these
  * effects grade the lit result, so palette rot keeps its shading and static
  * swallows highlight and shadow alike. `swayTime` is declared by the finish
  * stage's fragment block, which the surface material always carries.
  */
-const FRAGMENT_CHUNK = /* glsl */ `
+const fragmentChunk = (erode: boolean): string => /* glsl */ `
 if (uGlitchCount > 0) {
   float gAmt = 0.0;
   vec4 gSurfW = vec4(0.0);
@@ -283,16 +302,7 @@ if (uGlitchCount > 0) {
   if (gAmt > 0.004) {
     float gT = swayTime;
     float gSeed = gParams.x;
-
-    // Erode: faces vanish on a hash schedule and holes open through the
-    // object. Surface only — the eroded face still casts and outlines, which
-    // is the known depth/normal gap, accepted for now.
-    float aErode = smoothstep(${on('erode')}, 1.0, gAmt) * gParams.y;
-    if (aErode > 0.001
-      && glitchHash(vec2(vGlitchFace * 137.0, floor(gT * 5.0) + gSeed * 31.0)) < aErode * 0.65) {
-      discard;
-    }
-
+${erode ? ERODE : ''}
     // Facet-flash: single facets slam to white or black for a few frames.
     // Flat shading makes this read exactly as corrupted triangle data.
     float aFlash = smoothstep(${on('facet-flash')}, 1.0, gAmt) * gSurfW.y;
@@ -350,6 +360,39 @@ if (uGlitchCount > 0) {
 const OUTGOING_LIGHT =
   'vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;';
 
+/** Whether the programs being compiled now carry the erode discard. */
+let eroding = false;
+
+/** Materials carrying the fragment stage, so the switch can recompile them. */
+const surfaces = new Set<THREE.Material>();
+
+/**
+ * Which erode variant a program is. Belongs in the art materials' cache keys —
+ * three's own key knows nothing about an `onBeforeCompile`, so without this the
+ * two variants would ask for the same program and one would get the other's.
+ */
+export function glitchVariant(): string {
+  return eroding ? 'erode' : 'solid';
+}
+
+/**
+ * Whether the zone being drawn has any glitch volume in it at all.
+ *
+ * Off — which is every ordinary zone — the erode discard is not in the source,
+ * and every opaque pixel in the game gets its early depth rejection back,
+ * shadow taps included. On, the discard returns and early-Z goes with it, which
+ * is the price of the effect and is paid only where it is used.
+ *
+ * The trade is a program variant: entering a glitched zone for the first time
+ * in a session compiles the art materials again. `PostFX.prewarm` compiles both
+ * up front so that never lands on a door.
+ */
+export function setGlitchErode(on: boolean): void {
+  if (on === eroding) return;
+  eroding = on;
+  for (const material of surfaces) material.needsUpdate = true;
+}
+
 /**
  * Adds the full glitch stage — displacement and surface — to the shared art
  * material. Wrapping rather than replacing, for the reason every stage since
@@ -368,11 +411,12 @@ export function applyGlitch(material: THREE.Material): void {
 
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAGMENT_DECLS}`)
-      .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${FRAGMENT_CHUNK}`);
+      .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${fragmentChunk(eroding)}`);
   };
 
+  surfaces.add(material);
   defaultEffectAttribute(material);
-  material.customProgramCacheKey = () => 'sway-wear-detail-finish-glitch';
+  material.customProgramCacheKey = () => `sway-wear-detail-finish-glitch:${glitchVariant()}`;
   material.needsUpdate = true;
 }
 

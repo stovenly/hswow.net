@@ -40,6 +40,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  * against an empty light list and every flake comes out black.
  */
 export class ParticlesEffect implements PixelEffect {
+  readonly label = 'particles';
   enabled = false;
 
   private present = false;

@@ -15,6 +15,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  * The water shader murks its own back face instead, where the distance is known.
  */
 export class UnderwaterEffect implements PixelEffect {
+  readonly label = 'underwater';
   enabled = false;
 
   private readonly material: THREE.ShaderMaterial;

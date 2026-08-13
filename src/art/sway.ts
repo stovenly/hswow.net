@@ -3,7 +3,7 @@ import { ART_FINISHED_MATERIAL, ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble'
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
 import { applyFinish, FINISH_MASK_ALL } from './finish';
-import { applyGlitch, applyGlitchDisplacement } from './glitch';
+import { applyGlitch, applyGlitchDisplacement, glitchVariant } from './glitch';
 import { applyHorror, applyHorrorDisplacement } from './horror';
 import type { Weather } from '../audio/weather';
 
@@ -326,7 +326,12 @@ export function patchArtMaterial(): void {
   applyFinish(ART_FINISHED_MATERIAL, FINISH_MASK_ALL);
   applyGlitch(ART_FINISHED_MATERIAL);
   applyHorror(ART_FINISHED_MATERIAL);
-  ART_FINISHED_MATERIAL.customProgramCacheKey = () => 'art:finished';
+
+  // The erode variant rides in both keys: glitch compiles its `discard` out
+  // where nothing is glitched, and the two programs must not be confused for
+  // each other. See `setGlitchErode`.
+  ART_MATERIAL.customProgramCacheKey = () => `art:lean:${glitchVariant()}`;
+  ART_FINISHED_MATERIAL.customProgramCacheKey = () => `art:finished:${glitchVariant()}`;
 }
 
 /**
@@ -403,6 +408,21 @@ const texels = field.image.data as Uint8Array;
 const sums = integral.image.data as unknown as Float32Array;
 
 /**
+ * How often the lookup window is rebuilt, in seconds.
+ *
+ * Twelve times a second. At the authored gust rate a frame advances the window
+ * by **0.14 of a texel** — so sixty rebuilds a second produce the same 256
+ * bytes seven times over, and the picture at twelve is identical. The uniforms
+ * below still move every frame: `swayTime` is the clock the finish and glitch
+ * stages read, and a stuttering clock would be visible where a stale table is
+ * not.
+ */
+const WIND_INTERVAL = 1 / 12;
+
+/** When the window was last rebuilt, on `updateWind`'s own clock. */
+let windRebuilt = -Infinity;
+
+/**
  * Refills the lookup window and advances the clock. Once a frame.
  *
  * The whole texture is rebuilt rather than scrolled. It is 256 evaluations of
@@ -425,6 +445,9 @@ export function updateWind(weather: Weather, elapsed: number): void {
   // conversion — and a rate of zero would be a still world with an integral
   // that never advances, which is exactly the right answer for one.
   windUniforms.windAgeScale.value = gustRate / (2 * halfSpan || 1);
+
+  if (elapsed - windRebuilt < WIND_INTERVAL) return;
+  windRebuilt = elapsed;
 
   // Seconds between neighbouring texels, for the integral below. The window is
   // `2·halfSpan` of gust-time wide, and `gustRate` is gust-time per second.

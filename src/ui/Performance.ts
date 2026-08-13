@@ -1,5 +1,6 @@
 import { Vector2 } from 'three';
 import type * as THREE from 'three';
+import type { GpuClock } from '../engine/GpuClock';
 
 /**
  * The performance readout, for a player rather than for me.
@@ -48,6 +49,7 @@ const REFRESH = 0.1;
 
 export class PerformanceHud {
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly gpu: GpuClock;
   private readonly root: HTMLDivElement;
   private readonly rows = new Map<string, HTMLElement>();
 
@@ -58,8 +60,9 @@ export class PerformanceHud {
   private sinceRefresh = 0;
   private mode: PerformanceMode = 'off';
 
-  constructor(overlay: HTMLElement, renderer: THREE.WebGLRenderer) {
+  constructor(overlay: HTMLElement, renderer: THREE.WebGLRenderer, gpu: GpuClock) {
     this.renderer = renderer;
+    this.gpu = gpu;
 
     this.root = document.createElement('div');
     this.root.id = 'perf';
@@ -70,6 +73,11 @@ export class PerformanceHud {
   setMode(mode: PerformanceMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
+    // Queries cost a little and nobody reads them the rest of the time. The
+    // readings are dropped with them, so switching back on never shows a
+    // number from before whatever was just changed.
+    this.gpu.enabled = mode === 'all';
+    if (!this.gpu.enabled) this.gpu.clear();
     this.root.hidden = mode === 'off';
     this.root.classList.toggle('is-full', mode === 'all');
     // Rebuilt rather than hidden row by row: the two modes show different
@@ -88,6 +96,7 @@ export class PerformanceHud {
       this.addRow('buffers');
       this.addRow('memory');
       this.addRow('size');
+      this.addRow('gpu');
     }
     // Written at once, so the box does not appear empty for a quarter of a
     // second after being switched on.
@@ -141,6 +150,18 @@ export class PerformanceHud {
     // multiplies it. Anybody comparing two machines needs to know this.
     const size = this.renderer.getDrawingBufferSize(_size);
     this.set('size', `${size.x}×${size.y}`);
+
+    // **The one number here that is the GPU's rather than the CPU's.** Every
+    // row above times how long this machine took to *ask* for a frame; a busy
+    // GPU makes them go down. Below is where the frame is actually spent, pass
+    // by pass, so "why is this frame slow" has an answer rather than an
+    // argument. Absent on drivers that will not answer — see `GpuClock`.
+    if (!this.gpu.available) {
+      this.set('gpu', 'unavailable');
+      return;
+    }
+    this.set('gpu', `${this.gpu.total.toFixed(2)} ms`);
+    for (const [pass, ms] of this.gpu.passes) this.set(`· ${pass}`, `${ms.toFixed(2)} ms`);
   }
 
   /**
@@ -193,8 +214,19 @@ export class PerformanceHud {
     this.rows.set(label, value);
   }
 
+  /**
+   * Writes a row, adding it if this is the first time it has had a value.
+   *
+   * The pass rows arrive rather than being declared: a pass that is switched
+   * off never reports, and listing every one the pipeline *could* run would be
+   * a column of dashes for the ones a zone has nothing for.
+   */
   private set(label: string, value: string): void {
-    const cell = this.rows.get(label);
+    let cell = this.rows.get(label);
+    if (!cell) {
+      this.addRow(label);
+      cell = this.rows.get(label);
+    }
     if (cell) cell.textContent = value;
   }
 

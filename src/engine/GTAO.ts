@@ -54,6 +54,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  */
 
 export class GTAOEffect implements PixelEffect {
+  readonly label = 'ao';
   enabled = true;
   /** 0..1 — how dark full occlusion is allowed to get. The one taste knob. */
   strength = 1;

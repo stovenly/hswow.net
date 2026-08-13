@@ -56,6 +56,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
 const LEVELS = 3;
 
 export class BloomEffect implements PixelEffect {
+  readonly label = 'bloom';
   enabled = false;
   /** How much of the blurred emitters is added back. The one taste knob. */
   strength = 1;

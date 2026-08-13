@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import type { FaustNode } from '../faust/FaustNode';
-import { createEventClock, poisson } from '../dsp/clock';
+import { createEventClock, poissonGap } from '../dsp/clock';
 import { createModalBank } from '../dsp/modal';
 import { excite } from '../dsp/impact';
 
@@ -193,6 +193,7 @@ export function createWaveguide(
   for (const input of bank.inputs) exciter.connect(input);
 
   const clock = createEventClock(context);
+  const hitGap = poissonGap();
 
   let faust: FaustNode | null = null;
   let disposed = false;
@@ -263,9 +264,10 @@ export function createWaveguide(
         return;
       }
 
+      hitGap.rate = MAX_RATE * amount;
       clock.pump(
         (at) => hit(at, 0.35 + Math.random() * 0.65),
-        poisson(MAX_RATE * amount),
+        hitGap,
         // Individually audible events, so a source returning from silence must
         // wait an interval rather than firing the moment it becomes audible.
         'oneGap',

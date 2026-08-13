@@ -95,6 +95,7 @@ export interface GlitchPlacement extends GlitchSpec {
 }
 
 export class GlitchEffect implements PixelEffect {
+  readonly label = 'glitch';
   enabled = false;
 
   private readonly material: THREE.ShaderMaterial;

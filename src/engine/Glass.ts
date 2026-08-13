@@ -38,6 +38,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  * actually built — observed rather than declared, see `Zone.hasGlass`.
  */
 export class GlassEffect implements PixelEffect {
+  readonly label = 'glass';
   enabled = false;
 
   private readonly blitMaterial: THREE.ShaderMaterial;

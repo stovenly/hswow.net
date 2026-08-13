@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import type { FaustNode } from '../faust/FaustNode';
-import { createEventClock, poisson } from '../dsp/clock';
+import { createEventClock, poissonGap } from '../dsp/clock';
 import { createModalBank } from '../dsp/modal';
 import { excite } from '../dsp/impact';
 
@@ -213,6 +213,7 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
   rub.start();
 
   const clock = createEventClock(context);
+  const slipGap = poissonGap();
 
   // --- motion state -------------------------------------------------------
   //
@@ -398,7 +399,7 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
       // groan and a few dozen at a squeal, and the top of that range is where
       // scheduled events stop working at all, which is precisely the boundary
       // the Faust loop exists to cross.
-      const rate = 2 + speed * 26;
+      slipGap.rate = 2 + speed * 26;
       const level = liveForce * 0.5 * (0.3 + 0.7 / (1 + speed * 6));
       clock.pump(
         (at) => {
@@ -409,7 +410,7 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
             excite(context, noise.white, input, at, level * jitter, 0.003);
           }
         },
-        poisson(rate),
+        slipGap,
         'immediate',
       );
     },

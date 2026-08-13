@@ -110,7 +110,16 @@ export class AudioEngine {
    * engine has. Emitters register themselves on construction.
    */
   private readonly emitters = new Set<Emitter>();
-  /** Reused across ticks; ranking allocates nothing per frame. */
+  /**
+   * The ranking, and the entries it is built out of.
+   *
+   * The array was reused across ticks and its *contents* were not — one object
+   * literal per emitter per tick, a few hundred short-lived objects a second
+   * for a list that is thrown away immediately. `entries` holds one object per
+   * rank and grows to the high-water mark; `ranking` is emptied and refilled
+   * with references to them, which allocates nothing.
+   */
+  private readonly entries: { emitter: Emitter; priority: number }[] = [];
   private readonly ranking: { emitter: Emitter; priority: number }[] = [];
 
   /**
@@ -328,7 +337,12 @@ export class AudioEngine {
   update(dt: number, camera: THREE.Camera): boolean {
     this.weather.update(dt);
     this.updateListener(camera);
-    this.master.gain.value = this.settings.masterVolume;
+    // Written when it moves, which is when a slider moves. An `AudioParam`
+    // assignment is a message to the audio thread and was being sent sixty
+    // times a second to say the same number.
+    if (this.master.gain.value !== this.settings.masterVolume) {
+      this.master.gain.value = this.settings.masterVolume;
+    }
 
     this.occlusionTimer -= dt;
     if (this.occlusionTimer > 0) return false;
@@ -351,6 +365,7 @@ export class AudioEngine {
    */
   private allocateVoices(): void {
     this.ranking.length = 0;
+    let n = 0;
     for (const emitter of this.emitters) {
       if (!emitter.enabled) {
         emitter.setDetail('virtual');
@@ -361,7 +376,11 @@ export class AudioEngine {
         emitter.setDetail('virtual');
         continue;
       }
-      this.ranking.push({ emitter, priority: distance / Math.max(emitter.importance, 0.01) });
+      const entry = (this.entries[n] ??= { emitter, priority: 0 });
+      entry.emitter = emitter;
+      entry.priority = distance / Math.max(emitter.importance, 0.01);
+      this.ranking.push(entry);
+      n++;
     }
 
     this.ranking.sort((a, b) => a.priority - b.priority);

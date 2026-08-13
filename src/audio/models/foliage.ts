@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
-import { createEventClock, poisson } from '../dsp/clock';
+import { createEventClock, poissonGap } from '../dsp/clock';
 import { createGrainBed, scheduleGrain } from '../dsp/grain';
 
 /**
@@ -110,6 +110,7 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
   let articulation = options.articulation ?? 0.3;
   let active = true;
   const clock = createEventClock(context);
+  const rustleGap = poissonGap();
 
   // Long grains, so they overlap heavily and blur into one another. Short
   // grains are what make a canopy sound like a rainstick.
@@ -153,7 +154,8 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
       // Rate scales with the square of strength: a stiff breeze does not
       // rustle twice as many leaves as a light one, it rustles far more.
       const rate = Math.max(20, density * strength * strength);
-      clock.pump(fire, poisson(rate));
+      rustleGap.rate = rate;
+      clock.pump(fire, rustleGap);
     },
 
     dispose() {

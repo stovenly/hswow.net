@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
-import { createEventClock, poisson } from '../dsp/clock';
+import { createEventClock, poissonGap } from '../dsp/clock';
 import { createGrainBed } from '../dsp/grain';
 import { excite, thump } from '../dsp/impact';
 
@@ -221,6 +221,7 @@ export function createFire(engine: AudioEngine, options: FireOptions = {}): Fire
   let intensity = options.intensity ?? 0.7;
   let active = true;
   const clock = createEventClock(context);
+  const crackleGap = poissonGap();
 
   const fireCrackle = (at: number): void => {
     // Most crackles are near the threshold of hearing. The few that are not
@@ -282,7 +283,8 @@ export function createFire(engine: AudioEngine, options: FireOptions = {}): Fire
 
       // Square law: feeding a fire does not double the crackles, it multiplies
       // them. Same reasoning as foliage's gust response.
-      clock.pump(fireCrackle, poisson(Math.max(0.6, 22 * heat * heat)));
+      crackleGap.rate = Math.max(0.6, 22 * heat * heat);
+      clock.pump(fireCrackle, crackleGap);
     },
 
     dispose() {

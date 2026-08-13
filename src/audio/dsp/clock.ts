@@ -137,3 +137,35 @@ export function poisson(rate: number): Gap {
 export function periodic(period: number, jitter = 0.06): Gap {
   return () => period * (1 + (Math.random() * 2 - 1) * jitter);
 }
+
+/**
+ * A gap whose rate can be moved without building a new one.
+ *
+ * `poisson` and `periodic` capture their rate, which is right for a source
+ * whose rate is fixed when it is built. A model that recomputes its rate from
+ * the weather or a machine's speed every frame allocates a closure every frame
+ * instead, per emitter — and allocation rate, not total garbage, is what drives
+ * the young-generation scavenges that read as micro-stutter. Same numbers, one
+ * object for the life of the model.
+ */
+export interface Rated {
+  (): number;
+  /** Events per second for `poissonGap`, seconds per event for `periodicGap`. */
+  rate: number;
+}
+
+/** `poisson`, reusable. See `Rated`. */
+export function poissonGap(initial = 1): Rated {
+  const gap: Rated = Object.assign(() => -Math.log(1 - Math.random()) / Math.max(gap.rate, 0.01), {
+    rate: initial,
+  });
+  return gap;
+}
+
+/** `periodic`, reusable. See `Rated`. */
+export function periodicGap(initial = 1, jitter = 0.06): Rated {
+  const gap: Rated = Object.assign(() => gap.rate * (1 + (Math.random() * 2 - 1) * jitter), {
+    rate: initial,
+  });
+  return gap;
+}

@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
-import { createEventClock, poisson } from '../dsp/clock';
+import { createEventClock, poissonGap } from '../dsp/clock';
 import { createGrainBed } from '../dsp/grain';
 import { excite } from '../dsp/impact';
 import { popBubble, bubbleRadius } from '../dsp/bubble';
@@ -189,6 +189,8 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
   let active = true;
   const clock = createEventClock(context);
   const eaveClock = createEventClock(context);
+  const dropGap = poissonGap();
+  const eaveGap = poissonGap();
 
   const drop = (at: number): void => {
     if (bubbles) {
@@ -281,11 +283,13 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
       bedFilter.frequency.setTargetAtTime(surface.bedHz * tone * (0.7 + fall * 0.55), now, 0.6);
       dropBus.gain.setTargetAtTime(articulation * (0.2 + fall * 0.8), now, 0.6);
 
-      clock.pump(drop, poisson(Math.max(8, surface.density * fall * fall)));
+      dropGap.rate = Math.max(8, surface.density * fall * fall);
+      clock.pump(drop, dropGap);
       if (eaves > 0) {
         // `'oneGap'`: runoff drops are individually audible, and one landing at
         // the instant you step under a porch reads as a trigger.
-        eaveClock.pump(eave, poisson(eaves * (0.35 + fall * 0.65)), 'oneGap');
+        eaveGap.rate = eaves * (0.35 + fall * 0.65);
+        eaveClock.pump(eave, eaveGap, 'oneGap');
       }
     },
 
