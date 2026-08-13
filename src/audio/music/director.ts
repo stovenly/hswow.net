@@ -183,6 +183,25 @@ const FIRST_WAIT: Span = [8, 20];
 /** Bar length where no pulse exists — harmony breathes instead of counting. */
 const BREATH_BAR: Span = [8, 13];
 
+/**
+ * Longest stretch of a breath bar the floating texture may leave bare.
+ *
+ * A breath bar is ten seconds. Scattering "a few notes" across one at random
+ * means a mean of three, clumped wherever the dice put them, and the ear hears
+ * a pad with the occasional ping — which is the drone alone by another name.
+ * The count follows from the bar's length and this, not from a roll.
+ */
+const FLOAT_GAP = 2.6;
+
+/** Bars the final cadence takes: the ritard's run, and the closing statement's. */
+const FINAL_BARS = 3;
+
+/** How long the last chord is allowed to ring past the last bar, in seconds. */
+const RING_OUT = 2.5;
+
+/** Time constant the pad leaves on when the form is spent. */
+const EXIT_TAU = 0.7;
+
 /** Chance a due pad refresh is skipped so the drone breathes out for a bar. */
 const DRONE_BREATH = 0.3;
 
@@ -310,6 +329,9 @@ export class MusicDirector {
   /** Where each stratum leaves. Counted from the end in seconds, not bars. */
   private textureUntilBar = 0;
   private melodyUntilBar = 0;
+  /** Where the closing statement starts — the form's last word, not the clock's. */
+  private closingBar = 0;
+  private closed = false;
   private textureActive = false;
   private melodyActive = false;
   private drumsActive = false;
@@ -537,9 +559,22 @@ export class MusicDirector {
     // all: the texture is in from the downbeat and the growth is the melody.
     const inBars = (seconds: number) => Math.max(1, Math.round(seconds / barSec));
     this.textureFromBar = audition || this.beatSec === 0 ? 0 : inBars(2 + this.dice() * 4);
-    this.melodyFromBar = audition ? 1 : inBars(6 + this.dice() * 8);
-    this.textureUntilBar = this.totalBars - inBars(this.beatSec === 0 ? 4 : 5);
+    // A breath bar is ten seconds, so "the melody enters at bar 1" is ten
+    // seconds of waiting — which is not an intro when the point is to judge a
+    // vibe in one sitting. A pulse-free audition speaks from the downbeat.
+    this.melodyFromBar = audition ? (this.beatSec === 0 ? 0 : 1) : inBars(6 + this.dice() * 8);
+    // The texture plays the cadence out rather than leaving before it. It used
+    // to leave, which put the piece's only bare stretch under the ritard — the
+    // slowest bars in the piece — and a slow bare pad is the one thing the
+    // score must never do. It thins across the cadence instead.
+    this.textureUntilBar = this.totalBars - 1;
     this.melodyUntilBar = this.totalBars - inBars(this.beatSec === 0 ? 8 : 9);
+    // The last word is placed by the form, not by the rest clock: the closing
+    // statement starts where the ritard does, so the answer lands on the root
+    // as the tempo commits. Otherwise the melody stopped wherever it happened
+    // to stop and the cadence had nothing over it.
+    this.closingBar = Math.max(this.melodyFromBar, this.totalBars - FINAL_BARS);
+    this.closed = false;
 
     // Per-piece orchestration: the alternates get a turn by seedless dice.
     // At night the dice flip — the other hands become the usual draw and the
@@ -616,6 +651,13 @@ export class MusicDirector {
     this.melodyActive = false;
     this.drumsActive = false;
     this.nextPiece = now + between(REST);
+    // The pad leaves with the piece. Without this the last chord played out
+    // its whole scheduled length and its release into a rest minutes long,
+    // with nothing scheduled after it — the drone that lasts forever.
+    if (this.rack) {
+      this.rack.gain.gain.cancelScheduledValues(now);
+      this.rack.gain.gain.setTargetAtTime(0, now, EXIT_TAU);
+    }
   }
 
   private rackFor(spec: MusicSpec): Rack {
@@ -672,8 +714,7 @@ export class MusicDirector {
 
   /** The tempo factor a bar plays under — 1 in open country, less at landings. */
   private ritard(bar: number): number {
-    // The final cadence commits: the measured curve over the last three bars.
-    const FINAL_BARS = 3;
+    // The final cadence commits: the measured curve over its bars.
     if (bar >= this.totalBars - FINAL_BARS) {
       const x = (bar - (this.totalBars - FINAL_BARS) + 1) / FINAL_BARS;
       return ritardCurve(x, this.finalV);
@@ -702,8 +743,9 @@ export class MusicDirector {
     const bar = this.barIndex++;
 
     if (bar >= this.totalBars) {
-      // The form is spent; the last chord's tail is the piece's exit.
-      this.pieceEnd = Math.min(this.pieceEnd, at);
+      // The form is spent. The resolution is given its ring and then the pad
+      // leaves with it — see `stopPiece`.
+      this.pieceEnd = Math.min(this.pieceEnd, at + RING_OUT);
       return;
     }
 
@@ -721,12 +763,17 @@ export class MusicDirector {
     // The sounding mode — the spec's, unless the bridge stepped to a neighbour.
     const mode = MODES[this.mode];
 
-    // Raise and subtract the strata in bar space. Texture leaves before the
-    // final cadence, melody before that, drums keep only the arc's peak.
+    // Raise and subtract the strata in bar space. The melody's ordinary window
+    // closes early, the cadence reopens it for the closing statement, the
+    // texture thins through to the last bar, drums keep only the arc's peak.
+    const closing = bar >= this.closingBar;
+    const lastBar = bar === this.totalBars - 1;
+    // 1 until the cadence, then down to about half across its bars.
+    const thin = closing ? 1 - 0.45 * ((bar - this.closingBar + 1) / FINAL_BARS) : 1;
     this.textureActive =
       this.earnedTexture && bar >= this.textureFromBar && bar <= this.textureUntilBar;
     this.melodyActive =
-      this.earnedMelody && bar >= this.melodyFromBar && bar <= this.melodyUntilBar;
+      this.earnedMelody && bar >= this.melodyFromBar && (bar <= this.melodyUntilBar || closing);
     this.drumsActive =
       this.earnedDrums && section.tension >= 0.6 && bar <= this.totalBars - 4;
 
@@ -747,6 +794,11 @@ export class MusicDirector {
       this.fireDrone(at, pc, barLen / 2 + 1.5);
       this.fireDrone(at + barLen / 2, approach, barLen / 2 + 2.5);
       this.chordDegree = semitoneToDegree(mode, approach);
+    } else if (lastBar) {
+      // The last bar always states the root, and its chord ends with the form
+      // instead of being scheduled to outlive it.
+      this.fireDrone(at, pc, barLen + RING_OUT);
+      this.chordDegree = 0;
     } else if (bar === this.borrowBar) {
       // The borrowed chord: the bass alone leans out of the mode for one bar
       // while everything above holds home — dissonance rationed, then spent.
@@ -767,8 +819,15 @@ export class MusicDirector {
     }
 
     // Melody before texture: the figure listens for the phrase's silences.
-    if (this.melodyActive && at >= this.melodyDueAt) this.fireStatement(at);
-    if (this.textureActive) this.fireFigure(at, barLen, section.tension);
+    // The closing statement ignores the rest clock — it is the form's last
+    // word, not the next thing the melody happened to feel like saying.
+    if (closing && !this.closed && this.earnedMelody) {
+      this.closed = true;
+      this.fireStatement(at, true);
+    } else if (this.melodyActive && at >= this.melodyDueAt) {
+      this.fireStatement(at);
+    }
+    if (this.textureActive) this.fireFigure(at, barLen, section.tension, thin);
     if (this.drumsActive) this.fireKit(at, barLen);
   };
 
@@ -905,7 +964,7 @@ export class MusicDirector {
    * may break into a pair — the call-and-response rung of the ladder. Every
    * 4–8 bars, exactly one element of the note loop mutates.
    */
-  private fireFigure(at: number, barLen: number, tension: number): void {
+  private fireFigure(at: number, barLen: number, tension: number, thin = 1): void {
     const spec = this.spec;
     const rack = this.rack;
     if (!spec || !rack) return;
@@ -914,13 +973,16 @@ export class MusicDirector {
     const octave = spec.character.textureOctave + (this.night > 0.5 ? 12 : 0);
 
     if (this.beatSec === 0) {
-      // Wilderness floats: a few unmetered notes scattered inside the breath
-      // bar, still standing on its chord.
-      const count = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) {
-        const t = at + Math.random() * barLen * 0.8;
+      // Wilderness floats, but it does not stop. The bar is cut into slots no
+      // longer than `FLOAT_GAP` and every one takes a note jittered inside it,
+      // so the placement is still unmetered and nothing lands on a grid, but
+      // no stretch of the bar — the tail included — is left to the pad alone.
+      const slots = Math.max(3, Math.ceil(barLen / FLOAT_GAP));
+      const slot = barLen / slots;
+      for (let i = 0; i < slots; i++) {
+        const t = at + (i + 0.2 + Math.random() * 0.6) * slot;
         const note = this.ostinato[this.ostinatoAt++ % this.ostinato.length];
-        const velocity = (0.28 + Math.random() * 0.1) * this.level(t);
+        const velocity = (0.28 + Math.random() * 0.1) * this.level(t) * thin;
         voice.noteOn(t, justHz(spec.root, this.onChord(note) + octave), velocity, between([2.2, 3.6]));
       }
       this.advanceMutation(spec);
@@ -957,7 +1019,7 @@ export class MusicDirector {
       const t = at + offset * unit;
       offset += step.beats;
       const note = this.ostinato[this.ostinatoAt++ % this.ostinato.length];
-      const velocity = (0.26 + step.accent * 0.16) * this.level(t);
+      const velocity = (0.26 + step.accent * 0.16) * this.level(t) * thin;
       const seconds = step.beats * unit * 1.8;
 
       let pitch = this.onChord(note) + octave;
@@ -1033,7 +1095,7 @@ export class MusicDirector {
    * ground. Steps take their lengths from the section's rhythm cell and
    * their lean from the arch.
    */
-  private fireStatement(at: number): void {
+  private fireStatement(at: number, closing = false): void {
     const spec = this.spec;
     const rack = this.rack;
     if (!spec || !rack) return;
@@ -1041,12 +1103,19 @@ export class MusicDirector {
     const section = this.sections[this.sectionAt];
     const tension = section?.tension ?? 0.5;
 
-    const fragmentary = this.dice.chance(spec.character.fragment);
-    const head = applyOp(this.head, fragmentary ? 'fragment' : this.op, this.dice);
+    // The closing statement says the head plainly and answers it. Never a
+    // fragment, never withheld, never dropped an octave: it is the one
+    // statement the form asks for, and it has to land.
+    const fragmentary = !closing && this.dice.chance(spec.character.fragment);
+    const head = applyOp(
+      this.head,
+      closing ? 'plain' : fragmentary ? 'fragment' : this.op,
+      this.dice,
+    );
     const period = periodFrom(head, mode);
     // At night some statements speak the question and withhold the answer —
     // nothing new is said, something is left unsaid.
-    const withheld = !fragmentary && this.dice.chance(this.night * 0.4);
+    const withheld = !closing && !fragmentary && this.dice.chance(this.night * 0.4);
     const halves = fragmentary
       ? [period.consequent]
       : withheld
@@ -1062,7 +1131,7 @@ export class MusicDirector {
 
     // A statement may sit an octave down between the arc's peaks — but only
     // where the vibe's seat leaves an octave to give.
-    const mayDrop = spec.character.melodyOctave >= 24 && tension < 0.7;
+    const mayDrop = !closing && spec.character.melodyOctave >= 24 && tension < 0.7;
     const octave =
       spec.character.melodyOctave -
       (mayDrop && this.dice.chance(0.35 + this.night * 0.4) ? 12 : 0);

@@ -11,6 +11,12 @@ import type { MusicSpec } from './director';
  * same seed, thinner arrangement — so stepping indoors is the same music
  * heard through walls rather than a different track.
  *
+ * The third finding no longer holds for the villages. Their interiors are
+ * rooms — a hearth, a shop counter — rather than the square heard through a
+ * wall, so they carry their own roots, modes and seeds, and stand to the two
+ * villages the way the forest paths stand to the forests: the same family,
+ * not the same piece.
+ *
  * Rack identity is spec identity: a zone must declare one of these constants,
  * not a copy of its fields, so every zone with the same vibe shares one rack
  * and the border crossfade works. The table in the spec is the tunable;
@@ -24,69 +30,140 @@ import type { MusicSpec } from './director';
  *
  *   cave        A1   55  — everything below 250, thought nearly stopped
  *   forest b    E2   82  — dark floor, high glints, the widest spread
- *   village     C3  131  — the mid reference, texture above, flute on top
- *   interior    C3  131  — same root as the village (through the walls),
- *                          but inverted: music box above, flute below
+ *   village 1   C3  131  — the mid reference, texture above, flute on top
  *   riverside   D3  147  — mid, bells as light off the surface
+ *   village 2   D#3 156  — the market: strata close, the fastest pulse here
  *   path b      E3  165  — compact, low, woody
  *   farm        F3  175  — guitar at the root, trumpet across the field
  *   path a      G3  196  — compact and humble, a walking band
+ *   interior 2  A#3 233  — the shop, small and lit
+ *   interior 1  C4  262  — the hearth room, the warmest thing in the book
  *   forest a    D4  294  — the high vibe, everything lit
  */
 
-export const VILLAGE_VIBE: MusicSpec = {
+/**
+ * The village at evening: settled rather than trading, and the wide one.
+ *
+ * Everything the market does close and quick, this does spread and slow — the
+ * strata two octaves apart, chords held for two bars, a pulse under it but no
+ * kit, because one of the two villages having the drums is the clearest thing
+ * that tells them apart from the far side of a fence.
+ */
+export const VILLAGE_1_VIBE: MusicSpec = {
   root: 130.81, // C3
   mode: 'mixolydian',
   palette: {
     drone: 'strings',
     texture: 'dulcimer',
     melody: 'flute',
-    altTexture: 'guitar',
-    // The evening fiddler.
-    altMelody: 'fiddle',
+    altTexture: 'harp',
+    // Someone in the lane, going home.
+    altMelody: 'whistler',
   },
   character: {
     textureOctave: 12,
     melodyOctave: 24,
-    gait: ['dotted', 'snap'],
+    gait: ['dotted', 'lilt'],
+    chordBars: 2,
+    phraseRest: [11, 22],
+    fragment: 0.3,
+    level: 1,
+    droneLevel: 1,
+  },
+  density: 0.8,
+  pulse: [52, 62],
+  seed: 48,
+};
+
+/** The market village: the fastest pulse in the book, and the band is in the square. */
+export const VILLAGE_2_VIBE: MusicSpec = {
+  root: 155.56, // D#3
+  mode: 'ionian',
+  palette: {
+    // The squeezebox in the square — the interiors gave it up for this.
+    drone: 'accordion',
+    texture: 'banjo',
+    melody: 'fiddle',
+    altTexture: 'dulcimer',
+    altMelody: 'trumpet',
+  },
+  character: {
+    // Close strata: a band standing together, not a village across a valley.
+    textureOctave: 0,
+    melodyOctave: 12,
+    gait: ['snap', 'short-short-long'],
     chordBars: 1,
-    phraseRest: [10, 20],
-    fragment: 0.15,
+    phraseRest: [9, 18],
+    fragment: 0.1,
     level: 1,
     droneLevel: 1,
   },
   density: 0.9,
-  pulse: [60, 72],
+  pulse: [72, 86],
   drums: true,
-  seed: 48,
+  seed: 66,
 };
 
-/** The village heard from indoors: same seed, thinner, no kit — furniture music. */
-export const VILLAGE_INTERIOR_VIBE: MusicSpec = {
-  root: 130.81, // C3
-  mode: 'mixolydian',
+/**
+ * The hearth room: someone's home, with someone humming in the next one.
+ *
+ * A room, not the village heard through its wall — its own root at the top of
+ * the ladder, its own five notes, its own tunes. High roots want their strata
+ * close, the way the beach settles them.
+ */
+export const VILLAGE_INTERIOR_1_VIBE: MusicSpec = {
+  root: 261.63, // C4
+  mode: 'pentatonic-major',
   palette: {
-    drone: 'accordion',
-    texture: 'musicbox',
-    melody: 'flute',
+    drone: 'choir',
+    texture: 'guitar',
+    melody: 'kalimba',
     altTexture: 'harp',
-    altMelody: 'musicbox',
+    altMelody: 'ocarina',
   },
   character: {
-    // Inverted on purpose: the box glints above, the flute speaks below it.
-    textureOctave: 24,
+    textureOctave: 0,
     melodyOctave: 12,
-    gait: ['even', 'dotted'],
+    gait: ['even', 'lilt'],
     chordBars: 2,
-    phraseRest: [12, 22],
-    fragment: 0.35,
+    phraseRest: [10, 20],
+    fragment: 0.4,
     // Furniture music arrives at furniture volume.
     level: 0.6,
     droneLevel: 1,
   },
   density: 0.75,
-  pulse: [50, 58],
-  seed: 48,
+  pulse: [46, 54],
+  seed: 67,
+};
+
+/** The little shop: clockwork and a counter, lit and slightly wrong. */
+export const VILLAGE_INTERIOR_2_VIBE: MusicSpec = {
+  root: 233.08, // A#3
+  mode: 'lydian',
+  palette: {
+    // A shop harmonium, nothing like the same stop three octaves down a cave.
+    drone: 'organ',
+    texture: 'musicbox',
+    melody: 'pluck',
+    altTexture: 'marimba',
+    // The bell over the door.
+    altMelody: 'chimes',
+  },
+  character: {
+    textureOctave: 0,
+    melodyOctave: 12,
+    gait: ['even', 'dotted'],
+    chordBars: 2,
+    phraseRest: [10, 20],
+    fragment: 0.35,
+    level: 0.65,
+    // An organ this high cuts before it measures.
+    droneLevel: 0.8,
+  },
+  density: 0.75,
+  pulse: [48, 56],
+  seed: 68,
 };
 
 /** The working band: the guitar strums at the root, the trumpet carries far. */
@@ -299,8 +376,13 @@ export const CAVE_VIBE: MusicSpec = {
  * behind the world rather than over it. Machines march: those vibes take
  * `even` alone, or even against short-short-long, and hold their chords for
  * bars, while every folk gait stays in the pastoral half of the book. And the
- * caves, sewers, scrapyard and coast are weather, so they have no pulse at
- * all; only the three powered places keep time, and only factory 2 has a kit.
+ * caves, sewers and scrapyard are weather, so they have no pulse at all; the
+ * three powered places keep time, and only factory 2 has a kit.
+ *
+ * The coast was weather too, and that is what was wrong with it: pulse-free
+ * means breath bars ten seconds long with a handful of loose notes in them,
+ * which on a shore rooted high with no low end is a held tone. Both coast
+ * vibes keep time now — the swell does, not a band, and neither has a kit.
  *
  * The roots continue the ladder below the settlements, and the coast takes the
  * one gap above them:
@@ -314,8 +396,8 @@ export const CAVE_VIBE: MusicSpec = {
  *   scrapyard    A2  110 — one detuned guitar over the junk
  *   substation 1 B2  124 — the maze that hums
  *   substation 2 F#3 185 — the whine, not the buzz
- *   beach        A3  220 — all sky, no bottom
- *   beach path   A3  220 — the same music, heard through trees
+ *   beach        A3  220 — the swell keeps the time, and there is no kit
+ *   beach path   A3  220 — the same water, walked past rather than sat at
  */
 
 /** Deeper than the cave and worse: the one mode in the book with a leading tone. */
@@ -570,69 +652,84 @@ export const SUBSTATION_2_VIBE: MusicSpec = {
   seed: 64,
 };
 
-/** A cold Atlantic: a minor third with a major sixth, all sky and no bottom. */
+/**
+ * A cold Atlantic, with the sea moving in it.
+ *
+ * Rewritten off `pulse: null`. Pulse-free routes a vibe onto the breath-bar
+ * machinery — bars eight to thirteen seconds long, a texture of loose notes
+ * scattered through them, statements a dozen seconds apart — which on a shore
+ * with no low end came out as a held tone and the occasional ping. A pulse
+ * puts a metered figure in every bar, and the swell is what keeps time here:
+ * a felt pulse and no kit is motion, not people. Everything else follows it —
+ * the chord moves every bar, the rests are short and the density leans them
+ * shorter, and the texture is a voice that sustains rather than one that
+ * decays into the gap.
+ */
 export const BEACH_VIBE: MusicSpec = {
   root: 220, // A3
-  mode: 'kumoi',
+  mode: 'aeolian',
   palette: {
     // One cold bow on the shore.
     drone: 'viol',
-    texture: 'glass',
+    texture: 'harp',
     melody: 'vibraphone',
-    altTexture: 'harp',
+    // The shimmer is the alternate now, not the thing carrying the bar.
+    altTexture: 'glass',
     // Someone at the cold shore.
     altMelody: 'harmonica',
   },
   character: {
     textureOctave: 0,
     melodyOctave: 12,
-    // The shore is weather; it has no beat and no folk foot.
-    gait: [],
+    gait: ['even', 'lilt'],
     chordBars: 1,
-    phraseRest: [9, 18],
-    fragment: 0.35,
+    phraseRest: [7, 13],
+    fragment: 0.2,
     level: 1,
-    // Tuned against the section; re-hear against one bow.
-    droneLevel: 1,
+    // A bowed drone at this height cuts before it measures.
+    droneLevel: 0.85,
   },
-  density: 0.8,
-  pulse: null,
-  seed: 65,
+  density: 0.9,
+  pulse: [50, 60],
+  seed: 69,
 };
 
-/** The beach through trees: same root, mode and seed, wood for glass. */
+/** The shore path: the same water and the same bow, walked past rather than sat at. */
 export const BEACH_PATH_VIBE: MusicSpec = {
   root: 220, // A3
-  mode: 'kumoi',
+  mode: 'aeolian',
   palette: {
     // The same bow, heard through trees.
     drone: 'viol',
-    texture: 'pluck',
+    // Wood for the water's harp.
+    texture: 'marimba',
     // Someone walking the shore path, whistling.
     melody: 'whistler',
     altTexture: 'kalimba',
-    altMelody: 'vibraphone',
+    altMelody: 'ocarina',
   },
   character: {
     textureOctave: 0,
     melodyOctave: 12,
-    gait: [],
+    gait: ['lilt', 'even'],
     chordBars: 1,
-    phraseRest: [12, 24],
-    fragment: 0.5,
-    level: 0.85,
-    // Tuned against the section; re-hear against one bow.
-    droneLevel: 1,
+    phraseRest: [8, 15],
+    fragment: 0.25,
+    // A step back from the water.
+    level: 0.9,
+    droneLevel: 0.85,
   },
-  density: 0.75,
-  pulse: null,
-  seed: 65,
+  density: 0.85,
+  pulse: [56, 66],
+  seed: 69,
 };
 
 /** The book by name, for the dev panel. */
 export const VIBES: Record<string, MusicSpec> = {
-  village: VILLAGE_VIBE,
-  'village interior': VILLAGE_INTERIOR_VIBE,
+  'village 1': VILLAGE_1_VIBE,
+  'village 2': VILLAGE_2_VIBE,
+  'village interior 1': VILLAGE_INTERIOR_1_VIBE,
+  'village interior 2': VILLAGE_INTERIOR_2_VIBE,
   farm: FARM_VIBE,
   'forest a': FOREST_A_VIBE,
   'forest b': FOREST_B_VIBE,
