@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Viewport } from './engine/Viewport';
 import { Loop } from './engine/Loop';
 import { PostFX } from './engine/PostFX';
+import { useRadialFog } from './engine/fog';
 import { Input, isTouchDevice } from './engine/Input';
 import { Collider } from './player/Collider';
 import { Controller } from './player/Controller';
@@ -67,6 +68,11 @@ viewport.scene.fog = new THREE.Fog(0x0a0a0f, 20, 90);
 // and sends you back to spawn, which is expensive at the exact moment you are
 // standing still looking at something.
 installReloadBanner();
+
+// **Before anything compiles a program.** Materials bake the fog chunk in at
+// compile time, so this has to happen before the first material is built or the
+// session runs on planar fog whatever the source says. See `engine/fog.ts`.
+useRadialFog();
 
 // **Before PostFX**, and that ordering is load-bearing rather than tidy. The
 // kit's shared material is patched in place, so a prop built later picks the
@@ -469,22 +475,31 @@ if (dev.gui) {
   // moving. VISTA.md.
   const vista = dev.gui.addFolder('vista');
   vista.add(zones, 'freezeVista').name('freeze parallax');
+  vista.add(r, 'vistaHaze', 0, 1, 0.05).name('extra haze').onChange(refresh);
   // Not vista-only despite living here: it reveals any collision that is never
   // drawn, a stair's walkway included. See `ZoneManager.showBarriers`.
   vista.add(zones, 'showBarriers').name('show invisible walls');
 
-  // Named to sort beside `sky` and `sky clouds`. The values a zone declares win
-  // over these — see `ZoneAir.ridge` — so this turns the preset's fallback,
-  // which is off.
+  // Named to sort beside `sky` and `sky clouds`.
+  //
+  // Touching any of these takes the skyline off the zone and gives it to the
+  // panel — otherwise a zone that declares its own would win and every control
+  // here would do nothing while reading zero. `use the zone's` hands it back.
   const ridge = dev.gui.addFolder('sky ridge');
-  ridge.add(r.sky.ridge, 'opacity', 0, 1, 0.05).onChange(refresh);
-  ridge.add(r.sky.ridge, 'height', 0, 0.2, 0.005).onChange(refresh);
-  ridge.add(r.sky.ridge, 'scale', 0.5, 10, 0.1).name('peaks around').onChange(refresh);
-  ridge.add(r.sky.ridge, 'roughness', 0, 1, 0.05).onChange(refresh);
-  ridge.addColor(r.sky.ridge, 'tint').onChange(refresh);
-  ridge.add(r.sky.ridge, 'shade', 0, 1, 0.02).onChange(refresh);
-  ridge.add(r.sky.ridge, 'haze', 0, 0.06, 0.002).onChange(refresh);
-  ridge.add(r.sky.ridge, 'seed', 0, 200, 1).onChange(refresh);
+  const takeRidge = (): void => {
+    postfx.ridgeOverride = r.sky.ridge;
+    refresh();
+  };
+  ridge.add({ zone: () => { postfx.ridgeOverride = null; refresh(); } }, 'zone')
+    .name("use the zone's");
+  ridge.add(r.sky.ridge, 'opacity', 0, 1, 0.05).onChange(takeRidge);
+  ridge.add(r.sky.ridge, 'height', 0, 0.2, 0.005).onChange(takeRidge);
+  ridge.add(r.sky.ridge, 'scale', 0.5, 10, 0.1).name('peaks around').onChange(takeRidge);
+  ridge.add(r.sky.ridge, 'roughness', 0, 1, 0.05).onChange(takeRidge);
+  ridge.addColor(r.sky.ridge, 'tint').onChange(takeRidge);
+  ridge.add(r.sky.ridge, 'shade', 0, 1, 0.02).onChange(takeRidge);
+  ridge.add(r.sky.ridge, 'haze', 0, 0.06, 0.002).onChange(takeRidge);
+  ridge.add(r.sky.ridge, 'seed', 0, 200, 1).onChange(takeRidge);
 
   const sky = dev.gui.addFolder('sky');
   sky.addColor(r.sky, 'zenith').onChange(refresh);

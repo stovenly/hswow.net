@@ -127,6 +127,20 @@ export const ART_FINISHED_MATERIAL = new THREE.MeshLambertMaterial({
   flatShading: true,
 });
 
+/**
+ * The lean material again, hazing early — out-of-bounds scenery only.
+ *
+ * A third program against the two above, and the exception is argued in
+ * `art/haze.ts`: a fragment shader cannot ask whether what it is drawing is
+ * scenery, so the only honest way to say it is to draw it with a material that
+ * knows. Compiled once at boot with the other two, never per room and never
+ * per mask, which is what MATERIAL-SYSTEM.md R5 is actually protecting.
+ */
+export const ART_VISTA_MATERIAL = new THREE.MeshLambertMaterial({
+  vertexColors: true,
+  flatShading: true,
+});
+
 export interface Part {
   geometry: THREE.BufferGeometry;
   /**

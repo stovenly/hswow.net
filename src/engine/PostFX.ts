@@ -20,6 +20,7 @@ import { EffectMaskPass } from './EffectMask';
 import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings, type SkyRidge } from './Sky';
+import { setVistaHaze } from '../art/haze';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
@@ -127,6 +128,17 @@ export interface RenderSettings {
    * two surfaces can be and still shade each other.
    */
   ao: { strength: number; radius: number };
+
+  /**
+   * How hard out-of-bounds scenery hazes, over and above the zone's fog.
+   *
+   * In the preset rather than on the zone because it is a property of *how the
+   * band is drawn* — the same kind of thing as the outline strength or the
+   * dither — and the distances it works over are already taken from whatever
+   * fog the zone asked for. See `art/haze.ts`. Zero draws the band like
+   * anything else, which is what it did before the horizon step was found.
+   */
+  vistaHaze: number;
 
   /**
    * Bloom (SHADERS-AND-MATERIALS.md §3). `strength` is how much of the blurred emitters is
@@ -257,6 +269,11 @@ export const DEFAULT_RENDER: RenderSettings = {
   // sooted, and the halftone will texture whatever gradient this produces.
   // Radius from the plan — under a metre is contact shadow, not room gloom.
   ao: { strength: 0.85, radius: 0.8 },
+
+  // Most of the way. The band is a picture of distance and the point is that it
+  // has already almost arrived at the horizon by the time the ground runs out
+  // of room to say so.
+  vistaHaze: 0.8,
 
   // Restrained, and then halved again after looking at it. Every emitter in the
   // game is a small flame or a lit window against a dim surround, and anything
@@ -444,6 +461,17 @@ export class PostFX {
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
   private air: ZoneAir | null = null;
+  /**
+   * Dev-only: the skyline the tuning panel is turning, if it has been touched.
+   *
+   * **Without this the panel's ridge controls cannot control anything**, which
+   * is how they shipped: a zone that declares its own skyline wins over the
+   * preset, so in the one room built to look at a ridge, dragging the ridge
+   * sliders did nothing and the readout said zero while the sky said otherwise.
+   * A debug control that silently does nothing is worse than no control — it
+   * answers a question wrongly. The panel takes over the moment it is touched.
+   */
+  ridgeOverride: SkyRidge | null = null;
 
   /**
    * The two halves of the look a player is allowed to turn off.
@@ -946,8 +974,10 @@ export class PostFX {
     u.uColorblindStrength.value = this.colorblindStrength;
 
     this.sky.apply(s.sky);
-    // After the preset, so the zone's own skyline wins over it. See `ZoneAir`.
-    if (this.air?.ridge) this.sky.applyRidge(this.air.ridge);
+    // The panel first if it has been touched, then the zone's own, then the
+    // preset's — which `sky.apply` has already put in. See `ridgeOverride`.
+    const ridge = this.ridgeOverride ?? this.air?.ridge;
+    if (ridge) this.sky.applyRidge(ridge);
     this.sky.mesh.visible = this.air === null || this.air.sky;
 
     // The far plane, and with it the frustum culling every prop gets for free.
@@ -978,6 +1008,10 @@ export class PostFX {
       const range = clampFog(this.air?.fogNear ?? s.fogNear, this.air?.fogFar ?? s.fogFar, far);
       fog.near = range.near;
       fog.far = range.far;
+      // The band's own extra haze, derived from the fog that was actually
+      // settled on rather than from what the zone asked for — so pulling the
+      // view distance in takes the band with it. See `art/haze.ts`.
+      setVistaHaze(range.near, range.far, this.air?.sky === false ? 0 : s.vistaHaze);
       // The clear colour is what shows where nothing was drawn. With the sky
       // dome off that is every pixel the geometry does not cover, so it has to
       // be the fog colour or an interior is a lit room floating in blue.
