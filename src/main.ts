@@ -473,6 +473,19 @@ if (dev.gui) {
   // drawn, a stair's walkway included. See `ZoneManager.showBarriers`.
   vista.add(zones, 'showBarriers').name('show invisible walls');
 
+  // Named to sort beside `sky` and `sky clouds`. The values a zone declares win
+  // over these — see `ZoneAir.ridge` — so this turns the preset's fallback,
+  // which is off.
+  const ridge = dev.gui.addFolder('sky ridge');
+  ridge.add(r.sky.ridge, 'opacity', 0, 1, 0.05).onChange(refresh);
+  ridge.add(r.sky.ridge, 'height', 0, 0.2, 0.005).onChange(refresh);
+  ridge.add(r.sky.ridge, 'scale', 0.5, 10, 0.1).name('peaks around').onChange(refresh);
+  ridge.add(r.sky.ridge, 'roughness', 0, 1, 0.05).onChange(refresh);
+  ridge.addColor(r.sky.ridge, 'tint').onChange(refresh);
+  ridge.add(r.sky.ridge, 'shade', 0, 1, 0.02).onChange(refresh);
+  ridge.add(r.sky.ridge, 'haze', 0, 0.06, 0.002).onChange(refresh);
+  ridge.add(r.sky.ridge, 'seed', 0, 200, 1).onChange(refresh);
+
   const sky = dev.gui.addFolder('sky');
   sky.addColor(r.sky, 'zenith').onChange(refresh);
   sky.addColor(r.sky, 'horizon').onChange(refresh);

@@ -1,6 +1,8 @@
 # Vista builders — spec
 
-**Not built.** This is the plan for the out-of-bounds suite: a new family of
+**Mostly built.** Steps 1–7, 9 and band 1 of 11 are in; see *Shape of the work*
+for what each turned into and *What is left* for what is not. This is the plan
+for the out-of-bounds suite: a new family of
 builders whose job is to be seen and never visited, the ground they stand on,
 the helper that places them, and the checks that keep them cheap. Names of
 individual builders below are working slugs, not decisions.
@@ -446,32 +448,74 @@ The order below applies that rule to this document: the first screenshot
 arrives at step 2, before a single vista builder is authored, because
 everything after it is tuning and tuning wants a picture.
 
-1. **The `'vista'` category and its checks, containing no art.**
+**Done, with notes where the plan changed under contact.** Each step below is
+marked; the reasoning is left as written even where the outcome differs, because
+the difference is the useful part.
+
+1. **The `'vista'` category and its checks, containing no art.** *(done, checks
+   dropped.)*
    `CATEGORY_ORDER` entry; `check:art` asserting `solid === false`, ≤ 300
    triangles, zero sway, and no name shared with `CLUTTER`. Every builder that
    follows lands pre-constrained.
-2. **`VistaShowcase` with a placeholder ring** — existing builders, scaled
-   down, placed by a throwaway loop, no new art. The five-minute blockout, and
-   it settles the outline question, the fog ceiling and the band's range while
-   they are still free to change.
-3. **The skirt** — coarse disc underneath, collar blend at the level
-   boundary, painted, merged. Screenshot: this is the piece most likely to
-   want a second pass.
-4. **`vista-hill` alone**, plus the shared mass helper it is the first user
-   of, judged in the showcase at 60, 110 and 165 m. Nothing else is authored
-   until its read is confirmed.
-5. **`vista-forest` and `vista-crag`**, once the hill has proven the recipe.
-6. **The `vistaRing` placer proper** — arcs, hand-place and scatter,
-   apparent-size helper, entry range tables, tags.
-7. **Parallax tiers** — the per-tier offset, the tier fields in the ring's
-   data, the freeze toggle.
-8. **Countryside ring** — the real placement pass, including which bearings
-   get landmarks (fiction decision, flagged for you).
+2. **`VistaShowcase` with a placeholder ring** *(done, then deleted as
+   planned.)* The blockout settled the band's range and was replaced by step 6.
+   **There is no rim in it.** A wall of hills high enough to turn the player
+   back also stands in front of everything the band exists to show, so the
+   boundary is an invisible plane and the ground stays flat right up to it.
+3. **The skirt** *(done.)* A coarse sheet running *underneath* the level, collar
+   blend at the boundary, painted, merged, one draw. It takes its colour from
+   the level's own base material, or the boundary is a value step.
+4. **`vista-hill` alone**, plus the shared mass helper. *(done.)*
+5. **`vista-forest` and `vista-crag`.** *(done.)*
+6. **The `vistaRing` placer proper.** *(done, but not polar.)* Arcs and bearings
+   assume a level shaped like a bowl. Everything is written against a signed
+   distance to an authored outline instead — see *Placement*. Entry range tables
+   and tags are in; the apparent-size helper is not.
+7. **Parallax tiers.** *(done.)* Per-tier offset in `ZoneManager.slideTiers`,
+   tier fields in the ring's data, freeze toggle in the `?debug` panel.
+8. **Countryside ring.** *(not started, and gated.)* That zone still has a
+   `rim`, which the showcase has demonstrated is the wrong shape for a place
+   with a view — it wants replacing before a band behind it is worth placing.
+   Which bearings get landmarks is still a fiction decision.
 9. **Roster back half** (`vista-hamlet`, `vista-tower`, `vista-copse`,
-   `vista-field-wall`).
-10. **`check:world` assertions** for every zone that opts in.
-11. **Band 1 rim dressing helpers** and **band 3 sky ridge** — the latter now
-    the k = 1 limit of step 7 rather than an unrelated shader feature.
+   `vista-field-wall`). *(done.)*
+10. **`check:world` assertions.** *(dropped on purpose.)* These are debug
+    worlds; the assertions cost more than they caught.
+11. **Band 1 dressing** *(done — `world/dressing.ts`)* and **band 3 sky ridge**
+    *(done — `SkyRidge` in `engine/Sky.ts`)*. The ridge really is the k = 1
+    limit of step 7: the dome is centred on the camera, so it is a tier that
+    moves exactly with you and therefore reads as infinitely far.
+
+## What is left
+
+None of it blocking, all of it deliberate.
+
+- **The `apparent: { distance, size }` helper.** The placer takes literal
+  positions and scales, so forced perspective is arithmetic done by hand at the
+  call site. Storing what a thing should *look* like and deriving the real
+  distance and scale would mean retuning a band's radii moved a composition
+  together instead of scrambling it — the discipline that keeps arrival markers
+  derived rather than written down.
+- **The editor's half of the merge.** `vistaRing` records `{ start, count, name,
+  seed }` per prop while concatenating and `vistaPropAt` binary-searches it, but
+  nothing calls either yet: no picking, and no `{ "vista": … }` entry kind. The
+  table was the part that becomes impossible to add later; reading it is not.
+- **`vista-range`**, the flat silhouette ribbon in the roster table. Step 9 did
+  not build it and band 3 covers most of what it was for.
+- **The countryside**, per step 8.
+
+## Needs an eyeball, still
+
+The list at the end of this document, less what the showcase has answered.
+Three that matter most, in the order they will bite:
+
+- **How much parallax is too much.** Two tiers now, at k = 0.5 and 0.75, and the
+  freeze toggle is the A/B.
+- **Where the legibility ceiling actually falls** — walk a mass outward and find
+  the range at which the quantizer starts contouring it.
+- **Whether the skirt's grid holds up on the horizon.** It is 11 m in the
+  showcase and was 9 m before the fog was pulled out to 240; the coarser it is,
+  the nearer its facets start to show.
 
 ## Precedents — research notes
 
