@@ -234,7 +234,22 @@ export const SKY_GLSL = /* glsl */ `
 
       float crest = uRidgeHeight * (far > 0.5 ? 0.55 : 1.0) * profile;
       float below = smoothstep(crest + uRidgeHaze, crest - uRidgeHaze, direction.y);
-      float weight = below * uRidgeOpacity * (far > 0.5 ? 0.55 : 1.0);
+
+      // **Faded out at the horizon, and this is not cosmetic.**
+      //
+      // Without it the tint runs all the way down the dome, so the sky at the
+      // horizon stops matching the fog. Fog is linked to the sky horizon
+      // colour, which is the whole reason ground at maximum fog is invisible
+      // against the sky - matching it exactly is what hides the skirt's outer
+      // edge. Tint one side and not the other and that edge becomes a line,
+      // wearing the shape of the skirt's own ragged cell boundary and moving
+      // with the camera. It reads as an aliasing bug and is a colour bug.
+      //
+      // Physically it is right as well: a distant ridge's foot is the haziest
+      // part of it, because that is where the most air is in the way.
+      float footing = smoothstep(0.0, max(uRidgeHaze * 0.75, 0.004), direction.y);
+
+      float weight = below * footing * uRidgeOpacity * (far > 0.5 ? 0.55 : 1.0);
       colour = mix(colour, mix(colour, uRidgeTint, uRidgeShade), weight);
     }
 

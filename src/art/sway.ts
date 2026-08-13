@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { ART_FINISHED_MATERIAL, ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
+import { ART_FINISHED_MATERIAL, ART_MATERIAL, ART_VISTA_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
+import { applyVistaHaze } from './haze';
 import { applyFinish, FINISH_MASK_ALL } from './finish';
 import { applyGlitch, applyGlitchDisplacement, glitchVariant } from './glitch';
 import { applyHorror, applyHorrorDisplacement } from './horror';
@@ -326,6 +327,18 @@ export function patchArtMaterial(): void {
   applyFinish(ART_FINISHED_MATERIAL, FINISH_MASK_ALL);
   applyGlitch(ART_FINISHED_MATERIAL);
   applyHorror(ART_FINISHED_MATERIAL);
+
+  // The scenery twin: the lean chain again, plus the band's early haze. Built
+  // here with the other two so no zone ever waits on a compile — the vista
+  // showcase would otherwise pay for it on entry, which is exactly the stall
+  // this whole arrangement exists to avoid. See `art/haze.ts`.
+  applySway(ART_VISTA_MATERIAL);
+  applyWear(ART_VISTA_MATERIAL);
+  applyDetail(ART_VISTA_MATERIAL);
+  applyFinish(ART_VISTA_MATERIAL, 0);
+  applyGlitch(ART_VISTA_MATERIAL);
+  applyHorror(ART_VISTA_MATERIAL);
+  applyVistaHaze(ART_VISTA_MATERIAL);
 
   // The erode variant rides in both keys: glitch compiles its `discard` out
   // where nothing is glitched, and the two programs must not be confused for

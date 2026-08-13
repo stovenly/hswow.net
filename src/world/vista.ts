@@ -225,6 +225,54 @@ export interface SkirtOptions {
   /** How far below the level the skirt runs where it is hidden underneath it. */
   sink?: number;
   /**
+   * How much the open country rolls, as a multiple of the authored waves.
+   *
+   * **Zero is a real answer and often the right one.** Ground outside the
+   * boundary that rises above the level is a low ridge, and a low ridge close
+   * to the player is the worst thing that can happen to a vista: it hides what
+   * is behind it, and it gathers the whole remaining fog gradient into the few
+   * pixels at its crest, where there is no room for a gradient at all. Three
+   * waves at up to 3.6 m each reach 7.5 m, which from an eye 1.35 m up is more
+   * than two degrees *above* eye level at 160 m — a wall, drawn in ground.
+   *
+   * Level with the walkable terrain, none of that happens: the horizon is where
+   * it should be, everything in the band stands clear of it, and the fog has
+   * the whole of the ground plane to fade across instead of one crest line.
+   */
+  roll?: number;
+  /**
+   * Radius of the world the ground pretends to sit on, in metres. Omitted, the
+   * sheet is flat.
+   *
+   * **Not a fix for the horizon step, and it was tried as one.** Bowing the
+   * ground away compresses the visible band rather than spreading it: near
+   * ground hardly moves and far ground drops a long way, so the two converge in
+   * angle. Measured over the 70–240 m fog ramp it took 0.78 degrees down to
+   * 0.19. It also brings the true horizon in to sqrt(2 R h), which at five
+   * kilometres is 116 m — close enough to hide the whole band behind the
+   * bulge. Kept because a very large radius is a real thing a level might want;
+   * do not reach for it to solve a gradient.
+   */
+  curve?: number;
+  /**
+   * Where the rolling ground gives out and the sheet goes dead flat.
+   *
+   * **This exists for the parallax tiers, and it is not cosmetic.** A tier is
+   * placed on the skirt at build time and then slides horizontally with the
+   * camera, so it ends up over ground it was never measured against — and the
+   * rolling is several metres peak to peak, so its footings lift off and you
+   * see straight under them. Flat ground cannot do that: every point out there
+   * is the same height, so a tier may slide as far as it likes and still meet
+   * it exactly.
+   *
+   * Costs nothing to look at. Everything past this distance is most of the way
+   * to the fog's end, where the ground is a value and not a shape.
+   *
+   * Metres out from the outline, tapering between the two. Omitted, the ground
+   * rolls all the way out, which is right for a level with no moving tiers.
+   */
+  flatten?: { from: number; to: number };
+  /**
    * What colour the distant land is, as sRGB hex.
    *
    * Defaults to the level's own base ground material, which is what it should
@@ -266,6 +314,9 @@ export class Skirt {
     amp: number;
   }[];
   private readonly color: (x: number, y: number, z: number) => number;
+  private readonly flatten: { from: number; to: number } | null;
+  private readonly curve: number;
+  private readonly roll: number;
   private readonly near = new THREE.Vector2();
 
   constructor(options: SkirtOptions) {
@@ -276,6 +327,9 @@ export class Skirt {
     this.collar = options.collar ?? 8;
     this.apron = options.apron ?? 24;
     this.sink = options.sink ?? 6;
+    this.flatten = options.flatten ?? null;
+    this.curve = options.curve ?? 0;
+    this.roll = options.roll ?? 1;
 
     const rng = createRng(options.seed);
     // **Long and shallow.** The skirt is flat-shaded on a nine-metre grid, so
@@ -297,13 +351,21 @@ export class Skirt {
     this.color = landWash(options.seed ^ 0x5417, country(ground), { scale: rng.range(150, 240) });
   }
 
-  /** Open country, well away from the level. */
+  /** Open country, well away from the level. Flat past `flatten`. */
   private rolling(x: number, z: number): number {
+    if (this.roll <= 0) return 0;
+    let amount = this.roll;
+    if (this.flatten) {
+      const span = Math.max(this.flatten.to - this.flatten.from, 1e-6);
+      amount = 1 - ease((this.outside(x, z) - this.flatten.from) / span);
+      if (amount <= 0) return 0;
+    }
+
     let height = 0;
     for (const wave of this.waves) {
       height += wave.amp * Math.sin((x * wave.ax + z * wave.az) / wave.length + wave.phase);
     }
-    return height;
+    return height * amount;
   }
 
   /** How far outside the level a point is. Negative inside. */
@@ -327,7 +389,9 @@ export class Skirt {
       // only the collar has to agree at all.
       return level - this.sink * ease(-distance / this.collar);
     }
-    return level + (this.rolling(x, z) - level) * ease(distance / this.apron);
+    const open = level + (this.rolling(x, z) - level) * ease(distance / this.apron);
+    // The world bending away underneath it. See `curve`.
+    return this.curve > 0 ? open - (distance * distance) / (2 * this.curve) : open;
   }
 
   /**

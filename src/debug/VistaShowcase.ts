@@ -129,13 +129,19 @@ const VIEW_Z = DOOR_Z - 1.2;
  * `fogNear` moved out too, and had to. At 30 m the haze started inside the
  * walkable ground — the far corner of an eighty-metre field is 113 m away, so a
  * third of the way to the fog's end before you have left the level at all, and
- * things you can walk up to were washing out. Seventy clears the whole of the
- * playable area and still leaves 170 m of ramp for the band to recede across.
+ * things you can walk up to were washing out. Ninety clears the whole of the
+ * playable area with room to spare and still leaves 210 m of ramp for the band
+ * to recede across.
+ *
+ * Both went out again when fog became radial. Measuring from the camera rather
+ * than from the plane in front of it makes everything off the view axis further
+ * away than it used to be — half again at the edge of the screen — so the same
+ * numbers read considerably thicker than they did. See `engine/fog.ts`.
  *
  * Far below the 450 the sky dome and the far plane allow.
  */
-const FOG_NEAR = 70;
-const FOG_FAR = 240;
+const FOG_NEAR = 90;
+const FOG_FAR = 300;
 
 /**
  * The band, in metres out from the level's edge.
@@ -158,32 +164,48 @@ const BAND = { inner: 15, outer: 82 };
  * haze in front of it thinned. Whether 60–70% is thin enough to expose the feet
  * is now something that can be looked at rather than assumed.
  *
- * **Slide budget must stay under tier separation.** The furthest the player can
- * get from the middle is the corner of the walkable square, about 57 m, so at
- * `k` = 0.5 this tier slides at most 28 m. The honest band stops at 82 and this
- * starts at 113, which leaves 31 m — clear, and the reason the honest band's
- * outer edge keeps coming in as the walkable area grows.
+ * **Slide budget must stay under tier separation, measured on the worst side.**
+ * A tier translates rigidly, so walking to one end drags the whole ring that
+ * way and the half you walked away from comes toward the level. The furthest
+ * you can get from the middle is the corner of the walkable square, about 57 m,
+ * so at `k` = 0.5 this tier slides 28 m — and the clearance it needs is that
+ * plus the *extents* of the props in front, not the gap between the bands. A
+ * `vista-forest` at 1.5 reaches 51 m past its own centre, so the honest band's
+ * props reach 133 m out from a band that stops at 82.
+ *
+ * Working it out from the props rather than the bands: a tier-0 forest at 1.2
+ * reaches 41 m past its centre from a band that stops at 82, so the honest ring
+ * reaches 123. A tier-1 hill at 1.4 reaches 28 m back toward it. 123 + 28 of
+ * that reach + 28 of slide + a margin puts the inner edge at 190.
+ *
+ * Forests are deliberately absent from this tier: at 34 m of radius they are
+ * the widest thing in the kit, and a tier's clearance is mostly other people's
+ * half-extents. Hills read as well and cost a third of the room.
+ *
+ * `vistaRing` recomputes all of this from what it actually placed and clamps
+ * `k` if it does not hold, so an authored scale cannot quietly break it.
  *
  * Whether one moving tier is one too many, and whether 0.5 reads as distance or
  * as the world sliding, is the eyeball question. The freeze toggle in the
  * `?debug` panel is how to A/B it.
  */
-const FRINGE = { k: 0.5, band: { inner: 113, outer: 137 } };
+const FRINGE = { k: 0.5, band: { inner: 190, outer: 212 } };
 
 /**
- * The second moving tier, further out again and moving more.
+ * **There is no second moving tier, and the arithmetic is why.**
  *
- * The separation rule is about *relative* motion, not absolute: two tiers swim
- * through one another when the gap between them is less than the difference in
- * how far they slide. This one is at `k` = 0.75, so against the fringe's 0.5 it
- * slides an extra quarter of the traversable radius — about 14 m — and the 18 m
- * between 137 and 155 covers it.
+ * A rigid tier needs clearance equal to its own slide plus the reach of
+ * everything in front of it, and both scale with the level. Working outward
+ * from an eighty-metre walkable field: the honest band's props reach 133 m out,
+ * so a `k` = 0.5 tier starts at 160 and its own props reach 229. A second tier
+ * would then have to start past 250 — which at this fog is 295 m from the
+ * arrival and therefore fully dissolved. It would be a layer nobody can see,
+ * moving for nobody.
  *
- * At 0.75 it moves a quarter as much as the ground does, which reads as four
- * times its own distance: 200 m posing as 800. Masses only, and only the vaguest
- * — it sits at 76–94% fog, where nothing but value survives.
+ * That is not a limit of the machinery — `vistaRing` takes any number of tiers —
+ * it is a fact about small levels. A zone with a longer walk has room for two;
+ * this one has room for one, and one that can be seen beats two that cannot.
  */
-const DISTANCE = { k: 0.75, band: { inner: 155, outer: 185 } };
 
 /** The three ranges a vista prop is judged at, north of the arrival. */
 const JUDGED = [60, 110, 165] as const;
@@ -230,6 +252,16 @@ const skirt = new Skirt({
   resolution: 11,
   collar: 8,
   apron: 24,
+  // **Level with the ground you walk on, and not by omission.** Rolling country
+  // outside the boundary reads as a low ridge, and a low ridge is exactly what
+  // this room exists to do without: it stands in front of the band, and it
+  // collects the whole fog gradient onto its crest where there is no screen
+  // space to spend it. See `SkirtOptions.roll`.
+  roll: 0,
+  // Moot while `roll` is zero, and kept because it is the constraint any zone
+  // that does roll has to respect: a moving tier slides across ground it was
+  // never measured against, and rolling ground puts daylight under its feet.
+  flatten: { from: BAND.outer, to: FRINGE.band.inner },
   seed: 7301,
 });
 
@@ -305,7 +337,10 @@ function buildRing(): THREE.Group {
     seed: 9040,
     band: BAND,
     // Index 0 is the honest band and never moves. See `FRINGE`.
-    tiers: [{ k: 0 }, { k: FRINGE.k }, { k: DISTANCE.k }],
+    tiers: [{ k: 0 }, { k: FRINGE.k }],
+    // The corner of the walkable square, which is the furthest the ring can be
+    // dragged. The placer clamps every tier's k against it.
+    travel: Math.hypot(PLAY_HALF, PLAY_HALF),
     // Measured from the arrival rather than from the origin, so the sign in
     // front of you is telling the truth.
     place: [
@@ -328,7 +363,9 @@ function buildRing(): THREE.Group {
     scatter: [
       // Woodland first and most of it — a treeline is what fills a horizon, and
       // a band of bare hills reads as wallpaper.
-      { builder: vistaForest, count: 9, scale: [0.9, 1.5], spacing: 26 },
+      // Capped at 1.2: this is the widest thing in the ring, and every metre of
+      // it is a metre the moving tier has to stand further back.
+      { builder: vistaForest, count: 9, scale: [0.9, 1.2], spacing: 26 },
       { builder: vistaHill, count: 7, scale: [0.8, 1.4], spacing: 30 },
       // Copses between the woods and the near edge, where a treeline would
       // otherwise start out of nothing.
@@ -376,38 +413,15 @@ function buildRing(): THREE.Group {
       // Masses only, and big ones. This far out the fog has taken everything but
       // value, so what is placed here has to be a suggestion of land rather than
       // a thing with a shape — and it stands on ground that has already gone.
+      // Hills only, and modestly scaled. A prop's own reach is most of what a
+      // tier's clearance has to cover — see `FRINGE`.
       {
-        builder: vistaForest,
+        builder: vistaHill,
         tier: 1,
-        count: 7,
+        count: 9,
         band: FRINGE.band,
-        scale: [1.6, 2.6],
+        scale: [1.1, 1.4],
         spacing: 30,
-      },
-      {
-        builder: vistaHill,
-        tier: 1,
-        count: 5,
-        band: FRINGE.band,
-        scale: [1.5, 2.4],
-        spacing: 34,
-      },
-      // --- the far tier ------------------------------------------------------
-      {
-        builder: vistaHill,
-        tier: 2,
-        count: 6,
-        band: DISTANCE.band,
-        scale: [2.4, 3.6],
-        spacing: 40,
-      },
-      {
-        builder: vistaForest,
-        tier: 2,
-        count: 4,
-        band: DISTANCE.band,
-        scale: [2.2, 3.2],
-        spacing: 40,
       },
     ],
   });

@@ -135,12 +135,81 @@ export interface VistaRingOptions {
    */
   chunk?: number;
   /**
+   * How far the player can get from the middle of the level, in metres.
+   *
+   * The corner of the walkable area, not its half-width. Every tier's slide is
+   * this times its `k`, so it is what decides whether a tier can be allowed to
+   * move at all — see `tiers`.
+   */
+  travel?: number;
+  /**
    * The parallax layers, index 0 first and always still.
    *
    * Two moving tiers is plenty — and whether even one is too many is an
    * eyeball question, which is what the freeze toggle is for.
    */
   tiers?: readonly VistaTier[];
+}
+
+/** Clearance kept between one tier's reach and the next tier's nearest prop. */
+const TIER_MARGIN = 6;
+
+/**
+ * The largest `k` each tier may actually use.
+ *
+ * **Pairwise and local, because the constraint is local.** A tier translates
+ * rigidly, so the half of the ring you walk away from is dragged toward the
+ * level — but what a given prop can collide with is whatever is *near it*, not
+ * whatever is furthest out anywhere. Comparing a tier's nearest prop against
+ * another tier's furthest one is a global answer to a local question, and on
+ * anything but a small square level it is wrong by a mile: a landmark placed
+ * far out due north would hold back a tier prop due south that it can never
+ * meet. On a level shaped like an L it would be hopeless.
+ *
+ * So every moving prop is checked against every prop in front of it, and the
+ * worst case is the two sliding straight at each other. Both half-extents count,
+ * because a scaled-up forest mass is most of a hundred metres of its own.
+ *
+ * Quadratic, over a few dozen props, once at build time.
+ *
+ * What this cannot see is *sightlines* — a tier prop drifting across the line
+ * between the player and a landmark reads as passing in front of it without
+ * ever touching it. That needs authored keep-out shapes; see VISTA.md.
+ */
+function safeTiers(
+  tiers: readonly VistaTier[],
+  placed: readonly VistaProp[],
+  travel: number,
+): number[] {
+  const safe = tiers.map((tier) => tier.k);
+  if (travel <= 0) return safe;
+
+  const reach = (prop: VistaProp): number => prop.builder.radius * (prop.scale ?? 1);
+
+  for (let t = 1; t < tiers.length; t++) {
+    if (safe[t] <= 0) continue;
+    let limit = safe[t];
+    for (const a of placed) {
+      if ((a.tier ?? 0) !== t) continue;
+      for (const b of placed) {
+        const s = b.tier ?? 0;
+        if (s >= t) continue;
+        const gap =
+          Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]) - reach(a) - reach(b) - TIER_MARGIN;
+        limit = Math.min(limit, safe[s] + gap / travel);
+      }
+    }
+    const capped = Math.max(0, Math.min(safe[t], limit));
+    if (capped < safe[t] - 1e-6) {
+      console.warn(
+        `vistaRing: tier ${t} asked for k=${safe[t].toFixed(2)} but only ` +
+          `k=${capped.toFixed(2)} clears what is in front of it over ` +
+          `${travel.toFixed(0)} m of travel`,
+      );
+    }
+    safe[t] = capped;
+  }
+  return safe;
 }
 
 /** One prop's triangles inside its chunk, so a raycast can name it again. */
@@ -233,6 +302,7 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
 
   const size = options.chunk ?? CHUNK;
   const tiers = options.tiers ?? [{ k: 0 }];
+  const safe = safeTiers(tiers, placed, options.travel ?? 0);
   // Bucketed by tier as well as by cell: a tier is a group that moves, so its
   // geometry cannot share a buffer with anything that stands still.
   const cells = new Map<string, VistaProp[]>();
@@ -255,7 +325,7 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
    */
   const layers = new Map<number, THREE.Object3D>();
   const layerFor = (tier: number): THREE.Object3D => {
-    if (tier === 0 || (tiers[tier]?.k ?? 0) === 0) return root;
+    if (tier === 0 || (safe[tier] ?? 0) === 0) return root;
     let group = layers.get(tier);
     if (!group) {
       group = new THREE.Group();
@@ -263,7 +333,7 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
       // Read by `ZoneManager`, which does the sliding. Translate only, and XZ
       // only: a tier that yaw-locks to the camera is a skybox, and vertical
       // slide against the horizon line is the most detectable kind there is.
-      group.userData.vistaK = tiers[tier].k;
+      group.userData.vistaK = safe[tier];
       layers.set(tier, group);
       root.add(group);
     }
