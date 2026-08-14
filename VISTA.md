@@ -181,7 +181,7 @@ Four design notes on the roster:
   ceiling reads taller because its lamps were deliberately shrunk — the scale
   lie lives in placement there too. Scale is only half of it: walking exposes
   a shrunk-and-placed-near object unless it also moves, which is what the
-  parallax tiers below are for.
+  parallax below is for.
 - **Flat silhouette ribbons are geometry, not billboards.** The billboard ban
   is about alpha-cut textures; an opaque vertical ribbon whose *outline is*
   the ridge needs none, and Overwatch's own backdrops are, in Klafke's words,
@@ -276,7 +276,7 @@ outer radius.
   colour rather than presenting a rim. If a zone's fog is ever pulled far
   enough that the edge could show, the world-check below catches it.
 
-### Parallax tiers — the other half of the lie
+### Parallax — the other half of the lie
 
 Scale alone does not sell distance, because walking exposes it. Cross 40 m of
 the countryside and a hill placed at 150 m sweeps about 15° of bearing, where a
@@ -289,39 +289,94 @@ scroll at a fraction of the camera's speed — generalised to three dimensions
 and one line of arithmetic:
 
 ```ts
-tier.position.xz = k * (camera.position.xz - zoneOrigin.xz);
+prop.position.xz = base.xz + k * (camera.position.xz - zoneOrigin.xz);
 // k = 1 - actual / apparent  →  150 m posing as 600 m is k = 0.75
 ```
 
-**Translate only, never rotate.** A tier that yaw-locks to the camera is a
-skybox, and the moment the band stops holding still under a turn it stops
-being a place. XZ only: vertical player travel is a few metres, and vertical
-slide against the horizon line is the most detectable kind there is. The cost
-is one `position.set` per tier per frame.
+**Translate only, never rotate.** A prop that yaw-locks to the camera is a
+skybox, and the moment the band stops holding still under a turn it stops being
+a place. XZ only: vertical player travel is a few metres, and vertical slide
+against the horizon line is the most detectable kind there is.
 
-What it costs in structure, which is why this is a design change and not a
-tweak:
+#### It is per object, and there are no tiers
 
-- **k applies to a whole merged group, so the ring gains a tier axis.** Props
-  at different apparent distances need different groups. Two moving tiers is
-  plenty — and the sky ridge is this same mechanism at k = 1, so one parameter
-  now describes all three bands instead of them being three unrelated ideas.
-- **Slide budget must stay under tier separation.** Maximum slide is
-  traversable radius × k; with ±32 m of countryside at k = 0.5 that is 16 m,
-  so tiers separated by less than that will visibly swim through one another.
-  A checkable inequality, not a matter of taste.
-- **A moving tier cannot stand on still ground.** Its footings would slide
-  across the skirt. Moving tiers therefore live out in the fringe where the
-  skirt has already dissolved into horizon colour and no footing can be read —
-  the same range the legibility ceiling above reserves for ribbons and
-  suggestions. **k is exactly 0** for anything standing on visible ground, and
-  for anything band 1's dressing reaches.
-- **k is per-tier data, not a constant**, and it has to be freezable — see
-  below.
+This was first built as *tiers*: parallax applied to a whole merged group, with
+props sorted into layers by apparent distance. That was wrong, and the reason it
+was wrong is worth recording because it is a general trap.
 
-To eyeball rather than trust: whether two moving tiers is one too many, and
-whether k much above 0.5 starts reading as the world sliding rather than as
-distance.
+The tier existed because **merged geometry cannot carry per-object transforms**
+— an implementation constraint, which then got written down as though it were a
+design principle, and a great deal of machinery grew to serve it: a tier axis in
+the ring's data, clearance arithmetic between tiers, rules about which tier may
+stand on legible ground, and a scheme for splitting a tier into regions so that
+a clamp at one end of a long level would not freeze the other.
+
+All of it dissolves once you notice **the parallax set is sparse**. A level has
+perhaps ten hills, a tower, and a few masses past the horizon. Fifteen objects
+is fifteen matrix updates a frame; there is no reason for them to share a
+transform, and every reason not to.
+
+With per-object `k`, the thing the tier scheme was protecting stops being a
+problem at all. Two props at different apparent distances moving differently
+against each other is not warping — **it is parallax**, and it is the depth cue.
+The bunching that made tiers painful came entirely from forcing a group to move
+as one body and then clamping it.
+
+So the rule is one sentence: **merged means still, individual means moving.**
+Nothing in the merged band parallaxes; anything that parallaxes is its own mesh.
+The cost is roughly one draw call per moving prop, which is fifteen or so, and
+the chunking they would otherwise have shared was buying weak frustum culling
+anyway (see *Placement*).
+
+#### The three boundaries
+
+Everything about placement keys off signed distance to shapes, in the same
+`PatchShape` vocabulary ground cover is painted with — a route, a rough circle,
+a surveyed rectangle. That is what makes an L or an S cost nothing extra: the
+band follows the bend because the distance field does.
+
+- **Inner** — nothing closer than this is out of bounds. Far enough that nothing
+  in the band ever reads as somewhere you could walk to.
+- **Outer** — where the band stops, at or under `fogFar × 0.9`.
+- **Keep-out** — the region a parallaxing prop may never be dragged into. For a
+  compact level this is the outline dilated by whatever the still band reaches;
+  for a bent one it is drawn by hand, because the interesting case is a shape no
+  dilation produces. A Y-shaped level wants a keep-out spanning the cup between
+  its arms, so nothing can be pulled across the inside of the bend and cut the
+  sightline down either one.
+
+#### Stopping, not sliding
+
+A prop whose parallax would carry it into the keep-out **stops, at whatever
+angle it arrived**. It does not slide along the boundary: projecting the offset
+onto the allowed region changes the prop's bearing, which is exactly the
+rearranging of the horizon that must not happen. Clamp the magnitude along the
+offset's own direction and leave the direction alone.
+
+Props already stopped become obstacles in their turn, so a prop being carried
+toward one stops short of *it* rather than continuing to the keep-out behind it.
+Resolved nearest-first, so the order is deterministic.
+
+**Parallax saturates rather than warps.** Walk far enough and a prop simply
+stops moving — which is indistinguishable from a prop that is genuinely very far
+away, and that is what it is pretending to be. An arrangement that warps has no
+such excuse.
+
+#### Authoring is `apparent`, not `k`
+
+A prop says how far away it should *read*; `k` is derived. That keeps the
+composition together when the band's radii are retuned later, the same
+discipline that keeps portal arrival markers derived rather than written down.
+
+**Placement is assumed to be in good faith.** Two props that read as equally
+distant but carry very different `apparent` values will drift against each
+other and look wrong — and that is an authoring matter for the editor, not a
+thing to guard against in code. The rest of this kit is hand-placed on the same
+assumption.
+
+To eyeball rather than trust: how much parallax is too much, and whether a prop
+stopping dead against a keep-out is legible from inside the level.
+
 
 ## Fitting the editor
 
@@ -345,9 +400,9 @@ things keep that door open, and three of them are free only if done now.
   costs only draw calls, but it means editing something other than what
   ships.)
 - **Vista entries are authored in polar, so the inspector needs a second
-  form.** Bearing, distance, apparent size and tier, not XYZ — with the
+  form.** Bearing, distance and apparent size, not XYZ — with the
   authored polar values stored and placement derived, per the helper above.
-- **Parallax needs a freeze toggle.** With tiers live, flying the camera
+- **Parallax needs a freeze toggle.** With it live, flying the camera
   slides the world under the prop being placed. Freezing is inspection state,
   session-only, exactly like the layer-preview toggles.
 
@@ -362,8 +417,8 @@ vista work is edit-close, judge-far and the judgement is the part that counts.
 | Thing | Budget |
 |---|---|
 | Draw calls, honest band (k = 0) | ≤ 6 (one per arc chunk) |
-| Draw calls, each moving tier | ≤ 4 — a fringe tier needs fewer arcs |
-| Triangles, whole band (skirt and tiers included) | ≤ 8 000 |
+| Draw calls, the moving props | one each, and there are ten-odd of them |
+| Triangles, whole band (skirt and moving props included) | ≤ 8 000 |
 | Triangles, single vista builder | ≤ 300 hard, ≤ 120 typical |
 | Collider triangles | 0 |
 | Shadow casters | 0 |
@@ -371,7 +426,7 @@ vista work is edit-close, judge-far and the judgement is the part that counts.
 
 The band is a picture. Anything that ticks, sways, glows, or collides has
 crossed back into the world and belongs to a real zone. The one motion allowed
-is a tier's parallax slide, which is not the band doing something — it is the
+is the parallax slide, which is not the band doing something — it is the
 band holding still at a distance it is only pretending to be.
 
 ## Ways to get it wrong
@@ -400,11 +455,13 @@ different bug:
    line is very much this game's look) — but the sky/outline interaction has
    burned this project before, so it is called out for the eyeball pass
    rather than assumed.
-5. **A tier slides where its feet show.** A parallax layer whose props stand
-   on legible ground, or whose slide budget exceeds the gap to the tier in
-   front, produces the one artefact nobody mistakes for anything else: the
-   world swimming. It reads as a bug in the camera, not as a mistake in
-   placement, so it will be looked for in the wrong file.
+5. **A prop slides where its feet show.** Anything parallaxing while standing
+   on ground whose detail can be read drags its own footings across it, which
+   is the one artefact nobody mistakes for anything else: the world swimming.
+   It reads as a bug in the camera rather than a mistake in placement, so it
+   will be looked for in the wrong file. Two things prevent it — moving props
+   belong out where the ground has dissolved, and the ground under them should
+   be flat, since a slide across level ground reveals nothing.
 6. **Gallery shock.** Vista builders in the art gallery will look terrible at
    arm's length — that is the correct behaviour and not a bug to fix. The
    gallery checks coverage; *judgment* happens in the showcase (below), at
@@ -420,9 +477,8 @@ Extend the existing harnesses rather than adding a new one:
 - `check:world`: for every zone with a vista ring — band outer ≤
   `fogFar × 0.9`; chunk count and draw-call count match; zero vista triangles
   in the collider; band total ≤ 8 000 triangles; the skirt within tolerance of
-  `terrain.heightAt` across the boundary collar; every tier's slide budget
-  (traversable radius × k) under its separation from the tier in front; and no
-  entry with k > 0 inside the honest band.
+  `terrain.heightAt` across the boundary collar; and no parallaxing prop whose
+  slide can carry it inside the keep-out.
 
 ## The showcase
 
@@ -471,8 +527,10 @@ the difference is the useful part.
    assume a level shaped like a bowl. Everything is written against a signed
    distance to an authored outline instead — see *Placement*. Entry range tables
    and tags are in; the apparent-size helper is not.
-7. **Parallax tiers.** *(done.)* Per-tier offset in `ZoneManager.slideTiers`,
-   tier fields in the ring's data, freeze toggle in the `?debug` panel.
+7. **Parallax.** *(built as tiers, being rebuilt per object.)* The offset and
+   the freeze toggle are in and correct; the tier axis around them is being
+   removed in favour of per-object `apparent` and the three boundaries — see
+   *Parallax* above for why the tier was a mistake rather than a simplification.
 8. **Countryside ring.** *(not started, and gated.)* That zone still has a
    `rim`, which the showcase has demonstrated is the wrong shape for a place
    with a view — it wants replacing before a band behind it is worth placing.
@@ -483,19 +541,19 @@ the difference is the useful part.
     worlds; the assertions cost more than they caught.
 11. **Band 1 dressing** *(done — `world/dressing.ts`)* and **band 3 sky ridge**
     *(done — `SkyRidge` in `engine/Sky.ts`)*. The ridge really is the k = 1
-    limit of step 7: the dome is centred on the camera, so it is a tier that
-    moves exactly with you and therefore reads as infinitely far.
+    limit of step 7: the dome is centred on the camera, so it moves exactly
+    with you and therefore reads as infinitely far.
 
 ## What is left
 
 None of it blocking, all of it deliberate.
 
-- **The `apparent: { distance, size }` helper.** The placer takes literal
-  positions and scales, so forced perspective is arithmetic done by hand at the
-  call site. Storing what a thing should *look* like and deriving the real
-  distance and scale would mean retuning a band's radii moved a composition
-  together instead of scrambling it — the discipline that keeps arrival markers
-  derived rather than written down.
+- **Per-object parallax, and the retirement of tiers.** Decided and specified
+  above, not yet built: `apparent` on a placed prop deriving its own `k`, the
+  keep-out boundary as an authored shape, stop-don't-slide clamping, and the
+  deletion of the tier axis with its clearance arithmetic and region splitting.
+  This subsumes the `apparent` helper, which was already outstanding — in the
+  sparse model it is not a convenience, it is how parallax is authored.
 - **The editor's half of the merge.** `vistaRing` records `{ start, count, name,
   seed }` per prop while concatenating and `vistaPropAt` binary-searches it, but
   nothing calls either yet: no picking, and no `{ "vista": … }` entry kind. The
@@ -509,8 +567,8 @@ None of it blocking, all of it deliberate.
 The list at the end of this document, less what the showcase has answered.
 Three that matter most, in the order they will bite:
 
-- **How much parallax is too much.** Two tiers now, at k = 0.5 and 0.75, and the
-  freeze toggle is the A/B.
+- **How much parallax is too much**, and whether a prop stopping dead against a
+  keep-out is legible from inside the level. The freeze toggle is the A/B.
 - **Where the legibility ceiling actually falls** — walk a mass outward and find
   the range at which the quantizer starts contouring it.
 - **Whether the skirt's grid holds up on the horizon.** It is 11 m in the
@@ -564,5 +622,5 @@ needs its source). Confidence noted where it matters.
   find the range at which the quantizer starts contouring it, then set the
   fringe boundary there instead of at the estimated 75 %.
 - **How much parallax is too much** — k values compared side by side while
-  walking a fixed path, watching for the point where a tier reads as sliding
+  walking a fixed path, watching for the point where a prop reads as sliding
   rather than as far away.
