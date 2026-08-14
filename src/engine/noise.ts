@@ -32,6 +32,9 @@ import { createRng } from '../art/random';
  * Nothing in here is ours to improve — the cloud look is tuned against it.
  */
 export const NOISE_GLSL = /* glsl */ `
+  #ifndef NOISE_INCLUDED
+  #define NOISE_INCLUDED
+
   float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
@@ -63,6 +66,8 @@ export const NOISE_GLSL = /* glsl */ `
     }
     return sum;
   }
+
+  #endif
 `;
 
 /** Side of the noise texture, in texels. Tileable, so a power of two. */

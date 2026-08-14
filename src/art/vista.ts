@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRng, type Rng } from './random';
 import { blend, shade } from './palette';
-import { ART_VISTA_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
+import { SWAY_ATTRIBUTE } from './assemble';
 import { VISTA_LAYER } from '../layers';
 
 /**
@@ -48,11 +48,6 @@ export function markVista<T extends THREE.Object3D>(object: T): T {
     if (!(node instanceof THREE.Mesh)) return;
     // Additive — it stays on layer 0 and draws normally. See `VISTA_LAYER`.
     node.layers.enable(VISTA_LAYER);
-    // Hazes early, so the fog gradient is spent where the ground still has
-    // screen space to spend it in — see `art/haze.ts`. Safe to assign
-    // unconditionally: nothing in the band declares a finish, so every vista
-    // mesh is on the lean material to begin with.
-    node.material = ART_VISTA_MATERIAL;
     const sway = node.geometry.getAttribute(SWAY_ATTRIBUTE);
     if (!sway) return;
     (sway.array as Float32Array).fill(0);

@@ -684,6 +684,204 @@ export function skin(
   }
 }
 
+/**
+ * A regular polygon's plan, given the apothem — middle to the flat of a face.
+ *
+ * Face `k` looks along `phase + 2πk/n`; vertices sit halfway between faces.
+ * Stated off the faces because everything about a pier is: the panels lie on
+ * them and the quoins bridge them. Points are `Cell`'s `{x, y}`, where `y` is
+ * the world's z.
+ */
+export function polygonPlan(sides: number, apothem: number, phase = 0): Cell {
+  const radius = apothem / Math.cos(Math.PI / sides);
+  const out: Cell = [];
+  for (let k = 0; k < sides; k++) {
+    const at = phase + ((2 * k - 1) * Math.PI) / sides;
+    out.push({ x: Math.cos(at) * radius, y: Math.sin(at) * radius });
+  }
+  return out;
+}
+
+/**
+ * A plan extruded straight up. Convex plans only — the caps fan from the middle.
+ *
+ * **Winding matters and nothing downstream fixes it**: normals are derived from
+ * it, so a face wound the wrong way is culled and lit inside out.
+ * `polygonPlan` runs clockwise seen from above, so the *up* fan is
+ * `(plan[j], plan[i], middle)` and the *down* fan is `(plan[i], plan[j],
+ * middle)` — the opposite of what reads naturally.
+ */
+export function upright(plan: Cell, low: number, high: number): THREE.BufferGeometry {
+  const n = plan.length;
+  const position: number[] = [];
+  const put = (p: Point, y: number): void => {
+    position.push(p.x, y, p.y);
+  };
+  const middle = centroid(plan);
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    put(plan[i], low);
+    put(plan[i], high);
+    put(plan[j], high);
+    put(plan[i], low);
+    put(plan[j], high);
+    put(plan[j], low);
+  }
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    // Up.
+    put(plan[j], high);
+    put(plan[i], high);
+    put(middle, high);
+    // Down.
+    put(plan[i], low);
+    put(plan[j], low);
+    put(middle, low);
+  }
+  return geometryOf(position);
+}
+
+export interface PolygonPierOptions {
+  /** How many faces. Three, four and five turn a wall usefully. */
+  sides: number;
+  /** How wide one face is — the same number whatever `sides` is, so a run meets any pier alike. */
+  face: number;
+  height: number;
+  /** How far into each face a corner stone reaches. */
+  quoin: number;
+  /** Stone size at the foot. */
+  stone: number;
+  point: Pointing;
+  fill: number;
+  colour: () => number;
+  /** Which way face 0 looks. Turns the whole pier. */
+  phase?: number;
+}
+
+/**
+ * A regular polygonal pier: hearting, squared quoins down every arris, rubble
+ * panels between. `quoinedPier` generalised off the square, so a wall can turn
+ * through angles a square pier cannot give it.
+ *
+ * The corner stones are the new problem. Off the square a quoin is not an
+ * axis-aligned box but a parallelogram set by the two faces it bridges, and the
+ * bite it takes along a face is `quoin / sin(2π/n)`. Both are solved rather than
+ * approximated: a quoin that misses a face lets the panels through the arris.
+ *
+ * Standing on y = 0, centred on the origin.
+ */
+export function quoinedPolygon(rng: Rng, options: PolygonPierOptions): Part[] {
+  const { sides, face, height, quoin, stone, point, fill, colour, phase = 0 } = options;
+  const parts: Part[] = [];
+
+  // Apothem from face width: a face of a regular n-gon subtends 2π/n, so half of
+  // it is `apothem · tan(π/n)`.
+  const apothem = face / (2 * Math.tan(Math.PI / sides));
+  /** Where the face stones are bedded — the hearting's own surface. */
+  const seat = apothem - SKIN;
+  const step = (2 * Math.PI) / sides;
+  /** Which way face k looks, in the world's x–z plane. */
+  const facing = (k: number): { x: number; z: number } => {
+    const at = phase + k * step;
+    return { x: Math.cos(at), z: Math.sin(at) };
+  };
+
+  parts.push({
+    geometry: upright(polygonPlan(sides, seat, phase), 0, height),
+    color: fill,
+    sway: 0,
+  });
+
+  // --- the quoins ----------------------------------------------------------
+  //
+  // One course at a time and the same heights all the way round, because that
+  // is how a pier goes up.
+  const courses: number[] = [];
+  for (let y = 0; height - y > 1e-6; ) {
+    let h = rng.range(0.24, 0.36);
+    if (height - (y + h) < 0.16) h = height - y;
+    h = Math.min(h, height - y);
+    courses.push(h);
+    y += h;
+  }
+
+  /** Where two face planes' offsets cross, in plan. */
+  const meet = (
+    n1: { x: number; z: number },
+    c1: number,
+    n2: { x: number; z: number },
+    c2: number,
+  ): Point => {
+    const det = n1.x * n2.z - n2.x * n1.z;
+    return {
+      x: (c1 * n2.z - c2 * n1.z) / det,
+      y: (n1.x * c2 - n2.x * c1) / det,
+    };
+  };
+
+  let at = 0;
+  courses.forEach((h, c) => {
+    for (let k = 0; k < sides; k++) {
+      // The arris between face k−1 and face k.
+      const a = facing(k - 1);
+      const b = facing(k);
+      // How far each of the two stands proud, swapped course by course and
+      // vertex by vertex — the step in the arris that says long-and-short work
+      // without needing stones of two lengths.
+      const long = (c + k) % 2 === 0;
+      const outA = seat + SKIN * (long ? 0.85 : 0.5);
+      const outB = seat + SKIN * (long ? 0.5 : 0.85);
+      const inA = seat - quoin;
+      const inB = seat - quoin;
+      parts.push({
+        geometry: quoinStone(
+          rng,
+          [meet(a, inA, b, inB), meet(a, outA, b, inB), meet(a, outA, b, outB), meet(a, inA, b, outB)],
+          at,
+          at + h,
+          point,
+        ),
+        color: colour(),
+        sway: 0,
+      });
+    }
+    at += h;
+  });
+
+  // --- the panels ----------------------------------------------------------
+  //
+  // The quoin eats `quoin / sin(2π/n)` along a face, not `quoin`, unless the
+  // faces meet square. And the panel sits on the *seat* polygon, which is a skin
+  // thinner than the face polygon and so has shorter faces.
+  const bite = quoin / Math.sin(step);
+  const half = seat * Math.tan(Math.PI / sides) - bite;
+  if (half > 0.02) {
+    for (let k = 0; k < sides; k++) {
+      const stones: Part[] = [];
+      skin(
+        rng,
+        patch(-half, 0, half * 2, height),
+        (y) => stone * (1 - 0.28 * (y / height)),
+        point,
+        () => seat,
+        wander(rng, rng.range(0.012, 0.02)),
+        colour,
+        stones,
+      );
+      // `skin` builds a stone looking down +Z, and `rotateY(ψ)` takes +Z to
+      // (sin ψ, 0, cos ψ). Face k looks along (cos φ, 0, sin φ), so ψ = π/2 − φ.
+      const yaw = Math.PI / 2 - (phase + k * step);
+      for (const part of stones) {
+        part.geometry.rotateY(yaw);
+        parts.push(part);
+      }
+    }
+  }
+
+  return parts;
+}
+
 export interface PierOptions {
   /** Across the pier. */
   width: number;

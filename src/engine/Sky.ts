@@ -24,11 +24,53 @@ export interface SkySettings {
   zenith: string;
   ground: string;
   /**
-   * How fast the horizon haze gives way to open sky. Below 1 the blue takes
-   * over quickly and the haze stays a thin band, which is what a real sky
-   * does; at 1 the gradient is linear and the whole dome looks washed out.
+   * How fast the horizon haze gives way to open sky.
+   *
+   * **Not as low as it looks like it should be.** This was 0.35, which put the
+   * dome a quarter of the way to zenith one degree above the horizon and nearly
+   * half by six — so the sky went deep blue in the exact band the vista sits in,
+   * and distant land fading to horizon colour had nothing to blend into. It read
+   * as a pale cut-out against a dark backdrop, which is not what a range of hills
+   * looks like from anywhere.
+   *
+   * A real sky holds its pale band for ten or fifteen degrees and deepens above
+   * that, which is what this is now. Distant geometry meets it at the horizon and
+   * separates from it gradually, rather than all at once.
    */
   curve: number;
+  /**
+   * How fast the *fog* leaves the horizon, going up.
+   *
+   * **Not `curve`, and the difference is load-bearing.** `curve` describes the
+   * dome — kilometres of atmosphere seen looking up — and it is deliberately
+   * steep. Airlight over a couple of hundred metres of near-horizontal path is
+   * horizon light and almost nothing else, so this stays well above `curve`.
+   *
+   * **The failure is when the two are equal.** Then an object's own vertical
+   * ramp is the sky's ramp, it has no value of its own left, and it reads as a
+   * window rather than as a hill. Keeping this above `curve` leaves a gap that
+   * widens with height — at 1.4 against a dome at 0.75, a hill at 250 m matches
+   * the sky at its foot and is 14 points lighter at its crown, which is exactly
+   * how a distant range sits in the air. Flat (above 2) is also safe and is what
+   * this was; it just means tall things never deepen at all.
+   */
+  airCurve: number;
+  /**
+   * The same, downward — how fast the dome leaves the horizon for `ground`.
+   *
+   * **Its own number, and it has to be.** Sharing `curve` was a bug that only
+   * showed up once there was land to compare against: at 0.35 the dome is a
+   * fifth of the way to grey half a degree below the horizon, while the land in
+   * front of it is fading to the sky's *horizon* colour, so the two disagree
+   * along the exact line the vista band exists to hide. Standing on the ground
+   * that band is a couple of pixels tall; fifty metres up, where the land's
+   * edge drops nine degrees, it is a grey wedge under the whole sky.
+   *
+   * Above 1 the horizon colour holds a long way down and `ground` is only
+   * reached looking steeply into the earth — which is what you want, because
+   * everything in that range is covered by land anyway.
+   */
+  underCurve: number;
 
   cloudColor: string;
   /** Threshold on the noise. Higher means less sky covered. */
@@ -45,63 +87,20 @@ export interface SkySettings {
   /** Whether a sun disc is drawn at all. */
   sun: boolean;
   sunColor: string;
+  /**
+   * How much the sky warms on the sun's side of the world, 0..1.
+   *
+   * Broad and low, and nothing to do with the disc's halo below — that is a
+   * couple of degrees wide and this is most of a hemisphere. It is here rather
+   * than with the fog because the fog fades to this gradient: warming one and
+   * not the other puts distant land at odds with the sky behind it every time
+   * you look west.
+   */
+  warmth: number;
   /** Angular radius of the disc, in degrees. The real one is about 0.27. */
   sunSize: number;
   /** How far the halo reaches. Larger is *tighter* — it is an exponent. */
   sunGlow: number;
-
-  /** The land on the horizon that is not geometry. See `SkyRidge`. */
-  ridge: SkyRidge;
-}
-
-/**
- * Band 3 of the vista: a ridgeline drawn in the sky's own shader — VISTA.md.
- *
- * **It is the parallax idea at its limit.** A vista tier slides with the camera
- * by a fraction `k` of its travel, and what is left over reads as distance; the
- * dome is centred on the camera, so it is a tier at `k` = 1 and reads as
- * infinitely far. That is not a metaphor — it is why this belongs in the same
- * spec as the geometry bands rather than being an unrelated shader feature, and
- * why it costs no triangles at all.
- *
- * Its job is to catch the eye past where the fog has dissolved band 2. Nothing
- * here is meant to have a readable shape: it is a value, an outline and a hint
- * of depth, and anything more would compete with the geometry in front of it.
- *
- * Two layers, always, because one is a wall and two are a landscape — the far
- * one paler and lower, the near one darker and taller, which is the cheapest
- * depth cue there is.
- */
-export interface SkyRidge {
-  /** How much of it is drawn. 0 is off, and off costs one comparison. */
-  opacity: number;
-  /**
-   * Height of the near crest above the horizon, as a fraction of the dome.
-   *
-   * Small. This is measured in the same units as `direction.y`, so 0.05 is
-   * about three degrees — which is a serious mountain range at the distance the
-   * dome implies.
-   */
-  height: number;
-  /** How many peaks go round the compass. Higher is busier and smaller. */
-  scale: number;
-  /** How ragged the profile is, 0 for rolling and 1 for broken. */
-  roughness: number;
-  /**
-   * What the ridge is tinted toward, over the sky it is standing in front of.
-   *
-   * **A tint rather than a colour**, and mixed over whatever the sky is doing
-   * at that pixel — so when the sun moves the ridge moves with it, for free.
-   * A fixed colour would be a painted skybox feature by another name, which is
-   * the thing this whole spec exists to avoid.
-   */
-  tint: string;
-  /** How far toward `tint` the sky is pulled, 0..1. */
-  shade: number;
-  /** Softness of the crest, for haze. In `direction.y` units. */
-  haze: number;
-  /** Same seed, same skyline. A zone's horizon should not change under it. */
-  seed: number;
 }
 
 /** The size the dome is authored at. `follow` scales it from the far plane. */
@@ -133,6 +132,9 @@ export const skyUniforms = {
   uZenith: { value: new THREE.Color() },
   uGround: { value: new THREE.Color() },
   uCurve: { value: 1 },
+  uUnderCurve: { value: 1.6 },
+  /** The fog's own elevation curve. Large is flat. See `SKY_GRADIENT_GLSL`. */
+  uAirCurve: { value: 1.4 },
   uCloudColor: { value: new THREE.Color() },
   uCloudCover: { value: 0.5 },
   uCloudSoftness: { value: 0.2 },
@@ -145,15 +147,90 @@ export const skyUniforms = {
   uSunSize: { value: 0.9993 },
   uSunGlow: { value: 260 },
   uSunIntensity: { value: 1 },
-  uRidgeOpacity: { value: 0 },
-  uRidgeHeight: { value: 0.05 },
-  uRidgeScale: { value: 3.2 },
-  uRidgeRough: { value: 0.55 },
-  uRidgeTint: { value: new THREE.Color() },
-  uRidgeShade: { value: 0.32 },
-  uRidgeHaze: { value: 0.012 },
-  uRidgeSeed: { value: 0 },
+  /** Broad scattered warmth on the sun's side. See `skyGradient`. */
+  uWarmth: { value: 0.3 },
 };
+
+/**
+ * Two colours of air: what the dome shows, and what the fog fades to.
+ *
+ * **They are the same function with different curves, and that difference is
+ * the whole design.** Both bands run horizon → zenith upward and horizon →
+ * ground downward, both warm on the sun's side, and both are exactly the
+ * horizon colour at `direction.y` = 0 — which is the one line the vista band
+ * cannot afford a seam on, and it is closed by construction.
+ *
+ * What differs is how fast they leave the horizon going up.
+ *
+ * `uCurve` is the **dome's** number and it is tiny (0.35), because that is what
+ * a sky looks like: the blue takes over within a few degrees. Handing that same
+ * curve to the fog was the bug that made distant geometry go transparent, and it
+ * is a category error rather than a tuning miss. The dome's gradient is eight
+ * kilometres of atmosphere seen looking *up*; the fog's colour is airlight over
+ * two hundred metres of nearly *horizontal* path, which is horizon light almost
+ * exclusively. Feed the dome's curve to the fog and a hill at 250 m has a steep
+ * blue ramp painted down it — 16 % toward zenith at its foot, 44 % at its crown
+ * — and the sky right behind it has the identical ramp, because it is the same
+ * function of the same view direction. The hill stops being a hill and becomes a
+ * window onto the gradient.
+ *
+ * `uAirCurve` is the fog's own, and it is large. Above 2 the air is horizon
+ * coloured across every elevation anything hazy occupies — flat, so nothing gets
+ * a ramp painted on it, and distant land keeps its contrast against the brighter
+ * sky above it. It still varies where it should: with bearing toward the sun,
+ * and below the horizon where the skirt has to meet the dome.
+ *
+ * Clouds are in neither. They live overhead; the air in front of a hill three
+ * hundred metres away is not cloud coloured, and anything drawn on the dome that
+ * finds its way into the air is painted *across* the geometry standing in front
+ * of it, which reads as that geometry having gone transparent.
+ *
+ * Guarded, because `art/finish.ts` pulls in the whole of `SKY_GLSL` for its
+ * environment term and the fog patch pulls in this — two includes in one
+ * program, and GLSL will not take the function twice.
+ */
+export const SKY_GRADIENT_GLSL = /* glsl */ `
+  #ifndef SKY_GRADIENT_INCLUDED
+  #define SKY_GRADIENT_INCLUDED
+
+  uniform vec3 uHorizon;
+  uniform vec3 uZenith;
+  uniform vec3 uGround;
+  uniform float uCurve;
+  uniform float uUnderCurve;
+  uniform float uAirCurve;
+  uniform vec3 uSunDirection;
+  uniform vec3 uSunColor;
+  uniform float uSunIntensity;
+  uniform float uWarmth;
+
+  /** Horizon to zenith going up, horizon to ground going down, warm toward the sun. */
+  vec3 skyBand(vec3 direction, float up, float down) {
+    float height = direction.y;
+    vec3 above = mix(uHorizon, uZenith, pow(clamp(height, 0.0, 1.0), max(up, 0.01)));
+    vec3 below = mix(uHorizon, uGround, pow(clamp(-height, 0.0, 1.0), max(down, 0.01)));
+    vec3 colour = height > 0.0 ? above : below;
+
+    // Scattered light on the sun's side of the world - broad, and nothing to do
+    // with the disc's own halo, which is a couple of degrees wide. Applied to
+    // both bands, so the dome and the air warm together and distant land does
+    // not part company with the sky behind it every time you look west.
+    float toSun = max(dot(direction, normalize(uSunDirection)), 0.0);
+    return mix(colour, uSunColor, uWarmth * uSunIntensity * pow(toSun, 5.0));
+  }
+
+  /** What the dome draws. */
+  vec3 skyGradient(vec3 direction) {
+    return skyBand(direction, uCurve, uUnderCurve);
+  }
+
+  /** What the air between you and something far away is coloured. */
+  vec3 skyAir(vec3 direction) {
+    return skyBand(direction, uAirCurve, uAirCurve);
+  }
+
+  #endif
+`;
 
 /**
  * What colour the sky is in a given direction — the dome's own shading, as a
@@ -180,10 +257,8 @@ export const skyUniforms = {
  * comment would end it mid-GLSL.)
  */
 export const SKY_GLSL = /* glsl */ `
-  uniform vec3 uHorizon;
-  uniform vec3 uZenith;
-  uniform vec3 uGround;
-  uniform float uCurve;
+  ${SKY_GRADIENT_GLSL}
+
   uniform vec3 uCloudColor;
   uniform float uCloudCover;
   uniform float uCloudSoftness;
@@ -191,70 +266,8 @@ export const SKY_GLSL = /* glsl */ `
   uniform float uCloudOpacity;
   uniform float uCloudDrift;
   uniform float uTime;
-  uniform vec3 uSunDirection;
-  uniform vec3 uSunColor;
   uniform float uSunSize;
   uniform float uSunGlow;
-  uniform float uSunIntensity;
-  uniform float uRidgeOpacity;
-  uniform float uRidgeHeight;
-  uniform float uRidgeScale;
-  uniform float uRidgeRough;
-  uniform vec3 uRidgeTint;
-  uniform float uRidgeShade;
-  uniform float uRidgeHaze;
-  uniform float uRidgeSeed;
-
-  /**
-   * The ridgeline: band 3, drawn where the dome meets the fog.
-   *
-   * Sampled on a circle through the noise field rather than against a bearing
-   * angle, which is the whole trick - atan wraps at pi and would put a seam
-   * due south that no amount of tuning removes. A circle has no ends.
-   *
-   * Two layers: a far one at half the height and half the shade, and a near one
-   * over it. Both are pulled from the sky colour at that pixel rather than from
-   * a colour of their own, so a moving sun relights them with nothing to keep
-   * in step.
-   */
-  vec3 skyRidgeOver(vec3 colour, vec3 direction) {
-    if (uRidgeOpacity <= 0.0) return colour;
-
-    vec2 compass = normalize(direction.xz + vec2(1e-5, 0.0));
-    float rough = clamp(uRidgeRough, 0.0, 1.0);
-
-    // Far layer first, then the near one over it.
-    for (int layer = 0; layer < 2; layer++) {
-      float far = layer == 0 ? 1.0 : 0.0;
-      float seed = uRidgeSeed + far * 37.0;
-      float scale = uRidgeScale * (far > 0.5 ? 0.7 : 1.0);
-      float profile = fbm(compass * scale + seed);
-      // Rolling at roughness 0, broken at 1: the same noise, contrasted.
-      profile = mix(0.5 + (profile - 0.5) * 0.45, profile, rough);
-
-      float crest = uRidgeHeight * (far > 0.5 ? 0.55 : 1.0) * profile;
-      float below = smoothstep(crest + uRidgeHaze, crest - uRidgeHaze, direction.y);
-
-      // **Faded out at the horizon, and this is not cosmetic.**
-      //
-      // Without it the tint runs all the way down the dome, so the sky at the
-      // horizon stops matching the fog. Fog is linked to the sky horizon
-      // colour, which is the whole reason ground at maximum fog is invisible
-      // against the sky - matching it exactly is what hides the skirt's outer
-      // edge. Tint one side and not the other and that edge becomes a line,
-      // wearing the shape of the skirt's own ragged cell boundary and moving
-      // with the camera. It reads as an aliasing bug and is a colour bug.
-      //
-      // Physically it is right as well: a distant ridge's foot is the haziest
-      // part of it, because that is where the most air is in the way.
-      float footing = smoothstep(0.0, max(uRidgeHaze * 0.75, 0.004), direction.y);
-
-      float weight = below * footing * uRidgeOpacity * (far > 0.5 ? 0.55 : 1.0);
-      colour = mix(colour, mix(colour, uRidgeTint, uRidgeShade), weight);
-    }
-
-    return colour;
-  }
 
   /**
    * The sky, with the sun's own brightness under the caller's control.
@@ -275,12 +288,10 @@ export const SKY_GLSL = /* glsl */ `
    */
   vec3 skyColourWithSun(vec3 direction, float sunScale) {
     float height = direction.y;
-    float curve = max(uCurve, 0.01);
     float sunPower = uSunIntensity * sunScale;
 
-    vec3 above = mix(uHorizon, uZenith, pow(clamp(height, 0.0, 1.0), curve));
-    vec3 below = mix(uHorizon, uGround, pow(clamp(-height, 0.0, 1.0), curve));
-    vec3 colour = height > 0.0 ? above : below;
+    // The band the fog also fades to, so the two cannot drift apart.
+    vec3 colour = skyGradient(direction);
 
     // The sun, drawn before the clouds so they pass in front of it.
     //
@@ -318,9 +329,7 @@ export const SKY_GLSL = /* glsl */ `
       colour = mix(colour, uCloudColor, amount);
     }
 
-    // Last, because it is land: it stands in front of the gradient, the sun and
-    // the clouds alike.
-    return skyRidgeOver(colour, direction);
+    return colour;
   }
 
   /**
@@ -369,7 +378,15 @@ export const DEFAULT_SKY: SkySettings = {
   horizon: '#cce6f9',
   zenith: '#458acf',
   ground: '#656d72',
-  curve: 0.35,
+  curve: 0.75,
+  // Well above 1, so the horizon colour holds a long way down. Everything in
+  // that range is covered by land from an eye on the ground, and from an eye
+  // above it the land's own haze is the horizon colour too — see `underCurve`.
+  underCurve: 1.8,
+  // Above `curve`, and that is the whole rule — see `airCurve`. Enough of a gap
+  // that a hill keeps its own value against the sky, close enough that the two
+  // meet at the horizon.
+  airCurve: 1.4,
 
   cloudColor: '#f2f5f8',
   cloudCover: 0.5,
@@ -380,28 +397,14 @@ export const DEFAULT_SKY: SkySettings = {
 
   sun: true,
   sunColor: '#fff6e0',
+  // Gentle. This is scattered light on one side of the world, not a second sun.
+  warmth: 0.3,
   // Several times life size. At the real 0.27° the sun is under two pixels once
   // the pixelation pass has had it, which reads as a stuck dead pixel rather
   // than as the sun.
   sunSize: 1.1,
   sunGlow: 240,
 
-  /**
-   * Off by default, and off costs one comparison a pixel.
-   *
-   * A skyline belongs to a place. The preset carries these so the debug panel
-   * has something to turn, and every zone that wants one says so itself.
-   */
-  ridge: {
-    opacity: 0,
-    height: 0.05,
-    scale: 3.2,
-    roughness: 0.55,
-    tint: '#6f7f92',
-    shade: 0.32,
-    haze: 0.012,
-    seed: 11,
-  },
 };
 
 export class Sky {
@@ -442,6 +445,8 @@ export class Sky {
     (u.uGround.value as THREE.Color).set(settings.ground);
     (u.uCloudColor.value as THREE.Color).set(settings.cloudColor);
     u.uCurve.value = settings.curve;
+    u.uUnderCurve.value = settings.underCurve;
+    u.uAirCurve.value = settings.airCurve;
     u.uCloudCover.value = settings.cloudCover;
     u.uCloudSoftness.value = settings.cloudSoftness;
     u.uCloudScale.value = settings.cloudScale;
@@ -449,33 +454,12 @@ export class Sky {
     u.uCloudDrift.value = settings.cloudDrift;
     (u.uSunColor.value as THREE.Color).set(settings.sunColor);
     u.uSunIntensity.value = settings.sun ? 1 : 0;
+    u.uWarmth.value = settings.warmth;
     // Degrees in, cosine out. The shader compares against a dot product, so
     // doing the conversion here keeps an `acos` out of the per-pixel path and
     // keeps the setting in units a person can reason about.
     u.uSunSize.value = Math.cos((settings.sunSize * Math.PI) / 180);
     u.uSunGlow.value = settings.sunGlow;
-    this.applyRidge(settings.ridge);
-  }
-
-  /**
-   * The horizon's ridgeline, separately from the rest of the sky.
-   *
-   * Its own method because the sky is a tuned *preset* and this is a fact about
-   * a *place* — the same split `ZoneAir` draws against `RenderSettings`. Two
-   * zones under one sky should not have the same skyline, and a zone must not
-   * be able to write its horizon into a preset the player has dialled in and
-   * have it saved that way.
-   */
-  applyRidge(ridge: SkyRidge): void {
-    const u = this.material.uniforms;
-    u.uRidgeOpacity.value = ridge.opacity;
-    u.uRidgeHeight.value = ridge.height;
-    u.uRidgeScale.value = ridge.scale;
-    u.uRidgeRough.value = ridge.roughness;
-    (u.uRidgeTint.value as THREE.Color).set(ridge.tint);
-    u.uRidgeShade.value = ridge.shade;
-    u.uRidgeHaze.value = ridge.haze;
-    u.uRidgeSeed.value = ridge.seed;
   }
 
   /**

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PARTICLE_LAYER, GLOW_LAYER } from '../layers';
 import { windUniforms } from './sway';
+import { applyAerialFog } from '../engine/fog';
 import { createRng } from './random';
 
 /**
@@ -457,6 +458,8 @@ export const PARTICLE_MATERIAL = new THREE.MeshLambertMaterial({
   side: THREE.DoubleSide,
 });
 PARTICLE_MATERIAL.onBeforeCompile = patchParticles;
+// Lit flakes stand in the same air as the world they fall through.
+applyAerialFog(PARTICLE_MATERIAL);
 PARTICLE_MATERIAL.customProgramCacheKey = () => 'particles-lit';
 
 /**

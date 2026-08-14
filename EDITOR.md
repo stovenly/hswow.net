@@ -363,9 +363,10 @@ checks make it a loud one. Delete, duplicate, drag along the ground plane.
 **Stage E3 — the menus for everything that isn't a prop.** The zone's whole environment
 block as a panel: fog, sun, fill, ambient, wind, room acoustics, surface, soundscape
 gains — the same knobs the dev panel already exposes for tuning, but writing into the
-document instead of evaporating. Sky properties sit here too, and grow as the sky does:
-when VISTA.md's per-zone sky-ridge parameters land, they are environment fields like any
-other. Interior shell editing as forms over the room graph — add a room, drag its
+document instead of evaporating. Sky properties sit here too, and grow as the sky does.
+Note that the *air* has grown a set of its own since this was written — VISTA.md's
+`airCurve`, `fogRamp` and `fogCeiling` are a look rather than a place, so they belong with
+the preset and not in the zone's environment block; `fogNear`/`fogFar` remain per zone. Interior shell editing as forms over the room graph — add a room, drag its
 footprint, pick a join kind. Landform handles (drag a hill's centre, scroll its radius —
 editing the list terrain.ts always said an editor would drag around). Patch and region
 shapes drawn on the ground. Run polylines with corner dragging. Scatter rules edited as
@@ -427,16 +428,57 @@ residency assertion applies to data zones unchanged. New assertions, all cheap:
    and proves the kit. The seal and leak checks apply unchanged, which is the point.
 7. **E4 rides on Phases 7/8** and is those phases' business to schedule.
 
-Vista is one more entry kind — `{ "vistaRing": { … } }` — whenever VISTA.md lands, but it
-is not quite free, and the cost falls on this document rather than that one. The band merges
-fifty props into one arc chunk, so a chunk cannot carry a single `userData.entry`: the merge
-has to record `{ start, count, entry }` triangle ranges and picking has to binary-search a
-raycast's `faceIndex` through them. That widens the tagging rule above — **a mesh carries
-either one entry or a sorted range table** — and it is worth doing properly here, because
-every merged system after this one hits the same wall. Two smaller consequences: vista
-entries are authored in polar (bearing, distance, apparent size, tier), so E1's inspector
-needs a second form beside the XYZ one, and E1's fly camera needs a freeze toggle for the
-band's parallax tiers, or moving the camera slides the world under the prop being placed.
+Vista is one more entry kind — `{ "vistaRing": { … } }` — and VISTA.md has now landed, so
+what follows is what it actually left behind rather than what it was expected to.
+
+**The expensive half is already paid.** The band merges fifty props into one chunk, so a
+chunk cannot carry a single `userData.entry` — and that is a fact about merging, not about
+vista: every merged system after this one hits the same wall, and none of them can fix it
+after the fact, because once the buffers are concatenated nothing can tell which triangle
+belonged to which prop. `vistaRing` therefore records `{ start, count, name, seed }` per
+prop while it concatenates, and `vistaPropAt` binary-searches a raycast's `faceIndex`
+through it. The tagging rule above stands widened — **a mesh carries either one entry or a
+sorted range table** — and the editor's remaining job is to add an `entry` field to that
+record and read it. That is an afternoon, and nothing about it gets harder by waiting.
+
+**The placer's options are pure data, and were built that way deliberately.** There is not
+one function type in `VistaProp`, `VistaScatter` or `VistaRingOptions` — numbers, tuples,
+named shapes, and two object references (`MeshBuilder`, `Skirt`) that a loader constructs
+from a name and a table. `scatter()`'s `avoid`/`maxSlope` predicate idiom would have made
+the ring unserialisable forever; it was kept out.
+
+Three corrections to what this document previously assumed:
+
+- **Vista entries are not polar.** They were going to be bearing/distance/apparent-size,
+  which is a form the inspector would have needed beside the XYZ one. They are not: a prop
+  is a world position, and everything else about the band — the inner and outer edges, each
+  kind's own band, the keep-out, and `apparent` — is a **distance measured out from the
+  level's outline**. One unit, one extra field, no second form. That is also what makes an
+  L-shaped or S-shaped level cost nothing: the distance field bends with the outline.
+- **There are no parallax tiers.** Parallax is per object: a prop states how far it should
+  *read* (`apparent`) and its `k` is derived. Merged means still, individual means moving,
+  so a moving prop is its own mesh and carries an ordinary single entry — the range table
+  is only ever needed for the still band. E1's fly camera still wants the freeze toggle
+  (`ZoneManager.freezeVista`, already built and already in the dev panel), or moving the
+  camera slides the world under the prop being placed.
+- **There is no sky ridge.** Band 3 was built as a shader feature in the dome and then
+  removed; a skyline, if one is wanted, will be low-poly geometry like everything else. No
+  environment fields, no inspector form.
+
+Two things E3's shape tools acquire as consumers rather than as new work: the **level
+outline** and the **parallax keep-out** are both `PatchShape[]`, the same vocabulary ground
+materials and cover are already painted in, so "patch and region shapes drawn on the
+ground" covers all four. The keep-out is worth calling out because it is the one shape a
+human genuinely has to draw — for a compact level it is the outline dilated by whatever
+the still band reaches and `dilateOutline` does it, but the interesting case is a shape no
+dilation produces, like the cup between the arms of a Y-shaped level.
+
+Finally, an authoring rule rather than a feature: **vista placement is assumed to be in
+good faith, and there is no guard.** Two props that read as equally distant but carry very
+different `apparent` values will drift against each other and look wrong. That is a thing
+for the editor to make *visible* — showing `apparent` on selection, or drawing the
+keep-out while a vista entry is selected — and deliberately not a thing for the placer to
+police.
 
 Readables (READABLES.md) cost this document less, and something different: not a change to
 how entries are tagged, but a **second document type to edit**. A note lives in

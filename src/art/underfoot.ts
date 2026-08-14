@@ -48,7 +48,7 @@ import type { SurfaceName } from '../audio/models/footsteps';
  */
 export const MATERIALS: Record<string, SurfaceName | null> = {
   // --- stone ---------------------------------------------------------------
-  archway: 'stone',
+  'stone-wall-archway': 'stone',
   cairn: 'stone',
   cistern: 'stone',
   'platinum-column': 'stone',
@@ -74,10 +74,23 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   fireplace: 'stone',
   hut: 'stone',
   rock: 'stone',
+  // The boundary stone. Every one of these is something you can get on top of,
+  // which is the test — `scree` is the exception and is below with the things
+  // that are not walked on at all.
+  boulder: 'stone',
+  outcrop: 'stone',
+  crag: 'stone',
+  'rock-shelf': 'stone',
+  'standing-stone': 'stone',
+  'stone-wall-ruin': 'stone',
   'stone-wall': 'stone',
   'stone-wall-low': 'stone',
-  'stone-wall-column': 'stone',
-  'stone-wall-column-low': 'stone',
+  'stone-wall-triangle-column': 'stone',
+  'stone-wall-triangle-column-low': 'stone',
+  'stone-wall-square-column': 'stone',
+  'stone-wall-square-column-low': 'stone',
+  'stone-wall-pentagon-column': 'stone',
+  'stone-wall-pentagon-column-low': 'stone',
 
   // --- timber --------------------------------------------------------------
   barrel: 'wood',
@@ -90,6 +103,14 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   crate: 'wood',
   dresser: 'wood',
   'fallen-log': 'wood',
+  deadfall: 'wood',
+  snag: 'wood',
+  'log-pile': 'wood',
+  'crate-stack': 'wood',
+  'barrel-stack': 'wood',
+  cart: 'wood',
+  plough: 'wood',
+  well: 'wood',
   fence: 'wood',
   'fence-post': 'wood',
   'hut-door': 'wood',
@@ -142,6 +163,21 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   // thing here that cannot be a fixed entry. It passes its answer to `finish`.
   trough: null,
 
+  // --- straw ---------------------------------------------------------------
+  //
+  // `grass` is the nearest thing the surface table has to trodden dry stalks,
+  // and it is the right answer rather than a near miss: what you hear standing
+  // on a bale is the same rustle, with the same lack of anything solid under it.
+  'hay-bale': 'grass',
+  'hay-bale-stack': 'grass',
+  'hay-rick': 'grass',
+  // Straw again, and a sack of grain is soft the same way. Nothing you would
+  // choose to stand on, and everything a yard is stacked with.
+  sack: 'grass',
+  // Muck. `soil` rather than `mud` — a heap left to rot is packed and dry on
+  // top, and mud is what the yard around it turns into.
+  'dung-heap': 'soil',
+
   // --- nothing you stand on ------------------------------------------------
   //
   // The ground underneath answers for all of these. Animals, plants, cloth,
@@ -154,6 +190,22 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   'silk-drape': null,
   'velvet-drape': null,
   bluebell: null,
+  // The soft boundary, and the rubble. A hedge and a thicket stop you and are
+  // not things you stand *on*; scree and a root tangle are not in the collider
+  // at all, so the ground under them answers.
+  hedge: null,
+  thicket: null,
+  scree: null,
+  'root-tangle': null,
+  // A stick in a field. Not in the collider, so the ground answers.
+  scarecrow: null,
+  // Loose straw you wade into, and two tools that are leaning somewhere. None
+  // of them is in the collider either.
+  'straw-pile': null,
+  pitchfork: null,
+  rake: null,
+  // Small enough to be beside your boot rather than under it.
+  pail: null,
   'board-book': null,
   bovine: null,
   bramble: null,

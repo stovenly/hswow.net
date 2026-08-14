@@ -116,6 +116,20 @@ export interface StoneWallOptions extends BuildOptions {
   run?: number;
 }
 
+/**
+ * A wall does not bend.
+ *
+ * There was an `angle` here that built the piece flat and then warped it round an
+ * arc, so that one builder could produce both straight runs and curved ones. It
+ * is gone, and the reason is worth keeping: **a bend cannot make a corner.** One
+ * continuous map applied to the whole solid treats the inside of the turn and the
+ * outside of it identically, so the inner face ends up outside the run it belongs
+ * inside — and spread over a single section, thirty degrees of arc reads as a
+ * straight piece somebody leaned on rather than as a change of direction.
+ *
+ * A corner is two straight legs meeting at a vertex with a quoin in the angle,
+ * and it is `stone-wall-corner`.
+ */
 export function buildWall(
   name: string,
   made: Build,

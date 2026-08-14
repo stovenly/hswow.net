@@ -15,6 +15,7 @@ import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
 import { COLLISION_LAYER, PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
+import { VistaParallax } from './vista-parallax';
 import { Building } from '../ui/Building';
 import type { Controller } from '../player/Controller';
 import type { PostFX } from '../engine/PostFX';
@@ -226,16 +227,16 @@ export class ZoneManager {
    * `cullClutter`.
    */
   private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
-  /** Parallax layers per zone, collected on prepare. See `slideTiers`. */
-  private readonly tiers = new Map<ZoneId, THREE.Object3D[]>();
+  /** Parallax controllers per zone, collected on prepare. See `slideVista`. */
+  private readonly parallax = new Map<ZoneId, VistaParallax[]>();
   /** Collision geometry that is never drawn, per zone. See `showBarriers`. */
   private readonly barriers = new Map<ZoneId, THREE.Mesh[]>();
   private barriersShown = false;
   /**
-   * Holds every vista tier where it stands.
+   * Holds every moving vista prop where it was placed.
    *
    * Inspection state, session-only, exactly like the layer-preview toggles:
-   * with tiers live, flying or walking slides the world under the prop being
+   * with parallax live, flying or walking slides the world under the prop being
    * looked at, and there is no way to tell a placement that is wrong from a
    * placement that is merely moving.
    */
@@ -542,7 +543,7 @@ export class ZoneManager {
       // The meshes are about to be freed; holding them here would be a leak
       // shaped exactly like the one eviction exists to prevent.
       this.clutter.delete(zone.id);
-      this.tiers.delete(zone.id);
+      this.parallax.delete(zone.id);
       this.barriers.delete(zone.id);
       this.particled.delete(zone.id);
       this.activity.release(zone.id);
@@ -705,8 +706,6 @@ export class ZoneManager {
       fogColor: env.fogColor,
       fogNear: env.fogNear,
       fogFar: env.fogFar,
-      // The horizon this place has, if it has one. See `ZoneEnvironment`.
-      ridge: env.skyRidge,
       // Off the definition rather than the environment, because a volume has
       // coordinates and an environment is shared between zones. See
       // `ZoneDefinition.fogVolumes`.
@@ -887,7 +886,7 @@ export class ZoneManager {
     //   and occlusion already grounds them; see `art/clutter.ts`.
     const grounds: THREE.Mesh[] = [];
     const clutter: THREE.Mesh[] = [];
-    const layers: THREE.Object3D[] = [];
+    const parallax: VistaParallax[] = [];
     const barriers: THREE.Mesh[] = [];
     let particles = false;
     let points = 0;
@@ -905,9 +904,11 @@ export class ZoneManager {
         if (object instanceof THREE.PointLight) points++;
         if (object instanceof THREE.SpotLight) spots++;
       }
-      // A parallax layer, which is a group rather than a mesh — so this has to
-      // be asked before the mesh guard below. See `slideTiers`.
-      if (typeof object.userData.vistaK === 'number') layers.push(object);
+      // The vista's parallax, which rides a group rather than a mesh — so this
+      // has to be asked before the mesh guard below. See `slideVista`.
+      if (object.userData.vistaParallax instanceof VistaParallax) {
+        parallax.push(object.userData.vistaParallax);
+      }
       if (!(object instanceof THREE.Mesh)) return;
       // Collidable and never drawn — see `showBarriers`. Caught before the
       // shadow decision below because a revealed barrier must not start casting
@@ -977,15 +978,14 @@ export class ZoneManager {
     freezeMatrices(root);
 
     this.clutter.set(zone.id, clutter);
-    // Kept even when empty, so `slideTiers` can tell "no tiers here" from "not
-    // prepared yet" without asking the scene graph again.
+    // Kept even when empty, so `slideVista` can tell "nothing moves here" from
+    // "not prepared yet" without asking the scene graph again.
     //
-    // Auto-update goes back **on**, after `freezeMatrices` has just turned it
-    // off across the whole zone. Same exception the flames take, for the same
-    // stated reason: whatever moves a thing is what knows it moves, and a tier
-    // with a frozen matrix would take its `position` and draw where it was.
-    for (const layer of layers) layer.matrixAutoUpdate = true;
-    this.tiers.set(zone.id, layers);
+    // `thaw` puts auto-update back **on** for the moving props, after
+    // `freezeMatrices` has just turned it off across the whole zone — see
+    // `VistaParallax.thaw`.
+    for (const controller of parallax) controller.thaw();
+    this.parallax.set(zone.id, parallax);
     this.barriers.set(zone.id, barriers);
     if (particles) this.particled.add(zone.id);
     this.activity.collect(zone.id, root);
@@ -1071,32 +1071,24 @@ export class ZoneManager {
   }
 
   /**
-   * Slides the vista's parallax layers under the camera.
+   * Slides the vista's moving props under the camera.
    *
-   * `position = k × camera`, and nothing else — **translate only, never
-   * rotate.** A tier that yaw-locks to the camera is a skybox, and the moment
-   * the band stops holding still under a turn it stops being a place. XZ only
-   * as well: vertical travel is a few metres and vertical slide against the
-   * horizon line is the most detectable kind there is.
+   * All the arithmetic — how far each one goes, and what stops it — lives in
+   * `VistaParallax`. This hands it the camera and nothing else.
    *
-   * Zones are authored about their own origin, so the camera's position *is*
-   * its offset from that origin and there is nothing to subtract.
-   *
-   * Costs one `position.set` per tier per frame, and there are at most two.
+   * **Frozen means as authored, not as you left it.** Holding a prop at
+   * whatever offset it had when the switch was thrown freezes a lie: the
+   * placement you would then be judging is the slide, not the thing that was
+   * placed. The origin puts every prop back where the ring built it, which is
+   * the state worth inspecting and the state the still band is already in.
    */
-  private slideTiers(): void {
-    const list = this.active ? this.tiers.get(this.active.id) : undefined;
+  private slideVista(): void {
+    const list = this.active ? this.parallax.get(this.active.id) : undefined;
     if (!list || list.length === 0) return;
     const eye = this.options.player.camera.position;
-    for (const group of list) {
-      // **Frozen means as authored, not as you left it.** Holding a tier at
-      // whatever offset it had when the switch was thrown freezes a lie — the
-      // placement you would then be judging is the slide, not the thing that
-      // was placed. Zero puts every tier back where the ring built it, which is
-      // the state worth inspecting and the state the still band is already in.
-      const k = this.freezeVista ? 0 : (group.userData.vistaK as number);
-      group.position.set(eye.x * k, 0, eye.z * k);
-    }
+    const x = this.freezeVista ? 0 : eye.x;
+    const z = this.freezeVista ? 0 : eye.z;
+    for (const controller of list) controller.update(x, z);
   }
 
   /**
@@ -1112,7 +1104,7 @@ export class ZoneManager {
     // its grass sorted out before it is first drawn rather than after, and a
     // hearth wants its light at the level it will be at rather than at rest.
     this.cullClutter();
-    this.slideTiers();
+    this.slideVista();
     this.activity.update(this.active?.id ?? null, elapsed, player.camera.position);
 
     if (this.transitioning) {

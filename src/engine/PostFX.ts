@@ -19,8 +19,8 @@ import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
 import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
-import { Sky, DEFAULT_SKY, type SkySettings, type SkyRidge } from './Sky';
-import { setVistaHaze } from '../art/haze';
+import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
+import { fogUniforms } from './fog';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
@@ -130,17 +130,6 @@ export interface RenderSettings {
   ao: { strength: number; radius: number };
 
   /**
-   * How hard out-of-bounds scenery hazes, over and above the zone's fog.
-   *
-   * In the preset rather than on the zone because it is a property of *how the
-   * band is drawn* — the same kind of thing as the outline strength or the
-   * dither — and the distances it works over are already taken from whatever
-   * fog the zone asked for. See `art/haze.ts`. Zero draws the band like
-   * anything else, which is what it did before the horizon step was found.
-   */
-  vistaHaze: number;
-
-  /**
    * Bloom (SHADERS-AND-MATERIALS.md §3). `strength` is how much of the blurred emitters is
    * added back; `radius` is the spread, as a multiple of the blur chain's
    * own texel offsets.
@@ -220,6 +209,21 @@ export interface RenderSettings {
   fogColor: string;
   fogNear: number;
   fogFar: number;
+  /**
+   * Metres of altitude the haze thins by `1/e` over. See `engine/fog.ts`.
+   *
+   * A look rather than a fact about a place, which is why it sits with the
+   * dither and the outline strength instead of on the zone: it decides how much
+   * of the distance cue is carried by height rather than by range, and that is
+   * the same decision in every room.
+   */
+  fogHeight: number;
+  /** How much of the sky's gradient the air takes, against the flat colour. */
+  fogSky: number;
+  /** How late the haze arrives across the fog's range. See `engine/fog.ts`. */
+  fogRamp: number;
+  /** The most of a thing the air may hide, above the horizon. */
+  fogCeiling: number;
 }
 
 // Dialled in by hand against the world. The whole block is a look, not a set
@@ -270,11 +274,6 @@ export const DEFAULT_RENDER: RenderSettings = {
   // Radius from the plan — under a metre is contact shadow, not room gloom.
   ao: { strength: 0.85, radius: 0.8 },
 
-  // Most of the way. The band is a picture of distance and the point is that it
-  // has already almost arrived at the horizon by the time the ground runs out
-  // of room to say so.
-  vistaHaze: 0.8,
-
   // Restrained, and then halved again after looking at it. Every emitter in the
   // game is a small flame or a lit window against a dim surround, and anything
   // near 1 puts a halo across half a hut — which reads as a bug in the lamp
@@ -314,6 +313,20 @@ export const DEFAULT_RENDER: RenderSettings = {
   fogColor: '#bcd4e6',
   fogNear: 25,
   fogFar: 140,
+
+  // Gentle enough that nothing dissolves across its own height, low enough that
+  // altitude still thins the air. See `fogUniforms.uFogHeight` for the numbers
+  // that pinned it.
+  fogHeight: 600,
+  // All of it. The air's *elevation* response is what had to be tamed, not its
+  // colour — see `SkySettings.airCurve`.
+  fogSky: 1,
+  // Later than a plain ramp. At 1 the band is half hazed at half its depth,
+  // which washes everything out well before it is far away.
+  fogRamp: 1.5,
+  // A distant hill keeps a seventh of itself. Below the horizon the air still
+  // takes everything, or the skirt's edge becomes a rim.
+  fogCeiling: 0.85,
 };
 
 const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
@@ -397,15 +410,6 @@ const COVER_TIERS: Record<CoverDensity, number> = {
 export interface ZoneAir {
   /** Whether the sky dome is drawn at all. Off indoors. */
   sky: boolean;
-  /**
-   * The skyline this place has, if any — band 3 of the vista (VISTA.md).
-   *
-   * Here rather than in `RenderSettings` for this interface's whole reason: a
-   * ridgeline is a fact about *where you are*, and two zones under one tuned
-   * sky should not share a horizon. Absent falls back to the preset's, which
-   * is off.
-   */
-  ridge?: SkyRidge;
   fogColor: string;
   fogNear: number;
   fogFar: number;
@@ -461,17 +465,6 @@ export class PostFX {
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
   private air: ZoneAir | null = null;
-  /**
-   * Dev-only: the skyline the tuning panel is turning, if it has been touched.
-   *
-   * **Without this the panel's ridge controls cannot control anything**, which
-   * is how they shipped: a zone that declares its own skyline wins over the
-   * preset, so in the one room built to look at a ridge, dragging the ridge
-   * sliders did nothing and the readout said zero while the sky said otherwise.
-   * A debug control that silently does nothing is worse than no control — it
-   * answers a question wrongly. The panel takes over the moment it is touched.
-   */
-  ridgeOverride: SkyRidge | null = null;
 
   /**
    * The two halves of the look a player is allowed to turn off.
@@ -974,10 +967,6 @@ export class PostFX {
     u.uColorblindStrength.value = this.colorblindStrength;
 
     this.sky.apply(s.sky);
-    // The panel first if it has been touched, then the zone's own, then the
-    // preset's — which `sky.apply` has already put in. See `ridgeOverride`.
-    const ridge = this.ridgeOverride ?? this.air?.ridge;
-    if (ridge) this.sky.applyRidge(ridge);
     this.sky.mesh.visible = this.air === null || this.air.sky;
 
     // The far plane, and with it the frustum culling every prop gets for free.
@@ -1008,10 +997,16 @@ export class PostFX {
       const range = clampFog(this.air?.fogNear ?? s.fogNear, this.air?.fogFar ?? s.fogFar, far);
       fog.near = range.near;
       fog.far = range.far;
-      // The band's own extra haze, derived from the fog that was actually
-      // settled on rather than from what the zone asked for — so pulling the
-      // view distance in takes the band with it. See `art/haze.ts`.
-      setVistaHaze(range.near, range.far, this.air?.sky === false ? 0 : s.vistaHaze);
+      // Indoors there is no sky to take a colour from and no sun to warm one
+      // side of the room, so the air falls back to the flat `fogColor` — which
+      // is what an interior's fog has always been. See `engine/fog.ts`.
+      const outdoors = this.air === null || this.air.sky;
+      fogUniforms.uFogHeight.value = s.fogHeight;
+      fogUniforms.uFogSky.value = outdoors ? s.fogSky : 0;
+      fogUniforms.uFogRamp.value = s.fogRamp;
+      // Indoors the fog is the darkness at the end of a room and is meant to
+      // take everything; the ceiling is a fact about outdoor air.
+      fogUniforms.uFogCeiling.value = outdoors ? s.fogCeiling : 1;
       // The clear colour is what shows where nothing was drawn. With the sky
       // dome off that is every pixel the geometry does not cover, so it has to
       // be the fog colour or an interior is a lit room floating in blue.

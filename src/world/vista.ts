@@ -11,6 +11,8 @@ import { vistaCopse } from '../art/builders/vista-copse';
 import { vistaHamlet } from '../art/builders/vista-hamlet';
 import { vistaTower } from '../art/builders/vista-tower';
 import { vistaFieldWall } from '../art/builders/vista-field-wall';
+import { vistaCastle } from '../art/builders/vista-castle';
+import { vistaRange } from '../art/builders/vista-range';
 import { GROUND, outlineDistance, shapeDistance, type PatchShape } from './ground';
 import type { Terrain } from './terrain';
 
@@ -30,6 +32,8 @@ export const VISTA_BUILDERS: readonly MeshBuilder[] = [
   vistaHamlet,
   vistaTower,
   vistaFieldWall,
+  vistaCastle,
+  vistaRange,
 ];
 
 // ---------------------------------------------------------------------------
@@ -165,6 +169,52 @@ export function outlineBounds(
   return { min, max };
 }
 
+/**
+ * The same region, grown outward by `by` metres.
+ *
+ * What a compact level's parallax keep-out is: the outline dilated by whatever
+ * the still band reaches, so nothing that moves can be dragged in among things
+ * that do not. A bent level wants its keep-out drawn by hand instead — the
+ * interesting case is a shape no dilation produces, like the cup between the
+ * arms of a Y — which is why this is a helper and not what the ring does for
+ * you.
+ *
+ * Exact for all three shapes, and each stays in the same vocabulary:
+ *
+ * - A disc grows its radius.
+ * - A route grows its width, by twice — the width is measured across.
+ * - A rectangle becomes itself plus a rounded band traced round its perimeter.
+ *   The union is the dilated rectangle exactly; the band alone would leave the
+ *   middle uncovered on anything wider than `by`.
+ */
+export function dilateOutline(outline: readonly Outline[], by: number): Outline[] {
+  const grown: Outline[] = [];
+  for (const shape of outline) {
+    switch (shape.kind) {
+      case 'blot':
+        grown.push({ ...shape, radius: shape.radius + by });
+        break;
+      case 'path':
+        grown.push({ ...shape, width: shape.width + by * 2 });
+        break;
+      case 'field':
+        grown.push(shape, {
+          kind: 'path',
+          through: [
+            [shape.min[0], shape.min[1]],
+            [shape.max[0], shape.min[1]],
+            [shape.max[0], shape.max[1]],
+            [shape.min[0], shape.max[1]],
+            [shape.min[0], shape.min[1]],
+          ],
+          width: by * 2,
+        });
+        break;
+    }
+  }
+  return grown;
+}
+
 /** The whole of a square terrain, as an outline. The default for a test level. */
 export function terrainOutline(terrain: Terrain): Outline[] {
   const half = terrain.size / 2;
@@ -257,19 +307,19 @@ export interface SkirtOptions {
   /**
    * Where the rolling ground gives out and the sheet goes dead flat.
    *
-   * **This exists for the parallax tiers, and it is not cosmetic.** A tier is
-   * placed on the skirt at build time and then slides horizontally with the
+   * **This exists for the parallax props, and it is not cosmetic.** A prop is
+   * dropped onto the skirt at build time and then slides horizontally with the
    * camera, so it ends up over ground it was never measured against — and the
    * rolling is several metres peak to peak, so its footings lift off and you
    * see straight under them. Flat ground cannot do that: every point out there
-   * is the same height, so a tier may slide as far as it likes and still meet
+   * is the same height, so a prop may slide as far as it likes and still meet
    * it exactly.
    *
    * Costs nothing to look at. Everything past this distance is most of the way
    * to the fog's end, where the ground is a value and not a shape.
    *
    * Metres out from the outline, tapering between the two. Omitted, the ground
-   * rolls all the way out, which is right for a level with no moving tiers.
+   * rolls all the way out, which is right for a level with nothing moving.
    */
   flatten?: { from: number; to: number };
   /**

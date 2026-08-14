@@ -14,8 +14,14 @@ import {
   factoryExteriorGalleryPlan,
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
+  farmGalleryPlan,
+  stoneWallGalleryPlan,
 } from './galleries/structures';
-import { foliageGalleryPlan } from './galleries/foliage';
+import {
+  treeGalleryPlan,
+  groundcoverGalleryPlan,
+  forestMiscGalleryPlan,
+} from './galleries/forest';
 import { animalGalleryPlan } from './galleries/animal';
 import { textShowcaseGalleryPlan } from './galleries/text';
 import { darkRoomPlan } from './galleries/dark';
@@ -81,7 +87,15 @@ const DOOR_PROUD = 0.07;
  * works corridor writ large, the countryside one a long timber room.
  */
 const INDUSTRIAL = { width: 9, depth: 30, height: 4.5 };
-const COUNTRYSIDE = { width: 8, depth: 30, height: 3.2 };
+/**
+ * Longer than the industrial hall, because the countryside kit is further on.
+ *
+ * Eight categories now — the two village rooms, the animals, three of the wood,
+ * the farm and the stone wall — and thirty metres does not hold eight doors at a
+ * spacing that keeps their arrival sweeps apart. Wall is cheap and the header
+ * above says so; this is what "sized so the wall can take several more" was for.
+ */
+const COUNTRYSIDE = { width: 8, depth: 46, height: 3.2 };
 
 /**
  * The general hall is not a hall at all — it is a gallery-style room: a flat
@@ -95,14 +109,42 @@ const GENERAL_FLOOR = 120;
 const GENERAL_DOOR_Z = 16;
 
 /**
- * Where gallery doors stand along the east wall, entrance end first.
+ * Where gallery doors stand along a hall's east wall.
  *
- * Six metres apart, which clears two arrival markers and their walk-off sweeps
- * with room to spare. The countryside hall uses all four today; the next
- * category is a fifth entry here, and the halls were sized so the wall can
- * take several more before anything has to move.
+ * **Derived from the hall rather than listed**, which it was — a fixed array of
+ * six positions shared by both halls. That broke the moment the countryside
+ * needed eight: the array had to grow past the industrial hall's own end walls,
+ * so one hall's growth would have put the other hall's doors outside it.
+ *
+ * Five metres apart, which is the showcase rank's spacing and holds for the same
+ * reason: the argument for wider centres is that two doors closer than their own
+ * arrival sweeps read as one door with a spare, which is true of doors facing
+ * *each other* and false of these. Every door in a hall faces −X, so the
+ * walk-offs run parallel and never meet. A frame is about a metre and a half,
+ * which leaves three and a half metres of clear floor between neighbours.
+ *
+ * Centred in the room, so a hall with two doors in it does not have them both
+ * huddled at one end, and a hall that grows keeps its rank in the middle of its
+ * own wall instead of drifting toward the back.
  */
-const DOOR_SLOTS = [-9, -3, 3, 9] as const;
+const DOOR_PITCH = 5;
+
+/** How many doors each hall's rank is laid out for. */
+const INDUSTRIAL_DOORS = 2;
+const COUNTRYSIDE_DOORS = 8;
+
+function doorSlot(shell: { depth: number }, slot: number, of: number): number {
+  const span = (of - 1) * DOOR_PITCH;
+  const at = -span / 2 + slot * DOOR_PITCH;
+  // A door needs its own frame's width clear of the end wall. If this ever
+  // trips, the hall is too short for what is hanging off it — lengthen it
+  // rather than crowding the rank.
+  const room = shell.depth / 2 - 2;
+  if (Math.abs(at) > room) {
+    throw new Error(`door ${slot + 1} of ${of} needs a hall deeper than ${shell.depth} m`);
+  }
+  return at;
+}
 
 /**
  * Where the showcase doors stand on the general hall's grid, west to east.
@@ -248,14 +290,15 @@ export function propZones(): ZoneDefinition[] {
 /** A gallery door in a hall's east wall, facing into the room. */
 function wallDoor(
   zone: string,
-  shell: { width: number },
+  shell: { width: number; depth: number },
   slot: number,
+  of: number,
   material: 'timber' | 'iron',
   seed: number,
 ): PortalEnd {
   return {
     zone,
-    position: new THREE.Vector3(shell.width / 2 - DOOR_PROUD, 0, DOOR_SLOTS[slot]),
+    position: new THREE.Vector3(shell.width / 2 - DOOR_PROUD, 0, doorSlot(shell, slot, of)),
     // Faces -X, into the hall, so the arrival stands in open floor looking
     // across it rather than into the wall the door is set in.
     yaw: -Math.PI / 2,
@@ -321,22 +364,49 @@ export function propPortals(
     // one subzone stand together and the odd ones out come last.
     galleryPortal(
       factoryInteriorGalleryPlan,
-      wallDoor(ZONE_INDUSTRIAL_PROPS, INDUSTRIAL, 0, 'iron', 6411),
+      wallDoor(ZONE_INDUSTRIAL_PROPS, INDUSTRIAL, 0, INDUSTRIAL_DOORS, 'iron', 6411),
     ),
     galleryPortal(
       factoryExteriorGalleryPlan,
-      wallDoor(ZONE_INDUSTRIAL_PROPS, INDUSTRIAL, 1, 'iron', 6412),
+      wallDoor(ZONE_INDUSTRIAL_PROPS, INDUSTRIAL, 1, INDUSTRIAL_DOORS, 'iron', 6412),
     ),
+    // The countryside rank, read walking in: the village first, then the life
+    // in it, then the wood around it, then the ground it works.
     galleryPortal(
       villageInteriorGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 0, 'timber', 6421),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 0, COUNTRYSIDE_DOORS, 'timber', 6421),
     ),
     galleryPortal(
       villageExteriorGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 1, 'timber', 6422),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 1, COUNTRYSIDE_DOORS, 'timber', 6422),
     ),
-    galleryPortal(animalGalleryPlan, wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 2, 'timber', 6423)),
-    galleryPortal(foliageGalleryPlan, wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 3, 'timber', 6424)),
+    galleryPortal(
+      animalGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 2, COUNTRYSIDE_DOORS, 'timber', 6423),
+    ),
+    // The wood, in the order it is read standing in one: canopy, then what
+    // grows under it, then what is lying on the floor between them.
+    galleryPortal(
+      treeGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 3, COUNTRYSIDE_DOORS, 'timber', 6424),
+    ),
+    galleryPortal(
+      groundcoverGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 4, COUNTRYSIDE_DOORS, 'timber', 6425),
+    ),
+    galleryPortal(
+      forestMiscGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 5, COUNTRYSIDE_DOORS, 'timber', 6426),
+    ),
+    // The two that came out of the village exterior: a place, and a system.
+    galleryPortal(
+      farmGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 6, COUNTRYSIDE_DOORS, 'timber', 6427),
+    ),
+    galleryPortal(
+      stoneWallGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 7, COUNTRYSIDE_DOORS, 'timber', 6428),
+    ),
     // --- the showcase rank, west to east ------------------------------------
     //
     // Everything here hangs off the general hall because it belongs to no

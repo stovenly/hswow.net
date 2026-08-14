@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { MeshBuilder } from '../types';
+import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
@@ -12,12 +12,25 @@ import { PALETTE } from '../palette';
  * a can. Coopered barrels bulge because the staves are bent, and that bulge is
  * the whole silhouette.
  */
-export const barrel: MeshBuilder = {
+
+export interface BarrelOptions extends BuildOptions {
+  /**
+   * Whether it has been knocked over. Rolled from the seed when unsaid.
+   *
+   * Stated by anything that needs to know which way up it is before it has one
+   * — `barrel-stack` has to, because barrels stack upright and a lying one
+   * cannot be built on. The roll still happens either way, so asking does not
+   * reshuffle the coopering.
+   */
+  fallen?: boolean;
+}
+
+export const barrel: BuilderWith<BarrelOptions> = {
   name: 'barrel',
   category: 'objects',
   radius: 0.55,
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, fallen: asked }: BarrelOptions = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
@@ -25,7 +38,8 @@ export const barrel: MeshBuilder = {
     const waist = rng.range(0.3, 0.4);
     const end = waist * rng.range(0.78, 0.88);
     const sides = rng.int(8, 11);
-    const fallen = rng.chance(0.25);
+    const rolled = rng.chance(0.25);
+    const fallen = asked ?? rolled;
 
     // Turned on a lathe, from a profile — which is how a barrel is actually
     // made, and gives one continuous bellied surface.
