@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Viewport } from './engine/Viewport';
 import { Loop } from './engine/Loop';
 import { PostFX } from './engine/PostFX';
-import { useRadialFog } from './engine/fog';
+import { useAerialFog } from './engine/fog';
 import { Input, isTouchDevice } from './engine/Input';
 import { Collider } from './player/Collider';
 import { Controller } from './player/Controller';
@@ -72,7 +72,7 @@ installReloadBanner();
 // **Before anything compiles a program.** Materials bake the fog chunk in at
 // compile time, so this has to happen before the first material is built or the
 // session runs on planar fog whatever the source says. See `engine/fog.ts`.
-useRadialFog();
+useAerialFog();
 
 // **Before PostFX**, and that ordering is load-bearing rather than tidy. The
 // kit's shared material is patched in place, so a prop built later picks the
@@ -470,42 +470,28 @@ if (dev.gui) {
   distance.add(r, 'clutterCull', 0.3, 1, 0.05).name('clutter at ×').onChange(refresh);
 
   // Inspection state, session-only and deliberately not a player setting: with
-  // tiers live, walking slides the band under the prop being looked at, so
+  // parallax live, walking slides the band under the prop being looked at, so
   // there is no way to tell a placement that is wrong from one that is merely
   // moving. VISTA.md.
   const vista = dev.gui.addFolder('vista');
   vista.add(zones, 'freezeVista').name('freeze parallax');
-  vista.add(r, 'vistaHaze', 0, 1, 0.05).name('extra haze').onChange(refresh);
   // Not vista-only despite living here: it reveals any collision that is never
   // drawn, a stair's walkway included. See `ZoneManager.showBarriers`.
   vista.add(zones, 'showBarriers').name('show invisible walls');
-
-  // Named to sort beside `sky` and `sky clouds`.
-  //
-  // Touching any of these takes the skyline off the zone and gives it to the
-  // panel — otherwise a zone that declares its own would win and every control
-  // here would do nothing while reading zero. `use the zone's` hands it back.
-  const ridge = dev.gui.addFolder('sky ridge');
-  const takeRidge = (): void => {
-    postfx.ridgeOverride = r.sky.ridge;
-    refresh();
-  };
-  ridge.add({ zone: () => { postfx.ridgeOverride = null; refresh(); } }, 'zone')
-    .name("use the zone's");
-  ridge.add(r.sky.ridge, 'opacity', 0, 1, 0.05).onChange(takeRidge);
-  ridge.add(r.sky.ridge, 'height', 0, 0.2, 0.005).onChange(takeRidge);
-  ridge.add(r.sky.ridge, 'scale', 0.5, 10, 0.1).name('peaks around').onChange(takeRidge);
-  ridge.add(r.sky.ridge, 'roughness', 0, 1, 0.05).onChange(takeRidge);
-  ridge.addColor(r.sky.ridge, 'tint').onChange(takeRidge);
-  ridge.add(r.sky.ridge, 'shade', 0, 1, 0.02).onChange(takeRidge);
-  ridge.add(r.sky.ridge, 'haze', 0, 0.06, 0.002).onChange(takeRidge);
-  ridge.add(r.sky.ridge, 'seed', 0, 200, 1).onChange(takeRidge);
 
   const sky = dev.gui.addFolder('sky');
   sky.addColor(r.sky, 'zenith').onChange(refresh);
   sky.addColor(r.sky, 'horizon').onChange(refresh);
   sky.addColor(r.sky, 'ground').name('below horizon').onChange(refresh);
-  sky.add(r.sky, 'curve', 0.1, 3, 0.05).onChange(refresh);
+  sky.add(r.sky, 'curve', 0.1, 3, 0.05).name('curve up').onChange(refresh);
+  // Reaches the fog as well as the dome: the fog fades to this gradient, so
+  // the two warm together or the land parts company with the sky.
+  sky.add(r.sky, 'warmth', 0, 1, 0.02).name('warm toward sun').onChange(refresh);
+  sky.add(r.sky, 'underCurve', 0.1, 4, 0.05).name('curve down').onChange(refresh);
+  // The fog's own, and nothing to do with the two above — see `SkySettings.airCurve`.
+  // Below about 2 distant props start taking a blue ramp that matches the sky
+  // behind them, and go see-through.
+  sky.add(r.sky, 'airCurve', 0.3, 6, 0.1).name('curve for fog').onChange(refresh);
 
   const clouds = dev.gui.addFolder('sky clouds');
   clouds.addColor(r.sky, 'cloudColor').name('colour').onChange(refresh);
@@ -538,6 +524,16 @@ if (dev.gui) {
   fogFolder.addColor(r, 'fogColor').onChange(refresh);
   fogFolder.add(r, 'fogNear', 0, 200, 1).onChange(refresh);
   fogFolder.add(r, 'fogFar', 0, 400, 1).onChange(refresh);
+  // Aerial perspective — see `engine/fog.ts`. `sky colour` at 0 and `thins
+  // above` at its ceiling is the flat distance fog this replaced, exactly, and
+  // is the honest A/B for whether any of it is an improvement.
+  //
+  // The low end of this range is not a setting, it is a demonstration: under a
+  // hundred or so, distant props visibly fade out from the bottom.
+  fogFolder.add(r, 'fogHeight', 20, 1200, 10).name('thins above (m)').onChange(refresh);
+  fogFolder.add(r, 'fogSky', 0, 1, 0.05).name('sky colour').onChange(refresh);
+  fogFolder.add(r, 'fogRamp', 0.5, 4, 0.1).name('curve').onChange(refresh);
+  fogFolder.add(r, 'fogCeiling', 0.5, 1, 0.01).name('most it can hide').onChange(refresh);
 
   // Surface colours, live. Contrast between the floor and everything standing
   // on it is a quantization question as much as an art one, so it wants to be

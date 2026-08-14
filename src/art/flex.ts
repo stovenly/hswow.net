@@ -70,6 +70,19 @@ export const FLEX: Record<string, number> = {
   bramble: 0.4,
   thistle: 0.35,
 
+  // The two boundary masses, and they sit low for the same reason gorse does:
+  // what makes a hedge or a thicket read as impassable is that it is a solid
+  // interlocking body of wood, and a solid body of wood does not billow. A
+  // hedge moves less than the thicket beside it because it has been cut into
+  // one mass on purpose, where scrub is a heap of separate plants leaning on
+  // each other.
+  //
+  // `snag`, `deadfall` and `root-tangle` are deliberately absent. Dead wood
+  // does not bend — that is most of what makes it read as dead, and a swaying
+  // one would undo it from any distance.
+  thicket: 0.3,
+  hedge: 0.2,
+
   // A thick stem carrying a heavy head. It nods, and that is all. More than
   // this and it reads as a plant made of rubber, which is the commonest way
   // vertex sway goes wrong.

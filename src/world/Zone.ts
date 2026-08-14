@@ -4,7 +4,6 @@ import type { SurfaceName } from '../audio/models/footsteps';
 import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
 import type { MusicSpec } from '../audio/music/director';
 import type { FogVolume } from '../engine/FogVolumes';
-import type { SkyRidge } from '../engine/Sky';
 import type { GlitchPlacement } from '../engine/Glitch';
 import type { HorrorPlacement } from '../engine/Horror';
 
@@ -77,16 +76,6 @@ export interface ZoneEnvironment {
    * An exposed field blows harder than a sheltered yard. Default 1.
    */
   wind?: number;
-  /**
-   * The skyline on this place's horizon — band 3 of the vista (VISTA.md).
-   *
-   * Unlike the fog, which every outdoor zone wears, this is optional and off
-   * almost everywhere: a ridge belongs to a place that has one. It is drawn in
-   * the sky's own shader and costs no geometry, and because the dome is centred
-   * on the camera it is the parallax mechanism at its limit — a tier that moves
-   * exactly with you and therefore reads as infinitely far.
-   */
-  skyRidge?: SkyRidge;
   /** Which impulse response the reverb crossfades to. */
   room: RoomName;
   /** What the floor is made of, for footsteps. */

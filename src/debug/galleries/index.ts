@@ -1,5 +1,5 @@
 import type { GalleryPlan } from './layout';
-import { foliageGalleryPlan } from './foliage';
+import { treeGalleryPlan, groundcoverGalleryPlan, forestMiscGalleryPlan } from './forest';
 import { animalGalleryPlan } from './animal';
 import { textShowcaseGalleryPlan } from './text';
 import { darkRoomPlan } from './dark';
@@ -15,6 +15,8 @@ import { objectEffectsPlan } from './object-effects';
 import {
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
+  farmGalleryPlan,
+  stoneWallGalleryPlan,
   factoryInteriorGalleryPlan,
   factoryExteriorGalleryPlan,
 } from './structures';
@@ -31,10 +33,14 @@ import {
  * door in a hall away from something that has contents.
  */
 export const GALLERIES: readonly GalleryPlan[] = [
-  foliageGalleryPlan,
+  treeGalleryPlan,
+  groundcoverGalleryPlan,
+  forestMiscGalleryPlan,
   animalGalleryPlan,
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
+  farmGalleryPlan,
+  stoneWallGalleryPlan,
   factoryInteriorGalleryPlan,
   factoryExteriorGalleryPlan,
   textShowcaseGalleryPlan,
@@ -55,7 +61,7 @@ export const GALLERIES: readonly GalleryPlan[] = [
 
 export { galleryZone, galleryDoor, galleryPortal, rowPosition } from './layout';
 export type { GalleryPlan } from './layout';
-export { ZONE_GALLERY_FOLIAGE } from './foliage';
+export { ZONE_GALLERY_TREES, ZONE_GALLERY_GROUNDCOVER, ZONE_GALLERY_FOREST_MISC } from './forest';
 export { ZONE_GALLERY_ANIMAL } from './animal';
 export { ZONE_TEXT_SHOWCASE } from './text';
 export { ZONE_DARK_ROOM } from './dark';
@@ -79,6 +85,8 @@ export { ZONE_OBJECT_EFFECTS } from './object-effects';
 export {
   ZONE_GALLERY_VILLAGE_INTERIOR,
   ZONE_GALLERY_VILLAGE_EXTERIOR,
+  ZONE_GALLERY_FARM,
+  ZONE_GALLERY_STONE_WALL,
   ZONE_GALLERY_FACTORY_INTERIOR,
   ZONE_GALLERY_FACTORY_EXTERIOR,
 } from './structures';

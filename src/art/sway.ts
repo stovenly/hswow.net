@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { ART_FINISHED_MATERIAL, ART_MATERIAL, ART_VISTA_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
+import { ART_FINISHED_MATERIAL, ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
-import { applyVistaHaze } from './haze';
+import { applyAerialFog } from '../engine/fog';
 import { applyFinish, FINISH_MASK_ALL } from './finish';
 import { applyGlitch, applyGlitchDisplacement, glitchVariant } from './glitch';
 import { applyHorror, applyHorrorDisplacement } from './horror';
@@ -328,17 +328,19 @@ export function patchArtMaterial(): void {
   applyGlitch(ART_FINISHED_MATERIAL);
   applyHorror(ART_FINISHED_MATERIAL);
 
-  // The scenery twin: the lean chain again, plus the band's early haze. Built
-  // here with the other two so no zone ever waits on a compile — the vista
-  // showcase would otherwise pay for it on entry, which is exactly the stall
-  // this whole arrangement exists to avoid. See `art/haze.ts`.
-  applySway(ART_VISTA_MATERIAL);
-  applyWear(ART_VISTA_MATERIAL);
-  applyDetail(ART_VISTA_MATERIAL);
-  applyFinish(ART_VISTA_MATERIAL, 0);
-  applyGlitch(ART_VISTA_MATERIAL);
-  applyHorror(ART_VISTA_MATERIAL);
-  applyVistaHaze(ART_VISTA_MATERIAL);
+  // The air, outermost of all and on both. It is the last thing that happens to
+  // a fragment for the same reason fog always was — everything else is what the
+  // surface is, and this is what is between you and it. See `engine/fog.ts`.
+  //
+  // **There is no third material any more.** Scenery used to have one, purely
+  // so out-of-bounds geometry could haze on a different curve; now the air is
+  // the same air everywhere and there is nothing left for it to say. Back to
+  // two programs, which is what MATERIAL-SYSTEM.md R5 asked for.
+  // Ground cover and weather do the same for themselves, where they are
+  // declared — importing them here would close a cycle, since both read the
+  // wind out of this module.
+  applyAerialFog(ART_MATERIAL);
+  applyAerialFog(ART_FINISHED_MATERIAL);
 
   // The erode variant rides in both keys: glitch compiles its `discard` out
   // where nothing is glitched, and the two programs must not be confused for

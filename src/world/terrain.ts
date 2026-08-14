@@ -61,13 +61,91 @@ export type Landform =
    * `inset` is how far in from the boundary it starts climbing — short insets
    * give steep, cliff-like sides, long ones give a gentle bowl you can walk a
    * long way up before it turns you back.
+   *
+   * **`outline` is what makes a level any shape but square.** Without it the rim
+   * is measured by Chebyshev distance to the field's own edge, so it follows the
+   * square the heightfield happens to be stored in — and every level is
+   * therefore a square bowl, whatever is drawn inside it. Given an outline it
+   * measures from that instead, so a winding valley or an L-shaped glen is
+   * walled by its own hills along its own shape.
+   *
+   * The outline is a `PatchShape[]`, the same union the ground patches, the
+   * cover patches, the level's own boundary and the parallax keep-out are all
+   * written in — so the shape a level *is* can be stated once and used by all of
+   * them, rather than being implied by the size of the array it lives in.
    */
-  | { kind: 'rim'; inset: number; height: number }
+  | { kind: 'rim'; inset: number; height: number; outline?: readonly PatchShape[] }
+  /**
+   * A one-sided step: level on one side, level on the other, a bank between.
+   *
+   * **The primitive every boundary actually wants, and the one that was
+   * missing.** `ridge` rises to a crest and falls off *both* ways, so it can
+   * make a mound and never an edge — a path laid beside one runs between two
+   * lumps. A scarp is what the side of a shelf cut into a hillside is, and the
+   * side of a river terrace, and the top of a quarried bank: the ground beyond
+   * it is simply higher, and stays higher.
+   *
+   * `run` is the horizontal distance the step takes, centred on the line, so the
+   * bank is `run` wide and `height` tall — which is also how to make it a cliff
+   * rather than a slope. `side` says which way is up: +1 raises the left of the
+   * direction of travel, −1 the right.
+   *
+   * **It dies out past its ends**, over `run` — but not sideways, and the
+   * difference is the whole of `reach`.
+   *
+   * Without `reach` the high side stays high for ever. That is what a scarp
+   * *is*: the ground beyond a shelf cut into a hillside does not come back
+   * down, it goes on being a hillside. Use it for the boundary between two
+   * levels of a place.
+   *
+   * With `reach` it is a **bank**: high for that many metres and then easing
+   * back to whatever the ground was doing, over another `run`. Use it for the
+   * lip of a lane, or a headland along a field edge — anywhere the step is a
+   * feature standing in the ground rather than a change to the ground.
+   *
+   * It is also the difference between a landform the broad phase can bound and
+   * one it cannot. A scarp with no `reach` is asked at every point in the field,
+   * because it genuinely does affect every point in the field; one with a
+   * `reach` is bucketed like everything else. On a level with a bank along every
+   * path that is the difference between the index working and the index being
+   * decorative — so say `reach` unless the half-plane is what you meant.
+   */
+  | {
+      kind: 'scarp';
+      through: readonly (readonly [number, number])[];
+      run: number;
+      height: number;
+      side?: 1 | -1;
+      /** How far the high side holds before easing back down. Omitted, for ever. */
+      reach?: number;
+    }
+  /**
+   * A sunken corridor: a route cut into the ground with its banks left standing.
+   *
+   * `ridge` inverted, and the strongest thing in the vocabulary for saying *you
+   * are on a route* — because the banks cost nothing. They are not raised; they
+   * are simply the ground that was not lowered, which means a channel drawn
+   * across any terrain produces sides that match whatever was already there.
+   *
+   * `width` is the flat bottom; `bank` is how far either side the ground climbs
+   * back to where it was. A holloway is a narrow bottom and a short bank; a dry
+   * valley is a wide one and a long bank.
+   *
+   * `rockAngle` then paints the steep faces as stone with nothing further being
+   * said, which is most of why an authored cut looks like an eroded one.
+   */
+  | {
+      kind: 'channel';
+      through: readonly (readonly [number, number])[];
+      width: number;
+      depth: number;
+      bank: number;
+    }
   /**
    * Level ground, for building on.
    *
    * **The one landform that is not additive.** Everything else adds to the
-   * height; this *replaces* it, forcing the ground to `height` inside `radius`
+   * height; this *replaces* it, forcing the ground to `height` inside its shape
    * and easing back to whatever the rest of the landforms wanted over `blend`.
    *
    * It exists because buildings are rigid and ground is not. A hut is placed at
@@ -79,8 +157,17 @@ export type Landform =
    *
    * Applied after the additive pass, in list order, so a later terrace can cut
    * a step into an earlier one.
+   *
+   * **A circle or a shape, and the shape form is what roads want.** A street is
+   * a ribbon, and levelling one with a chain of overlapping discs gives it a
+   * scalloped edge and a height that ripples along its length. Stated as a
+   * `path` it is flat for its whole run and blends the same distance out
+   * everywhere. The two forms are one landform because they do the same thing;
+   * `at`/`radius` stays because most terraces genuinely are a circle and saying
+   * so is shorter than wrapping one in a `blot`.
    */
-  | { kind: 'terrace'; at: [number, number]; radius: number; height: number; blend: number };
+  | { kind: 'terrace'; at: [number, number]; radius: number; height: number; blend: number }
+  | { kind: 'terrace'; shape: readonly PatchShape[]; height: number; blend: number };
 
 /** A circle in which the base grid is subdivided further. */
 export interface DetailRegion {
@@ -153,6 +240,12 @@ export interface TerrainOptions {
   edgeFade?: { band: number; outline?: readonly PatchShape[] };
 }
 
+/** The levelling landforms, which run in their own pass. */
+type Terrace = Extract<Landform, { kind: 'terrace' }>;
+
+/** Shared empty bucket, so a query off the field allocates nothing. */
+const EMPTY: readonly number[] = [];
+
 /** Smootherstep: zero gradient at both ends, so landforms blend without creases. */
 function ease(t: number): number {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
@@ -168,6 +261,140 @@ function toSegment(x: number, z: number, ax: number, az: number, bx: number, bz:
   return Math.hypot(x - (ax + dx * t), z - (az + dz * t));
 }
 
+/**
+ * Where a point stands relative to a run of line segments.
+ *
+ * Three numbers, because the two landforms written against a polyline want
+ * different ones and neither wants only a distance.
+ *
+ * - `near` — shortest distance to the run, ends included. What a channel is
+ *   measured by, and what decides which segment the other two answers come from.
+ * - `side` — `near` again, signed. The **magnitude** is the distance to the run
+ *   and the **sign** is which side of the nearest segment's infinite line the
+ *   point is on, so which way is up does not flip because you walked past a
+ *   vertex. Its sign is that of `dx·(z − a.z) − dz·(x − a.x)` for the winning
+ *   segment `a → b` — which is to say it depends on the direction the points are
+ *   listed in, and flipping `side` on the landform is the quick way to swap it.
+ *
+ *   **Magnitude from the segment and sign from its line, rather than both from
+ *   the line.** Taking both from the line reads correctly beside the run and
+ *   wrongly everywhere else: past an interior corner, the segment you have just
+ *   left is still the nearest one and its infinite line runs off into open
+ *   ground, so a scarp measured that way holds its full height a hundred metres
+ *   away in the direction that segment happened to point. Which is also a lie to
+ *   the broad phase, and how it was found.
+ * - `past` — how far beyond the first or last vertex, measured *along* the run.
+ *   Zero anywhere beside it, including at an interior corner. This is what lets
+ *   a scarp die out at its ends instead of stepping an entire half-plane.
+ */
+function polylineFit(
+  x: number,
+  z: number,
+  through: readonly (readonly [number, number])[],
+): { near: number; side: number; past: number } {
+  if (through.length === 0) return { near: Infinity, side: 0, past: Infinity };
+  if (through.length === 1) {
+    const only = Math.hypot(x - through[0][0], z - through[0][1]);
+    return { near: only, side: 0, past: only };
+  }
+
+  let near = Infinity;
+  let side = 0;
+  let past = 0;
+
+  for (let i = 0; i + 1 < through.length; i++) {
+    const a = through[i];
+    const b = through[i + 1];
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const lengthSquared = dx * dx + dz * dz;
+    if (lengthSquared === 0) continue;
+
+    const raw = ((x - a[0]) * dx + (z - a[1]) * dz) / lengthSquared;
+    const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+    const distance = Math.hypot(x - (a[0] + dx * t), z - (a[1] + dz * t));
+    if (distance >= near) continue;
+
+    const length = Math.sqrt(lengthSquared);
+    near = distance;
+    side = distance * (dx * (z - a[1]) - dz * (x - a[0]) < 0 ? -1 : 1);
+    past =
+      i === 0 && raw < 0
+        ? -raw * length
+        : i === through.length - 2 && raw > 1
+          ? (raw - 1) * length
+          : 0;
+  }
+
+  return { near, side, past };
+}
+
+/** A landform's bounding circle, or null for one that reaches everywhere. */
+interface Reach {
+  x: number;
+  z: number;
+  radius: number;
+}
+
+function polylineReach(
+  through: readonly (readonly [number, number])[],
+  pad: number,
+): Reach | null {
+  if (through.length === 0) return null;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const [px, pz] of through) {
+    minX = Math.min(minX, px);
+    maxX = Math.max(maxX, px);
+    minZ = Math.min(minZ, pz);
+    maxZ = Math.max(maxZ, pz);
+  }
+  return {
+    x: (minX + maxX) / 2,
+    z: (minZ + maxZ) / 2,
+    radius: Math.hypot(maxX - minX, maxZ - minZ) / 2 + pad,
+  };
+}
+
+/**
+ * How far a landform can possibly reach, for the broad phase.
+ *
+ * `null` means "everywhere", and it is not a failure to answer — a rim is
+ * genuinely a fact about the whole field, and a terrace is handled in the second
+ * pass. Anything that returns null is simply asked every time, exactly as the
+ * whole list used to be.
+ */
+function reachOf(form: Landform): Reach | null {
+  switch (form.kind) {
+    case 'hill':
+    case 'basin':
+      return { x: form.at[0], z: form.at[1], radius: form.radius };
+    case 'ridge':
+      return {
+        x: (form.from[0] + form.to[0]) / 2,
+        z: (form.from[1] + form.to[1]) / 2,
+        radius:
+          Math.hypot(form.to[0] - form.from[0], form.to[1] - form.from[1]) / 2 + form.width,
+      };
+    // **A scarp with no `reach` is unbounded and has to say so.** Its high side
+    // stays high for ever, so any circle drawn round it is a claim that points
+    // outside are unaffected — which is false, and false by the full height of
+    // the step. This was a bug for exactly as long as it took to compare the
+    // bucketed field against a per-form sum.
+    case 'scarp':
+      return form.reach === undefined
+        ? null
+        : polylineReach(form.through, form.reach + form.run);
+    case 'channel':
+      return polylineReach(form.through, form.width / 2 + form.bank);
+    case 'rim':
+    case 'terrace':
+      return null;
+  }
+}
+
 export class Terrain {
   readonly size: number;
   readonly resolution: number;
@@ -179,6 +406,31 @@ export class Terrain {
   private readonly base: GroundName;
   private readonly edgeFade: number;
   private readonly edgeOutline: readonly PatchShape[];
+
+  /**
+   * The broad phase: which landforms can possibly matter in which cell.
+   *
+   * `heightAt` is called once per vertex when the mesh is built and again for
+   * every prop dropped onto the ground, and it used to walk the whole landform
+   * list each time. That is fine for the eight forms a hand-written zone has and
+   * it is the wrong shape for what this is growing into: a terraformed level is
+   * fifty to two hundred forms, and the cost is the product of the two. Walking
+   * a list is also exactly the sort of thing that is invisible until an editor
+   * makes it easy to add the hundredth hill, at which point it is a retrofit
+   * rather than a decision.
+   *
+   * Deliberately coarse — a couple of dozen cells across at most. The job is to
+   * skip the forms that are nowhere near, not to be exact about the ones that
+   * are, and a fine grid costs memory and buys nothing because the per-form test
+   * is a few multiplies anyway.
+   */
+  private readonly cols: number;
+  private readonly cell: number;
+  private readonly buckets: readonly (readonly number[])[];
+  /** Landforms with no bounding circle, or one that leaves the field. Asked always. */
+  private readonly always: readonly number[];
+  /** The levelling pass, in list order — a later terrace cuts into an earlier one. */
+  private readonly levellers: readonly Terrace[];
 
   constructor(options: TerrainOptions) {
     this.size = options.size;
@@ -193,6 +445,49 @@ export class Terrain {
     this.edgeOutline = options.edgeFade?.outline ?? [
       { kind: 'field', min: [-this.size / 2, -this.size / 2], max: [this.size / 2, this.size / 2] },
     ];
+
+    // --- the broad phase -----------------------------------------------------
+    const half = this.size / 2;
+    this.cols = Math.max(1, Math.min(32, Math.round(this.size / Math.max(this.resolution * 4, 4))));
+    this.cell = this.size / this.cols;
+
+    const buckets: number[][] = Array.from({ length: this.cols * this.cols }, () => []);
+    const always: number[] = [];
+    const levellers: Terrace[] = [];
+
+    this.landforms.forEach((form, index) => {
+      if (form.kind === 'terrace') {
+        levellers.push(form);
+        return;
+      }
+      const reach = reachOf(form);
+      // **Anything that is not comfortably inside the field goes in `always`.**
+      // A bucketed form has to be wholly within the grid for the converse to
+      // hold — that a query outside the grid cannot be reached by anything in
+      // it — and that converse is what makes the whole scheme correct rather
+      // than merely fast.
+      if (
+        !reach ||
+        reach.x - reach.radius < -half ||
+        reach.x + reach.radius > half ||
+        reach.z - reach.radius < -half ||
+        reach.z + reach.radius > half
+      ) {
+        always.push(index);
+        return;
+      }
+      const c0 = Math.max(0, Math.floor((reach.x - reach.radius + half) / this.cell));
+      const c1 = Math.min(this.cols - 1, Math.floor((reach.x + reach.radius + half) / this.cell));
+      const r0 = Math.max(0, Math.floor((reach.z - reach.radius + half) / this.cell));
+      const r1 = Math.min(this.cols - 1, Math.floor((reach.z + reach.radius + half) / this.cell));
+      for (let row = r0; row <= r1; row++) {
+        for (let col = c0; col <= c1; col++) buckets[row * this.cols + col].push(index);
+      }
+    });
+
+    this.buckets = buckets;
+    this.always = always;
+    this.levellers = levellers;
   }
 
   /**
@@ -218,51 +513,97 @@ export class Terrain {
   heightAt(x: number, z: number): number {
     let height = 0;
 
-    for (const form of this.landforms) {
-      switch (form.kind) {
-        // Handled in the second pass — it replaces rather than adds.
-        case 'terrace':
-          break;
-        case 'hill': {
-          const d = Math.hypot(x - form.at[0], z - form.at[1]);
-          const t = ease(1 - d / form.radius);
-          height += form.height * (form.falloff ? t ** form.falloff : t);
-          break;
-        }
-        case 'ridge': {
-          const d = toSegment(x, z, form.from[0], form.from[1], form.to[0], form.to[1]);
-          height += form.height * ease(1 - d / form.width);
-          break;
-        }
-        case 'basin': {
-          const d = Math.hypot(x - form.at[0], z - form.at[1]);
-          height -= form.depth * ease(1 - d / form.radius);
-          break;
-        }
-        case 'rim': {
-          // Chebyshev distance to the edge, so the rim follows the square
-          // boundary instead of being a circle inscribed in it — which would
-          // leave four walkable corners straight out of the map.
-          const half = this.size / 2;
-          const edge = half - Math.max(Math.abs(x), Math.abs(z));
-          height += form.height * ease(1 - edge / form.inset);
-          break;
-        }
-      }
-    }
+    // First pass: everything that adds. Order does not matter, which is why it
+    // can be split between the always-list and one bucket.
+    for (const index of this.always) height += this.riseAt(this.landforms[index], x, z);
+    for (const index of this.bucketAt(x, z)) height += this.riseAt(this.landforms[index], x, z);
 
     // Second pass: levelling. Separate from the sum above because blending
     // toward a target is not something that can be added in — a terrace has to
     // know what the ground would otherwise have been in order to replace it.
-    for (const form of this.landforms) {
-      if (form.kind !== 'terrace') continue;
-      const d = Math.hypot(x - form.at[0], z - form.at[1]);
-      if (d >= form.radius + form.blend) continue;
-      const w = d <= form.radius ? 1 : ease((form.radius + form.blend - d) / form.blend);
-      height = height * (1 - w) + form.height * w;
-    }
+    for (const form of this.levellers) height = this.levelAt(form, height, x, z);
 
     return height;
+  }
+
+  /** Which landforms can reach a position. Empty off the field but for `always`. */
+  private bucketAt(x: number, z: number): readonly number[] {
+    const half = this.size / 2;
+    const col = Math.floor((x + half) / this.cell);
+    const row = Math.floor((z + half) / this.cell);
+    if (col < 0 || row < 0 || col >= this.cols || row >= this.cols) return EMPTY;
+    return this.buckets[row * this.cols + col];
+  }
+
+  /** What one additive landform contributes here. */
+  private riseAt(form: Landform, x: number, z: number): number {
+    switch (form.kind) {
+      // Handled in the second pass — it replaces rather than adds.
+      case 'terrace':
+        return 0;
+      case 'hill': {
+        const d = Math.hypot(x - form.at[0], z - form.at[1]);
+        const t = ease(1 - d / form.radius);
+        return form.height * (form.falloff ? t ** form.falloff : t);
+      }
+      case 'ridge': {
+        const d = toSegment(x, z, form.from[0], form.from[1], form.to[0], form.to[1]);
+        return form.height * ease(1 - d / form.width);
+      }
+      case 'basin': {
+        const d = Math.hypot(x - form.at[0], z - form.at[1]);
+        return -form.depth * ease(1 - d / form.radius);
+      }
+      case 'scarp': {
+        const run = Math.max(form.run, 1e-6);
+        const fit = polylineFit(x, z, form.through);
+        // Signed distance onto the high side, so the step is one ramp and the
+        // `side` flag is the only thing that decides which way is up.
+        const lift = (form.side ?? 1) * fit.side;
+        // The step itself, centred on the line and `run` wide.
+        let step = ease(0.5 + lift / run);
+        // And back down again, if this one is a bank rather than a hillside.
+        if (form.reach !== undefined) step *= ease((form.reach + run - lift) / run);
+        // Times how much of the scarp is still alive this far past its ends.
+        return form.height * step * ease(1 - fit.past / run);
+      }
+      case 'channel': {
+        const half = form.width / 2;
+        const bank = Math.max(form.bank, 1e-6);
+        const near = polylineFit(x, z, form.through).near;
+        if (near >= half + bank) return 0;
+        // Flat across the bottom, then back up to whatever the ground already
+        // was. The banks are not built; they are what was not dug out.
+        return -form.depth * (near <= half ? 1 : ease((half + bank - near) / bank));
+      }
+      case 'rim': {
+        // Distance in from the boundary, whichever boundary that is.
+        //
+        // Without an outline it is the **Chebyshev** distance to the field's own
+        // square edge, so the rim follows that square instead of being a circle
+        // inscribed in it — which would leave four walkable corners straight out
+        // of the map.
+        const inset = Math.max(form.inset, 1e-6);
+        const edge = form.outline
+          ? -outlineDistance(form.outline, x, z)
+          : this.size / 2 - Math.max(Math.abs(x), Math.abs(z));
+        return form.height * ease(1 - edge / inset);
+      }
+    }
+  }
+
+  /** What one terrace does to the height the additive pass arrived at. */
+  private levelAt(form: Terrace, height: number, x: number, z: number): number {
+    const blend = Math.max(form.blend, 1e-6);
+    // Signed distance out of the levelled region: negative inside it. The
+    // circle form is a `blot` written shorter, and comes out identical.
+    const out =
+      'shape' in form
+        ? outlineDistance(form.shape, x, z)
+        : Math.hypot(x - form.at[0], z - form.at[1]) - form.radius;
+    if (out >= blend) return height;
+    const w = out <= 0 ? 1 : ease((blend - out) / blend);
+    return height * (1 - w) + form.height * w;
   }
 
   /**

@@ -10,13 +10,24 @@ import { hangingHerbs } from '../../art/builders/hanging-herbs';
 import { spinningWheel } from '../../art/builders/spinning-wheel';
 import { wallPegs } from '../../art/builders/wall-pegs';
 import { hut } from '../../art/builders/hut';
-import { archway } from '../../art/builders/archway';
 import { fence } from '../../art/builders/fence';
 import { fencePost } from '../../art/builders/fence-post';
 import { stoneWall } from '../../art/builders/stone-wall';
 import { stoneWallLow } from '../../art/builders/stone-wall-low';
-import { stoneWallColumn } from '../../art/builders/stone-wall-column';
-import { stoneWallColumnLow } from '../../art/builders/stone-wall-column-low';
+import {
+  stoneWallSquareColumn,
+  stoneWallSquareColumnLow,
+} from '../../art/builders/stone-wall-square-column';
+import {
+  stoneWallTriangleColumn,
+  stoneWallTriangleColumnLow,
+} from '../../art/builders/stone-wall-triangle-column';
+import {
+  stoneWallPentagonColumn,
+  stoneWallPentagonColumnLow,
+} from '../../art/builders/stone-wall-pentagon-column';
+import { stoneWallRuin } from '../../art/builders/stone-wall-ruin';
+import { stoneWallArchway } from '../../art/builders/stone-wall-archway';
 import { post } from '../../art/builders/post';
 import { hutDoor } from '../../art/builders/hut-door';
 import { hutTrapdoor } from '../../art/builders/hut-trapdoor';
@@ -25,6 +36,22 @@ import { factoryTrapdoor } from '../../art/builders/factory-trapdoor';
 import { streetlamp } from '../../art/builders/streetlamp';
 import { crate } from '../../art/builders/crate';
 import { barrel } from '../../art/builders/barrel';
+import { crateStack } from '../../art/builders/crate-stack';
+import { barrelStack } from '../../art/builders/barrel-stack';
+import { cart } from '../../art/builders/cart';
+import { well } from '../../art/builders/well';
+import { hayBale } from '../../art/builders/hay-bale';
+import { hayBaleStack } from '../../art/builders/hay-bale-stack';
+import { hayRick } from '../../art/builders/hay-rick';
+import { logPile } from '../../art/builders/log-pile';
+import { plough } from '../../art/builders/plough';
+import { scarecrow } from '../../art/builders/scarecrow';
+import { sack } from '../../art/builders/sack';
+import { dungHeap } from '../../art/builders/dung-heap';
+import { strawPile } from '../../art/builders/straw-pile';
+import { pitchfork } from '../../art/builders/pitchfork';
+import { rake } from '../../art/builders/rake';
+import { pail } from '../../art/builders/pail';
 import { table } from '../../art/builders/table';
 import { chair } from '../../art/builders/chair';
 import { stool } from '../../art/builders/stool';
@@ -77,7 +104,29 @@ import { workbench } from '../../art/builders/workbench';
  * hangs by a door and `candle` stands on a table, so one is exterior and one
  * is interior even though they were built as a pair.
  *
- * `figure` is in neither — it stands with the animals in the Life gallery,
+ * ## And the exterior is three rooms, because two of them are systems
+ *
+ * The exterior grew past the point where one look down a rank could take it in,
+ * and it did not grow evenly — it grew two clumps with a rule inside each.
+ *
+ * **The stone wall is a system, not a prop.** Six pieces that all share one
+ * pitch, one batter, one set of stones and one seam behaviour, which only tile
+ * because of that. What has to be checked about them is whether a straight
+ * piece, a curve, a pier and a ruin still look like the same wall — and that is
+ * a comparison you make by standing them in a line, not by hunting for them
+ * among the streetlamps. `stone-wall-ruin` and `stone-wall-archway` are named
+ * for the family rather than for themselves, because that is what they are: an
+ * end and an opening *of the wall*.
+ *
+ * **The farm is a place, not a kind.** A rick, a plough and a skep have nothing
+ * in common as objects and everything in common as a statement, and the
+ * question about them is whether they add up to somewhere that grows things —
+ * which is the same question the village room asks, about a different place.
+ *
+ * What is left in the village room is what dresses a lane: the buildings, the
+ * light, the water, the goods and the fences.
+ *
+ * `figure` is in none of them — it stands with the animals in the Life gallery,
  * with the rest of what moves under its own power.
  *
  * The factory room was thin — one machine, and a room with one row in it is a
@@ -89,6 +138,8 @@ import { workbench } from '../../art/builders/workbench';
 
 export const ZONE_GALLERY_VILLAGE_INTERIOR = 'gallery-village-interior';
 export const ZONE_GALLERY_VILLAGE_EXTERIOR = 'gallery-village-exterior';
+export const ZONE_GALLERY_FARM = 'gallery-farm';
+export const ZONE_GALLERY_STONE_WALL = 'gallery-stone-wall';
 export const ZONE_GALLERY_FACTORY_INTERIOR = 'gallery-factory-interior';
 export const ZONE_GALLERY_FACTORY_EXTERIOR = 'gallery-factory-exterior';
 
@@ -99,25 +150,91 @@ const VILLAGE_EXTERIOR_BUILDERS = [
   hut,
   hutDoor,
   hutTrapdoor,
-  // The two run-and-cap pairs together, so a fence and the post that finishes
-  // it are read side by side — which is the only way to see that they are the
-  // same post. Same for the wall and its pier.
+  well,
+  // The one run-and-cap pair still in this room, together, so a fence and the
+  // post that finishes it are read side by side — which is the only way to see
+  // that they are the same post. The masonry has a room of its own now.
   fence,
   fencePost,
-  stoneWall,
-  stoneWallLow,
-  stoneWallColumn,
-  stoneWallColumnLow,
-  archway,
   post,
   streetlamp,
-  trough,
-  cistern,
   anvil,
   bell,
+  // The yard, and what is stacked in it. Each stack stands beside the single
+  // object it is made of, because the question about a stack is not whether it
+  // is a good crate — it is `crate` and cannot be otherwise — but whether
+  // several of them arranged read as goods that were *handled*.
   crate,
+  crateStack,
   barrel,
+  barrelStack,
+  cart,
   lantern,
+];
+
+/**
+ * The stone wall, as a family.
+ *
+ * Ordered so that every piece stands next to the one it has to agree with: the
+ * two heights of the straight run, then the two of the curve, then the piers
+ * that finish them, then the two ways a run can end in something other than a
+ * pier. If any two of these disagree about what stone looks like, that is
+ * visible from where you arrive.
+ */
+const STONE_WALL_BUILDERS = [
+  stoneWall,
+  stoneWallLow,
+  // The piers, by how hard a turn they make: three faces bend a run sixty
+  // degrees, four ninety, five thirty-six or seventy-two. They are the whole of
+  // how this wall changes direction — see `stone-wall-square-column`. Read in
+  // that order, and each beside its own low version, so the one thing that has
+  // to be true of all six is checkable at a glance: **every face is the same
+  // width**, because that is what lets a run meet any of them.
+  stoneWallTriangleColumn,
+  stoneWallTriangleColumnLow,
+  stoneWallSquareColumn,
+  stoneWallSquareColumnLow,
+  stoneWallPentagonColumn,
+  stoneWallPentagonColumnLow,
+  stoneWallArchway,
+  stoneWallRuin,
+];
+
+/**
+ * The farm: what a place that grows things has standing about in it.
+ *
+ * Tallest first, as the foliage rooms are, and then read across in three
+ * registers — the things that are **stacked**, the things that are **heaped**,
+ * and the things that are **held**. That last one is the register the kit was
+ * shortest of: everything outdoors was furniture, structure or a mass, and a
+ * place with nothing at hand scale in it reads as a model of itself.
+ *
+ * The two straw piles stand together on purpose. `hay-bale-stack` is the stuff
+ * squared, corded and stacked; `straw-pile` is the same material before any of
+ * that happened to it, and the pair of them is the difference between a yard
+ * that is worked and a warehouse.
+ */
+const FARM_BUILDERS = [
+  // Landmarks.
+  hayRick,
+  scarecrow,
+  // Stacked.
+  hayBaleStack,
+  logPile,
+  hayBale,
+  sack,
+  // Worked, and what holds water.
+  plough,
+  cistern,
+  trough,
+  // Heaped.
+  strawPile,
+  dungHeap,
+  // Held. Built on an axis rather than standing on the ground — see
+  // `pitchfork` for why a hand tool has no resting position of its own.
+  pitchfork,
+  rake,
+  pail,
 ];
 
 // What is inside those buildings. The question this room answers is whether a
@@ -147,6 +264,20 @@ export const villageExteriorGalleryPlan: GalleryPlan = {
   group: 'countryside',
   name: 'Countryside Village Exterior Clutter',
   builders: VILLAGE_EXTERIOR_BUILDERS,
+};
+
+export const stoneWallGalleryPlan: GalleryPlan = {
+  id: ZONE_GALLERY_STONE_WALL,
+  group: 'countryside',
+  name: 'Countryside Stone Wall Clutter',
+  builders: STONE_WALL_BUILDERS,
+};
+
+export const farmGalleryPlan: GalleryPlan = {
+  id: ZONE_GALLERY_FARM,
+  group: 'countryside',
+  name: 'Countryside Farm Clutter',
+  builders: FARM_BUILDERS,
 };
 
 export const villageInteriorGalleryPlan: GalleryPlan = {

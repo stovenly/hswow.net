@@ -47,15 +47,97 @@ rather than discovered.
 |---|---|---|---|
 | 1. Rim dressing | 30–48 m | Ordinary builders on and over the rim: boulder runs, hedge masses, a wall that wanders out of sight | Normal prop budgets — players stand next to it |
 | 2. Vista band | 55–170 m | The new `vista` builders on a coarse ground skirt, merged into arc chunks | Tens of tris per prop, ≤ 6 draw calls total |
-| 3. Sky ridge | infinity | A procedural ridgeline layer in `Sky.ts`'s shader, per-zone parameters | Fragment shader only, zero geometry |
+| 3. ~~Sky ridge~~ | — | **Retired.** Was a procedural ridgeline in the sky's shader; if a skyline is wanted it will be low-poly geometry like everything else | — |
 
 Band 1 is placement work with builders that mostly exist, plus perhaps an
-outcrop-run helper in the `wallRun` family. Band 3 is a `Sky.ts` change with
-its own small design (seeded fBm silhouette bands above the horizon line,
-coloured from the same uniforms the sun already drives). Neither needs this
-spec's machinery; both need to exist for band 2's edges to disappear —
-band 1 hides the seam where the skirt begins, band 3 catches the eye past
-where the fog has dissolved band 2.
+outcrop-run helper in the `wallRun` family.
+
+**Band 3 was built and then removed, and the reason is worth keeping.** It was a
+seeded fBm silhouette drawn into the dome's own fragment shader — no triangles,
+coloured from the sun's uniforms, and in principle the parallax idea at `k` = 1.
+Two things killed it. It sits in exactly the elevation band that band 2 already
+occupies, so it competes with the geometry it was meant to stand behind rather
+than continuing it; and being *sky* rather than *land*, it is the one thing in
+the frame the air cannot treat consistently — put it in the fog and it paints
+itself across the hills in front of it, leave it out and it is a hard-edged grey
+mass that distant land has no way to blend into. A skyline made of the same
+low-poly geometry as everything else has neither problem, and this project has
+no shortage of ways to make one. Band 1 still matters and still hides the seam
+where the skirt begins.
+
+### The air all three bands stand in
+
+The bands only work if the haze between them and the player is one substance.
+Three properties of it are load-bearing, and all three were bugs first —
+`engine/fog.ts` argues each at length.
+
+- **It is the sky's own colour, sampled in the view direction — but on its own
+  elevation curve.** Fading distant land to one flat colour while the dome
+  behind it runs a gradient is two answers to the same question, and they part
+  company along the horizon, which is the one line this spec exists to hide.
+  Both bands are the horizon colour at `direction.y` = 0, so that seam is closed
+  by construction, and both warm on the sun's side.
+
+  **They must not share the curve, and this is the trap.** The dome's curve is
+  0.35 — steep, because that is what a sky looks like looking *up* through
+  kilometres of atmosphere. Airlight over two hundred metres of near-*horizontal*
+  path is horizon light and almost nothing else. Handing the dome's curve to the
+  fog paints a 29-point blue ramp down a distant hill — 16 % toward zenith at its
+  foot, 44 % at its crown — and the sky directly behind it carries the identical
+  ramp, because it is the same function of the same view direction. The hill
+  stops being a hill and becomes a window onto the gradient: it reads as
+  transparent, and whatever is drawn on the dome behind it appears to show
+  through. On the fog's own curve (2.6) the same hill
+  sees a 0.2-point ramp and stays opaque.
+- **It is measured from the camera, not from the plane in front of it.** Three's
+  fog uses view depth, which at an 80° field of view treats a rock at the edge
+  of the screen as half as far away as the same rock dead ahead. The band is
+  built out of fog, and a band that breathes as you look around is a band nobody
+  believes.
+- **It arrives late, and it never takes everything.** A plain `smoothstep`
+  across the fog range is half spent at half the distance, so the middle of the
+  band washes out long before it is anywhere near far. `fogRamp` raises it to a
+  power, which holds the near half nearly clear and spends the fade where the
+  distance actually is — without giving up the zero gradient at either end that
+  keeps fog from banding. And `fogCeiling` caps how much of a thing the air may
+  hide **above the horizon**: a distant hill in life is washed out, not erased,
+  and a prop that becomes sky reads as not being there. Below the horizon the
+  cap is off and has to be — the skirt's outer edge must vanish completely or it
+  is a rim drawn along the horizon, which is the failure this spec exists to
+  prevent. So the horizon dissolves and the things standing above it do not.
+
+- **It thins with altitude, and only just.** `d(y) = exp(-y/H)`, integrated
+  along the ray in closed form. The tempting version of this is a small `H`, so
+  that a ridge's crest comes out of the haze while its foot stays buried — the
+  oldest distance cue in landscape painting. **Do not do that**, and the reason
+  is a measurement rather than an opinion: at `H` = 30 m a seventeen-metre hill
+  at 250 m came out 84 % hazed at its foot and 52 % at its crown, and the castle
+  ran 99 % to 30 %. A third to two thirds of an object's height in fade does not
+  read as air. It reads as the object being *see-through* — dissolving from the
+  bottom up — so whatever was on the dome showed through the part that had gone.
+
+  The real atmosphere's scale height is eight kilometres, which across
+  seventeen metres is a fraction of a percent; that is why distant hills do not
+  fade out from the ankles. **Any `H` small enough to show the cue inside one
+  object is far too small to be that cue.** The default is 600 m — one or two
+  points of spread across a prop, and still enough that flying up thins the
+  air. At a large `H` the arithmetic collapses to flat distance fog exactly,
+  which is the honest A/B.
+
+**Nothing drawn on the dome may enter the air**, and the one attempt to argue
+otherwise is instructive. The argument was that the sky ridge was land at the far
+end of the same atmosphere, so the haze in front of a band-2 hill ought to carry
+it. Airlight is what the sun and sky scatter *into* the path, never the radiance
+of whatever stands behind the object — so mixing it in painted the ridge across
+every hill in front of it, which is not something that merely looks like
+transparency. It is transparency: the hill is showing you what is behind it. The
+same holds for clouds, and for anything the dome grows later.
+
+Two more consequences worth stating. Ground cover, weather and water all draw
+with the same air, because anything on a different rule puts the seam back
+somewhere else. And the band no longer has a haze of its own — it used to carry a third
+material to fade on a steeper curve, and that whole idea was a patch over the
+flat-colour bug above.
 
 ### Where the band's numbers come from
 
@@ -70,8 +152,8 @@ Nothing above is arbitrary; each edge is pinned by an existing system.
   `inset: 13`) with margin enough that nothing out of bounds ever reads as
   somewhere you could walk to.
 - **Outer edge, 170 m**: fog in the countryside runs 30 → 190, and past
-  `fogFar` everything converges on the sky-horizon colour (fog is linked to
-  the sky in `PostFX`) — geometry there is invisible and pure waste. 170 m is
+  `fogFar` everything converges on the sky *behind it* (see *The air*, below) —
+  geometry there is invisible and pure waste. 170 m is
   ~87 % fogged: a hazy silhouette, which is the look, and heavy enough haze to
   forgive any crudeness. Rule, not constant: **outer edge ≤ zone
   `fogFar` × 0.9**, the same headroom `PostFX` already uses.
@@ -153,7 +235,8 @@ buffer. At that range:
 | `vista-hamlet` | A cluster of far roofs and a chimney | ≤ 250 | Boxes and prisms; one warm face for a lit window |
 | `vista-tower` | A single tall landmark | ≤ 80 | Prism + roof cone; the "what is *that*" object |
 | `vista-field-wall` | A wall meandering over a distant slope | ≤ 60 | A ribbon draped over the skirt |
-| `vista-range` | A far ridge line at the band's outer fringe | ≤ 40 | Flat silhouette ribbon — see the third note |
+| `vista-range` | A whole range of hills as one long ridge | ≤ 130 | Five or six masses on a line, welded into one profile |
+| `vista-castle` | A castle on its own mound | ≤ 200 | Mound, curtain, turrets, keep — the largest built thing |
 
 Four design notes on the roster:
 
@@ -357,6 +440,16 @@ Props already stopped become obstacles in their turn, so a prop being carried
 toward one stops short of *it* rather than continuing to the keep-out behind it.
 Resolved nearest-first, so the order is deterministic.
 
+**Only the stopped ones, and the distinction is load-bearing.** A prop that went
+where parallax sent it must impose nothing on the props behind it. Treating
+every neighbour as an obstacle freezes the whole band on the first frame: the
+placer deliberately lets props sit well inside the sum of their radii, because
+two hills overlapping at the base is what a range of hills looks like, so a pair
+at its authored spacing is already in contact by any radius measure and reports
+itself blocked before it has moved a metre. The relative drift between two
+free-moving props at different apparent distances is not bunching either — it is
+the depth cue, and clamping it is clamping away the effect.
+
 **Parallax saturates rather than warps.** Walk far enough and a prop simply
 stops moving — which is indistinguishable from a prop that is genuinely very far
 away, and that is what it is pretending to be. An arrangement that warps has no
@@ -382,29 +475,43 @@ stopping dead against a keep-out is legible from inside the level.
 
 EDITOR.md's model is that a zone is a document of verbs and the editor edits
 the document. The vista band has to arrive as one more entry kind —
-`{ "vista": { … } }` — rather than as a system the editor cannot see. Four
-things keep that door open, and three of them are free only if done now.
+`{ "vistaRing": { … } }` — rather than as a system the editor cannot see. Four
+things keep that door open, and three of them were free only if done now. All
+four are done; EDITOR.md carries the other half of this, including what the
+editor gains rather than what the band owes it.
 
-- **Ring options stay pure data.** No callbacks anywhere in the placer's
-  signature. Today's `scatter()` takes `avoid` and `maxSlope` predicates; if
-  the ring inherits that idiom it can never serialise. Radii, bearings, slope
-  numbers and named shapes — rules as data.
-- **The merge breaks picking, and only the merge can fix it.** A chunk is one
-  mesh for fifty props, so `userData.entry` on the mesh cannot say which prop
-  was clicked. While concatenating, record `{ start, count, entry }` triangle
-  ranges per prop, and let a raycast's `faceIndex` binary-search that table.
-  Cheap during the merge, impossible afterwards, and it generalises: every
-  merged system this project adds will hit the same wall, and the same table
-  lets `check:world` name the document line that put a prop underground. (The
-  fallback — build the ring unmerged in editor mode — looks identical and
-  costs only draw calls, but it means editing something other than what
-  ships.)
-- **Vista entries are authored in polar, so the inspector needs a second
-  form.** Bearing, distance and apparent size, not XYZ — with the
-  authored polar values stored and placement derived, per the helper above.
-- **Parallax needs a freeze toggle.** With it live, flying the camera
-  slides the world under the prop being placed. Freezing is inspection state,
-  session-only, exactly like the layer-preview toggles.
+- **Ring options stay pure data.** *(Held.)* There is not a single function
+  type in `VistaProp`, `VistaScatter` or `VistaRingOptions` — numbers, tuples,
+  named shapes, and two object references (`MeshBuilder`, `Skirt`) that a loader
+  builds from a name and a table. Today's `scatter()` takes `avoid` and
+  `maxSlope` predicates; had the ring inherited that idiom it could never
+  serialise, and no amount of later work would fix it.
+- **The merge breaks picking, and only the merge can fix it.** *(Done.)* A
+  chunk is one mesh for fifty props, so `userData.entry` on the mesh cannot say
+  which prop was clicked. `vistaRing` records `{ start, count, name, seed }`
+  triangle ranges while it concatenates and `vistaPropAt` binary-searches a
+  raycast's `faceIndex` through them; the editor adds an `entry` field to that
+  record and reads it. Cheap during the merge, impossible afterwards, and it
+  generalises: every merged system this project adds hits the same wall, and the
+  same table lets a check name the document line that put a prop underground.
+  Individual parallax props carry a one-entry table of the same shape, so
+  nothing downstream has to know whether what it hit was merged.
+- **~~Vista entries are authored in polar~~ — they are not, and that is
+  better.** Placement is a world position plus a distance measured *out from
+  the level's outline*, which is the same number the bands, the keep-out and
+  `apparent` are all written in. An inspector needs one distance field and a
+  position, not a bearing form.
+- **Parallax needs a freeze toggle.** *(Done — `ZoneManager.freezeVista`, and
+  in the dev panel.)* With it live, flying the camera slides the world under the
+  prop being placed. Freezing is inspection state, session-only, exactly like
+  the layer-preview toggles — and it means *as authored*, not as you left it,
+  or the placement being judged is the slide rather than the thing placed.
+
+One thing the band needs that is genuinely the editor's to build: the **keep-out
+shape**. Everything else out here is a position or a distance, but the keep-out
+is a region a human draws — `dilateOutline` covers a compact level, and the
+interesting case is a shape no dilation produces, like the cup between the arms
+of a Y. It is a `PatchShape[]`, so E3's ground-shape tool already reaches it.
 
 Two things the band gets from the editor for free, worth noting because they
 make vista authoring practical: the fly camera can go out into the band and
@@ -418,7 +525,8 @@ vista work is edit-close, judge-far and the judgement is the part that counts.
 |---|---|
 | Draw calls, honest band (k = 0) | ≤ 6 (one per arc chunk) |
 | Draw calls, the moving props | one each, and there are ten-odd of them |
-| Triangles, whole band (skirt and moving props included) | ≤ 8 000 |
+| Triangles, the props (moving ones included) | ≤ 5 000 |
+| Triangles, the skirt | ≤ 8 000, and it scales with `fogFar` squared |
 | Triangles, single vista builder | ≤ 300 hard, ≤ 120 typical |
 | Collider triangles | 0 |
 | Shadow casters | 0 |
@@ -527,10 +635,10 @@ the difference is the useful part.
    assume a level shaped like a bowl. Everything is written against a signed
    distance to an authored outline instead — see *Placement*. Entry range tables
    and tags are in; the apparent-size helper is not.
-7. **Parallax.** *(built as tiers, being rebuilt per object.)* The offset and
-   the freeze toggle are in and correct; the tier axis around them is being
-   removed in favour of per-object `apparent` and the three boundaries — see
-   *Parallax* above for why the tier was a mistake rather than a simplification.
+7. **Parallax.** *(done — `world/vista-parallax.ts`.)* Per object, with
+   `apparent` authored and `k` derived, an authored keep-out, and
+   stop-don't-slide clamping. The tier axis is gone. See *Parallax* above for
+   why the tier was a mistake rather than a simplification.
 8. **Countryside ring.** *(not started, and gated.)* That zone still has a
    `rim`, which the showcase has demonstrated is the wrong shape for a place
    with a view — it wants replacing before a band behind it is worth placing.
@@ -539,27 +647,18 @@ the difference is the useful part.
    `vista-field-wall`). *(done.)*
 10. **`check:world` assertions.** *(dropped on purpose.)* These are debug
     worlds; the assertions cost more than they caught.
-11. **Band 1 dressing** *(done — `world/dressing.ts`)* and **band 3 sky ridge**
-    *(done — `SkyRidge` in `engine/Sky.ts`)*. The ridge really is the k = 1
-    limit of step 7: the dome is centred on the camera, so it moves exactly
-    with you and therefore reads as infinitely far.
+11. **Band 1 dressing** *(done — `world/dressing.ts`)*. **Band 3**
+    *(built, then removed on purpose — see *The three bands*.)* If a skyline is
+    wanted it will be geometry, not a shader trick in the dome.
 
 ## What is left
 
 None of it blocking, all of it deliberate.
 
-- **Per-object parallax, and the retirement of tiers.** Decided and specified
-  above, not yet built: `apparent` on a placed prop deriving its own `k`, the
-  keep-out boundary as an authored shape, stop-don't-slide clamping, and the
-  deletion of the tier axis with its clearance arithmetic and region splitting.
-  This subsumes the `apparent` helper, which was already outstanding — in the
-  sparse model it is not a convenience, it is how parallax is authored.
 - **The editor's half of the merge.** `vistaRing` records `{ start, count, name,
   seed }` per prop while concatenating and `vistaPropAt` binary-searches it, but
   nothing calls either yet: no picking, and no `{ "vista": … }` entry kind. The
   table was the part that becomes impossible to add later; reading it is not.
-- **`vista-range`**, the flat silhouette ribbon in the roster table. Step 9 did
-  not build it and band 3 covers most of what it was for.
 - **The countryside**, per step 8.
 
 ## Needs an eyeball, still
@@ -571,9 +670,10 @@ Three that matter most, in the order they will bite:
   keep-out is legible from inside the level. The freeze toggle is the A/B.
 - **Where the legibility ceiling actually falls** — walk a mass outward and find
   the range at which the quantizer starts contouring it.
-- **Whether the skirt's grid holds up on the horizon.** It is 11 m in the
-  showcase and was 9 m before the fog was pulled out to 240; the coarser it is,
-  the nearer its facets start to show.
+- **Whether the skirt's grid holds up on the horizon.** It is 14 m in the
+  showcase, having been coarsened twice as `fogFar` grew — the sheet's reach is
+  the fog's, so its area goes up with the square of it. The coarser it is, the
+  nearer its facets start to show.
 
 ## Precedents — research notes
 

@@ -60,9 +60,12 @@ import {
   WALL_MAX_SECTIONS,
   WALL_SECTION,
 } from '../art/builders/stone-wall';
-import { stoneWallColumn, COLUMN_REACH } from '../art/builders/stone-wall-column';
+import {
+  stoneWallSquareColumn,
+  COLUMN_REACH,
+} from '../art/builders/stone-wall-square-column';
 import { post } from '../art/builders/post';
-import { archway } from '../art/builders/archway';
+import { stoneWallArchway } from '../art/builders/stone-wall-archway';
 import { streetlamp } from '../art/builders/streetlamp';
 import { signboard, type SignboardOptions } from '../art/builders/signboard';
 import { banner, type BannerOptions } from '../art/builders/banner';
@@ -743,7 +746,7 @@ function wallRun(root: THREE.Group, seed: number, from: Point, to: Point): Point
   const pier = (at: Point, out: number, salt: number): void => {
     place(
       root,
-      stoneWallColumn.build({ seed: seed + salt, height: stand }),
+      stoneWallSquareColumn.build({ seed: seed + salt, height: stand }),
       at[0] + ux * out * COLUMN_REACH,
       at[1] + uz * out * COLUMN_REACH,
       yaw,
@@ -978,7 +981,13 @@ function buildCountryside(): THREE.Group {
 function buildSettlement(root: THREE.Group): void {
   // The arch on this side of the gate. The portal stands its door in the same
   // place from the same numbers, so the two ends match without being told to.
-  place(root, archway.build({ seed: 4714 }), COUNTRYSIDE_GATE.x, COUNTRYSIDE_GATE.z, Math.PI);
+  place(
+    root,
+    stoneWallArchway.build({ seed: 4714 }),
+    COUNTRYSIDE_GATE.x,
+    COUNTRYSIDE_GATE.z,
+    Math.PI,
+  );
   // A sign beside it, facing the way you arrive. The lane in reads as a dirt
   // track rather than as the way to anywhere until something says so.
   place(root, signboard.build(sign(5210, 'VILLAGE')), 2.4, 30.4, 0.1);

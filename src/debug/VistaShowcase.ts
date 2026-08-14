@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OUTDOOR_ENVIRONMENT, type ZoneDefinition } from '../world/Zone';
 import { SILENCE } from '../audio/Soundscape';
 import { Terrain, type Landform } from '../world/terrain';
-import { Skirt } from '../world/vista';
+import { Skirt, dilateOutline } from '../world/vista';
 import { markCollidable } from '../player/Collider';
 import { markVista } from '../art/vista';
 import { signPost } from './galleries/layout';
@@ -14,6 +14,8 @@ import { vistaCopse } from '../art/builders/vista-copse';
 import { vistaHamlet } from '../art/builders/vista-hamlet';
 import { vistaTower } from '../art/builders/vista-tower';
 import { vistaFieldWall } from '../art/builders/vista-field-wall';
+import { vistaCastle } from '../art/builders/vista-castle';
+import { vistaRange } from '../art/builders/vista-range';
 import { vistaRing } from '../world/vista-ring';
 import { edgeDressing } from '../world/dressing';
 // Band 1 is ordinary props at ordinary scale — the kit's own, not the vista
@@ -58,12 +60,13 @@ import { rock } from '../art/builders/rock';
  *   silhouette that reads wrong out there gets taken apart here. Judge the fault
  *   here, never the look.
  * - **The ring** everywhere else — the whole roster, scattered through the band
- *   by `vistaRing` and merged into a handful of draws. Past the honest band are
- *   two *parallax tiers*, sliding with the camera at half and three quarters of
- *   its travel, so what is left over reads as two and four times their real
- *   distance. Walk a straight line and watch them move against each other and
- *   against the still band in front; `freeze parallax` in the `?debug` panel
- *   puts them back where they were built, for comparison.
+ *   by `vistaRing` and merged into a handful of draws. Past the honest band is
+ *   the *parallax fringe*: hills that each slide with the camera by a fraction
+ *   of its travel, so what is left over reads as roughly twice their real
+ *   distance. Each carries its own apparent distance, so they move against each
+ *   other as well as against the still band in front. Walk a straight line and
+ *   watch; `freeze parallax` in the `?debug` panel puts them back where they
+ *   were built, for comparison.
  * - **The skyline** past all of it, which is not geometry — see `skyRidge` on
  *   the environment below. It is the same parallax mechanism at k = 1.
  *
@@ -78,8 +81,8 @@ export const ZONE_VISTA_SHOWCASE = 'vista-showcase';
  *
  * Eighty metres across. It was forty-eight, which the wall visualiser made
  * obvious was far too tight — a room for judging a view wants enough ground
- * that walking across it is a real change of viewpoint, and the parallax tier
- * has nothing to work with if the camera barely moves.
+ * that walking across it is a real change of viewpoint, and the parallax has
+ * nothing to work with if the camera barely moves.
  */
 const PLAY_HALF = 40;
 
@@ -120,11 +123,11 @@ const VIEW_Z = DOOR_Z - 1.2;
  * The air, and this room's own numbers rather than the countryside's.
  *
  * It started at the countryside's 30 → 190, which was itself only ever a number
- * somebody had to pick. At 190 the outer tier sat at 80–95% fog — obeying the
- * rule that a moving layer belongs where its footings cannot be read, and so
- * nearly the horizon colour that there was nothing left to judge. Pulled out to
- * 240 the same tier lands around 60–70%: a hazy silhouette that still has a
- * shape, which is what the parallax question actually needs to be answerable.
+ * somebody had to pick. At 190 the fringe sat at 80–95% fog — obeying the rule
+ * that a moving prop belongs where its footings cannot be read, and so nearly
+ * the horizon colour that there was nothing left to judge. Pulled out to 240 the
+ * same props land around 60–70%: a hazy silhouette that still has a shape, which
+ * is what the parallax question actually needs to be answerable.
  *
  * `fogNear` moved out too, and had to. At 30 m the haze started inside the
  * walkable ground — the far corner of an eighty-metre field is 113 m away, so a
@@ -138,74 +141,95 @@ const VIEW_Z = DOOR_Z - 1.2;
  * away than it used to be — half again at the edge of the screen — so the same
  * numbers read considerably thicker than they did. See `engine/fog.ts`.
  *
- * Far below the 450 the sky dome and the far plane allow.
+ * And `fogFar` went out a third time, to 380. At 300 the ring was 85–100 % hazed
+ * from the arrival — most of a band built to be looked at was not being drawn at
+ * all — and everything in the middle distance washed out long before it was far
+ * away. With the ramp on top of this (`RenderSettings.fogRamp`) the judged lane
+ * now runs a few percent, the near band around 40, and the far ring 85–90: a
+ * spread rather than a wall.
+ *
+ * Still below the 450 the sky dome and the far plane allow.
  */
 const FOG_NEAR = 90;
-const FOG_FAR = 300;
+const FOG_FAR = 380;
 
 /**
  * The band, in metres out from the level's edge.
  *
  * Inner is well clear of the fifteen-odd metres of margin the player can see
- * across but not enter. Outer stops short of `fogFar` × 0.9 to leave the moving
- * tier room to slide without swimming through it — see `FRINGE`.
+ * across but not enter. Outer stops short of `fogFar` × 0.9 to leave the fringe
+ * room to slide without swimming through it — see `FRINGE`.
  */
 const BAND = { inner: 15, outer: 82 };
 
 /**
- * The moving tier: the fringe, and how much of the camera's travel it takes.
+ * How far out the still band actually reaches, props and all.
  *
- * Two rules pin both numbers, and neither is a matter of taste.
- *
- * **A moving tier cannot stand on still ground**, or its footings slide across
- * the skirt — so it lives well out, where there is little left to read a slide
- * against. Kept at the absolute distance it was at when the fog ended at 190,
- * which is the whole point of pulling the fog out: the tier did not move, the
- * haze in front of it thinned. Whether 60–70% is thin enough to expose the feet
- * is now something that can be looked at rather than assumed.
- *
- * **Slide budget must stay under tier separation, measured on the worst side.**
- * A tier translates rigidly, so walking to one end drags the whole ring that
- * way and the half you walked away from comes toward the level. The furthest
- * you can get from the middle is the corner of the walkable square, about 57 m,
- * so at `k` = 0.5 this tier slides 28 m — and the clearance it needs is that
- * plus the *extents* of the props in front, not the gap between the bands. A
- * `vista-forest` at 1.5 reaches 51 m past its own centre, so the honest band's
- * props reach 133 m out from a band that stops at 82.
- *
- * Working it out from the props rather than the bands: a tier-0 forest at 1.2
- * reaches 41 m past its centre from a band that stops at 82, so the honest ring
- * reaches 123. A tier-1 hill at 1.4 reaches 28 m back toward it. 123 + 28 of
- * that reach + 28 of slide + a margin puts the inner edge at 190.
- *
- * Forests are deliberately absent from this tier: at 34 m of radius they are
- * the widest thing in the kit, and a tier's clearance is mostly other people's
- * half-extents. Hills read as well and cost a third of the room.
- *
- * `vistaRing` recomputes all of this from what it actually placed and clamps
- * `k` if it does not hold, so an authored scale cannot quietly break it.
- *
- * Whether one moving tier is one too many, and whether 0.5 reads as distance or
- * as the world sliding, is the eyeball question. The freeze toggle in the
- * `?debug` panel is how to A/B it.
+ * Not `BAND.outer`: a prop is placed by its centre and is wide. A `vista-forest`
+ * declares a 34 m radius and is scaled to 1.2 here, so it reaches 41 m past its
+ * own centre from a band that stops at 82. That is the number a moving prop has
+ * to clear, and it is the keep-out.
  */
-const FRINGE = { k: 0.5, band: { inner: 190, outer: 212 } };
+const STILL_REACH = 123;
 
 /**
- * **There is no second moving tier, and the arithmetic is why.**
+ * The parallax fringe: where the moving props stand, and how far they pose at.
  *
- * A rigid tier needs clearance equal to its own slide plus the reach of
- * everything in front of it, and both scale with the level. Working outward
- * from an eighty-metre walkable field: the honest band's props reach 133 m out,
- * so a `k` = 0.5 tier starts at 160 and its own props reach 229. A second tier
- * would then have to start past 250 — which at this fog is 295 m from the
- * arrival and therefore fully dissolved. It would be a layer nobody can see,
- * moving for nobody.
+ * **A moving prop cannot stand on still ground**, or its footings slide across
+ * the skirt — so this lives well out, where there is little left to read a slide
+ * against. Kept at the absolute distance it was at when the fog ended at 190,
+ * which is the whole point of pulling the fog out: the props did not move, the
+ * haze in front of them thinned. Whether 60–70% is thin enough to expose the
+ * feet is now something that can be looked at rather than assumed.
  *
- * That is not a limit of the machinery — `vistaRing` takes any number of tiers —
- * it is a fact about small levels. A zone with a longer walk has room for two;
- * this one has room for one, and one that can be seen beats two that cannot.
+ * **`apparent` is a range, and that is the point.** Rolled per prop, so nine
+ * hills at 190–212 m out end up with `k` anywhere from 0.38 to 0.55 — reading
+ * between about 340 and 420 m away, and moving against each other as well as
+ * against the still band in front. A single value would be a tier again.
+ *
+ * Nothing here is clamped in practice, and the arithmetic is worth writing down
+ * because it is the shape of the general case: the furthest the camera gets from
+ * the middle is the corner of the walkable square, about 57 m, so the fastest
+ * prop slides 31 m. The keep-out sits at `STILL_REACH`, the nearest prop centre
+ * at 190, and its own half-extent is 28 — so there are 39 m of room for 31 m of
+ * slide. On a level shaped like an L or a Y the two arms are not so obliging,
+ * which is what `VistaParallax` is for.
+ *
+ * Forests are deliberately absent out here: at 34 m of radius they are the
+ * widest thing in the kit, and every metre of half-extent is a metre of room a
+ * moving prop has to be given. Hills read as well and cost a third of it.
+ *
+ * Whether this much parallax is too much is the eyeball question. The freeze
+ * toggle in the `?debug` panel is how to A/B it.
  */
+const FRINGE = {
+  band: { inner: 190, outer: 212 },
+  apparent: [340, 420] as const,
+};
+
+/**
+ * The big ones, further out again.
+ *
+ * A `vista-range` is 110 m of ridge and a `vista-castle` sits on its own mound,
+ * so both want standing back — partly because a large thing close is just a
+ * large thing, and partly because a prop's half-extent is the room parallax has
+ * to be given: at 210 m out the keep-out is 87 m away and a range at 1.15
+ * reaches 80, which leaves just enough for the 31 m of slide the walkable
+ * square can ask for.
+ *
+ * Read as half a kilometre off, further than anything else out here — so `k` is
+ * the highest in the room and the ridge holds nearly still against the camera,
+ * which is what something the horizon is *made of* should do.
+ */
+const FAR = {
+  // Outer pinned by the fog, not by taste. A prop at 240 m out sits 286 m from
+  // the arrival and 316 m from the far side of the field, against a `fogFar` of
+  // 300 — which is to say it is not drawn at all, and the first pass put two
+  // ridges exactly there. `band.outer + the level's reach ≤ fogFar × 0.9` is the
+  // rule, and 222 is what it allows here.
+  band: { inner: 205, outer: 222 },
+  apparent: [470, 560] as const,
+};
 
 /** The three ranges a vista prop is judged at, north of the arrival. */
 const JUDGED = [60, 110, 165] as const;
@@ -247,9 +271,11 @@ const skirt = new Skirt({
   // level shaped like an S gets the same depth of country along its whole
   // length instead of a disc centred on nothing in particular.
   reach: FOG_FAR,
-  // Coarser as the sheet got bigger. Pulling the fog out to 240 grew the skirt
-  // by half again in each direction, and the far half of it is still fog.
-  resolution: 11,
+  // Coarser again as the sheet got bigger. `reach` is `fogFar`, so pulling the
+  // fog out to 380 grew this sheet by a quarter in each direction — and it is
+  // value rather than shape out there, so the grid pays for the extra ground
+  // instead of the triangle count doing it.
+  resolution: 14,
   collar: 8,
   apron: 24,
   // **Level with the ground you walk on, and not by omission.** Rolling country
@@ -259,7 +285,7 @@ const skirt = new Skirt({
   // space to spend it. See `SkirtOptions.roll`.
   roll: 0,
   // Moot while `roll` is zero, and kept because it is the constraint any zone
-  // that does roll has to respect: a moving tier slides across ground it was
+  // that does roll has to respect: a moving prop slides across ground it was
   // never measured against, and rolling ground puts daylight under its feet.
   flatten: { from: BAND.outer, to: FRINGE.band.inner },
   seed: 7301,
@@ -276,19 +302,6 @@ export function vistaShowcaseZone(): ZoneDefinition {
       ...OUTDOOR_ENVIRONMENT,
       fogNear: FOG_NEAR,
       fogFar: FOG_FAR,
-      // Band 3: the land past where the fog has dissolved band 2, drawn in the
-      // sky's own shader for no triangles at all. Low and hazy — anything with
-      // a readable shape up here would compete with the geometry in front of it.
-      skyRidge: {
-        opacity: 1,
-        height: 0.045,
-        scale: 3.4,
-        roughness: 0.5,
-        tint: '#6c7f95',
-        shade: 0.34,
-        haze: 0.014,
-        seed: 3307,
-      },
       soundscape: SILENCE,
     },
     spawn: { position: onGround(0, VIEW_Z), yaw: Math.PI },
@@ -336,11 +349,9 @@ function buildRing(): THREE.Group {
     skirt,
     seed: 9040,
     band: BAND,
-    // Index 0 is the honest band and never moves. See `FRINGE`.
-    tiers: [{ k: 0 }, { k: FRINGE.k }],
-    // The corner of the walkable square, which is the furthest the ring can be
-    // dragged. The placer clamps every tier's k against it.
-    travel: Math.hypot(PLAY_HALF, PLAY_HALF),
+    // The level plus everything the still band reaches, which for a square is
+    // a dilation. A bent level would draw this by hand — see `dilateOutline`.
+    keepOut: dilateOutline(skirt.outline, STILL_REACH),
     // Measured from the arrival rather than from the origin, so the sign in
     // front of you is telling the truth.
     place: [
@@ -359,12 +370,23 @@ function buildRing(): THREE.Group {
       // the horizon is a fiction decision, and yours.
       { builder: vistaTower, at: [86, -154] as const, scale: 1.35, seed: 5501 },
       { builder: vistaHamlet, at: [-77, -123] as const, scale: 1.15, seed: 5502 },
+      // The castle, out in the fringe and moving with it. Placed rather than
+      // scattered for the reason above and then some — there is one of these in
+      // a landscape, and which way you look to see it is the whole point of it.
+      // Left of the judged lane, so the two are not in front of each other.
+      {
+        builder: vistaCastle,
+        at: [-150, -246] as const,
+        scale: 1.5,
+        apparent: 400,
+        seed: 5503,
+      },
     ],
     scatter: [
       // Woodland first and most of it — a treeline is what fills a horizon, and
       // a band of bare hills reads as wallpaper.
       // Capped at 1.2: this is the widest thing in the ring, and every metre of
-      // it is a metre the moving tier has to stand further back.
+      // it is a metre of `STILL_REACH` the fringe has to stand behind.
       { builder: vistaForest, count: 9, scale: [0.9, 1.2], spacing: 26 },
       { builder: vistaHill, count: 7, scale: [0.8, 1.4], spacing: 30 },
       // Copses between the woods and the near edge, where a treeline would
@@ -393,8 +415,10 @@ function buildRing(): THREE.Group {
         scale: [1, 1.8],
         spacing: 34,
       },
-      // Signs of people, one of each and no more. Both are landmarks, and the
-      // point of a landmark is that there is one.
+      // Signs of people, and one only. There is a hand-placed tower and a
+      // hand-placed hamlet already; a second scattered tower asked for a spot in
+      // a band the landmarks had filled, could never get one, and warned about
+      // it on every load. The point of a landmark is that there is one.
       {
         builder: vistaHamlet,
         count: 1,
@@ -402,26 +426,46 @@ function buildRing(): THREE.Group {
         scale: [1, 1.3],
         spacing: 40,
       },
-      {
-        builder: vistaTower,
-        count: 1,
-        band: { inner: 40, outer: 85 },
-        scale: [1, 1.5],
-        spacing: 40,
-      },
-      // --- the moving tier ---------------------------------------------------
+      // --- the parallax fringe -----------------------------------------------
       // Masses only, and big ones. This far out the fog has taken everything but
       // value, so what is placed here has to be a suggestion of land rather than
       // a thing with a shape — and it stands on ground that has already gone.
-      // Hills only, and modestly scaled. A prop's own reach is most of what a
-      // tier's clearance has to cover — see `FRINGE`.
       {
         builder: vistaHill,
-        tier: 1,
-        count: 9,
+        count: 8,
         band: FRINGE.band,
-        scale: [1.1, 1.4],
-        spacing: 30,
+        apparent: FRINGE.apparent,
+        // Half again what it was. These are the far hills rather than more of
+        // the near ones, and at this range height is the only thing left that
+        // separates them from the band in front.
+        scale: [1.5, 2.2],
+        spacing: 38,
+      },
+      // Something that is not a dome, at the same range. A crag reads as rock
+      // where a hill reads as pasture, and the two together are a landscape.
+      {
+        builder: vistaCrag,
+        count: 3,
+        band: FRINGE.band,
+        apparent: FRINGE.apparent,
+        scale: [2.2, 3.2],
+        spacing: 40,
+      },
+      // --- and the far ridges ------------------------------------------------
+      // What the horizon is made of. Two of them, because one is a wall and two
+      // overlap into depth — the same reason the sky ridge draws two layers.
+      {
+        builder: vistaRange,
+        count: 2,
+        band: FAR.band,
+        apparent: FAR.apparent,
+        scale: [0.9, 1.15],
+        // Modest, and it has to be: `spacing` is a floor against *everything*
+        // already placed, not against other ranges, so a number sized for two
+        // ridges is a number no candidate in a thirty-metre shell can meet. At
+        // 90 the radius rule does the work between the big ones and this only
+        // stops them landing on the same spot.
+        spacing: 90,
       },
     ],
   });

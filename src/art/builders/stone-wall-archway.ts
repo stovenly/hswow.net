@@ -33,8 +33,8 @@ import {
  * Built facing **+Z** with its opening centred on the origin, matching the door
  * builder, so a portal can place both from the same position and yaw.
  */
-export const archway: MeshBuilder = {
-  name: 'archway',
+export const stoneWallArchway: MeshBuilder = {
+  name: 'stone-wall-archway',
   category: 'structures',
   radius: 1.8,
 
@@ -160,13 +160,26 @@ export const archway: MeshBuilder = {
     // neighbours, so with nothing behind them the head of the arch is a comb.
     // Starts above the springing and stops short of the top of the course above,
     // so nothing of it shows past either.
+    //
+    // **Pulled in at the ends, because the stones in front of it are.**
+    // `throughStone` beds every stone — `masonry.bed` pulls its outline in by
+    // half a joint and wears the corners back by the chamfer — so the outermost
+    // voussoir and the last stone of the course above both stop a couple of
+    // centimetres short of `reach`. This is a raw prism and did not, so it stood
+    // proud of them at each end of the arch and read as a grey core sticking out
+    // of the top layer of stonework. It has to be inset by at least what bedding
+    // takes off, and there is no cost to taking off a little more: nothing can
+    // see the backing except through a joint.
+    const hide = point.joint / 2 + point.chamfer * reach * 0.1 + 0.03;
+    const pull = (x: number): number => x - Math.sign(x) * Math.min(hide, Math.abs(x));
+
     const backing: Point[] = [
-      { x: -soffit(1), y: height + 0.025 },
-      { x: soffit(1), y: height + 0.025 },
+      { x: pull(-soffit(1)), y: height + 0.025 },
+      { x: pull(soffit(1)), y: height + 0.025 },
     ];
     for (let i = 8; i >= 0; i--) {
       const t = -1 + i / 4;
-      backing.push({ x: back(t), y: crownAt(t) + dripH * 0.7 });
+      backing.push({ x: pull(back(t)), y: crownAt(t) + dripH * 0.7 });
     }
     parts.push({ geometry: prism(backing, depth * 0.82), color: fill, sway: 0 });
 
@@ -199,6 +212,6 @@ export const archway: MeshBuilder = {
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'archway', 0);
+    return finish(geometry, 'stone-wall-archway', 0);
   },
 };

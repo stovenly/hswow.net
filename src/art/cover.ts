@@ -10,6 +10,7 @@ import {
 } from './cover-sample';
 import type { CoverReply, CoverRequest } from './cover.worker';
 import { windUniforms } from './sway';
+import { applyAerialFog } from '../engine/fog';
 import { COVER_LAYER } from '../layers';
 
 export {
@@ -369,6 +370,12 @@ TUFT_MATERIAL.customProgramCacheKey = () => 'cover-tufts';
  * buffer agrees with the colour buffer per pixel; a blade writes the ground's
  * normal, which is also what it is lit by.
  */
+// The same air as everything else outdoors. After the patch above, not before:
+// the chain composes onto whatever `onBeforeCompile` is already there. See
+// `engine/fog.ts`.
+applyAerialFog(COVER_MATERIAL);
+applyAerialFog(TUFT_MATERIAL);
+
 export const COVER_NORMAL_MATERIAL = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
 
 COVER_NORMAL_MATERIAL.onBeforeCompile = (shader) => {

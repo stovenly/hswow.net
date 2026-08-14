@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLASS_LAYER } from '../layers';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
+import { AERIAL_AIR_GLSL, fogUniforms } from '../engine/fog';
 import { REFLECT_GLSL } from '../engine/reflect';
 
 /**
@@ -80,6 +81,7 @@ export const GLASS_MATERIAL = new THREE.ShaderMaterial({
     // Shared by reference, never cloned: a second sky would part company with
     // the real one the first time either was tuned. Same argument as water's.
     ...skyUniforms,
+    ...fogUniforms,
   },
   fog: true,
   // For its *sorting* effect only — the blending is off, because this shader
@@ -141,6 +143,7 @@ export const GLASS_MATERIAL = new THREE.ShaderMaterial({
     // a shader that already has it does not declare it twice.
     ${NOISE_GLSL}
     ${SKY_GLSL}
+    ${AERIAL_AIR_GLSL}
 
     /**
      * How far along the camera ray the scene stops, at a screen position.
@@ -284,9 +287,13 @@ export const GLASS_MATERIAL = new THREE.ShaderMaterial({
       // again would fog it twice. What is genuinely this shader's is the
       // absorption and an unmarched sky reflection.
       float own = mix(absorbed, 1.0 - hit, fresnel);
-      float haze = smoothstep(fogNear, fogFar, surfaceDistance) * own;
+      // The same air as the rest of the world, from the same functions - see
+      // engine/fog.ts. No backticks in here: this is a template literal, and
+      // one inside a comment would end it mid-GLSL. The view vector points at
+      // the eye, and the air is measured going the other way.
+      float haze = aerialAmount(-view, surfaceDistance) * own;
 
-      gl_FragColor = vec4(mix(colour, fogColor, haze), 1.0);
+      gl_FragColor = vec4(mix(colour, aerialAir(-view), haze), 1.0);
     }
   `,
 });
