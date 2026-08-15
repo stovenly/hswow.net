@@ -90,8 +90,6 @@ export interface RenderSettings {
    * how many times wider the pixel gets before it is gone.
    */
   detail: { start: number; span: number };
-  normalEdgeStrength: number;
-  depthEdgeStrength: number;
 
   /**
    * How much of one quantization step the dither spreads across.
@@ -240,13 +238,6 @@ export const DEFAULT_RENDER: RenderSettings = {
   // levels — a short ramp puts a visible ring on the floor where the seams give
   // out, and nothing on screen should announce where the detail went.
   detail: { start: 1, span: 16 },
-  // The interior crease line, and the quieter of the two on purpose. Grading the
-  // thresholds means far more pixels now carry *some* normal edge, so the same
-  // strength reads much heavier than it used to; and a world built of planks and
-  // battens has a crease everywhere you look. The silhouette below keeps its
-  // full weight — that is the line doing the work of making this look drawn.
-  normalEdgeStrength: 0.2,
-  depthEdgeStrength: 0.5,
 
   // A little over a full step: the gap between two levels dithers almost
   // exactly, so tones come out where they should with the halftone still
@@ -878,8 +869,6 @@ export class PostFX {
     const scale = this.viewport.renderer.getPixelRatio();
     const devicePixels = this.pixelate ? Math.max(1, Math.round(s.pixelSize * scale)) : 1;
     if (this.pixelStage.pixelSize !== devicePixels) this.pixelStage.setPixelSize(devicePixels);
-    this.pixelStage.normalEdgeStrength = s.normalEdgeStrength;
-    this.pixelStage.depthEdgeStrength = s.depthEdgeStrength;
     this.pixelStage.setSamples(
       resolveSamples(this.antialias, s.samples, this.viewport.renderer.capabilities.maxSamples),
     );

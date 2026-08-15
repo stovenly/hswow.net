@@ -3,7 +3,6 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRng, type Rng } from './random';
 import { blend, shade } from './palette';
 import { SWAY_ATTRIBUTE } from './assemble';
-import { VISTA_LAYER } from '../layers';
 
 /**
  * The vista family's grammar — VISTA.md.
@@ -29,11 +28,11 @@ export const VISTA_TRIANGLES = 300;
 /**
  * States that a mesh is scenery.
  *
- * Five claims at once, and every one of them is something the band would
+ * Four claims at once, and every one of them is something the band would
  * otherwise inherit from a system that knows nothing about it: it is out of the
  * collider, it is out of the sun's shadow box in both directions, it does not
- * move in the wind, it draws no outline, and `ZoneManager.prepare` reads the
- * tag rather than guessing from the shadow box's current size.
+ * move in the wind, and `ZoneManager.prepare` reads the tag rather than
+ * guessing from the shadow box's current size.
  *
  * Sway is zeroed here rather than left to the builders because amplitude is
  * authored in metres at prop scale — on a hillside, or on an ordinary prop
@@ -46,8 +45,6 @@ export function markVista<T extends THREE.Object3D>(object: T): T {
     node.castShadow = false;
     node.receiveShadow = false;
     if (!(node instanceof THREE.Mesh)) return;
-    // Additive — it stays on layer 0 and draws normally. See `VISTA_LAYER`.
-    node.layers.enable(VISTA_LAYER);
     const sway = node.geometry.getAttribute(SWAY_ATTRIBUTE);
     if (!sway) return;
     (sway.array as Float32Array).fill(0);

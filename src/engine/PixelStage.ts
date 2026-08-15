@@ -3,7 +3,6 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { drawCoverNormals } from '../art/cover';
 import { RetroShader } from './RetroShader';
 import type { GpuClock } from './GpuClock';
-import { VISTA_LAYER } from '../layers';
 
 /**
  * The pixel stage: render at chunky resolution, run effects there, upscale.
@@ -16,7 +15,6 @@ import { VISTA_LAYER } from '../layers';
  * ```
  * scene ─► colour target (chunky, half-float, depth texture)
  *       ─► normal target  (chunky, override material)
- *       ─► edges          (the outline, onto the surfaces)
  *       ─► [effects…]     (chunky → chunky, ping-pong)
  *       ─► upscale        (nearest blit, sRGB, dither, quantize)
  * ```
@@ -25,16 +23,10 @@ import { VISTA_LAYER } from '../layers';
  * so everything that has to happen there happens in its one shader — see
  * `RetroShader`.
  *
- * The edge shader came verbatim from the upstream pass — same maths, same
- * output — because R0's exit criterion was that nothing changes on screen. Its
- * thresholds have since been graded; see `createEdgeMaterial`. The rest of the
- * differences from upstream are structural: the colour target keeps its
- * depth texture bound and hands it, with the normals, to whoever asks; effects
- * run between render and upscale, each reading the chain's colour so far and
- * writing the next link; and the outline is drawn *before* those effects
- * rather than fused to the upscale after them, so that fog and bloom cover it
- * instead of it multiplying them. See `render` for what that cost and did not
- * cost.
+ * The differences from upstream are structural: the colour target keeps its
+ * depth texture bound and hands it, with the normals, to whoever asks, and
+ * effects run between render and upscale, each reading the chain's colour so
+ * far and writing the next link.
  *
  * Half-float colour is deliberate and inherited from upstream: at this
  * resolution it costs nothing, and it is the headroom bloom and god rays
@@ -100,14 +92,10 @@ export interface PixelEffect {
  * What the normal buffer is cleared to: the packed normal `(0, 0, 1)`, a flat
  * surface facing the camera.
  *
- * **It has to decode to a unit vector.** The edge detector's continuous
- * quantity is `1.0 - dot(normal, neighborNormal)`, so anything shorter than 1
- * reads as a turn in the surface even where the buffer is uniform. The
- * renderer's own clear colour is the fog colour — `PostFX.apply` sets it so an
- * interior is not a lit room floating in blue — which decodes to a vector of
- * length 0.66, and since the sky dome is culled out of the normal pass (the
- * override material replaces its `BackSide`), that was the whole open sky
- * flagged as an edge and multiplied by `1 + normalEdgeStrength`.
+ * It has to decode to a unit vector, and the renderer's own clear colour — the
+ * fog colour, set by `PostFX.apply` — does not: it is about 0.66 long, and the
+ * sky dome is culled out of the normal pass, so every pixel the geometry misses
+ * would carry a normal nobody meant.
  *
  * Linear on purpose: the target is raw half-float with no colour space, so the
  * clear lands in it unconverted.
@@ -117,8 +105,6 @@ export const FLAT_NORMAL = new THREE.Color().setRGB(0.5, 0.5, 1, THREE.LinearSRG
 export class PixelStage extends Pass {
   /** Chunky pixel size in device pixels. Set through `setPixelSize`. */
   pixelSize: number;
-  normalEdgeStrength = 0.3;
-  depthEdgeStrength = 0.4;
   /** Seconds since start-up, pushed from `PostFX.render`. See `EffectContext`. */
   time = 0;
 
@@ -137,33 +123,6 @@ export class PixelStage extends Pass {
 
   /** The override material for the normal render. The sway patch goes on this. */
   readonly normalMaterial = new THREE.MeshNormalMaterial();
-  /**
-   * The same, writing zero alpha — the "do not outline this" stamp.
-   *
-   * `MeshNormalMaterial` puts `opacity` into the alpha channel, so this
-   * overwrites the alpha of whatever the first pass drew and leaves the packed
-   * normal in the other three channels alone. See `VISTA_LAYER`.
-   *
-   * **`NoBlending` is what makes it work, and it is not an optimisation.**
-   * Three ends the normal shader with
-   *
-   * ```glsl
-   * #ifdef OPAQUE
-   *   gl_FragColor.a = 1.0;
-   * #endif
-   * ```
-   *
-   * and defines `OPAQUE` for any material that is `transparent: false` *and*
-   * on `NormalBlending`. So an ordinary opaque material has its alpha forced
-   * back to 1 no matter what `opacity` says, and the stamp silently does
-   * nothing — which is exactly how it shipped the first time. Dropping the
-   * blending mode clears the define, and since `NoBlending` writes the fragment
-   * raw there is nothing to blend the zero away either.
-   */
-  private readonly unlinedMaterial = new THREE.MeshNormalMaterial({
-    opacity: 0,
-    blending: THREE.NoBlending,
-  });
 
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
@@ -177,14 +136,13 @@ export class PixelStage extends Pass {
   /**
    * Ping-pong pair for the effect chain. Separate from the colour target on
    * purpose: writing back into it would race its own depth texture, which the
-   * upscale still needs for the edge lines.
+   * effects still read.
    */
   private readonly ping: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
 
   /** Scratch for the clear colour the normal render borrows and gives back. */
   private readonly priorClear = new THREE.Color();
 
-  private readonly edgeMaterial: THREE.ShaderMaterial;
   private readonly outputMaterial: THREE.ShaderMaterial;
   private readonly fsQuad: FullScreenQuad;
 
@@ -208,9 +166,8 @@ export class PixelStage extends Pass {
     this.normalTarget = chunky();
     this.ping = [chunky(), chunky()];
 
-    this.edgeMaterial = createEdgeMaterial();
     this.outputMaterial = createOutputMaterial();
-    this.fsQuad = new FullScreenQuad(this.edgeMaterial);
+    this.fsQuad = new FullScreenQuad(this.outputMaterial);
   }
 
   /** The look's dials, written by `PostFX.apply`. See `RetroShader`. */
@@ -226,7 +183,6 @@ export class PixelStage extends Pass {
     this.normalTarget.setSize(x, y);
     for (const target of this.ping) target.setSize(x, y);
     for (const effect of this.effects) effect.setSize(x, y);
-    this.edgeMaterial.uniforms.resolution.value.set(x, y, 1 / x, 1 / y);
   }
 
   setPixelSize(pixelSize: number): void {
@@ -237,10 +193,9 @@ export class PixelStage extends Pass {
   /**
    * Coverage samples on the colour render. 0 is off. Clamped by the caller.
    *
-   * **The colour target only.** The normal target feeds the edge detector, and
-   * an averaged normal across a silhouette reads as a *smaller* discontinuity —
-   * the ink lines would soften. The ping pair is written by fullscreen quads,
-   * where there is no coverage to sample.
+   * **The colour target only.** An averaged normal across a silhouette is not a
+   * normal any surface has, so the normal target stays single-sampled; the ping
+   * pair is written by fullscreen quads, where there is no coverage to sample.
    *
    * Three builds the multisampled framebuffer once and never revisits the
    * count, so the target has to be thrown away for a new one to take. The depth
@@ -293,70 +248,16 @@ export class PixelStage extends Pass {
     this.scene.overrideMaterial = this.normalMaterial;
     renderer.render(this.scene, this.camera);
 
-    // **The vista band, again, stamping its alpha to zero.**
-    //
-    // An outline is a constant width in pixels, so the same line that reads as
-    // drawn ink around a barrel reads as a hard seam around a hillside the fog
-    // has otherwise dissolved — the one thing left in the frame that does not
-    // recede with distance. This second pass is how the band opts out: same
-    // depth, so it lands exactly on the pixels it drew a moment ago, and only
-    // the alpha changes. No clear, or it would wipe the pass above.
-    //
-    // Done with a layer and a second draw rather than a flag in the normal
-    // material because the normal pass is an `overrideMaterial` — there is one
-    // material for the whole scene and no way to vary it per mesh.
-    const priorAutoClear = renderer.autoClear;
-    const priorMask = this.camera.layers.mask;
-    renderer.autoClear = false;
-    this.scene.overrideMaterial = this.unlinedMaterial;
-    this.camera.layers.set(VISTA_LAYER);
-    renderer.render(this.scene, this.camera);
-    this.camera.layers.mask = priorMask;
-    renderer.autoClear = priorAutoClear;
-
     this.scene.overrideMaterial = priorOverride;
     renderer.setClearColor(this.priorClear, priorAlpha);
     // The groundcover draws itself in afterwards: the override cannot know its
-    // instanced construction, and a normal buffer that ends at the ground lets
-    // the edge pass outline whatever stands behind a blade straight through it.
+    // instanced construction, so a normal buffer left to the override alone
+    // ends at the ground under every blade and plume.
     drawCoverNormals(renderer, this.scene, this.camera);
     gpu?.end();
 
-    // --- the edge lines, before anything is put in front of them ------------
-    // **The outline belongs to the surface, so it is drawn onto the surface.**
-    // It used to be applied at the very end, over the finished effect chain,
-    // and a normal edge *brightens* — so it multiplied whatever was standing in
-    // front of the geometry rather than the geometry itself. Pale fog came back
-    // 1.5× and clipped to white, and a lamp's bloom halo arrived wearing an
-    // outline of its own. Neither is a fog bug or a bloom bug; both are this
-    // multiply happening a stage too late.
-    //
-    // Moved here, mist covers an outline exactly as it covers the wall the
-    // outline is on, and a halo washes its own outline out. No special case in
-    // either effect.
-    //
-    // This is not the visual change it sounds like. GTAO's composite is a pure
-    // multiply, and multiplication commutes — `colour × ao × edge` and
-    // `colour × edge × ao` are the same number — so the picture only moves
-    // where an effect *adds* light or veils it, which is precisely the case
-    // being fixed.
     let colour: THREE.Texture = this.colourTarget.texture;
     let next = 0;
-    if (this.normalEdgeStrength > 0 || this.depthEdgeStrength > 0) {
-      gpu?.begin('edges');
-      const edges = this.edgeMaterial.uniforms;
-      edges.tDiffuse.value = colour;
-      edges.tDepth.value = this.depthTexture;
-      edges.tNormal.value = this.normalTarget.texture;
-      edges.normalEdgeStrength.value = this.normalEdgeStrength;
-      edges.depthEdgeStrength.value = this.depthEdgeStrength;
-      this.fsQuad.material = this.edgeMaterial;
-      renderer.setRenderTarget(this.ping[0]);
-      this.fsQuad.render(renderer);
-      gpu?.end();
-      colour = this.ping[0].texture;
-      next = 1;
-    }
 
     // --- the effect chain ---------------------------------------------------
     for (const effect of this.effects) {
@@ -406,160 +307,9 @@ export class PixelStage extends Pass {
     for (const target of this.ping) target.dispose();
     for (const effect of this.effects) effect.dispose();
     this.normalMaterial.dispose();
-    this.unlinedMaterial.dispose();
-    this.edgeMaterial.dispose();
     this.outputMaterial.dispose();
     this.fsQuad.dispose();
   }
-}
-
-/**
- * The edge shader: the depth/normal outline, applied to the chunky colour.
- *
- * Two things have changed since it arrived from `RenderPixelatedPass`.
- *
- * **When it runs.** Upstream it was fused to the upscale and therefore ran last,
- * over everything; here it runs on the surfaces alone, before any effect puts
- * fog or bloom in front of them. See the note in `render`.
- *
- * **Its thresholds are graded rather than binary.** Upstream binarised the same
- * signal three times over — `sign()`, then a 0.02-wide window, then
- * `step(0.1, …)` — so an outline was on or off with nothing between. A pixel a
- * third covered by an edge got the same line as one fully covered, which is an
- * outline that cannot be antialiased however well the rest of the frame is
- * sampled, and it is why diagonals read as staircases. The underlying quantity,
- * how sharply the surface turns, is continuous; these hand that back. `sign` and
- * `step` became `smoothstep` at the same crossing points, so a hard edge is
- * unchanged and only shallow and partly-covered ones grade. `normalIndicator`
- * stayed binary deliberately — it picks which side draws.
- */
-function createEdgeMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      tDiffuse: { value: null },
-      tDepth: { value: null },
-      tNormal: { value: null },
-      resolution: { value: new THREE.Vector4(1, 1, 1, 1) },
-      normalEdgeStrength: { value: 0 },
-      depthEdgeStrength: { value: 0 },
-    },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform sampler2D tDiffuse;
-      uniform sampler2D tDepth;
-      uniform sampler2D tNormal;
-      uniform vec4 resolution;
-      uniform float normalEdgeStrength;
-      uniform float depthEdgeStrength;
-      varying vec2 vUv;
-
-      float getDepth(int x, int y) {
-        return texture2D(tDepth, vUv + vec2(x, y) * resolution.zw).r;
-      }
-
-      vec3 getNormal(int x, int y) {
-        return texture2D(tNormal, vUv + vec2(x, y) * resolution.zw).rgb * 2.0 - 1.0;
-      }
-
-      // The outline mask: zero where something has asked not to be drawn.
-      float getOutlined(int x, int y) {
-        return texture2D(tNormal, vUv + vec2(x, y) * resolution.zw).a;
-      }
-
-      float depthEdgeIndicator(float depth, vec3 normal) {
-        float diff = 0.0;
-        diff += clamp(getDepth(1, 0) - depth, 0.0, 1.0);
-        diff += clamp(getDepth(-1, 0) - depth, 0.0, 1.0);
-        diff += clamp(getDepth(0, 1) - depth, 0.0, 1.0);
-        diff += clamp(getDepth(0, -1) - depth, 0.0, 1.0);
-        // Upstream quantized this to three values with floor(x * 2.) / 2.
-        // Ungraded, so a pixel a third covered by an edge got the same line as
-        // one fully covered, and a diagonal came out a staircase.
-        return smoothstep(0.01, 0.02, diff);
-      }
-
-      float neighborNormalEdgeIndicator(int x, int y, float depth, vec3 normal) {
-        float depthDiff = getDepth(x, y) - depth;
-        vec3 neighborNormal = getNormal(x, y);
-
-        // Edge pixels should yield to faces whose normals are closer to the bias normal.
-        vec3 normalEdgeBias = vec3(1., 1., 1.);
-        float normalDiff = dot(normal - neighborNormal, normalEdgeBias);
-        // Left binary on purpose. This picks *which side* of an edge draws the
-        // line; graded, both sides draw and every outline comes out double.
-        float normalIndicator = clamp(smoothstep(-.01, .01, normalDiff), 0.0, 1.0);
-
-        // Only the shallower pixel should detect the normal edge. Upstream flipped
-        // this hard with sign(); same crossing point, graded across it.
-        float depthIndicator = smoothstep(-0.014, -0.006, depthDiff);
-
-        // Gated on the neighbour, not only on this pixel. A silhouette is
-        // shared by two pixels and only one of them draws the line; which one
-        // is decided by the normal comparison once the depth gate has let both
-        // through - and at long range it lets both through, because depth is
-        // nonlinear and a hill at 150 m and the sky dome at 475 m are four
-        // ten-thousandths apart. So the line for a vista silhouette against the
-        // sky was landing on the sky pixel, which is not vista and so was not
-        // masked: it showed against the sky and nowhere else.
-        return (1.0 - dot(normal, neighborNormal)) * depthIndicator * normalIndicator
-          * getOutlined(x, y);
-      }
-
-      float normalEdgeIndicator(float depth, vec3 normal) {
-        float indicator = 0.0;
-        indicator += neighborNormalEdgeIndicator(0, -1, depth, normal);
-        indicator += neighborNormalEdgeIndicator(0, 1, depth, normal);
-        indicator += neighborNormalEdgeIndicator(-1, 0, depth, normal);
-        indicator += neighborNormalEdgeIndicator(1, 0, depth, normal);
-        // **The one that mattered.** Upstream returned step(0.1, indicator), so
-        // an outline was on or off with nothing between and could not be
-        // antialiased however the rest of the frame was sampled. The quantity
-        // being thresholded — how sharply the surface turns — is continuous, and
-        // this hands that back. A hard 90 degree edge still reads 1.0 from a
-        // single tap and is unchanged; what grades is everything shallower and
-        // everything partly covered, which is the whole of the staircasing.
-        return smoothstep(0.05, 0.25, indicator);
-      }
-
-      void main() {
-        vec4 texel = texture2D(tDiffuse, vUv);
-
-        // Zero where something has asked not to be outlined — the vista band
-        // stamps it in a second normal pass. This gates the *result*, so it
-        // takes the depth edge with it as well as the normal one. It only
-        // covers lines drawn on a masked pixel; the ones drawn on its
-        // neighbours are gated in the neighbour indicator above.
-        float outlined = getOutlined(0, 0);
-
-        float depth = 0.0;
-        vec3 normal = vec3(0.0);
-
-        if (depthEdgeStrength > 0.0 || normalEdgeStrength > 0.0) {
-          depth = getDepth(0, 0);
-          normal = getNormal(0, 0);
-        }
-
-        float dei = 0.0;
-        if (depthEdgeStrength > 0.0)
-          dei = depthEdgeIndicator(depth, normal);
-
-        float nei = 0.0;
-        if (normalEdgeStrength > 0.0)
-          nei = normalEdgeIndicator(depth, normal);
-
-        float strength = dei > 0.0 ? (1.0 - depthEdgeStrength * dei) : (1.0 + normalEdgeStrength * nei);
-
-        gl_FragColor = texel * mix(1.0, strength, outlined);
-      }
-    `,
-  });
 }
 
 /**

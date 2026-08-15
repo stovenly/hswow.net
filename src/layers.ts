@@ -54,14 +54,12 @@ export const GLOW_LAYER = 2;
  * That is not an optimisation, it is the whole design (SHADERS-AND-MATERIALS.md §7). Water has
  * to read the colour and the depth of everything behind it, and nothing can
  * sample the buffer it is rendering into — so water cannot be in the opaque
- * pass. Being off layer 0 removes it from that pass, from the normal pass the
- * outline is differenced out of, and from the shadow map, in one line and with
- * no per-pass exclusion lists to keep in step.
+ * pass. Being off layer 0 removes it from that pass, from the normal pass, and
+ * from the shadow map, in one line and with no per-pass exclusion lists to keep
+ * in step.
  *
- * Three consequences, all of them wanted:
+ * Two consequences, both of them wanted:
  *
- * - **No outline on the water.** The edge detector never sees it. The foam line
- *   is what draws the shore instead, which is the right line to draw.
  * - **No shadow cast, and no self-shadowing of a surface that has no thickness.**
  * - **The reflection ray cannot hit the water it left.** Water is absent from
  *   the depth buffer entirely, so the screen-space march has nothing of its own
@@ -79,9 +77,8 @@ export const WATER_LAYER = 3;
  * Read by `PixelStage`'s normal pass: the scene-wide override material cannot
  * know the instanced cover construction, so after the override render the
  * camera points at this layer alone and the cover draws itself into the normal
- * buffer with its own patched normal materials. Without that, the edge
- * detector outlines whatever stands *behind* a blade or a plume straight
- * through it — worst against the rim hills, whose normals are full of edges.
+ * buffer with its own patched normal materials. Without that, the normal buffer
+ * ends at the ground under every blade and plume.
  */
 export const COVER_LAYER = 4;
 
@@ -140,23 +137,3 @@ export const GLASS_LAYER = 6;
  * mask the screen-space corruption passes are gated by.
  */
 export const EFFECT_MASK_LAYER = 7;
-
-/**
- * Out-of-bounds scenery — the vista band. Additive, like collision and glow:
- * these meshes stay on layer 0 and are drawn with everything else.
- *
- * **It exists to take the outline off them.** `PixelStage` draws the scene a
- * second time into the normal buffer restricted to this layer, with a material
- * that writes zero alpha, and the edge shader reads that alpha as "no line
- * here". Both kinds of edge go — the depth one as well as the normal one —
- * because the alpha is sampled once and gates the result rather than either
- * input.
- *
- * The reason is scale rather than taste. An outline is a constant width in
- * pixels, so on a prop two metres across it is a drawn line and on a hillside
- * a hundred and fifty metres away it is a hard black seam around a shape that
- * fog has otherwise dissolved — the one thing in the frame that does not
- * recede. Band 1 keeps its outlines, because band 1 is at arm's length and is
- * ordinary world geometry; see `art/vista.ts`.
- */
-export const VISTA_LAYER = 8;
