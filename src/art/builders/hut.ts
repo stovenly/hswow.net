@@ -1,125 +1,170 @@
-import * as THREE from 'three';
 import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE } from '../palette';
+import {
+  block,
+  chimney,
+  facePoint,
+  leanTo,
+  look,
+  markDoorways,
+  onFace,
+  shuttered,
+  type Doorway,
+  type RoofKind,
+} from '../building';
 
 /**
- * A small building: stone base, timber upper, pitched roof, dark doorway.
+ * A villager's house: one bay of box frame on a stone plinth, under thatch.
  *
- * The doorway is a solid dark panel rather than a hole. Cutting an opening
- * would mean constructive solid geometry, which is a great deal of machinery
- * for something the player reads at a glance — and at this distance and this
- * palette, an unlit recess and an actual hole are indistinguishable. Phase 5's
- * enterable interiors are separate geometry anyway, reached through a trigger,
- * so nothing is ever seen through this.
+ * The house meant to stand in a row with others, so it is deliberately the
+ * plainest thing in the family — no porch, no jetty, no cross-wing. What varies
+ * between two of them is the infill colour, the roof, and whether there is an
+ * outshot on the back, which is what actually varied down a real street.
  *
- * The roof overhangs on purpose. A roof flush with its walls looks like a lid;
- * the overhang and the shadow line under it are what make it a building.
+ * Nothing is built at the doorway — a door builder puts the leaf and its frame
+ * there. All this hands over is where it goes, in `userData.doorways`.
  */
 export const hut: MeshBuilder = {
   name: 'hut',
   category: 'structures',
-  radius: 2.6,
+  radius: 3,
 
   build({ seed = 1, scale = 1 } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
-    const width = rng.range(3, 4.4);
-    const depth = rng.range(2.6, 3.8);
-    const wallHeight = rng.range(2, 2.6);
-    const baseHeight = rng.range(0.4, 0.8);
+    // Thatch mostly, because that is what a villager could cut himself. The
+    // other two are what he got when the manor was paying.
+    const draw = rng();
+    const kind: RoofKind = draw < 0.62 ? 'thatch' : draw < 0.82 ? 'shingle' : 'tile';
+    const style = look(rng, 'frame', kind);
 
-    // Pitched roof from a three-sided cylinder — a prism lying on its side is
-    // a gable, and it is one primitive instead of two mitred slabs.
+    const width = rng.range(3.8, 4.5);
+    const depth = rng.range(3.1, 3.7);
+    // **Taller than it looks like it should be, and thatch is why.** The roof's
+    // underside crosses the wall face the best part of two thirds of a metre
+    // below the wall head, so a two-and-a-bit metre wall leaves no door height
+    // at all — the frame came out through the slope. `Block.head` is the number
+    // that actually matters and everything below is measured against it.
+    const eave = rng.range(3.1, 3.4);
+    const plinth = rng.range(0.3, 0.46);
+    // Steeper under thatch: straw only sheds water if the pitch throws it off
+    // faster than it can soak in, which is why a thatched roof is never shallow.
+    const pitch = kind === 'thatch' ? rng.range(0.86, 1.0) : rng.range(0.72, 0.86);
+
+    const shell = block(rng, {
+      width,
+      depth,
+      base: plinth,
+      eave,
+      pitch,
+      look: style,
+    });
+    parts.push(...shell.parts);
+
+    // --- the front ------------------------------------------------------------
+    const doorWidth = rng.range(1.02, 1.2);
+    const doorHeight = Math.min(rng.range(2.12, 2.36), shell.head - 0.3);
+    const doorAt = rng.around(0, width * 0.17);
+
+    // Nothing is built at the doorway itself — see `building.ts`. The three
+    // numbers above are only here to be recorded, and to keep the window off it.
+    const front: Part[] = [];
+    // A window on the wider side of the door, and a second one if there is room
+    // for it without crowding the frame.
+    const side = doorAt > 0 ? -1 : 1;
+    const room = width / 2 - Math.abs(doorAt + side * (doorWidth / 2)) - 0.4;
+    if (room > 0.95) {
+      // Sized to the wall left rather than rolled free. A shutter folded back
+      // stands out past its own opening by half a leaf again, so a window that
+      // only just fits the hole it is in does not fit the wall.
+      front.push(
+        ...shuttered(rng, {
+          at: doorAt + side * (doorWidth / 2 + 0.35 + room / 2),
+          sill: rng.range(1.15, 1.4),
+          width: Math.min(rng.range(0.5, 0.7), room * 0.42),
+          height: rng.range(0.5, 0.66),
+          look: style,
+        }),
+      );
+    }
+    onFace(front, shell.wall.front);
+    parts.push(...front);
+
+    // --- the back, and the ends ----------------------------------------------
     //
-    // **Built about the origin and then lifted onto the walls by measurement.**
-    // A prism rotated twice and scaled has an underside whose height is not
-    // obvious from any of those numbers, so placing it by a guessed offset
-    // buried its lower half inside the walls. Measuring the bounding box and
-    // lifting by exactly the shortfall puts the eave on the wall head, whatever
-    // the roof shape is next changed to.
-    const ridge = rng.range(0.9, 1.5);
-    const roof = new THREE.CylinderGeometry(ridge, ridge, width * 1.16, 3, 1);
-    roof.rotateZ(Math.PI / 2);
-    // Flat side down: the untouched prism rests on an edge.
-    roof.rotateX(Math.PI / 6);
-    roof.scale(1, 1, (depth * 1.2) / (ridge * 2));
-    roof.computeBoundingBox();
-    roof.translate(0, wallHeight - (roof.boundingBox?.min.y ?? 0), 0);
-    parts.push({ geometry: roof, color: PALETTE.STONE, sway: 0 });
+    // An outshot on the back rather than an end: this house stands in a row, so
+    // anything on a gable would push into next door.
+    const outshot = rng.chance(0.4);
+    if (outshot) {
+      parts.push(
+        ...onFace(
+          leanTo(rng, {
+            at: rng.around(0, width * 0.12),
+            span: rng.range(1.6, 2.3),
+            out: rng.range(0.9, 1.25),
+            high: eave - 0.15,
+            low: eave - 0.15 - rng.range(0.35, 0.6),
+            look: style,
+          }),
+          shell.wall.back,
+        ),
+      );
+    } else {
+      parts.push(
+        ...onFace(
+          shuttered(rng, {
+            at: rng.around(0, width * 0.2),
+            sill: rng.range(1.2, 1.45),
+            width: rng.range(0.42, 0.56),
+            height: rng.range(0.44, 0.56),
+            look: style,
+          }),
+          shell.wall.back,
+        ),
+      );
+    }
 
-    // Everything below now stops at the wall head, which is where the roof
-    // starts. One number, shared, so nothing can end up at a different height
-    // from anything else.
-    const eave = wallHeight;
-
-    const base = new THREE.BoxGeometry(width, baseHeight, depth);
-    base.translate(0, baseHeight / 2, 0);
-    parts.push({ geometry: base, color: PALETTE.STONE_DARK, sway: 0 });
-
-    const walls = new THREE.BoxGeometry(width * 0.97, eave - baseHeight, depth * 0.97);
-    walls.translate(0, baseHeight + (eave - baseHeight) / 2, 0);
-    parts.push({ geometry: walls, color: PALETTE.TIMBER, sway: 0 });
-
-    const doorWidth = rng.range(0.75, 0.95);
-    const doorHeight = rng.range(1.5, 1.8);
-    // Held in a variable and reused below. The lintel used to be centred on
-    // the wall while the door was offset along it, so the beam meant to sit on
-    // the doorway sat beside it instead.
-    const doorX = rng.around(0, width * 0.15);
-
-    const door = new THREE.BoxGeometry(doorWidth, doorHeight, 0.08);
-    door.translate(doorX, doorHeight / 2, depth * 0.487);
-    parts.push({ geometry: door, color: 0x171a1c, sway: 0 });
-
-    const lintel = new THREE.BoxGeometry(doorWidth * 1.3, 0.14, 0.16);
-    lintel.translate(doorX, doorHeight + 0.07, depth * 0.49);
-    parts.push({ geometry: lintel, color: PALETTE.TIMBER_DARK, sway: 0 });
-
-    // Corner posts, tying the timber to the stone. Full height to the eave, so
-    // they meet the roof rather than stopping short under it.
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        const corner = new THREE.BoxGeometry(0.16, eave, 0.16);
-        corner.translate((sx * width) / 2, eave / 2, (sz * depth) / 2);
-        parts.push({ geometry: corner, color: PALETTE.TIMBER_DARK, sway: 0 });
-      }
+    // --- the stack -----------------------------------------------------------
+    //
+    // Outside the gable rather than inside it, which is where a hearth against
+    // an end wall actually puts one — and it is the only thing about this
+    // building visible over the roof of the one in front.
+    if (rng.chance(0.75)) {
+      const end = rng.chance(0.5) ? 1 : -1;
+      const girth = rng.range(0.74, 0.94);
+      // Stood clear of the roof's gable oversail, with the gap behind it filled
+      // as a breast. A stack sitting *in* the oversail is a stack the slope
+      // drives through and out the far side — the slope runs the building's
+      // whole depth and the stack is three quarters of a metre of it.
+      const clear = shell.roof.overGable + 0.08;
+      parts.push(
+        ...chimney(rng, {
+          x: end * (width / 2 + clear + girth / 2),
+          z: rng.around(0, depth * 0.08),
+          foot: 0,
+          top: shell.crown + rng.range(0.4, 0.75),
+          girth,
+          breast: { span: clear + 0.3, top: eave, yaw: end > 0 ? Math.PI / 2 : -Math.PI / 2 },
+          look: style,
+        }),
+      );
     }
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);
 
     const mesh = finish(geometry, 'hut', 0);
-    // Where a portal door goes, in the hut's own space, facing +Z like the
-    // door builder does.
-    //
-    // Recorded rather than recomputed by the caller. The doorway's position
-    // depends on `doorX` and `depth`, both of which are rolled from the seed,
-    // so anything placing a door against this hut by arithmetic would have to
-    // duplicate the builder's random draws in the right order — and would
-    // silently drift the moment anything above is reordered.
-    const anchor: HutDoorAnchor = {
-      x: doorX * scale,
-      z: depth * 0.487 * scale,
-      width: doorWidth * scale,
-      height: doorHeight * scale,
+    const doorAtPlan = facePoint(shell.wall.front, doorAt);
+    const doorway: Doorway = {
+      x: doorAtPlan.x,
+      z: doorAtPlan.z,
+      yaw: 0,
+      width: doorWidth,
+      height: doorHeight,
     };
-    mesh.userData.doorAnchor = anchor;
+    markDoorways(mesh, [doorway], scale);
     return mesh;
   },
 };
-
-/** Where a hut's doorway is, in the hut's own space. */
-export interface HutDoorAnchor {
-  x: number;
-  z: number;
-  width: number;
-  height: number;
-}
-
-/** Reads the anchor back off a mesh built by this builder. */
-export function hutDoorAnchor(mesh: THREE.Mesh): HutDoorAnchor {
-  return mesh.userData.doorAnchor as HutDoorAnchor;
-}

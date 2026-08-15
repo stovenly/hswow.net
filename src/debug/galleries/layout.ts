@@ -218,6 +218,17 @@ export interface GalleryPlan {
   readonly group?: ZoneGroup;
   readonly builders: readonly MeshBuilder[];
   /**
+   * How far apart the instances in a row stand, along -Z.
+   *
+   * One grid tile unless a gallery says otherwise, which is right for anything
+   * you can stand beside and wrong for a room full of buildings — a barn is
+   * fourteen metres long, so eight of them four metres apart is one barn.
+   * `columns` already spaces the *rows* by what the builders need; this is the
+   * same argument in the other axis, and it only has to be said where the rank
+   * is made of things bigger than the grid.
+   */
+  readonly spacing?: number;
+  /**
    * What the door home is made of — and therefore which builder makes it and
    * how it sounds. Timber unless the gallery says otherwise; the industrial
    * rooms say `iron`, because a hut door standing inside a works gallery is
@@ -287,15 +298,16 @@ export function rowPosition(
   name: string,
   instance = 0,
   height = 0,
+  spacing = DEPTH,
 ): [number, number, number] {
   const index = builders.findIndex((builder) => builder.name === name);
   if (index === -1) throw new Error(`no '${name}' row in this gallery`);
   const { offsets, width } = columns(builders);
-  return [-width / 2 + offsets[index], height, -instance * DEPTH];
+  return [-width / 2 + offsets[index], height, -instance * spacing];
 }
 
 /** Lays out one gallery's rows about the origin. */
-export function galleryRows(builders: readonly MeshBuilder[]): THREE.Group {
+export function galleryRows(builders: readonly MeshBuilder[], spacing = DEPTH): THREE.Group {
   const rank = new THREE.Group();
   rank.name = 'rows';
 
@@ -309,20 +321,23 @@ export function galleryRows(builders: readonly MeshBuilder[]): THREE.Group {
     const row = new THREE.Group();
     row.name = `row:${builder.name}`;
 
-    // A sign at the near end of each row, facing back toward the door.
+    // A sign at the near end of each row, facing back toward the door — and
+    // clear of the row's own first instance. A grid tile is right for a stool
+    // and puts the post inside a barn, which is how the sign for the row you
+    // most wanted to identify became the one you could not read.
     const sign = signPost(builder.name, builder.display);
-    sign.position.set(x, 0, DEPTH);
+    sign.position.set(x, 0, Math.max(DEPTH, builder.radius + 1.6));
     // Not collidable. A rank of sixteen posts you can walk into turns browsing
     // a gallery into an obstacle course, and there is nothing to be gained by
     // being stopped by a caption.
     row.add(sign);
 
-    for (let i = 0; i < INSTANCES; i++) {
+    for (let i = 0; i < (builder.variants ?? INSTANCES); i++) {
       // Seeds spaced widely: adjacent integers through a good hash are as
       // unrelated as distant ones, but wide spacing makes that obvious to
       // anyone reading the numbers.
       const mesh = builder.build({ seed: 1000 + i * 7919 });
-      mesh.position.set(x, 0, -i * DEPTH);
+      mesh.position.set(x, 0, -i * spacing);
       // Per builder, not per gallery: grass and the like are meant to be walked
       // through, and marking the whole group solid would override that.
       row.add(builder.solid === false ? mesh : markCollidable(mesh));
@@ -348,11 +363,12 @@ export function galleryRows(builders: readonly MeshBuilder[]): THREE.Group {
  * — a floor smaller than the view distance shows its own edge, which is worse
  * than either problem separately.
  */
-function floorSize(builders: readonly MeshBuilder[]): number {
+function floorSize(builders: readonly MeshBuilder[], spacing = DEPTH): number {
   const { width } = columns(builders);
   // The rank plus room to stand back from it. The deepest thing to see is the
-  // far end of a row, which is `INSTANCES` deep from the door.
-  const span = Math.max(width, DOOR_Z + INSTANCES * DEPTH) + 40;
+  // far end of the longest row.
+  const deepest = Math.max(...builders.map((builder) => builder.variants ?? INSTANCES));
+  const span = Math.max(width, DOOR_Z + deepest * spacing) + 40;
   return Math.min(200, Math.max(120, Math.ceil(span / 20) * 20));
 }
 
@@ -396,8 +412,8 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
       // read as air rather than as a missing skybox. Derived from the floor
       // rather than chosen, so the edge of the world is always hidden however
       // wide the rank has grown.
-      fogNear: viewDistance(floorSize(plan.builders)) * 0.45,
-      fogFar: viewDistance(floorSize(plan.builders)),
+      fogNear: viewDistance(floorSize(plan.builders, plan.spacing)) * 0.45,
+      fogFar: viewDistance(floorSize(plan.builders, plan.spacing)),
       // The floor is pale, so the bounce off it is too. The shared outdoor
       // default is the old dark ground colour and would leave every underside
       // reading as dirt.
@@ -422,8 +438,8 @@ export function galleryZone(plan: GalleryPlan): ZoneDefinition {
     groundAt: () => 0,
     build() {
       const root = new THREE.Group();
-      root.add(flatGround(floorSize(plan.builders)));
-      root.add(galleryRows(plan.builders));
+      root.add(flatGround(floorSize(plan.builders, plan.spacing)));
+      root.add(galleryRows(plan.builders, plan.spacing));
 
       for (const extra of plan.extras?.() ?? []) root.add(extra);
       return root;

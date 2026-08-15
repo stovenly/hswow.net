@@ -6,7 +6,8 @@ import { markCollidable } from '../player/Collider';
 import { flatGround } from '../world/floor';
 // Direct imports rather than `art/registry`, which is Vite-only — the headless
 // zone check reaches this file through esbuild. Same rule as `zones.ts`.
-import { hut, hutDoorAnchor } from '../art/builders/hut';
+import { hut } from '../art/builders/hut';
+import { doorways, doorwayFront } from '../art/building';
 import { countrysideTerrain, COUNTRYSIDE_GATE, ZONE_COUNTRYSIDE } from './countryside';
 import { vistaShowcasePortal } from './VistaShowcase';
 
@@ -82,10 +83,8 @@ let hutDoorAt: THREE.Vector3 | null = null;
 function hutDoorPosition(): THREE.Vector3 {
   if (!hutDoorAt) {
     const measure = hut.build({ seed: HUT_SEED });
-    const anchor = hutDoorAnchor(measure);
-    hutDoorAt = new THREE.Vector3(anchor.x, 0, anchor.z + DOOR_PROUD)
-      .applyAxisAngle(UP, HUT_YAW)
-      .add(HUT_AT);
+    const stand = doorwayFront(doorways(measure)[0], DOOR_PROUD);
+    hutDoorAt = new THREE.Vector3(stand.x, 0, stand.z).applyAxisAngle(UP, HUT_YAW).add(HUT_AT);
     measure.geometry.dispose();
   }
   return hutDoorAt.clone();

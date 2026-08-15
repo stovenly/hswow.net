@@ -10,6 +10,13 @@ import { hangingHerbs } from '../../art/builders/hanging-herbs';
 import { spinningWheel } from '../../art/builders/spinning-wheel';
 import { wallPegs } from '../../art/builders/wall-pegs';
 import { hut } from '../../art/builders/hut';
+import { cottage } from '../../art/builders/cottage';
+import { manor } from '../../art/builders/manor';
+import { market } from '../../art/builders/market';
+import { blacksmith } from '../../art/builders/blacksmith';
+import { stable } from '../../art/builders/stable';
+import { church } from '../../art/builders/church';
+import { barn } from '../../art/builders/barn';
 import { fence } from '../../art/builders/fence';
 import { fencePost } from '../../art/builders/fence-post';
 import { stoneWall } from '../../art/builders/stone-wall';
@@ -123,8 +130,13 @@ import { workbench } from '../../art/builders/workbench';
  * question about them is whether they add up to somewhere that grows things —
  * which is the same question the village room asks, about a different place.
  *
- * What is left in the village room is what dresses a lane: the buildings, the
- * light, the water, the goods and the fences.
+ * **The buildings are a system too**, and they left for the same reason the
+ * wall did: eight of them share one plinth, one set of walls and one set of
+ * roofs, and whether they still agree is a question you answer by standing them
+ * in a line — not by finding the hut among the streetlamps.
+ *
+ * What is left in the village room is what dresses a lane: the light, the
+ * water, the goods and the fences.
  *
  * `figure` is in none of them — it stands with the animals in the Life gallery,
  * with the rest of what moves under its own power.
@@ -138,6 +150,7 @@ import { workbench } from '../../art/builders/workbench';
 
 export const ZONE_GALLERY_VILLAGE_INTERIOR = 'gallery-village-interior';
 export const ZONE_GALLERY_VILLAGE_EXTERIOR = 'gallery-village-exterior';
+export const ZONE_GALLERY_VILLAGE_BUILDINGS = 'gallery-village-buildings';
 export const ZONE_GALLERY_FARM = 'gallery-farm';
 export const ZONE_GALLERY_STONE_WALL = 'gallery-stone-wall';
 export const ZONE_GALLERY_FACTORY_INTERIOR = 'gallery-factory-interior';
@@ -147,7 +160,6 @@ export const ZONE_GALLERY_FACTORY_EXTERIOR = 'gallery-factory-exterior';
 // that stand between them, then the movable goods — roughly outward from the
 // building, which is the order the eye walks a village in.
 const VILLAGE_EXTERIOR_BUILDERS = [
-  hut,
   hutDoor,
   hutTrapdoor,
   well,
@@ -258,6 +270,48 @@ const VILLAGE_INTERIOR_BUILDERS = [
   broom,
   candle,
 ];
+
+/**
+ * The buildings, read by status: what a village is made of, and then what one
+ * man built for himself.
+ *
+ * A room of its own because a building is not judged the way a barrel is. What
+ * has to be true of these is that they agree — the same plinth, the same
+ * carpentry, the same four roofs — while still saying who paid for each of
+ * them, and that comparison only works standing them in a line. It is the
+ * argument the stone wall room already makes, applied to the other family in
+ * the kit that shares a construction rather than a setting.
+ *
+ * Ordered up the money: the two houses a villager lives in, the three buildings
+ * a trade works out of, then the two the parish and the manor put up. `church`
+ * is last because it is the only one that is *tall*, and a rank read from the
+ * door reads better ending on the landmark than starting on it.
+ *
+ * **Only the first two rows are rows.** A hut and a cottage get placed by the
+ * dozen and are rolled from a seed, so eight of each is how you see whether the
+ * spread is even. The other six are placed once in a settlement and are drawn
+ * rather than rolled — they declare `variants: 1` and their row is one building,
+ * because eight identical churches is not a comparison, it is a car park.
+ */
+const VILLAGE_BUILDING_BUILDERS = [hut, cottage, market, blacksmith, stable, barn, manor, church];
+
+/**
+ * Eight metres between instances rather than a grid tile.
+ *
+ * Only two rows in this room are more than one deep — `hut` and `cottage`, the
+ * two that are rolled from a seed rather than drawn. Everything else declares
+ * `variants: 1`, so its row is one building and the spacing does not reach it.
+ * Eight is what those two houses need to stand apart.
+ */
+const BUILDING_SPACING = 8;
+
+export const villageBuildingsGalleryPlan: GalleryPlan = {
+  id: ZONE_GALLERY_VILLAGE_BUILDINGS,
+  group: 'countryside',
+  name: 'Countryside Village Buildings',
+  builders: VILLAGE_BUILDING_BUILDERS,
+  spacing: BUILDING_SPACING,
+};
 
 export const villageExteriorGalleryPlan: GalleryPlan = {
   id: ZONE_GALLERY_VILLAGE_EXTERIOR,
