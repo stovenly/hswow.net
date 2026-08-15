@@ -88,6 +88,18 @@ export interface MeshBuilder {
    */
   readonly radius: number;
   /**
+   * How many of these are worth seeing side by side.
+   *
+   * One for a builder that does not vary with its seed. Most of the kit is meant
+   * to be scattered and rolls a different object every time, and a rank of eight
+   * is how you see whether the spread is even. A building that will be placed
+   * once in a world is designed rather than rolled, so eight of it is eight
+   * copies of one thing taking up a gallery.
+   *
+   * Omitted means the gallery's own count.
+   */
+  readonly variants?: number;
+  /**
    * Whether the player collides with it. Defaults to true.
    *
    * Small soft things should be walked through. Blocking on a tuft of grass

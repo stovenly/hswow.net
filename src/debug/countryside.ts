@@ -49,7 +49,8 @@ import { sunflower } from '../art/builders/sunflower';
 import { rock } from '../art/builders/rock';
 import { cairn } from '../art/builders/cairn';
 // The settlement.
-import { hut, hutDoorAnchor } from '../art/builders/hut';
+import { hut } from '../art/builders/hut';
+import { doorways, doorwayFront } from '../art/building';
 import { hutDoor } from '../art/builders/hut-door';
 import { hutTrapdoor } from '../art/builders/hut-trapdoor';
 import { fence, FENCE_MAX_SECTIONS, FENCE_SECTION } from '../art/builders/fence';
@@ -888,18 +889,20 @@ function houseYaw(house: House): number {
  */
 function houseDoorEnd(house: House): PortalEnd {
   const mesh = hut.build({ seed: house.seed });
-  const doorway = hutDoorAnchor(mesh);
+  const doorway = doorways(mesh)[0];
   mesh.geometry.dispose();
 
   const yaw = houseYaw(house);
-  const offset = new THREE.Vector3(doorway.x, 0, doorway.z + DOOR_PROUD).applyAxisAngle(UP, yaw);
+  const stand = doorwayFront(doorway, DOOR_PROUD);
+  const offset = new THREE.Vector3(stand.x, 0, stand.z).applyAxisAngle(UP, yaw);
   const x = house.at[0] + offset.x;
   const z = house.at[1] + offset.z;
 
   return {
     zone: ZONE_COUNTRYSIDE,
     position: new THREE.Vector3(x, terrain.heightAt(x, z), z),
-    yaw,
+    // The house's own turn plus which of its walls the doorway is in.
+    yaw: yaw + doorway.yaw,
     material: 'timber',
     seed: 7100 + house.seed,
   };

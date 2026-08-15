@@ -15,6 +15,7 @@ import { objectEffectsPlan } from './object-effects';
 import {
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
+  villageBuildingsGalleryPlan,
   farmGalleryPlan,
   stoneWallGalleryPlan,
   factoryInteriorGalleryPlan,
@@ -39,6 +40,7 @@ export const GALLERIES: readonly GalleryPlan[] = [
   animalGalleryPlan,
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
+  villageBuildingsGalleryPlan,
   farmGalleryPlan,
   stoneWallGalleryPlan,
   factoryInteriorGalleryPlan,
@@ -85,6 +87,7 @@ export { ZONE_OBJECT_EFFECTS } from './object-effects';
 export {
   ZONE_GALLERY_VILLAGE_INTERIOR,
   ZONE_GALLERY_VILLAGE_EXTERIOR,
+  ZONE_GALLERY_VILLAGE_BUILDINGS,
   ZONE_GALLERY_FARM,
   ZONE_GALLERY_STONE_WALL,
   ZONE_GALLERY_FACTORY_INTERIOR,

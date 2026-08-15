@@ -72,7 +72,17 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   'iridescent-orb': 'stone',
   'marble-orb': 'stone',
   fireplace: 'stone',
+  // The buildings. All stone, whatever they are walled in: what a player can
+  // actually stand on is the plinth, the threshold and the buttresses, and
+  // every one of those is masonry on all eight of them.
   hut: 'stone',
+  cottage: 'stone',
+  manor: 'stone',
+  market: 'stone',
+  blacksmith: 'stone',
+  stable: 'stone',
+  church: 'stone',
+  barn: 'stone',
   rock: 'stone',
   // The boundary stone. Every one of these is something you can get on top of,
   // which is the test — `scree` is the exception and is below with the things
