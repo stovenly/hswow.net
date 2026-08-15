@@ -76,10 +76,10 @@ useAerialFog();
 
 // **Before PostFX**, and that ordering is load-bearing rather than tidy. The
 // kit's shared material is patched in place, so a prop built later picks the
-// sway up without knowing about it — but `PostFX` reaches into its edge pass
+// sway up without knowing about it — but `PostFX` reaches into the normal pass
 // and patches *that* material too, and it can only do so once the patch
-// exists. Constructed the other way round it silently did nothing, and the
-// symptom was a motionless outline around every swaying plant.
+// exists. Constructed the other way round it silently did nothing, and a
+// swaying plant stood still in the normal buffer.
 patchArtMaterial();
 
 const postfx = new PostFX(viewport);
@@ -324,8 +324,6 @@ if (dev.gui) {
   // Ceiling well above the default of 16, which is where it sits after being
   // dialled in — a slider whose default is its own maximum can only go one way.
   look.add(r.detail, 'span', 1, 48, 0.5).name('detail fade span').onChange(refresh);
-  look.add(r, 'normalEdgeStrength', 0, 2, 0.05).onChange(refresh);
-  look.add(r, 'depthEdgeStrength', 0, 2, 0.05).onChange(refresh);
   look.add(r, 'quantize', ['off', 'levels']).onChange(refresh);
   // Up to 64. The output is eight bits a channel, so past there the steps are
   // finer than the display and the quantizer stops being visible at all —
