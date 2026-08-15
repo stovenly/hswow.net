@@ -367,6 +367,7 @@ const _wish = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _push = new THREE.Vector3();
+const _slide = new THREE.Vector3();
 const _delta = new THREE.Vector3();
 const _drop = new THREE.Vector3();
 const _before = new THREE.Vector3();
@@ -923,12 +924,27 @@ export class Controller {
       const contact = this.collider.intersectCapsule(this.capsule);
       if (!contact) break;
 
-      this.capsule.translate(_push.copy(contact.normal).multiplyScalar(contact.depth));
-
       // Standing is only possible on a surface flatter than the slope limit.
-      // On anything steeper the contact still stops you, but gravity is left
-      // alone, so you slide down it.
-      if (contact.normal.y > slopeCos) {
+      const walkable = contact.normal.y > slopeCos;
+
+      // **A bank you cannot stand on is resolved as a wall.** Along its own
+      // normal, a too-steep face lifts the capsule as it depenetrates *and*
+      // turns horizontal speed into up-slope speed — so walking into one
+      // ratchets you up it and sprinting into one climbs it outright. Flattened,
+      // it stops you and leaves gravity alone, which is what a slope should do.
+      // Ceilings keep their normal: theirs points down, and it should.
+      _slide.copy(contact.normal);
+      if (!walkable && contact.normal.y > 0) {
+        const flat = Math.hypot(contact.normal.x, contact.normal.z);
+        if (flat > 1e-4) _slide.set(contact.normal.x / flat, 0, contact.normal.z / flat);
+      }
+
+      // Depth is measured along the true normal, so clearing the same
+      // penetration along the flattened one takes correspondingly further.
+      const along = Math.max(_slide.dot(contact.normal), 1e-4);
+      this.capsule.translate(_push.copy(_slide).multiplyScalar(contact.depth / along));
+
+      if (walkable) {
         this.grounded = true;
         this.groundNormal.copy(contact.normal);
         this.ground = contact.surface;
@@ -936,8 +952,8 @@ export class Controller {
         this.stepClimb = 0;
       }
 
-      const into = this.velocity.dot(contact.normal);
-      if (into < 0) this.velocity.addScaledVector(contact.normal, -into);
+      const into = this.velocity.dot(_slide);
+      if (into < 0) this.velocity.addScaledVector(_slide, -into);
     }
 
     if (!this.grounded) this.groundNormal.set(0, 1, 0);
