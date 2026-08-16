@@ -7,6 +7,7 @@ import { createBell, type BellOptions } from './oneshots/bell';
 import { createHammer, type HammerOptions } from './oneshots/hammer';
 import { createClatter, type ClatterOptions } from './oneshots/clatter';
 import { createAnimal, type AnimalOptions } from './oneshots/animal';
+import { createVoice, type VoiceOptions } from './oneshots/voice';
 
 /**
  * Sounds that happen once, somewhere over there, every so often.
@@ -67,12 +68,18 @@ export interface OneShot extends SoundModel {
    * @returns Seconds this voice stays busy, including the ring-out.
    */
   fire(at: number, force: number): number;
+  /**
+   * The syllables of the last call, on the audio clock — for whatever moves
+   * with the sound. Voiced models keep it current; the rest leave it out.
+   */
+  readonly syllables?: readonly { at: number; length: number }[];
 }
 
 export type OneShotSpec =
   | { sound: 'hammer'; options?: HammerOptions }
   | { sound: 'clatter'; options?: ClatterOptions }
   | { sound: 'animal'; options?: AnimalOptions }
+  | { sound: 'voice'; options?: VoiceOptions }
   | { sound: 'drip'; options?: DripOptions }
   | { sound: 'bell'; options?: BellOptions };
 
@@ -131,6 +138,8 @@ export function buildOneShot(engine: AudioEngine, spec: OneShotSpec): OneShot {
       return createClatter(engine, spec.options);
     case 'animal':
       return createAnimal(engine, spec.options);
+    case 'voice':
+      return createVoice(engine, spec.options);
     case 'drip':
       return createDrip(engine, spec.options);
     case 'bell':

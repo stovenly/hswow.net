@@ -94,7 +94,7 @@ export function buildCottage(): THREE.Group {
 
   // Somebody home, at the table rather than in open floor — which is where a
   // person actually is.
-  place(root, figure.build({ seed: 4427 }), 0.6, 0, 2.4, Math.PI * 0.9);
+  place(root, figure.build({ seed: 4427, roam: 1.2 }), 0.6, 0, 2.4, Math.PI * 0.9);
 
   // Small sources, each standing on something, at heights read off the mesh.
   place(root, candle.build({ seed: 4428 }), 0.95, topOf(board), 1.05, 0.6);
@@ -120,7 +120,7 @@ export function buildWorkshop(): THREE.Group {
   place(root, windowBuilder.build({ seed: 4441 }), -2.6, 0, halfD - 0.1, Math.PI);
   place(root, windowBuilder.build({ seed: 4442 }), 2.4, 0, halfD - 0.1, Math.PI);
   place(root, spinningWheel.build({ seed: 4443 }), -2.9, 0, halfD - 1.1, Math.PI * 0.85);
-  place(root, figure.build({ seed: 4444 }), -2.2, 0, halfD - 1.9, -0.7);
+  place(root, figure.build({ seed: 4444, roam: 1.5 }), -2.2, 0, halfD - 1.9, -0.7);
 
   // The bench end, against the west wall, out of the traffic between the door
   // and the light.

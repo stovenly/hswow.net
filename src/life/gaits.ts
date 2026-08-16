@@ -1,0 +1,464 @@
+import { Pose, bump, envelope, smooth, wobble, clamp01 } from './pose';
+import type { LifeSpec } from './spec';
+
+/**
+ * The procedural poses. Each function adds one layer into a pose; the creature
+ * weights and sums them. Nothing here keeps state — every layer is a function
+ * of a phase or a clock, so a creature that sleeps and wakes picks up where
+ * the clock says.
+ *
+ * Walks are the Rosen shape: a contact pose and a passing pose, mirrored,
+ * traced by sines — legs swing at the stride, the body bobs at twice it,
+ * lowest at contact.
+ */
+
+const TWO_PI = Math.PI * 2;
+
+/** Metres per full cycle — two steps — for a leg of this length swinging ±`amp`. */
+export function stride(legLength: number, amp: number): number {
+  return 4 * legLength * Math.sin(amp) * 0.9;
+}
+
+/** A brief event once per `period`, offset by salt: 0 outside it, an envelope inside. */
+export function pulse(t: number, period: number, length: number, salt: number): number {
+  const cycle = Math.floor(t / period);
+  const h = Math.sin(cycle * 12.9898 + salt * 78.233) * 43758.5453;
+  const offset = (h - Math.floor(h)) * (period - length);
+  const local = t - cycle * period - offset;
+  return local < 0 || local > length ? 0 : bump(local / length);
+}
+
+// --- quadruped ------------------------------------------------------------------
+
+export const QUAD_SWING = 0.34;
+
+export function quadrupedWalk(pose: Pose, phase: number, spec: LifeSpec): void {
+  const bob = spec.legLength * 0.02;
+  // Four-beat lateral walk: each leg a quarter cycle after the last, in the
+  // order front-left, back-left, front-right, back-right.
+  const legs: [string, number][] = [
+    ['legFL', 0],
+    ['legBL', 0.25],
+    ['legFR', 0.5],
+    ['legBR', 0.75],
+  ];
+  for (const [leg, offset] of legs) {
+    const θ = phase + offset * TWO_PI;
+    // rx > 0 swings a hanging leg back: the stance half is θ in 0..π.
+    pose.turn(`${leg}u`, QUAD_SWING * Math.sin(θ));
+    // The lower leg folds during the swing forward, most just after lift-off.
+    pose.turn(`${leg}l`, 0.55 * Math.max(0, -Math.sin(θ - 0.5)));
+  }
+  pose.move('body', 0, bob * Math.sin(2 * phase + 0.4));
+  pose.turn('body', 0, 0, 0.02 * Math.sin(phase));
+  // Head nods with the forelegs.
+  pose.turn('neck', 0.045 * Math.sin(2 * phase + 1.2));
+  pose.turn('head', 0.03 * Math.sin(2 * phase + 0.6));
+  pose.turn('tail', 0, 0.16 * Math.sin(phase + 1));
+  pose.turn('tail2', 0, 0.16 * Math.sin(phase + 0.2));
+}
+
+export function quadrupedIdle(pose: Pose, t: number, salt: number, spec: LifeSpec): void {
+  const breath = Math.sin(t * 1.5 + salt);
+  pose.swell('body', 0.012 * breath, 0.018 * breath, 0);
+  pose.turn('neck', 0.02 * wobble(t * 0.25, salt), 0.1 * wobble(t * 0.2, salt + 1));
+  pose.turn('head', 0.03 * wobble(t * 0.3, salt + 2), 0.08 * wobble(t * 0.22, salt + 3));
+  // Weight shifts, slowly.
+  pose.move('body', spec.radius * 0.02 * wobble(t * 0.15, salt + 4), 0, 0);
+  // Tail switching, and now and then a swish.
+  pose.turn('tail', 0, 0.2 * wobble(t * 0.6, salt + 5) + 0.5 * pulse(t, 7, 0.9, salt) * Math.sin(t * 9));
+  pose.turn('tail2', 0, 0.2 * wobble(t * 0.6 - 0.5, salt + 5));
+  // An ear flick every so often, one ear at a time.
+  pose.turn('earL', 0, 0, 0.6 * pulse(t, 6, 0.25, salt + 6));
+  pose.turn('earR', 0, 0, -0.6 * pulse(t, 8, 0.25, salt + 7));
+}
+
+/** Head to the ground. `w` is how far into it, 0..1. */
+export function graze(pose: Pose, t: number, salt: number, w: number, drop: number): void {
+  // Most of the drop is the neck; the head folds under, but never past vertical.
+  pose.turn('neck', drop * 0.6 * w, 0.12 * w * wobble(t * 0.5, salt + 8));
+  pose.turn('head', Math.min(drop * 0.5, 0.9) * w + 0.03 * w * Math.sin(t * 5), 0.06 * w * wobble(t * 0.9, salt + 9));
+}
+
+/** A call: head comes up and forward with it, and bobs on the syllables. */
+export function call(pose: Pose, t01: number, syllable: number, dog: boolean): void {
+  const e = envelope(t01, 0.2, 0.3);
+  pose.turn('neck', -0.22 * e);
+  pose.turn('head', -0.18 * e + 0.12 * syllable);
+  if (dog) {
+    pose.turn('tail', 0, 0.55 * e * Math.sin(t01 * 40));
+    pose.turn('tail2', 0, 0.4 * e * Math.sin(t01 * 40 - 1));
+    pose.move('body', 0, 0.01 * syllable, -0.01 * syllable);
+  }
+}
+
+// --- biped ----------------------------------------------------------------------
+
+/**
+ * The body over walking feet. The legs themselves are solved from planted
+ * feet in `legs.ts`; this is everything that rides on them, on the same
+ * clock: the left foot swings through the first half of the cycle, the right
+ * through the second, and the body is lowest at each footfall.
+ */
+export function bipedWalk(pose: Pose, phase: number, spec: LifeSpec): void {
+  const L = spec.legLength;
+  const s = Math.sin(phase);
+  const c = Math.cos(phase);
+  // Two bobs a cycle, lowest at contact; a touch of squash with each.
+  const bob = 0.5 * (1 - Math.cos(2 * phase));
+  pose.move('hips', -L * 0.03 * s, L * 0.028 * bob - L * 0.02, 0);
+  pose.swell('hips', 0, 0.02 * (bob - 0.5), 0);
+  // The swing side of the pelvis drops and comes forward: rz > 0 lifts +X,
+  // ry > 0 takes +X toward −Z, and the left leg (+X) swings first.
+  pose.turn('hips', 0, -0.06 * s, -0.045 * s);
+  // The torso turns against the pelvis, and leans into the walk.
+  pose.turn('torso', 0.04 + 0.012 * c, 0.05 * s, 0.025 * s);
+  // The head holds level: it undoes most of what the body under it does.
+  pose.turn('head', -0.02, -0.03 * s, -0.02 * s);
+  // Arms swing against the legs — rx > 0 takes a hanging arm back — with the
+  // elbow bending more on the way forward.
+  pose.turn('armLu', 0.3 * s, 0, 0.04);
+  pose.turn('armRu', -0.3 * s, 0, -0.04);
+  pose.turn('armLl', -0.15 - 0.16 * Math.max(0, -s));
+  pose.turn('armRl', -0.15 - 0.16 * Math.max(0, s));
+}
+
+export function bipedIdle(pose: Pose, t: number, salt: number): void {
+  // Breathing: a quicker breath in and a slower one out, in the chest and a
+  // little in the shoulders.
+  const b = Math.pow(0.5 + 0.5 * Math.sin(t * 1.4 + salt), 1.5);
+  pose.swell('torso', 0.006 * b, 0.014 * b, 0.01 * b);
+  pose.turn('torso', -0.012 * b);
+  pose.move('armLu', 0, 0.003 * b, 0);
+  pose.move('armRu', 0, 0.003 * b, 0);
+  // Weight on one hip, then the other; the knees keep a little softness.
+  const shift = wobble(t * 0.12, salt);
+  pose.move('hips', 0.02 * shift, -0.006, 0);
+  pose.turn('hips', 0, 0, -0.03 * shift);
+  pose.turn('torso', 0.015 * wobble(t * 0.2, salt + 1), 0.05 * wobble(t * 0.15, salt + 2), 0.02 * shift);
+  // The moving hold: the head never quite stops.
+  pose.turn('head', 0.025 * wobble(t * 0.3, salt + 3), 0.06 * wobble(t * 0.18, salt + 4), 0.03 * wobble(t * 0.25, salt + 5));
+  // Arms hang and drift.
+  pose.turn('armLu', 0.03 * wobble(t * 0.3, salt + 6), 0, 0.03);
+  pose.turn('armRu', 0.03 * wobble(t * 0.3, salt + 7), 0, -0.03);
+  pose.turn('armLl', -0.12, 0, 0);
+  pose.turn('armRl', -0.12, 0, 0);
+  // No eyes, so no blink: an ear twitches on its own now and then.
+  pose.turn('nubL', -0.35 * pulse(t, 7, 0.22, salt + 9), 0, 0.5 * pulse(t, 7, 0.22, salt + 9));
+  pose.turn('nubR', -0.35 * pulse(t, 9, 0.22, salt + 10), 0, -0.5 * pulse(t, 9, 0.22, salt + 10));
+}
+
+/**
+ * The greeting: the dominant arm comes up and out and the forearm waves,
+ * the head dips, the ears perk. `t01` runs over the whole gesture.
+ */
+export type Greeting = 'wave' | 'bow' | 'raise';
+
+export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1): void {
+  const arm = side > 0 ? 'armL' : 'armR';
+  const e = envelope(t01, 0.22, 0.28);
+  switch (kind) {
+    case 'wave': {
+      // rz > 0 carries a hanging arm toward +X: out and up on the left, so
+      // the sign follows the side.
+      pose.turn(`${arm}u`, -0.35 * e, 0, side * 1.55 * e);
+      const wave = Math.sin(t01 * TWO_PI * 2.5);
+      pose.turn(`${arm}l`, -0.35 * e, 0, side * (0.4 + 0.45 * wave) * e);
+      pose.turn('head', 0.14 * bump(t01), 0, 0.05 * side * e);
+      pose.turn('torso', 0.03 * e);
+      break;
+    }
+    case 'bow': {
+      // A bow from the waist, arms drawn back a little, head following.
+      const b = envelope(t01, 0.35, 0.35);
+      pose.turn('torso', 0.42 * b);
+      pose.turn('head', 0.15 * b);
+      pose.turn('armLu', 0.25 * b, 0, 0.12 * b);
+      pose.turn('armRu', 0.25 * b, 0, -0.12 * b);
+      pose.turn('armLl', -0.2 * b);
+      pose.turn('armRl', -0.2 * b);
+      break;
+    }
+    case 'raise': {
+      // Both arms up and out, a bounce on the toes.
+      const r = envelope(t01, 0.25, 0.3);
+      pose.turn('armLu', -0.4 * r, 0, 1.7 * r);
+      pose.turn('armRu', -0.4 * r, 0, -1.7 * r);
+      pose.turn('armLl', -0.3 * r, 0, 0.5 * r);
+      pose.turn('armRl', -0.3 * r, 0, -0.5 * r);
+      pose.turn('head', -0.12 * r);
+      pose.move('hips', 0, 0.02 * Math.abs(Math.sin(t01 * TWO_PI * 2)) * r, 0);
+      break;
+    }
+  }
+  // The ears perk up and the head tilts a little: pleased to see you.
+  pose.turn('nubL', -0.5 * e, 0, 0.25 * e);
+  pose.turn('nubR', -0.5 * e, 0, -0.25 * e);
+  pose.turn('head', 0, 0, side * 0.1 * e);
+}
+
+export type Fidget = 'stretch' | 'scratch' | 'fold' | 'lookAround' | 'shift';
+
+/** Idle business for a figure: one small piece of it, over `t01`. */
+export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, salt: number, side: 1 | -1): void {
+  const arm = side > 0 ? 'armL' : 'armR';
+  const other = side > 0 ? 'armR' : 'armL';
+  switch (kind) {
+    case 'stretch': {
+      const e = envelope(t01, 0.3, 0.3);
+      pose.turn('armLu', -0.5 * e, 0, 1.4 * e);
+      pose.turn('armRu', -0.5 * e, 0, -1.4 * e);
+      pose.turn('armLl', -0.6 * e, 0, 0.3 * e);
+      pose.turn('armRl', -0.6 * e, 0, -0.3 * e);
+      pose.turn('torso', -0.12 * e);
+      pose.turn('head', -0.2 * e);
+      pose.swell('torso', 0, 0.03 * e, 0);
+      break;
+    }
+    case 'scratch': {
+      // One hand up to the side of the head, a few small rubs.
+      const e = envelope(t01, 0.25, 0.25);
+      pose.turn(`${arm}u`, -0.9 * e, 0, side * 0.9 * e);
+      pose.turn(`${arm}l`, (-1.6 - 0.15 * Math.sin(t01 * TWO_PI * 5)) * e, 0, side * 0.6 * e);
+      pose.turn('head', 0.05 * e, -side * 0.25 * e, side * 0.15 * e);
+      break;
+    }
+    case 'fold': {
+      // Forearms across the front, one over the other.
+      const e = envelope(t01, 0.3, 0.3);
+      pose.turn('armLu', -0.35 * e, 0.4 * e, 0.15 * e);
+      pose.turn('armRu', -0.35 * e, -0.4 * e, -0.15 * e);
+      pose.turn('armLl', -1.35 * e, 0.6 * e, 0);
+      pose.turn('armRl', -1.35 * e, -0.6 * e, 0);
+      pose.turn('torso', -0.03 * e);
+      pose.turn('head', 0.06 * e, 0.12 * wobble(t * 0.5, salt) * e);
+      break;
+    }
+    case 'lookAround': {
+      // A slow sweep of the head one way, then the other, with a pause.
+      const e = envelope(t01, 0.15, 0.15);
+      const sweep = Math.sin(t01 * Math.PI * 2) * 0.75;
+      pose.turn('head', 0.05 * e, sweep * e, 0.05 * sweep * e);
+      pose.turn('torso', 0, sweep * 0.2 * e);
+      pose.turn('nubL', 0, sweep * 0.4 * e);
+      pose.turn('nubR', 0, sweep * 0.4 * e);
+      break;
+    }
+    case 'shift': {
+      // Weight goes onto one leg: the hips slide over it and drop, and the
+      // legs, solved from the feet, take up the bend.
+      const e = envelope(t01, 0.3, 0.3);
+      pose.move('hips', side * 0.035 * e, -0.014 * e, 0);
+      pose.turn('hips', 0, 0, -side * 0.06 * e);
+      pose.turn('torso', 0, 0, side * 0.05 * e);
+      pose.turn(`${other}u`, 0.05 * e);
+      break;
+    }
+  }
+}
+
+/**
+ * Talking. `syllable` is how loud the voice is right now, `beat` a pulse on
+ * its stressed syllables. The head is the mouth it does not have: it dips on
+ * each syllable, the hands beat time on the stresses, and the motif on the
+ * front of the head works with the voice (`faceTalk`).
+ */
+export function bipedTalk(
+  pose: Pose,
+  t: number,
+  salt: number,
+  syllable: number,
+  beat: number,
+  w: number,
+  side: 1 | -1,
+): void {
+  const arm = side > 0 ? 'armL' : 'armR';
+  const other = side > 0 ? 'armR' : 'armL';
+  const g = 0.5 + 0.5 * wobble(t * 1.4, salt + 10);
+  pose.turn(`${arm}u`, (-0.25 - 0.1 * beat) * w, 0, side * 0.2 * w);
+  pose.turn(`${arm}l`, (-0.9 - 0.5 * g - 0.35 * beat) * w, 0, side * 0.3 * wobble(t * 2.2, salt + 11) * w);
+  pose.turn(`${other}l`, -0.35 * w * (0.5 + 0.5 * wobble(t * 1.1, salt + 12)));
+  pose.turn(
+    'head',
+    (0.04 + 0.05 * syllable + 0.05 * beat) * w,
+    0.05 * wobble(t * 1.7, salt + 13) * w,
+    (0.03 * wobble(t * 1.3, salt + 14) + 0.03 * beat) * w,
+  );
+  pose.turn('torso', (0.03 + 0.015 * beat) * w);
+  pose.turn('nubL', -0.12 * syllable * w);
+  pose.turn('nubR', -0.12 * syllable * w);
+}
+
+// --- fowl -----------------------------------------------------------------------
+
+export const FOWL_SWING = 0.55;
+
+export function fowlWalk(pose: Pose, phase: number, spec: LifeSpec): void {
+  pose.turn('legL', FOWL_SWING * Math.sin(phase));
+  pose.turn('legR', FOWL_SWING * Math.sin(phase + Math.PI));
+  pose.move('body', 0, spec.legLength * 0.06 * Math.sin(2 * phase));
+  pose.turn('body', 0, 0, 0.06 * Math.sin(phase));
+  // The head holds still in the world while the body walks under it, then
+  // thrusts forward: a sawtooth on the neck, sharp on the thrust.
+  const cycle = (phase / TWO_PI) % 1;
+  const thrust = cycle < 0.25 ? smooth(cycle / 0.25) : 1 - smooth((cycle - 0.25) / 0.75);
+  pose.turn('neck', -0.28 * (thrust - 0.5));
+  pose.turn('head', 0.28 * (thrust - 0.5));
+  pose.turn('tail', 0, 0.12 * Math.sin(phase));
+}
+
+export function fowlIdle(pose: Pose, t: number, salt: number): void {
+  pose.swell('body', 0.02 * Math.sin(t * 2.2 + salt), 0.03 * Math.sin(t * 2.2 + salt), 0);
+  pose.turn('head', 0.06 * wobble(t * 1.5, salt), 0.3 * wobble(t * 0.9, salt + 1));
+  pose.turn('neck', 0.04 * wobble(t * 0.7, salt + 2), 0.15 * wobble(t * 0.5, salt + 3));
+  pose.turn('tail', 0, 0.12 * wobble(t * 1.1, salt + 4), 0);
+  // A flap now and then: both wings out from the body, a few beats.
+  const flap = pulse(t, 14, 0.9, salt + 5);
+  const beat = Math.abs(Math.sin(t * 22));
+  pose.turn('wingL', 0, 0, (0.4 + 0.5 * beat) * flap);
+  pose.turn('wingR', 0, 0, -(0.4 + 0.5 * beat) * flap);
+  pose.move('body', 0, 0.01 * beat * flap, 0);
+}
+
+/** Pecking: down twice, up, look. */
+export function peck(pose: Pose, t: number, salt: number, w: number, drop: number): void {
+  const beat = clamp01(Math.sin(t * 7 + salt) * 1.6);
+  pose.turn('neck', drop * 0.6 * w * (0.7 + 0.3 * beat), 0.15 * w * wobble(t * 0.7, salt + 6));
+  pose.turn('head', drop * 0.4 * w * beat, 0);
+}
+
+// --- look -----------------------------------------------------------------------
+
+/** Turns the head (and some neck, some torso) toward a local yaw and pitch. */
+export function look(pose: Pose, kind: LifeSpec['kind'], yaw: number, pitch: number, w: number): void {
+  if (kind === 'biped') {
+    // Shared down the chain — a little torso, some neck, most of it head —
+    // and a small tilt of the head with it, which is what curiosity looks like
+    // on a face with nothing on it.
+    pose.turn('torso', 0, yaw * 0.15 * w);
+    pose.turn('neck', pitch * 0.25 * w, yaw * 0.2 * w);
+    pose.turn('head', pitch * 0.65 * w, yaw * 0.6 * w, yaw * 0.08 * w);
+    // The ears swing toward what the head is turning to: attention leads.
+    pose.turn('nubL', -0.12 * Math.abs(yaw) * w, yaw * 0.35 * w);
+    pose.turn('nubR', -0.12 * Math.abs(yaw) * w, yaw * 0.35 * w);
+  } else if (kind === 'fowl') {
+    pose.turn('neck', pitch * 0.4 * w, yaw * 0.4 * w);
+    pose.turn('head', pitch * 0.6 * w, yaw * 0.6 * w);
+  } else {
+    pose.turn('neck', pitch * 0.5 * w, yaw * 0.45 * w);
+    pose.turn('head', pitch * 0.5 * w, yaw * 0.55 * w);
+  }
+}
+
+// --- the head's motif -------------------------------------------------------------
+
+/** Which motifs hang off the brow and are therefore subject to gravity. */
+const HANGING = new Set<string>([]);
+
+/**
+ * What the mask does while it talks. `level` is the voice right now, `beat` a
+ * pulse on its stressed syllables, `w` how much of the talking pose is in.
+ */
+export function faceTalk(pose: Pose, kind: string | undefined, level: number, beat: number, w: number, t: number, salt: number): void {
+  /** A rack on its own bones, spreading from the middle out. */
+  const spread = (amount: number): void => {
+    for (let i = 0; i < 7; i++) {
+      const lag = clamp01(level - Math.abs(i - 3) * 0.05);
+      pose.turn(`face${i}`, -0.1 * beat * w, 0, (i - 3) * amount * lag * w);
+    }
+  };
+  switch (kind) {
+    case 'round':
+    case 'burr':
+      // The rings draw in as the heart comes forward.
+      pose.swell('face', -0.06 * level * w, -0.06 * level * w, 0.3 * level * w);
+      pose.turn('face', 0, 0, 0.08 * beat * w);
+      break;
+    case 'wheel':
+      // It turns on its own axis, so the spokes run.
+      pose.turn('face', 0, 0, (0.12 * level + 0.09 * beat) * w);
+      pose.move('face', 0, 0, 0.004 * level * w);
+      break;
+    case 'bough':
+      pose.turn('face', -0.05 * beat * w, 0, 0.07 * level * w);
+      pose.move('face', 0, 0.003 * beat * w, 0.004 * level * w);
+      break;
+    case 'crown':
+      pose.swell('face', 0.08 * level * w, 0, 0.24 * level * w);
+      pose.move('face', 0, 0, 0.004 * beat * w);
+      break;
+    case 'lapped':
+      pose.swell('face', 0, 0.07 * level * w, 0.26 * level * w);
+      pose.turn('face', -0.05 * beat * w);
+      break;
+    case 'antler':
+    case 'palm':
+      // The rack swings: the board tips on its own axis.
+      pose.turn('face', 0, 0, (0.1 * level + 0.08 * beat) * w);
+      pose.move('face', 0, -0.003 * beat * w, 0.004 * level * w);
+      break;
+    case 'briar':
+      spread(0.1);
+      pose.turn('face', 0, 0, 0.05 * beat * w * wobble(t * 2, salt));
+      break;
+  }
+}
+
+/** The mask at rest: a small life of its own. */
+export function faceIdle(pose: Pose, kind: string | undefined, t: number, salt: number): void {
+  const drift = wobble(t * 0.5, salt);
+  switch (kind) {
+    case 'briar':
+      for (let i = 0; i < 7; i++) {
+        pose.turn(`face${i}`, 0.03 * wobble(t * 0.6, salt + i), 0, 0.05 * wobble(t * 0.4, salt + i * 2));
+      }
+      break;
+    case 'round':
+    case 'burr':
+    case 'bough':
+    case 'antler':
+    case 'palm':
+    case 'wheel':
+      pose.turn('face', 0, 0, 0.025 * drift);
+      break;
+    case 'lapped':
+    case 'crown':
+      pose.move('face', 0, 0, 0.0014 * drift);
+      break;
+  }
+}
+
+/** The mask on a greeting: it opens up. */
+export function faceGreet(pose: Pose, kind: string | undefined, e: number): void {
+  switch (kind) {
+    case 'briar':
+      for (let i = 0; i < 7; i++) pose.turn(`face${i}`, 0, 0, (i - 3) * 0.15 * e);
+      break;
+    case 'round':
+    case 'burr':
+    case 'bough':
+    case 'antler':
+    case 'palm':
+    case 'wheel':
+      pose.turn('face', 0, 0, 0.25 * e);
+      break;
+    case 'lapped':
+    case 'crown':
+      pose.move('face', 0, 0, 0.007 * e);
+      break;
+  }
+}
+
+/**
+ * Undoes the head's pitch on anything that hangs from it.
+ *
+ * A cord hangs *down*, not along the head. Without this a villager that looks
+ * up swings its own fringe back into the mask, and one that looks down pushes
+ * it out into the air. Clamped, so a hard look up still moves the curtain a
+ * little rather than pinning it.
+ */
+export function faceHang(pose: Pose, kind: string | undefined, headPitch: number): void {
+  if (!HANGING.has(kind ?? '')) return;
+  const fix = Math.max(-0.6, Math.min(0.6, -headPitch)) * 0.9;
+  for (let i = 0; i < 7; i++) pose.turn(`face${i}`, fix);
+}

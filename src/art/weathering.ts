@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { shade } from './palette';
+import { FIELD_ATTRIBUTE } from './fields';
 
 /**
  * Weathering: how one material shows through another.
@@ -60,8 +61,7 @@ import { shade } from './palette';
  * texture pack, not a place.
  */
 
-/** Per-vertex weathering amount, 0..1. Baked by `assemble` from `Part.wear`. */
-export const WEAR_ATTRIBUTE = 'wear';
+/** The wear amount itself rides `FIELD_ATTRIBUTE.y` — see `art/fields`. */
 /** Per-vertex colour the surface weathers toward. Baked from `Part.wearTint`. */
 export const WEAR_TINT_ATTRIBUTE = 'wearTint';
 
@@ -85,7 +85,6 @@ export function applyWear(material: THREE.Material): void {
       .replace(
         '#include <common>',
         /* glsl */ `#include <common>
-        attribute float ${WEAR_ATTRIBUTE};
         attribute vec3 ${WEAR_TINT_ATTRIBUTE};
         varying float vWear;
         varying vec3 vWearTint;
@@ -95,7 +94,7 @@ export function applyWear(material: THREE.Material): void {
       .replace(
         '#include <begin_vertex>',
         /* glsl */ `#include <begin_vertex>
-        vWear = ${WEAR_ATTRIBUTE};
+        vWear = ${FIELD_ATTRIBUTE}.y;
         vWearTint = ${WEAR_TINT_ATTRIBUTE};
         // The raw attribute, not 'transformed': sampled before sway displaces
         // anything, so the pattern is welded to the surface and does not swim
@@ -167,7 +166,6 @@ export function applyWear(material: THREE.Material): void {
   // there in full. Zero wear means untouched.
   (material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
     ...(material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues,
-    [WEAR_ATTRIBUTE]: [0],
     [WEAR_TINT_ATTRIBUTE]: [0, 0, 0],
   };
 

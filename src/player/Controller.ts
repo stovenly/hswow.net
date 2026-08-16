@@ -378,9 +378,25 @@ const _probeEnd = new THREE.Vector3();
 const _probe = new Capsule();
 const _look = { x: 0, y: 0 };
 
+/**
+ * A moving thing the player is stopped by — a creature. An upright cylinder,
+ * because the static collider indexes triangles once per zone and cannot hold
+ * anything that walks; `LifeActivity` refreshes these every frame.
+ */
+export interface Obstacle {
+  x: number;
+  z: number;
+  /** Ground under it. */
+  y: number;
+  radius: number;
+  height: number;
+}
+
 export class Controller {
   readonly tuning: PlayerTuning = { ...DEFAULT_TUNING };
   readonly velocity = new THREE.Vector3();
+  /** Replaced, not appended, by whatever owns the moving things. */
+  obstacles: readonly Obstacle[] = [];
 
   /** Fires on each footfall. Phase 3 listens. */
   onFootstep: ((step: Footfall) => void) | null = null;
@@ -888,6 +904,7 @@ export class Controller {
 
     this.capsule.translate(_delta);
     this.resolve();
+    this.resolveObstacles();
 
     // Moving along a surface rather than into it means there is nothing to
     // penetrate, so contact is lost the moment the ground stops being flat —
@@ -957,6 +974,35 @@ export class Controller {
     }
 
     if (!this.grounded) this.groundNormal.set(0, 1, 0);
+  }
+
+  /** Push out of every creature touched, sideways only, and stop into it. */
+  private resolveObstacles(): void {
+    if (this.noclip || this.obstacles.length === 0) return;
+    const r = this.tuning.radius;
+    const feet = this.capsule.start.y - r;
+    const head = this.capsule.end.y + r;
+    for (const o of this.obstacles) {
+      if (head < o.y || feet > o.y + o.height) continue;
+      const dx = this.capsule.start.x - o.x;
+      const dz = this.capsule.start.z - o.z;
+      const d = Math.hypot(dx, dz);
+      const reach = o.radius + r;
+      if (d >= reach) continue;
+      // Straight out from the middle when standing exactly on it.
+      const nx = d > 1e-4 ? dx / d : 1;
+      const nz = d > 1e-4 ? dz / d : 0;
+      const depth = reach - d;
+      this.capsule.start.x += nx * depth;
+      this.capsule.start.z += nz * depth;
+      this.capsule.end.x += nx * depth;
+      this.capsule.end.z += nz * depth;
+      const into = this.velocity.x * nx + this.velocity.z * nz;
+      if (into < 0) {
+        this.velocity.x -= nx * into;
+        this.velocity.z -= nz * into;
+      }
+    }
   }
 
   /**

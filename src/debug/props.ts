@@ -24,6 +24,7 @@ import {
   forestMiscGalleryPlan,
 } from './galleries/forest';
 import { animalGalleryPlan } from './galleries/animal';
+import { villagerGalleryPlan } from './galleries/villager';
 import { textShowcaseGalleryPlan } from './galleries/text';
 import { darkRoomPlan } from './galleries/dark';
 import { lightShowcasePlan } from './galleries/light';
@@ -133,7 +134,7 @@ const DOOR_PITCH = 5;
 
 /** How many doors each hall's rank is laid out for. */
 const INDUSTRIAL_DOORS = 2;
-const COUNTRYSIDE_DOORS = 9;
+const COUNTRYSIDE_DOORS = 10;
 
 function doorSlot(shell: { depth: number }, slot: number, of: number): number {
   const span = (of - 1) * DOOR_PITCH;
@@ -390,28 +391,32 @@ export function propPortals(
       animalGalleryPlan,
       wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 3, COUNTRYSIDE_DOORS, 'timber', 6423),
     ),
+    galleryPortal(
+      villagerGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 4, COUNTRYSIDE_DOORS, 'timber', 6430),
+    ),
     // The wood, in the order it is read standing in one: canopy, then what
     // grows under it, then what is lying on the floor between them.
     galleryPortal(
       treeGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 4, COUNTRYSIDE_DOORS, 'timber', 6424),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 5, COUNTRYSIDE_DOORS, 'timber', 6424),
     ),
     galleryPortal(
       groundcoverGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 5, COUNTRYSIDE_DOORS, 'timber', 6425),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 6, COUNTRYSIDE_DOORS, 'timber', 6425),
     ),
     galleryPortal(
       forestMiscGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 6, COUNTRYSIDE_DOORS, 'timber', 6426),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 7, COUNTRYSIDE_DOORS, 'timber', 6426),
     ),
     // The two that came out of the village exterior: a place, and a system.
     galleryPortal(
       farmGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 7, COUNTRYSIDE_DOORS, 'timber', 6427),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 8, COUNTRYSIDE_DOORS, 'timber', 6427),
     ),
     galleryPortal(
       stoneWallGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 8, COUNTRYSIDE_DOORS, 'timber', 6428),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 9, COUNTRYSIDE_DOORS, 'timber', 6428),
     ),
     // --- the showcase rank, west to east ------------------------------------
     //

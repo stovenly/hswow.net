@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ART_FINISHED_MATERIAL, ART_MATERIAL, SWAY_ATTRIBUTE } from './assemble';
+import { ART_FINISHED_MATERIAL, ART_MATERIAL, FIELD_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
 import { applyAerialFog } from '../engine/fog';
@@ -212,7 +212,8 @@ export function patchArtMaterial(): void {
       .replace(
         '#include <common>',
         /* glsl */ `#include <common>
-        attribute float ${SWAY_ATTRIBUTE};
+        // Declared here for the whole chain: .x sway, .y wear, .z detail.
+        attribute vec3 ${FIELD_ATTRIBUTE};
         uniform sampler2D gustField;
         uniform vec2 windDir;
         uniform float windLagScale;
@@ -233,7 +234,7 @@ export function patchArtMaterial(): void {
         '#include <begin_vertex>',
         /* glsl */ `#include <begin_vertex>
         {
-          float weight = ${SWAY_ATTRIBUTE} * swayAmount;
+          float weight = ${FIELD_ATTRIBUTE}.x * swayAmount;
           if (weight > 0.0001) {
             // Where this vertex stands, and therefore when the gust reaches it.
             vec3 worldAt = (modelMatrix * vec4(transformed, 1.0)).xyz;
@@ -408,7 +409,7 @@ export function applySway(material: THREE.Material): void {
   // typed on only some of them.
   (material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
     ...(material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues,
-    [SWAY_ATTRIBUTE]: [0],
+    [FIELD_ATTRIBUTE]: [0, 0, 0],
   };
 
   // Three.js caches compiled programs by a key that knows nothing about an

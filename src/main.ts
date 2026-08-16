@@ -1053,6 +1053,8 @@ loop.add((dt, elapsed) => {
   // due this frame.
   const retestOcclusion = audio.update(dt, viewport.camera);
   zones.updateSound(dt, retestOcclusion);
+  // The creatures, once the listener stands where it stands this frame.
+  zones.updateLife(dt, retestOcclusion);
 
   // **After the audio, and that ordering is the point.** `audio.update` steps
   // the gust field; this ships the *same* field to the vertex shader. Done the

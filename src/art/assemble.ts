@@ -5,8 +5,8 @@ import { MATERIALS } from './underfoot';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL, dressArtMesh } from './sway';
-import { WEAR_ATTRIBUTE, WEAR_TINT_ATTRIBUTE } from './weathering';
-import { DETAIL_ATTRIBUTE, DETAIL_TINT_ATTRIBUTE } from './detail';
+import { WEAR_TINT_ATTRIBUTE } from './weathering';
+import { DETAIL_TINT_ATTRIBUTE } from './detail';
 import {
   FINISH_ATTRIBUTE,
   GRAIN_ATTRIBUTE,
@@ -19,6 +19,7 @@ import {
 } from './finish';
 import { RECIPE_ATTRIBUTE } from './recipes';
 import { collectSparkleSites } from './sparkle';
+import { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
 
 /**
  * Turning a pile of primitives into one mesh.
@@ -49,13 +50,15 @@ import { collectSparkleSites } from './sparkle';
  * |---|---|---|---|
  * | `position`, `normal` | vec3 ×2 | 24 | geometry |
  * | `color` | vec3 | 12 | the surface's own colour |
- * | `sway` | float | 4 | wind weight (`art/sway`) |
- * | `wear`, `wearTint` | float + vec3 | 16 | weathering (`art/weathering`) |
- * | `detail`, `detailTint` | float + vec3 | 16 | detail fade (`art/detail`) |
+ * | `aField` | vec3 | 12 | sway weight, wear, detail size — one lane each |
+ * | `wearTint` | vec3 | 12 | weathering (`art/weathering`) |
+ * | `detailTint` | vec3 | 12 | detail fade (`art/detail`) |
  * | `aFinish`, `aGrain`, `aGlint`, `aFace` | u8 vec4 ×2 + u8 vec2 + u8 | 11 | finish (`art/finish`) |
  * | `aRecipe` | u8 | 1 | which optical model (`art/recipes`) |
  *
- * Thirteen attributes of the sixteen WebGL guarantees, and 84 bytes a vertex.
+ * Eleven attributes of the sixteen WebGL guarantees, and 84 bytes a vertex —
+ * with `aEffect` (`art/effectId`) twelve, and a rigged creature's `skinIndex`
+ * and `skinWeight` make fourteen. Two spare, and that is the whole margin.
  * The finish lanes are normalized bytes rather than floats for exactly this
  * reason: as floats they would have been the largest entry in the table
  * instead of the smallest, for nine numbers that are all 0..1 knobs.
@@ -100,8 +103,7 @@ import { collectSparkleSites } from './sparkle';
  * on purpose rather than a reason not to decide.
  */
 
-/** Per-vertex sway weight, read by the Phase 7 wind shader. */
-export const SWAY_ATTRIBUTE = 'sway';
+export { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
 
 /** One material for the entire art kit. Phase 7 patches this and nothing else. */
 export const ART_MATERIAL = new THREE.MeshLambertMaterial({
@@ -183,9 +185,19 @@ export interface Part {
    * surface. Defaults to up, which is what a lathe spins about.
    */
   grain?: Grain;
+  /**
+   * Which bone this part rides, for a rigged creature — see `art/rig.ts`.
+   * Only read when `assemble` is given a bone list; the first bone otherwise.
+   */
+  bone?: string;
 }
 
-export function assemble(parts: Part[]): THREE.BufferGeometry {
+/**
+ * @param bones Bone names, in skeleton order. When given, every vertex is bound
+ *   rigidly (one bone, weight one) to its part's `bone`, and the geometry can
+ *   be finished as a `SkinnedMesh`. Rigid on purpose: a hinge is the look.
+ */
+export function assemble(parts: Part[], bones?: readonly string[]): THREE.BufferGeometry {
   // The union of the parts' finish chunks, stamped on the merged geometry so
   // `finish` can pick the material variant that compiles exactly those.
   let finishMask = 0;
@@ -230,29 +242,22 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    const sway = new Float32Array(count);
-    if (typeof part.sway === 'function') {
-      for (let i = 0; i < count; i++) {
-        sway[i] = clamp01(part.sway(position.getX(i), position.getY(i), position.getZ(i)));
-      }
-    } else if (part.sway) {
-      sway.fill(clamp01(part.sway));
+    // The three fields, one lane each. Sway and wear are per-vertex fields
+    // baked at build time; detail is a constant per part. Attributes exist on
+    // every part — zeroed where unused — because a merge requires every input
+    // to carry the same attribute set.
+    const fields = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
+      fields[i * 3 + FIELD_SWAY] =
+        typeof part.sway === 'function' ? clamp01(part.sway(x, y, z)) : clamp01(part.sway ?? 0);
+      fields[i * 3 + FIELD_WEAR] =
+        typeof part.wear === 'function' ? clamp01(part.wear(x, y, z)) : clamp01(part.wear ?? 0);
+      fields[i * 3 + FIELD_DETAIL] = part.detail ? Math.max(part.detail, 0) : 0;
     }
-    geometry.setAttribute(SWAY_ATTRIBUTE, new THREE.BufferAttribute(sway, 1));
-
-    // Weathering, exactly as sway: a per-vertex field baked at build time,
-    // read by the one shared material's wear stage. Attributes exist on every
-    // part — zeroed where unused — because a merge requires every input to
-    // carry the same attribute set.
-    const wear = new Float32Array(count);
-    if (typeof part.wear === 'function') {
-      for (let i = 0; i < count; i++) {
-        wear[i] = clamp01(part.wear(position.getX(i), position.getY(i), position.getZ(i)));
-      }
-    } else if (part.wear) {
-      wear.fill(clamp01(part.wear));
-    }
-    geometry.setAttribute(WEAR_ATTRIBUTE, new THREE.BufferAttribute(wear, 1));
+    geometry.setAttribute(FIELD_ATTRIBUTE, new THREE.BufferAttribute(fields, 3));
 
     const tints = new Float32Array(count * 3);
     if (part.wearTint !== undefined) {
@@ -260,12 +265,6 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
       for (let i = 0; i < count; i++) color.toArray(tints, i * 3);
     }
     geometry.setAttribute(WEAR_TINT_ATTRIBUTE, new THREE.BufferAttribute(tints, 3));
-
-    // Detail fading, the same shape again — a constant per part rather than a
-    // field, because a feature is one size all over. Zero is "never fade".
-    const detail = new Float32Array(count);
-    if (part.detail) detail.fill(Math.max(part.detail, 0));
-    geometry.setAttribute(DETAIL_ATTRIBUTE, new THREE.BufferAttribute(detail, 1));
 
     const detailTints = new Float32Array(count * 3);
     if (part.detailTint !== undefined) {
@@ -317,6 +316,19 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
     }
     geometry.setAttribute(FACE_ATTRIBUTE, new THREE.BufferAttribute(faces, 1, true));
 
+    if (bones) {
+      const index = bones.indexOf(part.bone ?? bones[0]);
+      if (index < 0) throw new Error(`assemble: part bound to unknown bone "${part.bone}"`);
+      const skinIndex = new Uint16Array(count * 4);
+      const skinWeight = new Float32Array(count * 4);
+      for (let i = 0; i < count; i++) {
+        skinIndex[i * 4] = index;
+        skinWeight[i * 4] = 1;
+      }
+      geometry.setAttribute('skinIndex', new THREE.BufferAttribute(skinIndex, 4));
+      geometry.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight, 4));
+    }
+
     // Normals must exist before merging: mergeGeometries requires every input
     // to carry the same attributes, and a missing one silently drops the lot.
     if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
@@ -361,21 +373,34 @@ export function finish(
    */
   underfoot?: SurfaceName,
 ): THREE.Mesh {
+  return finishMesh(new THREE.Mesh(geometry, ART_MATERIAL), name, phase, underfoot);
+}
+
+/**
+ * The body of `finish`, on a mesh the caller made — a `SkinnedMesh` for a
+ * rigged creature (`art/rig.ts`), a plain one for everything else.
+ */
+export function finishMesh<T extends THREE.Mesh>(
+  mesh: T,
+  name: string,
+  phase: number,
+  underfoot?: SurfaceName,
+): T {
+  const geometry = mesh.geometry;
   // Baked into the attribute rather than passed as a uniform: a uniform would
   // need a material per species, and the whole kit sharing one material is
   // what keeps a prop to a single draw call.
   const flex = FLEX[name] ?? 0;
-  const weights = geometry.getAttribute(SWAY_ATTRIBUTE);
-  if (weights && flex !== 1) {
-    const array = weights.array as Float32Array;
-    for (let i = 0; i < array.length; i++) array[i] *= flex;
-    weights.needsUpdate = true;
+  const fields = geometry.getAttribute(FIELD_ATTRIBUTE);
+  if (fields && flex !== 1) {
+    const array = fields.array as Float32Array;
+    for (let i = FIELD_SWAY; i < array.length; i += 3) array[i] *= flex;
+    fields.needsUpdate = true;
   }
 
   // The lean material, and a note of what this prop's parts declared. The room
   // it ends up in decides which variant it actually draws with, once it knows
   // what else is standing in it. See `dressArtMesh`.
-  const mesh = new THREE.Mesh(geometry, ART_MATERIAL);
   dressArtMesh(mesh, (geometry.userData.finishMask as number | undefined) ?? 0);
   mesh.name = name;
   mesh.userData.swayPhase = phase;

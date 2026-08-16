@@ -142,7 +142,7 @@ export function buildVillagerHut(): THREE.Group {
   // with a person standing in it reads completely differently from one without,
   // and this is the fixture the animation work will be judged against. Stood at
   // the table rather than in open floor, which is where a person actually is.
-  place(root, figure.build({ seed: 6602 }), 0.4, 0, 2.1, Math.PI * 0.9);
+  place(root, figure.build({ seed: 6602, roam: 1.2 }), 0.4, 0, 2.1, Math.PI * 0.9);
 
   // Storage in the dead corner behind the door, which is where it goes in a
   // real room: the space nobody walks through and nobody sits in.

@@ -10,6 +10,7 @@ import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
 import { ClothActivity } from '../engine/ClothActivity';
+import { LifeActivity } from '../engine/LifeActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
 import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
@@ -277,6 +278,7 @@ export class ZoneManager {
   private readonly activity = new LightActivity();
   /** Every simulated cloth in every built zone. See `ClothActivity`. */
   private readonly cloth = new ClothActivity();
+  private readonly life = new LifeActivity();
   /** Every glitch volume in every built zone. See `GlitchActivity`. */
   private readonly glitch = new GlitchActivity();
   /** Every horror volume in every built zone. See `HorrorActivity`. */
@@ -548,6 +550,7 @@ export class ZoneManager {
       this.particled.delete(zone.id);
       this.activity.release(zone.id);
       this.cloth.release(zone.id);
+      this.life.release(zone.id);
       this.glitch.release(zone.id);
       this.horror.release(zone.id);
       for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
@@ -990,6 +993,7 @@ export class ZoneManager {
     if (particles) this.particled.add(zone.id);
     this.activity.collect(zone.id, root);
     this.cloth.collect(zone.id, root);
+    this.life.collect(zone.id, root);
     // Both attachment routes in one call: the definition's free-standing
     // placements, and whatever a builder marked with `markGlitched`.
     this.glitch.collect(zone.id, root, zone.glitches);
@@ -1229,6 +1233,7 @@ export class ZoneManager {
     this.particled.clear();
     this.activity.clear();
     this.cloth.clear();
+    this.life.clear();
     this.glitch.clear();
     this.horror.clear();
   }
@@ -1239,6 +1244,32 @@ export class ZoneManager {
    */
   updateCloth(dt: number, weather: Weather): void {
     this.cloth.update(this.active?.id ?? null, dt, weather, this.options.player.camera.position);
+  }
+
+  /**
+   * Moves the active zone's creatures. Called from the loop after the sound
+   * update, so a creature's voice is placed after the listener is and before
+   * the wind ships. LIFE.md §7.
+   */
+  updateLife(dt: number, retestOcclusion: boolean): void {
+    const { player, collider } = this.options;
+    const ground = this.active?.definition.groundAt ?? (() => 0);
+    this.life.update(
+      this.active?.id ?? null,
+      dt,
+      player.position,
+      player.camera.position,
+      ground,
+      collider,
+      this.audio?.engine ?? null,
+      retestOcclusion,
+    );
+    player.obstacles = this.life.obstacles;
+  }
+
+  /** Creatures moved last frame, for the readout. */
+  get creaturesAwake(): number {
+    return this.life.awake;
   }
 
   /**

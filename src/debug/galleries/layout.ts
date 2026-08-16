@@ -338,6 +338,10 @@ export function galleryRows(builders: readonly MeshBuilder[], spacing = DEPTH): 
       // anyone reading the numbers.
       const mesh = builder.build({ seed: 1000 + i * 7919 });
       mesh.position.set(x, 0, -i * spacing);
+      // A living row mills about its own spots rather than wandering off
+      // across the rank — the room is for comparing them side by side.
+      const life = mesh.userData.life as { roam: number } | undefined;
+      if (life) life.roam = Math.min(life.roam, 1.2);
       // Per builder, not per gallery: grass and the like are meant to be walked
       // through, and marking the whole group solid would override that.
       row.add(builder.solid === false ? mesh : markCollidable(mesh));
