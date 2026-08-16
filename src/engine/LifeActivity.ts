@@ -56,6 +56,7 @@ export class LifeActivity {
     dt: number,
     player: THREE.Vector3,
     eye: THREE.Vector3,
+    gaze: THREE.Vector3,
     groundAt: (x: number, z: number) => number,
     collider: Collider,
     audio: AudioEngine | null,
@@ -78,7 +79,7 @@ export class LifeActivity {
       if (near) awake.push(creature);
     }
 
-    const world: World = { player, eye, groundAt, collider, audio, retestOcclusion, others: awake };
+    const world: World = { player, eye, gaze, groundAt, collider, audio, retestOcclusion, others: awake };
     for (const creature of awake) {
       creature.update(dt, world);
       const p = creature.mesh.position;

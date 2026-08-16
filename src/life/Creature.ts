@@ -31,12 +31,21 @@ import {
   FOWL_SWING,
   QUAD_SWING,
   pulse,
+  GREET_LENGTH,
   type Fidget,
   type Greeting,
+  type Talk,
 } from './gaits';
 
 const FIDGETS: readonly Fidget[] = ['stretch', 'scratch', 'fold', 'lookAround', 'shift'];
-const GREETINGS: readonly Greeting[] = ['wave', 'wave', 'bow', 'raise'];
+const GREETINGS: readonly Greeting[] = ['wave', 'bow', 'raise', 'heart', 'press', 'brow', 'beckon', 'doff', 'offer', 'clap'];
+const TALKS: readonly Talk[] = ['beat', 'roll', 'sweep', 'clasp', 'point', 'open'];
+
+/** The next of a list, never the one just used. */
+function another<T>(list: readonly T[], last: T): T {
+  const i = Math.floor(Math.random() * list.length);
+  return list[i] === last ? list[(i + 1) % list.length] : list[i];
+}
 
 /**
  * One living thing: a rigged mesh, a bit of mind, and a voice.
@@ -58,6 +67,8 @@ export interface World {
   player: THREE.Vector3;
   /** The player's eye — where a creature looks when it looks at you. */
   eye: THREE.Vector3;
+  /** Where the player is looking, unit: a greeting waits to be looked at. */
+  gaze: THREE.Vector3;
   groundAt: (x: number, z: number) => number;
   collider: Collider;
   audio: AudioEngine | null;
@@ -70,10 +81,23 @@ export interface World {
 type State = 'idle' | 'walk' | 'business' | 'greet' | 'talk';
 
 const NOTICE: Record<LifeSpec['kind'], number> = { biped: 10, quadruped: 8, fowl: 5 };
-const GREET: Record<LifeSpec['kind'], number> = { biped: 3.6, quadruped: 3.2, fowl: 2.2 };
+const GREET: Record<LifeSpec['kind'], number> = { biped: 2.6, quadruped: 2.4, fowl: 1.8 };
+/** How far off the player's line of sight a creature can be and still be greeted at. */
+const GREET_GAZE = 0.58;
 const TURN_RATE = 2.4;
+/** Seconds the shoulders wait after the head has gone before they follow. */
+const BODY_LAG = 0.4;
+/** How far off its own facing a creature will leave you rather than square up. */
+const SHOULDER_EASE = 0.45;
 const HEAD_YAW_LIMIT = 1.15;
-const HEAD_PITCH_LIMIT = 0.45;
+/**
+ * How far a figure will turn to look, shared out over torso, neck and head by
+ * `look` — so this is the whole upper body twisting, not a neck on its own.
+ */
+const BIPED_YAW_LIMIT = 1.6;
+/** Within this of its facing, a greeting can start. */
+const GREET_FACING = 1;
+const HEAD_PITCH_LIMIT = 0.62;
 /** Half-life of the offset a state change leaves behind. */
 const SETTLE = 0.14;
 
@@ -121,10 +145,14 @@ export class Creature {
   private readonly headLag = new Spring();
   private readonly earLag = new Spring();
   private gestureT = 0;
+  /** Runs from the moment it turns to you; the gesture clock waits on this. */
+  private turnT = 0;
+  private hailed = false;
   private gestureLength = 1;
   private fidget: Fidget = 'lookAround';
   private fidgetLength = 3;
-  private readonly greeting: Greeting;
+  private greeting: Greeting;
+  private talkStyle: Talk = 'beat';
   private lastYaw: number;
   private greetCooldown = 0;
   private greeted = false;
@@ -209,12 +237,21 @@ export class Creature {
     let goalPitch = 0;
     const engaged = this.state === 'greet' || this.state === 'talk';
     if (dist < notice && !(glancing && !engaged)) {
-      const local = angleTo(this.yaw, bearing);
-      if (Math.abs(local) < HEAD_YAW_LIMIT + 0.4) {
+      // Aimed at the camera, which is not always over the player's feet.
+      const eyeDist = Math.max(0.2, Math.hypot(world.eye.x - pos.x, world.eye.z - pos.z));
+      const local = angleTo(this.yaw, Math.atan2(world.eye.x - pos.x, world.eye.z - pos.z));
+      // **A person stood behind you does not wait for you to turn round before
+      // they look.** A figure that is not walking twists as far as it goes
+      // whatever the angle, and unwinds as the shoulders come after it. An
+      // animal keeps to its own neck, and nothing does it while walking away.
+      const limit = spec.kind === 'biped' ? BIPED_YAW_LIMIT : HEAD_YAW_LIMIT;
+      const reach = spec.kind === 'biped' && this.state !== 'walk' ? Math.PI : limit + 0.4;
+      if (Math.abs(local) < reach) {
         wantLook = 1;
-        const eyeY = world.player.y + 1.6;
-        goalYaw = Math.max(-HEAD_YAW_LIMIT, Math.min(HEAD_YAW_LIMIT, local));
-        goalPitch = Math.max(-HEAD_PITCH_LIMIT, Math.min(HEAD_PITCH_LIMIT, -Math.atan2(eyeY - (pos.y + spec.headHeight), dist)));
+        // The camera itself, not a nominal height off the player's feet: it
+        // looks you in the eye whether you are crouching, standing or in the air.
+        goalYaw = Math.max(-limit, Math.min(limit, local));
+        goalPitch = Math.max(-HEAD_PITCH_LIMIT, Math.min(HEAD_PITCH_LIMIT, -Math.atan2(world.eye.y - (pos.y + spec.headHeight), eyeDist)));
       }
     } else if (glancing && this.state !== 'walk') {
       wantLook = 0.7;
@@ -226,9 +263,15 @@ export class Creature {
     this.lookPitch.to(goalPitch, 0.12, dt);
     this.lookW = damp(this.lookW, wantLook, wantLook > this.lookW ? 0.12 : 0.35, dt);
 
-    // Greeting: once per approach, and not again for a while.
+    // Whether the player is looking this way: the cosine between where they
+    // are looking, flattened, and the way from them to here.
+    const gl = Math.hypot(world.gaze.x, world.gaze.z) || 1;
+    const looked = dist > 0.01 && (world.gaze.x * -dx + world.gaze.z * -dz) / (gl * dist) > GREET_GAZE;
+
+    // Greeting: once per approach, when it is looked at, and not again for a while.
     if (
       dist < greetAt &&
+      looked &&
       !this.greeted &&
       this.greetCooldown === 0 &&
       (this.state === 'idle' || this.state === 'business' || this.state === 'walk')
@@ -236,8 +279,6 @@ export class Creature {
       this.begin('greet');
       this.greeted = true;
       this.greetCooldown = 30 + (this.spec.seed % 30);
-      if (spec.kind === 'biped') this.babble('greeting', world);
-      else this.callOut(0.5, world);
     }
     // A figure that has greeted and is still being stood in front of says
     // something, once.
@@ -300,10 +341,38 @@ export class Creature {
       }
       case 'greet':
       case 'talk': {
-        // Turn to face the player, and stay a while.
+        this.turnT += dt;
+        // **The head goes first and the body follows it.** The head has been
+        // tracking since you came into notice range; the shoulders come after
+        // it, and only far enough to leave you off one shoulder — nobody
+        // squares up to someone they are talking to. Swinging the whole figure
+        // onto you the instant it notices read as a machine on a target.
+        //
+        // How far it has to go decides both the wait and the speed. Someone
+        // stood behind you is not a leisurely quarter turn: the head cannot
+        // get there alone, so the shoulders go almost at once and go quickly.
         const off = angleTo(this.yaw, bearing);
-        this.yaw += Math.max(-TURN_RATE * dt, Math.min(TURN_RATE * dt, off));
-        this.gestureT += dt;
+        const away = Math.abs(off);
+        const hurry = clamp01((away - 0.5) / 1.5);
+        const settle = clamp01((this.turnT - BODY_LAG * (1 - 0.8 * hurry)) / 0.35);
+        if (settle > 0) {
+          const want = Math.sign(off) * Math.max(0, away - SHOULDER_EASE);
+          const rate = TURN_RATE * (0.55 + 0.85 * hurry) * smooth(settle);
+          this.yaw += Math.max(-rate * dt, Math.min(rate * dt, want));
+        }
+        // The gesture, and the voice with it, waits until it is round far
+        // enough to be greeting *you* — hailing the air behind it, arms up,
+        // before it has turned is worse than greeting a moment late.
+        if (this.state === 'talk' || away < GREET_FACING || this.turnT > 2.5) {
+          if (!this.hailed) {
+            this.hailed = true;
+            if (this.state === 'greet') {
+              if (spec.kind === 'biped') this.babble('greeting', world);
+              else this.callOut(0.5, world);
+            }
+          }
+          this.gestureT += dt;
+        }
         if (this.gestureT > this.gestureLength) this.begin('idle');
         break;
       }
@@ -357,7 +426,7 @@ export class Creature {
       const moving = this.speed > 0.02;
       let rate = 0;
       if (moving) rate = cadence * Math.max(0.6, Math.min(1.15, 0.5 + 0.6 * (this.speed / spec.walkSpeed)));
-      rate = Math.max(rate, Math.abs(yawRate) * 1.1);
+      rate = Math.max(rate, Math.abs(yawRate) * 2.2);
       if (rate === 0 && this.legs.unsettled) rate = cadence * 0.7;
       this.legs.phase += rate * dt;
       this.phase = this.legs.phase;
@@ -418,7 +487,7 @@ export class Creature {
           faceGreet(pose, spec.face, envelope(t01, 0.22, 0.28));
         } else {
           const w = smooth(Math.min(t01 * 4, 1, (1 - t01) * 4));
-          bipedTalk(pose, t, this.salt, syllable, beat, w, spec.handed ?? 1);
+          bipedTalk(pose, this.talkStyle, t, this.salt, syllable, beat, w, spec.handed ?? 1);
           faceTalk(pose, spec.face, syllable, beat, w, t, this.salt);
         }
       } else {
@@ -533,11 +602,19 @@ export class Creature {
         this.probeIn = 0;
         break;
       case 'greet':
+        // A different one from last time, so a village does not have one hello
+        // in it, and each takes as long as it needs.
+        this.greeting = another(GREETINGS, this.greeting);
         this.gestureT = 0;
-        this.gestureLength = this.spec.kind === 'biped' ? 2.0 : 1.6;
+        this.turnT = 0;
+        this.hailed = false;
+        this.gestureLength = this.spec.kind === 'biped' ? GREET_LENGTH[this.greeting] : 1.6;
         break;
       case 'talk':
+        this.talkStyle = another(TALKS, this.talkStyle);
         this.gestureT = 0;
+        this.turnT = 0;
+        this.hailed = true;
         this.gestureLength = 3.2;
         break;
     }
@@ -609,7 +686,10 @@ export class Creature {
   private babble(kind: 'greeting' | 'talk', world: World): Utterance | null {
     if (!world.audio || !world.audio.noise) return null;
     if (!this.voice) {
-      const voice = createVoice(world.audio, { tone: this.spec.tone, gain: 0.45, seed: this.spec.seed });
+      // Where it stands is part of who it is: two villagers built from the
+      // same seed still get their own note, rate and hello.
+      const spot = Math.abs(this.home.x * 73.1 + this.home.y * 41.7);
+      const voice = createVoice(world.audio, { tone: this.spec.tone, gain: 0.28, seed: this.spec.seed + spot });
       this.voice = voice;
       this.shot = voice;
       _at.set(this.mesh.position.x, this.mesh.position.y + this.spec.headHeight, this.mesh.position.z);

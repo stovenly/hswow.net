@@ -67,24 +67,36 @@ import { buildHead, type HeadKind } from './figure-head';
  */
 const HIDES = [0xc9b79c, 0xa8b08e, 0xb99a8f, 0x8f9aa3, 0xc2a374, 0x9c8f9e, 0xb0a48a, 0x8fa89a];
 /**
- * Cloth. **Deliberately darker and more saturated than any hide**, and
- * checked against the villager's own hide before use — a collar or a hem in
- * something near skin colour does not read as a garment, it reads as a bare
- * patch, which is exactly what it looked like.
+ * Cloth. One earth palette for every villager — umber, bark, taupe, dust,
+ * tan, drab, olive-grey, sage-grey — so a crowd of them reads as one people.
+ * **Every one of them is low chroma.** Nothing here is a colour first: the
+ * saturated greens, blues, reds and purples that were here made a fancy-dress
+ * rail out of a village.
+ *
+ * **Deliberately darker than any hide**, and checked against the villager's own
+ * hide before use — a collar or a hem in something near skin colour does not
+ * read as a garment, it reads as a bare patch, which is exactly what it looked
+ * like. The palest cloths here are therefore only ever picked for a villager
+ * whose hide is dark enough to be clear of them.
  */
 const CLOTHS = [
+  PALETTE.BARK,
+  PALETTE.BARK_PALE,
   PALETTE.TIMBER_DARK,
-  PALETTE.STONE_DARK,
-  PALETTE.RUST,
-  PALETTE.CLOTH_DEEP,
-  0x4a5a48,
-  0x5c4a68,
-  0x8a5a2a,
-  0x3f5a68,
-  0x7a3f3a,
-  0x2f4a3f,
-  0x6a5a2a,
-  0x4a4658,
+  0x3a342b,
+  0x453d31,
+  0x4a4237,
+  0x554b42,
+  0x5a4e3e,
+  0x6b5b46,
+  0x6d5a4c,
+  0x7a6142,
+  0x7d6c53,
+  0x8a7458,
+  0x4e5344,
+  0x5f6650,
+  0x6f7562,
+  0x7a5a4a,
 ];
 const LEATHERS = [PALETTE.HIDE_DARK, PALETTE.BARK, 0x5a3a28, 0x4a3f36];
 const METALS = [PALETTE.IRON, PALETTE.BRONZE, PALETTE.IRON_PALE];
@@ -99,11 +111,26 @@ function apart(a: number, b: number): number {
 }
 
 /** A cloth colour clear of the hide and of everything already worn. */
-function pickCloth(rng: Rng, hide: number, taken: readonly number[]): number {
+function pickCloth(rng: Rng, hide: number, taken: readonly number[], apartBy = 34): number {
   const clear = CLOTHS.filter(
-    (c) => apart(c, hide) > 55 && taken.every((t) => apart(c, t) > 45),
+    (c) => apart(c, hide) > 55 && taken.every((t) => apart(c, t) > apartBy),
   );
   return rng.pick(clear.length ? clear : CLOTHS);
+}
+
+/**
+ * The three cloths a villager wears. They are a **family, not a set**: the
+ * shirt is picked, and most of the time the other two are the same cloth taken
+ * up or down. Three unrelated colours on one small figure is what made them
+ * look like a costume rail; a tonal outfit is what makes cloth read as cloth.
+ */
+function outfit(rng: Rng, hide: number): Cloths {
+  const cloth = pickCloth(rng, hide, []);
+  const lower = rng.chance(0.66) ? shade(cloth, rng.range(0.68, 0.82)) : pickCloth(rng, hide, [cloth]);
+  const accent = rng.chance(0.55)
+    ? shade(cloth, rng.chance(0.5) ? rng.range(0.5, 0.62) : rng.range(1.2, 1.34))
+    : pickCloth(rng, hide, [cloth, lower]);
+  return { cloth, lower, accent };
 }
 
 /** Sides on the body. Vertical colour borders snap to these. */
@@ -189,15 +216,15 @@ function limb(
  */
 const BUILDS: readonly { rings: readonly [number, number][]; depth: number }[] = [
   // Round.
-  { depth: 0.9, rings: [[0, 0.58], [0.15, 0.74], [0.42, 0.88], [0.68, 0.9], [0.88, 0.74], [1, 0.4]] },
+  { depth: 0.86, rings: [[0, 0.56], [0.15, 0.68], [0.42, 0.76], [0.68, 0.76], [0.88, 0.64], [1, 0.38]] },
   // Shouldered: the mass rides high, and not much of it.
-  { depth: 0.88, rings: [[0, 0.54], [0.15, 0.64], [0.45, 0.78], [0.72, 0.9], [0.9, 0.8], [1, 0.46]] },
+  { depth: 0.84, rings: [[0, 0.52], [0.15, 0.6], [0.45, 0.68], [0.72, 0.76], [0.9, 0.68], [1, 0.42]] },
   // Straight: little taper either way.
-  { depth: 0.9, rings: [[0, 0.6], [0.12, 0.74], [0.4, 0.82], [0.7, 0.84], [0.9, 0.74], [1, 0.42]] },
+  { depth: 0.86, rings: [[0, 0.58], [0.12, 0.68], [0.4, 0.72], [0.7, 0.72], [0.9, 0.64], [1, 0.4]] },
   // Slight: narrow all the way up.
-  { depth: 0.92, rings: [[0, 0.5], [0.18, 0.6], [0.45, 0.7], [0.72, 0.72], [0.9, 0.6], [1, 0.34]] },
+  { depth: 0.88, rings: [[0, 0.48], [0.18, 0.56], [0.45, 0.62], [0.72, 0.62], [0.9, 0.52], [1, 0.32]] },
   // Round-bellied: fullest low, tapering to the shoulders.
-  { depth: 0.9, rings: [[0, 0.6], [0.14, 0.82], [0.38, 0.9], [0.66, 0.78], [0.88, 0.66], [1, 0.38]] },
+  { depth: 0.86, rings: [[0, 0.58], [0.14, 0.76], [0.38, 0.78], [0.66, 0.68], [0.88, 0.58], [1, 0.36]] },
 ];
 
 // --- the head ---------------------------------------------------------------------
@@ -245,6 +272,71 @@ function stuck(m: Body, geometry: THREE.BufferGeometry, y: number, bearing: numb
   return geometry;
 }
 
+/** The cloths a garment has to work with. */
+interface Cloths {
+  cloth: number;
+  lower: number;
+  accent: number;
+}
+
+/**
+ * A garment style: the horizontal bands the torso is coloured in, chin to hem,
+ * as (from, to, colour). Every boundary is a ring of the loft, which is what
+ * keeps a colour change a mesh edge — see `loft`'s `Columns`. `bib` says the
+ * style also takes a panel up the front, which is a run of columns.
+ */
+interface Garment {
+  weight: number;
+  bib?: boolean;
+  /** Always takes the front panel, and takes it in the shirt's own cloth. */
+  coat?: boolean;
+  bands(rng: Rng, hem: number, c: Cloths): [number, number, number][];
+}
+
+const GARMENTS: readonly Garment[] = [
+  // A shirt to the hem and the lower half under it.
+  { weight: 0.3, bib: true, bands: (_rng, hem, c) => [[0, hem, c.lower], [hem, 1, c.cloth]] },
+  // A yoke across the shoulders.
+  {
+    weight: 0.2,
+    bands: (rng, hem, c) => {
+      const shoulder = rng.range(0.66, 0.76);
+      return [[0, hem, c.lower], [hem, shoulder, c.cloth], [shoulder, 1, c.accent]];
+    },
+  },
+  // A girdle of cloth round the middle.
+  {
+    weight: 0.18,
+    bands: (rng, hem, c) => {
+      const a = hem + rng.range(0.08, 0.16);
+      const b = a + rng.range(0.12, 0.2);
+      return [[0, hem, c.lower], [hem, a, c.cloth], [a, b, c.accent], [b, 1, c.cloth]];
+    },
+  },
+  // An open coat: the coat is the whole torso and the shirt shows in a strip
+  // up the front. The same two pieces as a bib, the other way round.
+  { weight: 0.22, coat: true, bands: (_rng, hem, c) => [[0, hem, c.lower], [hem, 1, shade(c.cloth, 0.72)]] },
+  // A long tunic with a trimmed hem.
+  {
+    weight: 0.16,
+    bands: (rng, hem, c) => {
+      const low = hem * 0.6;
+      const trim = low + rng.range(0.05, 0.08);
+      return [[0, low, c.lower], [low, trim, c.accent], [trim, 1, c.cloth]];
+    },
+  },
+];
+
+/** Splits a band list at `t`, so a piece can end there. */
+function splitAt(bands: [number, number, number][], t: number): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (const band of bands) {
+    if (t > band[0] + 1e-3 && t < band[1] - 1e-3) out.push([band[0], t, band[2]], [t, band[1], band[2]]);
+    else out.push(band);
+  }
+  return out;
+}
+
 interface Wear {
   weight: number;
   bone: 'torso';
@@ -282,25 +374,6 @@ const WEARS: readonly Wear[] = [
         { geometry: stuck(m, knot, y, m.side * 1.4, 0.018), color: m.accent },
         { geometry: stuck(m, tail, y - 0.07, m.side * 1.45, 0.012), color: m.accent },
       ];
-    },
-  },
-  // A row of buttons up the front.
-  {
-    weight: 0.3,
-    bone: 'torso',
-    build: (rng, m) => {
-      const parts: Part[] = [];
-      const count = rng.int(3, 5);
-      const top = m.top - 0.06;
-      const bottom = m.waistY + 0.03;
-      for (let i = 0; i < count; i++) {
-        const y = top - ((top - bottom) * i) / (count - 1);
-        const button = new THREE.CylinderGeometry(0.013, 0.013, 0.01, 8);
-        // CylinderGeometry stands on +Y; rotateX(π/2) faces it along +Z.
-        button.rotateX(Math.PI / 2);
-        parts.push({ geometry: stuck(m, button, y, 0, 0.004), color: m.metal });
-      }
-      return parts;
     },
   },
   // Pouches on the hip, one or two.
@@ -360,6 +433,59 @@ const WEARS: readonly Wear[] = [
       ];
     },
   },
+  // A short mantle over the shoulders. Its flare is small on purpose: the arms
+  // hang just outside the widest part of the chest, and anything that stands
+  // further off the shoulder than that goes through them.
+  {
+    weight: 0.22,
+    bone: 'torso',
+    build: (rng, m) => {
+      const top = m.top - 0.012;
+      const drop = (m.top - m.waistY) * rng.range(0.2, 0.32);
+      const hi = m.at(top);
+      const lo = m.at(top - drop);
+      const g = new THREE.CylinderGeometry(hi.rx + 0.008, lo.rx + 0.016, drop, BODY_SIDES);
+      g.scale(1, 1, (lo.ry + 0.016) / (lo.rx + 0.016));
+      g.translate(0, top - drop / 2, 0);
+      return [{ geometry: g, color: m.accent }];
+    },
+  },
+  // A blanket rolled and slung shoulder to hip, tied twice. It follows the
+  // body round rather than cutting the chord across it.
+  {
+    weight: 0.18,
+    bone: 'torso',
+    build: (rng, m) => {
+      const high = m.top - 0.03;
+      const low = m.waistY + 0.03;
+      const r = rng.range(0.02, 0.027);
+      /** A point on the sling, `t` from the shoulder (0) to the far hip (1). */
+      const along = (t: number): THREE.Vector3 => {
+        const y = high + (low - high) * t;
+        const { rx, ry } = m.at(y);
+        // Round the front only: the arms hang at the sides, and anything that
+        // reaches much past three quarters of the way out goes through them.
+        const bearing = m.side * (0.82 - 1.64 * t);
+        return new THREE.Vector3(Math.sin(bearing) * (rx + r * 0.5), y, Math.cos(bearing) * (ry + r * 0.5));
+      };
+      const run = (from: number, to: number, rad: number, steps: number): THREE.BufferGeometry => {
+        const stations: Station[] = [];
+        for (let i = 0; i <= steps; i++) {
+          const t = from + ((to - from) * i) / steps;
+          const p = along(t);
+          const a = along(Math.max(0, t - 0.04));
+          const b = along(Math.min(1, t + 0.04));
+          stations.push({ at: [p.x, p.y, p.z], rx: rad, ry: rad, axis: [b.x - a.x, b.y - a.y, b.z - a.z] });
+        }
+        return loft(stations, 6, { start: true, end: true });
+      };
+      return [
+        { geometry: run(0, 1, r, 6), color: m.accent },
+        { geometry: run(0.3, 0.38, r * 1.32, 1), color: m.leather },
+        { geometry: run(0.66, 0.74, r * 1.32, 1), color: m.leather },
+      ];
+    },
+  },
   // A scarf: a band at the top with a tail down the front.
   {
     weight: 0.2,
@@ -394,7 +520,7 @@ export const figure: BuilderWith<LifeOptions> = {
     // The standing height is chosen first and everything is fitted into it, so
     // a squat head does not make a taller villager — it makes a differently
     // proportioned one of the same height.
-    const height = rng.range(1.28, 1.46);
+    const height = rng.range(1.28, 1.68);
     // The head is a shell about twice as tall as it is wide, on a short
     // covered neck.
     const headR = rng.range(0.135, 0.172);
@@ -405,11 +531,9 @@ export const figure: BuilderWith<LifeOptions> = {
 
     const build = rng.pick(BUILDS);
     const hide = rng.pick(HIDES);
-    // Three cloths, each clear of the hide and of each other: the shirt, the
-    // lower half, and the accent that trim is picked out in.
-    const cloth = pickCloth(rng, hide, []);
-    const lower = pickCloth(rng, hide, [cloth]);
-    const accent = pickCloth(rng, hide, [cloth, lower]);
+    // The shirt, the lower half and the accent trim is picked out in — one
+    // tonal family, clear of the hide.
+    const { cloth, lower, accent } = outfit(rng, hide);
     const leather = rng.pick(LEATHERS);
     const metal = rng.pick(METALS);
     const dominant: 1 | -1 = rng.chance(0.5) ? 1 : -1;
@@ -440,15 +564,23 @@ export const figure: BuilderWith<LifeOptions> = {
     // --- garment ----------------------------------------------------------
     //
     // **Always dressed, and never in its own skin.** The torso carries no hide
-    // at all: the shirt runs from the collar down to a hem, and below the hem
-    // is the lower half in a second cloth. An earlier version left the strip
-    // below the hem bare, and a ring of skin round the waist read as a rim of
-    // the garment in the wrong colour.
-    const bib = rng.chance(0.3);
+    // at all: cloth runs from the collar to the ground. An earlier version left
+    // the strip below the hem bare, and a ring of skin round the waist read as
+    // a rim of the garment in the wrong colour.
+    //
+    // The style says where the cloth changes — a plain hem, a shoulder yoke, a
+    // girdle, an open coat, a trimmed tunic — and every change is a ring of
+    // the loft or a run of its columns.
     const hemT = rng.range(0.1, 0.26);
+    const style = pickWeighted(rng, GARMENTS);
+    const panel = style.coat === true || (style.bib === true && rng.chance(0.45));
+    const panelColor = style.coat === true ? cloth : accent;
+    const bands = panel
+      ? splitAt(style.bands(rng, hemT, { cloth, lower, accent }), 0.88)
+      : style.bands(rng, hemT, { cloth, lower, accent });
 
     // --- body: bands of loft, one per coloured region, all on one bone -----
-    const ts = rungs(build.rings, 0.05, [hemT, 0.88]);
+    const ts = rungs(build.rings, 0.05, bands.flatMap((b) => [b[0], b[1]]));
     const ring = (t: number): Station => {
       const y = bottom + t * bodyH;
       const { rx, ry } = at(y);
@@ -457,31 +589,39 @@ export const figure: BuilderWith<LifeOptions> = {
     // The front column of the ring, so a bib is centred: vertex i sits at
     // angle (2i+1)·π/sides and the front is at 3π/2.
     const frontVertex = Math.round((3 * BODY_SIDES - 2) / 4);
-    const bibHalf = rng.int(1, 2);
-    const bibColumns: Columns = { from: frontVertex - bibHalf, to: frontVertex + bibHalf - 1 };
-    const backColumns: Columns = { from: frontVertex + bibHalf, to: frontVertex - bibHalf + BODY_SIDES - 1 };
+    const panelHalf = style.coat === true ? 2 : rng.int(1, 2);
+    const panelColumns: Columns = { from: frontVertex - panelHalf, to: frontVertex + panelHalf - 1 };
+    const backColumns: Columns = { from: frontVertex + panelHalf, to: frontVertex - panelHalf + BODY_SIDES - 1 };
 
-    // The bib stops short of the shoulders, which also keeps it off the band
+    // The panel stops short of the shoulders, which also keeps it off the band
     // that carries the top cap: a partial ring is not a loop and cannot be
     // closed by a fan, so a capped band must never be split into columns.
-    const bibTop = 0.88;
-    const cuts = [0, hemT, bibTop, 1];
-    for (let i = 0; i < cuts.length - 1; i++) {
-      const from = cuts[i];
-      const to = cuts[i + 1];
+    for (const [from, to, base] of bands) {
       if (to - from < 1e-3) continue;
       const stations = ts.filter((t) => t >= from - 1e-6 && t <= to + 1e-6).map(ring);
       if (stations.length < 2) continue;
       const caps = { start: from <= 1e-6, end: to >= 1 - 1e-6 };
-      const shirt = from >= hemT - 1e-6;
-      const base = shirt ? cloth : lower;
-      if (bib && shirt && !caps.end) {
-        // Two pieces of one surface: the bib's columns, and the rest.
-        parts.push({ geometry: loft(stations, BODY_SIDES, caps, bibColumns), color: accent, bone: 'torso' });
+      if (panel && from >= hemT - 1e-6 && !caps.end) {
+        // Two pieces of one surface: the panel's columns, and the rest.
+        parts.push({ geometry: loft(stations, BODY_SIDES, caps, panelColumns), color: panelColor, bone: 'torso' });
         parts.push({ geometry: loft(stations, BODY_SIDES, caps, backColumns), color: base, bone: 'torso' });
       } else {
         parts.push({ geometry: loft(stations, BODY_SIDES, caps), color: base, bone: 'torso' });
       }
+    }
+
+    // A lip at the hem, standing a little proud and flared: the shirt is a
+    // layer worn over the lower half, not a colour change on one surface.
+    {
+      const y = bottom + bands[0][1] * bodyH;
+      const h = bodyH * 0.05;
+      const lo = at(y - h / 2);
+      const hi = at(y + h / 2);
+      const flare = radius * 0.05;
+      const lip = new THREE.CylinderGeometry(hi.rx + flare * 0.3, lo.rx + flare, h, BODY_SIDES);
+      lip.scale(1, 1, (lo.ry + flare) / (lo.rx + flare));
+      lip.translate(0, y, 0);
+      parts.push({ geometry: lip, color: shade(bands[1] ? bands[1][2] : cloth, 0.86), bone: 'torso' });
     }
 
     // --- the head ---------------------------------------------------------

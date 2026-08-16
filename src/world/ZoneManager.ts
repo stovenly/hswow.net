@@ -158,6 +158,9 @@ const SPOT_TIERS = [0, 2] as const;
  */
 const PROBE_INTERVAL = 1 / 18;
 
+/** Where the camera is looking, refilled each life update. */
+const _gaze = new THREE.Vector3();
+
 export class ZoneManager {
   readonly zones = new Map<ZoneId, Zone>();
   readonly portals = new PortalGraph();
@@ -1259,6 +1262,7 @@ export class ZoneManager {
       dt,
       player.position,
       player.camera.position,
+      player.camera.getWorldDirection(_gaze),
       ground,
       collider,
       this.audio?.engine ?? null,

@@ -149,16 +149,21 @@ export class AudioEngine {
     this.dry = this.context.createGain();
     this.send = this.context.createGain();
 
-    // A limiter, not a compressor, despite the node's name: the settings below
-    // make it transparent until something would clip. Procedural audio has no
-    // mastering engineer, and a dozen emitters lining up in phase is a matter
-    // of when, not if.
+    // A limiter, not a compressor, despite the node's name. Procedural audio
+    // has no mastering engineer, and a dozen emitters lining up in phase is a
+    // matter of when, not if.
+    //
+    // It has to be **out of the way until something would actually clip**. At
+    // −6 dB with a 6 dB knee it began working at −12, which a villager talking
+    // three metres away clears on its own: every syllable pulled the whole mix
+    // down and let it back up over a quarter of a second, and a voice put
+    // through that sounds compressed, because it is.
     const limiter = this.context.createDynamicsCompressor();
-    limiter.threshold.value = -6;
-    limiter.knee.value = 6;
-    limiter.ratio.value = 12;
-    limiter.attack.value = 0.003;
-    limiter.release.value = 0.25;
+    limiter.threshold.value = -2;
+    limiter.knee.value = 2;
+    limiter.ratio.value = 16;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
 
     this.dry.connect(this.duck);
     this.duck.connect(this.master);
