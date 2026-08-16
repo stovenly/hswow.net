@@ -79,7 +79,6 @@ import { stool } from '../art/builders/stool';
 // Life.
 import { bovine } from '../art/builders/bovine';
 import { ovine } from '../art/builders/ovine';
-import { equine } from '../art/builders/equine';
 import { porcine } from '../art/builders/porcine';
 import { poultry } from '../art/builders/poultry';
 import { figure } from '../art/builders/figure';
@@ -1011,7 +1010,7 @@ function buildSettlement(root: THREE.Group): void {
   // Off the green rather than on it, where three of the four lanes meet.
   place(root, cistern.build({ seed: 5301 }), -3.4, 12.8, 0.3);
   place(root, trough.build({ seed: 5302 }), -4.6, 13.9, 1.2);
-  place(root, figure.build({ seed: 5303 }), -4.9, 14.8, -1.1);
+  place(root, figure.build({ seed: 5303, roam: 3 }), -4.9, 14.8, -1.1);
 
   // --- the west boundary ---------------------------------------------------
   //
@@ -1100,12 +1099,11 @@ function buildSettlement(root: THREE.Group): void {
   const paddockCorner = fenceRun(root, 400, [-22, -4], [-22, -14], false);
   fenceRun(root, 420, paddockCorner, [-11, -14]);
   place(root, trough.build({ seed: 91 }), -13, -13, 0.4);
-  place(root, figure.build({ seed: 5801 }), -13.4, -6.2, 2.6);
+  place(root, figure.build({ seed: 5801, roam: 4 }), -13.4, -6.2, 2.6);
   scatter(root, bovine, { seed: 8801, count: 2, within: 5, from: [-16, -10], maxSlope: 20 });
   scatter(root, ovine, { seed: 8802, count: 4, within: 6, from: [-16, -10], maxSlope: 20 });
   scatter(root, porcine, { seed: 8803, count: 2, within: 5, from: [-17, -8], maxSlope: 20 });
   scatter(root, poultry, { seed: 8804, count: 6, within: 9, from: [-2, 6], maxSlope: 18 });
-  scatter(root, equine, { seed: 8805, count: 2, within: 6, from: [-24, 4], maxSlope: 18 });
 
   // --- the things that make the noise --------------------------------------
   //
@@ -1121,13 +1119,13 @@ function buildSettlement(root: THREE.Group): void {
   place(root, anvil.build({ seed: 5902 }), SMITHY.anvil[0], SMITHY.anvil[1], 0.6);
   place(root, signboard.build(sign(5903, 'SMITHY')), 12.4, 7.8, -1.5);
   place(root, bell.build({ seed: 5904 }), BELL_AT[0], BELL_AT[1], -0.5);
-  // Not solid. A dog you cannot walk through is a bollard, and Phase 7 will
-  // want to move it anyway.
-  place(root, dog.build({ seed: 5905 }), DOG_AT[0], DOG_AT[1], 1.9, false);
+  // Its patch is the bark field's spread, so the barking stays where the dog is.
+  place(root, dog.build({ seed: 5905, roam: 2.4 }), DOG_AT[0], DOG_AT[1], 1.9);
 
-  place(root, figure.build({ seed: 3301 }), 3.4, 6.6, 2.2);
-  place(root, figure.build({ seed: 3302 }), -3.2, 8.6, 1.1);
-  place(root, figure.build({ seed: 3303 }), 6.4, 2.6, -0.8);
+  // Living: they walk about the green, watch you and greet you. LIFE.md.
+  place(root, figure.build({ seed: 3301, roam: 5 }), 3.4, 6.6, 2.2);
+  place(root, figure.build({ seed: 3302, roam: 5 }), -3.2, 8.6, 1.1);
+  place(root, figure.build({ seed: 3303, roam: 5 }), 6.4, 2.6, -0.8);
 }
 
 /**

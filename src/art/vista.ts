@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRng, type Rng } from './random';
 import { blend, shade } from './palette';
-import { SWAY_ATTRIBUTE } from './assemble';
+import { FIELD_ATTRIBUTE, FIELD_SWAY } from './assemble';
 
 /**
  * The vista family's grammar — VISTA.md.
@@ -45,10 +45,11 @@ export function markVista<T extends THREE.Object3D>(object: T): T {
     node.castShadow = false;
     node.receiveShadow = false;
     if (!(node instanceof THREE.Mesh)) return;
-    const sway = node.geometry.getAttribute(SWAY_ATTRIBUTE);
-    if (!sway) return;
-    (sway.array as Float32Array).fill(0);
-    sway.needsUpdate = true;
+    const fields = node.geometry.getAttribute(FIELD_ATTRIBUTE);
+    if (!fields) return;
+    const array = fields.array as Float32Array;
+    for (let i = FIELD_SWAY; i < array.length; i += 3) array[i] = 0;
+    fields.needsUpdate = true;
   });
   return object;
 }

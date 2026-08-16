@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FIELD_ATTRIBUTE } from './fields';
 
 /**
  * Detail fading: a mipmap for geometry that has no texture to mip.
@@ -48,8 +49,7 @@ import * as THREE from 'three';
  * part which declared nothing. Which, today, is nearly all of them.
  */
 
-/** Per-vertex feature size in metres. 0 means never fade. From `Part.detail`. */
-export const DETAIL_ATTRIBUTE = 'detail';
+/** The feature size itself rides `FIELD_ATTRIBUTE.z` — see `art/fields`. */
 /** Per-vertex colour the feature dissolves into. From `Part.detailTint`. */
 export const DETAIL_TINT_ATTRIBUTE = 'detailTint';
 
@@ -85,7 +85,6 @@ export function applyDetail(material: THREE.Material): void {
       .replace(
         '#include <common>',
         /* glsl */ `#include <common>
-        attribute float ${DETAIL_ATTRIBUTE};
         attribute vec3 ${DETAIL_TINT_ATTRIBUTE};
         varying float vDetail;
         varying vec3 vDetailTint;
@@ -98,7 +97,7 @@ export function applyDetail(material: THREE.Material): void {
         // is a question about where it ended up rather than how it was built.
         '#include <project_vertex>',
         /* glsl */ `#include <project_vertex>
-        vDetail = ${DETAIL_ATTRIBUTE};
+        vDetail = ${FIELD_ATTRIBUTE}.z;
         vDetailTint = ${DETAIL_TINT_ATTRIBUTE};
         vDetailView = mvPosition.xyz;
         `,
@@ -151,7 +150,6 @@ export function applyDetail(material: THREE.Material): void {
   // nothing with no detail size ever fades.
   (material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
     ...(material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues,
-    [DETAIL_ATTRIBUTE]: [0],
     [DETAIL_TINT_ATTRIBUTE]: [0, 0, 0],
   };
 

@@ -564,7 +564,7 @@ function buildHutRoom2(): THREE.Group {
 
   // Somebody at the wheel. Static, like the figure in the hut — and standing at
   // a task rather than in open floor, for the same reason.
-  place(root, figure.build({ seed: 6610 }), -2.4, 0, 0.9, Math.PI * 0.15);
+  place(root, figure.build({ seed: 6610, roam: 1.5 }), -2.4, 0, 0.9, Math.PI * 0.15);
 
   place(root, candle.build({ seed: 7120 }), 2.35, topOf(board), 0.7, 0.4);
 

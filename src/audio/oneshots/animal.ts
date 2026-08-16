@@ -64,7 +64,7 @@ interface Call {
  * why the same three numbers, moved together, read as size — and it is the
  * cheapest characterisation control in this whole file.
  */
-const CALLS: Record<'dog' | 'sheep' | 'cow' | 'fowl', Call> = {
+const CALLS: Record<'dog' | 'sheep' | 'cow' | 'fowl' | 'pig', Call> = {
   // Short, hard, and in bursts. The bark is almost all attack: the mouth opens
   // wide and shuts, so F1 leaps and then collapses.
   dog: {
@@ -158,6 +158,28 @@ const CALLS: Record<'dog' | 'sheep' | 'cow' | 'fowl', Call> = {
       { hz: 3900, q: 14, level: 0.1 },
     ],
     variance: 0.16,
+  },
+
+  // Grunts: short, low, mostly rasp, in twos and threes.
+  pig: {
+    f0: [190, 120],
+    onset: 0.7,
+    syllables: [2, 3],
+    length: [0.16, 0.26],
+    gap: [0.18, 0.32],
+    attack: 0.1,
+    rasp: 0.6,
+    open: [
+      { hz: 560, q: 5, level: 1 },
+      { hz: 1250, q: 7, level: 0.4 },
+      { hz: 2500, q: 10, level: 0.12 },
+    ],
+    close: [
+      { hz: 460, q: 5, level: 0.7 },
+      { hz: 1100, q: 7, level: 0.25 },
+      { hz: 2300, q: 10, level: 0.08 },
+    ],
+    variance: 0.14,
   },
 };
 
@@ -278,9 +300,11 @@ export function createAnimal(engine: AudioEngine, options: AnimalOptions = {}): 
   };
 
   let cleanup = 0;
+  const syllables: { at: number; length: number }[] = [];
 
   return {
     output,
+    syllables,
 
     fire(at, force) {
       // Reset, not accumulate: `sweep` tracks the end of *this* call, and
@@ -294,10 +318,12 @@ export function createAnimal(engine: AudioEngine, options: AnimalOptions = {}): 
       const pitch = call.f0[0] * tone * (1 + (Math.random() * 2 - 1) * call.variance);
 
       let cursor = at;
+      syllables.length = 0;
       for (let i = 0; i < count; i++) {
         const length = between(call.length);
         // Later syllables lose energy. A dog's first bark is its loudest.
         syllable(cursor, length, force * Math.pow(0.86, i) * (0.85 + Math.random() * 0.3), pitch);
+        syllables.push({ at: cursor, length });
         cursor += length + between(call.gap);
       }
 

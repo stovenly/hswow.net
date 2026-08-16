@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SWAY_ATTRIBUTE, finish } from '../art/assemble';
+import { FIELD_ATTRIBUTE, finish } from '../art/assemble';
 import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE } from '../art/cover';
 import { shade } from '../art/palette';
 import {
@@ -795,8 +795,8 @@ export class Terrain {
     // Phase 7 patches one shared material, and a mesh missing the attribute it
     // reads is a mesh that fails to draw.
     geometry.setAttribute(
-      SWAY_ATTRIBUTE,
-      new THREE.Float32BufferAttribute(new Float32Array(positions.length / 3), 1),
+      FIELD_ATTRIBUTE,
+      new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3),
     );
     // Read by the cover sampler on the CPU and by nothing else. The ground's
     // own material never declares it, so it costs a buffer and no draw.

@@ -11,7 +11,6 @@ import { banner } from '../../art/builders/banner';
 import { hangingBanner } from '../../art/builders/hanging-banner';
 import { flag } from '../../art/builders/flag';
 import { curtain } from '../../art/builders/curtain';
-import { figure, type FigureOptions } from '../../art/builders/figure';
 import type { BuilderWith, BuildOptions } from '../../art/types';
 
 /**
@@ -20,10 +19,9 @@ import type { BuilderWith, BuildOptions } from '../../art/types';
  * One column per implementation — the test sheet, the strung banner, the
  * vertical hanging banner, the flag, the doorway curtain — with the same
  * implementation repeated in every fabric down the column, so `canvas` and
- * `sheer` differ only in the one thing being judged. Then the worn-cloth
- * columns: figures in capes and scarves across several seeds and head shapes,
- * the standing home of the no-clipping acceptance test — if a cape clips
- * anywhere, it clips here first.
+ * `sheer` differ only in the one thing being judged. Worn cloth is not here:
+ * the figures are rigged and moving now (LIFE.md) and carry no simulated
+ * cloth until the sim can ride a moving body.
  *
  * The wind override, collider wireframes and freeze switch live in the
  * `?debug` panel's cloth folder. All tuning happens here by looking at the
@@ -110,29 +108,6 @@ function implementationColumn(
   return placed;
 }
 
-/** The worn-cloth column: one figure per fabric, across seeds and head shapes. */
-function wornColumn(wearing: 'cape' | 'scarf', x: number): THREE.Object3D[] {
-  const placed: THREE.Object3D[] = [];
-  const sign = signPost(wearing);
-  sign.position.set(x, 0, SIGN_Z);
-  placed.push(sign);
-  const seeds = [11, 4242, 99991];
-  let row = 0;
-  for (const fabric of FABRIC_NAMES) {
-    for (const seed of seeds) {
-      const options: FigureOptions = { seed, wearing, fabric };
-      const mesh = figure.build(options);
-      mesh.position.set(x, 0, -row * 3);
-      // Faced a half-turn about the rank so both the drape and the pinned
-      // line are walkable from one side.
-      mesh.rotation.y = row % 2 === 0 ? 0 : Math.PI;
-      placed.push(markCollidable(mesh));
-      row++;
-    }
-  }
-  return placed;
-}
-
 function extras(): THREE.Object3D[] {
   const placed: THREE.Object3D[] = [];
 
@@ -152,8 +127,6 @@ function extras(): THREE.Object3D[] {
   placed.push(...implementationColumn(hangingBanner, -5));
   placed.push(...implementationColumn(flag, 0));
   placed.push(...implementationColumn(curtain, 5));
-  placed.push(...wornColumn('cape', 10));
-  placed.push(...wornColumn('scarf', 14));
 
   return placed;
 }
