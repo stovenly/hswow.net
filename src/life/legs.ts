@@ -25,6 +25,10 @@ const TWO_PI = Math.PI * 2;
 const DUTY = 0.5;
 /** A foot further than this from home takes a step when its slot comes round. */
 const SLACK = 0.07;
+/** A planted foot pointing this far off the body's way steps at once, slot or no. */
+const TWISTED = 0.5;
+
+const wrap = (a: number): number => (((a + Math.PI) % TWO_PI) + TWO_PI) % TWO_PI - Math.PI;
 
 interface Foot {
   readonly name: 'legL' | 'legR';
@@ -151,11 +155,17 @@ export class Legs {
 
       // Each slot is decided once, and not while the other foot is still in
       // the air — it waits, and takes its step later in the slot if it can.
+      // A body that has turned out from under a foot does not wait for the
+      // slot: the sole cannot hold its plant past `TWISTED` anyway, so it
+      // steps as soon as the other foot is down. Without this a figure turning
+      // on the spot keeps both feet where they were and winds its legs round
+      // each other until the clock comes round.
       const other = this.feet[1 - i];
-      if (inSlot && slot !== foot.slot && foot.swing < 0 && other.swing < 0) {
+      const away = Math.hypot(foot.at.x - _home.x, foot.at.z - _home.z);
+      const twisted = Math.abs(wrap(foot.yaw - yaw)) > TWISTED;
+      if (foot.swing < 0 && other.swing < 0 && (twisted || (inSlot && slot !== foot.slot))) {
         foot.slot = slot;
-        const away = Math.hypot(foot.at.x - _home.x, foot.at.z - _home.z);
-        if (away > SLACK || speed > 0.03) {
+        if (twisted || away > SLACK || speed > 0.03) {
           foot.swing = 0;
           foot.from.copy(foot.at);
           foot.to.copy(_home);
@@ -170,7 +180,10 @@ export class Legs {
         foot.swing = Math.min(1, foot.swing + dt / this.stepTime);
         const p = smooth(foot.swing);
         foot.at.lerpVectors(foot.from, foot.to, p);
-        foot.at.y += this.lift * Math.sin(foot.swing * Math.PI);
+        // A long step — the ones a turn asks for — lifts higher, so it passes
+        // over the standing foot instead of through it.
+        const span = Math.hypot(foot.to.x - foot.from.x, foot.to.z - foot.from.z);
+        foot.at.y += this.lift * (1 + Math.min(1.5, span * 3)) * Math.sin(foot.swing * Math.PI);
         if (foot.swing >= 1) {
           foot.at.copy(foot.to);
           foot.yaw = yaw;
@@ -178,7 +191,7 @@ export class Legs {
         }
       } else {
         foot.at.y = input.groundAt(foot.at.x, foot.at.z);
-        if (Math.hypot(foot.at.x - _home.x, foot.at.z - _home.z) > SLACK) this.displaced = true;
+        if (away > SLACK || twisted) this.displaced = true;
       }
 
       this.solve(foot, yaw, pose);
@@ -236,9 +249,7 @@ export class Legs {
     // and keeps pointing where it planted while the body turns above it.
     // A swinging foot dips its toe.
     const toe = foot.swing < 0 ? 0 : 0.35 * Math.sin(foot.swing * Math.PI);
-    let twist = foot.swing < 0 ? foot.yaw - yaw : 0;
-    twist = ((twist + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
-    twist = Math.max(-0.7, Math.min(0.7, twist));
+    const twist = Math.max(-0.7, Math.min(0.7, foot.swing < 0 ? wrap(foot.yaw - yaw) : 0));
     pose.turn(`${foot.name}f`, -(thighRx + bend) + toe, twist, -rz);
   }
 }

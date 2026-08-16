@@ -111,23 +111,40 @@ moved too much, and the poncho clipped. The third, current one:
   are one surface with a colour change at a ring. A collar that was its own
   tube overlapping the shin at about the same radius made two faceted surfaces
   cut through each other, which is what drew a star at the ankle.
-- **Height is chosen first** — 1.28–1.46 m — and torsos are kept slim; a barrel chest reads as a different creature.
+- **Height is chosen first** — 1.28–1.68 m — and torsos are kept slim; a barrel chest reads as a different creature. The head's size is picked on its own, so a tall one is long in the leg and the body rather than scaled up.
 - Proportion: and the head, neck, body and legs
   are fitted into it, so a squat head makes a differently proportioned
   villager rather than a taller one.
 - **Hide** (sand, sage, dusty rose, slate, ochre, mauve, sea-green) shows at
   the head and the hands and nowhere else. **Cloth is never near a hide
-  colour** — it is picked darker and more saturated and checked against the
-  villager's own hide, because a collar or a hem in something close to skin
-  reads as a bare patch rather than a garment.
+  colour** — it is picked darker and checked against the villager's own hide,
+  because a collar or a hem in something close to skin reads as a bare patch
+  rather than a garment.
+- **One low-chroma earth palette for all of them.** Umber, bark, taupe, dust,
+  tan, drab, olive-grey, sage-grey — the same range the masks are cut from, so
+  a crowd reads as one people rather than a fancy-dress rail. Nothing in it is
+  a colour first: the saturated greens, blues, reds and purples that were here
+  made villagers look dressed up.
+- **The three cloths are a family, not a set.** The shirt is picked and most of
+  the time the lower half and the accent are the same cloth taken down or up.
+  Three unrelated colours on one small figure is a costume; a tonal outfit is
+  what makes cloth read as cloth.
 - **Always dressed, and never in its own skin.** The torso carries no hide at
-  all: a shirt from the collar down to a hem, a second cloth below it, and
-  trousers on the legs. A collar ring, sleeves ending at the elbow or the
-  wrist, sometimes a bib down the front in the accent colour. Small rigid pieces hug the surface
-  (all placed on the body's own ellipse at a height and bearing, so nothing
-  clips): belt with buckle, sash with knot and tail, a row of buttons, hip
-  pouches, a satchel, a pack, shoulder pads, a scarf, forearm cuffs. Zero to
-  three per villager. **No skirts, robes, ponchos or aprons, and no body wider at its bottom than the legs under it.**
+  all, and the **style** decides where the cloth changes: a plain hem, a yoke
+  across the shoulders, a girdle round the middle, an open coat with the shirt
+  showing in a strip up the front, or a long tunic with a trimmed hem —
+  sometimes with a bib panel. Every change is a ring of the loft or a run of
+  its columns. The hem always carries a **lip**, standing a little proud and
+  flared, so the shirt is a layer worn over the lower half rather than a colour
+  change on one surface. A collar ring,
+  sleeves ending at the elbow or the wrist, trousers on the legs. Small rigid
+  pieces hug the surface (all placed on the body's own ellipse at a height and
+  bearing, so nothing clips): belt with buckle, sash with knot and tail, hip
+  pouches, a satchel, a pack, a short shoulder mantle, a blanket rolled
+  shoulder to hip, a scarf, forearm cuffs. **No buttons.** Zero to three per
+  villager. Anything worn on the shoulder keeps its flare inside the line the
+  arms hang on, or it goes through them. **No skirts, robes, ponchos or aprons,
+  and no body wider at its bottom than the legs under it.**
 
 ### 3.2 The head — a hood, and a carved mask over it
 
@@ -163,12 +180,14 @@ Nothing is ever a hole. The front is cut into six horizontal registers, each
 its own geometry over shared vertices, so the colour boundaries are mesh
 edges (§3.3).
 
-**The back is furnished, not decorated.** Every mask carries battens, a bar to
+**The back is furnished, not decorated.** Every mask carries battens — a spine
+and a rail, three ledgers, or a corner-to-corner cross-brace — with a bar to
 grip and iron anchors on its hollow, and the cord from those anchors runs
 round the hood to a knot at the nape. The hood's own back takes a seam to
-match the harness — a spine, ledger bars, a line of stitches, or a pair of
-bosses. All of it is plainly gear rather than ornament, so which way the head
-faces is never in doubt.
+match the harness — a spine, ledger bars, or a pair of bosses. All of it is
+plainly gear rather than ornament, so which way the head faces is never in
+doubt. Nothing back there may fall into two-things-over-a-third: the socket
+harness used to, and read as a face.
 
 **Three families**, nine designs in `art/builders/figure-head.ts`, one per row
 of the villager gallery:
@@ -185,22 +204,36 @@ face. 5. **Twig Crown**, five staves beaded, nicked and studded between their
 two withies, inside thirteen twigs stood all round the rim.
 
 *Carrying a rack* — 6. **Antler Gable**, three dogtooth bands under a beam back
-and out of each top corner with two tines forward off it. 7. **Palmate Rack**,
-three bands under a flat blade lofted along an arc out of each temple, five
-tines rising off its outer edge and a brow tine forward beneath. 8. **Briar
-Canes**, a thorned cane ring with a briar rose at its middle, and six canes
-reaching out low from the temples on their own bones, swaying as it talks. 9.
+and out of each top corner with two tines forward off it. 7. **Elk Rack**,
+three bands under a real elk's rack: a burr at each top corner, one main beam
+sweeping up, out and back over the head, and six points off it — brow and bez
+forward over the face, trez off the side, the royal (the longest) off the top
+where the beam turns back, then two at the end, every one curling up over its
+length. 8. **Briar Canes**, a thorned cane ring with a briar rose at its middle,
+and eight canes rooted along the rim, four a side with the crown left clear.
+Each leaves the rim nearly on its side and straightens as it goes, so it reaches
+out and then climbs. Every cane leans further out than the one inside it and
+they all straighten by the same factor, so the order across the fan holds at
+every height and no two can cross. 9.
 **Withy Wheel**, two rims and a hub standing round the whole board in one
 plane, ten spokes struck in that same plane so they meet them, bound at every
 crossing.
+
+**The timber is drawn per villager**: birch, ash, oak, mahogany or walnut, four
+tones from the one log in the same order of lightness whichever it is. A design
+asks for its lightest or its darkest and gets that wood's, so the same mask
+turns up pale and dark down a row and everything on it — ornament, rim, back,
+harness — is cut from the same log. Antler, cord and iron are not wood and do
+not move. Nothing goes darker than walnut's bark: the hollow back is shaded
+down from the board and must not read as a hole.
 
 Dogtooth bands carry a constant tooth size and take their count from how wide
 the board is at that row, so the teeth are the same on every band and never
 crowd into one another — which they did when the size came from the board's
 full width and the spacing from the row's.
 
-The hood rides the `head` bone, the collar the `torso`, the gorget the
-`neck`, the mask `face`, and anything sprung off its sides `face0…faceN`.
+The hood rides the `head` bone, the collar the `torso`, the gorget the `neck`,
+and the mask `face` — rack and all, one bone, nothing sprung.
 `gaits.faceTalk` / `faceIdle` / `faceGreet` move them by kind. The countryside
 uses `round`.
 
@@ -213,9 +246,8 @@ leaves the other, and the edge comes out as a sawtooth. More rings do not fix
 it; they make the teeth smaller.
 
 **So every coloured region is its own geometry.** The garment is built as
-bands of loft — one per region, cut at the hem, the collar and the bone split
-— over shared rings, so a hem is a ring of the mesh and comes out as a
-straight line. A bib is a run of *columns* of those same rings (`Columns` in
+bands of loft — one per region, cut wherever the style says — over shared
+rings, so a hem is a ring of the mesh and comes out as a straight line. A bib is a run of *columns* of those same rings (`Columns` in
 `art/loft`), so its sides are equally clean and it shares exact vertices with
 the piece beside it. The face swell and the blush are separate forms for the
 same reason.
@@ -238,7 +270,11 @@ one-sided skin — bands and cuffs are closed solids.
   solved from hip to ankle by two-bone IK every frame, knees forward, soles
   held level and pointing where they planted. So feet never slide, a turn on
   the spot is a shuffle of real steps, and stopping settles into a stance;
-  a standing figure's feet do not march.
+  a standing figure's feet do not march. A foot the body has turned out from
+  under — more than `TWISTED` off its plant — does not wait for its slot; it
+  steps as soon as the other foot is down, and lifts higher the further it has
+  to go. Without that a figure turning on the spot winds its legs round each
+  other until the clock comes round.
 - **The body rides the feet** (`bipedWalk`): two bobs a cycle, lowest at
   contact, with a touch of squash; sway toward the stance foot; the pelvis
   drops and comes forward on the swing side; the torso counter-turns and
@@ -258,10 +294,33 @@ one-sided skin — bands and cuffs are closed solids.
 - **State changes are inertialised**: when the state changes, the difference
   between the last pose and the new one is kept as an offset and decayed
   (half-life 0.14 s), so a gesture interrupted by a greeting does not pop.
-- **Greet**: wave / bow / raise, 2 s. **Talk**: the whole line — head dips
-  and cheeks puff on the voice's own syllables, hands beat on the stresses,
-  and the ears dip. **Look**: within 10 m, clamped, with glances away and
-  back every few seconds; the body turns to face while greeting or talking.
+- **Greet**: ten of them, from what people do when they meet — a wave, a bow
+  from the waist, both arms hailed up, a hand flat on the chest, palms pressed
+  together with a dip, fingertips off the brow, a scoop of the hand to call you
+  over, a touch to the brim of the mask, both hands offered forward, two claps.
+  About two seconds each, and never the one just used. They are whole-arm
+  shapes: the hands are mitts and none of this can be finger work.
+- **Talk**: the whole line — head dips and cheeks puff on the voice's own
+  syllables and the ears dip — over one of six ways of holding the hands, the
+  gesture families people actually talk with: beats on the stress, a listing
+  roll of the forearm, a broad sweep, both hands clasped at the waist and none
+  of it, a point at the listener, two hands open. Picked fresh each time.
+- **Look**: within 10 m, with glances away and back every few seconds. A figure
+  that is not walking looks **whatever the angle** — someone stood behind you
+  does not wait for you to turn round before they look at you — twisting up to
+  `BIPED_YAW_LIMIT`, which `look` shares out as a little torso, some neck and
+  most head. All rotation; nothing extends.
+- **The head goes first and the body follows it.** The shoulders wait, ease in,
+  and stop `SHOULDER_EASE` short of square, because nobody squares up to
+  someone they are talking to and the head holds the rest. **How far it has to
+  go decides both the wait and the speed**: a quarter turn is leisurely, but
+  someone behind you is not — the head cannot get there alone, so the shoulders
+  go almost at once and go fast. Swinging the whole figure onto you the instant
+  it notices read as a machine on a target.
+- **Nothing is greeted until it has been turned to.** The gesture clock and the
+  voice both wait on the turn (or 2.5 s, whichever comes first). Hailing the
+  air behind it, arms up, before it has come round was worse than greeting a
+  moment late.
 
 ## 4. The animals
 
@@ -352,14 +411,18 @@ feet are solved back to the ground from wherever the pelvis goes.
   flicks), `graze`, `call`; `bipedWalk` (the body over the feet: bob, sway,
   pelvis roll and yaw, torso counter-twist, level head, arms counter-phase),
   `bipedIdle` (breath, weight on one hip, moving hold, arm drift, ear
-  twitch), `bipedGreet` (wave / bow / raise, ears perk, head tilt, cheeks),
-  `bipedFidget`, `bipedTalk` (head dips and cheeks puff on the syllables,
-  hands beat on the stresses); `fowlWalk` (head thrust sawtooth), `fowlIdle`
+  twitch), `bipedGreet` (ten greetings, ears perk, head tilt),
+  `bipedFidget`, `bipedTalk` (six hand styles over the head's own dips);
+  `fowlWalk` (head thrust sawtooth), `fowlIdle`
   (flap), `peck`; `look` (torso, neck, head with a tilt; the ears' swing).
 - `life/Creature.ts` — the state machine (idle → walk to a point in the home
-  disc / graze / greet / talk), attention (head-track within notice range
-  with glances away and back, greet once inside greeting range with a
-  30–60 s cooldown that resets when the player leaves, figures say a line
+  disc / graze / greet / talk), attention (head-track **the camera**, not a
+  nominal height over the player's feet, so it holds your eye through a crouch
+  or a jump, within notice range
+  with glances away and back, greet once inside greeting range *and only
+  while the player is looking that way* — `GREET_GAZE`, so walking past a
+  row of them does not set all of them off at once — with a 30–60 s cooldown
+  that resets when the player leaves, figures say a line
   if you stay), springs for head lag, lean and ears, the transition offset,
   the stride clock that runs while moving or while the feet have anything
   to settle, ground and slope pitch, path planning by two
@@ -385,13 +448,38 @@ feet are solved back to the ground from wherever the pelvis goes.
   glottal oscillator and one noise source through a four-formant bank. What
   keeps it from a machine: a **glottal pulse** source (Rosenberg, as a
   `PeriodicWave` — `dsp/glottal.ts`) not a sawtooth; **flutter** (Klatt's
-  three slow sines) with jitter and shimmer; **breath** through the formants,
-  up at word starts; consonants that begin at their **place in the mouth** and
-  slide into the vowel; a pitch that is a **line** — carried on from the last
-  syllable, lifting through each, falling across a statement, rising into a
-  question. Each voice has a seeded character (rate, breathiness, flutter,
-  vibrato, range, tract). Today the creatures **babble** — `babbleScore` makes
-  up the syllables, no words anywhere — and `say(text)` is the hook for a
+  three slow sines) with cycle-to-cycle jitter and shimmer; **aspiration
+  modulated at the fold rate** by the glottal flow rather than a steady hiss,
+  which Klatt found was the single thing that most decides whether a voice is
+  heard as a voice; **spectral tilt** that brightens with effort and darkens
+  as a syllable falls away; a **zero** in the tract as well as poles, dropping
+  onto the nasal zero for m and n; **bandwidths that differ from voice to
+  voice**; **creak** where a line comes to rest; consonants that begin at their
+  **place in the mouth** and slide into the vowel; a pitch that **arrives and
+  then holds** through the middle of a vowel rather than moving at every
+  instant, and is otherwise a **line** — carried on from the last syllable,
+  falling across a statement, rising into a question.
+  Three things that were making it float: a **path round the formants**, since a
+  parallel bank passes its peaks and nothing under F1, so the whole chest of the
+  voice was missing (Klatt's parallel branch has a bypass for this); **flutter
+  cut to a few cents**, because forty cents of periodic wobble is not a voice
+  being alive; and **real dynamics between syllables** — eight or nine dB from
+  unstressed to stressed, not the two it had. And it was being **compressed**,
+  literally: the master limiter began working at −12 dB, which one villager
+  talking clears on its own. Each voice has a seeded character (rate, breathiness, flutter,
+  vibrato, range, tract) and its own note, and the seed carries **where the
+  villager stands** — so two built the same still sound like two people.
+  Today the creatures **babble** — `babbleScore` makes
+  up the syllables, no words anywhere. Its inventory is a little language of
+  its own: consonant-vowel only, no fricatives and nothing that shuts, the
+  onset repeating and the vowel holding across a word, so it comes out mimi,
+  tuka, nanona and cannot be mistaken for English. A greeting is not made up:
+  there are **twenty-five hellos** written in that language, each villager has
+  one, and the last few said anywhere are stepped over so none comes round
+  twice running. The mark each is written with is its shape — `!` throws it out
+  and lets it fall, `?` lifts the end, plain climbs on the **lilt** tune, which
+  is quick, even, sits high and goes out on its top note. Nothing said is long.
+  `say(text)` is the hook for a
   dialogue box when there is one: it returns a unit per syllable on the audio
   clock with the character range each reveals. `hush` cuts a line cleanly.
 - Life builders are `solid: false`; `place()` calls in the countryside pass

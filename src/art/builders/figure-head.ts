@@ -15,8 +15,8 @@ import { BOARD, OUTLINES, carveMask, profileAt, type Register, type Relief } fro
  * cord anchors. The front carries all the ornament and everything fixed on, so
  * which way it faces is never in doubt.
  *
- * The hood rides `head`, the cowl over the shoulders `neck`, the mask `face`,
- * and anything sprung off its sides `face0…faceN`. LIFE.md §3.2.
+ * The hood rides `head`, the cowl over the shoulders `neck` and the mask
+ * `face`, rack and all. LIFE.md §3.2.
  */
 
 export type HeadKind =
@@ -45,9 +45,6 @@ export const HEAD_KINDS: readonly HeadKind[] = [
   'wheel',
 ];
 
-/** Most pieces any rack is cut into: `face0` … `face{FACE_PARTS − 1}`. */
-export const FACE_PARTS = 7;
-
 export interface HeadOptions {
   rng: Rng;
   /** Where the hood sits: the top of the torso. */
@@ -72,10 +69,35 @@ export interface BuiltHead {
   faceY: number;
 }
 
-const BARK = 0x6b543c;
-const BARK_PALE = 0x8a7050;
-const WOOD = 0xc2a06a;
-const HEART = 0xa87c4a;
+/**
+ * The timber a mask is cut from. One is drawn per villager, so the same design
+ * turns up in birch and in walnut — four tones from the same log, in the same
+ * order of lightness whichever it is, so a design that asks for its darkest
+ * gets the darkest of *that* wood.
+ *
+ * Antler, cord and iron are not wood and do not move with it.
+ */
+interface Timber {
+  wood: number;
+  heart: number;
+  pale: number;
+  bark: number;
+}
+
+const TIMBERS: readonly Timber[] = [
+  // Birch: nearly white, with a fawn heart.
+  { wood: 0xe0d2b4, heart: 0xc6ac84, pale: 0xac9a7c, bark: 0x82735d },
+  // Ash.
+  { wood: 0xc2a06a, heart: 0xa87c4a, pale: 0x8a7050, bark: 0x6b543c },
+  // Oak.
+  { wood: 0xb08d5c, heart: 0x8f6f42, pale: 0x7a6448, bark: 0x5a472f },
+  // Mahogany: red under the brown.
+  { wood: 0x9a5c3c, heart: 0x7d4530, pale: 0x6d4632, bark: 0x5b3826 },
+  // Walnut. Nothing here goes darker than this: the back of a board is
+  // shaded down from it, and a hollow that reads as a hole is not wanted.
+  { wood: 0x7d6249, heart: 0x674e39, pale: 0x5c4a3c, bark: 0x4b3c2c },
+];
+
 const HORN = 0xbfae8e;
 const LEATHER_CORD = 0x6a4a30;
 const IRON = 0x5c5a56;
@@ -105,7 +127,8 @@ type Harness = 'battens' | 'ledgers' | 'sockets';
 interface Design {
   outline: readonly [number, number][];
   relief: Partial<Relief>;
-  board: number;
+  /** Which of the timber's four tones the board is cut in. */
+  board: (t: Timber) => number;
   harness: Harness;
   shades?: readonly number[];
   /** The rim and the hollow back, as multipliers on the board. */
@@ -122,7 +145,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   round: {
     outline: OUTLINES.disc,
     relief: { vault: 0.7, border: 0.3 },
-    board: WOOD,
+    board: (w) => w.wood,
     harness: 'battens',
     width: 2.05,
     height: 2.05,
@@ -132,7 +155,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   burr: {
     outline: OUTLINES.disc,
     relief: { vault: 0.78, border: 0.24 },
-    board: shade(WOOD, 0.9),
+    board: (w) => shade(w.wood, 0.9),
     harness: 'battens',
     width: 2.1,
     height: 2.05,
@@ -142,7 +165,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   bough: {
     outline: OUTLINES.disc,
     relief: { vault: 0.7, border: 0.28 },
-    board: shade(HEART, 1.08),
+    board: (w) => shade(w.heart, 1.08),
     harness: 'battens',
     width: 2,
     height: 2,
@@ -152,7 +175,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   lapped: {
     outline: OUTLINES.plank,
     relief: { vault: 0.68, border: 0 },
-    board: WOOD,
+    board: (w) => w.wood,
     harness: 'ledgers',
     height: 2.3,
     depth: 0.34,
@@ -161,7 +184,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   crown: {
     outline: OUTLINES.plank,
     relief: { vault: 0.7, border: 0.14 },
-    board: shade(BARK_PALE, 0.92),
+    board: (w) => shade(w.pale, 0.92),
     harness: 'ledgers',
     height: 2.15,
     depth: 0.36,
@@ -170,7 +193,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   antler: {
     outline: OUTLINES.gable,
     relief: { border: 0.16 },
-    board: shade(WOOD, 0.86),
+    board: (w) => shade(w.wood, 0.86),
     harness: 'sockets',
     height: 2.35,
   },
@@ -178,7 +201,7 @@ const DESIGNS: Record<HeadKind, Design> = {
   palm: {
     outline: OUTLINES.gable,
     relief: { border: 0.18 },
-    board: shade(HEART, 0.94),
+    board: (w) => shade(w.heart, 0.94),
     harness: 'sockets',
     height: 2.3,
   },
@@ -186,14 +209,14 @@ const DESIGNS: Record<HeadKind, Design> = {
   briar: {
     outline: OUTLINES.oval,
     relief: { border: 0.2 },
-    board: BARK,
+    board: (w) => w.bark,
     harness: 'sockets',
   },
   // A wheel of withy standing round the whole board, spoked to its rim.
   wheel: {
     outline: OUTLINES.oval,
     relief: { border: 0.22 },
-    board: shade(BARK_PALE, 1.05),
+    board: (w) => shade(w.pale, 1.05),
     harness: 'sockets',
     width: 1.7,
     height: 2,
@@ -258,7 +281,11 @@ export function buildHead(
     });
   }
 
-  const board = design.board;
+  // The log this one was cut from. Everything wooden on the mask comes out of
+  // it, so a walnut board does not carry birch ornament.
+  const timber = options.rng.pick(TIMBERS);
+  const { wood: WOOD, heart: HEART, pale: BARK_PALE, bark: BARK } = timber;
+  const board = design.board(timber);
   const boardW = size * (design.width ?? 1.86);
   const boardH = size * (design.height ?? 2.2);
   const mask = carveMask({
@@ -270,7 +297,7 @@ export function buildHead(
     relief: { ...BOARD, ...design.relief },
     registers: registers(board, design.shades ?? PLAIN),
     rim: shade(board, design.rim ?? 0.72),
-    back: shade(board, 0.6),
+    back: shade(board, 0.68),
   });
 
   // rotateX(−lean) takes +Y toward −Z: the crown sits back of the chin.
@@ -357,14 +384,6 @@ export function buildHead(
       on(tooth, s, v, size * 0.04, i % 2 ? color : shade(color, 1.14));
     }
   };
-  /** Something sprung out of the board's side, on its own bone. */
-  const spring = (i: number, s: number, v: number, make: (p: THREE.Vector3) => THREE.BufferGeometry[], colors: readonly number[]): void => {
-    const p = at(s, v, size * 0.02);
-    const name = `face${i}`;
-    bones.push({ name, parent: 'head', at: [p.x, p.y, p.z] });
-    make(p).forEach((g, k) => push(g, colors[k % colors.length], name));
-  };
-
   // --- the back -----------------------------------------------------------
   //
   // Furniture only: battens, a bar to grip in the teeth, the anchors the head
@@ -372,16 +391,19 @@ export function buildHead(
   // the nape — which is what a villager walking away shows. Nothing here is
   // ornament, so the front is never in question.
   {
-    const dark = shade(board, 0.5);
+    const dark = shade(board, 0.62);
     if (design.harness === 'ledgers') {
       for (const v of [0.24, 0.5, 0.76] as const) {
         behind(new THREE.BoxGeometry(boardW * 0.86, size * 0.12, size * 0.08), 0, v, size * 0.03, dark);
       }
     } else if (design.harness === 'sockets') {
-      for (const s of [-0.62, 0.62] as const) {
-        behind(new THREE.CylinderGeometry(size * 0.11, size * 0.13, size * 0.14, 6), s, 0.9, size * 0.04, dark);
+      // A cross-brace, corner to corner, one batten lapped over the other.
+      for (const s of [-1, 1] as const) {
+        const brace = new THREE.BoxGeometry(boardW * 0.98, size * 0.12, size * 0.08);
+        // rotateZ(θ) takes +X toward +Y: the batten rakes up to the far corner.
+        brace.rotateZ(s * 0.66);
+        behind(brace, 0, 0.55, size * (s > 0 ? 0.03 : 0.09), dark);
       }
-      behind(new THREE.BoxGeometry(boardW * 0.8, size * 0.11, size * 0.08), 0, 0.62, size * 0.03, dark);
     } else {
       behind(new THREE.BoxGeometry(size * 0.13, boardH * 0.74, size * 0.08), 0, 0.5, size * 0.03, dark);
       behind(new THREE.BoxGeometry(boardW * 0.78, size * 0.13, size * 0.08), 0, 0.66, size * 0.05, dark);
@@ -411,9 +433,14 @@ export function buildHead(
         push(new THREE.BoxGeometry(size * 0.5, size * 0.1, size * 0.09).translate(p.x, p.y, p.z), dark, 'head');
       }
     } else if (design.harness === 'sockets') {
+      // A cross of raking straps, matching the brace on the mask's own back.
+      // Two bosses up here and the cord's knot below them read as a face.
+      const p = hoodAt(0.76, Math.PI, size * 0.03);
       for (const s of [-1, 1] as const) {
-        const p = hoodAt(0.78, Math.PI + s * 0.4, size * 0.03);
-        push(new THREE.IcosahedronGeometry(size * 0.09, 0).translate(p.x, p.y, p.z), dark, 'head');
+        const strap = new THREE.BoxGeometry(size * 0.66, size * 0.09, size * 0.08);
+        // rotateZ(θ) takes +X toward +Y: the strap rakes across the back.
+        strap.rotateZ(s * 0.7);
+        push(strap.translate(p.x, p.y, p.z + s * size * 0.02), dark, 'head');
       }
     } else {
       const spine: Station[] = [0.18, 0.5, 0.82].map((t) => {
@@ -553,41 +580,52 @@ export function buildHead(
       dogtooth(0.2, shade(HEART, 0.9));
       dogtooth(0.4, shade(HEART, 1.14));
       dogtooth(0.6, shade(HEART, 0.98));
-      // A palm out of each temple: a flat blade lofted along an arc sweeping
-      // up and out, widest two thirds along, with tines rising off its outer
-      // edge and a brow tine forward beneath.
+      // An elk's rack, built the way one is: a burr at the top corner, one
+      // main beam out of it sweeping up, out and back over the head, and six
+      // points off that beam — brow and bez forward over the face, trez off
+      // the side, then the royal, which is the longest, off the top where the
+      // beam turns back, and two more at the end. Points grow forward and
+      // slightly outward, and every one curls up over its length.
+      const BEAM: readonly [number, number, number][] = [
+        [0, 0, 0], [0.26, 0.29, -0.09], [0.48, 0.58, -0.29], [0.6, 0.83, -0.58], [0.63, 1.02, -0.9], [0.56, 1.14, -1.21],
+      ];
+      const TINES: readonly { at: number; dir: readonly [number, number, number]; len: number; curl: number }[] = [
+        { at: 0.3, dir: [0.34, 0.2, 0.92], len: 0.62, curl: 0.34 },
+        { at: 0.85, dir: [0.4, 0.42, 0.82], len: 0.7, curl: 0.34 },
+        { at: 1.8, dir: [0.8, 0.48, 0.36], len: 0.56, curl: 0.3 },
+        { at: 2.8, dir: [0.26, 0.86, 0.44], len: 0.94, curl: 0.26 },
+        { at: 3.8, dir: [0.08, 0.94, 0.32], len: 0.7, curl: 0.22 },
+        { at: 4.6, dir: [-0.12, 0.92, 0.36], len: 0.48, curl: 0.2 },
+      ];
       for (const side of [-1, 1] as const) {
-        const root = at(side * 0.8, 0.84, 0);
-        /** A point along the sweep, `u` from the root (0) to the tip (1). */
-        const along = (u: number): THREE.Vector3 =>
-          new THREE.Vector3(
-            root.x + side * size * (0.24 + 1.05 * u),
-            root.y + size * (0.1 + 1.0 * u - 0.24 * u * u),
-            root.z - size * (0.08 + 0.28 * u),
+        const root = at(side * 0.62, 0.88, size * 0.02);
+        /** A point along the beam, `u` in beam-point units. */
+        const beamAt = (u: number): THREE.Vector3 => {
+          const i = Math.max(0, Math.min(BEAM.length - 2, Math.floor(u)));
+          const f = u - i;
+          const a = BEAM[i];
+          const b = BEAM[i + 1];
+          return new THREE.Vector3(
+            root.x + side * size * (a[0] + (b[0] - a[0]) * f),
+            root.y + size * (a[1] + (b[1] - a[1]) * f),
+            root.z + size * (a[2] + (b[2] - a[2]) * f),
           );
-        const blade: Station[] = [];
-        for (let i = 0; i <= 5; i++) {
-          const u = i / 5;
-          const p = along(u);
-          const next = along(Math.min(1, u + 0.08));
-          const prev = along(Math.max(0, u - 0.08));
-          blade.push({
-            at: [p.x, p.y, p.z],
-            rx: size * (0.09 + 0.4 * Math.sin(Math.PI * Math.pow(u, 0.75))),
-            ry: size * 0.032,
-            axis: [next.x - prev.x, next.y - prev.y, next.z - prev.z],
-          });
+        };
+        // The burr: a swelling on the first stretch of beam, so it sits square
+        // to however the beam leaves the board.
+        stick(root, beamAt(0.34), size * 0.17, size * 0.12, shade(HORN, 0.8));
+        for (let k = 0; k < BEAM.length - 1; k++) {
+          stick(beamAt(k), beamAt(k + 1), size * (0.115 - k * 0.016), size * (0.1 - k * 0.016), k % 2 ? shade(HORN, 1.06) : HORN);
         }
-        parts.push({ geometry: loft(blade, 6, { start: true, end: true }), color: HORN, bone: 'face' });
-        // Five tines off the blade's outer edge, each longer toward the tip.
-        for (let i = 0; i < 5; i++) {
-          const u = 0.24 + i * 0.18;
-          const p = along(u);
-          const w = size * (0.09 + 0.4 * Math.sin(Math.PI * Math.pow(u, 0.75)));
-          const from = new THREE.Vector3(p.x + side * w * 0.5, p.y + w * 0.55, p.z);
-          stick(from, new THREE.Vector3(from.x + side * size * 0.1, from.y + size * (0.24 + i * 0.06), from.z - size * 0.05), size * 0.042, size * 0.016, i % 2 ? shade(HORN, 1.12) : HORN);
+        for (const tine of TINES) {
+          const from = beamAt(tine.at);
+          const out = new THREE.Vector3(side * tine.dir[0], tine.dir[1], tine.dir[2]).normalize();
+          const mid = from.clone().addScaledVector(out, size * tine.len * 0.55);
+          const up = out.clone().setY(out.y + tine.curl).normalize();
+          const tip = mid.clone().addScaledVector(up, size * tine.len * 0.5);
+          stick(from, mid, size * 0.072, size * 0.052, shade(HORN, 1.02));
+          stick(mid, tip, size * 0.052, size * 0.02, shade(HORN, 1.14));
         }
-        stick(root, new THREE.Vector3(root.x + side * size * 0.16, root.y + size * 0.1, root.z + size * 0.36), size * 0.05, size * 0.022, shade(HORN, 0.9));
       }
       break;
     }
@@ -609,41 +647,31 @@ export function buildHead(
         on(petal, 0, 0.5, size * 0.05, i % 2 ? shade(BARK_PALE, 1.22) : shade(BARK_PALE, 1.06));
       }
       on(new THREE.IcosahedronGeometry(size * 0.09, 1), 0, 0.5, size * 0.09, shade(HEART, 1.12));
-      // Six canes wound out of the temples on their own bones, thorned along
-      // their length, so they sway when it talks.
-      for (let i = 0; i < 6; i++) {
-        const side = i % 2 ? 1 : -1;
-        const rank = Math.floor(i / 2);
-        spring(i, side * 0.94, 0.74 - rank * 0.22, (p) => {
-          const made: THREE.BufferGeometry[] = [];
-          // Low and shallow, so the canes reach out from the temple rather
-          // than standing up over the board and crossing one another.
-          let a = -0.34 + rank * 0.36;
-          let q = p.clone();
-          for (let k = 0; k < 4; k++) {
-            const reach = size * (0.46 - k * 0.05);
-            const next = new THREE.Vector3(
-              q.x + side * Math.cos(a) * reach,
-              q.y + Math.sin(a) * reach,
-              q.z + Math.sin(a * 1.4) * reach * 0.4,
-            );
-            const dir = new THREE.Vector3().subVectors(next, q);
-            const len = dir.length();
-            const cane = new THREE.CylinderGeometry(size * (0.036 - k * 0.005), size * (0.045 - k * 0.005), len, 5);
-            cane.translate(0, len / 2, 0);
-            cane.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()));
-            cane.translate(q.x, q.y, q.z);
-            made.push(cane);
-            // A thorn at each joint, leaning out from the cane.
-            const thorn = new THREE.CylinderGeometry(0, size * 0.035, size * 0.13, 4);
-            thorn.rotateZ(side * 1.1);
-            thorn.translate(next.x, next.y, next.z);
-            made.push(thorn);
-            a += 0.24;
-            q = next;
-          }
-          return made;
-        }, [i % 2 ? shade(BARK, 1.2) : BARK, shade(BARK_PALE, 1.15)]);
+      // Eight canes rooted along the rim, four a side, with the crown left
+      // clear. Each leaves the rim nearly on its side and turns up as it goes,
+      // so it reaches out and then climbs. Every cane leans further out than
+      // the one inside it and they all straighten by the same factor, so the
+      // order across the fan is kept at every height and no two can cross.
+      for (let i = 0; i < 8; i++) {
+        const t = (i < 4 ? i - 4 : i - 3) / 4;
+        const turn = t * 1.16;
+        let q = at(Math.sin(turn) * 0.93, 0.5 + 0.46 * Math.cos(turn), size * 0.03);
+        const lean = turn * 1.25;
+        const depth = size * (0.06 - 0.03 * (i % 3));
+        for (let k = 0; k < 4; k++) {
+          // From +Y, out at `a`: the cane starts out sideways and comes up.
+          const a = lean * (1 - 0.2 * k);
+          const reach = size * (0.44 - 0.07 * k);
+          const next = new THREE.Vector3(q.x + Math.sin(a) * reach, q.y + Math.cos(a) * reach, q.z + depth * 0.5);
+          stick(q, next, size * (0.046 - k * 0.006), size * (0.038 - k * 0.006), i % 2 ? shade(BARK, 1.2) : BARK);
+          // A thorn at each joint, square out of the cane, alternate sides.
+          const thorn = new THREE.CylinderGeometry(0, size * 0.035, size * 0.13, 4);
+          // rotateZ(−a − π/2) takes +Y to (cos a, −sin a): square to the cane.
+          thorn.rotateZ(k % 2 ? -a - Math.PI / 2 : Math.PI / 2 - a);
+          thorn.translate(next.x, next.y, next.z);
+          push(thorn, shade(BARK_PALE, 1.15), 'face');
+          q = next;
+        }
       }
       break;
     }

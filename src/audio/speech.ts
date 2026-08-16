@@ -40,7 +40,7 @@ export interface Syllable {
   final: boolean;
 }
 
-export type Tune = 'statement' | 'question' | 'exclaim';
+export type Tune = 'statement' | 'question' | 'exclaim' | 'lilt';
 
 export interface Score {
   text: string;
@@ -183,36 +183,82 @@ export function score(text: string): Score {
   return { text, syllables };
 }
 
+/**
+ * The twenty-five hellos. Each villager has one of these, and no two said one
+ * after the other are the same — so a row of them does not read as one voice.
+ * Written in the little language below and scored like anything else.
+ */
+export const GREETINGS: readonly string[] = [
+  'mikai!', 'nolu?', 'tobo, tobo', 'weli!', 'kanun?',
+  'bimi', 'dolau!', 'tuwai?', 'narenu', 'pelan!',
+  'himo?', 'gudi', 'oanu!', 'mubon', 'keta?',
+  'lolei!', 'bawa', 'tinu, tinu!', 'deka?', 'numa',
+  'porilo!', 'wamu?', 'kolu, kolu', 'hairan!', 'tikadu?',
+];
+
+/** The last few said, anywhere, so none of them comes round twice running. */
+const lately: number[] = [];
+
+/** A villager's own hello, stepped along if it has just been heard. */
+export function greetScore(seed: number): Score {
+  let i = Math.abs(Math.floor(seed)) % GREETINGS.length;
+  for (let n = 0; n < GREETINGS.length && lately.includes(i); n++) i = (i + 7) % GREETINGS.length;
+  lately.push(i);
+  if (lately.length > 4) lately.shift();
+  const sc = score(GREETINGS[i]);
+  const last = sc.syllables.length - 1;
+  // The mark a hello is written with is its shape: `!` throws it out and lets
+  // it fall, `?` lifts the end, and one written plain climbs on the lilt.
+  const first = sc.syllables[0];
+  const tune: Tune = !first || first.tune === 'statement' ? 'lilt' : first.tune;
+  sc.syllables.forEach((s, k) => {
+    s.tune = tune;
+    s.final = k >= last - (tune === 'question' ? 1 : 0);
+    s.along = last > 0 ? k / last : 1;
+  });
+  return sc;
+}
+
+/**
+ * The little language. Every syllable is a consonant and a vowel and then it
+ * is over: no fricatives, no clusters, nothing that shuts. English cannot be
+ * built out of this.
+ */
 const ONSETS: readonly [Onset, Place][] = [
-  ['none', 'back'], ['stop', 'lip'], ['stop', 'ridge'], ['stop', 'back'], ['nasal', 'lip'], ['nasal', 'ridge'],
-  ['liquid', 'ridge'], ['liquid', 'lip'], ['hiss', 'ridge'], ['hush', 'ridge'], ['breath', 'back'],
+  ['stop', 'lip'], ['stop', 'ridge'], ['stop', 'back'], ['nasal', 'lip'], ['nasal', 'ridge'],
+  ['liquid', 'ridge'], ['liquid', 'lip'], ['none', 'back'],
 ];
 const VOWEL_LIST: readonly Vowel[] = ['a', 'e', 'i', 'o', 'u'];
 
 /**
- * A score of nothing in particular: a few phrases of made-up syllables, for
- * a creature with nothing written to say. `count` syllables, in words of one
- * to three, in one sentence with the given tune. Deterministic in `random`.
+ * A score of nothing in particular, for a creature with nothing written to
+ * say. `count` syllables in words of one to three; within a word the opening
+ * consonant repeats as often as it changes and the vowel mostly holds, so
+ * words come out as mimi, tuka, nanona. Deterministic in `random`.
  */
 export function babbleScore(count: number, tune: Tune, random: () => number): Score {
   const syllables: Syllable[] = [];
   const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)];
   let inWord = 0;
   let wordLength = 1 + Math.floor(random() * 3);
+  let root = pick(ONSETS);
+  let colour = pick(VOWEL_LIST);
   for (let i = 0; i < count; i++) {
-    const [onset, place] = pick(ONSETS);
-    const vowel = pick(VOWEL_LIST);
-    const glide = random() < 0.3 ? pick(VOWEL_LIST) : vowel;
-    const coda: Coda = random() < 0.25 ? 'nasal' : random() < 0.2 ? 'stop' : 'open';
-    const s = blank(i, i + 1, onset, place, vowel, glide, coda);
-    s.stress = inWord === 0 ? (wordLength > 1 ? 1 : 0.7) : 0;
+    const [onset, place] = inWord === 0 || random() < 0.5 ? root : pick(ONSETS);
+    const vowel = inWord === 0 || random() < 0.6 ? colour : pick(VOWEL_LIST);
+    // A quarter of them sing up onto an i or a u on the way out.
+    const glide: Vowel = random() < 0.25 ? (random() < 0.5 ? 'i' : 'u') : vowel;
+    const s = blank(i, i + 1, onset, place, vowel, glide, 'open');
+    s.stress = inWord === 0 ? (wordLength > 1 ? 1 : 0.7) : 0.25;
     s.tune = tune;
     s.along = count > 1 ? i / (count - 1) : 1;
-    s.final = tune === 'question' && i >= count - 2;
+    s.final = tune === 'question' ? i >= count - 2 : tune === 'lilt' && i >= count - 1;
     inWord++;
     if (inWord >= wordLength) {
       inWord = 0;
       wordLength = 1 + Math.floor(random() * 3);
+      root = pick(ONSETS);
+      colour = pick(VOWEL_LIST);
       s.pause = random() < 0.15 ? 0.26 : 0.05;
     }
     syllables.push(s);

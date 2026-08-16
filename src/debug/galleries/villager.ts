@@ -18,7 +18,7 @@ const NAMES: Record<HeadKind, string> = {
   lapped: 'Lapped Boards',
   crown: 'Twig Crown',
   antler: 'Antler Gable',
-  palm: 'Palmate Rack',
+  palm: 'Elk Rack',
   briar: 'Briar Canes',
   wheel: 'Withy Wheel',
 };

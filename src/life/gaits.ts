@@ -149,10 +149,30 @@ export function bipedIdle(pose: Pose, t: number, salt: number): void {
 }
 
 /**
- * The greeting: the dominant arm comes up and out and the forearm waves,
- * the head dips, the ears perk. `t01` runs over the whole gesture.
+ * The greetings. Ten of them, taken from what people actually do when they
+ * meet: a wave, a bow from the waist, both arms hailed up, a hand flat on the
+ * chest, palms pressed together with a dip, fingertips off the brow, a scoop
+ * of the hand to call you over, a touch to the brim of the mask, both hands
+ * offered forward, and a couple of claps.
+ *
+ * Every one of them has to read at ten metres on a figure with mitts for
+ * hands, so they are whole-arm shapes, not finger work. `t01` runs over the
+ * gesture; `GREET_LENGTH` says how long each is given.
  */
-export type Greeting = 'wave' | 'bow' | 'raise';
+export type Greeting = 'wave' | 'bow' | 'raise' | 'heart' | 'press' | 'brow' | 'beckon' | 'doff' | 'offer' | 'clap';
+
+export const GREET_LENGTH: Record<Greeting, number> = {
+  wave: 2,
+  bow: 2.2,
+  raise: 1.9,
+  heart: 2.2,
+  press: 2.3,
+  brow: 2.1,
+  beckon: 2.2,
+  doff: 2.1,
+  offer: 2,
+  clap: 1.8,
+};
 
 export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1): void {
   const arm = side > 0 ? 'armL' : 'armR';
@@ -188,6 +208,82 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
       pose.turn('armRl', -0.3 * r, 0, -0.5 * r);
       pose.turn('head', -0.12 * r);
       pose.move('hips', 0, 0.02 * Math.abs(Math.sin(t01 * TWO_PI * 2)) * r, 0);
+      break;
+    }
+    case 'heart': {
+      // A hand flat on the chest and a small bow over it. ry carries a
+      // forearm inward across the front, as `fold` does.
+      const h = envelope(t01, 0.3, 0.32);
+      pose.turn(`${arm}u`, -0.5 * h, side * 0.45 * h, side * 0.1 * h);
+      pose.turn(`${arm}l`, -1.45 * h, side * 0.65 * h, 0);
+      pose.turn('torso', 0.18 * h);
+      pose.turn('head', 0.12 * h);
+      break;
+    }
+    case 'press': {
+      // Both palms brought together in front of the chest, and a dip.
+      const p = envelope(t01, 0.3, 0.32);
+      pose.turn('armLu', -0.6 * p, 0.5 * p, 0.12 * p);
+      pose.turn('armRu', -0.6 * p, -0.5 * p, -0.12 * p);
+      pose.turn('armLl', -1.45 * p, 0.5 * p, 0);
+      pose.turn('armRl', -1.45 * p, -0.5 * p, 0);
+      pose.turn('torso', 0.22 * p);
+      pose.turn('head', 0.16 * p);
+      break;
+    }
+    case 'brow': {
+      // Fingertips up off the brow, held a moment, then swept out and down.
+      const up = envelope(t01, 0.2, 0.45);
+      const out = smooth(clamp01((t01 - 0.5) / 0.5));
+      pose.turn(`${arm}u`, (-1.0 + 0.55 * out) * up, side * 0.2 * up, side * (0.45 + 0.7 * out) * up);
+      pose.turn(`${arm}l`, (-1.7 + 1.1 * out) * up, side * (0.45 - 0.35 * out) * up, 0);
+      pose.turn('head', (0.1 - 0.14 * out) * up);
+      pose.turn('torso', 0.05 * up);
+      break;
+    }
+    case 'beckon': {
+      // The arm out, and the forearm scooping back twice: come over.
+      const b = envelope(t01, 0.2, 0.28);
+      const scoop = Math.sin(t01 * TWO_PI * 2.2);
+      pose.turn(`${arm}u`, -0.5 * b, side * 0.2 * b, side * 0.7 * b);
+      pose.turn(`${arm}l`, (-0.7 - 0.5 * scoop) * b, side * (0.3 + 0.3 * scoop) * b, 0);
+      pose.turn('head', 0.06 * b, -side * 0.14 * b, side * 0.1 * b);
+      pose.turn('torso', 0, -side * 0.07 * b);
+      break;
+    }
+    case 'doff': {
+      // A hand up to the brim of the mask, and the head dipped under it.
+      const d = envelope(t01, 0.26, 0.3);
+      const touch = bump(t01);
+      pose.turn(`${arm}u`, -1.1 * d, side * 0.15 * d, side * 0.5 * d);
+      pose.turn(`${arm}l`, (-1.5 - 0.25 * touch) * d, side * 0.45 * d, 0);
+      pose.turn('head', 0.2 * touch, 0, side * 0.08 * d);
+      pose.turn('torso', 0.06 * d);
+      break;
+    }
+    case 'offer': {
+      // Both hands offered forward, palms up, leaning in behind them.
+      const o = envelope(t01, 0.32, 0.34);
+      pose.turn('armLu', -0.7 * o, 0.18 * o, 0.28 * o);
+      pose.turn('armRu', -0.7 * o, -0.18 * o, -0.28 * o);
+      pose.turn('armLl', -0.45 * o, 0.3 * o, 0.15 * o);
+      pose.turn('armRl', -0.45 * o, -0.3 * o, -0.15 * o);
+      pose.turn('torso', 0.1 * o);
+      pose.turn('head', -0.05 * o);
+      pose.move('hips', 0, 0, 0.016 * o);
+      break;
+    }
+    case 'clap': {
+      // Two claps in front of the chest: the hands open on the off-beat.
+      const c = envelope(t01, 0.18, 0.3);
+      const beat = Math.abs(Math.sin(t01 * TWO_PI * 2));
+      const open = 0.3 * (1 - beat);
+      pose.turn('armLu', -0.8 * c, (0.42 - open) * c, (0.18 + open) * c);
+      pose.turn('armRu', -0.8 * c, -(0.42 - open) * c, -(0.18 + open) * c);
+      pose.turn('armLl', -1.2 * c, (0.5 - open * 0.6) * c, 0);
+      pose.turn('armRl', -1.2 * c, -(0.5 - open * 0.6) * c, 0);
+      pose.turn('head', 0.1 * beat * c);
+      pose.move('hips', 0, 0.012 * beat * c, 0);
       break;
     }
   }
@@ -260,11 +356,18 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
 /**
  * Talking. `syllable` is how loud the voice is right now, `beat` a pulse on
  * its stressed syllables. The head is the mouth it does not have: it dips on
- * each syllable, the hands beat time on the stresses, and the motif on the
- * front of the head works with the voice (`faceTalk`).
+ * each syllable, and the motif on the front of the head works with the voice
+ * (`faceTalk`).
+ *
+ * Six ways of holding the hands while it does — the gesture families people
+ * actually talk with: beats on the stress, a listing roll, a broad sweep, both
+ * hands clasped and none of it, a point at the listener, and two hands open.
  */
+export type Talk = 'beat' | 'roll' | 'sweep' | 'clasp' | 'point' | 'open';
+
 export function bipedTalk(
   pose: Pose,
+  kind: Talk,
   t: number,
   salt: number,
   syllable: number,
@@ -275,9 +378,48 @@ export function bipedTalk(
   const arm = side > 0 ? 'armL' : 'armR';
   const other = side > 0 ? 'armR' : 'armL';
   const g = 0.5 + 0.5 * wobble(t * 1.4, salt + 10);
-  pose.turn(`${arm}u`, (-0.25 - 0.1 * beat) * w, 0, side * 0.2 * w);
-  pose.turn(`${arm}l`, (-0.9 - 0.5 * g - 0.35 * beat) * w, 0, side * 0.3 * wobble(t * 2.2, salt + 11) * w);
-  pose.turn(`${other}l`, -0.35 * w * (0.5 + 0.5 * wobble(t * 1.1, salt + 12)));
+  switch (kind) {
+    case 'beat':
+      // The hand keeps time in front of the chest and the other hangs.
+      pose.turn(`${arm}u`, (-0.25 - 0.1 * beat) * w, 0, side * 0.2 * w);
+      pose.turn(`${arm}l`, (-0.9 - 0.5 * g - 0.35 * beat) * w, 0, side * 0.3 * wobble(t * 2.2, salt + 11) * w);
+      pose.turn(`${other}l`, -0.35 * w * (0.5 + 0.5 * wobble(t * 1.1, salt + 12)));
+      break;
+    case 'roll':
+      // The forearm turns over and back, the way a listing hand does.
+      pose.turn(`${arm}u`, (-0.35 - 0.06 * beat) * w, 0, side * 0.3 * w);
+      pose.turn(`${arm}l`, (-1.1 - 0.2 * beat) * w, side * (0.35 + 0.45 * Math.sin(t * 2.6 + salt)) * w, side * 0.2 * w);
+      pose.turn(`${other}u`, -0.1 * w, 0, -side * 0.06 * w);
+      break;
+    case 'sweep':
+      // A broad open sweep out to the side on the stresses.
+      pose.turn(`${arm}u`, (-0.5 - 0.25 * beat) * w, 0, side * (0.45 + 0.5 * g) * w);
+      pose.turn(`${arm}l`, (-0.55 + 0.25 * beat) * w, 0, side * (0.25 + 0.3 * g) * w);
+      pose.turn(`${other}l`, -0.3 * w);
+      pose.turn('torso', 0, -side * 0.06 * g * w, 0);
+      break;
+    case 'clasp':
+      // Hands held together at the waist: a reserved talker, all head.
+      pose.turn('armLu', -0.28 * w, 0.3 * w, 0.1 * w);
+      pose.turn('armRu', -0.28 * w, -0.3 * w, -0.1 * w);
+      pose.turn('armLl', (-1.15 - 0.1 * beat) * w, 0.55 * w, 0);
+      pose.turn('armRl', (-1.15 - 0.1 * beat) * w, -0.55 * w, 0);
+      break;
+    case 'point':
+      // The arm comes forward toward whoever is listening on each stress.
+      pose.turn(`${arm}u`, (-0.65 - 0.3 * beat) * w, side * 0.1 * w, side * 0.22 * w);
+      pose.turn(`${arm}l`, (-0.35 - 0.3 * beat) * w, side * 0.15 * w, 0);
+      pose.turn(`${other}l`, -0.4 * w * (0.5 + 0.5 * wobble(t * 1.3, salt + 15)));
+      break;
+    case 'open':
+      // Both hands up and working together.
+      pose.turn('armLu', (-0.55 - 0.12 * beat) * w, 0.15 * w, (0.3 + 0.2 * g) * w);
+      pose.turn('armRu', (-0.55 - 0.12 * beat) * w, -0.15 * w, -(0.3 + 0.2 * g) * w);
+      pose.turn('armLl', (-1.0 - 0.3 * beat) * w, 0.35 * w, 0.15 * w);
+      pose.turn('armRl', (-1.0 - 0.3 * beat) * w, -0.35 * w, -0.15 * w);
+      pose.turn('torso', 0.02 * beat * w);
+      break;
+  }
   pose.turn(
     'head',
     (0.04 + 0.05 * syllable + 0.05 * beat) * w,
@@ -360,13 +502,6 @@ const HANGING = new Set<string>([]);
  * pulse on its stressed syllables, `w` how much of the talking pose is in.
  */
 export function faceTalk(pose: Pose, kind: string | undefined, level: number, beat: number, w: number, t: number, salt: number): void {
-  /** A rack on its own bones, spreading from the middle out. */
-  const spread = (amount: number): void => {
-    for (let i = 0; i < 7; i++) {
-      const lag = clamp01(level - Math.abs(i - 3) * 0.05);
-      pose.turn(`face${i}`, -0.1 * beat * w, 0, (i - 3) * amount * lag * w);
-    }
-  };
   switch (kind) {
     case 'round':
     case 'burr':
@@ -398,8 +533,8 @@ export function faceTalk(pose: Pose, kind: string | undefined, level: number, be
       pose.move('face', 0, -0.003 * beat * w, 0.004 * level * w);
       break;
     case 'briar':
-      spread(0.1);
-      pose.turn('face', 0, 0, 0.05 * beat * w * wobble(t * 2, salt));
+      pose.turn('face', -0.04 * beat * w, 0, 0.06 * level * w * wobble(t * 2, salt));
+      pose.move('face', 0, 0, 0.003 * beat * w);
       break;
   }
 }
@@ -409,10 +544,6 @@ export function faceIdle(pose: Pose, kind: string | undefined, t: number, salt: 
   const drift = wobble(t * 0.5, salt);
   switch (kind) {
     case 'briar':
-      for (let i = 0; i < 7; i++) {
-        pose.turn(`face${i}`, 0.03 * wobble(t * 0.6, salt + i), 0, 0.05 * wobble(t * 0.4, salt + i * 2));
-      }
-      break;
     case 'round':
     case 'burr':
     case 'bough':
@@ -432,8 +563,6 @@ export function faceIdle(pose: Pose, kind: string | undefined, t: number, salt: 
 export function faceGreet(pose: Pose, kind: string | undefined, e: number): void {
   switch (kind) {
     case 'briar':
-      for (let i = 0; i < 7; i++) pose.turn(`face${i}`, 0, 0, (i - 3) * 0.15 * e);
-      break;
     case 'round':
     case 'burr':
     case 'bough':
