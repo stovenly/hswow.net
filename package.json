@@ -6,7 +6,8 @@
   "description": "Here Stands What Once Was",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "worklets": "node --check src/audio/faust/processor.js && node --check src/audio/voice/processor.js",
+    "build": "npm run worklets && tsc --noEmit && vite build",
     "preview": "vite preview --outDir docs",
     "check:movement": "esbuild tools/movement-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/movement-check.mjs && node node_modules/.cache/movement-check.mjs",
     "check:audio": "esbuild tools/audio-check.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/audio-check.mjs && node node_modules/.cache/audio-check.mjs",

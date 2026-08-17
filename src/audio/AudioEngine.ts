@@ -5,6 +5,7 @@ import { Weather } from './weather';
 import type { Emitter } from './Emitter';
 import { createFaustNode, type FaustNode } from './faust/FaustNode';
 import { reverbMeta, reverbUrl } from './faust/built/reverb';
+import { registerVoice } from './voice/Voice';
 
 /**
  * The audio graph and its lifecycle.
@@ -94,6 +95,8 @@ export class AudioEngine {
   noise: NoiseBuffers | null = null;
   /** Resolves once the noise buffers and every room IR are ready. */
   readonly ready: Promise<void>;
+  /** Resolves true when the voice worklet registered, false when it could not. */
+  readonly voiceReady: Promise<boolean>;
 
   /** True once a gesture has let the context actually run. */
   started = false;
@@ -169,6 +172,11 @@ export class AudioEngine {
     this.duck.connect(this.master);
     this.master.connect(limiter);
     limiter.connect(this.context.destination);
+
+    // Before `build`, because `build` publishes `noise` and that is the flag
+    // creatures take as "you may have a voice now". A creature holds the voice
+    // it is given for life, so losing that race is permanent.
+    this.voiceReady = registerVoice(this.context);
 
     this.ready = this.build();
     this.listenForGesture();
