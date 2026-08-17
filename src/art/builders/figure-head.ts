@@ -371,9 +371,14 @@ export function buildHead(
    * count follows from how wide the board is at that height, so they are the
    * same size on every row and never crowd into one another.
    */
-  const dogtooth = (v: number, color: number, across = 0.1): void => {
+  // Every tooth sits off the board the same way — all lighter on a dark board,
+  // all darker on a pale one — so the band reads whatever the timber. `away`
+  // is how far the row steps from the board; alternate teeth step further.
+  const boardLum = (((board >> 16) & 0xff) * 0.3 + ((board >> 8) & 0xff) * 0.59 + (board & 0xff) * 0.11) / 255;
+  const dogtooth = (v: number, away: number, across = 0.1): void => {
     const r = boardW * across;
     const n = Math.max(2, Math.floor((1.6 * mask.halfAt(v)) / (Math.sqrt(3) * r * 1.12)));
+    const off = (k: number): number => shade(board, boardLum > 0.5 ? 1 - k : 1 + k * 1.6);
     for (let i = 0; i < n; i++) {
       const s = (((i + 0.5) / n) * 2 - 1) * 0.8;
       // CylinderGeometry's axis is +Y; rotateX(π/2) lays the triangle flat on
@@ -381,7 +386,7 @@ export function buildHead(
       const tooth = new THREE.CylinderGeometry(r, r, size * 0.08, 3);
       tooth.rotateX(Math.PI / 2);
       tooth.rotateZ(i % 2 ? 0 : Math.PI);
-      on(tooth, s, v, size * 0.04, i % 2 ? color : shade(color, 1.14));
+      on(tooth, s, v, size * 0.04, i % 2 ? off(away) : off(away + 0.12));
     }
   };
   // --- the back -----------------------------------------------------------
@@ -561,9 +566,9 @@ export function buildHead(
       break;
     }
     case 'antler': {
-      dogtooth(0.22, shade(WOOD, 0.9));
-      dogtooth(0.44, shade(WOOD, 1.12));
-      dogtooth(0.66, shade(WOOD, 0.96));
+      dogtooth(0.22, 0.3);
+      dogtooth(0.44, 0.18);
+      dogtooth(0.66, 0.3);
       // A beam back and out of each top corner, with two tines forward off it.
       for (const side of [-1, 1] as const) {
         const root = at(side * 0.66, 0.94, 0);
@@ -577,9 +582,9 @@ export function buildHead(
       break;
     }
     case 'palm': {
-      dogtooth(0.2, shade(HEART, 0.9));
-      dogtooth(0.4, shade(HEART, 1.14));
-      dogtooth(0.6, shade(HEART, 0.98));
+      dogtooth(0.2, 0.3);
+      dogtooth(0.4, 0.18);
+      dogtooth(0.6, 0.3);
       // An elk's rack, built the way one is: a burr at the top corner, one
       // main beam out of it sweeping up, out and back over the head, and six
       // points off that beam — brow and bez forward over the face, trez off
@@ -590,7 +595,8 @@ export function buildHead(
         [0, 0, 0], [0.26, 0.29, -0.09], [0.48, 0.58, -0.29], [0.6, 0.83, -0.58], [0.63, 1.02, -0.9], [0.56, 1.14, -1.21],
       ];
       const TINES: readonly { at: number; dir: readonly [number, number, number]; len: number; curl: number }[] = [
-        { at: 0.3, dir: [0.34, 0.2, 0.92], len: 0.62, curl: 0.34 },
+        // The brow tine leaves once the beam is clear of the board's corner.
+        { at: 0.55, dir: [0.34, 0.2, 0.92], len: 0.62, curl: 0.34 },
         { at: 0.85, dir: [0.4, 0.42, 0.82], len: 0.7, curl: 0.34 },
         { at: 1.8, dir: [0.8, 0.48, 0.36], len: 0.56, curl: 0.3 },
         { at: 2.8, dir: [0.26, 0.86, 0.44], len: 0.94, curl: 0.26 },
@@ -598,7 +604,9 @@ export function buildHead(
         { at: 4.6, dir: [-0.12, 0.92, 0.36], len: 0.48, curl: 0.2 },
       ];
       for (const side of [-1, 1] as const) {
-        const root = at(side * 0.62, 0.88, size * 0.02);
+        // Rooted behind the board, so the burr and the first stretch of beam
+        // are hidden by it and nothing sits over the worked face.
+        const root = rear(side * 0.62, 0.88, size * 0.1);
         /** A point along the beam, `u` in beam-point units. */
         const beamAt = (u: number): THREE.Vector3 => {
           const i = Math.max(0, Math.min(BEAM.length - 2, Math.floor(u)));

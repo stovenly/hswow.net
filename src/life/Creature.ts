@@ -103,6 +103,11 @@ const HEAD_PITCH_LIMIT = 0.62;
 /** Half-life of the offset a state change leaves behind. */
 const SETTLE = 0.14;
 
+/** When anything last began a greeting, so a crowd takes turns rather than hailing at once. */
+let lastGreetAt = -Infinity;
+/** Seconds between one creature's greeting starting and the next's. */
+const GREET_GAP = 0.9;
+
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _at = new THREE.Vector3();
@@ -272,17 +277,21 @@ export class Creature {
     const gl = Math.hypot(world.gaze.x, world.gaze.z) || 1;
     const looked = dist > 0.01 && (world.gaze.x * -dx + world.gaze.z * -dz) / (gl * dist) > GREET_GAZE;
 
-    // Greeting: once per approach, when it is looked at, and not again for a while.
+    // Greeting: once per approach, when it is looked at, not again for a while,
+    // and never on the heels of someone else's.
+    const now = performance.now() / 1000;
     if (
       dist < greetAt &&
       looked &&
       !this.greeted &&
       this.greetCooldown === 0 &&
+      now - lastGreetAt > GREET_GAP + (this.spec.seed % 5) * 0.15 &&
       (this.state === 'idle' || this.state === 'business' || this.state === 'walk')
     ) {
       this.begin('greet');
       this.greeted = true;
       this.greetCooldown = 30 + (this.spec.seed % 30);
+      lastGreetAt = now;
     }
     // A figure that has greeted and is still being stood in front of says
     // something, once.
