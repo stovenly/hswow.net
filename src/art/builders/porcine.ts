@@ -12,10 +12,10 @@ import type { LifeOptions } from '../../life/spec';
  * The curl of tail does the rest.
  */
 const PORCINE: Species = {
-  length: [1.1, 1.5],
-  girth: [0.6, 0.78],
-  legLength: [0.25, 0.36],
-  legThickness: 0.05,
+  length: [0.83, 1.13],
+  girth: [0.45, 0.59],
+  legLength: [0.19, 0.27],
+  legThickness: 0.038,
   hock: 0.1,
   feet: 'hoof',
   body: [
@@ -28,10 +28,10 @@ const PORCINE: Species = {
   ],
   sides: 8,
   woolly: false,
-  neck: [0.12, 0.2],
+  neck: [0.09, 0.15],
   neckRise: [0, 0.2],
   neckThick: 0.34,
-  headSize: [0.19, 0.24],
+  headSize: [0.14, 0.18],
   headPitch: 0.3,
   head: porcineHead,
   tail: 'curl',
@@ -48,7 +48,7 @@ const PORCINE: Species = {
 export const porcine: BuilderWith<LifeOptions> = {
   name: 'porcine',
   category: 'animals',
-  radius: 0.95,
+  radius: 0.71,
   solid: false,
   build: (options = {}) =>
     buildQuadruped('porcine', PORCINE, createRng(options.seed ?? 1), options),
