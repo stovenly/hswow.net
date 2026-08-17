@@ -18,6 +18,7 @@ import type { FireModel } from './audio/models/fire';
 import type { RainModel } from './audio/models/rain';
 import type { WaterModel } from './audio/models/water';
 import { AudioEngine } from './audio/AudioEngine';
+import { VOICE_TUNING, pushVoiceTuning, type VoiceTuning } from './audio/voice/tuning';
 import { createDevTools } from './debug/DevPanel';
 import { ZoneManager } from './world/ZoneManager';
 import { Interaction } from './world/Interaction';
@@ -619,6 +620,24 @@ if (dev.gui) {
     .onChange(() => audio.applyReverbAmount());
   sound.add(audio.settings, 'airAbsorption', 0, 1, 0.01).name('air absorption');
   sound.add(audio.settings, 'occlusion', 0, 1, 0.01).name('occlusion');
+
+  // The throat, live, on every villager at once. These are the numbers that
+  // decide how a voice *sounds*, and they have proved impossible to reason to
+  // — so they move while it is talking and the ear picks. Whatever sticks goes
+  // into `villagerBody`. Top four are the ones that change how bright it is.
+  const throat = dev.gui.addFolder('voice');
+  const dial = (key: keyof VoiceTuning, min: number, max: number, step: number, label: string): void => {
+    throat.add(VOICE_TUNING, key, min, max, step).name(label).onChange(() => pushVoiceTuning(key));
+  };
+  dial('head', 0.15, 1, 0.01, 'head lowpass (1 = off)');
+  dial('rdBias', -0.5, 1, 0.01, 'Rd bias (up = darker)');
+  dial('wallDamp', 0.2, 1, 0.01, 'wall damp (1 = off)');
+  dial('wallLoss', 0.99, 1, 0.0002, 'wall loss');
+  dial('glottalReflect', 0.4, 0.98, 0.01, 'glottal reflect');
+  dial('lipReflect', -0.98, -0.4, 0.01, 'lip reflect');
+  dial('aspiration', 0, 1, 0.01, 'aspiration');
+  dial('turbulence', 0, 1.5, 0.01, 'turbulence');
+  dial('gain', 0.05, 1.5, 0.01, 'model gain');
 
   const weather = dev.gui.addFolder('weather');
   weather.add(audio.weather.settings, 'windSpeed', 0, 1, 0.01).name('wind');

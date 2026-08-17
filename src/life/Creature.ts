@@ -4,7 +4,9 @@ import type { Collider } from '../player/Collider';
 import type { AudioEngine } from '../audio/AudioEngine';
 import { Emitter } from '../audio/Emitter';
 import { buildOneShot, type OneShot } from '../audio/Scatter';
-import { createVoice, type Voice, type Utterance } from '../audio/oneshots/voice';
+import { createVoice, voiceState, type Voice, type Utterance } from '../audio/voice/Voice';
+import { flags } from '../debug/flags';
+import { VoiceLabel } from '../debug/VoiceLabel';
 import { Pose, applyPose, approach, angleTo, smooth, clamp01, envelope } from './pose';
 import { Spring, damp } from './spring';
 import { Legs } from './legs';
@@ -163,6 +165,8 @@ export class Creature {
   private shot: OneShot | null = null;
   private voice: Voice | null = null;
   private said: Utterance | null = null;
+  /** `?debug`: what this one is saying, over its head. */
+  private label: VoiceLabel | null = null;
 
   constructor(mesh: THREE.SkinnedMesh) {
     this.mesh = mesh;
@@ -562,6 +566,7 @@ export class Creature {
       this.emitter.update(dt, world.collider, world.retestOcclusion);
     }
     if (this.said && world.audio && world.audio.context.currentTime > this.said.end + 1) this.said = null;
+    if (this.label && !this.said) this.label.hide();
   }
 
   /** Frozen out of range: the voice goes quiet with it. */
@@ -571,6 +576,7 @@ export class Creature {
       this.voice.hush(0);
       this.said = null;
     }
+    if (!awake) this.label?.hide();
   }
 
   dispose(): void {
@@ -579,6 +585,8 @@ export class Creature {
     this.shot = null;
     this.voice = null;
     this.said = null;
+    this.label?.dispose();
+    this.label = null;
   }
 
   private begin(state: State): void {
@@ -685,11 +693,14 @@ export class Creature {
   /** A few syllables of nothing: a short greeting or a run of talk. */
   private babble(kind: 'greeting' | 'talk', world: World): Utterance | null {
     if (!world.audio || !world.audio.noise) return null;
+    // A voice is kept for life, so it is worth missing one greeting rather
+    // than being built on the old model a millisecond before the throat lands.
+    if (!this.voice && voiceState(world.audio.context) === 'waiting') return null;
     if (!this.voice) {
       // Where it stands is part of who it is: two villagers built from the
       // same seed still get their own note, rate and hello.
       const spot = Math.abs(this.home.x * 73.1 + this.home.y * 41.7);
-      const voice = createVoice(world.audio, { tone: this.spec.tone, gain: 0.28, seed: this.spec.seed + spot });
+      const voice = createVoice(world.audio, { tone: this.spec.tone, gain: 1.0, seed: this.spec.seed + spot });
       this.voice = voice;
       this.shot = voice;
       _at.set(this.mesh.position.x, this.mesh.position.y + this.spec.headHeight, this.mesh.position.z);
@@ -702,7 +713,24 @@ export class Creature {
       });
     }
     this.said = this.voice.babble(kind, world.audio.context.currentTime + 0.05);
+    if (flags.debug) {
+      this.label ??= new VoiceLabel(this.mesh, this.spec.headHeight + 0.55);
+      // Which model is actually making the sound. Worth the room on the card:
+      // a throat and the old node graph answer to entirely different files,
+      // and tuning one while listening to the other is a day of nothing.
+      const model = voiceState(world.audio.context) === 'ready' ? 'throat' : 'NODE GRAPH';
+      this.label.show(`${this.voiceId} ${model}`, this.said.text);
+    }
     return this.said;
+  }
+
+  /**
+   * A short name for this voice: the seed and where it stands, which together
+   * are what decides how it sounds. Two rows of the same seed differ by it.
+   */
+  private get voiceId(): string {
+    const spot = Math.abs(this.home.x * 73.1 + this.home.y * 41.7);
+    return `#${Math.floor(this.spec.seed + spot).toString(36)}`;
   }
 
   /** An animal's call. */

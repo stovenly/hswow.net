@@ -87,6 +87,14 @@ const SHAPES: Record<Vowel, readonly Formant[]> = {
   o: [{ hz: 570, q: 8, level: 1 }, { hz: 840, q: 9, level: 0.55 }, { hz: 2410, q: 14, level: 0.14 }, { hz: 3250, q: 11, level: 0.08 }],
   u: [{ hz: 320, q: 6, level: 1 }, { hz: 870, q: 9, level: 0.4 }, { hz: 2240, q: 14, level: 0.1 }, { hz: 3200, q: 11, level: 0.07 }],
   schwa: [{ hz: 500, q: 7, level: 1 }, { hz: 1500, q: 12, level: 0.4 }, { hz: 2500, q: 14, level: 0.18 }, { hz: 3300, q: 11, level: 0.09 }],
+  // The rarer vowels, on their nearest plain one: this voice is the fallback.
+  'ü': [{ hz: 300, q: 6, level: 1 }, { hz: 1750, q: 14, level: 0.36 }, { hz: 2200, q: 15, level: 0.18 }, { hz: 3400, q: 12, level: 0.1 }],
+  'ɯ': [{ hz: 320, q: 6, level: 1 }, { hz: 1300, q: 10, level: 0.4 }, { hz: 2300, q: 14, level: 0.1 }, { hz: 3200, q: 11, level: 0.07 }],
+  'ø': [{ hz: 450, q: 8, level: 1 }, { hz: 1500, q: 12, level: 0.42 }, { hz: 2300, q: 14, level: 0.2 }, { hz: 3300, q: 11, level: 0.1 }],
+  'æ': [{ hz: 660, q: 9, level: 1 }, { hz: 1720, q: 12, level: 0.5 }, { hz: 2410, q: 14, level: 0.22 }, { hz: 3300, q: 11, level: 0.1 }],
+  'ɑ': [{ hz: 750, q: 9, level: 1 }, { hz: 940, q: 10, level: 0.5 }, { hz: 2400, q: 14, level: 0.2 }, { hz: 3300, q: 11, level: 0.1 }],
+  'ɨ': [{ hz: 320, q: 6, level: 1 }, { hz: 1650, q: 12, level: 0.38 }, { hz: 2500, q: 14, level: 0.18 }, { hz: 3400, q: 12, level: 0.1 }],
+  'ɤ': [{ hz: 460, q: 8, level: 1 }, { hz: 1200, q: 10, level: 0.45 }, { hz: 2400, q: 14, level: 0.14 }, { hz: 3250, q: 11, level: 0.08 }],
 };
 /** The murmur of an m or n: low, closed, dull. */
 const NASAL: readonly Formant[] = [{ hz: 260, q: 5, level: 1 }, { hz: 1000, q: 10, level: 0.2 }, { hz: 2200, q: 12, level: 0.08 }, { hz: 3200, q: 11, level: 0.04 }];
@@ -95,15 +103,17 @@ const LOCUS: Record<Place, readonly Formant[]> = {
   lip: [{ hz: 320, q: 6, level: 0.8 }, { hz: 800, q: 9, level: 0.4 }, { hz: 2200, q: 14, level: 0.15 }, { hz: 3200, q: 20, level: 0.07 }],
   ridge: [{ hz: 360, q: 6, level: 0.8 }, { hz: 1800, q: 13, level: 0.4 }, { hz: 2650, q: 16, level: 0.18 }, { hz: 3400, q: 20, level: 0.08 }],
   back: [{ hz: 320, q: 6, level: 0.8 }, { hz: 2100, q: 14, level: 0.4 }, { hz: 2400, q: 15, level: 0.2 }, { hz: 3300, q: 20, level: 0.08 }],
+  throat: [{ hz: 600, q: 6, level: 0.8 }, { hz: 1100, q: 10, level: 0.4 }, { hz: 2400, q: 15, level: 0.2 }, { hz: 3300, q: 20, level: 0.08 }],
 };
 /** l, r, w, y — voiced openings with a mouth of their own. */
 const LIQUID: Record<Place, readonly Formant[]> = {
   lip: SHAPES.u,
   ridge: [{ hz: 400, q: 6, level: 0.9 }, { hz: 1150, q: 10, level: 0.4 }, { hz: 1900, q: 12, level: 0.2 }, { hz: 3200, q: 20, level: 0.06 }],
   back: SHAPES.i,
+  throat: SHAPES.a,
 };
 /** Where a stop's burst and a fricative's hiss sit, Hz. */
-const BURST: Record<Place, number> = { lip: 900, ridge: 3800, back: 1900 };
+const BURST: Record<Place, number> = { lip: 900, ridge: 3800, back: 1900, throat: 1200 };
 /** Cycle-to-cycle roughness on the pitch, in cents of detune. */
 const JITTER = 220;
 

@@ -440,35 +440,43 @@ feet are solved back to the ground from wherever the pelvis goes.
   precedent). Eviction disposes creatures and their emitters.
 - `Controller.obstacles` — cylinders resolved after the static capsule pass,
   sideways only.
-- **Speech** (`audio/speech.ts`, `audio/oneshots/voice.ts`). The Animal
-  Crossing idea, synthesised: a line is scored into syllables — onset (stop,
-  hiss, hush, breath, hum, glide), place in the mouth, a vowel and the vowel
-  it moves to, a coda, stress on the first syllable of a word, a pause after
-  punctuation, the sentence's tune — and sung as automation on one persistent
-  glottal oscillator and one noise source through a four-formant bank. What
-  keeps it from a machine: a **glottal pulse** source (Rosenberg, as a
-  `PeriodicWave` — `dsp/glottal.ts`) not a sawtooth; **flutter** (Klatt's
-  three slow sines) with cycle-to-cycle jitter and shimmer; **aspiration
-  modulated at the fold rate** by the glottal flow rather than a steady hiss,
-  which Klatt found was the single thing that most decides whether a voice is
-  heard as a voice; **spectral tilt** that brightens with effort and darkens
-  as a syllable falls away; a **zero** in the tract as well as poles, dropping
-  onto the nasal zero for m and n; **bandwidths that differ from voice to
-  voice**; **creak** where a line comes to rest; consonants that begin at their
-  **place in the mouth** and slide into the vowel; a pitch that **arrives and
-  then holds** through the middle of a vowel rather than moving at every
-  instant, and is otherwise a **line** — carried on from the last syllable,
-  falling across a statement, rising into a question.
-  Three things that were making it float: a **path round the formants**, since a
-  parallel bank passes its peaks and nothing under F1, so the whole chest of the
-  voice was missing (Klatt's parallel branch has a bypass for this); **flutter
-  cut to a few cents**, because forty cents of periodic wobble is not a voice
-  being alive; and **real dynamics between syllables** — eight or nine dB from
-  unstressed to stressed, not the two it had. And it was being **compressed**,
-  literally: the master limiter began working at −12 dB, which one villager
-  talking clears on its own. Each voice has a seeded character (rate, breathiness, flutter,
-  vibrato, range, tract) and its own note, and the seed carries **where the
-  villager stands** — so two built the same still sound like two people.
+- **Speech** (`audio/speech.ts`, `audio/voice/`). The Animal Crossing idea,
+  synthesised: a line is scored into syllables — onset (stop, hiss, hush,
+  breath, hum, glide), place in the mouth, a vowel and the vowel it moves to,
+  a coda, stress on the first syllable of a word, a pause after punctuation,
+  the sentence's tune — and then **spoken by a throat**. The scoring is
+  unchanged; what plays it is not a filter bank any more but an articulatory
+  model in an `AudioWorklet`, run per sample: a **Liljencrants–Fant glottal
+  pulse** whose one shape control `Rd` moves open quotient, skew and return
+  phase together, so spectral tilt follows effort the way it physically does;
+  **per-cycle** jitter and shimmer rolled once a period rather than lowpassed
+  noise on a detune; a 1/f **drift** and an optional old-age tremor; a
+  **Kelly–Lochbaum waveguide** with a nasal branch on a velum, run at twice
+  the context rate; **turbulence made at the narrowest place in the tube**, so
+  a burst, a hiss and an aspiration are all the same mechanism and none of
+  them is a filtered blip; **source–tract coupling**, F1 shifting and widening
+  in the open phase; and a **breath reservoir** that empties as a long line
+  runs on and is filled by an audible inhale. See `VOICE.md`.
+  The three layers do not reach past each other: `speech.ts` knows words,
+  `voice/writer.ts` knows what a vowel is and turns one into a jaw and a
+  tongue, and `voice/processor.js` knows neither and takes only physical
+  parameters on twelve tracks. Adding a voice — a person, an animal, a laugh —
+  is a body preset and a writer, never a branch in the DSP.
+  Consonants are gestures now: a stop is a **closure that is held and let go**,
+  with prevoicing behind it and the burst falling out of the tube; a nasal is
+  the **velum open** over a shut mouth; an h is the vowel's own shape with the
+  folds apart. A line that comes to rest goes down into **creak** — period
+  doubling, not a widened wobble. The pitch still **arrives and then holds**
+  through the middle of a vowel rather than moving at every instant, and is
+  otherwise a **line** — carried on from the last syllable, falling across a
+  statement, rising into a question — and the dynamics between syllables are
+  still eight or nine dB, not two.
+  Each voice has a seeded identity: **tract length in centimetres** (so it is
+  the same person at 44.1 k and 48 k), note, range, `Rd` baseline, jitter,
+  shimmer, drift, nasal leak and rate. The seed carries **where the villager
+  stands**, so two built the same still sound like two people.
+  The old node-graph voice stays as the fallback: `addModule` can fail, and a
+  villager with an older voice is better than a villager with none.
   Today the creatures **babble** — `babbleScore` makes
   up the syllables, no words anywhere. Its inventory is a little language of
   its own: consonant-vowel only, no fricatives and nothing that shuts, the
