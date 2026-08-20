@@ -281,6 +281,7 @@ export const figure: BuilderWith<LifeOptions> = {
       grazeDrop: 0,
       handed: dominant,
       face: kind,
+      lect: folk,
       gestures: phy.gestures,
       legs: {
         thigh: legJoint.distanceTo(legKnee) * scale,

@@ -14,7 +14,7 @@
  */
 
 import type { AudioEngine } from '../AudioEngine';
-import { greetScore, score, type Score, type Tune } from '../speech';
+import { chatterScore, greetScore, lectOf, pick, score, type Score, type Tune } from '../speech';
 import type { Unit, Utterance, Voice, VoiceOptions } from './types';
 import { babbleScore } from '../speech';
 import { villagerBody } from './body';
@@ -117,8 +117,9 @@ function mute(engine: AudioEngine): Voice {
 function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
   const context = engine.context;
   const seed = options.seed ?? 1;
-  const me = identity(seed, options.tone ?? 1, options.pitch ?? 250);
-  const body = villagerBody(context.sampleRate, me.lengthCm, seed);
+  const lect = lectOf(options.lect);
+  const me = identity(seed, options.tone ?? 1, options.pitch ?? 250, lect);
+  const body = villagerBody(context.sampleRate, me.lengthCm, seed, options.lect ?? 'country');
 
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
@@ -175,12 +176,17 @@ function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
     },
 
     babble(kind, at) {
-      if (kind === 'greeting') return perform(greetScore(seed), at);
-      const tune: Tune = hash(seed, ++turn) < 0.3 ? 'question' : 'statement';
-      const count = 4 + Math.floor(hash(seed, ++turn) * 5);
+      if (kind === 'greeting') return perform(greetScore(seed, lect), at);
+      // A written line if this people has any; otherwise a run of its own
+      // sounds, which is what a people nobody has written lines for gets.
+      const written = chatterScore(seed + ++turn, lect);
+      if (written) return perform(written, at);
       const salt = ++turn;
       let n = 0;
-      return perform(babbleScore(count, tune, () => hash(seed, salt * 100 + n++)), at);
+      const random = (): number => hash(seed, salt * 100 + n++);
+      const tune: Tune = pick(lect.tunes, random);
+      const count = 4 + Math.floor(random() * 5);
+      return perform(babbleScore(count, tune, random, lect), at);
     },
 
     hush(at) {

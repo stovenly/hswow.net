@@ -1,15 +1,16 @@
 /**
  * Lines for a creature with nothing written to say: the written banks, and a
- * score of nothing in particular drawn from the chart.
+ * score of nothing in particular drawn from a people's own inventory.
  */
 
-import { OPEN, sound, type Consonant, type Tone, type Vowel } from './phonemes';
+import { type Consonant, type Vowel } from './phonemes';
 import { blank, score, spell, type Score, type Syllable, type Tune } from './parse';
+import { pick, type Lect } from './lects';
 
 /**
- * The twenty-five hellos. Each villager has one of these, and no two said one
- * after the other are the same — so a row of them does not read as one voice.
- * Written in the little language and scored like anything else.
+ * The hellos every people said before they had their own. Kept as the bank a
+ * lect falls back on, so a people written with no lines of its own still
+ * speaks.
  */
 export const GREETINGS: readonly string[] = [
   'ǃaɬúm!', 'ʘoʔó?', 'tʼɨka, tʼɨkâ', 'ɓaŋǔ!', 'χoʔɯ̀?',
@@ -19,16 +20,30 @@ export const GREETINGS: readonly string[] = [
   'pʼɨ̰ma̰!', 'ʘúʔù?', 'xøːʔ, xøː!', 'ɓǐɓì', 'ǂǎŋ, ǂǎŋ!',
 ];
 
-/** The last few said, anywhere, so none of them comes round twice running. */
-const lately: number[] = [];
+/**
+ * The last few said out of each bank, so none of them comes round twice
+ * running. Per bank: a villager and a cityfolk do not step on each other.
+ */
+const lately = new WeakMap<readonly string[], number[]>();
 
-/** A villager's own hello, stepped along if it has just been heard. */
-export function greetScore(seed: number): Score {
-  let i = Math.abs(Math.floor(seed)) % GREETINGS.length;
-  for (let n = 0; n < GREETINGS.length && lately.includes(i); n++) i = (i + 7) % GREETINGS.length;
-  lately.push(i);
-  if (lately.length > 4) lately.shift();
-  const sc = score(GREETINGS[i]);
+/** A line from `bank`, stepped along if it has just been heard. */
+function fromBank(bank: readonly string[], seed: number): Score {
+  let said = lately.get(bank);
+  if (!said) {
+    said = [];
+    lately.set(bank, said);
+  }
+  let i = Math.abs(Math.floor(seed)) % bank.length;
+  for (let n = 0; n < bank.length && said.includes(i); n++) i = (i + 7) % bank.length;
+  said.push(i);
+  if (said.length > 4) said.shift();
+  return score(bank[i]);
+}
+
+/** A villager's own hello. */
+export function greetScore(seed: number, lect: Lect): Score {
+  const bank = lect.greetings.length ? lect.greetings : GREETINGS;
+  const sc = fromBank(bank, seed);
   const last = sc.syllables.length - 1;
   // The mark a hello is written with is its shape: `!` throws it out and lets
   // it fall, `?` lifts the end, and one written plain climbs on the lilt.
@@ -42,50 +57,42 @@ export function greetScore(seed: number): Score {
   return sc;
 }
 
-/**
- * The little language. Every syllable is a consonant and a vowel and then it
- * is over — no clusters — but the consonants come from the far end of the
- * chart and the vowels carry tone. English cannot be built out of this.
- */
-const ONSETS: readonly Consonant[] = [
-  sound('b'), sound('d'), sound('g'), sound('m'), sound('n'), sound('ŋ'),
-  sound('l'), sound('w'), OPEN,
-  sound('tʼ'), sound('kʼ'), sound('ɓ'), sound('ɗ'),
-  sound('ǃ'), sound('ʘ'), sound('r'), sound('ʀ'),
-  sound('ɬ'), sound('ʔ'), sound('ħ'), sound('ʕ'),
-  sound('mb'), sound('nd'), sound('m̥'), sound('x'),
-];
-const VOWELS: readonly Vowel[] = ['a', 'e', 'i', 'o', 'u', 'ü', 'ɯ', 'ø', 'æ', 'ɑ', 'ɨ', 'ɤ'];
-const TONES: readonly Tone[] = ['level', 'level', 'high', 'low', 'rise', 'fall', 'dip'];
-const CODAS: readonly Consonant[] = [
-  OPEN, OPEN, OPEN, sound('n'), sound('m'),
-  sound('ʔ'), sound('k'), sound('r'), sound('l'), sound('ɬ'),
-];
+/** A written line of talk, or nothing if this people has none written. */
+export function chatterScore(seed: number, lect: Lect): Score | null {
+  return lect.chatter.length ? fromBank(lect.chatter, seed) : null;
+}
 
 /**
  * A score of nothing in particular, for a creature with nothing written to
- * say. `count` syllables in words of one to three; within a word the opening
- * consonant repeats as often as it changes and the vowel mostly holds, so
- * words come out as ǃiǃi, tʼuka, ndanona. Deterministic in `random`.
+ * say. `count` syllables in words of the lect's length; within a word the
+ * opening consonant repeats as often as it changes and the vowel mostly
+ * holds, so words come out as ǃiǃi, tʼuka, ndanona. Deterministic in `random`.
  */
-export function babbleScore(count: number, tune: Tune, random: () => number): Score {
+export function babbleScore(count: number, tune: Tune, random: () => number, lect: Lect): Score {
   const syllables: Syllable[] = [];
-  const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)];
+  const [shortest, longest] = lect.wordLength;
+  const span = longest - shortest + 1;
+  const word = (): number => shortest + Math.floor(random() * span);
+  const onset = (): Consonant => {
+    const drawn = pick(lect.onsets, random);
+    // The colour is what keeps two peoples apart on a phoneme they share.
+    return lect.colour && random() < lect.colourRate ? { ...drawn, colour: lect.colour } : drawn;
+  };
   let inWord = 0;
-  let wordLength = 1 + Math.floor(random() * 3);
-  let root = pick(ONSETS);
-  let colour = pick(VOWELS);
+  let wordLength = word();
+  let root = onset();
+  let colour = pick(lect.vowels, random);
   for (let i = 0; i < count; i++) {
-    const onset = inWord === 0 || random() < 0.5 ? root : pick(ONSETS);
-    const vowel = inWord === 0 || random() < 0.6 ? colour : pick(VOWELS);
-    // A quarter of them sing up onto an i or a u on the way out.
-    const glide: Vowel = random() < 0.25 ? (random() < 0.5 ? 'i' : 'u') : vowel;
-    const coda = random() < 0.35 ? pick(CODAS) : CODAS[0];
-    const s = blank(i, i + 1, onset, vowel, glide, coda);
-    s.tone = pick(TONES);
-    s.nasal = random() < 0.15;
-    s.voice = random() < 0.1 ? 'creaky' : random() < 0.08 ? 'breathy' : 'modal';
-    s.long = random() < 0.12;
+    const head = inWord === 0 || random() < 0.5 ? root : onset();
+    const vowel = inWord === 0 || random() < 0.6 ? colour : pick(lect.vowels, random);
+    // A quarter of them sing up onto a close vowel on the way out.
+    const glide: Vowel = random() < 0.25 ? pick(lect.vowels, random) : vowel;
+    const coda = random() < 0.35 ? pick(lect.codas, random) : lect.codas[0].of;
+    const s = blank(i, i + 1, head, vowel, glide, coda);
+    s.tone = lect.tones[Math.floor(random() * lect.tones.length)];
+    s.nasal = random() < lect.nasalRate;
+    s.voice = random() < lect.creakRate ? 'creaky' : random() < lect.breathRate ? 'breathy' : 'modal';
+    s.long = random() < lect.longRate;
     s.stress = inWord === 0 ? (wordLength > 1 ? 1 : 0.7) : 0.25;
     s.tune = tune;
     s.along = count > 1 ? i / (count - 1) : 1;
@@ -93,9 +100,9 @@ export function babbleScore(count: number, tune: Tune, random: () => number): Sc
     inWord++;
     if (inWord >= wordLength) {
       inWord = 0;
-      wordLength = 1 + Math.floor(random() * 3);
-      root = pick(ONSETS);
-      colour = pick(VOWELS);
+      wordLength = word();
+      root = onset();
+      colour = pick(lect.vowels, random);
       s.pause = random() < 0.15 ? 0.26 : 0.05;
     }
     syllables.push(s);

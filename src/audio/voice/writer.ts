@@ -17,7 +17,7 @@
  * can walk them forward and never look back.
  */
 
-import type { Consonant, Score, Tone } from '../speech';
+import type { Consonant, Lect, Score, Tone } from '../speech';
 import type { Unit } from './types';
 import { CURVE, type Curve, type Track } from './body';
 import {
@@ -146,6 +146,10 @@ export interface Identity {
   breath: number;
   /** How much the nose leaks when it should be shut. */
   velum: number;
+  /** How far the pitch falls across a statement. */
+  declination: number;
+  /** Scales every written pause. */
+  pauseScale: number;
 }
 
 function hash(seed: number, n: number): number {
@@ -156,25 +160,33 @@ function hash(seed: number, n: number): number {
 /**
  * Who this one is. `tone` is the old control and still means the same thing:
  * above 1 is a shorter tract and a smaller person.
+ *
+ * The lect sets where in the spread this one falls — how fast their people
+ * talk, how wide they swing it, how pressed the folds are. The per-seed
+ * spread stays inside it, so two villagers still differ from each other.
  */
-export function identity(seed: number, tone: number, pitch: number): Identity {
+export function identity(seed: number, tone: number, pitch: number, lect: Lect): Identity {
   // How big a person this is, 0 to 1. Pitch and tract follow it together —
   // a long throat on a high voice is nobody — and the spread is the adult
   // range, roughly 100 to 300 Hz over 14 to 18 cm, before `tone` shrinks it.
   const size = hash(seed, 9);
+  const [slow, quick] = lect.rate;
+  const [narrow, wide] = lect.range;
   return {
-    rate: 4.4 + hash(seed, 1) * 3.6,
+    rate: slow + hash(seed, 1) * (quick - slow),
     lengthCm: (14.2 + 4 * size) / tone,
     f0: pitch * (0.7 + 0.3 * tone) * (1.15 - 0.55 * size) * (0.9 + hash(seed, 8) * 0.2),
-    range: 0.18 + hash(seed, 6) * 0.22,
+    range: narrow + hash(seed, 6) * (wide - narrow),
     // **This is the brightness of the voice.** `Rd` sets the length of the
     // fold's return phase, which puts a second 6 dB an octave on everything
     // above `f0 / 2π·Ra` — and that corner falls with f0, so a big low voice
     // needs a lower Rd than a small high one to keep the same top.
-    rd: 0.58 + hash(seed, 2) * 0.24 - 0.18 * size,
+    rd: 0.58 + hash(seed, 2) * 0.24 - 0.18 * size + lect.rdBias,
     // Never dry. A voice with no air in it at all is a buzzer.
     breath: 0.03 + hash(seed, 3) * 0.04,
-    velum: hash(seed, 12) * 0.14,
+    velum: hash(seed, 12) * lect.velum,
+    declination: lect.declination,
+    pauseScale: lect.pauseScale,
   };
 }
 
@@ -295,7 +307,7 @@ export function write(score: Score, me: Identity, at: number): Written {
     if (s.tune === 'question') contour = s.final ? (s.along >= 1 ? 1.45 : 1.22) : 1.02 - 0.08 * s.along;
     else if (s.tune === 'exclaim') contour = 1.32 - 0.3 * s.along;
     else if (lilt) contour = 1.18 + 0.12 * s.along + (s.final ? 0.1 : 0);
-    else contour = 1.12 - 0.26 * s.along;
+    else contour = 1.12 - me.declination * s.along;
     contour *= 1 + (me.range + (lilt ? 0.08 : 0)) * (s.stress - 0.35) + (hash(me.f0, 100 + i) - 0.5) * 0.14;
 
     // A creaky vowel sits low as well as rough.
@@ -423,7 +435,7 @@ export function write(score: Score, me: Identity, at: number): Written {
 
     units.push({ at: on, length, from: s.from, to: s.to, stress: s.stress });
     f0 = f0Last;
-    cursor = end + 0.012 + codaTail(s.coda) + s.pause;
+    cursor = end + 0.012 + codaTail(s.coda) + s.pause * me.pauseScale;
     afterPause = s.pause >= 0.2;
     carried = carries;
   }
