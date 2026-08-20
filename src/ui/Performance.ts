@@ -3,44 +3,34 @@ import type * as THREE from 'three';
 import type { GpuClock } from '../engine/GpuClock';
 
 /**
- * The performance readout, for a player rather than for me.
+ * The performance readout, for a player rather than for a developer. The full
+ * instrumentation panel is behind `?debug`; this answers what somebody
+ * benchmarking their own machine asks — how fast is it running, how bad are
+ * the worst frames, how much work is a frame — and everything shown is
+ * something a setting in the same menu can move.
  *
- * There is already a full instrumentation panel behind `?debug` — collider
- * triangles, voice counts, resident zones — and none of that belongs here.
- * This answers the questions somebody benchmarking their own machine actually
- * asks: how fast is it running, how bad are the worst frames, and how much
- * work is a frame. Everything shown is something a setting in the same menu
- * can move.
- *
- * **The 1% low is the number worth having.** An average frame rate hides the
- * stutters, and stutters are what a player feels; two machines both reporting
- * sixty can be completely different to play on. This is the mean of the worst
- * one per cent of recent frames, expressed as a rate, which is the measure
- * every benchmark settled on for exactly that reason.
+ * **The 1% low is the number worth having.** An average hides the stutters and
+ * stutters are what a player feels; two machines both reporting sixty can be
+ * completely different to play on. This is the mean of the worst one per cent
+ * of recent frames, expressed as a rate.
  */
 
 export type PerformanceMode = 'off' | 'fps' | 'all';
 
 /**
- * How many recent frames the statistics are drawn from.
- *
- * A couple of seconds at ordinary rates. Long enough that the one per cent low
- * is measuring a real stutter rather than a single unlucky frame, short enough
- * that the numbers still respond to a setting being changed while they are
- * being watched.
+ * How many recent frames the statistics are drawn from — a couple of seconds
+ * at ordinary rates. Long enough that the one per cent low is measuring a real
+ * stutter rather than a single unlucky frame, short enough that the numbers
+ * still respond to a setting being changed while they are watched.
  */
 const WINDOW = 180;
 
 /**
- * How many frames the *live* figures are drawn from.
- *
- * Much shorter than the window above, and they are deliberately different
- * measurements. The one per cent low is a statistic about a stretch of play
- * and wants a long baseline; the frame rate is meant to answer "what is it
- * doing right now", and averaged over three seconds it visibly lags whatever
- * was just changed — turn the shadows off and the number takes a beat to
- * agree. About a quarter of a second is enough to stop the last digit
- * flickering and short enough to feel immediate.
+ * How many frames the *live* figures are drawn from. Much shorter, and a
+ * different measurement: the one per cent low is a statistic about a stretch
+ * of play, while the frame rate answers "what is it doing right now" and over
+ * three seconds visibly lags whatever was just changed. About a quarter of a
+ * second stops the last digit flickering and still feels immediate.
  */
 const LIVE = 20;
 
@@ -104,10 +94,8 @@ export class PerformanceHud {
   }
 
   /**
-   * Call once a frame, after the render.
-   *
-   * After, deliberately: `renderer.info` is reset inside `PostFX.render`, so
-   * reading it here gives the frame just drawn rather than the one before it.
+   * Call once a frame, after the render — `renderer.info` is reset inside
+   * `PostFX.render`, so reading it here gives the frame just drawn.
    */
   update(dt: number): void {
     // Sampled even while hidden. Switching the readout on should show what the
@@ -151,11 +139,10 @@ export class PerformanceHud {
     const size = this.renderer.getDrawingBufferSize(_size);
     this.set('size', `${size.x}×${size.y}`);
 
-    // **The one number here that is the GPU's rather than the CPU's.** Every
-    // row above times how long this machine took to *ask* for a frame; a busy
-    // GPU makes them go down. Below is where the frame is actually spent, pass
-    // by pass, so "why is this frame slow" has an answer rather than an
-    // argument. Absent on drivers that will not answer — see `GpuClock`.
+    // The one number here that is the GPU's rather than the CPU's. Every row
+    // above times how long this machine took to *ask* for a frame; below is
+    // where the frame is actually spent, pass by pass. Absent on drivers that
+    // will not answer — see `GpuClock`.
     if (!this.gpu.available) {
       this.set('gpu', 'unavailable');
       return;
@@ -165,13 +152,9 @@ export class PerformanceHud {
   }
 
   /**
-   * Mean of the newest `frames` frame times, in milliseconds.
-   *
-   * Walked backwards from the write cursor rather than over the array in
-   * order: this is a ring buffer, so index 0 is not the oldest sample once it
-   * has wrapped, and averaging the front of the array would silently be
-   * averaging an arbitrary quarter-second from some time in the last three
-   * seconds.
+   * Mean of the newest `frames` frame times, in milliseconds. Walked backwards
+   * from the write cursor rather than over the array in order: this is a ring
+   * buffer, so index 0 is not the oldest sample once it has wrapped.
    */
   private recentMean(frames: number): number {
     const take = Math.min(frames, this.count);
@@ -182,11 +165,10 @@ export class PerformanceHud {
   }
 
   /**
-   * Mean of the slowest one per cent of frames, in milliseconds.
-   *
-   * The mean of the tail rather than the single worst frame in it, which is
-   * one sample and jumps about. At least one frame always counts, so this is
-   * defined even on a short window.
+   * Mean of the slowest one per cent of frames, in milliseconds — the mean of
+   * the tail rather than the single worst frame, which is one sample and jumps
+   * about. At least one frame always counts, so this is defined even on a
+   * short window.
    */
   private onePercentLow(): number {
     if (this.count === 0) return 0;
@@ -215,11 +197,10 @@ export class PerformanceHud {
   }
 
   /**
-   * Writes a row, adding it if this is the first time it has had a value.
-   *
-   * The pass rows arrive rather than being declared: a pass that is switched
-   * off never reports, and listing every one the pipeline *could* run would be
-   * a column of dashes for the ones a zone has nothing for.
+   * Writes a row, adding it if this is the first time it has had a value. The
+   * pass rows arrive rather than being declared: a pass that is switched off
+   * never reports, and listing every one the pipeline could run would be a
+   * column of dashes.
    */
   private set(label: string, value: string): void {
     let cell = this.rows.get(label);

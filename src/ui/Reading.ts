@@ -2,30 +2,24 @@ import { onFontChange, offFontChange } from './options/font';
 import type { Note } from '../content/notes';
 
 /**
- * The reading screen.
- *
- * The first interface the game has that is *in* the game rather than around it.
- * It shares the pause menu's register — flat dark panel, hard one-pixel border,
- * small letterspaced chrome — and shares none of its classes, because the two
- * are answerable to different things: that one is a settings dialog and this one
- * is a page of prose, and the day the settings panel changes shape is not a day
- * a book should.
+ * The reading screen — the first interface the game has that is *in* the game
+ * rather than around it. It shares the pause menu's register and none of its
+ * classes: that one is a settings dialog and this one is a page of prose, and
+ * the day the settings panel changes shape is not a day a book should.
  *
  * **One screen for everything.** A scroll, a letter and a folio all open here.
- * That is not diegetic and it is the right trade: three layouts would be three
- * pagination bugs, and the object the player just looked at is still on the
- * screen behind saying which of the three it was.
+ * Three layouts would be three pagination bugs, and the object the player just
+ * looked at is still on screen behind saying which of the three it was.
  *
- * **Nothing scrolls.** A note longer than the box is paginated, not scrolled.
- * Scrolling has no end state — you never know whether you have read the thing —
- * and a page count does.
+ * **Nothing scrolls.** A note longer than the box is paginated. Scrolling has
+ * no end state — you never know whether you have read the thing — and a page
+ * count does.
  *
- * **The pagination is measured, not estimated.** Characters per page is a guess
- * that is wrong for every typeface, every text size and every window, and the
+ * **The pagination is measured, not estimated.** Characters per page is wrong
+ * for every typeface, every text size and every window, and the
  * dyslexia-friendly face is substantially wider than the default at the same
  * size. So the words go into the real box and the browser is asked how tall
- * they came out. The cost is a run of synchronous layouts when a note opens,
- * which is once per note and invisible.
+ * they came out, at the cost of a run of synchronous layouts when a note opens.
  */
 
 interface Handlers {
@@ -36,14 +30,11 @@ interface Handlers {
 }
 
 /**
- * One word, or a piece of one.
- *
- * Pagination breaks between tokens, so a token is the smallest thing that can
- * be moved to the next page — which means an unbroken run of characters longer
- * than a page would have nowhere to go and would be quietly clipped. Long runs
- * are therefore cut into pieces at parse time and rejoined with no space, so
- * the text reads exactly as written and the paginator still has somewhere to
- * break. See `CHUNK`.
+ * One word, or a piece of one. Pagination breaks between tokens, so a token is
+ * the smallest thing that can move to the next page — which means an unbroken
+ * run longer than a page would have nowhere to go and would be clipped. Long
+ * runs are cut at parse time and rejoined with no space, so the text reads
+ * exactly as written. See `CHUNK`.
  */
 interface Token {
   readonly text: string;
@@ -126,7 +117,7 @@ export class Reading {
     this.root.addEventListener('wheel', this.handleWheel, { passive: true });
     // Catches the window resizing and the text-size slider in one, since both
     // reach the box as a change in its measurements. The typeface arriving does
-    // not — the box is the same size in a different face — so that is listened
+    // not — the box is the same size in a different face — so it is listened
     // for separately.
     this.resize = new ResizeObserver(this.handleResize);
     this.resize.observe(this.bodyEl);
@@ -138,11 +129,9 @@ export class Reading {
   }
 
   /**
-   * Opens a note at its first page.
-   *
-   * The panel is unhidden *before* the note is laid out, because a hidden box
-   * has no height and pagination measured against no height is one page of
-   * nothing.
+   * Opens a note at its first page. The panel is unhidden *before* the note is
+   * laid out, because a hidden box has no height and pagination measured
+   * against no height is one page of nothing.
    */
   open(note: Note): void {
     this.titleEl.textContent = note.title;
@@ -151,9 +140,8 @@ export class Reading {
     this.hard = parsed.hard;
 
     // Only on the way in from closed. Opening a second note over the first is
-    // one screen showing something else, not a second screen — and telling the
-    // caller it opened again would have it record a pointer-lock state it had
-    // already given up, so closing would leave the mouse free.
+    // one screen showing something else, and telling the caller it opened again
+    // would have it record a pointer-lock state it had already given up.
     const entering = !this.open_;
     this.open_ = true;
     this.root.hidden = false;
@@ -184,13 +172,11 @@ export class Reading {
   // --- pagination -----------------------------------------------------------
 
   /**
-   * Walks the note, one page at a time, asking the box what fits.
-   *
-   * Every page is found by galloping out from the length of the last one and
-   * then bisecting the bracket that overshot. A plain bisection over the whole
-   * remaining note would work and would cost `log(words)` layouts a page rather
-   * than `log(page)`; on a long note that is the difference between a few dozen
-   * measurements and a few hundred.
+   * Walks the note, one page at a time, asking the box what fits. Every page is
+   * found by galloping out from the length of the last one and then bisecting
+   * the bracket that overshot — `log(page)` layouts a page rather than
+   * `log(words)`, which on a long note is a few dozen measurements against a
+   * few hundred.
    */
   private repaginate(): void {
     this.starts = [0];
@@ -297,12 +283,11 @@ export class Reading {
   }
 
   /**
-   * Re-measures, keeping the reader on the words they were looking at.
-   *
-   * By the first word of the page rather than by the page number, which is the
-   * whole reason this is not two lines: making the text bigger cuts the note
-   * into more pages, so page four of nine is somewhere else entirely in page
-   * six of fourteen. The word is the thing that did not move.
+   * Re-measures, keeping the reader on the words they were looking at — by the
+   * first word of the page rather than by the page number. Making the text
+   * bigger cuts the note into more pages, so page four of nine is somewhere
+   * else entirely in page six of fourteen. The word is the thing that did not
+   * move.
    */
   private readonly handleResize = (): void => {
     // The observer fires once on its own the moment the panel is unhidden, and
@@ -360,12 +345,11 @@ export class Reading {
 }
 
 /**
- * The note body's markup, which is three marks and no more.
- *
- * A blank line starts a paragraph, a line of three or more hyphens forces a
- * page, and that is the lot. There is deliberately no way to say *bold* or
- * *centred*: the reading screen decides how a note looks, and a format that
- * lets one note style itself is a format where two notes disagree.
+ * The note body's markup, which is three marks and no more: a blank line starts
+ * a paragraph, a line of three or more hyphens forces a page, and that is the
+ * lot. There is deliberately no way to say bold or centred — the reading screen
+ * decides how a note looks, and a format that lets one note style itself is a
+ * format where two notes disagree.
  */
 function parse(body: string): { tokens: Token[]; hard: number[] } {
   const tokens: Token[] = [];

@@ -16,18 +16,16 @@ import { onFontChange, offFontChange } from './font';
  * The options menu, and the button that opens it.
  *
  * There is no pause. Releasing the mouse stops you steering and nothing else —
- * the wind keeps blowing, the mill keeps turning — so this is a menu that is
- * reachable while you are not playing rather than a screen the game stops
- * behind. That is why the backdrop is barely tinted: half the panel is video
- * settings, and you are meant to be able to watch the dither come off the
- * world while you drag the switch.
+ * the wind keeps blowing, the mill keeps turning — so this is a menu reachable
+ * while you are not playing rather than a screen the game stops behind. Hence
+ * the barely tinted backdrop: half the panel is video settings, and you are
+ * meant to watch the dither come off the world as you drag the switch.
  *
- * **Every row is built from the schema in `model.ts`.** Nothing here knows
- * that reduced motion overrides four other switches, or that the correction
- * strength appears only once a correction is chosen; it reads `enabledWhen`,
- * `shownWhen`, displays the value `effective`
- * reports, and redraws. Adding an option is one entry in that file and no
- * change to this one.
+ * **Every row is built from the schema in `model.ts`.** Nothing here knows that
+ * reduced motion overrides four other switches, or that the correction strength
+ * appears only once a correction is chosen; it reads `enabledWhen` and
+ * `shownWhen`, displays the value `effective` reports, and redraws. Adding an
+ * option is one entry in that file and no change to this one.
  */
 
 /** Which tab the panel opens on. */
@@ -71,9 +69,8 @@ export class OptionsMenu {
     this.root.hidden = true;
 
     // Full-screen, and the reason the panel is usable at all: without it a
-    // click anywhere outside the box lands on the canvas, takes pointer lock,
-    // and the menu vanishes mid-adjustment. Clicking it closes the menu, which
-    // is what a player expects of a dimmed background.
+    // click outside the box lands on the canvas, takes pointer lock, and the
+    // menu vanishes mid-adjustment. Clicking it closes the menu.
     const scrim = document.createElement('div');
     scrim.className = 'options-scrim';
     scrim.addEventListener('click', () => this.hide());
@@ -181,16 +178,15 @@ export class OptionsMenu {
         // Marks the row as moved from its default, which is what shows the
         // revert control. Compared against the *stored* value rather than the
         // effective one: what is marked is what the player changed, not what
-        // some other switch is currently overriding.
+        // some other switch is overriding.
         row.classList.toggle(
           'is-changed',
           this.options[control.key] !== DEFAULT_OPTIONS[control.key],
         );
         const enabled = control.enabledWhen?.(this.options) ?? true;
         // Greyed rather than hidden. A control that vanishes when something
-        // above it is switched off makes the panel jump under the cursor and
-        // leaves the player wondering where the option went; disabled, it says
-        // plainly that it exists and what it is waiting on.
+        // above it is switched off makes the panel jump under the cursor;
+        // disabled, it says plainly that it exists and what it is waiting on.
         row.classList.toggle('is-disabled', !enabled);
         const text = control.note?.(this.options) ?? null;
         note.textContent = text ?? '';
@@ -205,17 +201,14 @@ export class OptionsMenu {
   }
 
   /**
-   * The marker to the left of a setting that has been moved.
+   * The marker to the left of a setting that has been moved: an asterisk that
+   * turns into a return arrow under the cursor and puts the setting back when
+   * clicked. One element doing both jobs means the mark is exactly where your
+   * hand already is when you want to undo it.
    *
-   * An asterisk that turns into a return arrow under the cursor, and puts the
-   * setting back when it is clicked. One element doing both jobs is the point:
-   * the mark that tells you something is not standard is exactly where your
-   * hand already is when you want to undo it, so there is no separate "revert"
-   * column standing empty on every other row.
-   *
-   * Always in the document, and hidden with `visibility` rather than removed —
-   * its column has to hold its width whether or not the mark is showing, or
-   * every label in the panel would shift sideways as settings are changed.
+   * Always in the document, hidden with `visibility` rather than removed — its
+   * column has to hold its width, or every label would shift sideways as
+   * settings are changed.
    */
   private buildRevert(control: Control): HTMLElement {
     const button = document.createElement('button');
@@ -325,12 +318,10 @@ export class OptionsMenu {
   // --- state ----------------------------------------------------------------
 
   /**
-   * Writes one option and republishes the whole set.
-   *
-   * The menu redraws from the same object the engine is handed, so there is no
-   * moment at which the panel and the game disagree — and because the switches
-   * display `effective` values, a row that another switch is overriding
-   * updates itself the instant that switch moves.
+   * Writes one option and republishes the whole set. The menu redraws from the
+   * same object the engine is handed, so there is no moment at which the panel
+   * and the game disagree — and because the switches display `effective`
+   * values, a row another switch is overriding updates itself instantly.
    */
   private set<K extends keyof Options>(key: K, value: Options[K]): void {
     this.options[key] = value;

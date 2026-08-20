@@ -1,12 +1,10 @@
 /**
  * The two pieces of screen furniture portals need: a prompt and a fade.
  *
- * Both are DOM rather than drawn into the scene. That is deliberate — the
- * render pipeline chunks everything to three-pixel blocks, quantizes it to a
- * handful of levels and dithers the result, and text put through that is
- * illegible. Keeping the interface in the document layer above the canvas
- * means it stays sharp while the world stays filtered, which is also how the
- * capture hint and the touch controls already work.
+ * Both are DOM rather than drawn into the scene. The render pipeline chunks
+ * everything to three-pixel blocks, quantizes it and dithers the result, and
+ * text put through that is illegible. The interface stays sharp in the document
+ * layer above the canvas while the world stays filtered.
  */
 
 /** How long a transition spends at full black. Long enough to hide a rebuild. */
@@ -15,18 +13,15 @@ export const FADE_HOLD = 0.14;
 export const FADE_TIME = 0.22;
 
 /**
- * The label above the crosshair.
- *
- * Sits above rather than beside it because the crosshair is the aiming point
- * and text through the middle of it would fight with what is being aimed at.
- * Above and centred keeps it in the same saccade.
+ * The label above the crosshair. Above rather than beside, because the
+ * crosshair is the aiming point and text through the middle of it would fight
+ * with what is being aimed at; above and centred keeps it in the same saccade.
  */
 /**
  * What a prompt says: what the thing is, and — for a door — where it leads.
- *
- * `target` is optional, and the joiner disappears with it. A door is a link and
- * reads as two nouns with a preposition between them; a sign on a gallery row
- * is one noun and nothing else, and "Bovine / to /" is worse than useless.
+ * `target` is optional and the joiner disappears with it. A door is a link and
+ * reads as two nouns with a preposition between them; a sign is one noun, and
+ * "Bovine / to /" is worse than useless.
  */
 export interface Prompt {
   title: string;
@@ -35,10 +30,9 @@ export interface Prompt {
    * Which of the two things a second line can be.
    *
    * `link` — a door. Object, joiner, destination, and the destination reads
-   * *quieter*, because the name of the door is what you are standing in front
-   * of and the place beyond it is not there yet.
+   * *quieter*: the name of the door is what you are standing in front of.
    *
-   * `read` — something with words in it. No joiner, and the emphasis inverts:
+   * `read` — something with words in it. No joiner, and the emphasis inverts —
    * a Leather Bound Book is an object and A Treatise On Prague is the reason to
    * pick it up, so the title of the note is the loud line.
    */
@@ -59,9 +53,8 @@ export class Reticle {
     this.element.setAttribute('aria-live', 'polite');
 
     // No key cap here. The controls are taught once, on the capture panel;
-    // repeating the key on every door the player ever looks at is teaching
-    // something they learned in the first ten seconds, and it competes with the
-    // name of the place — which is the only part worth reading.
+    // repeating the key on every door competes with the name of the place,
+    // which is the only part worth reading.
     //
     // Three stacked lines, all centred on each other:
     //
@@ -70,9 +63,8 @@ export class Reticle {
     //     Arkstin Village
     //
     // The middle word is a joiner, not a label, so it is set small and dim.
-    // Centring all three rather than left-aligning them is what makes the
-    // block read as one statement instead of as a list of two things with a
-    // preposition stranded between them.
+    // Centring all three is what makes the block read as one statement rather
+    // than a list of two things with a preposition stranded between them.
     const lines = document.createElement('span');
     lines.className = 'prompt-lines';
 
@@ -92,11 +84,9 @@ export class Reticle {
   }
 
   /**
-   * Shows a prompt, or hides it when given null.
-   *
-   * Cheap to call every frame with the same value — the DOM is only touched
-   * when something actually changed, because writing `textContent` on every
-   * frame invalidates layout on every frame.
+   * Shows a prompt, or hides it when given null. Cheap to call every frame with
+   * the same value — the DOM is only touched when something changed, because
+   * writing `textContent` every frame invalidates layout every frame.
    */
   set(prompt: Prompt | null): void {
     const wanted = prompt !== null;
@@ -114,10 +104,8 @@ export class Reticle {
         // so a one-line prompt would sit high in a three-line block and read as
         // misaligned with the crosshair it is meant to be captioning.
         const second = Boolean(prompt.target);
-        // A readable never takes the joiner even when it has a second line.
-        // "Leather Bound Book / to / A Treatise On Prague" is not what that
-        // relationship is: the note is not somewhere the book leads, it is
-        // what the book *is*.
+        // A readable never takes the joiner even when it has a second line. The
+        // note is not somewhere the book leads, it is what the book *is*.
         this.joiner.hidden = !second || kind === 'read';
         this.target.hidden = !second;
         this.element.classList.toggle('is-readable', kind === 'read');
@@ -135,13 +123,9 @@ export class Reticle {
 }
 
 /**
- * A black plane over everything, for covering a zone swap.
- *
- * The swap itself is instant — geometry in, collider rebuilt, player moved —
- * and the fade exists to hide the fact that it is instant. Without it a portal
- * reads as a glitch: the world simply becomes a different world between one
- * frame and the next, which is startling in a way that has nothing to do with
- * walking through a door.
+ * A black plane over everything, for covering a zone swap. The swap itself is
+ * instant — geometry in, collider rebuilt, player moved — and the fade exists
+ * to hide the fact that it is instant. Without it a portal reads as a glitch.
  */
 export class Fade {
   private readonly element: HTMLElement;
@@ -157,19 +141,9 @@ export class Fade {
    *
    * `during` is called at full black, so it may take as long as it likes
    * without anything being visible mid-change — **and that promise is
-   * awaited**, which is the whole contract.
-   *
-   * It was not. The parameter was typed `() => void` while the one caller
-   * passes an `async` closure that builds a zone, so the promise was created
-   * and dropped on the floor: the fade lifted after `FADE_HOLD` whatever the
-   * work was doing. A warm zone finished inside those hundred and forty
-   * milliseconds and nothing looked wrong, which is why it survived — a cold
-   * one did not, and the player arrived looking at an empty sky for a second
-   * before the world appeared around them.
-   *
-   * The `void |` in the type is what stops that happening again: a callback
-   * returning a promise now has to be awaited to satisfy the signature, and a
-   * synchronous one still works unchanged.
+   * awaited**, which is the whole contract. The `void |` in the type is what
+   * enforces it: a callback returning a promise has to be awaited to satisfy
+   * the signature, and a synchronous one still works unchanged.
    */
   async cover(during: () => void | Promise<void>): Promise<void> {
     this.element.classList.add('is-black');

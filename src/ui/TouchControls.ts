@@ -1,17 +1,9 @@
 import type { Input } from '../engine/Input';
 
 /**
- * Touch controls: left half of the screen is a movement stick, right half is a
- * look drag, plus a jump pad.
- *
- * These ship in Phase 1 rather than Phase 9 because pointer lock does not exist
- * on mobile Safari or Chrome for Android. Without them the deployed build is
- * simply not playable on a phone, and a phone against the live URL is how this
- * game gets tested.
- *
- * The stick is dynamic — it appears wherever the thumb lands rather than at a
- * fixed spot — which is the difference between a usable thumbstick and one you
- * have to look down at.
+ * Touch controls: left half of the screen is a movement stick, right half a
+ * look drag, plus a jump pad. The stick is dynamic — it appears wherever the
+ * thumb lands rather than at a fixed spot.
  */
 
 /** Travel in CSS pixels from the stick origin to full deflection. */

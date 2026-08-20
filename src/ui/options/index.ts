@@ -7,16 +7,13 @@ export { audioLatencyHint } from './apply';
 export type { Options } from './model';
 
 /**
- * The options, installed.
+ * The options, installed. One call, so `main.ts` says what the settings are
+ * attached to and nothing about how any of it works.
  *
- * One call, so `main.ts` says what the settings are attached to and nothing
- * about how any of it works. Everything else — the panel, the persistence, the
- * unit conversions, the rules between switches — lives under `ui/options/`.
- *
- * Two touch points rather than one, and the reason is boot order: the shadow
- * switches are read as a zone's meshes are prepared, which happens long before
- * the audio engine exists. So `main` loads the options early, uses those two,
- * and installs the rest once there is something to install them against.
+ * Two touch points rather than one, because of boot order: the shadow switches
+ * are read as a zone's meshes are prepared, long before the audio engine
+ * exists. So `main` loads the options early, uses those two, and installs the
+ * rest once there is something to install them against.
  */
 export interface OptionsHandle {
   /** The live object. Held by the debug panel, which edits it directly. */

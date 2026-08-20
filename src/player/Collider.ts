@@ -5,32 +5,28 @@ import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
- * The static collision world.
+ * The static collision world: three's `Octree` for storage, and everything
+ * that decides what a query costs is ours.
  *
- * three ships an `Octree` that indexes raw triangles, and that broad phase is
- * exactly what's wanted: triangles are the common denominator, so authored
- * walls, ramps and stairs all reduce to them, and so will the sculpted terrain
- * in Phase 5. There is only ever one collision path to reason about.
+ * Triangles are the common denominator, so authored walls, ramps, stairs and
+ * sculpted terrain all reduce to them and there is one collision path to
+ * reason about. `split` below decides where the tree stops dividing and
+ * `claim` collects candidates; both are the difference between a fast query
+ * and a slow one.
  *
- * What three ships is the *storage*. The two halves that decide what a query
- * costs are both ours: `split` below, which decides where the tree stops
- * dividing, and the gather that collects candidates. See `COLLISION-FIX.md`.
+ * The narrow phase is ours too. `Octree.capsuleIntersect` decides penetration
+ * from the capsule's distance to the triangle's *plane*, which is wrong
+ * wherever a capsule stands beside a small horizontal face — the tread of a
+ * stair reports the capsule half a metre inside it and launches the player. A
+ * closest-point test bounds every push by the capsule radius instead.
  *
- * The narrow phase is ours. `Octree.capsuleIntersect` decides penetration from
- * the capsule's distance to the triangle's *plane*, which is wrong wherever a
- * capsule stands beside a small horizontal face: the tread of a stair reports
- * the capsule as half a metre inside it and launches the player. Replacing it
- * with a proper closest-point test bounds every push by the capsule radius,
- * which is what makes stairs climb and slope feet stop wedging.
- *
- * Only meshes on the collision layer are indexed. That keeps decoration and
- * debug fixtures out of the collision set without a parallel scene graph.
+ * Only meshes on the collision layer are indexed, which keeps decoration and
+ * debug fixtures out of the set without a parallel scene graph.
  */
 
 /**
- * Re-exported so the collider's own callers need not know where layer numbers
- * live; the number itself belongs to `src/layers.ts`, which is the one place
- * they are handed out. See that file for why it is not defined here any more.
+ * Re-exported so the collider's callers need not know where layer numbers
+ * live. The number itself belongs to `src/layers.ts`.
  */
 export { COLLISION_LAYER };
 
@@ -40,35 +36,27 @@ export interface Contact {
   /** How far the capsule has to move along the normal to be clear. */
   depth: number;
   /**
-   * What the triangle is made of, or null if it is ground or something with no
-   * material of its own. See `SurfacedTriangle`.
+   * What the triangle is made of, or null if it is ground or has no material of
+   * its own. See `SurfacedTriangle`.
    */
   surface: SurfaceName | null;
 }
 
 /**
- * A collision triangle that remembers which prop it was cut from.
+ * A collision triangle that remembers which prop it was cut from — how the
+ * game knows what it is standing on.
  *
- * **This is how the game knows what it is standing on**, and it is one field
- * because the collider is already the authority: the thing holding the player
- * up is, by definition, the thing they last pushed out of. Nothing else has to
- * be asked, nothing has to be searched for, and there is no way for the answer
- * to disagree with the physics.
- *
- * The alternative was to ask the geometry afterwards — sweep the props near the
- * player's feet and work out which one the sole is resting on — and it is both
- * slower and worse. Slower because it re-walks triangles the collider has
- * already sorted; worse because it is a *second* opinion about contact, and a
- * second opinion is wrong exactly when it matters: at the instant of landing,
- * on a curve, on anything narrow.
+ * One field, because the collider is already the authority: the thing holding
+ * the player up is by definition the thing they last pushed out of. There is
+ * no second opinion about contact to disagree with the physics at the instant
+ * of landing, on a curve, or on anything narrow.
  */
 interface SurfacedTriangle extends THREE.Triangle {
   surface: SurfaceName | null;
   /**
-   * The id of the last query that claimed this triangle. See `claim`.
-   *
-   * A triangle straddling a node boundary is stored in every node it touches,
-   * so one query reaches the same triangle many times over and has to notice.
+   * The id of the last query that claimed this triangle. See `claim`. A
+   * triangle straddling a node boundary is stored in every node it touches, so
+   * one query reaches it many times over and has to notice.
    */
   stamp: number;
 }
@@ -76,21 +64,16 @@ interface SurfacedTriangle extends THREE.Triangle {
 /**
  * Marks a subtree as solid. Call before building the collider.
  *
- * A subtree flagged `userData.noCollide` is skipped, along with everything
- * under it. Builders return one object and callers mark the whole of it, which
- * is right for the parts of a prop that are made of wood or stone and wrong for
- * the parts that are not made of anything — a street lamp's beam of light is
- * geometry, and without an opt-out the player would walk into it and stop.
+ * A subtree flagged `userData.noCollide` is skipped along with everything under
+ * it — a street lamp's beam of light is geometry, and without an opt-out the
+ * player would walk into it and stop. Recursive rather than `traverse`, which
+ * has no way to prune: it would skip the flagged node and carry on into its
+ * children anyway.
  *
- * Recursive rather than `traverse`, because `traverse` has no way to prune: it
- * would skip the flagged node and then carry on into its children anyway.
- *
- * **This can only take a prop whole or leave it whole**, which is why the rule
- * about what a prop is made of lives with the builder rather than here — see the
- * collision section of `art/assemble`. By the time a mesh reaches this function
- * its parts have been merged into one buffer and nothing can tell a door's leaf
- * from the rivets on it. A builder that wants only part of itself to be solid
- * has to say so while it is still being built.
+ * **This can only take a prop whole or leave it whole.** By the time a mesh
+ * reaches here its parts are merged into one buffer and nothing can tell a
+ * door's leaf from the rivets on it, so a builder that wants only part of
+ * itself solid has to say so while it is still being built.
  */
 export function markCollidable<T extends THREE.Object3D>(object: T): T {
   mark(object);
@@ -126,26 +109,24 @@ interface Index {
 /**
  * The id of the query currently gathering candidates.
  *
- * **It must never be reset.** A stamp left over from an earlier query that
- * happened to read as current would make the gather skip a triangle it has not
- * actually seen, and a skipped triangle is a player walking through a wall
- * once, unrepeatably, with nothing in the log. Only ever incremented, so a
- * stale stamp is always smaller than the live one. A few hundred queries a
- * frame outlives any session by a wide margin.
+ * **It must never be reset.** A stamp left over from an earlier query that read
+ * as current would make the gather skip a triangle it has not seen, and a
+ * skipped triangle is a player walking through a wall once, unrepeatably, with
+ * nothing in the log. Only ever incremented, so a stale stamp is always
+ * smaller than the live one.
  */
 let query = 0;
 
 /**
  * Takes the triangles a node holds, each one only once per query.
  *
- * Three's own gatherers dedupe with `triangles.indexOf(t) === -1`, which is a
- * linear scan of everything found so far, per entry visited — so the cost is
- * the product of the two. In a dense interior that is tens of thousands of
- * entries scanned against hundreds of candidates, for one query. A stamp on the
- * triangle answers the same question in one comparison.
+ * Three's own gatherers dedupe with `indexOf`, a linear scan of everything
+ * found so far per entry visited — in a dense interior, tens of thousands of
+ * entries scanned against hundreds of candidates, for one query. A stamp
+ * answers the same question in one comparison.
  *
- * Internal nodes hold no triangles of their own — `split` moves all of them
- * down — so this does nothing above a leaf.
+ * Internal nodes hold no triangles of their own, so this does nothing above a
+ * leaf.
  */
 function claim(node: Octree, out: SurfacedTriangle[]): void {
   for (const triangle of node.triangles as SurfacedTriangle[]) {
@@ -158,8 +139,8 @@ function claim(node: Octree, out: SurfacedTriangle[]): void {
 /**
  * Candidates for a capsule. Descends only into boxes it could touch.
  *
- * Two walks rather than one taking a box test, because one closure per query is
- * one allocation per query, and this runs about three hundred times a frame.
+ * Two walks rather than one taking a box test: one closure per query is one
+ * allocation per query, and this runs about three hundred times a frame.
  */
 function gatherCapsule(node: Octree, capsule: Capsule, out: SurfacedTriangle[]): void {
   claim(node, out);
@@ -179,30 +160,21 @@ function gatherRay(node: Octree, ray: THREE.Ray, out: SurfacedTriangle[]): void 
 export class Collider {
   private index: Index = { octree: new Octree(), triangles: 0 };
   /**
-   * One index per zone, kept.
+   * One index per zone, kept. Zones are entered far more often than they
+   * change, and indexing the exterior takes longer than the fade's third of a
+   * second of black — so building once per zone and swapping the reference
+   * makes a crossing free.
    *
-   * **Zones are entered far more often than they change.** Indexing the
-   * exterior takes about 140 ms and terrain pushes that well past the fade's
-   * third of a second of black — so rebuilding on every crossing meant a visible
-   * hitch at every doorway, paid over and over for geometry that had not moved
-   * since the last time. Building once per zone and swapping the reference makes
-   * a crossing free.
-   *
-   * The cost is memory: every zone the player has visited keeps its octree. For
-   * a world of this size that is a few megabytes, and the alternative was
-   * spending a tenth of a second on every threshold forever.
-   *
-   * A zone whose geometry genuinely changes must call `invalidate` — nothing
-   * here can detect a mutated scene graph, and a stale index is a player walking
-   * through a wall that is visibly in front of them.
+   * The cost is memory: every zone the player has visited keeps its octree. A
+   * zone whose geometry genuinely changes must call `invalidate`, because
+   * nothing here can detect a mutated scene graph and a stale index is a player
+   * walking through a wall that is visibly in front of them.
    */
   private readonly cache = new Map<string, Index>();
 
   /**
-   * Points the collider at `root`, building and caching under `key`.
-   *
-   * Without a key it builds every time and caches nothing, which is what the
-   * checks want — they construct throwaway colliders over throwaway scenes.
+   * Points the collider at `root`, building and caching under `key`. Without a
+   * key it builds every time and caches nothing.
    */
   build(root: THREE.Object3D, key?: string): void {
     if (key !== undefined) {
@@ -218,10 +190,9 @@ export class Collider {
   }
 
   /**
-   * Indexes `root` into the cache *without* switching to it.
-   *
-   * For paying a zone's build cost during the loading screen instead of behind
-   * the fade the first time somebody opens its door.
+   * Indexes `root` into the cache *without* switching to it — for paying a
+   * zone's build cost during the loading screen rather than behind the fade
+   * the first time somebody opens its door.
    */
   warm(root: THREE.Object3D, key: string): void {
     if (this.cache.has(key)) return;
@@ -248,13 +219,9 @@ export class Collider {
   }
 
   /**
-   * How much geometry is indexed — worth watching once zones stream in.
-   *
-   * Unique triangles, counted as they are cut. It used to be the number of
-   * *entries* in the tree, which is a different and much larger number: a
-   * triangle is stored in every node it touches. A seven-thousand-triangle hut
-   * read back as three hundred thousand, which is most of the reason the cost
-   * of a query went unnoticed for as long as it did.
+   * How much geometry is indexed: unique triangles, counted as they are cut.
+   * Not the number of entries in the tree, which is much larger — a triangle is
+   * stored in every node it touches.
    */
   get triangles(): number {
     return this.index.triangles;
@@ -303,13 +270,12 @@ export class Collider {
   }
 
   /**
-   * Nearest surface along a ray. Phase 3 uses this for audio occlusion and
-   * Phase 8 for the interaction cursor.
+   * Nearest surface along a ray, for audio occlusion and the interaction
+   * cursor.
    *
    * Three's `rayIntersect` also reports the triangle and the point, which
-   * neither caller wants; doing the loop here is what lets the ray and the hit
-   * point be reused rather than allocated per call, and audio occlusion casts
-   * one of these per emitter.
+   * neither caller wants; the loop is here so the ray and the hit point can be
+   * reused rather than allocated per call, and occlusion casts one per emitter.
    */
   raycast(origin: THREE.Vector3, direction: THREE.Vector3): number | null {
     if (direction.lengthSq() === 0) return null;
@@ -336,12 +302,12 @@ export class Collider {
  * Capsule against one triangle. Returns how deep it is inside, or 0 if clear,
  * and writes the unit push-out direction into `_offset`.
  *
- * The capsule is reduced to the single sphere that sits closest to the
- * triangle, after which it is an ordinary sphere-triangle test. Finding that
- * sphere is the whole trick: cross the capsule's axis with the triangle plane
- * to get a point on the axis roughly opposite the triangle, clamp that onto
- * the triangle to get a reference point, then take the point on the axis
- * closest to the reference. Faces, edges and vertices all fall out of it.
+ * The capsule is reduced to the single sphere sitting closest to the triangle,
+ * after which it is an ordinary sphere-triangle test. Finding that sphere is
+ * the trick: cross the capsule's axis with the triangle plane for a point on
+ * the axis roughly opposite it, clamp that onto the triangle for a reference
+ * point, then take the point on the axis closest to the reference. Faces,
+ * edges and vertices all fall out of it.
  */
 function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
   triangle.getNormal(_normal);
@@ -383,7 +349,7 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
 
 /**
  * Cuts every collidable mesh under `root` into triangles and adds them to the
- * octree, each one carrying its mesh's material.
+ * octree, each carrying its mesh's material.
  *
  * A copy of three's `Octree.fromGraphNode` — same traversal, same layer test,
  * same handling of indexed geometry — with the surface stamped on and without
@@ -422,21 +388,16 @@ function cut(octree: Octree, root: THREE.Object3D): number {
   return count;
 }
 
-/**
- * How deep the tree may go. Three's own cap is 16, and every zone in the game
- * hit it.
- */
+/** How deep the tree may go. Three's own cap is 16 and every zone hit it. */
 const MAX_DEPTH = 11;
 
 /** A node holding no more than this is not worth dividing. Three's number. */
 const LEAF_SIZE = 8;
 
 /**
- * Refuse to split if any one child would keep this share of the parent.
- *
- * The runaway case: a handful of large triangles that each straddle the whole
- * box are still a handful in every child, and dividing again asks the same
- * question of a smaller box and gets the same answer, all the way down.
+ * Refuse to split if any one child would keep this share of the parent. The
+ * runaway case is a handful of large triangles that each straddle the whole
+ * box: they are still a handful in every child, all the way down.
  */
 const NO_PROGRESS = 0.9;
 
@@ -444,32 +405,25 @@ const NO_PROGRESS = 0.9;
 const MAX_DUPLICATION = 2.5;
 
 /**
- * Above this, a node is divided whatever the two guards say.
- *
- * The guards ask whether dividing is worth what it costs, and the answer is
- * always yes once a leaf is large enough that a query has to scan all of it —
- * halving the box in each direction is progress even when nine tenths of the
- * triangles go to one side of it.
+ * Above this, a node is divided whatever the two guards say. The guards ask
+ * whether dividing is worth what it costs, and the answer is always yes once a
+ * leaf is large enough that a query has to scan all of it.
  */
 const SCAN_LIMIT = 192;
 
 /**
  * Divides a node into eight, unless dividing is only making copies.
  *
- * Three's `split` asks one question — is this node still holding more than
- * eight triangles, and is there depth left — and a triangle crossing a boundary
- * is copied into every child it touches. Dense detail drives subdivision to the
- * cap, and every large triangle passing through that volume is copied into all
- * of the thousands of leaves that result. A doorway is exactly where those two
- * meet: a door's hardware, and the wall and floor whose big triangles run
- * through it.
+ * Three's `split` asks one question — more than eight triangles, and depth left
+ * — and copies a triangle crossing a boundary into every child it touches.
+ * Dense detail then drives subdivision to the cap and every large triangle
+ * passing through that volume is copied into all the resulting leaves. A
+ * doorway is where the two meet: a door's hardware, and the wall and floor
+ * whose big triangles run through it.
  *
- * So this asks whether the split *separated* anything, and stays a leaf when it
+ * So this asks whether the split *separated* anything and stays a leaf when it
  * did not — up to `SCAN_LIMIT`, past which a leaf costs more to scan than the
- * nodes cost to walk. Both halves are load-bearing: without the guards a
- * doorway subdivides to the cap for nothing, and without the cap the guards
- * leave single leaves holding thousands of triangles, which was the worse of
- * the two.
+ * nodes cost to walk. Both halves are load-bearing.
  */
 function split(node: Octree, level: number): void {
   const box = node.box;
