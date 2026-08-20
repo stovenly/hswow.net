@@ -6,71 +6,49 @@ import { Weather } from '../weather';
 import { DEFAULT_AUDIO } from '../AudioEngine';
 
 /**
- * Rendering a model offline, so it can be measured.
+ * Rendering a model offline, so `measure.ts` can put numbers on it.
  *
- * `measure.ts` decides what the numbers mean and is pure arithmetic. This is
- * the other half: getting a model to actually produce a buffer without a
- * speaker, a frame loop or a player standing in front of it.
+ * It runs in a browser rather than headlessly, and that is not a convenience:
+ * `OfflineAudioContext` *is* the Web Audio implementation, and the point is to
+ * exercise the real biquads, the real panner and the real worklets. A
+ * reimplementation in Node would measure the reimplementation.
  *
- * It has to run in a browser and not in the check suite, and that is not a
- * convenience — `OfflineAudioContext` *is* the Web Audio implementation, and
- * the whole point of auditioning is to exercise the real biquads, the real
- * panner and the real worklets rather than a model of them. A reimplementation
- * in Node would measure the reimplementation.
+ * Almost every model schedules events ahead on the audio clock and is pumped
+ * once a frame. Offline there is no frame loop and `startRendering()` runs the
+ * whole buffer in one call, so a naive render pumps the scheduler once and
+ * returns one lookahead window of sound followed by silence.
+ * `OfflineAudioContext.suspend(when)` is the way out: rendering stops at a
+ * scheduled time, control comes back, and `resume()` carries on. Pumping at
+ * each suspension is the offline equivalent of a frame, and a better one — the
+ * steps are exact, so a texture rendered twice is identical.
  *
- * ## The problem this solves
- *
- * Almost every model in the library schedules events *ahead* on the audio
- * clock and is pumped once a frame from the game loop. Offline there is no
- * frame loop, and `startRendering()` is one call that runs the whole buffer —
- * so a naive render pumps the scheduler exactly once, gets a single lookahead
- * window of events, and returns 140 milliseconds of sound followed by silence.
- * Every texture in the library would measure as a fade-out.
- *
- * `OfflineAudioContext.suspend(when)` is the way out, and it is the reason
- * this is possible at all: rendering stops at a scheduled time, control comes
- * back on the main thread, and `resume()` carries on. Pumping the model at
- * each suspension is the offline equivalent of a frame, and it is *better* than
- * a frame — the steps are exact, so a texture rendered twice is identical
- * where the same model driven by `requestAnimationFrame` never is.
- *
- * ## Weather runs too
- *
- * The stand-in engine has its own `Weather`, advanced by the same steps. Two
- * models in the library — wind and foliage — do nothing interesting at a fixed
- * gust strength, and a measurement taken with the weather frozen at its
- * initial value would describe a model nobody will ever hear.
+ * The stand-in engine has its own `Weather`, advanced by the same steps. Wind
+ * and foliage do nothing interesting at a fixed gust strength.
  */
 
 /** Samples between pumps. A multiple of the 128-sample render quantum. */
 const STEP_SAMPLES = 1024;
 
 /**
- * Something that can be rendered and measured.
- *
- * `build` is handed a stand-in engine and returns a model. It does *not*
- * connect anything: where the output goes is the harness's business, and a
- * model that wired itself to a bus could not be measured in isolation.
+ * Something that can be rendered and measured. `build` is handed a stand-in
+ * engine and returns a model; it does *not* connect anything, because a model
+ * that wired itself to a bus could not be measured in isolation.
  */
 export interface Subject {
   name: string;
   /**
-   * Continuous texture, or discrete events.
-   *
-   * Not a label — it decides which crest-factor band the row is judged
-   * against, and the two are nearly disjoint. See `Audition.ts`.
+   * Continuous texture, or discrete events. Not a label — it decides which
+   * crest-factor band the row is judged against, and the two are nearly
+   * disjoint.
    */
   kind?: 'texture' | 'event';
   /** How long to render. Long enough to contain the model's own rhythm. */
   seconds?: number;
   build(engine: AudioEngine): SoundModel;
   /**
-   * Resolves when the model is fully assembled.
-   *
-   * For the one model that loads part of itself over the network. Without it
-   * the render finishes before the wasm arrives and quietly measures the
-   * fallback path — which is a real thing worth measuring and not the thing
-   * the row claims to be.
+   * Resolves when the model is fully assembled, for the models that load part
+   * of themselves over the network. Without it the render finishes before the
+   * wasm arrives and measures the fallback under the real model's name.
    */
   ready?(model: SoundModel): Promise<unknown>;
 }
@@ -79,26 +57,18 @@ export interface Subject {
 export const DEFAULT_SECONDS = 6;
 
 /**
- * Where a subject is deemed to stand.
- *
- * Wind-driven models now sample the gust field at their own position, because
- * the field travels. A bench has no geography, so everything is measured at
- * the origin — where the lag is zero and the field reads exactly what the
- * global `strength` used to. That keeps a rendered row comparable with the
- * baselines captured before the field became positional.
+ * Where a subject is deemed to stand. Wind-driven models sample the gust field
+ * at their own position, and a bench has no geography, so everything is
+ * measured at the origin — where the lag is zero.
  */
 const ORIGIN = new THREE.Vector3();
 
 /**
- * A stand-in for `AudioEngine` around an offline context.
- *
- * Not an `AudioEngine`: that constructor opens a real `AudioContext`, listens
- * for gestures and renders impulse responses, none of which belongs in a
- * measurement. Models only ever touch `context`, `noise`, `weather` and — for
- * the two that connect themselves — `dry` and `send`, so those are what this
- * provides. The cast is narrow and deliberate, and it is checked by the fact
- * that adding a new field to `AudioEngine` and using it from a model would
- * fail here at runtime rather than silently measuring something else.
+ * A stand-in for `AudioEngine` around an offline context. Not an
+ * `AudioEngine`: that constructor opens a real context, listens for gestures
+ * and renders impulse responses, none of which belongs in a measurement.
+ * Models only touch `context`, `noise`, `weather` and — for the two that
+ * connect themselves — `dry` and `send`, so those are what this provides.
  */
 function standIn(context: OfflineAudioContext, destination: AudioNode): AudioEngine {
   const engine = {
@@ -120,11 +90,9 @@ function standIn(context: OfflineAudioContext, destination: AudioNode): AudioEng
 }
 
 /**
- * Renders one subject to a mono buffer.
- *
- * Mono on purpose. Every measurement in `measure.ts` is about spectrum and
- * level, none of them is about width, and folding a stereo model down would
- * hide a channel imbalance rather than reveal one — so models are measured
+ * Renders one subject to a mono buffer. Mono on purpose: every measurement in
+ * `measure.ts` is about spectrum and level, and folding a stereo model down
+ * would hide a channel imbalance rather than reveal one. Models are measured
  * before they reach a panner, where they are mono anyway.
  */
 export async function render(

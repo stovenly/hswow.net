@@ -1,20 +1,14 @@
 /**
- * Measuring whether a model sounds bad.
+ * Measuring whether a model sounds bad. Pure arithmetic over a rendered
+ * buffer — no Web Audio, no DOM. The rendering half needs an
+ * `OfflineAudioContext` and lives in `render.ts`; this decides what the
+ * numbers mean.
  *
- * Pure arithmetic over a rendered buffer — no Web Audio, no DOM — so it runs in
- * the check suite as readily as in the browser. The rendering half needs an
- * `OfflineAudioContext` and lives separately; this is the half that decides
- * what the numbers mean.
- *
- * **"Sounds bad" has measurable failure modes**, and this project has already
- * paid for two of them by ear. The foliage model's header records that
- * bubble-wrap is a *mix* failure rather than a synthesis one — grain overlap
- * below about ten. `check:audio` catches a gust field stuck near its mean,
- * which presents as "the wind model is too quiet". Neither was findable by
- * looking at the code, and both are trivial to see in a number.
- *
- * None of this replaces listening. It catches the faults that are embarrassing
- * to ship and tedious to find, so that listening can be spent on judgement.
+ * "Sounds bad" has measurable failure modes: grain overlap below about ten is
+ * bubble wrap, and a gust field stuck near its mean presents as "the wind
+ * model is too quiet". Neither is findable by reading the code and both are
+ * obvious in a number. None of it replaces listening — it catches the faults
+ * that are embarrassing to ship and tedious to find.
  */
 
 export interface Measurements {
@@ -24,21 +18,16 @@ export interface Measurements {
   /** Mean sample value. Anything but ~0 wastes headroom and thumps on start. */
   dc: number;
   /**
-   * Peak over RMS, in dB.
-   *
-   * The shape of a texture in one number. Very high means the energy is in
-   * sparse spikes — individually audible events, which is what bubble wrap is.
-   * Very low means a wall of constant level, which is a drone the ear stops
-   * hearing. Most convincing ambience sits between roughly 8 and 20 dB.
+   * Peak over RMS, in dB — the shape of a texture in one number. Very high
+   * means the energy is in sparse spikes, which is what bubble wrap is; very
+   * low is a wall of constant level, which is a drone the ear stops hearing.
+   * Most convincing ambience sits between roughly 8 and 20 dB.
    */
   crest: number;
   /**
-   * Centre of spectral mass, in Hz.
-   *
-   * Tracks perceived brightness. Useful less as an absolute than as something
-   * to watch while sweeping a parameter: a model whose "intensity" control
-   * moves level but not centroid reads as a knob being turned rather than as
-   * something happening.
+   * Centre of spectral mass, in Hz. Tracks perceived brightness, and is most
+   * useful watched while sweeping a parameter: a model whose intensity control
+   * moves level but not centroid reads as a knob being turned.
    */
   centroid: number;
   /** Energy in each octave band, normalised to sum to 1. See `BANDS`. */
@@ -48,13 +37,10 @@ export interface Measurements {
 }
 
 /**
- * Octave-ish bands, by their lower edge in Hz.
- *
- * The 2–5 kHz region is deliberately its own band: it is where the ear is most
- * sensitive and where synthesised noise reliably becomes fatiguing. The wind
- * model already carries a `soften` shelf that exists solely to tame it, and a
- * new model creeping up there is the single most common way a procedural
- * library ends up harsh.
+ * Octave-ish bands, by their lower edge in Hz. 2-5 kHz is deliberately its own
+ * band: it is where the ear is most sensitive and where synthesised noise
+ * becomes fatiguing, and a new model creeping up there is the commonest way a
+ * procedural library ends up harsh.
  */
 export const BANDS = [0, 125, 250, 500, 1000, 2000, 5000, 10000];
 
@@ -82,12 +68,10 @@ function levels(signal: Float32Array): Pick<Measurements, 'peak' | 'rms' | 'dc' 
 }
 
 /**
- * Band energies by direct evaluation at probe frequencies.
- *
- * A Goertzel-style sum rather than an FFT. A single bin of a random signal is
- * itself random, so a handful of probes spread across each band and averaged is
- * both more robust and less code than a windowed transform — and `audio-check`
- * already establishes this approach for the noise-colour test.
+ * Band energies by direct evaluation at probe frequencies — a Goertzel-style
+ * sum rather than an FFT. A single bin of a random signal is itself random, so
+ * a handful of probes spread across each band and averaged is both more robust
+ * and less code than a windowed transform.
  */
 function spectrum(signal: Float32Array, rate: number): { bands: number[]; centroid: number } {
   const n = Math.min(signal.length, 16384);
@@ -133,14 +117,11 @@ function spectrum(signal: Float32Array, rate: number): { bands: number[]; centro
 }
 
 /**
- * Loudness, roughly.
- *
- * **Not** ITU-R BS.1770: there is no K-weighting and no gating, so it must not
- * be reported as LUFS. It is a band-weighted RMS in dB, and its only job is
- * *comparison between models in this library* — which is enough, because the
- * commonest reason a procedural library sounds bad is not that any one model is
- * wrong but that one of them is four times louder than its neighbours, and
- * nobody notices until everything is mixed together.
+ * Loudness, roughly. **Not** ITU-R BS.1770: no K-weighting, no gating, so it
+ * must not be reported as LUFS. It is a band-weighted RMS in dB, for comparing
+ * models in this library against one another — the commonest reason a
+ * procedural library sounds bad is that one model is four times louder than
+ * its neighbours.
  */
 function loudness(bands: number[], rms: number): number {
   if (rms <= 1e-9) return -Infinity;
@@ -161,17 +142,11 @@ export function measure(signal: Float32Array, rate: number): Measurements {
 /**
  * Whether a signal ever becomes periodic.
  *
- * Lifted wholesale from the gust-field test in `audio-check`, because the
- * reasoning generalises and it took a wrong answer to arrive at. The naive
- * test — "correlation at long lags must be small" — is wrong, and it failed a
- * correct implementation the moment a slow swell was added: staying
- * self-similar for a long time is what ebb and flow *is*.
- *
  * What separates weather from an LFO is not how long correlation lasts but
- * whether it ever comes **back**. A periodic signal decorrelates and then
- * re-correlates at its period, over and over. Layered noise decays and stays
- * decayed. So: find where correlation has died away, then check it never
- * revives past that.
+ * whether it ever comes **back**. Staying self-similar for a long time is what
+ * ebb and flow is; a periodic signal decorrelates and then re-correlates at
+ * its period, over and over, while layered noise decays and stays decayed. So:
+ * find where correlation has died away, then check it never revives past that.
  *
  * @returns The worst revival after settling, 0..1. Above ~0.35 is a period.
  */

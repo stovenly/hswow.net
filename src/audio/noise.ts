@@ -1,16 +1,12 @@
 /**
- * The noise substrate.
+ * The noise substrate. Every sound in this game is noise pushed through
+ * filters, so the noise itself is generated once at boot into a few
+ * `AudioBuffer`s and looped. A worklet generating samples per emitter does not
+ * scale past a handful of voices and buys nothing: the character is in the
+ * filtering, and `BiquadFilterNode` is native code a worklet cannot match.
  *
- * Every sound in this game is noise pushed through filters, so the noise
- * itself is generated once at boot into a few `AudioBuffer`s and looped from
- * there. The alternative — an `AudioWorklet` generating samples per emitter —
- * does not scale past a handful of voices, and buys nothing: what gives a
- * sound its character is the filtering, and `BiquadFilterNode` runs on
- * optimised native code that a worklet cannot match.
- *
- * A looping buffer would betray itself as a repeating hiss if every voice
- * played it identically, so voices start at random offsets and run at slightly
- * different rates. See `playNoise`.
+ * Voices start at random offsets and run at slightly different rates, or the
+ * shared buffer betrays itself as a repeating hiss. See `playNoise`.
  */
 
 /** Long enough that a loop is not audible as a loop, short enough to be cheap. */
@@ -21,12 +17,10 @@ export type NoiseColour = 'white' | 'pink' | 'brown';
 export type NoiseBuffers = Record<NoiseColour, AudioBuffer>;
 
 /**
- * Builds white, pink and brown noise.
- *
- * The three differ by spectral slope: white is flat, pink falls at 3 dB per
- * octave, brown at 6. That ordering is also roughly an ordering of scale —
- * white reads as hiss and detail, pink as the middle of things, brown as
- * weight and distance — which is why the wind model wants all three at once.
+ * Builds white, pink and brown noise. The three differ by spectral slope:
+ * white is flat, pink falls at 3 dB per octave, brown at 6. That is also
+ * roughly an ordering of scale — hiss and detail, the middle of things, weight
+ * and distance — which is why the wind model wants all three at once.
  */
 export function createNoiseBuffers(context: BaseAudioContext): NoiseBuffers {
   const length = Math.floor(context.sampleRate * SECONDS);
@@ -68,9 +62,8 @@ function whiteGenerator(): () => number {
 }
 
 /**
- * Pink noise by Paul Kellett's filter: a bank of one-pole filters at spaced
- * corner frequencies, summed. Accurate to about ±0.05 dB across the audible
- * band, which is far better than anything downstream can tell.
+ * Pink noise by Paul Kellett's filter: one-pole filters at spaced corner
+ * frequencies, summed. Accurate to about ±0.05 dB across the audible band.
  */
 function pinkGenerator(): () => number {
   let b0 = 0;
@@ -114,11 +107,9 @@ export interface NoiseVoice {
 }
 
 /**
- * Starts a looping noise source.
- *
- * The random start offset and the small rate detune are what stop several
- * voices from the same buffer phasing into one another — without them, two
- * emitters running the same noise sound like one emitter that got louder.
+ * Starts a looping noise source. The random start offset and small rate detune
+ * stop several voices from the same buffer phasing into one another — without
+ * them, two emitters running the same noise sound like one that got louder.
  */
 export function playNoise(
   context: BaseAudioContext,
