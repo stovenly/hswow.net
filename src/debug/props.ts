@@ -25,6 +25,7 @@ import {
 } from './galleries/forest';
 import { animalGalleryPlan } from './galleries/animal';
 import { villagerGalleryPlan } from './galleries/villager';
+import { cityfolkGalleryPlan } from './galleries/cityfolk';
 import { textShowcaseGalleryPlan } from './galleries/text';
 import { darkRoomPlan } from './galleries/dark';
 import { lightShowcasePlan } from './galleries/light';
@@ -98,7 +99,7 @@ const INDUSTRIAL = { width: 9, depth: 30, height: 4.5 };
  * cheap and the header above says so; this is what "sized so the wall can take
  * several more" was for.
  */
-const COUNTRYSIDE = { width: 8, depth: 52, height: 3.2 };
+const COUNTRYSIDE = { width: 8, depth: 56, height: 3.2 };
 
 /**
  * The general hall is not a hall at all — it is a gallery-style room: a flat
@@ -134,7 +135,7 @@ const DOOR_PITCH = 5;
 
 /** How many doors each hall's rank is laid out for. */
 const INDUSTRIAL_DOORS = 2;
-const COUNTRYSIDE_DOORS = 10;
+const COUNTRYSIDE_DOORS = 11;
 
 function doorSlot(shell: { depth: number }, slot: number, of: number): number {
   const span = (of - 1) * DOOR_PITCH;
@@ -395,28 +396,32 @@ export function propPortals(
       villagerGalleryPlan,
       wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 4, COUNTRYSIDE_DOORS, 'timber', 6430),
     ),
+    galleryPortal(
+      cityfolkGalleryPlan,
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 5, COUNTRYSIDE_DOORS, 'timber', 6452),
+    ),
     // The wood, in the order it is read standing in one: canopy, then what
     // grows under it, then what is lying on the floor between them.
     galleryPortal(
       treeGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 5, COUNTRYSIDE_DOORS, 'timber', 6424),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 6, COUNTRYSIDE_DOORS, 'timber', 6424),
     ),
     galleryPortal(
       groundcoverGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 6, COUNTRYSIDE_DOORS, 'timber', 6425),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 7, COUNTRYSIDE_DOORS, 'timber', 6425),
     ),
     galleryPortal(
       forestMiscGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 7, COUNTRYSIDE_DOORS, 'timber', 6426),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 8, COUNTRYSIDE_DOORS, 'timber', 6426),
     ),
     // The two that came out of the village exterior: a place, and a system.
     galleryPortal(
       farmGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 8, COUNTRYSIDE_DOORS, 'timber', 6427),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 9, COUNTRYSIDE_DOORS, 'timber', 6427),
     ),
     galleryPortal(
       stoneWallGalleryPlan,
-      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 9, COUNTRYSIDE_DOORS, 'timber', 6428),
+      wallDoor(ZONE_COUNTRYSIDE_PROPS, COUNTRYSIDE, 10, COUNTRYSIDE_DOORS, 'timber', 6428),
     ),
     // --- the showcase rank, west to east ------------------------------------
     //

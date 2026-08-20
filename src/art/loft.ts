@@ -21,6 +21,22 @@ export interface Station {
    * own direction so its rings stay square to it.
    */
   axis?: readonly [number, number, number];
+  /**
+   * How boxy the ring is: a superellipse exponent. 2 is an ellipse; higher
+   * fills the corners toward a rounded box, which is what a ribcage is.
+   */
+  n?: number;
+}
+
+/**
+ * A point on a station's ring at a parameter angle, in the ring's own (right,
+ * up) plane. Angle 0 is +right, π/2 is +up.
+ */
+export function ringPoint(station: Pick<Station, 'rx' | 'ry' | 'n'>, angle: number): [number, number] {
+  const k = 2 / (station.n ?? 2);
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return [Math.sign(c) * Math.pow(Math.abs(c), k) * station.rx, Math.sign(s) * Math.pow(Math.abs(s), k) * station.ry];
 }
 
 const _axis = new THREE.Vector3();
@@ -78,8 +94,7 @@ export function loft(
       // Start on the side rather than at the top, so a boxy ring stands on a
       // flat face and its edges fall at the flanks.
       const angle = (i / sides) * Math.PI * 2 + Math.PI / sides;
-      const cx = Math.cos(angle) * station.rx;
-      const cy = Math.sin(angle) * station.ry;
+      const [cx, cy] = ringPoint(station, angle);
       positions.push(
         station.at[0] + _right.x * cx + _up.x * cy,
         station.at[1] + _right.y * cx + _up.y * cy,

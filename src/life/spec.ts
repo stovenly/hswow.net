@@ -44,6 +44,8 @@ export interface LifeSpec {
 export interface LifeOptions extends BuildOptions {
   /** Metres it may wander from its placement. Default is per species; 0 stays. */
   roam?: number;
-  /** A figure's face option — see `art/builders/figure-face`. */
+  /** A figure's face option — a mask kind from `art/builders/figure-head` or `figure-head-city`. */
   face?: string;
+  /** Which people a figure is from: the countryside, or the city. Same body, different dress and masks. */
+  folk?: 'country' | 'city';
 }

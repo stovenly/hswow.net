@@ -190,12 +190,37 @@ export interface Part {
    * Only read when `assemble` is given a bone list; the first bone otherwise.
    */
   bone?: string;
+  /**
+   * Blended binding instead of `bone`: per vertex, up to four (bone, weight)
+   * pairs, from the vertex's position in the creature's space. For a surface
+   * that runs across a joint — a trunk — and must curve there rather than
+   * break. Weights are normalised; missing bones throw.
+   */
+  skin?: (x: number, y: number, z: number) => ReadonlyArray<readonly [string, number]>;
+  /**
+   * What this part is, for the debug picker (`debug/Identify.ts`), which
+   * reports it by name from a click in the world. Unnamed parts are reported
+   * by their index.
+   */
+  name?: string;
+}
+
+/** One part's vertex range in a merged geometry, on `geometry.userData.parts`. */
+export interface PartRange {
+  index: number;
+  start: number;
+  count: number;
+  name?: string;
+  bone?: string;
+  color?: number;
 }
 
 /**
  * @param bones Bone names, in skeleton order. When given, every vertex is bound
- *   rigidly (one bone, weight one) to its part's `bone`, and the geometry can
- *   be finished as a `SkinnedMesh`. Rigid on purpose: a hinge is the look.
+ *   to its part's `bone` — rigidly, one bone at weight one, which is the hinge
+ *   look a limb wants — or blended by the part's `skin`, for a surface that
+ *   must curve over a joint. The geometry can then be finished as a
+ *   `SkinnedMesh`.
  */
 export function assemble(parts: Part[], bones?: readonly string[]): THREE.BufferGeometry {
   // The union of the parts' finish chunks, stamped on the merged geometry so
@@ -317,13 +342,27 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
     geometry.setAttribute(FACE_ATTRIBUTE, new THREE.BufferAttribute(faces, 1, true));
 
     if (bones) {
-      const index = bones.indexOf(part.bone ?? bones[0]);
-      if (index < 0) throw new Error(`assemble: part bound to unknown bone "${part.bone}"`);
       const skinIndex = new Uint16Array(count * 4);
       const skinWeight = new Float32Array(count * 4);
-      for (let i = 0; i < count; i++) {
-        skinIndex[i * 4] = index;
-        skinWeight[i * 4] = 1;
+      if (part.skin) {
+        for (let i = 0; i < count; i++) {
+          const pairs = part.skin(position.getX(i), position.getY(i), position.getZ(i));
+          let total = 0;
+          for (const [, w] of pairs) total += w;
+          pairs.slice(0, 4).forEach(([name, w], k) => {
+            const index = bones.indexOf(name);
+            if (index < 0) throw new Error(`assemble: part skinned to unknown bone "${name}"`);
+            skinIndex[i * 4 + k] = index;
+            skinWeight[i * 4 + k] = total > 0 ? w / total : 0;
+          });
+        }
+      } else {
+        const index = bones.indexOf(part.bone ?? bones[0]);
+        if (index < 0) throw new Error(`assemble: part bound to unknown bone "${part.bone}"`);
+        for (let i = 0; i < count; i++) {
+          skinIndex[i * 4] = index;
+          skinWeight[i * 4] = 1;
+        }
       }
       geometry.setAttribute('skinIndex', new THREE.BufferAttribute(skinIndex, 4));
       geometry.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight, 4));
@@ -339,6 +378,17 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
   for (const geometry of prepared) geometry.dispose();
   if (!merged) throw new Error('assemble: geometries did not share an attribute set');
   merged.userData.finishMask = finishMask;
+  // Which vertices came from which part, so a picked face can be traced back
+  // to the code that made it. Un-indexed, so face f is vertices 3f..3f+2.
+  const table: PartRange[] = [];
+  let start = 0;
+  prepared.forEach((geometry, i) => {
+    const count = geometry.getAttribute('position').count;
+    const part = parts[i];
+    table.push({ index: i, start, count, name: part.name, bone: part.bone, color: typeof part.color === 'number' ? part.color : undefined });
+    start += count;
+  });
+  merged.userData.parts = table;
   // Star sparkle sites, scattered over whatever triangles carry the star lane.
   collectSparkleSites(merged);
   return merged;

@@ -4,12 +4,14 @@ import type { BoneSpec } from '../rig';
 import type { Rng } from '../random';
 import { loft, type Station } from '../loft';
 import { shade } from '../palette';
-import { BOARD, OUTLINES, carveMask, profileAt, type Register, type Relief } from '../mask';
+import { BOARD, OUTLINES, carveMask, profileAt, type CarvedMask, type Register, type Relief } from '../mask';
+import { buildCityHead, isCityHead, type CityHeadKind, type HouseColours } from './figure-head-city';
 
 /**
  * The villagers' heads: a plain hood, and a carved mask (`art/mask`) worn over
  * it. Three families — a round cut across the grain, a board built from parts,
- * and a board carrying a rack — and permutations of each.
+ * and a board carrying a rack — and permutations of each. The cityfolk's heads
+ * are their own, in `figure-head-city.ts`; `buildHead` hands a city kind over.
  *
  * Every mask is furnished on the back with its harness: battens, a grip bar and
  * cord anchors. The front carries all the ornament and everything fixed on, so
@@ -18,6 +20,9 @@ import { BOARD, OUTLINES, carveMask, profileAt, type Register, type Relief } fro
  * The hood rides `head`, the cowl over the shoulders `neck` and the mask
  * `face`, rack and all. LIFE.md §3.2.
  */
+
+/** Any face a figure can be given: a villager's or a cityfolk's. */
+export type AnyHeadKind = HeadKind | CityHeadKind;
 
 export type HeadKind =
   // A round cut across the grain.
@@ -49,8 +54,6 @@ export interface HeadOptions {
   rng: Rng;
   /** Where the hood sits: the top of the torso. */
   base: number;
-  /** Half-width of the shoulders, for the collar that covers the join. */
-  shoulderR: number;
   /** How much covered neck stands between the collar and the hood. */
   neck: number;
   /** How wide the hood is; it stands about twice this tall. */
@@ -60,6 +63,8 @@ export interface HeadOptions {
   leather: number;
   metal: number;
   side: 1 | -1;
+  /** A cityfolk's house, which its head is fitted in. */
+  house?: HouseColours;
 }
 
 export interface BuiltHead {
@@ -122,13 +127,14 @@ const registers = (board: number, shades: readonly number[]): Register[] =>
   REGISTER_TOPS.map((to, i) => ({ to, color: shade(board, shades[i]) }));
 
 /** Which back furniture a design takes. */
-type Harness = 'battens' | 'ledgers' | 'sockets';
+export type Harness = 'battens' | 'ledgers' | 'sockets';
 
+/** A mask's shape and finish. */
 interface Design {
   outline: readonly [number, number][];
   relief: Partial<Relief>;
-  /** Which of the timber's four tones the board is cut in. */
-  board: (t: Timber) => number;
+  /** The board's colour, from the timber drawn for this head. */
+  board: (p: Timber) => number;
   harness: Harness;
   shades?: readonly number[];
   /** The rim and the hollow back, as multipliers on the board. */
@@ -223,13 +229,44 @@ const DESIGNS: Record<HeadKind, Design> = {
   },
 };
 
+/** What every mask's ornament is built with, once the board is mounted on the hood. */
+export interface MaskKit {
+  size: number;
+  boardW: number;
+  boardH: number;
+  mask: CarvedMask;
+  /** A point on the front of the board, in the figure's own space. */
+  at(s: number, v: number, out?: number): THREE.Vector3;
+  /** The same point on the hollow back. */
+  rear(s: number, v: number, out?: number): THREE.Vector3;
+  /** A piece built facing +Z, laid at a point on the front. */
+  on(g: THREE.BufferGeometry, s: number, v: number, out: number, color: number, bone?: string): void;
+  /** The same, on the back. */
+  behind(g: THREE.BufferGeometry, s: number, v: number, out: number, color: number): void;
+  /** A tapered stick from one point to another. */
+  stick(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, color: number, bone?: string): void;
+  /** A point in the board's own plane, as (s, v), from an offset off centre. */
+  spot(x: number, y: number): [number, number];
+  /** A closed convex lens facing +Z. */
+  lens(w: number, h: number, d: number, detail?: number): THREE.BufferGeometry;
+  push(g: THREE.BufferGeometry, color: number, bone?: string): void;
+  /** A point on the hood's surface: `t` up it, a bearing round it (π is the nape). */
+  hoodAt(t: number, bearing: number, proud?: number): THREE.Vector3;
+  /** Concentric rings about a point on the board. */
+  rings(cs: number, cv: number, n: number, first: number, step: number, color: number, arc?: number): void;
+  /** Where the board's plane sits, for pieces built in it. */
+  place: THREE.Matrix4;
+  lean: number;
+}
+
 export function buildHead(
-  kind: HeadKind,
+  kind: AnyHeadKind,
   options: HeadOptions,
   parts: Part[],
   bones: BoneSpec[],
 ): BuiltHead {
-  const { base, size, neck, cloth, leather, shoulderR } = options;
+  if (isCityHead(kind)) return buildCityHead(kind, options, parts, bones);
+  const { base, size, neck, cloth } = options;
   const design = DESIGNS[kind];
   const H = size * HOOD_HEIGHT;
   const R = (t: number): number => size * HOOD_WIDTH * profileAt(HOOD, t);
@@ -239,30 +276,24 @@ export function buildHead(
     parts.push({ geometry: g, color, bone });
   };
 
-  // The neck is three overlapping solids, each centred on the pivot it turns
-  // about — collar on `torso`, gorget on `neck`, hood on `head` — so no surface
-  // is split across two bones and the join cannot open.
+  // The neck is overlapping solids, each centred on the pivot it turns about —
+  // gorget on `neck`, hood on `head` — so no surface is split across two bones
+  // and the join cannot open. The gorget's foot is inside the trunk's top, and
+  // the collar over the join is the trunk's own (`figure.ts`).
   {
     const neckPivot = base - neck;
-    const collar: Station[] = [
-      { at: [0, neckPivot - size * 0.5, 0], rx: shoulderR * 0.95, ry: shoulderR * 0.8, axis: [0, 1, 0] },
-      { at: [0, neckPivot - size * 0.2, 0], rx: shoulderR * 0.78, ry: shoulderR * 0.66, axis: [0, 1, 0] },
-      { at: [0, neckPivot + size * 0.12, 0], rx: size * 0.62, ry: size * 0.56, axis: [0, 1, 0] },
-    ];
-    parts.push({ geometry: loft(collar, HOOD_SIDES, { start: true, end: true }), color: shade(leather, 0.9), bone: 'torso' });
-
     const gorget: Station[] = [
       { at: [0, neckPivot - size * 0.14, 0], rx: size * 0.26, ry: size * 0.24, axis: [0, 1, 0] },
       { at: [0, neckPivot, 0], rx: size * 0.44, ry: size * 0.4, axis: [0, 1, 0] },
       { at: [0, neckPivot + neck * 0.55, 0], rx: size * 0.42, ry: size * 0.38, axis: [0, 1, 0] },
       { at: [0, base + size * 0.06, 0], rx: size * 0.4, ry: size * 0.36, axis: [0, 1, 0] },
     ];
-    parts.push({ geometry: loft(gorget, HOOD_SIDES, { start: true, end: true }), color: cloth, bone: 'neck' });
+    parts.push({ geometry: loft(gorget, HOOD_SIDES, { start: true, end: true }), color: cloth, bone: 'neck', name: 'gorget' });
     const wrap: Station[] = [
       { at: [0, neckPivot + neck * 0.3, 0], rx: size * 0.47, ry: size * 0.43, axis: [0, 1, 0] },
       { at: [0, neckPivot + neck * 0.66, 0], rx: size * 0.46, ry: size * 0.42, axis: [0, 1, 0] },
     ];
-    parts.push({ geometry: loft(wrap, HOOD_SIDES, { start: true, end: true }), color: shade(cloth, 0.82), bone: 'neck' });
+    parts.push({ geometry: loft(wrap, HOOD_SIDES, { start: true, end: true }), color: shade(cloth, 0.82), bone: 'neck', name: 'neck wrap' });
   }
 
   // Carried below its own base, so the head can turn without opening the join.
@@ -278,13 +309,13 @@ export function buildHead(
       geometry: loft(stations, HOOD_SIDES, { start: true, end: true }),
       color: design.hood ?? HOOD_CLOTH,
       bone: 'head',
+      name: 'hood',
     });
   }
 
-  // The log this one was cut from. Everything wooden on the mask comes out of
-  // it, so a walnut board does not carry birch ornament.
+  // What the board is finished in: one log, so a walnut board does not carry
+  // birch ornament.
   const timber = options.rng.pick(TIMBERS);
-  const { wood: WOOD, heart: HEART, pale: BARK_PALE, bark: BARK } = timber;
   const board = design.board(timber);
   const boardW = size * (design.width ?? 1.86);
   const boardH = size * (design.height ?? 2.2);
@@ -314,57 +345,67 @@ export function buildHead(
     piece.geometry.applyMatrix4(place);
     push(piece.geometry, piece.color);
   }
+  for (let i = parts.length - mask.pieces.length; i < parts.length; i++) parts[i].name = 'mask board';
 
-  /** A point on the front of the board, in the villager's own space. */
-  const at = (s: number, v: number, out = 0): THREE.Vector3 => mask.at(s, v, out).applyMatrix4(place);
-  /** The same point on the hollow back. */
-  const rear = (s: number, v: number, out = 0): THREE.Vector3 => mask.behind(s, v, out).applyMatrix4(place);
-  /** A piece built facing +Z, laid at a point on the front. */
-  const on = (g: THREE.BufferGeometry, s: number, v: number, out: number, color: number, bone = 'face'): void => {
-    const p = at(s, v, out);
-    g.rotateX(-lean);
-    g.translate(p.x, p.y, p.z);
-    push(g, color, bone);
+  const kit: MaskKit = {
+    size,
+    boardW,
+    boardH,
+    mask,
+    place,
+    lean,
+    push,
+    at: (s, v, out = 0) => mask.at(s, v, out).applyMatrix4(place),
+    rear: (s, v, out = 0) => mask.behind(s, v, out).applyMatrix4(place),
+    on: (g, s, v, out, color, bone = 'face') => {
+      const p = kit.at(s, v, out);
+      g.rotateX(-lean);
+      g.translate(p.x, p.y, p.z);
+      push(g, color, bone);
+    },
+    behind: (g, s, v, out, color) => {
+      const p = kit.rear(s, v, out);
+      g.rotateX(-lean);
+      g.translate(p.x, p.y, p.z);
+      push(g, color);
+    },
+    stick: (a, b, r0, r1, color, bone = 'face') => {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      const g = new THREE.CylinderGeometry(r1, r0, len, 5);
+      g.translate(0, len / 2, 0);
+      // CylinderGeometry's axis is +Y; this turns +Y onto the segment.
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()));
+      g.translate(a.x, a.y, a.z);
+      push(g, color, bone);
+    },
+    spot: (x, y) => {
+      const v = 0.5 + y / boardH;
+      return [x / Math.max(1e-4, mask.halfAt(v)), v];
+    },
+    lens: (w, h, d, detail = 1) => {
+      const g = new THREE.IcosahedronGeometry(1, detail);
+      g.scale(w / 2, h / 2, d);
+      return g;
+    },
+    hoodAt: (t, bearing, proud = 0) =>
+      new THREE.Vector3(Math.sin(bearing) * (R(t) + proud), Y(t), Math.cos(bearing) * (R(t) * HOOD_DEPTH + proud)),
+    rings: (cs, cv, n, first, step, color, arc = Math.PI * 2) => {
+      for (let i = 0; i < n; i++) {
+        const ring = new THREE.TorusGeometry(first - i * step, size * 0.06, 4, 16, arc);
+        kit.on(ring, cs, cv, size * (0.03 + i * 0.01), i % 2 ? shade(color, 1.12) : shade(color, 0.88));
+      }
+    },
   };
-  /** The same, on the back. */
-  const behind = (g: THREE.BufferGeometry, s: number, v: number, out: number, color: number): void => {
-    const p = rear(s, v, out);
-    g.rotateX(-lean);
-    g.translate(p.x, p.y, p.z);
-    push(g, color);
-  };
-  /** A tapered stick from one point to another. */
-  const stick = (a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, color: number, bone = 'face'): void => {
-    const dir = new THREE.Vector3().subVectors(b, a);
-    const len = dir.length();
-    const g = new THREE.CylinderGeometry(r1, r0, len, 5);
-    g.translate(0, len / 2, 0);
-    // CylinderGeometry's axis is +Y; this turns +Y onto the segment.
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()));
-    g.translate(a.x, a.y, a.z);
-    push(g, color, bone);
-  };
-  /** A point in the board's own plane, as (s, v), from an offset off centre. */
-  const spot = (x: number, y: number): [number, number] => {
-    const v = 0.5 + y / boardH;
-    return [x / Math.max(1e-4, mask.halfAt(v)), v];
-  };
-  /** A closed convex lens facing +Z. */
-  const lens = (w: number, h: number, d: number, detail = 1): THREE.BufferGeometry => {
-    const g = new THREE.IcosahedronGeometry(1, detail);
-    g.scale(w / 2, h / 2, d);
-    return g;
-  };
+
+  furnish(kit, design.harness, shade(board, 0.62), parts);
+  for (const part of parts) part.name ??= 'mask harness';
+
+  const { at, rear, on, stick, spot, lens, rings } = kit;
+  const { wood: WOOD, heart: HEART, pale: BARK_PALE, bark: BARK } = timber;
 
   // --- ornament, all of it raised off the board ---------------------------
 
-  /** Concentric rings about a point on the board. */
-  const rings = (cs: number, cv: number, n: number, first: number, step: number, color: number, arc = Math.PI * 2): void => {
-    for (let i = 0; i < n; i++) {
-      const ring = new THREE.TorusGeometry(first - i * step, size * 0.06, 4, 16, arc);
-      on(ring, cs, cv, size * (0.03 + i * 0.01), i % 2 ? shade(color, 1.12) : shade(color, 0.88));
-    }
-  };
   /**
    * A band of flat triangles standing proud, alternately point up and down.
    * `across` is a tooth's circumradius as a fraction of the board's width; the
@@ -389,72 +430,6 @@ export function buildHead(
       on(tooth, s, v, size * 0.04, i % 2 ? off(away) : off(away + 0.12));
     }
   };
-  // --- the back -----------------------------------------------------------
-  //
-  // Furniture only: battens, a bar to grip in the teeth, the anchors the head
-  // cord is knotted through, and that cord running round the hood to a knot at
-  // the nape — which is what a villager walking away shows. Nothing here is
-  // ornament, so the front is never in question.
-  {
-    const dark = shade(board, 0.62);
-    if (design.harness === 'ledgers') {
-      for (const v of [0.24, 0.5, 0.76] as const) {
-        behind(new THREE.BoxGeometry(boardW * 0.86, size * 0.12, size * 0.08), 0, v, size * 0.03, dark);
-      }
-    } else if (design.harness === 'sockets') {
-      // A cross-brace, corner to corner, one batten lapped over the other.
-      for (const s of [-1, 1] as const) {
-        const brace = new THREE.BoxGeometry(boardW * 0.98, size * 0.12, size * 0.08);
-        // rotateZ(θ) takes +X toward +Y: the batten rakes up to the far corner.
-        brace.rotateZ(s * 0.66);
-        behind(brace, 0, 0.55, size * (s > 0 ? 0.03 : 0.09), dark);
-      }
-    } else {
-      behind(new THREE.BoxGeometry(size * 0.13, boardH * 0.74, size * 0.08), 0, 0.5, size * 0.03, dark);
-      behind(new THREE.BoxGeometry(boardW * 0.78, size * 0.13, size * 0.08), 0, 0.66, size * 0.05, dark);
-    }
-    behind(new THREE.BoxGeometry(boardW * 0.34, size * 0.1, size * 0.12), 0, 0.3, size * 0.07, LEATHER_CORD);
-    for (const s of [-0.86, 0.86] as const) {
-      behind(new THREE.TorusGeometry(size * 0.07, size * 0.025, 4, 8), s, 0.7, size * 0.03, IRON);
-    }
-
-    const hoodAt = (t: number, bearing: number, proud = 0): THREE.Vector3 =>
-      new THREE.Vector3(
-        Math.sin(bearing) * (R(t) + proud),
-        Y(t),
-        Math.cos(bearing) * (R(t) * HOOD_DEPTH + proud),
-      );
-    const nape = hoodAt(0.56, Math.PI, size * 0.04);
-    for (const s of [-1, 1] as const) {
-      const anchor = rear(s * 0.86, 0.7, size * 0.02);
-      const flank = hoodAt(0.64, (s * Math.PI) / 2, size * 0.04);
-      stick(anchor, flank, size * 0.035, size * 0.035, LEATHER_CORD, 'head');
-      stick(flank, nape, size * 0.035, size * 0.04, LEATHER_CORD, 'head');
-    }
-    push(new THREE.IcosahedronGeometry(size * 0.12, 1).translate(nape.x, nape.y, nape.z), shade(LEATHER_CORD, 1.2), 'head');
-    if (design.harness === 'ledgers') {
-      for (const t of [0.3, 0.72] as const) {
-        const p = hoodAt(t, Math.PI, size * 0.03);
-        push(new THREE.BoxGeometry(size * 0.5, size * 0.1, size * 0.09).translate(p.x, p.y, p.z), dark, 'head');
-      }
-    } else if (design.harness === 'sockets') {
-      // A cross of raking straps, matching the brace on the mask's own back.
-      // Two bosses up here and the cord's knot below them read as a face.
-      const p = hoodAt(0.76, Math.PI, size * 0.03);
-      for (const s of [-1, 1] as const) {
-        const strap = new THREE.BoxGeometry(size * 0.66, size * 0.09, size * 0.08);
-        // rotateZ(θ) takes +X toward +Y: the strap rakes across the back.
-        strap.rotateZ(s * 0.7);
-        push(strap.translate(p.x, p.y, p.z + s * size * 0.02), dark, 'head');
-      }
-    } else {
-      const spine: Station[] = [0.18, 0.5, 0.82].map((t) => {
-        const p = hoodAt(t, Math.PI, size * 0.02);
-        return { at: [p.x, p.y, p.z] as const, rx: size * 0.09, ry: size * 0.06, axis: [0, 1, 0] as const };
-      });
-      parts.push({ geometry: loft(spine, 5, { start: true, end: true }), color: dark, bone: 'head' });
-    }
-  }
 
   switch (kind) {
     case 'round': {
@@ -708,4 +683,57 @@ export function buildHead(
   }
 
   return { crown: base + H * 1.02, faceY };
+}
+
+/**
+ * The back: furniture only — battens, a bar to grip in the teeth, the rings
+ * a head cord would tie through, and the straps on the back of the hood,
+ * which is what a figure walking away shows. Nothing here is ornament, so the
+ * front is never in question.
+ */
+function furnish(kit: MaskKit, harness: Harness, dark: number, parts: Part[]): void {
+  const { size, boardW, boardH, behind, push, hoodAt } = kit;
+  if (harness === 'ledgers') {
+    for (const v of [0.24, 0.5, 0.76] as const) {
+      behind(new THREE.BoxGeometry(boardW * 0.86, size * 0.12, size * 0.08), 0, v, size * 0.03, dark);
+    }
+  } else if (harness === 'sockets') {
+    // A cross-brace, corner to corner, one batten lapped over the other.
+    for (const s of [-1, 1] as const) {
+      const brace = new THREE.BoxGeometry(boardW * 0.98, size * 0.12, size * 0.08);
+      // rotateZ(θ) takes +X toward +Y: the batten rakes up to the far corner.
+      brace.rotateZ(s * 0.66);
+      behind(brace, 0, 0.55, size * (s > 0 ? 0.03 : 0.09), dark);
+    }
+  } else {
+    behind(new THREE.BoxGeometry(size * 0.13, boardH * 0.74, size * 0.08), 0, 0.5, size * 0.03, dark);
+    behind(new THREE.BoxGeometry(boardW * 0.78, size * 0.13, size * 0.08), 0, 0.66, size * 0.05, dark);
+  }
+  behind(new THREE.BoxGeometry(boardW * 0.34, size * 0.1, size * 0.12), 0, 0.3, size * 0.07, LEATHER_CORD);
+  for (const s of [-0.86, 0.86] as const) {
+    behind(new THREE.TorusGeometry(size * 0.07, size * 0.025, 4, 8), s, 0.7, size * 0.03, IRON);
+  }
+
+  if (harness === 'ledgers') {
+    for (const t of [0.3, 0.72] as const) {
+      const p = hoodAt(t, Math.PI, size * 0.03);
+      push(new THREE.BoxGeometry(size * 0.5, size * 0.1, size * 0.09).translate(p.x, p.y, p.z), dark, 'head');
+    }
+  } else if (harness === 'sockets') {
+    // A cross of raking straps, matching the brace on the mask's own back.
+    // Two bosses up here and the cord's knot below them read as a face.
+    const p = hoodAt(0.76, Math.PI, size * 0.03);
+    for (const s of [-1, 1] as const) {
+      const strap = new THREE.BoxGeometry(size * 0.66, size * 0.09, size * 0.08);
+      // rotateZ(θ) takes +X toward +Y: the strap rakes across the back.
+      strap.rotateZ(s * 0.7);
+      push(strap.translate(p.x, p.y, p.z + s * size * 0.02), dark, 'head');
+    }
+  } else {
+    const spine: Station[] = [0.18, 0.5, 0.82].map((t) => {
+      const p = hoodAt(t, Math.PI, size * 0.02);
+      return { at: [p.x, p.y, p.z] as const, rx: size * 0.09, ry: size * 0.06, axis: [0, 1, 0] as const };
+    });
+    parts.push({ geometry: loft(spine, 5, { start: true, end: true }), color: dark, bone: 'head' });
+  }
 }

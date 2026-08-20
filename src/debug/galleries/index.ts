@@ -2,6 +2,7 @@ import type { GalleryPlan } from './layout';
 import { treeGalleryPlan, groundcoverGalleryPlan, forestMiscGalleryPlan } from './forest';
 import { animalGalleryPlan } from './animal';
 import { villagerGalleryPlan } from './villager';
+import { cityfolkGalleryPlan } from './cityfolk';
 import { textShowcaseGalleryPlan } from './text';
 import { darkRoomPlan } from './dark';
 import { lightShowcasePlan } from './light';
@@ -40,6 +41,7 @@ export const GALLERIES: readonly GalleryPlan[] = [
   forestMiscGalleryPlan,
   animalGalleryPlan,
   villagerGalleryPlan,
+  cityfolkGalleryPlan,
   villageInteriorGalleryPlan,
   villageExteriorGalleryPlan,
   villageBuildingsGalleryPlan,
@@ -68,6 +70,7 @@ export type { GalleryPlan } from './layout';
 export { ZONE_GALLERY_TREES, ZONE_GALLERY_GROUNDCOVER, ZONE_GALLERY_FOREST_MISC } from './forest';
 export { ZONE_GALLERY_ANIMAL } from './animal';
 export { ZONE_GALLERY_VILLAGER } from './villager';
+export { ZONE_GALLERY_CITYFOLK } from './cityfolk';
 export { ZONE_TEXT_SHOWCASE } from './text';
 export { ZONE_DARK_ROOM } from './dark';
 export { ZONE_LIGHT_SHOWCASE } from './light';

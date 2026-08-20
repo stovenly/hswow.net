@@ -237,6 +237,61 @@ and the mask `face` — rack and all, one bone, nothing sprung.
 `gaits.faceTalk` / `faceIdle` / `faceGreet` move them by kind. The countryside
 uses `round`.
 
+**The cityfolk** (`folk: 'city'`, gallery *Countryside Cityfolk*) are the same
+people — same body, rig, gaits and voice — from a big city, and nothing of the
+villager's head is on them. A cityfolk's head is its own, in
+`figure-head-city.ts`, at the villager's scale — as wide as the hood, dropping
+below the head's base and drawn in at the rim the same way, so it covers the
+neck and clears the shoulders on a look down as the hood does. A helm is
+reminiscent of armour, not armour: a liner in the house's dark with a flat
+face plate set back into its front, and a few plates in the house's mid lapped
+over it — skull, cheeks, bevor, brow, visor — each its own solid, edged in the
+metal. On the face plate stands the house's device: big flat shapes in the
+pale and the contrast, as plain and bold as a villager's board. Everything on
+a curved surface is built along it, so nothing floats and nothing passes
+through. The devices are abstract geometry in relief on a coloured field, three
+colours and the metal in every one. Eleven designs:
+
+*Helms* — 1. **Great Helm**, a flat-topped drum of plates banded at brow, chin
+and crown, a torse; a **cross pattée** in the pale with a smaller in the contrast on it. 2. **Bascinet**, a pointed skull over
+cheek plates, a bevor and brow band, the visor split and slid back along the
+sides like shutters, a row of spikes over the crown splitting into two down
+the back; a **fret** of woven bars about a quatrefoil. 3. **Frog-mouth Helm**, the mouth thrust forward under an
+arched lip, a comb with ribs down the sides, finials; an **escallop** of ribs in turning colours. 4.
+**Winged Burgonet**, peaked brim, tall comb, hinged cheeks, wings turned to the
+front; a **compass rose**. 5. **Tourney Helm**, a rounded great helm with a torse and
+a fan crest spread across the head, rosettes at the temples, ribs down the nape; a
+**swirl** of curved rays. 6. **Morion**, a very tall comb with ribs down the sides, a
+brim swept up before and behind with finials, cheek guards; a **triskele**. 7. **Bellows Visor**, a close helm whose ridged visor has slid up along
+the skull, fleurons and scrolls at the temples; **barry wavy**. 8. **Spangenhelm**, a
+cone of four segments under raised bands, a nasal, cheek flaps and a nape
+guard; a **ziggurat** of stepped lozenges. 9. **Escutcheon Helm**, the
+house's shield filling the front, a **sun of spikes** on it.
+
+*Cloth* (a wound veil closed over the face) — 10. **Chaperon and Veil**, a
+medallion of open rings low over the face, their openings stepping down, the bourrelet, cornette and patte
+hanging from under it. 11. **Wound Coif**, a rosette of broad petals low over
+the face, three bands wound about the skull, a brooch and a plume at the brow.
+
+**They dress by house.** One hue taken down and up — the same dye dark, mid and
+pale — and one contrast against it: purple, crimson, azure or murrey; the
+contrast gold, ivory, silver or black as the house allows, and black is only
+ever a contrast. Cloth is the mid, hose the dark, the accent the contrast
+or the pale, trim the contrast, fur, leather and metal the house's own, and the
+head fitted in the same. Nothing on a cityfolk is asymmetrical in colour — no
+parti-colour, no counterchanged hose — which is what separates a noble from a
+jester.
+
+Their dress is `figure-finery.ts`: a base garment — doublet and hose,
+livery gown with a broad front panel, houppelande, robe of office with a
+stole — then a surcoat, tabard with a
+device, fur-trimmed cote, pleated skirt or rolled-shoulder jacket; a girdle,
+hip belt with purse and knife, sash with a bow, or belt with a tongue; an open
+front-clasped cloak with a shoulder cape, baldric with a badge, or liripipe;
+and extras — scroll, purse and keys, paternoster, pomander. Sleeves
+always, often gloved; hose gartered or not; pointed shoes or boots. Everything
+is a colour of a mesh: gilt, silver and fur are paint, not materials.
+
 ### 3.3 Mesh, and why colour boundaries are edges
 
 Colour is per face and a builder cannot tint half a triangle. A loft quad is

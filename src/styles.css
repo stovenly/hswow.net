@@ -157,7 +157,8 @@ body.is-playing #crosshair {
 }
 
 body.is-playing #capture-hint,
-body.is-touch #capture-hint {
+body.is-touch #capture-hint,
+body.is-identifying #capture-hint {
   opacity: 0;
 }
 
