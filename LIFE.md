@@ -111,10 +111,11 @@ moved too much, and the poncho clipped. The third, current one:
   are one surface with a colour change at a ring. A collar that was its own
   tube overlapping the shin at about the same radius made two faceted surfaces
   cut through each other, which is what drew a star at the ankle.
-- **Height is chosen first** — 1.28–1.68 m — and torsos are kept slim; a barrel chest reads as a different creature. The head's size is picked on its own, so a tall one is long in the leg and the body rather than scaled up.
-- Proportion: and the head, neck, body and legs
-  are fitted into it, so a squat head makes a differently proportioned
-  villager rather than a taller one.
+- **Height is chosen first**, and the head, neck, body and legs are fitted
+  into it, so a squat head makes a differently proportioned villager rather
+  than a taller one. The ranges — height, head size, the legs' share, the frame
+  sliders — are the `Physique` in `figure-people.ts` (§3.2). Torsos are kept
+  slim; a barrel chest reads as a different creature.
 - **Hide** (sand, sage, dusty rose, slate, ochre, mauve, sea-green) shows at
   the head and the hands and nowhere else. **Cloth is never near a hide
   colour** — it is picked darker and checked against the villager's own hide,
@@ -136,17 +137,71 @@ moved too much, and the poncho clipped. The third, current one:
   sometimes with a bib panel. Every change is a ring of the loft or a run of
   its columns. The hem always carries a **lip**, standing a little proud and
   flared, so the shirt is a layer worn over the lower half rather than a colour
-  change on one surface. A collar ring,
-  sleeves ending at the elbow or the wrist, trousers on the legs. Small rigid
-  pieces hug the surface (all placed on the body's own ellipse at a height and
-  bearing, so nothing clips): belt with buckle, sash with knot and tail, hip
-  pouches, a satchel, a pack, a short shoulder mantle, a blanket rolled
-  shoulder to hip, a scarf, forearm cuffs. **No buttons.** Zero to three per
-  villager. Anything worn on the shoulder keeps its flare inside the line the
-  arms hang on, or it goes through them. **No skirts, robes, ponchos or aprons,
-  and no body wider at its bottom than the legs under it.**
+  change on one surface. A collar ring, sleeves ending at the elbow or the
+  wrist, trousers on the legs. Everything else worn — the over-layer, the thing
+  at the waist, the thing at the shoulders, the extras — is a catalog entry
+  over the same surface (§3.2). **No buttons.** Anything worn on the shoulder
+  keeps its flare inside the line the arms hang on, or it goes through them.
+  **No skirts, robes, ponchos or aprons, and no body wider at its bottom than
+  the legs under it.**
 
-### 3.2 The head — a hood, and a carved mask over it
+### 3.2 Dress — one surface, explicit layers, peoples as data
+
+How anything gets worn is one system, in three files:
+
+- **`figure-surface.ts` — the vocabulary.** Everything clothing-shaped is
+  built against one `Surface` interface — sample heights, a point at a height
+  and bearing `proud` off the bare skin, extents, a blended skin field, and
+  `obstacles`: `BoneBall`s the dressed surface wraps, each riding a bone. The
+  trunk is the first implementation, its deltoids the obstacles. The **dressed
+  surface** is the bare point taken outward wherever a ball stands past it, so
+  capes, bands and sashes ride over the shoulders instead of through them. The
+  vocabulary — `shell`, `band`, `ribbon`, `cape`, `fringe`, `stuck`, `stole`,
+  `facing`, `cloak`, `sash`, `pleated` — takes a `Surface` and nothing
+  humanoid. New primitives go here with a reason, or not at all.
+- **Skin-follow.** Geometry sampled off the *dressed* surface skins with
+  `dressedSkinOf`: the bare weights faded into each ball's bone, pure trunk a
+  column or two from the shoulder and pure arm right over it. The rest pose is
+  unchanged by construction; under a wave, the shoulder run of a baldric
+  travels with the arm and the cloth stretches smoothly into the part that
+  stays. Geometry on the *bare* surface keeps the bare skin — it lies under
+  the deltoids, not over them. `stuck` things sample the dressed skin **once**
+  at their anchor and bind the whole piece with those constant weights, so a
+  bow cannot shear a buckle off its belt.
+- **`figure-layers.ts` — the `LayerStack` and the `dress()` driver.** Layering
+  is a declaration, not a side effect: every catalog entry declares the
+  regions it stands over (`waist`, `neck`, …) and how thick, and *receives*
+  its proud from the stack. The driver walks the slots — base garment, one
+  over-layer, one thing at the waist, one at the shoulders, a few extras — and
+  raises the stack by what each declared. No garment knows what else is worn,
+  only the level the stack reports. Derived clearances replace literals: the
+  arm hanging line clears the thickest coat any catalog declares.
+- **`figure-people.ts` — `PEOPLE`.** A `People` is a physique (the proportion
+  and frame ranges), a head set, an outfit function (the colours and the base
+  garment), sleeve and lower-half tables, and the dress catalogs
+  (`figure-wear.ts` for the countryside, `figure-finery.ts` for the city).
+  `figure.ts` is a driver over one entry; a new people — a dwarf, say — is a
+  new entry, not new machinery. The physique also carries `GestureFit`, two
+  scalars the builder puts on `LifeSpec` and `gaits.ts` multiplies into the
+  contact gestures (hands-to-chest and hand-to-head), so a different
+  arm-to-torso ratio can still land a hand on the mask or the chest. Both 1
+  for the existing peoples.
+
+**The checklist.** Every worn piece holds to this:
+
+- Every worn piece is a layer, band, ribbon, or stuck thing of a body
+  surface. Free-floating geometry near the body is not clothing.
+- Every edge folds back or closes; no open lip you can see into.
+- Every colour boundary is a ring or a run of columns. Never a threshold.
+- Every piece declares its slot, regions and thickness to the `LayerStack`
+  and builds at the proud it is given.
+- Geometry off the dressed surface takes the dressed skin; on the bare
+  surface, the bare skin; stuck things sample the dressed skin once at their
+  anchor.
+- New primitives go in `figure-surface.ts` with a reason, or not at all.
+- Animations stay inside the motion envelope or widen it deliberately.
+
+### 3.3 The head — a hood, and a carved mask over it
 
 **No face, and no head under it.** Rejected on the way here: a dark socket
 (horror); a pale snout with a nose (a bear) and without it (a puffball); a
@@ -178,7 +233,7 @@ there is a **mask**, built by `art/mask.ts`:
 
 Nothing is ever a hole. The front is cut into six horizontal registers, each
 its own geometry over shared vertices, so the colour boundaries are mesh
-edges (§3.3).
+edges (§3.4).
 
 **The back is furnished, not decorated.** Every mask carries battens — a spine
 and a rail, three ledgers, or a corner-to-corner cross-brace — with a bar to
@@ -282,7 +337,8 @@ head fitted in the same. Nothing on a cityfolk is asymmetrical in colour — no
 parti-colour, no counterchanged hose — which is what separates a noble from a
 jester.
 
-Their dress is `figure-finery.ts`: a base garment — doublet and hose,
+Their dress is the city catalog of the same slots (§3.2),
+`figure-finery.ts`: a base garment — doublet and hose,
 livery gown with a broad front panel, houppelande, robe of office with a
 stole — then a surcoat, tabard with a
 device, fur-trimmed cote, pleated skirt or rolled-shoulder jacket; a girdle,
@@ -292,7 +348,7 @@ and extras — scroll, purse and keys, paternoster, pomander. Sleeves
 always, often gloved; hose gartered or not; pointed shoes or boots. Everything
 is a colour of a mesh: gilt, silver and fur are paint, not materials.
 
-### 3.3 Mesh, and why colour boundaries are edges
+### 3.4 Mesh, and why colour boundaries are edges
 
 Colour is per face and a builder cannot tint half a triangle. A loft quad is
 two triangles whose centroids sit a third and two thirds of the way up it — so
@@ -315,7 +371,7 @@ are all edges. Hands are mitts with a thumb; boots have a collar on the shin
 and a foot on its own ankle bone; tunics get a collar ring. Nothing is a
 one-sided skin — bands and cuffs are closed solids.
 
-### 3.4 Figure animations
+### 3.5 Figure animations
 
 - **Feet are planted, legs are solved** (`life/legs.ts`). Each foot is a
   point in the world. A planted foot stays exactly where it is while the body

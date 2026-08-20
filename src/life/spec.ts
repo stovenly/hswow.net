@@ -1,6 +1,19 @@
 import type { BuildOptions } from '../art/types';
 
 /**
+ * How far a physique's contact gestures reach. Poses are rotational and
+ * contact is positional: the tuned rotations encode the villager's arm-to-torso
+ * ratio, so a different physique scales them to land its hand. Both 1 for the
+ * existing peoples; tuned by eye per physique.
+ */
+export interface GestureFit {
+  /** Scales the elbow-fold of hands-to-chest gestures: heart, press, clap, fold. */
+  reachIn: number;
+  /** Scales the arm rotations of hand-to-head gestures: brow, doff, scratch. */
+  reachUp: number;
+}
+
+/**
  * What a life builder tells the runtime about the creature it built. Stamped
  * on `mesh.userData.life` beside the rig; `LifeActivity` reads both.
  */
@@ -38,6 +51,8 @@ export interface LifeSpec {
   legs?: { thigh: number; shin: number; ankle: number };
   /** What a figure has on the front of its head, for the animator. */
   face?: string;
+  /** How far this physique's contact gestures reach; absent means 1. */
+  gestures?: GestureFit;
 }
 
 /** What every life builder accepts beyond seed and scale. */

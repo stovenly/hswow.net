@@ -1,6 +1,7 @@
 import type { Part } from '../assemble';
 import type { Rng } from '../random';
 import type { Vec3 } from '../sheet';
+import { ease, type BoneBall, type Surface, type Wearer } from './figure-surface';
 
 /**
  * The villager's trunk as a surface: crotch (u = 0) to the base of the neck
@@ -50,11 +51,6 @@ export function rungs(knots: readonly (readonly number[])[], spacing: number, ex
   for (const [t] of knots) set.add(t);
   for (let t = spacing; t < 1; t += spacing) set.add(Math.round(t * 1000) / 1000);
   return [...set].sort((a, b) => a - b);
-}
-
-export function ease(t: number): number {
-  const c = Math.max(0, Math.min(1, t));
-  return c * c * (3 - 2 * c);
 }
 
 /** A bell over `t` centred at `c` with width `s`, 1 at the centre. */
@@ -109,16 +105,26 @@ export interface Frame {
   belly: number;
 }
 
-export function drawFrame(rng: Rng, T: number, bottom: number): Frame {
+/** The ranges a people's sliders are drawn from. */
+export interface FrameRanges {
+  breadth: [number, number];
+  chest: [number, number];
+  waist: [number, number];
+  hip: [number, number];
+  depth: [number, number];
+  belly: [number, number];
+}
+
+export function drawFrame(rng: Rng, T: number, bottom: number, r: FrameRanges): Frame {
   return {
     T,
     bottom,
-    breadth: rng.range(0.92, 1.1),
-    chest: rng.range(0.94, 1.06),
-    waist: rng.range(0.9, 1.08),
-    hip: rng.range(0.95, 1.12),
-    depth: rng.range(0.92, 1.08),
-    belly: rng.range(0.94, 1.14),
+    breadth: rng.range(...r.breadth),
+    chest: rng.range(...r.chest),
+    waist: rng.range(...r.waist),
+    hip: rng.range(...r.hip),
+    depth: rng.range(...r.depth),
+    belly: rng.range(...r.belly),
   };
 }
 
@@ -234,5 +240,26 @@ export function makeTrunk(frame: Frame): Trunk {
     boneAt,
     skin,
     acromion: { x: acromionX, y: yOf(U_ACROMION), z: tube(U_ACROMION).cz },
+  };
+}
+
+/** The humanoid wearer: the generic context plus what only the trunk knows. */
+export interface Body extends Wearer {
+  /** Where the shirt ends over the lower half. */
+  hemU: number;
+}
+
+/** The trunk as the vocabulary's `Surface`, its deltoids the obstacles. */
+export function trunkSurface(trunk: Trunk, obstacles: readonly BoneBall[]): Surface {
+  return {
+    sides: TRUNK_SIDES,
+    us: TRUNK_US,
+    point: trunk.point,
+    extent: trunk.extent,
+    uOf: trunk.uOf,
+    yOf: trunk.yOf,
+    boneAt: trunk.boneAt,
+    skin: trunk.skin,
+    obstacles,
   };
 }

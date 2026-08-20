@@ -18,7 +18,7 @@ import { buildCityHead, isCityHead, type CityHeadKind, type HouseColours } from 
  * which way it faces is never in doubt.
  *
  * The hood rides `head`, the cowl over the shoulders `neck` and the mask
- * `face`, rack and all. LIFE.md §3.2.
+ * `face`, rack and all. LIFE.md §3.3.
  */
 
 /** Any face a figure can be given: a villager's or a cityfolk's. */
