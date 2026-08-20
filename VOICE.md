@@ -225,7 +225,7 @@ untouched. The client turns each `Syllable` into gesture keys:
 - **Liquids/glides**: partial constriction with voicing, slower followers.
 - **Breath (h)**: the vowel's shape with voicing off and aspiration high.
 - **Fricatives** are now cheap (a narrow constriction). The little language
-  has none on purpose; whether to add any is the world's call, not the spec's.
+  has none on purpose; whether to add any is a call for the world, not the spec.
 
 ### 6.2 Prosody → tracks
 
@@ -272,7 +272,7 @@ range, Rd baseline, jitter/shimmer/drift levels, velum leak, rate. Replaces
 
 ## 9. Phases
 
-Each phase ends with the world listening in the world; his report is the
+Each phase ends with someone listening in the world; that report is the
 ground truth. Nothing else measures anything.
 
 1. **Scaffold + vowels.** Worklet, protocol, LF glottis with per-period
@@ -321,12 +321,12 @@ ground truth. Nothing else measures anything.
   wants p/t/k it is one flag on the syllable and a longer VOT here.
 - **The old model stays.** `createVoice` returns the throat when the module
   registered and the node-graph voice when it did not. Deciding to delete it is
-  the world's, not the spec's.
+  a call for the world, not the spec's.
 
 ## 11. Rules that apply here as everywhere
 
 - **No checks.** No probes, no spectra, no listening scripts, nothing under
-  `tools/`. Read the code, then the world listens.
+  `tools/`. Read the code, then listen in the world.
 - **Comments short.** A line or three; the DSP gets a header where the
   algorithm needs one, no tuning history anywhere.
 - One processor. Physical parameters only across the boundary. Writers above.
