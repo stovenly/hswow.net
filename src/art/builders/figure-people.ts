@@ -1,8 +1,10 @@
+import * as THREE from 'three';
 import type { Part } from '../assemble';
 import type { Rng } from '../random';
 import type { GestureFit } from '../../life/spec';
 import { PALETTE, shade } from '../palette';
 import type { Catalogs } from './figure-layers';
+import { LIMB_SIDES, limbBand, type Limb } from './figure-limbs';
 import { pickWeighted } from './figure-surface';
 import type { Body, FrameRanges } from './figure-trunk';
 import { HEAD_KINDS } from './figure-head';
@@ -71,6 +73,13 @@ export interface People {
   lowerStyles: readonly { weight: number; kind: LowerStyle }[];
   shoes(rng: Rng): boolean;
   catalogs: Catalogs<Body>;
+  /** Dressing wound onto the limbs, over the `Limb` handles the driver hands over. */
+  limbs: {
+    /** The forearm's, from what `sleeves` drew. */
+    arm(l: Limb, s: Sleeves, o: Outfit): Part[];
+    /** The shin's, by the lower style drawn; a style not listed wears nothing. */
+    leg: Partial<Record<LowerStyle, (l: Limb, o: Outfit) => Part[]>>;
+  };
 }
 
 // --- palettes -------------------------------------------------------------------
@@ -154,6 +163,54 @@ function pickCloth(rng: Rng, hide: number, taken: readonly number[], from: reado
   return rng.pick(clear.length ? clear : from);
 }
 
+// --- limb dressing ----------------------------------------------------------------
+
+/** Wraps wound along the limb: four bands standing `lift` off it, alternating shades. */
+function windings(l: Limb, color: number, start: number, step: number, half: number, lift: number, dim: number): Part[] {
+  const parts: Part[] = [];
+  for (let i = 0; i < 4; i++) {
+    const t = start + i * step;
+    const r = l.radiusAt(t) + lift;
+    parts.push(limbBand(l, [[t - half, r], [t + half, r * 0.98]], shade(color, i % 2 ? dim : 1)));
+  }
+  return parts;
+}
+
+/** The forearm's dressing: a gauntlet cuff over a glove, a cuff where the sleeve ends, wraps. */
+function forearmWear(l: Limb, s: Sleeves, o: Outfit): Part[] {
+  const parts: Part[] = [];
+  if (s.glove !== undefined) {
+    const r = l.radiusAt(0.9) + 0.004;
+    parts.push(limbBand(l, [[0.84, r * 1.12], [1.02, r * 0.98]], shade(s.glove, 0.88)));
+  }
+  if (s.sleeveEnd >= 0.5) {
+    const cuffAt = l.from.clone().lerp(l.to, 0.1);
+    const cuff = new THREE.CylinderGeometry(l.r * 1.02, l.r * 1.06, l.r * 0.7, LIMB_SIDES);
+    cuff.translate(cuffAt.x, cuffAt.y, cuffAt.z);
+    parts.push({ geometry: cuff, color: o.trim, bone: l.bone });
+  }
+  if (s.armWraps) parts.push(...windings(l, o.accent, 0.34, 0.15, 0.05, 0.004, 0.9));
+  return parts;
+}
+
+/** A garter tied under the knee, its ends hanging. */
+function garter(l: Limb, o: Outfit): Part[] {
+  const r = l.radiusAt(0.16) + 0.004;
+  const tail = new THREE.BoxGeometry(l.r * 0.16, l.r * 0.5, l.r * 0.05);
+  const kneeOut = l.from.clone().lerp(l.to, 0.16).add(new THREE.Vector3(l.side * r * 0.9, -l.r * 0.28, r * 0.3));
+  tail.translate(kneeOut.x, kneeOut.y, kneeOut.z);
+  return [limbBand(l, [[0.11, r], [0.2, r * 0.98]], o.trim), { geometry: tail, color: shade(o.trim, 0.9), bone: l.bone }];
+}
+
+/** The breeches' cuff, gathered under the knee. */
+function breechCuff(l: Limb, o: Outfit): Part[] {
+  return [limbBand(l, [[0.04, l.r * 1.1], [0.2, l.r * 1.06]], o.lower)];
+}
+
+function legWraps(l: Limb, o: Outfit): Part[] {
+  return windings(l, o.accent, 0.2, 0.18, 0.06, 0.005, 0.88);
+}
+
 // --- the two peoples -------------------------------------------------------------
 
 /** The one body plan both peoples share today: human in the limbs, not in the head. */
@@ -215,6 +272,7 @@ export const PEOPLE: Record<'country' | 'city', People> = {
     ],
     shoes: () => false,
     catalogs: COUNTRY_CATALOGS,
+    limbs: { arm: forearmWear, leg: { wraps: legWraps, breeches: breechCuff } },
   },
   city: {
     physique: VILLAGER,
@@ -255,6 +313,7 @@ export const PEOPLE: Record<'country' | 'city', People> = {
     ],
     shoes: (rng) => rng.chance(0.6),
     catalogs: CITY_CATALOGS,
+    limbs: { arm: forearmWear, leg: { garters: garter } },
   },
 };
 
