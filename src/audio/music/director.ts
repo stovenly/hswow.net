@@ -50,28 +50,20 @@ import { createKick, createSnare, createHat } from './instruments/drums';
  *
  * One non-positional voice beside the beds, outside the emitter budget, with
  * its own gain into `dry` and `send`. A zone opts in by declaring
- * `ZoneEnvironment.music`; absent means silent. Most of the time the answer
- * to "what now" is deliberately nothing: pieces run a few minutes, the rests
+ * `ZoneEnvironment.music`; absent means silent. Most of the time the answer to
+ * "what now" is deliberately nothing: pieces run a few minutes, the rests
  * after them run longer, and every exit is by subtraction.
  *
- * Inside a piece, structure comes from scheduling, not from note choice —
- * and all of the scheduling comes from **one clock**. The bar clock is the
- * only clock: each bar, `fireBar` places everything the bar contains — the
- * chord and its drone, the texture figure with its downbeat on the downbeat,
- * the kit's four beats, and any melody statement that has come due, started
- * on the bar line. Chord changes and figure changes agree by construction,
- * and drift and ritard stretch every part identically because every part is
- * placed from the same bar length. The parts play together because there is
- * only one "when".
+ * Inside a piece the bar clock is the only clock. Each bar, `fireBar` places
+ * everything the bar contains — the chord and its drone, the texture figure
+ * with its downbeat on the downbeat, the kit's four beats, and any melody
+ * statement come due. Chord changes and figure changes agree by construction,
+ * and drift and ritard stretch every part identically, because the parts play
+ * together only because there is one "when".
  *
- * What distinguishes the places is each vibe's `character`: register, gait,
- * harmonic pace, phrase habit, level. The form machinery is shared; the
- * fingerprints are not.
- *
- * All note material still comes from the zone's seeds through `patterns.ts`
- * and `harmony.ts`, so a zone's motifs and its ground recur on every visit.
- * Timing and the performance choices use `Math.random`, the same split
- * `dsp/clock` already makes.
+ * All note material comes from the zone's seeds through `patterns.ts` and
+ * `harmony.ts`, so a zone's motifs and its ground recur on every visit. Timing
+ * and performance choices use `Math.random`, the same split `dsp/clock` makes.
  */
 
 export type MusicVoice =
@@ -96,20 +88,20 @@ export type MusicVoice =
   | 'harp'
   | 'dulcimer'
   | 'guitar'
-  // Phase 6i: rust, concrete and cold water.
+  // Rust, concrete and cold water.
   | 'anvil'
   | 'oildrum'
   | 'vibraphone'
   | 'glass'
   | 'hum'
   | 'pipe'
-  // Phase 6j: the performers.
+  // The performers.
   | 'fiddle'
   | 'gurdy'
   | 'saw'
   | 'harmonica'
   | 'deepdrum'
-  // Phase 6l: the back of the wagon.
+  // The back of the wagon.
   | 'viol'
   | 'whistler'
   | 'banjo'
@@ -118,8 +110,8 @@ export type MusicVoice =
 
 /**
  * Which instrument carries each stratum. The alternates are the band's other
- * hands: a piece may pick them per seed, and a restatement may — not must —
- * re-orchestrate onto them. Percussion is deliberately absent.
+ * hands: a piece may pick them per seed, and a restatement may re-orchestrate
+ * onto them. Percussion is deliberately absent.
  */
 export interface MusicPalette {
   drone: MusicVoice;
@@ -132,9 +124,9 @@ export interface MusicPalette {
 export type Span = readonly [number, number];
 
 /**
- * A vibe's fingerprint — everything behavioural the nine places do NOT
- * share. The form machinery is common property; where a place sits, how it
- * walks, how fast it thinks and how much it says are the place's own.
+ * A vibe's fingerprint — everything behavioural the places do not share. The
+ * form machinery is common property; where a place sits, how it walks, how
+ * fast it thinks and how much it says are the place's own.
  */
 export interface MusicCharacter {
   /** Semitones above the root where the ostinato sits. */
@@ -158,7 +150,7 @@ export interface MusicCharacter {
   /**
    * How the piece is laid out. Absent is the fixed arc — A A B A on two
    * written tension vectors. `speac` reads both from the vibe's own seed
-   * through Cope's grammar, so a place's form is the place's.
+   * through Cope's grammar.
    */
   form?: 'arc' | 'speac';
   /** The vibe's own fader, under the master trim — interiors sit low. */
@@ -183,8 +175,8 @@ export interface MusicSpec {
   pulse: Span | null;
   /**
    * The kit, for places that are machinery rather than weather. It arrives
-   * only where the section arc peaks, under the texture, and every stroke is
-   * a dice roll — the grammar keeps percussion out of calm states, and out of
+   * only where the section arc peaks, under the texture, and every stroke is a
+   * dice roll — the grammar keeps percussion out of calm states and out of
    * anything resembling a metronome.
    */
   drums?: boolean;
@@ -203,33 +195,24 @@ const FIRST_WAIT: Span = [8, 20];
 
 /**
  * Bar length where no pulse exists — harmony breathes instead of counting.
- *
- * Ten seconds was long enough that a pulse-free piece was seven bars: too few
- * to carry a four-section form, and slow enough that the chord moved under
- * four times a minute. Six and a half doubles the bar count and the harmonic
- * pace without putting a grid anywhere near it.
+ * Kept short enough that a pulse-free piece has bars to spare for a
+ * four-section form and the chord moves more than four times a minute.
  */
 const BREATH_BAR: Span = [5, 8];
 
 /**
- * Longest stretch of a breath bar the floating texture may leave bare.
- *
- * A breath bar is ten seconds. Scattering "a few notes" across one at random
- * means a mean of three, clumped wherever the dice put them, and the ear hears
- * a pad with the occasional ping — which is the drone alone by another name.
- * The count follows from the bar's length and this, not from a roll.
+ * Longest stretch of a breath bar the floating texture may leave bare, in
+ * seconds. Scattering a few notes across a ten-second bar at random clumps
+ * them wherever the dice fall, which is a pad with the occasional ping. The
+ * note count follows from the bar's length and this, not from a roll.
  */
 const FLOAT_GAP = 2.6;
 
 /**
- * Periods for the floating streams, in seconds.
- *
- * Thirty-seven, forty-nine and sixty-seven tenths of a second: pairwise
- * coprime, so the streams share no common multiple and never re-align. This
- * is *Music for Airports* — three tape loops of incommensurable length —
- * and it costs no second scheduler, because each stream is still placed
- * inside the bar `fireBar` already owns. What it buys is structure without a
- * grid, which is the thing the breath bar never had.
+ * Periods for the floating streams, in seconds. Pairwise coprime, so the
+ * streams share no common multiple and never re-align — *Music for Airports*
+ * on three tape loops of incommensurable length. It costs no second
+ * scheduler: each stream is still placed inside the bar `fireBar` owns.
  */
 const FLOAT_PERIODS: readonly number[] = [3.7, 4.9, 6.7];
 
@@ -246,12 +229,11 @@ const EXIT_TAU = 0.7;
 const DRONE_BREATH = 0.3;
 
 /**
- * How far under the bass a pad voice may sit, in semitones.
- *
- * A fifth, because that is the only place a common tone ever is. In this
- * grammar a chord is a root and a fifth, so the one pitch class two chords
- * share is the fifth of the higher one — which lands *below* its bass. Deny
- * that seat and the plagal move has no common tone to hold at all.
+ * How far under the bass a pad voice may sit, in semitones. A fifth, because
+ * that is the only place a common tone ever is: a chord here is a root and a
+ * fifth, so the one pitch class two chords share is the fifth of the higher
+ * one, which lands below its bass. Deny that seat and a plagal move has no
+ * common tone to hold.
  */
 const DRONE_UNDER = 5;
 
@@ -259,11 +241,9 @@ const DRONE_UNDER = 5;
 const DRONE_FLOOR_HZ = 40;
 
 /**
- * How much a chord has to beat the ground's own by before it is taken.
- *
- * The target itself is read off the moves the sounding mode has — see
- * `harmony.chordToward` — because the arc has to mean "as far as this place
- * can go", not a number some modes cannot reach.
+ * How much a chord has to beat the ground's own by before it is taken. The
+ * target itself is read off the moves the sounding mode has — see
+ * `harmony.chordToward` — so the arc means "as far as this place can go".
  */
 const GROUND_BIAS = 1.2;
 
@@ -271,10 +251,9 @@ const GROUND_BIAS = 1.2;
 const MUSIC_TRIM = 0.76;
 
 /**
- * How often the bar clock is pumped, in milliseconds.
- *
- * Well under the clock's lookahead, so the window is topped up many times over
- * before it could run dry. It is not a frame rate — nothing here is drawn.
+ * How often the bar clock is pumped, in milliseconds. Well under the clock's
+ * lookahead, so the window is topped up many times over before it could run
+ * dry. Not a frame rate — nothing here is drawn.
  */
 const PUMP_MS = 50;
 
@@ -453,9 +432,7 @@ export class MusicDirector {
     if (this.rack) {
       // Scored to scored is a crossfade under a continuing piece. Scored to
       // unscored is *fast*: through a door the world changes at a cut, and
-      // music that lingers into an unscored place reads as a leak — it was a
-      // slow "walk out with the player" fade once, and that is exactly how
-      // it read.
+      // music that lingers into an unscored place reads as a leak.
       this.rack.gain.gain.cancelScheduledValues(now);
       this.rack.gain.gain.setTargetAtTime(0, now, spec ? 0.9 : 0.35);
     }
@@ -473,11 +450,10 @@ export class MusicDirector {
     this.rack.gain.gain.setTargetAtTime(spec.character.level, now, 0.6);
 
     if (this.playing) {
-      // The bar line is the exit cue. Game scores transition on a cue and
-      // through a segment rather than on a gain ramp, and the director has
-      // had the cue all along — so the bar in flight plays out and the new
-      // key enters on the next downbeat, through its own approach chord.
-      // Resetting the clock here is what used to cut the bar short.
+      // The bar line is the exit cue. The bar in flight plays out and the new
+      // key enters on the next downbeat through its own approach chord, which
+      // is how a game score transitions — on a cue and through a segment,
+      // rather than on a gain ramp. Do not reset the clock here.
       this.recompose(spec);
       this.entering = true;
     } else {
@@ -490,11 +466,9 @@ export class MusicDirector {
   }
 
   /**
-   * Pumped from a worker timer, not from the frame loop.
-   *
-   * Nothing below reads frame state — every decision here is made against
-   * `context.currentTime` — so a late frame was never a reason for a bar to be
-   * late, and under a contended GPU it constantly was.
+   * Pumped from a worker timer, not from the frame loop. Nothing below reads
+   * frame state — every decision is made against `context.currentTime` — so a
+   * late frame is never a reason for a bar to be late.
    */
   private readonly pump = (): void => {
     this.out.gain.value = this.engine.settings.musicVolume * MUSIC_TRIM;
@@ -515,10 +489,10 @@ export class MusicDirector {
 
   /**
    * Day/night input. Night inverts instead of reducing: same seeds, same
-   * motifs, the other half of the vocabulary — the alternates become the
-   * usual draw, the registers flip, some answers go unsaid, the drone
-   * breathes out more, and the touch softens only a little. Stubbed until a
-   * day/night cycle exists to feed it.
+   * motifs, the other half of the vocabulary — the alternates become the usual
+   * draw, the registers flip, some answers go unsaid, the drone breathes out
+   * more, and the touch softens a little. Stubbed until a day/night cycle
+   * exists to feed it.
    */
   setNight(night: number): void {
     this.night = Math.min(Math.max(night, 0), 1);
@@ -527,10 +501,9 @@ export class MusicDirector {
   /**
    * For the music stage's panel: a whole piece, now. Starts one (or restarts
    * the one playing) with every layer earned and the entries pulled into the
-   * first bars, so a vibe can be judged in one sitting. The scarcity
-   * machine's own dice are the design for *playing*; this is for
-   * *auditioning*, which is why the compression lives here and nowhere near
-   * `startPiece`'s ordinary path.
+   * first bars, so a vibe can be judged in one sitting. The compression lives
+   * here rather than in `startPiece` because this is for auditioning; the
+   * scarcity machine's own dice are the design for playing.
    */
   playNow(): void {
     if (!this.spec || !this.rack) return;
@@ -540,7 +513,7 @@ export class MusicDirector {
   /**
    * The panel's companion to `playNow`: end the piece, now. The rack fades at
    * the exit rate so scheduled tails do not ring on, and the scarcity
-   * machine's ordinary rest follows — play is the way back sooner.
+   * machine's ordinary rest follows.
    */
   stopNow(): void {
     const now = this.engine.context.currentTime;
@@ -628,39 +601,35 @@ export class MusicDirector {
       }
     }
 
-    // A piece is more than its pad. Every piece gets all three strata: this
-    // was a dice roll on whether the melody existed at all, and a losing roll
-    // meant two minutes of pad and scattered texture — which is a broken pad,
-    // not a sparse place. Sparseness lives in the rests between pieces and in
-    // how often the melody speaks, never in a stratum missing.
+    // A piece is more than its pad: every piece gets all three strata.
+    // Sparseness lives in the rests between pieces and in how often the melody
+    // speaks, never in a stratum missing.
     this.earnedTexture = true;
     this.earnedMelody = true;
     this.earnedDrums = spec.drums ?? false;
 
-    // Growth is Sweden's: one voice in at a time, exits by subtraction — but
-    // both edges are counted in SECONDS and converted, never in bars. A breath
-    // bar is ten seconds and a pulse-free piece is seven of them, so "the
-    // melody arrives with the second section, texture leaves two bars early"
-    // spent half a minute at each end on bare pad. What the ear is owed is a
-    // short intro and a short outro, whatever the bar happens to be worth.
-    // A breath bar is ten seconds, so a pulse-free piece concedes no intro at
-    // all: the texture is in from the downbeat and the growth is the melody.
+    // Growth is one voice in at a time and exits are by subtraction — but both
+    // edges are counted in SECONDS and converted, never in bars. A breath bar
+    // is ten seconds and a pulse-free piece is seven of them, so an intro
+    // written in bars would spend half a minute on bare pad. What the ear is
+    // owed is a short intro and a short outro whatever the bar is worth, and a
+    // pulse-free piece concedes no intro at all: the texture is in from the
+    // downbeat and the growth is the melody.
     const inBars = (seconds: number) => Math.max(1, Math.round(seconds / barSec));
     this.textureFromBar = audition || this.beatSec === 0 ? 0 : inBars(2 + this.dice() * 4);
     // A breath bar is ten seconds, so "the melody enters at bar 1" is ten
     // seconds of waiting — which is not an intro when the point is to judge a
     // vibe in one sitting. A pulse-free audition speaks from the downbeat.
     this.melodyFromBar = audition ? (this.beatSec === 0 ? 0 : 1) : inBars(6 + this.dice() * 8);
-    // The texture plays the cadence out rather than leaving before it. It used
-    // to leave, which put the piece's only bare stretch under the ritard — the
-    // slowest bars in the piece — and a slow bare pad is the one thing the
-    // score must never do. It thins across the cadence instead.
+    // The texture plays the cadence out rather than leaving before it, thinning
+    // across it. Leaving would put the piece's only bare stretch under the
+    // ritard — the slowest bars in it — and a slow bare pad is the one thing
+    // the score must never do.
     this.textureUntilBar = this.totalBars - 1;
     this.melodyUntilBar = this.totalBars - inBars(this.beatSec === 0 ? 8 : 9);
     // The last word is placed by the form, not by the rest clock: the closing
     // statement starts where the ritard does, so the answer lands on the root
-    // as the tempo commits. Otherwise the melody stopped wherever it happened
-    // to stop and the cadence had nothing over it.
+    // as the tempo commits and the cadence has something over it.
     this.closingBar = Math.max(this.melodyFromBar, this.totalBars - FINAL_BARS);
     this.closed = false;
 
@@ -686,9 +655,9 @@ export class MusicDirector {
   }
 
   /**
-   * The zone's composed material — everything that stands on the spec's
-   * seeds. Split out so a border crossing can re-roll it onto the new zone
-   * mid-piece without touching the form's position.
+   * The zone's composed material — everything that stands on the spec's seeds.
+   * Split out so a border crossing can re-roll it onto the new zone mid-piece
+   * without touching the form's position.
    */
   private composeFor(spec: MusicSpec): void {
     this.ground = groundFor(spec.seed * 31 + this.dice.int(0, 3), spec.mode, 'home');
@@ -722,8 +691,8 @@ export class MusicDirector {
   /**
    * A A B A when the piece has room, the compact A A B when it does not. The
    * tension targets walk the arc — low, building, peak about two thirds in,
-   * resolve — and every section spends its target as register, subdivision
-   * and layer count rather than as loudness.
+   * resolve — and every section spends its target as register, subdivision and
+   * layer count rather than as loudness.
    *
    * Where a vibe asks for it, the plan and its tensions come from Cope's
    * grammar on the vibe's own seed instead, and the away sections are the
@@ -842,8 +811,8 @@ export class MusicDirector {
   /**
    * The piece's heartbeat and its only conductor: one call per bar places
    * everything the bar contains. Chord first — the strata stand on it — then
-   * the melody statement if one is due (it starts on the bar line), then the
-   * texture figure with its downbeat on the downbeat, then the kit.
+   * the melody statement if one is due, then the texture figure with its
+   * downbeat on the downbeat, then the kit.
    */
   private readonly fireBar = (at: number): void => {
     const spec = this.spec;
@@ -930,16 +899,15 @@ export class MusicDirector {
       this.fireDrone(at + barLen / 2, pc, barLen / 2 + 2.5);
       this.chordDegree = inMode(pc, mode) ? semitoneToDegree(mode, pc) : 0;
     } else if (mid !== null) {
-      // The accelerated bar: two chords in the time the vibe used to give one.
+      // The accelerated bar: two chords in the time the vibe gives one.
       this.fireDrone(at, pc, barLen / 2 + 1.5);
       this.fireDrone(at + barLen / 2, mid, barLen / 2 + 2);
       this.chordDegree = inMode(mid, mode) ? semitoneToDegree(mode, mid) : 0;
     } else {
       // An ordinary bar: re-fire the pad when the chord moves, or refresh it
-      // before the overlap runs dry. Each refresh re-voices, which is what
-      // keeps a held chord from being a held note — and sometimes the pad
-      // skips a due refresh and breathes out instead, so the drone falls
-      // away and re-enters rather than sounding for the whole piece.
+      // before the overlap runs dry. Each refresh re-voices, which keeps a held
+      // chord from being a held note — and sometimes the pad skips a due
+      // refresh and breathes out instead.
       const refresh = this.beatSec === 0 ? barLen * 0.9 : barLen * 2;
       const stale = at - this.droneFiredAt > refresh;
       if (pc !== this.dronePc || (stale && Math.random() > DRONE_BREATH + this.night * 0.15)) {
@@ -1024,13 +992,12 @@ export class MusicDirector {
   /**
    * The section's chords, bar by bar, laid out once when it turns over.
    *
-   * Two things `ground[bar % length]` could not do. Harmonic rhythm
-   * accelerates: a chord holds the vibe's own pace through the section's
-   * first half and half of it through the continuation, which is Schoenberg's
-   * sentence read as a section. And the bridge chooses by distance — the away
-   * loop is the prior, but where the arc asks for a move wider than the loop
-   * can make, the chord is the candidate whose Lerdahl distance from the one
-   * sounding is nearest the target. A sections keep their ground as written.
+   * Harmonic rhythm accelerates: a chord holds the vibe's own pace through the
+   * section's first half and half of it through the continuation, which is
+   * Schoenberg's sentence read as a section. The bridge chooses by distance —
+   * the away loop is the prior, but where the arc asks for a move wider than
+   * the loop can make, the chord is the candidate whose Lerdahl distance from
+   * the one sounding is nearest the target. A sections keep their ground.
    */
   private planChords(section: Section): BarChords[] {
     const spec = this.spec as MusicSpec;
@@ -1081,10 +1048,9 @@ export class MusicDirector {
   // --- the strata -------------------------------------------------------------
 
   /**
-   * The silence after a statement: the vibe's own span, leaned toward its
-   * short end by the vibe's density. Density is how *much* the melody speaks,
-   * not whether it speaks — a talkative place lives near the bottom of its
-   * span, a still one near the top, and neither ever exceeds it.
+   * The silence after a statement: the vibe's own span, leaned toward its short
+   * end by the vibe's density. Density is how much the melody speaks, not
+   * whether it speaks, and neither end ever exceeds the span.
    */
   private restAfterPhrase(): number {
     const spec = this.spec as MusicSpec;
@@ -1099,10 +1065,9 @@ export class MusicDirector {
   }
 
   /**
-   * Every stratum's touch at a moment: the piece-long swell — soft in,
-   * fullest in the middle, soft out — under the section's tension and the
-   * night's hand. Velocity is brightness in every voice, so this moves the
-   * tone and not merely the level.
+   * Every stratum's touch at a moment: the piece-long swell — soft in, fullest
+   * in the middle, soft out — under the section's tension and the night's
+   * hand. Velocity is brightness in every voice, so this moves tone as well.
    */
   private level(at: number): number {
     const p = this.pieceSpan > 0
@@ -1115,11 +1080,11 @@ export class MusicDirector {
   }
 
   /**
-   * Where a chord member sits this firing: the octave of it nearest a note
-   * the pad is already holding, inside the range around the bass and clear of
-   * what this voicing has taken. A plagal move shares one pitch class by
-   * construction, and the nearest octave *is* that common tone — held rather
-   * than restruck, which is what makes the move read as a cadence.
+   * Where a chord member sits this firing: the octave of it nearest a note the
+   * pad already holds, inside the range around the bass and clear of what this
+   * voicing has taken. A plagal move shares one pitch class by construction,
+   * and the nearest octave is that common tone — held rather than restruck,
+   * which is what makes the move read as a cadence.
    */
   private seatVoice(member: number, bass: number, taken: readonly number[]): number {
     const spec = this.spec as MusicSpec;
@@ -1143,12 +1108,11 @@ export class MusicDirector {
   }
 
   /**
-   * The pad, voiced as a rocking bass: high chords fall below the root. No
-   * two firings are the same breath — the touch wobbles, the fifth comes and
-   * goes, and sometimes the octave or the high fifth joins over the root,
-   * which is the one fixture. Root and fifth only, as the grammar writes it;
-   * what varies is the voicing, never the chord. The dice still decide how
-   * many notes and which; where each one sits is voice leading.
+   * The pad, voiced as a rocking bass: high chords fall below the root. No two
+   * firings are the same breath — the touch wobbles, the fifth comes and goes,
+   * and sometimes the octave or the high fifth joins over the root, which is
+   * the one fixture. Root and fifth only, as the grammar writes it; the dice
+   * decide how many notes and which, and where each sits is voice leading.
    */
   private fireDrone(at: number, pc: number, duration: number): void {
     const spec = this.spec;
@@ -1176,8 +1140,8 @@ export class MusicDirector {
   /**
    * A note re-stood on a chord, in degree space — the scale lock holds by
    * construction. The degree is read in the home mode the note was generated
-   * in and rendered in the sounding mode; the modes are the same length, so
-   * a mutated bridge re-says the same degree with one accidental moved.
+   * in and rendered in the sounding mode; the modes are the same length, so a
+   * mutated bridge re-says the same degree with one accidental moved.
    */
   private onChord(note: number, chord = this.chordDegree): number {
     const spec = this.spec as MusicSpec;
@@ -1190,9 +1154,8 @@ export class MusicDirector {
   /**
    * This bar's ostinato figure, placed inside the bar: the section's cell,
    * downbeat on the downbeat, notes standing on the chord of the bar. At the
-   * arc's peak the figure subdivides; in the melody's silences a long step
-   * may break into a pair — the call-and-response rung of the ladder. Every
-   * 4–8 bars, exactly one element of the note loop mutates.
+   * arc's peak the figure subdivides; in the melody's silences a long step may
+   * break into a pair. Every 4-8 bars exactly one element of the loop mutates.
    */
   private fireFigure(at: number, barLen: number, tension: number, thin = 1): void {
     const spec = this.spec;
@@ -1203,12 +1166,11 @@ export class MusicDirector {
     const octave = spec.character.textureOctave + (this.night > 0.5 ? 12 : 0);
 
     if (this.beatSec === 0) {
-      // Wilderness floats, but it does not stop — and it is no longer a walk
-      // through jittered slots. Two streams, three where the arc is high,
-      // each with its own period and its own place in the ostinato. Their
-      // phase runs in piece time, so a stream carries over the bar line
-      // rather than starting again on it, and because the periods share no
-      // common multiple the three never state the same bar twice.
+      // Wilderness floats, but it does not stop. Two streams, three where the
+      // arc is high, each with its own period and its own place in the
+      // ostinato. Their phase runs in piece time, so a stream carries over the
+      // bar line rather than starting again on it, and because the periods
+      // share no common multiple the three never state the same bar twice.
       const until = at + barLen;
       const events: { at: number; stream: number }[] = [];
       // Night takes the slower streams rather than fewer of them — the same
@@ -1224,10 +1186,8 @@ export class MusicDirector {
       }
       events.sort((a, b) => a.at - b.at);
 
-      // Incommensurable is not the same as even. Wherever the phases leave
-      // the pad alone for longer than `FLOAT_GAP` the gap takes a note of its
-      // own — the property the slot walk guaranteed, and the one thing here
-      // that is not allowed to become weaker.
+      // Incommensurable is not the same as even. Wherever the phases leave the
+      // pad alone for longer than `FLOAT_GAP` the gap takes a note of its own.
       const fills: typeof events = [];
       for (let i = 0; i <= events.length; i++) {
         const from = i === 0 ? at : events[i - 1].at;
@@ -1382,8 +1342,8 @@ export class MusicDirector {
    * held — or, where the vibe's habit says so, only the closing fragment.
    * Statements start on the bar line; later ones develop the motif by the
    * section's one operation, and the bridge lifts the whole period onto its
-   * ground. Steps take their lengths from the section's rhythm cell and
-   * their lean from the arch.
+   * ground. Steps take their lengths from the section's rhythm cell and their
+   * lean from the arch.
    */
   private fireStatement(at: number, closing = false): void {
     const spec = this.spec;
@@ -1479,10 +1439,10 @@ export class MusicDirector {
         }
         t += step * (closing ? hold * 0.8 : 1);
       }
-      // The breath between the question and its answer. A withheld answer
-      // takes no breath: the phrase rest begins on the open note. A sentence
-      // has more than one breath, and its continuation presses — each one is
-      // shorter than the last, which is the acceleration written as silence.
+      // The breath between the question and its answer. A withheld answer takes
+      // no breath: the phrase rest begins on the open note. A sentence has more
+      // than one breath and its continuation presses — each shorter than the
+      // last, which is the acceleration written as silence.
       if (h < halves.length - 1) {
         const press = halves.length > 2 ? 1 - 0.5 * (h / (halves.length - 2)) : 1;
         t += (this.beatSec > 0 ? this.beat() : between([1.2, 2])) * press;
@@ -1495,10 +1455,10 @@ export class MusicDirector {
   }
 
   /**
-   * One note, decorated: the cut is a grace a degree above, the mordent dips
-   * to the lower neighbour and returns, the anticipation touches the pitch
-   * early and softly. Extra short noteOns and nothing else — the mono voices
-   * read the tight joins as glides, which is a fiddle cut for free. The
+   * One note, decorated: the cut is a grace a degree above, the mordent dips to
+   * the lower neighbour and returns, the anticipation touches the pitch early
+   * and softly. Extra short noteOns and nothing else — the mono voices read
+   * the tight joins as glides, which is a fiddle cut for free. The
    * anticipation leans before the beat, so it is kept off phrase starts.
    */
   private ornament(

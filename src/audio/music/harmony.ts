@@ -7,13 +7,13 @@ import { MODES, inMode, type ModeName } from './theory';
  * A ground is a loop of chord roots, one per bar, written as pitch classes
  * above the zone root. Every chord is rendered downstream as the grammar's
  * third-less root and fifth, so a ground is nothing but where the bass
- * stands; the loops are the old ones — the double tonic, the lament, each
+ * stands. The loops are the old ones — the double tonic, the lament, each
  * mode's signature move — and none contains the fifth or the leading tone,
  * because a dominant would turn the rocking into a cadence.
  *
  * `home` loops start on the tonic and are a piece's ordinary ground. `away`
- * loops start elsewhere, for a bridge that must feel like leaving — the
- * return is guaranteed by the section that follows, not by the loop.
+ * loops start elsewhere, for a bridge that must feel like leaving; the return
+ * is guaranteed by the section that follows, not by the loop.
  */
 
 /** A chord loop: pitch classes above the root, one chord per bar. */
@@ -173,7 +173,7 @@ export const GROUNDS: Record<ModeName, GroundBook> = {
   // Two chords is the whole book here: in a five-note scale with a minor third
   // and a minor sixth, every other degree has no fifth of its own to stand on.
   // Both places that use these barely move anyway, so the second loop is the
-  // slow one — two bars home, two away — rather than another pair of roots.
+  // slow one — two bars home, two away.
   hirajoshi: {
     home: [
       [0, 8],
@@ -203,11 +203,10 @@ export const GROUNDS: Record<ModeName, GroundBook> = {
  * between the two roots, plus the pitch classes in the second chord's basic
  * space that the first's does not already hold.
  *
- * Every chord here is a root and a perfect fifth standing on one sounding
- * mode, so the mode level of the basic space is shared and cancels, and the
- * triadic level repeats the root and fifth rather than adding a third. What
- * is left is a small integer: 0 for no move, 4 for a plagal step or a fifth,
- * 7 to 11 for anything further around the circle.
+ * Every chord here is a root and a perfect fifth on one sounding mode, so the
+ * mode level of the basic space cancels and the triadic level repeats the root
+ * and fifth rather than adding a third. What is left is a small integer: 0 for
+ * no move, 4 for a plagal step or a fifth, 7 to 11 for anything further round.
  */
 export function chordDistance(x: number, y: number): number {
   const pc = (note: number): number => ((note % 12) + 12) % 12;
@@ -225,8 +224,8 @@ export function chordDistance(x: number, y: number): number {
 /**
  * Every chord a mode can stand on: in the mode, with its own perfect fifth
  * above it, and never the fifth or the leading tone — the same filter the
- * ground loops are written under, so choosing by distance cannot reach a
- * chord the ground book would have refused.
+ * ground loops are written under, so choosing by distance cannot reach a chord
+ * the ground book would have refused.
  */
 export function chordCandidates(mode: ModeName): readonly number[] {
   const scale = MODES[mode];
@@ -255,8 +254,7 @@ const OWN_GROUND_BIAS = 0.75;
 /**
  * Where a tension lands inside a range. Distance targets have to be read off
  * what a mode can actually reach: hirajoshi holds two chords and one move
- * between them, pentatonic-major has no move under 7, and a target written as
- * a book-wide constant asks both of them for something that does not exist.
+ * between them, and pentatonic-major has no move under 7.
  */
 const toward = (tension: number, options: readonly number[]): number => {
   const lo = Math.min(...options);
@@ -266,12 +264,11 @@ const toward = (tension: number, options: readonly number[]): number => {
 
 /**
  * The loop from a mode's book that moves by about as much as a section wants
- * to move — the same chords a ground book already writes, entered in the
- * order the arc asks for rather than the one order the seed drew.
+ * to move — the same chords a ground book already writes, entered in the order
+ * the arc asks for rather than the one order the seed drew.
  *
  * The zone's own loop is the prior and the tie-break, so a place still has a
- * ground; what changes is that a section at rest and a section at the peak no
- * longer walk the same one.
+ * ground; a section at rest and a section at the peak do not walk the same one.
  */
 export function groundToward(
   mode: ModeName,
@@ -297,8 +294,8 @@ export function groundToward(
 /**
  * The chord a section wants to move to next: the one whose distance from the
  * chord sounding is nearest what the tension asks for, read against the moves
- * this mode has rather than against a constant. `written` is the ground's own
- * chord and the prior, so a place still walks its ground.
+ * this mode has. `written` is the ground's own chord and the prior, so a place
+ * still walks its ground.
  */
 export function chordToward(
   mode: ModeName,

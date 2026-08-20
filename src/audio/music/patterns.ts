@@ -2,20 +2,18 @@ import { createRng, type Rng } from '../../art/random';
 import { degreeToSemitone, inMode, semitoneToDegree, type Mode } from './theory';
 
 /**
- * Seeded cell generators — the Spore recipe. A zone stores seeds, never
- * notes; re-rolling a seed replays its cell exactly, which is what makes a
- * motif recur without a bar of composed data anywhere. The `Rng` is the same
- * seeded randomness every builder uses, for the same reason: if a seed gave a
- * different melody on a different day, a zone's music would stop being *its*
- * music.
+ * Seeded cell generators. A zone stores seeds, never notes; re-rolling a seed
+ * replays its cell exactly, which is what makes a motif recur without a bar of
+ * composed data anywhere. The `Rng` is the same seeded randomness every
+ * builder uses — a seed that gave a different melody on a different day would
+ * stop a zone's music being *its* music.
  *
- * Cells are walked in degree space and converted at the end, so the scale
- * lock holds by construction. The melodic rule is the grammar's: one leap,
- * then steps — and the first step recovers against the leap, which is the
- * oldest counterpoint advice there is. The walk is also clamped so the whole
- * cell spans no more than a major sixth, and that clamp is what makes cells
- * order-independent: whatever order the director plays the notes in, no
- * interval can exceed the span, so every permutation connects.
+ * Cells are walked in degree space and converted at the end, so the scale lock
+ * holds by construction. The melodic rule is one leap, then steps, with the
+ * first step recovering against the leap. The walk is clamped so a whole cell
+ * spans no more than a major sixth, which is what makes cells
+ * order-independent: whatever order the director plays them in, no interval
+ * can exceed the span, so every permutation connects.
  */
 
 /** A cell: semitones relative to the zone root, in generated order. */
@@ -70,10 +68,9 @@ const spanWith = (degrees: readonly number[], next: number, mode: Mode): number 
 /**
  * The melodic rule re-applied to a line that has been developed: one leap of
  * two or three degrees, then steps, and the whole line inside `CONNECT`.
- * `melodyCell` guarantees all of that when it writes a head, and `applyOp`
- * can lose it — a sequence most of all — so it is re-imposed rather than
- * played as found. Direction is preserved throughout, so a sequence still
- * sounds sequenced and an inversion still sounds inverted.
+ * `applyOp` can lose it — a sequence most of all — so it is re-imposed rather
+ * than played as found. Direction is preserved, so a sequence still sounds
+ * sequenced and an inversion still sounds inverted.
  */
 export function connect(head: readonly number[], mode: Mode): readonly number[] {
   if (head.length < 2) return head;
@@ -111,8 +108,8 @@ export function closure(line: readonly number[], mode: Mode): number {
 
 /**
  * Notes the texture stratum may sit on: root, fourth, fifth, octave, ninth,
- * filtered to the mode. No third — the mid stratum keeps the drone's
- * ambiguity rather than deciding major or minor underneath the melody.
+ * filtered to the mode. No third — the mid stratum keeps the drone's ambiguity
+ * rather than deciding major or minor underneath the melody.
  */
 export function texturePool(mode: Mode): readonly number[] {
   return [0, 5, 7, 12, 14].filter((semitone) => inMode(semitone, mode));
@@ -135,8 +132,7 @@ export function textureCell(seed: number, mode: Mode): Cell {
 // A period is same head, different tail: antecedent and consequent open with
 // one idea, the antecedent ends open — a question — and the consequent
 // descends by step onto the root and stays there. That tail asymmetry is the
-// whole trick that makes an answer an answer; the old firePhrase transposed
-// the entire cell and missed it.
+// whole trick that makes an answer an answer.
 
 /** A phrase, in mode degrees this time — the director owes it a rhythm. */
 export interface Period {
@@ -166,17 +162,17 @@ const stepsBetween = (from: number, to: number): number[] => {
 };
 
 /**
- * Deterministic on purpose — every restatement of a head gets the same
- * tails, so a developed motif is still audibly the motif.
+ * Deterministic on purpose — every restatement of a head gets the same tails,
+ * so a developed motif is still audibly the motif.
  */
 export function periodFrom(head: readonly number[], mode: Mode): Period {
   const last = head[head.length - 1];
 
   // The open tail steps to the nearest open degree, in whichever octave is
-  // closest — and never stands still: an unmoved question is no question.
-  // Where two are equally near, the one that carries on the way the head was
-  // going wins: a change of direction is one of Narmour's closure
-  // conditions, and a question is the half that fails to close.
+  // closest, and never stands still: an unmoved question is no question. Where
+  // two are equally near, the one carrying on the way the head was going wins
+  // — a change of direction is one of Narmour's closure conditions, and a
+  // question is the half that fails to close.
   const heading = head.length > 1 ? Math.sign(last - head[head.length - 2]) : 0;
   const candidates: number[] = [];
   for (const open of openDegrees(mode)) {
@@ -208,13 +204,11 @@ export function periodFrom(head: readonly number[], mode: Mode): Period {
 }
 
 /**
- * Schoenberg's sentence, beside the period.
- *
- * Presentation — the basic idea, then the idea answered a degree away —
- * continuation, which fragments the answer and states its front half twice,
- * and the cadence, the same stepwise landing on the root the period closes
- * with. Every part of it already existed in the grammar; what is new is a
- * phrase of five gestures rather than a question and an answer.
+ * Schoenberg's sentence, beside the period: presentation — the basic idea,
+ * then the idea answered a degree away — continuation, which fragments the
+ * answer and states its front half twice, and the cadence, the same stepwise
+ * landing on the root the period closes with. Five gestures rather than a
+ * question and an answer.
  */
 export function sentenceFrom(head: readonly number[], mode: Mode): readonly (readonly number[])[] {
   const answer = connect(head.map((degree) => degree + 1), mode);

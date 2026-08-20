@@ -1,32 +1,23 @@
 import type { MusicSpec } from './director';
 
 /**
- * The vibe book — the nine place compositions of SPEC Phase 6e, and the
- * eleven of Phase 6i below them.
- *
- * A spec per kind of place, built on three findings: settlements pulse and
- * wilderness floats (a felt pulse with drums is human presence, and its
- * absence is the strongest lever the table has); the mode is the character;
- * and an interior is a *reduction* of its outside — same root, same mode,
- * same seed, thinner arrangement — so stepping indoors is the same music
+ * The vibe book — one spec per kind of place, built on three findings.
+ * Settlements pulse and wilderness floats, and a felt pulse with drums is the
+ * strongest lever the table has for human presence. The mode is the character.
+ * And an interior is usually a *reduction* of its outside — same root, same
+ * mode, same seed, thinner arrangement — so stepping indoors is the same music
  * heard through walls rather than a different track.
  *
- * The third finding no longer holds for the villages. Their interiors are
- * rooms — a hearth, a shop counter — rather than the square heard through a
- * wall, so they carry their own roots, modes and seeds, and stand to the two
- * villages the way the forest paths stand to the forests: the same family,
- * not the same piece.
+ * The villages are the exception: their interiors are rooms, a hearth or a
+ * shop counter, so they carry their own roots, modes and seeds and stand to
+ * the villages the way the forest paths stand to the forests.
  *
- * Rack identity is spec identity: a zone must declare one of these constants,
- * not a copy of its fields, so every zone with the same vibe shares one rack
- * and the border crossfade works. The table in the spec is the tunable;
- * these names are working labels — naming stays with the repo owner.
+ * Rack identity is spec identity: a zone must declare one of these constants
+ * and not a copy of its fields, so every zone with the same vibe shares one
+ * rack and the border crossfade works. These names are working labels.
  *
- * Phase 6h gave every vibe a `character` — register, gait, harmonic pace,
- * phrase habit, level — and then the roots themselves were spread, because
- * nine vibes rooted inside a single octave sounded like nine transpositions
- * however the behaviour differed. The ladder now runs from the cave's A1 to
- * the bright forest's D4, and each vibe's strata are placed to own a band:
+ * The roots are spread across a ladder rather than crowded into one octave,
+ * and each vibe's strata are placed to own a band:
  *
  *   cave        A1   55  — everything below 250, thought nearly stopped
  *   forest b    E2   82  — dark floor, high glints, the widest spread
@@ -43,11 +34,10 @@ import type { MusicSpec } from './director';
 
 /**
  * The village at evening: settled rather than trading, and the wide one.
- *
  * Everything the market does close and quick, this does spread and slow — the
  * strata two octaves apart, chords held for two bars, a pulse under it but no
- * kit, because one of the two villages having the drums is the clearest thing
- * that tells them apart from the far side of a fence.
+ * kit, because one village having the drums is the clearest thing that tells
+ * them apart from the far side of a fence.
  */
 export const VILLAGE_1_VIBE: MusicSpec = {
   root: 130.81, // C3
@@ -109,11 +99,10 @@ export const VILLAGE_2_VIBE: MusicSpec = {
 };
 
 /**
- * The hearth room: someone's home, with someone humming in the next one.
- *
- * A room, not the village heard through its wall — its own root at the top of
- * the ladder, its own five notes, its own tunes. High roots want their strata
- * close, the way the beach settles them.
+ * The hearth room: someone's home, with someone humming in the next one. A
+ * room rather than the village heard through its wall — its own root at the
+ * top of the ladder, its own five notes, its own tunes. High roots want their
+ * strata close, the way the beach settles them.
  */
 export const VILLAGE_INTERIOR_1_VIBE: MusicSpec = {
   root: 261.63, // C4
@@ -365,7 +354,7 @@ export const CAVE_VIBE: MusicSpec = {
     textureOctave: 12,
     melodyOctave: 24,
     gait: [],
-    // Two breath bars a chord — glacial, but no longer geological.
+    // Two breath bars a chord: glacial, and deliberately so.
     chordBars: 2,
     phraseRest: [12, 21],
     fragment: 0.8,
@@ -379,21 +368,19 @@ export const CAVE_VIBE: MusicSpec = {
 };
 
 /**
- * Phase 6i — the underground, the industrial park and a cold coast.
+ * The underground, the industrial park and a cold coast.
  *
- * Three rules run through all eleven. The industrial places will have loud
+ * Three rules run through all eleven. The industrial places have loud
  * machinery over them, so their music vacates the low-mid the clatter owns —
- * drone underneath, glints well above, a thin middle — and sits at 0.85–0.9,
+ * drone underneath, glints well above, a thin middle — and sits at 0.85-0.9,
  * behind the world rather than over it. Machines march: those vibes take
  * `even` alone, or even against short-short-long, and hold their chords for
  * bars, while every folk gait stays in the pastoral half of the book. And the
  * caves, sewers and scrapyard are weather, so they have no pulse at all; the
  * three powered places keep time, and only factory 2 has a kit.
  *
- * The coast was weather too, and that is what was wrong with it: pulse-free
- * means breath bars ten seconds long with a handful of loose notes in them,
- * which on a shore rooted high with no low end is a held tone. Both coast
- * vibes keep time now — the swell does, not a band, and neither has a kit.
+ * Both coast vibes keep time too — the swell does, not a band — and neither
+ * has a kit.
  *
  * The roots continue the ladder below the settlements, and the coast takes the
  * one gap above them:
@@ -677,15 +664,11 @@ export const SUBSTATION_2_VIBE: MusicSpec = {
 /**
  * A cold Atlantic, with the sea moving in it.
  *
- * Rewritten off `pulse: null`. Pulse-free routes a vibe onto the breath-bar
- * machinery — bars eight to thirteen seconds long, a texture of loose notes
- * scattered through them, statements a dozen seconds apart — which on a shore
- * with no low end came out as a held tone and the occasional ping. A pulse
- * puts a metered figure in every bar, and the swell is what keeps time here:
- * a felt pulse and no kit is motion, not people. Everything else follows it —
- * the chord moves every bar, the rests are short and the density leans them
- * shorter, and the texture is a voice that sustains rather than one that
- * decays into the gap.
+ * The swell keeps time here: a felt pulse and no kit is motion, not people.
+ * Everything follows from that — the chord moves every bar, the rests are
+ * short and the density leans them shorter, and the texture is a voice that
+ * sustains rather than one that decays into the gap. A shore rooted this high
+ * with no low end has nothing to fill a breath bar with.
  */
 export const BEACH_VIBE: MusicSpec = {
   root: 220, // A3

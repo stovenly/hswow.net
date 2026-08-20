@@ -9,8 +9,7 @@ import { createMonoPool, type MonoVoice } from './mono';
  *
  * A bow is a breath that does not run out: a bowed phrase is one bow direction
  * the way a wind phrase is one lungful, so these voices live on persistent
- * players and read legato from timing, and re-attacking a join would be the
- * same harsh stop-start the winds were cured of.
+ * players and read legato from timing. Re-attacking a join is a stop-start.
  *
  * These are the book's benders. A join's glide speed belongs to the voice, not
  * the pool: the fiddle shifts fast, a finger moving along a string, and the
@@ -20,8 +19,7 @@ import { createMonoPool, type MonoVoice } from './mono';
  * never quite stops moving.
  *
  * The viol is the fiddle's recipe taken low and slow — darker formants, a
- * lazier vibrato, a longer bow — so one player can stand where the string
- * section used to be weather.
+ * lazier vibrato, a longer bow — so one player can carry a whole low line.
  */
 
 export interface BowedOptions {

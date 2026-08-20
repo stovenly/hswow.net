@@ -1,18 +1,13 @@
 import { createRng } from '../../art/random';
 
 /**
- * Cope's SPEAC as a section grammar.
+ * Cope's SPEAC as a section grammar. Statement, preparation, extension,
+ * antecedent, consequent — roles rather than chord labels, ordered by
+ * stability: A is least stable, then P, E, S, and C is most. A section's
+ * tension target is *read* from its role instead of being written down.
  *
- * Statement, preparation, extension, antecedent, consequent — roles rather
- * than chord labels. Their stability is the point: A is the least stable, then
- * P, E, S, and C is the most. A section's tension target is *read* from its
- * role instead of being written down, which is the difference between a form
- * that has an arc and a form that has been given one.
- *
- * One hard rule carries the shape. An antecedent must reach a consequent, so
- * a plan that opens something has to close it, and every plan therefore lands
- * on C. That single constraint is what the old fixed A A B A was standing in
- * for.
+ * One hard rule carries the shape: an antecedent must reach a consequent, so
+ * a plan that opens something has to close it, and every plan lands on C.
  */
 
 export type SpeacId = 'S' | 'P' | 'E' | 'A' | 'C';
