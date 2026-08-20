@@ -2,7 +2,7 @@ import type { AudioEngine } from '../../AudioEngine';
 import { human, hold, type Instrument } from './voice';
 
 /**
- * Waterphone — bowed junk metal, promoted from the bench.
+ * Waterphone — bowed junk metal.
  *
  * A ring of rods on a water-filled pan: nothing about it is harmonic, and
  * bowing one rod wakes its neighbours. So a note is a stack of inharmonic

@@ -5,10 +5,10 @@ import { createMonoPool, type MonoVoice } from './mono';
 /**
  * Flute — a narrow pulse squeezed to nearly a sine, blown by the mono core.
  *
- * A real flute is almost all fundamental, and the shrillness lived in starting
- * from a saw: a saw has every harmonic, and whatever survives the lowpass is
- * still a ladder of them. A 40 % pulse starts hollow — sparse harmonics,
- * weighted low — so the same ceiling leaves a rounder tone.
+ * A real flute is almost all fundamental. A saw has every harmonic and
+ * whatever survives the lowpass is still a ladder of them, so the source is a
+ * 40 % pulse instead: it starts hollow, sparse harmonics weighted low, and the
+ * same ceiling leaves a rounder tone.
  *
  * The counter-intuitive parts that matter:
  *

@@ -5,21 +5,15 @@ import { melodyCell, type Cell } from './patterns';
 import { buildVoice, type BenchVoice } from './instruments/build';
 
 /**
- * An instrument being played, as a placeable sound model.
+ * An instrument being played, as a placeable sound model — the bridge between
+ * the director's world and the soundscape's. The director is non-positional by
+ * design, but an instrument still has to be judged by walking up to it, so
+ * this wraps one voice and a seeded line as a standard `SoundModel` and solo,
+ * occlusion and the voice budget all come along free.
  *
- * The bridge between the director's world and the soundscape's. The director
- * is non-positional by design — a score is not *somewhere* — but an
- * instrument still has to be judged, and judging means walking up to it on a
- * stage the way every other model in the library is walked up to. This wraps
- * one voice and a seeded line as a standard `SoundModel`, so a zone can stand
- * it on a plinth with an ordinary emitter, and solo, occlusion and the voice
- * budget all come along free.
- *
- * The line is real material, not a test scale: cells from `patterns.ts`,
- * stated one note at a time with a breath between passes, each pass re-rolled
- * onto another of the seed's motifs. A fixed arpeggio would be easier to
- * write and would audition the wrong thing — what a zone actually gets is a
- * voice playing cells.
+ * The line is real material rather than a test scale: cells from
+ * `patterns.ts`, stated one note at a time with a breath between passes, each
+ * pass re-rolled onto another of the seed's motifs.
  */
 
 export type PlayedVoice = BenchVoice;

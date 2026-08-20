@@ -1,15 +1,11 @@
 /**
- * Note math, mode tables, the scale lock.
+ * Note math, mode tables, the scale lock. Pure arithmetic — no audio context
+ * anywhere in this file, so the grammar can be exercised headlessly. Pitch is
+ * a count of semitones relative to a zone's declared root and only becomes
+ * hertz at the last moment, on the way to a `noteOn`.
  *
- * Pure arithmetic — no audio context anywhere in this file, which is what
- * lets `check:audio` assert the grammar headlessly. Pitch is a count of
- * semitones relative to a zone's declared root and only becomes hertz at the
- * last moment, on the way to a `noteOn`.
- *
- * The lock is the Spore lesson taken literally: Eno's day-two filter that
- * turned random sequences into music was nothing but "snap every note into
- * the mode", and here nothing upstream is trusted to be in the mode until
- * this file has said so.
+ * The lock is Eno's day-two filter taken literally — snap every note into the
+ * mode — and nothing upstream is trusted until this file has said so.
  */
 
 /** Semitones above the root, one octave, ascending, always starting at 0. */
@@ -24,8 +20,8 @@ export const MODES = {
   aeolian: [0, 2, 3, 5, 7, 8, 10],
   'pentatonic-major': [0, 2, 4, 7, 9],
   'pentatonic-minor': [0, 3, 5, 7, 10],
-  // Phase 6i: five scales the pastoral book had no use for. All keep the
-  // perfect fifth, so the drone still fits under every one of them.
+  // Five scales outside the pastoral book. All keep the perfect fifth, so the
+  // drone still fits under every one of them.
   'harmonic-minor': [0, 2, 3, 5, 7, 8, 11],
   'phrygian-dominant': [0, 1, 4, 5, 7, 8, 10],
   'blues-hexatonic': [0, 3, 5, 6, 7, 10],
@@ -39,9 +35,8 @@ export const MODES = {
 export type ModeName = keyof typeof MODES;
 
 /**
- * The modes a bridge may step to — Phase 6k. One accidental apart and the
- * same number of notes: the brightness chain, plus the edges the 6i scales
- * added. Equal length is load-bearing — heads and ostinatos live in degree
+ * The modes a bridge may step to: one accidental apart and the same number of
+ * notes. Equal length is load-bearing — heads and ostinatos live in degree
  * space, so a same-size neighbour re-says the same idea with one accidental
  * moved. Blues has six notes and no same-size neighbour, so it sits out.
  */
@@ -68,11 +63,11 @@ export function hz(root: number, semitones: number): number {
 }
 
 /**
- * Pure ratios per pitch class above the zone root — Phase 6k. Equal
- * temperament makes every held interval beat slowly against the pad; drone
- * traditions tune to the drone instead. 5-limit, except the flat fifth,
- * which takes 7:5 — the blue note by ratio rather than by accident. The
- * minor seventh is two pure fourths, the gentlest of its candidates.
+ * Pure ratios per pitch class above the zone root. Equal temperament makes
+ * every held interval beat slowly against the pad; drone traditions tune to
+ * the drone instead. 5-limit, except the flat fifth, which takes 7:5 — the
+ * blue note by ratio rather than by accident. The minor seventh is two pure
+ * fourths, the gentlest of its candidates.
  */
 export const JUST: readonly number[] = [
   1 / 1,
@@ -91,8 +86,8 @@ export const JUST: readonly number[] = [
 
 /**
  * `hz` retuned to the drone: pure octaves, pure ratios inside them. The
- * music path's hertz — the reference is always the zone root, never the
- * chord of the bar, because the drone is what the ear tunes to.
+ * reference is always the zone root, never the chord of the bar, because the
+ * drone is what the ear tunes to.
  */
 export function justHz(root: number, semitones: number): number {
   const pc = ((semitones % 12) + 12) % 12;

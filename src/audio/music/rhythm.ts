@@ -2,13 +2,11 @@ import { createRng, type Rng } from '../../art/random';
 import type { Cell } from './patterns';
 
 /**
- * Rhythm with intent — a repeated cell, not per-note dice.
- *
- * Folk rhythm is a bar-length figure owned for a whole section: the snap,
- * the dotted pair, short-short-long. Randomizing onsets independently is
- * what a metronome with noise sounds like, which is exactly what the old
- * texture was. A section seeds ONE cell and states it bar over bar; variety
- * comes from the minimalist's mutation rule below, one element at a time.
+ * Rhythm with intent — a repeated cell, not per-note dice. Folk rhythm is a
+ * bar-length figure owned for a whole section: the snap, the dotted pair,
+ * short-short-long. A section seeds ONE cell and states it bar over bar, and
+ * variety comes from the minimalist's mutation rule below, one element at a
+ * time. Randomising onsets independently is a metronome with noise on it.
  */
 
 /** Beats to a bar, everywhere the grid exists. */
@@ -30,8 +28,8 @@ const on = (position: number, grid: number): boolean => {
 };
 
 /**
- * Longuet-Higgins & Lee's metric weights: 0 on the bar line, −1 on the half,
- * −2 on the beat, −3 on the eighth or its triplet, −4 below that. The
+ * Longuet-Higgins & Lee's metric weights: 0 on the bar line, -1 on the half,
+ * -2 on the beat, -3 on the eighth or its triplet, -4 below that. The
  * hierarchy is a property of the bar, so accent is read from it rather than
  * written per step — which is what lets `subdivide` halve a cell without the
  * halves inheriting their parent's stress.
@@ -63,13 +61,11 @@ const cellOf = (...beats: readonly number[]): RhythmCell => {
 };
 
 /**
- * A cell's own emphasis over the bar's, per step.
- *
- * Most gaits agree with the metre and want nothing here. The crooked ones do
- * not: their whole character is a stress that contradicts where it lands, and
- * a cell derived purely from metric weight has no limp left in it. The lean
- * is a ratio rather than a replacement, so the hierarchy underneath it — and
- * therefore `subdivide` — still works.
+ * A cell's own emphasis over the bar's, per step. Most gaits agree with the
+ * metre and want nothing here; the crooked ones do not, and their whole
+ * character is a stress that contradicts where it lands. The lean is a ratio
+ * rather than a replacement, so the hierarchy underneath — and therefore
+ * `subdivide` — still works.
  */
 const leaning = (cell: RhythmCell, accents: readonly number[]): RhythmCell =>
   cell.map((step, i) => ({ ...step, accent: accents[i] }));
@@ -107,9 +103,8 @@ export function rhythmCell(seed: number, gait: readonly GaitName[] = GAITS): Rhy
 
 /**
  * One rung down the ladder: every step long enough to split becomes a pair.
- * The bar total is untouched, so the grid holds — and both halves re-read
- * their accent from where they land rather than inheriting the parent's,
- * which is the difference between a subdivided bar and a doubled one.
+ * The bar total is untouched, so the grid holds, and both halves re-read their
+ * accent from where they land rather than inheriting the parent's.
  */
 export function subdivide(cell: RhythmCell): RhythmCell {
   const out: RhythmStep[] = [];
@@ -144,7 +139,7 @@ const stutters = (cell: readonly number[]): boolean =>
 /**
  * The minimalist's rule: every few repeats, exactly one element changes — a
  * neighbour swap, one note replaced, one added or dropped. Never more, and
- * never a stutter; the ostinato stays recognizably itself while it drifts.
+ * never a stutter; the ostinato stays recognisably itself while it drifts.
  */
 export function mutateOstinato(rng: Rng, notes: Cell, pool: readonly number[]): Mutation {
   const ops: MutationOp[] = ['swap', 'replace'];

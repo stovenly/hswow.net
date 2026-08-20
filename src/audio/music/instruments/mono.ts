@@ -5,9 +5,9 @@ import { human } from './voice';
  *
  * A wind phrase is one breath, not a row of separate notes: the player tongues
  * the first note, glides through the joins, and lets the last one taper off.
- * An oscillator per note re-tongues every join and gates every ending, and
- * that re-tonguing is the harsh stop-start the winds were doing. So a wind
- * instrument here is a few players that never stop — each an oscillator chain
+ * An oscillator per note re-tongues every join and gates every ending, which
+ * is a harsh stop-start. So a wind instrument here is a few players that
+ * never stop — each an oscillator chain
  * whose envelope idles at zero — and a note is a decision about which player
  * carries it and how.
  *
