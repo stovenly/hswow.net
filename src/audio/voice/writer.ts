@@ -27,8 +27,15 @@ import {
 
 export type { Unit };
 
-/** Silence between the burst and the voice. */
+/**
+ * Silence between the burst and the voice — the one number that separates the
+ * three laryngeal series. A voiced stop has the folds already running, a
+ * tenuis one starts them almost at once, and an aspirated one leaves the tube
+ * blowing open for long enough to be heard as a puff.
+ */
 const VOT = 0.018;
+const TENUIS = 0.012;
+const ASPIRATE = 0.075;
 /** An ejective's silence: the folds are shut too, and open late. */
 const EJECT = 0.06;
 /**
@@ -44,12 +51,15 @@ const OPEN = 0.012;
 function unvoiced(c: Consonant): boolean {
   if (c.air === 'ejective') return true;
   switch (c.manner) {
-    case 'fricative':
-    case 'lateralFricative':
-    case 'breath':
     case 'glottal':
     case 'click':
       return true;
+    // A stop with a hum in front of it is voiced however the closure is.
+    case 'stop':
+      return c.voice === 'off' && !c.attack;
+    case 'fricative':
+    case 'lateralFricative':
+    case 'breath':
     case 'nasal':
       return c.voice === 'off';
     default:
@@ -300,7 +310,10 @@ export function write(score: Score, me: Identity, at: number): Written {
     // the edges of a phrase. This is what makes loudness a change of timbre.
     const slack = breathy || c.voice === 'murmur';
     const pressed = creaky || c.air === 'ejective';
-    lines.at('rd', on, me.rd + (slack ? 0.7 : pressed ? -0.15 : 0.1), 'lin');
+    // An aspirated release hands the vowel folds that are still coming
+    // together, which is a breathier wave for its first stretch.
+    const puff = c.release === 'aspirated' ? 0.4 : 0;
+    lines.at('rd', on, me.rd + (slack ? 0.7 : pressed ? -0.15 : 0.1 + puff), 'lin');
     lines.at('rd', on + length * 0.35, me.rd + (breathy ? 0.5 : -0.2 * s.stress), 'lin');
     lines.at('rd', end, me.rd + (s.pause > 0.2 ? 0.25 : 0.08), 'lin');
 
@@ -322,8 +335,11 @@ export function write(score: Score, me: Identity, at: number): Written {
     lines.at('bodyPos', on + 0.03, vowel.bodyPos, 'lin');
     lines.at('bodyDia', on + 0.03, vowel.bodyDia, 'lin');
     lines.at('lips', on + 0.03, vowel.lips, 'lin');
-    // A fricative has already put the tip back where it wants it.
-    if (c.manner !== 'fricative') lines.at('tip', on + 0.02, TIP_OPEN, 'lin');
+    // Out of the way, unless this vowel curls the tip itself. A fricative has
+    // already put the tip where it wants it and is left alone.
+    if (c.manner !== 'fricative' || vowel.tip !== undefined) {
+      lines.at('tip', on + 0.02, vowel.tip ?? TIP_OPEN, 'lin');
+    }
 
     // The mouth moves on into the second vowel across the middle of it.
     if (s.glide !== s.vowel) {
@@ -332,6 +348,7 @@ export function write(score: Score, me: Identity, at: number): Written {
       lines.at('bodyPos', to, glide.bodyPos, 'lin');
       lines.at('bodyDia', to, glide.bodyDia, 'lin');
       lines.at('lips', to, glide.lips, 'lin');
+      if (glide.tip !== vowel.tip) lines.at('tip', to, glide.tip ?? TIP_OPEN, 'lin');
     }
 
     // Through the nose: the velum opens under the vowel and shuts after it,
@@ -445,7 +462,8 @@ function releaseLead(c: Consonant): number {
   if (c.manner !== 'stop') return 0;
   if (c.air === 'ejective') return EJECT;
   if (c.air === 'implosive') return 0.008;
-  return VOT;
+  if (c.release === 'aspirated') return ASPIRATE;
+  return c.voice === 'off' ? TENUIS : VOT;
 }
 
 /**
@@ -518,7 +536,7 @@ function writeOnset(
       writeStop(lines, c, on, begin, level, vowel, me);
       return;
     case 'fricative':
-      writeFricative(lines, c, on, begin, vowel, me);
+      writeFricative(lines, c, on, begin, level, vowel, me);
       return;
     case 'lateralFricative':
       writeLateralFricative(lines, on, begin, level, vowel, me);
@@ -538,7 +556,7 @@ function writeOnset(
       writeClick(lines, c, on, begin, level, vowel);
       return;
     case 'breath':
-      writeBreath(lines, c, on, begin, vowel, me);
+      writeBreath(lines, c, on, begin, level, vowel, me);
       return;
     case 'glottal':
       writeGlottal(lines, on, begin, level, vowel);
@@ -607,11 +625,26 @@ function writeStop(
     lines.hold('loud', seal);
     lines.at('loud', seal + 0.01, level * 0.12, 'lin');
     lines.hold('loud', release);
+  } else if (c.voice === 'off') {
+    // Nothing behind the closure at all. That silence is what a p is, and it
+    // is the whole of the difference from a b.
+    lines.at('loud', begin, 0, 'lin');
+    lines.hold('loud', on - 0.002);
   } else {
     // A little voicing behind the closure. A voiced stop barely aspirates: any
     // real puff of air on the release is heard as a crack.
     lines.at('loud', begin + 0.015, level * 0.1, 'lin');
     lines.hold('loud', release);
+  }
+
+  if (c.release === 'aspirated') {
+    // The tube blows open and stays open: noise through the whole of the VOT
+    // and dying away under the front of the vowel.
+    lines.at('breath', begin, 0, 'step');
+    lines.at('breath', release, 0.45, 'lin');
+    lines.hold('breath', on - 0.01);
+    lines.at('breath', on + 0.02, me.breath, 'lin');
+    return;
   }
   lines.at('breath', begin, me.breath * 0.5, 'step');
   if (c.voice === 'murmur') {
@@ -620,7 +653,7 @@ function writeStop(
     lines.at('breath', release, 0.3, 'lin');
     lines.at('breath', on + 0.09, me.breath, 'lin');
   } else {
-    lines.at('breath', release, me.breath * 1.2, 'lin');
+    lines.at('breath', release, me.breath * (c.voice === 'off' ? 1.8 : 1.2), 'lin');
     lines.at('breath', on + 0.012, me.breath, 'lin');
   }
 }
@@ -631,7 +664,7 @@ function writeStop(
  * which is what makes this a fricative and not a close vowel with noise on it.
  */
 function writeFricative(
-  lines: Lines, c: Consonant, on: number, begin: number, vowel: Shape, me: Identity,
+  lines: Lines, c: Consonant, on: number, begin: number, level: number, vowel: Shape, me: Identity,
 ): void {
   const g = fricGap(c);
   lines.at('jaw', begin, g.jaw, 'lin');
@@ -652,7 +685,13 @@ function writeFricative(
   lines.hold(g.track, on - 0.02);
   lines.at(g.track, on, back, 'lin');
 
-  lines.at('breath', begin, 0.4, 'lin');
+  // The folds run through a voiced one, quieter than a vowel because most of
+  // the flow is going into noise at the constriction.
+  if (c.voice !== 'off') {
+    lines.at('loud', begin + 0.012, level * 0.45, 'lin');
+    lines.hold('loud', on - 0.01);
+  }
+  lines.at('breath', begin, c.voice === 'off' ? 0.4 : 0.3, 'lin');
   lines.at('breath', on + 0.01, me.breath, 'lin');
 }
 
@@ -793,7 +832,7 @@ function writeClick(
  * the pharynx narrows on it first.
  */
 function writeBreath(
-  lines: Lines, c: Consonant, on: number, begin: number, vowel: Shape, me: Identity,
+  lines: Lines, c: Consonant, on: number, begin: number, level: number, vowel: Shape, me: Identity,
 ): void {
   lines.at('jaw', begin, vowel.jaw, 'lin');
   if (c.place === 'throat') {
@@ -809,6 +848,11 @@ function writeBreath(
     lines.at('bodyDia', begin, vowel.bodyDia, 'lin');
   }
   lines.at('lips', begin, vowel.lips, 'lin');
+  // A voiced h is the same rush with the folds running slack under it.
+  if (c.voice !== 'off') {
+    lines.at('loud', begin + 0.012, level * 0.35, 'lin');
+    lines.hold('loud', on - 0.01);
+  }
   lines.at('breath', begin, c.place === 'throat' ? 0.4 : 0.3, 'lin');
   lines.at('breath', on + 0.02, me.breath * 1.4, 'lin');
 }

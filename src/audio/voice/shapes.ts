@@ -68,6 +68,23 @@ export const SHAPES: Record<Vowel, Shape> = {
   'ɑ': { jaw: 0.9, bodyPos: 0.04, bodyDia: NO_HISS, lips: 1.3 },
   'ɨ': { jaw: 0.25, bodyPos: 0.6, bodyDia: NO_HISS, lips: 1.4 },
   'ɤ': { jaw: 0.55, bodyPos: 0.24, bodyDia: 0.85, lips: 1.35 },
+  // The half-open row and the middle of the chart: the jaw does most of the
+  // work between e and ɛ, the lips between ɛ and œ.
+  'ɛ': { jaw: 0.68, bodyPos: 0.7, bodyDia: 0.9, lips: 1.38 },
+  'œ': { jaw: 0.66, bodyPos: 0.7, bodyDia: 0.9, lips: 0.66 },
+  'ɔ': { jaw: 0.72, bodyPos: 0.18, bodyDia: 0.75, lips: 0.66 },
+  'ʌ': { jaw: 0.72, bodyPos: 0.18, bodyDia: 0.75, lips: 1.32 },
+  'ɪ': { jaw: 0.34, bodyPos: 0.85, bodyDia: 0.72, lips: 1.42 },
+  'ʊ': { jaw: 0.36, bodyPos: 0.32, bodyDia: 0.72, lips: 0.6 },
+  'ɐ': { jaw: 0.82, bodyPos: 0.45, bodyDia: 0.95, lips: 1.25 },
+  'ɜ': { jaw: 0.6, bodyPos: 0.5, bodyDia: 1.05, lips: 1.2 },
+  'ɵ': { jaw: 0.42, bodyPos: 0.55, bodyDia: 1.0, lips: 0.66 },
+  'ʉ': { jaw: 0.24, bodyPos: 0.6, bodyDia: NO_HISS, lips: 0.6 },
+  'ɒ': { jaw: 0.9, bodyPos: 0.06, bodyDia: NO_HISS, lips: 0.72 },
+  'ɶ': { jaw: 0.85, bodyPos: 0.68, bodyDia: 0.85, lips: 0.66 },
+  // The one vowel with a tip of its own: curled up, but well clear of the
+  // gap that would make it hiss.
+  'ɚ': { jaw: 0.45, bodyPos: 0.5, bodyDia: 0.9, lips: 0.95, tip: 0.6 },
 };
 
 /** How long a closure is held, by where it is made. Lips take the longest. */
@@ -94,7 +111,7 @@ export function bodyAt(place: Place): number {
 /** The articulator that closes at `place`, and where it goes when it lets go. */
 export function closer(place: Place, vowel: Shape): { track: Track; open: number } {
   if (place === 'lip') return { track: 'lips', open: vowel.lips };
-  if (place === 'ridge') return { track: 'tip', open: TIP_OPEN };
+  if (place === 'ridge') return { track: 'tip', open: vowel.tip ?? TIP_OPEN };
   return { track: 'bodyDia', open: vowel.bodyDia };
 }
 
@@ -117,15 +134,34 @@ export interface Gap {
  * it and what the lips do — not by moving the tip.
  */
 export function fricGap(c: Consonant): Gap {
+  const g = channel(c);
+  // The folds damp the flow, so the same gap voiced is the quieter of the
+  // two. A voiced fricative is given a slightly wider one to hiss through.
+  return c.voice === 'off' ? g : { ...g, gap: g.gap * 1.15 };
+}
+
+/** The tip's channels at the ridge, and the plain gap everywhere else. */
+function channel(c: Consonant): Gap {
   if (c.manner === 'lateralFricative') {
     return { track: 'tip', gap: LATERAL, jaw: 0.25, bodyPos: 0.7, bodyDia: 1.0, lips: null };
   }
   if (c.place === 'ridge') {
-    const hush = c.shade === 'hush';
-    return {
-      track: 'tip', gap: hush ? 0.22 : 0.13, jaw: 0.22,
-      bodyPos: 0.75, bodyDia: 1.0, lips: hush ? 0.85 : null,
-    };
+    const ridge = { track: 'tip' as Track, jaw: 0.22, bodyPos: 0.75, bodyDia: 1.0, lips: null };
+    switch (c.shade) {
+      case 'hush':
+        // Wide and rounded: the front cavity is longer, so it sits lower.
+        return { ...ridge, gap: 0.22, lips: 0.85 };
+      case 'retroflex':
+        // The body drops back behind the tip, which is the whole difference.
+        return { ...ridge, gap: 0.2, bodyPos: 0.55 };
+      case 'alveolopalatal':
+        return { ...ridge, gap: 0.16, bodyPos: 0.9, lips: 1.4 };
+      case 'dental':
+        // Blunt and weak: a wide gap under an open jaw makes no whistle.
+        return { ...ridge, gap: 0.3, jaw: 0.35 };
+      default:
+        return { ...ridge, gap: 0.13 };
+    }
   }
   if (c.place === 'lip') {
     return { track: 'lips', gap: FRIC, jaw: 0.22, bodyPos: null, bodyDia: null, lips: null };

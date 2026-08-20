@@ -57,7 +57,8 @@ export interface Consonant {
 export const OPEN: Consonant = { manner: 'none', place: 'glottis', voice: 'on' };
 
 export type Vowel =
-  | 'a' | 'e' | 'i' | 'o' | 'u' | 'ə' | 'ü' | 'ɯ' | 'ø' | 'æ' | 'ɑ' | 'ɨ' | 'ɤ';
+  | 'a' | 'e' | 'i' | 'o' | 'u' | 'ə' | 'ü' | 'ɯ' | 'ø' | 'æ' | 'ɑ' | 'ɨ' | 'ɤ'
+  | 'ɛ' | 'œ' | 'ɔ' | 'ʌ' | 'ɪ' | 'ʊ' | 'ɐ' | 'ɜ' | 'ɵ' | 'ʉ' | 'ɒ' | 'ɶ' | 'ɚ';
 
 /** The pitch shape a syllable carries of its own, under the phrase's tune. */
 export type Tone = 'level' | 'high' | 'low' | 'rise' | 'fall' | 'dip';
@@ -83,6 +84,11 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['c', c('stop', 'back', 'off')],
   ['q', c('stop', 'back', 'off')],
   ['ɢ', c('stop', 'back', 'on')],
+  ['pʰ', c('stop', 'lip', 'off', { release: 'aspirated' })],
+  ['tʰ', c('stop', 'ridge', 'off', { release: 'aspirated' })],
+  ['cʰ', c('stop', 'back', 'off', { release: 'aspirated' })],
+  ['kʰ', c('stop', 'back', 'off', { release: 'aspirated' })],
+  ['qʰ', c('stop', 'back', 'off', { release: 'aspirated' })],
   ['pʼ', c('stop', 'lip', 'off', { air: 'ejective' })],
   ['tʼ', c('stop', 'ridge', 'off', { air: 'ejective' })],
   ['kʼ', c('stop', 'back', 'off', { air: 'ejective' })],
@@ -101,9 +107,13 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['z', c('fricative', 'ridge', 'on', { shade: 'plain' })],
   ['ʃ', c('fricative', 'ridge', 'off', { shade: 'hush' })],
   ['ʒ', c('fricative', 'ridge', 'on', { shade: 'hush' })],
-  ['ʂ', c('fricative', 'ridge', 'off', { shade: 'hush' })],
-  ['ɕ', c('fricative', 'ridge', 'off', { shade: 'hush' })],
-  ['ʑ', c('fricative', 'ridge', 'on', { shade: 'hush' })],
+  ['ʂ', c('fricative', 'ridge', 'off', { shade: 'retroflex' })],
+  ['ʐ', c('fricative', 'ridge', 'on', { shade: 'retroflex' })],
+  ['ɕ', c('fricative', 'ridge', 'off', { shade: 'alveolopalatal' })],
+  ['ʑ', c('fricative', 'ridge', 'on', { shade: 'alveolopalatal' })],
+  ['θ', c('fricative', 'ridge', 'off', { shade: 'dental' })],
+  ['ð', c('fricative', 'ridge', 'on', { shade: 'dental' })],
+  ['th', c('fricative', 'ridge', 'off', { shade: 'dental' })],
   ['j', c('fricative', 'ridge', 'off', { shade: 'hush' })],
   ['sh', c('fricative', 'ridge', 'off', { shade: 'hush' })],
   ['ch', c('fricative', 'ridge', 'off', { shade: 'hush' })],
@@ -113,17 +123,16 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['f', c('fricative', 'lip', 'off')],
   ['v', c('fricative', 'lip', 'on')],
   ['x', c('fricative', 'back', 'off')],
+  ['ɣ', c('fricative', 'back', 'on')],
   ['χ', c('fricative', 'back', 'off')],
+  ['ħ', c('fricative', 'throat', 'off')],
+  ['ʕ', c('fricative', 'throat', 'on')],
   ['ɬ', c('lateralFricative', 'ridge', 'off')],
 
-  // An h is the vowel's own shape breathed before it is voiced; a pharyngeal
-  // narrows the throat on it first.
+  // An h is the vowel's own shape breathed before it is voiced. Voiced, it is
+  // the same gesture with the folds left slack under it.
   ['h', c('breath', 'glottis', 'off')],
-  ['ɦ', c('breath', 'glottis', 'off')],
-  ['θ', c('breath', 'glottis', 'off')],
-  ['ð', c('breath', 'glottis', 'off')],
-  ['th', c('breath', 'glottis', 'off')],
-  ['ħ', c('breath', 'throat', 'off')],
+  ['ɦ', c('breath', 'glottis', 'murmur')],
 
   // Nasals. A ring under one takes the voice out of it.
   ['m', c('nasal', 'lip', 'on')],
@@ -134,19 +143,21 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['n̥', c('nasal', 'ridge', 'off')],
   ['ŋ̊', c('nasal', 'back', 'off')],
 
-  // Trills.
+  // Trills, and the taps that are one beat of the same gesture.
   ['ʙ', c('trill', 'lip', 'on')],
   ['r', c('trill', 'ridge', 'on')],
   ['ʀ', c('trill', 'back', 'on')],
+  ['ɾ', c('tap', 'ridge', 'on')],
+  ['ɽ', c('tap', 'ridge', 'on', { shade: 'retroflex' })],
+  ['ɺ', c('tap', 'ridge', 'on', { shade: 'lateral' })],
 
   // Liquids and approximants: a real constriction with the voice on.
   ['l', c('lateral', 'ridge', 'on')],
   ['ɭ', c('lateral', 'ridge', 'on')],
   ['ʎ', c('lateral', 'ridge', 'on')],
   ['w', c('approximant', 'lip', 'on')],
-  ['y', c('approximant', 'ridge', 'on')],
-  ['ɣ', c('approximant', 'back', 'on')],
-  ['ʕ', c('approximant', 'throat', 'on')],
+  ['ɹ', c('approximant', 'ridge', 'on')],
+  ['ɰ', c('approximant', 'back', 'on')],
 
   // Clicks: two closures and the pop of the pocket between them.
   ['ʘ', c('click', 'lip', 'off')],
@@ -208,11 +219,13 @@ export function spellConsonant(x: Consonant): string {
   return LETTER.get(key(x)) ?? '';
 }
 
-export const VOWEL_LIST: readonly Vowel[] = ['a', 'e', 'i', 'o', 'u', 'ə', 'ü', 'ɯ', 'ø', 'æ', 'ɑ', 'ɨ', 'ɤ'];
+export const VOWEL_LIST: readonly Vowel[] = [
+  'a', 'e', 'i', 'o', 'u', 'ə', 'ü', 'ɯ', 'ø', 'æ', 'ɑ', 'ɨ', 'ɤ',
+  'ɛ', 'œ', 'ɔ', 'ʌ', 'ɪ', 'ʊ', 'ɐ', 'ɜ', 'ɵ', 'ʉ', 'ɒ', 'ɶ', 'ɚ',
+];
 
-/** Letter to vowel, including the ones that are spelt another way. */
-export const VOWEL_OF: Record<string, Vowel> = {
-  a: 'a', e: 'e', i: 'i', o: 'o', u: 'u', y: 'i',
-  'ü': 'ü', 'ʉ': 'ü', 'ɯ': 'ɯ', 'ø': 'ø', 'œ': 'ø', 'æ': 'æ', 'ɑ': 'ɑ', 'ɒ': 'ɑ',
-  'ɨ': 'ɨ', 'ɤ': 'ɤ', 'ə': 'ə', 'ɐ': 'a', 'ɛ': 'e', 'ɔ': 'o', 'ʊ': 'u', 'ɪ': 'i',
-};
+/** Letter to vowel. Every one has a row of its own; `y` is the one spelling. */
+export const VOWEL_OF: Record<string, Vowel> = Object.fromEntries([
+  ...VOWEL_LIST.map((v) => [v, v] as const),
+  ['y', 'i'] as const,
+]);
