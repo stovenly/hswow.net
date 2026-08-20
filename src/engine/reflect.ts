@@ -1,33 +1,26 @@
 /**
- * The screen-space reflection march, shared by every surface that mirrors.
+ * The screen-space reflection march, shared by every surface that mirrors — water
+ * and glass both need it, and two copies of a sixty-line march would drift apart
+ * the first time either was tuned.
  *
- * Factored out of the water shader the way `SKY_GLSL` was factored out of the
- * sky: water and glass both need it, and two copies of a sixty-line march would
- * drift apart the first time either was tuned.
- *
- * **The includer owes it four things**, all of which any surface drawn in the
- * effect chain already has: a `sceneDistance(vec2)` returning metres along the
- * camera ray, the scene colour as `tScene`, the camera's `uProjectionView`, and
- * three's own `cameraPosition`.
+ * The includer owes it four things, all of which any surface drawn in the effect
+ * chain already has: a `sceneDistance(vec2)` returning metres along the camera
+ * ray, the scene colour as `tScene`, the camera's `uProjectionView`, and three's
+ * own `cameraPosition`.
  */
 export const REFLECT_GLSL = /* glsl */ `
 /**
- * March the depth buffer for what a ray hits.
+ * March the depth buffer for what a ray hits, in world space rather than screen
+ * space: the depth texture is read as a distance in metres, so the acceptance band
+ * can be written in metres too, which is the only unit these shaders are authored
+ * in. The stride grows geometrically, so a near hit is found precisely and a far
+ * one is still reached inside the step budget.
  *
- * **Marched in world space, not screen space.** The depth texture is read as a
- * *distance* in metres, so a metre-sized step is a step whose acceptance band
- * can be written in metres too — and metres are the only unit these shaders are
- * authored in. The stride grows geometrically, so a near hit is found precisely
- * and a far one is still reached inside the step budget.
- *
- * The weight is how much to trust the hit: zero for no hit at all, faded down
- * near the edge of the frame where the ray is about to run out of screen. The
- * caller crossfades that against the analytic sky, which is the answer a miss
- * deserves anyway.
- *
- * A surface using this is off layer 0 and therefore absent from the depth
- * buffer, so the ray has nothing of its own to intersect and none of the usual
- * self-intersection guards are needed.
+ * The weight is how much to trust the hit — zero for no hit at all, faded down near
+ * the edge of the frame where the ray is about to run out of screen; the caller
+ * crossfades that against the analytic sky. A surface using this is off layer 0 and
+ * therefore absent from the depth buffer, so none of the usual self-intersection
+ * guards are needed.
  */
 vec3 marchReflection(
   vec3 origin,

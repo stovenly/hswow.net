@@ -15,29 +15,19 @@ const LEFT_KEYS = ['KeyA', 'ArrowLeft'];
 const RIGHT_KEYS = ['KeyD', 'ArrowRight'];
 const SPRINT_KEYS = ['ShiftLeft', 'ShiftRight'];
 /**
- * Crouch.
- *
- * Caps Lock, which is unusual and worth a note. It is a *locking* key: the
- * browser reports `keydown` and `keyup` for it like any other, but on some
- * platforms the physical key latches, and either way the operating system is
- * also toggling a mode nobody asked it to. Held-to-crouch is still the right
- * behaviour and it is what is implemented — the key is read as held, not as
- * toggled, so a latched Caps Lock releases the moment it is pressed again.
- *
- * Left Control is the conventional alternative and is deliberately not bound:
- * the browser hands most Ctrl combinations to the page or the OS, so a player
- * crouching while doing anything else fires shortcuts.
+ * Crouch, on Caps Lock. It is a locking key: the browser reports `keydown` and
+ * `keyup` for it like any other, but on some platforms the physical key latches
+ * and the OS is also toggling a mode nobody asked for. Read as held, not toggled,
+ * so a latched Caps Lock releases the moment it is pressed again. Left Control is
+ * deliberately not bound — the browser hands most Ctrl combinations to the page.
  */
 const CROUCH_KEYS = ['CapsLock'];
 const JUMP_KEYS = ['Space'];
 /**
- * Interact.
- *
- * A key rather than a mouse button, deliberately. Left click is already how
- * pointer lock is acquired, so a click-to-interact scheme has to distinguish
- * "click that captured the mouse" from "click that meant something", and the
- * first click after every alt-tab lands in the ambiguous case. `E` has no such
- * overload and is where every player's hand already is.
+ * Interact, on a key rather than a mouse button: left click is already how pointer
+ * lock is acquired, so a click-to-interact scheme has to tell "click that captured
+ * the mouse" from "click that meant something", and the first click after every
+ * alt-tab lands in the ambiguous case.
  */
 const INTERACT_KEYS = ['KeyE'];
 
@@ -58,13 +48,7 @@ const RELOCK_WINDOW = 3000;
 /** Gap between attempts. Short enough to feel immediate once the gate lifts. */
 const RELOCK_INTERVAL = 120;
 
-/**
- * Whether a control acts while held, or latches on each press.
- *
- * A player option rather than a constant: held is what most first-person games
- * do and is the default, and toggled is what makes a long walk or a long look
- * at something bearable if holding a key hurts.
- */
+/** Whether a control acts while held, or latches on each press. A player option: held is the default, and toggled is what makes a long walk bearable if holding a key hurts. */
 export type HoldMode = 'hold' | 'toggle';
 
 export class Input {
@@ -147,21 +131,15 @@ export class Input {
     return keyed || this.stickSprint;
   }
 
-  /**
-   * True while crouch is held — or until the key is pressed again, if the
-   * player has asked for that. See `CROUCH_KEYS` for why the physical latching
-   * of Caps Lock is not what decides this.
-   */
+  /** True while crouch is held — or until the key is pressed again, if the player has asked for that. */
   get crouching(): boolean {
     return this.crouchMode === 'toggle' ? this.crouchLatch : this.pressed(CROUCH_KEYS);
   }
 
   /**
-   * Switches sprint between held and latched, dropping any latch.
-   *
-   * Clearing matters: leaving a latch set while switching back to hold would
-   * strand the player sprinting with nothing to release, and the only way out
-   * would be to change the option back.
+   * Switches sprint between held and latched, dropping any latch. Clearing matters:
+   * a latch left set while switching back to hold strands the player sprinting with
+   * nothing to release.
    */
   setSprintMode(mode: HoldMode): void {
     // Only on a real change. Every option the player touches re-applies all of
@@ -197,14 +175,10 @@ export class Input {
   }
 
   /**
-   * True once per press of the interact key, then false until it is released
-   * and pressed again.
-   *
-   * Consumed rather than sampled, so holding `E` in a doorway uses the door
-   * once instead of firing a transition on every frame until the fade starts.
-   * Unlike the jump buffer there is no time window: an interaction that
-   * arrived a moment too early should be dropped, not replayed at whatever the
-   * player happens to be looking at by the time it lands.
+   * True once per press of the interact key, then false until it is released and
+   * pressed again — consumed rather than sampled, so holding `E` in a doorway uses
+   * the door once. No time window, unlike the jump buffer: an interaction that
+   * arrived a moment too early should be dropped, not replayed.
    */
   takeInteract(): boolean {
     if (!this.interactPressed) return false;
@@ -248,21 +222,15 @@ export class Input {
   }
 
   /**
-   * Asks for capture from somewhere other than a click on the canvas.
+   * Asks for capture from somewhere other than a click on the canvas — the options
+   * menu's resume button, which sits above the canvas and swallows the click that
+   * would otherwise have taken the lock.
    *
-   * The options menu's resume button, specifically: it sits above the canvas
-   * and swallows the click that would otherwise have taken the lock, so
-   * pressing "resume" and then having to click again to actually play would be
-   * a button that does not do what it says. A click is a user gesture, which
-   * is all `requestPointerLock` needs.
-   *
-   * **Resolves when the lock is actually back**, or when the retry window has
-   * run out — see `requestLock`, which keeps asking through the browser's
-   * cooldown. That wait is the whole reason this returns anything: not holding
-   * the lock is what raises the capture panel, so a caller closing an interface
-   * and asking for the mouse back has a window of a few hundred milliseconds
-   * where the pause screen is technically correct and completely wrong, and it
-   * needs to know when that window shuts.
+   * Resolves when the lock is actually back, or when the retry window has run out.
+   * That wait is why this returns anything: not holding the lock is what raises the
+   * capture panel, so a caller closing an interface has a window of a few hundred
+   * milliseconds where the pause screen is technically correct and completely
+   * wrong, and it needs to know when that window shuts.
    */
   async capture(): Promise<void> {
     if (this.locked || !this.needsCapture) return;
@@ -276,14 +244,10 @@ export class Input {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    // Tab moves focus, and moving focus out of a pointer-locked canvas makes
-    // the browser drop the lock. Reacquiring it delivers a mouse position that
-    // has nothing to do with where the player was looking, so the camera
-    // snaps — which is exactly the jolt, and exactly why Escape never causes
-    // it: Escape releases the lock deliberately and nothing is reacquired.
-    //
-    // Swallowed only while locked, so tabbing around the tuning panel with the
-    // cursor free still works.
+    // Tab moves focus, and moving focus out of a pointer-locked canvas makes the
+    // browser drop the lock — reacquiring it delivers a mouse position that has
+    // nothing to do with where the player was looking. Swallowed only while locked,
+    // so tabbing around the tuning panel with the cursor free still works.
     if (event.code === 'Tab' && this.locked) {
       event.preventDefault();
       return;
@@ -291,15 +255,10 @@ export class Input {
 
     if (event.repeat) return;
 
-    // **Nothing on the keyboard reaches the player while the mouse is free.**
-    // Interact was already gated this way; now the whole keyboard is, because
-    // there is a menu out there to be typed into. Without it, tabbing to a
-    // slider and nudging it with the arrow keys walks the player forwards
-    // through whatever is behind the panel, and Space presses the focused
-    // button *and* jumps.
-    //
-    // Only where capture is a concept. On touch `locked` is permanently true
-    // and this is a no-op, which is correct: there is no unlocked state there.
+    // Nothing on the keyboard reaches the player while the mouse is free: there is a
+    // menu out there to be typed into, and without this, nudging a slider with the
+    // arrow keys walks the player forwards behind the panel. Only where capture is a
+    // concept — on touch `locked` is permanently true and this is a no-op.
     if (this.needsCapture && !this.locked) return;
 
     this.keys.add(event.code);
@@ -336,22 +295,12 @@ export class Input {
   };
 
   /**
-   * Asks for pointer lock, and keeps asking until the browser allows it.
-   *
-   * **This is why clicking back in after Escape used to do nothing.** Browsers
-   * enforce a cooldown of about a second after a *user-initiated* exit from
-   * pointer lock, so that a page cannot simply re-grab the cursor the instant
-   * you try to get it back. A click inside that window is refused. Alt-tabbing
-   * out never felt slow because losing the lock to a focus change is not
-   * user-initiated and carries no cooldown — the difference between the two
-   * cases is entirely in how the lock was lost.
-   *
-   * The old code caught that rejection and gave up, with a comment calling it
-   * harmless. It was not: the player's click was silently discarded and they
-   * had to click again, which reads as the game hanging for two seconds.
-   * Retrying turns the cooldown into exactly what it should be — a short wait
-   * that resolves itself — and the capture panel stays up meanwhile, so there
-   * is something on screen the whole time.
+   * Asks for pointer lock, and keeps asking until the browser allows it. Browsers
+   * enforce a cooldown of about a second after a user-initiated exit, so a click
+   * inside that window is refused; losing the lock to a focus change is not
+   * user-initiated and carries no cooldown, which is why alt-tabbing back never
+   * felt slow. Retrying turns the cooldown into a short wait that resolves itself,
+   * with the capture panel up meanwhile.
    */
   private async requestLock(): Promise<void> {
     if (this.relocking) return;

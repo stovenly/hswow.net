@@ -4,52 +4,20 @@ import { GLOW_LAYER } from '../layers';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Selective bloom, via the glow material. SHADERS-AND-MATERIALS.md §3 / R3.
+ * Selective bloom, via the glow material. No threshold: nothing in this scene is
+ * HDR-bright, so a brightness threshold either catches nothing or catches sunlit
+ * walls — but everything that means to emit shares one layer, so what blooms is
+ * what is on `GLOW_LAYER`.
  *
- * **Thresholded bloom is the wrong tool here.** Nothing in this scene is
- * HDR-bright — vertex colours cap at 1 — so a brightness threshold either
- * catches nothing or catches sunlit walls, and the tuning between those two
- * states is a knob nobody can ever leave alone. But everything that *means* to
- * emit already shares one material and now one layer, so the question "what
- * should bloom" has an exact answer that needs no threshold at all: the things
- * that are lights.
+ * Three stages: an emitters pass with the camera restricted to that layer; a
+ * dual-Kawase blur three levels down and two back up, all at chunky resolution
+ * and below; and an additive composite in linear light before the sRGB encode, so
+ * the glow goes through the tone map and the halftone like any other light.
  *
- * Three stages:
- *
- * 1. **The emitters pass.** Render the scene again with the camera restricted
- *    to `GLOW_LAYER`. Costs the glow draw calls and nothing else — tens, not
- *    hundreds — because three culls by layer while it builds the render list,
- *    long before anything is drawn.
- * 2. **Dual-Kawase blur**, three levels down and two back up, all at chunky
- *    resolution and below. Five passes over targets that are at most a quarter
- *    of a million pixels and mostly far less.
- *
- *    Both halves of this filter exist to stop it *flickering as the camera
- *    moves*, which is what a naive version of it does here and which took two
- *    separate fixes: taps offset by half a texel so the bilinear filter
- *    actually averages, and a Karis average on the first level so one very
- *    bright texel does not decide the result. The details are on each material.
- *    A world whose lights are single-texel flames at an eighth resolution is
- *    close to the worst case for a bloom chain, so neither is optional.
- * 3. **Additive composite** onto the scene colour, in linear light, before the
- *    sRGB encode — which is the physically correct place and, more to the
- *    point here, puts the glow falloff through the tone map and the halftone
- *    like any other light in the picture. Bloom that reads as a modern layer
- *    over a retro look is bloom composited after the quantizer.
- *
- * **The emitters pass borrows the scene's depth buffer**, and this is the
- * detail that makes or breaks the effect. Rendered against black with no opaque
- * geometry present, a lantern inside a hut has nothing to occlude it and blooms
- * straight through the wall — a bright patch hanging on the outside of a
- * building with a light in it. Binding the depth texture the colour pass
- * already filled fixes it exactly: `GLOW_MATERIAL` is `depthTest: true,
- * depthWrite: false`, so the lantern is tested against the wall, fails, and
- * never reaches the blur. The depth is *cleared by nobody* here — the upscale
- * still needs it for the edge lines, so this pass clears colour only.
- *
- * The payoff scales with the day/night system (R4): bloom at noon is nearly
- * invisible, and at dusk every lantern, window and forge blooms, because those
- * are the only things in the emitters pass. No threshold tuning, ever.
+ * The emitters pass borrows the scene's depth buffer, which is what stops a
+ * lantern inside a hut blooming through the wall: `GLOW_MATERIAL` is
+ * `depthTest: true, depthWrite: false`, so it fails the test and never reaches
+ * the blur. This pass clears colour only — the upscale needs the depth.
  */
 
 /** Levels in the blur chain. Three halvings is a wide blur at this resolution. */
@@ -67,13 +35,10 @@ export class BloomEffect implements PixelEffect {
   /** Successively halved. `down[0]` is half the chunky resolution. */
   private readonly down: THREE.WebGLRenderTarget[] = [];
   /**
-   * The way back up, one target per level below the smallest.
-   *
-   * A separate set rather than writing back into `down`, because an up pass
-   * reads the level it is adding to — and a pass that samples the texture it is
-   * rendering into is undefined behaviour that happens to work on most drivers,
-   * which is the worst way for a thing to be wrong. Two extra targets at a
-   * quarter and an eighth of chunky resolution is a few hundred kilobytes.
+   * The way back up, one target per level below the smallest. A separate set
+   * rather than writing back into `down`, because an up pass reads the level it is
+   * adding to, and sampling the texture you are rendering into is undefined
+   * behaviour that happens to work on most drivers.
    */
   private readonly up: THREE.WebGLRenderTarget[] = [];
 
@@ -123,15 +88,11 @@ export class BloomEffect implements PixelEffect {
     for (let i = 0; i < LEVELS; i++) {
       const target = this.down[i];
       this.downMaterial.uniforms.tDiffuse.value = source;
-      // **Half a source texel, not a whole one.** This is the difference
-      // between a stable bloom and one that flickers as you walk. At a full
-      // texel every tap lands dead on a texel centre, so the bilinear filter
-      // interpolates nothing and each tap returns one texel — and since the
-      // target is half the size, most source texels are then never read at
-      // all. A bright emitter's contribution jumps as it crosses a boundary,
-      // and the halo pulses in step with the camera. Offset by half, every tap
-      // sits at a corner between four texels and comes back as their average,
-      // so nothing is skipped and a sub-texel shift moves the result smoothly.
+      // Half a source texel, not a whole one, and this is the difference between a
+      // stable bloom and one that flickers as you walk. At a full texel every tap
+      // lands dead on a texel centre, so the bilinear filter interpolates nothing
+      // and most source texels are never read at all. Offset by half, every tap
+      // sits at a corner between four texels and comes back as their average.
       this.downMaterial.uniforms.uHalfTexel.value.set(
         (0.5 * this.radius) / sourceWidth,
         (0.5 * this.radius) / sourceHeight,
@@ -146,10 +107,8 @@ export class BloomEffect implements PixelEffect {
     }
 
     // --- and back up --------------------------------------------------------
-    // Each up pass reads the smaller level and the down level at its own size,
-    // and sums them — rather than relying on additive blend state. Two samplers
-    // and no blending is one less piece of hidden state to get wrong, and the
-    // pass produces the same result whatever it is called from.
+    // Each up pass reads the smaller level and the down level at its own size and
+    // sums them, rather than relying on additive blend state.
     this.quad.material = this.upMaterial;
     for (let i = LEVELS - 2; i >= 0; i--) {
       // The first step up comes off the smallest down level; after that, off
@@ -181,17 +140,11 @@ export class BloomEffect implements PixelEffect {
   private renderEmitters(renderer: THREE.WebGLRenderer, context: EffectContext): void {
     const { camera, scene } = context;
 
-    // Bound once, and only when it changes: the depth the colour pass filled,
-    // so a lamp behind a wall is a lamp behind a wall. See the header.
-    //
-    // **The dispose is not optional.** Three builds a target's framebuffer the
-    // first time it is rendered into and never revisits the attachments, so a
-    // depth texture assigned afterwards is a field that is set and an
-    // attachment that is not — bloom would go on ignoring the scene's depth and
-    // the lamps would go on shining through walls, with nothing anywhere
-    // reporting a problem. Disposing forces the rebuild. It happens once, on
-    // the first frame, because the stage's depth texture keeps its identity for
-    // the life of the session.
+    // Bound once, and only when it changes: the depth the colour pass filled, so a
+    // lamp behind a wall is a lamp behind a wall. The dispose is not optional —
+    // three builds a target's framebuffer the first time it is rendered into and
+    // never revisits the attachments, so a depth texture assigned afterwards is a
+    // field that is set and an attachment that is not.
     if (this.emitters.depthTexture !== context.depth) {
       this.emitters.depthTexture = context.depth;
       this.emitters.dispose();
@@ -230,18 +183,11 @@ export class BloomEffect implements PixelEffect {
 }
 
 /**
- * A blur-chain target.
- *
- * Half-float, like the stage's own colour target and for the same reason: glow
- * is additive and several overlapping emitters go well past 1 long before the
- * tone map has had a chance to bring them back. Clamped at 8 bits, a bright
- * lantern would blow out to flat white and its bloom would be a disc rather
- * than a falloff.
- *
- * Linear filtering rather than the nearest the rest of the pipeline uses: this
- * is the one place where sampling *between* chunky pixels is correct, because
- * the whole job is to spread light across them. The result is resampled back to
- * the chunky grid by the composite.
+ * A blur-chain target. Half-float, like the stage's own colour target: glow is
+ * additive and several overlapping emitters go well past 1 before the tone map has
+ * brought them back. Linear filtering rather than the nearest the rest of the
+ * pipeline uses — this is the one place sampling between chunky pixels is correct,
+ * because the whole job is to spread light across them.
  */
 function half(): THREE.WebGLRenderTarget {
   const target = new THREE.WebGLRenderTarget(1, 1);
@@ -261,13 +207,9 @@ const FULLSCREEN_VERTEX = /* glsl */ `
 `;
 
 /**
- * Dual-Kawase downsample: the centre plus four diagonals, weighted so the
- * centre carries half.
- *
- * Five taps where a separable Gaussian of comparable reach needs many more,
- * because the halving does most of the widening — each level is a blur of a
- * blur, and three of them compound into a very wide kernel for fifteen taps
- * total.
+ * Dual-Kawase downsample: the centre plus four diagonals, weighted so the centre
+ * carries half. The halving does most of the widening, so three levels of five
+ * taps compound into a very wide kernel.
  */
 function createDownMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -283,21 +225,11 @@ function createDownMaterial(): THREE.ShaderMaterial {
       uniform float uKaris;
       varying vec2 vUv;
 
-      // **Karis average: weight each tap by the reciprocal of its brightness.**
-      //
-      // The other half of the flicker story. A blur is a mean, and a mean is
-      // dominated by its largest term — so one texel far brighter than its
-      // neighbours decides the result of every downsample it survives into, and
-      // whether it survives depends on where it lands on the next grid down. At
-      // an eighth resolution a single-texel flame is exactly that texel, and it
-      // winks in and out as the camera moves.
-      //
-      // Weighting by 1/(1+luma) puts a very bright tap and a moderate one on
-      // nearly the same footing, so the neighbourhood decides the result
-      // instead of the outlier, and crossing a boundary stops mattering.
-      //
-      // First level only. After it the fireflies are already averaged away, and
-      // applying this again would just flatten the falloff the bloom is for.
+      // Karis average: weight each tap by the reciprocal of its brightness. A blur
+      // is a mean, and a mean is dominated by its largest term — so one texel far
+      // brighter than its neighbours decides every downsample it survives into, and
+      // whether it survives depends on where it lands on the next grid down.
+      // First level only; after it the fireflies are already averaged away.
       float weigh(vec3 colour) {
         float luma = dot(colour, vec3(0.2126, 0.7152, 0.0722));
         return mix(1.0, 1.0 / (1.0 + luma), uKaris);
@@ -327,13 +259,10 @@ function createDownMaterial(): THREE.ShaderMaterial {
 }
 
 /**
- * Dual-Kawase upsample: eight taps in a ring, summed with what is already at
- * this level.
- *
- * The ring is the tent filter the algorithm is named for — four on the
- * diagonals at full offset, four on the axes at double, weighted 1 and 2. It is
- * what keeps the chain from producing the boxy, stepped falloff that a plain
- * bilinear upscale of a small target gives.
+ * Dual-Kawase upsample: eight taps in a ring, summed with what is already at this
+ * level — four on the diagonals at full offset, four on the axes at double,
+ * weighted 1 and 2. It is what keeps a plain bilinear upscale of a small target
+ * from giving a boxy, stepped falloff.
  */
 function createUpMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({

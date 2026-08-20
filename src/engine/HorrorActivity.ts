@@ -5,13 +5,12 @@ import type { HorrorEffectName, HorrorPlacement, HorrorSpec } from './Horror';
 
 /**
  * Drives every horror volume in the active zone — `GlitchActivity`'s twin:
- * collected on zone prepare, released on evict, packed per frame for the zone
- * you stand in, attached volumes re-reading their object's world matrix.
+ * collected on zone prepare, released on evict, packed per frame for the zone you
+ * stand in, attached volumes re-reading their object's world matrix.
  *
- * One departure: **two strengths per volume** — a steady one for the effects
- * that must not blink (pallor, stretch, lean) and a fit one for the motion
- * effects — long stillness, then a violent fit, which is the temporal shape of
- * a haunting where glitch's is a malfunction.
+ * One departure: two strengths per volume — a steady one for the effects that must
+ * not blink and a fit one for the motion effects, so a haunting is long stillness
+ * and then a violent fit where a glitch is a malfunction.
  */
 
 /** Past this, a volume is left out of the pack entirely. */

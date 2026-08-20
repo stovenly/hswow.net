@@ -5,61 +5,29 @@ import { windUniforms } from '../art/sway';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Placed fog volumes, at chunky resolution. SHADERS-AND-MATERIALS.md §2 / R2.
+ * Placed fog volumes, at chunky resolution. No global height fog: a zone-wide mist
+ * layer is weather the whole place wears whether it suits or not, and what is
+ * wanted is fog as set dressing — authored volumes placed where they mean
+ * something. The distance fog is untouched and does a different job: one says how
+ * far away something is, this says what is in the air between you and it.
  *
- * **No global height fog.** A zone-wide mist layer is weather the whole place
- * wears whether it suits or not. What is wanted is fog as *set dressing* —
- * authored volumes placed exactly where they mean something: a pool hanging in
- * a room, a bank wrapped round a rim so a small bowl reads as a mountainside, a
- * plume over a chimney. Placed like props, because that is what they are.
+ * Per chunky pixel: reconstruct the world ray from depth and the inverse
+ * view-projection; test each volume analytically, so a miss costs the test and
+ * nothing else; on a hit, march the interior in 8 steps with density feathered
+ * toward the shell; accumulate front-to-back with a running transmittance, and
+ * early out. The ray start is offset by a per-pixel hash, or eight steps land on
+ * eight visible shells through the middle of the mist.
  *
- * The existing distance fog is untouched and stays untouched. That is the haze
- * of *distance*, the sky-link in `PostFX.apply` is built on it, and the two do
- * different jobs — one says how far away something is, this says what is in the
- * air between you and it.
- *
- * The pass, per chunky pixel:
- *
- * 1. Reconstruct the world ray from depth and the inverse view-projection, and
- *    the distance at which the scene stops it.
- * 2. Per volume, an analytic shape intersection. A miss costs the test and
- *    nothing else, which is what keeps eight volumes affordable — most pixels
- *    miss most volumes.
- * 3. On a hit, march the interior in 8 steps, density feathered toward the
- *    shell by `softness` and shaped by `volumeFbm` (`engine/noise`).
- * 4. Accumulate front-to-back with a running transmittance, early-out once
- *    almost nothing is getting through.
- *
- * **The ray start is offset by a per-pixel hash.** Eight steps land on eight
- * visible shells otherwise — concentric hard edges through the middle of the
- * mist, which is the artifact that makes cheap volumetrics look cheap. Offset,
- * the same eight steps read as noise, and the halftone downstream prints that
- * noise as screen-tone. That is the aesthetic argument for volumetrics in this
- * pipeline at all: the dither is not something the effect has to survive, it is
- * what makes a soft gradient belong here.
- *
- * **Honest limitations**, both deliberate:
- *
- * - *Unlit media.* A torch does not illuminate the mist. That is a per-light
- *   scattering loop this design does not buy; the `tint` is chosen for the
- *   room, like every other colour in the game. Single-scatter against one
- *   nominated light per volume is the contained follow-up if a lit-mist moment
- *   is ever wanted, and it slots into the same march.
- * - *Overlaps composite in array order*, not in depth order. Sorting eight
- *   volumes per pixel would cost more than the march does, and the case it
- *   fixes — two volumes of different tints, overlapping, one behind the other —
- *   is authored rather than emergent. Order the array if it ever matters.
+ * Two deliberate limits: the media are unlit, so a torch does not illuminate the
+ * mist, and overlaps composite in array order rather than by depth.
  */
 
 export type FogShape = 'ellipsoid' | 'box';
 
 /**
- * One placed volume of fog.
- *
- * Authored data, not a scene object. It has no geometry, casts nothing,
- * collides with nothing, and is pushed to the pass as uniforms when its zone is
- * entered — so it belongs with the zone's other positional facts rather than in
- * the render settings. See `ZoneDefinition.fogVolumes`.
+ * One placed volume of fog. Authored data, not a scene object: no geometry, no
+ * shadow, no collision, and pushed to the pass as uniforms when its zone is
+ * entered — so it belongs with the zone's other positional facts.
  */
 export interface FogVolume {
   shape: FogShape;
@@ -67,47 +35,26 @@ export interface FogVolume {
   center: THREE.Vector3;
   /** Radii for an ellipsoid, half-extents for a box. Metres. */
   size: THREE.Vector3;
-  /**
-   * Optical density at the core, per metre.
-   *
-   * Read it as how much of what is behind it one metre of the thickest part
-   * takes away: 0.1 is a haze you see through, 1 is a wall of cloud within a
-   * couple of metres.
-   */
+  /** Optical density at the core, per metre: how much of what is behind it one metre of the thickest part takes away. 0.1 is a haze, 1 is a wall of cloud. */
   density: number;
   /** What colour the media is. Unlit — see the note about torches above. */
   tint: string;
-  /**
-   * How far in from the shell the density feathers up, 0..1 of the radius.
-   *
-   * Never zero in practice. A volume with a hard edge shows its own geometry,
-   * and an ellipsoid you can see the outline of is a balloon rather than mist.
-   */
+  /** How far in from the shell the density feathers up, 0..1 of the radius. Never zero: a volume with a hard edge shows its own geometry. */
   softness: number;
   /** Size of one billow, in metres. Larger is a smoother, vaguer volume. */
   noiseScale: number;
   /** How much the noise modulates density, 0..1. Zero is a smooth fill. */
   turbulence: number;
   /**
-   * Drift, in metres per second.
-   *
-   * Omitted, the volume answers the wind — the same `windDir` that bends the
-   * trees, so an outdoor bank and the grass under it are weather together. A
-   * dungeon pool sets its own slow drift, because indoors has no wind to
-   * answer and a mist that moves with a gale nobody can feel is worse than one
-   * that sits still.
+   * Drift, in metres per second. Omitted, the volume answers the wind — the same
+   * `windDir` that bends the trees, so an outdoor bank and the grass under it are
+   * weather together. A dungeon pool sets its own slow drift, because indoors has
+   * no wind to answer.
    */
   drift?: THREE.Vector2;
 }
 
-/**
- * How many volumes are live at once.
- *
- * Eight because it is enough for any room anybody has described and small
- * enough that the uniform arrays stay well inside the guaranteed minimum. A
- * zone wanting more would take the nearest eight by screen coverage; no zone
- * wants more.
- */
+/** How many volumes are live at once. Eight is enough for any room and keeps the uniform arrays well inside the guaranteed minimum. */
 const MAX_VOLUMES = 8;
 
 /** Steps through a volume's interior. See the header on why the start is offset. */
@@ -130,14 +77,7 @@ export class FogVolumesEffect implements PixelEffect {
     this.quad = new FullScreenQuad(this.material);
   }
 
-  /**
-   * Sets the volumes for the zone being entered.
-   *
-   * Applied immediately rather than on the next frame, for the reason
-   * `PostFX.setEnvironment` gives: this is called at full black during a
-   * crossing, and the whole point is that the new air is already in place by
-   * the time anything is visible.
-   */
+  /** Sets the volumes for the zone being entered. Applied immediately, because this is called at full black during a crossing. */
   setVolumes(volumes: readonly FogVolume[]): void {
     this.volumes = volumes.slice(0, MAX_VOLUMES);
     const u = this.material.uniforms;
@@ -158,11 +98,9 @@ export class FogVolumesEffect implements PixelEffect {
         Math.max(volume.size.x, 1e-3),
         Math.max(volume.size.y, 1e-3),
         Math.max(volume.size.z, 1e-3),
-        // Floored just above zero, not at it: the shader feathers with
-        // smoothstep(1 - softness, 1, edge), and a softness of exactly 0 makes
-        // those two edges equal, which smoothstep leaves undefined. The floor
-        // is far below the point where anyone would notice a difference and
-        // well above the point where the maths stops being defined.
+        // Floored just above zero: the shader feathers with
+        // smoothstep(1 - softness, 1, edge), and a softness of exactly 0 makes those
+        // two edges equal, which smoothstep leaves undefined.
         THREE.MathUtils.clamp(volume.softness, 0.01, 1),
       );
       this.tint.set(volume.tint);
@@ -172,10 +110,10 @@ export class FogVolumesEffect implements PixelEffect {
         this.tint.b,
         Math.max(volume.noiseScale, 0.01),
       );
-      // `xy` is filled per frame in `render` — a volume with no authored drift
-      // takes the wind, and the wind changes. Shape rides along as a number,
-      // because a branch on a uniform is cheaper than two shaders and the two
-      // intersection tests share most of their arithmetic anyway.
+      // `xy` is filled per frame in `render`, since a volume with no authored drift
+      // takes the wind and the wind changes. Shape rides along as a number, because
+      // a branch on a uniform is cheaper than two shaders and the two intersection
+      // tests share most of their arithmetic.
       (u.uDrift.value[i] as THREE.Vector4).set(
         0,
         0,
@@ -214,16 +152,12 @@ export class FogVolumesEffect implements PixelEffect {
     u.uCameraPosition.value.setFromMatrixPosition(camera.matrixWorld);
     u.uFar.value = camera.far;
 
-    // **The default drift is resolved here, not in the shader.** The obvious
-    // encoding is a sentinel in the uniform — NaN for "no drift authored" —
-    // and it is a trap: GLSL ES makes no promise about NaN behaviour, so
-    // `x != x` is a test that works on the machine it was written on. Eight
-    // vector writes a frame is a smaller price than an effect that silently
-    // stops drifting on somebody else's driver.
-    //
-    // Read per frame rather than captured at registration, because the weather
-    // changes and a bank that kept the direction it was authored under would
-    // part company with the grass beneath it.
+    // The default drift is resolved here, not in the shader. The obvious encoding
+    // is a NaN sentinel in the uniform, and GLSL ES makes no promise about NaN
+    // behaviour — so `x != x` is a test that works on the machine it was written
+    // on. Read per frame rather than captured at registration, because the weather
+    // changes and a bank that kept its authored direction would part company with
+    // the grass beneath it.
     const wind = windUniforms.windDir.value;
     for (let i = 0; i < this.volumes.length; i++) {
       const drift = this.volumes[i].drift;
@@ -286,22 +220,16 @@ function createFogMaterial(): THREE.ShaderMaterial {
 
       ${VOLUME_NOISE_GLSL}
 
-      // Interleaved gradient noise, the same one GTAO rotates its slices by
-      // and for a related reason: neighbouring pixels get maximally different
-      // offsets, so the eight steps of one pixel interleave with its
-      // neighbours' rather than lining up into shells.
+      // Interleaved gradient noise, the same one GTAO rotates its slices by:
+      // neighbouring pixels get maximally different offsets, so one pixel's eight
+      // steps interleave with its neighbours' rather than lining up into shells.
       float gradientNoise(vec2 p) {
         return fract(52.9829189 * fract(0.06711056 * p.x + 0.00583715 * p.y));
       }
 
-      // Nudged off zero, keeping its sign.
-      //
-      // The slab test below divides by the ray direction, and a ray parallel to
-      // one of a box's axes has a zero component. The usual answer is to let it
-      // divide by zero and rely on the infinities cancelling in the min/max —
-      // which works on most hardware and is *undefined* in GLSL ES, so "most"
-      // is the whole problem: it would be a box that renders as garbage on one
-      // driver and correctly everywhere it was tested.
+      // Nudged off zero, keeping its sign. The slab test below divides by the ray
+      // direction, and a ray parallel to one of a box's axes has a zero component;
+      // relying on the infinities cancelling in the min/max is undefined in GLSL ES.
       float nonzero(float v) {
         return v >= 0.0 ? max(v, 1e-6) : min(v, -1e-6);
       }
@@ -313,13 +241,10 @@ function createFogMaterial(): THREE.ShaderMaterial {
           return;
         }
 
-        // The world ray, and where the scene stops it — both by unprojecting
-        // clip space rather than by reconstructing a direction from the field
-        // of view and converting axis depth to ray depth with a cosine. The
-        // unprojection is two matrix multiplies and is *correct by
-        // construction*: tScene comes out as a distance along the ray
-        // already, because it is the length of a difference of two world
-        // points, and there is no axis-versus-ray confusion left to get wrong.
+        // The world ray, and where the scene stops it, both by unprojecting clip
+        // space rather than reconstructing a direction from the field of view. It is
+        // correct by construction: tScene comes out as a distance along the ray
+        // already, being the length of a difference of two world points.
         vec2 ndc = vUv * 2.0 - 1.0;
         vec3 origin = uCameraPosition;
         vec4 farPoint = uInverseProjectionView * vec4(ndc, 1.0, 1.0);

@@ -2,40 +2,21 @@ import type * as THREE from 'three';
 
 /**
  * Per-pass GPU milliseconds, hand-wired onto `EXT_disjoint_timer_query_webgl2`.
+ * `performance.now()` around `render()` times how long it took to queue the work,
+ * which is a CPU number and goes down when the GPU gets busier; the DevTools GPU
+ * track is the whole process and cannot say which of ten passes is expensive.
  *
- * **The two obvious ways to measure a frame both lie.** `performance.now()`
- * around `render()` times how long it took to *queue* the work: WebGL is
- * asynchronous, so that number belongs to the CPU and goes down when the GPU
- * gets busier. DevTools' GPU track is the whole process, compositor and other
- * tabs included, and cannot say which of ten passes is the expensive one —
- * which is the only question worth asking.
- *
- * The extension answers it directly. `TIME_ELAPSED_EXT` brackets a run of draw
- * calls and reports nanoseconds spent on the device. Results arrive a frame or
- * three late, so queries live in a ring and are collected once they are ready;
- * waiting on one would stall the pipeline and change the thing being measured.
- *
- * Where the extension is absent — Safari, most mobile, anywhere it is withheld
- * for fingerprinting reasons — `available` is false and every call is a no-op.
- * That is a normal answer, not an error.
+ * `TIME_ELAPSED_EXT` brackets a run of draw calls and reports nanoseconds spent on
+ * the device. Results arrive a frame or three late, so queries live in a ring and
+ * are collected once they are ready — waiting on one would stall the pipeline and
+ * change the thing being measured. Where the extension is absent, `available` is
+ * false and every call is a no-op.
  */
 
-/**
- * How many queries may be in flight.
- *
- * A dozen brackets a frame and results a few frames behind, so this is several
- * frames of headroom. Past it a bracket is silently skipped rather than
- * allocating without bound — a HUD that misses a reading is fine, a leak is not.
- */
+/** How many queries may be in flight. A dozen brackets a frame, so this is several frames of headroom; past it a bracket is skipped rather than allocating without bound. */
 const RING = 64;
 
-/**
- * How much of the previous reading a new one keeps.
- *
- * GPU timings jitter frame to frame by more than the differences worth seeing,
- * and a number that flickers through three digits cannot be read at all. Heavy
- * enough to settle, light enough that turning a pass off is visible at once.
- */
+/** How much of the previous reading a new one keeps. Heavy enough to settle, light enough that turning a pass off is visible at once. */
 const SMOOTHING = 0.85;
 
 interface Timed {
@@ -81,11 +62,9 @@ export class GpuClock {
   }
 
   /**
-   * Starts timing a run of draw calls. Must be closed by `end` before the next.
-   *
-   * Only one timer query can be open at a time — that is the extension's rule,
-   * not a simplification here — so brackets cannot nest, and a second `begin`
-   * before its `end` is dropped rather than raising a GL error.
+   * Starts timing a run of draw calls, closed by `end`. Only one timer query can be
+   * open at a time — the extension's rule, not a simplification here — so brackets
+   * cannot nest, and a second `begin` before its `end` is dropped.
    */
   begin(label: string): void {
     const gl = this.gl;
@@ -111,15 +90,10 @@ export class GpuClock {
   }
 
   /**
-   * Collects whatever has finished. Once a frame, after the render.
-   *
-   * Oldest first and stopping at the first unfinished query: they complete in
-   * the order they were issued, so the front of the list is the only place a
-   * result can be waiting.
-   *
-   * A *disjoint* means the driver interrupted the GPU — a context switch, a
-   * power state change — and every timing spanning it is meaningless. The whole
-   * ring is thrown away rather than one number being quietly wrong.
+   * Collects whatever has finished, once a frame after the render. Oldest first and
+   * stopping at the first unfinished query, since they complete in the order they
+   * were issued. A disjoint means the driver interrupted the GPU and every timing
+   * spanning it is meaningless, so the whole ring is thrown away.
    */
   collect(): void {
     const gl = this.gl;
@@ -150,12 +124,9 @@ export class GpuClock {
   }
 
   /**
-   * Every pass's time added up, in milliseconds.
-   *
-   * The sum of the brackets rather than one bracket around the frame: a timer
-   * query cannot contain another, so a whole-frame reading and a per-pass
-   * breakdown cannot both be taken. The parts are the more useful half, and
-   * they cover everything the pipeline draws.
+   * Every pass's time added up, in milliseconds. The sum of the brackets rather
+   * than one bracket around the frame: a timer query cannot contain another, so a
+   * whole-frame reading and a per-pass breakdown cannot both be taken.
    */
   get total(): number {
     let sum = 0;

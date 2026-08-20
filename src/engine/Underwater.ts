@@ -4,15 +4,12 @@ import { WATER_MATERIAL, MURK_MIX } from '../art/water';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Being *in* the water. SHADERS-AND-MATERIALS.md §7.
- *
- * `Water.ts` draws the surface; this is the volume on the near side of it, so it
- * runs over every pixel rather than over the pixels a pond covers. Beer-Lambert
- * murk against the scene depth, plus a flat cast and a slow wobble.
- *
- * Water surfaces are marked with alpha 0 and skipped: the depth buffer has no
- * water in it, so at those pixels it holds whatever is *beyond* the surface.
- * The water shader murks its own back face instead, where the distance is known.
+ * Being in the water. `Water.ts` draws the surface; this is the volume on the near
+ * side of it, so it runs over every pixel rather than over the pixels a pond
+ * covers — Beer-Lambert murk against the scene depth, plus a flat cast and a slow
+ * wobble. Water surfaces are marked with alpha 0 and skipped, because the depth
+ * buffer has no water in it and at those pixels holds whatever is beyond the
+ * surface; the water shader murks its own back face instead.
  */
 export class UnderwaterEffect implements PixelEffect {
   readonly label = 'underwater';

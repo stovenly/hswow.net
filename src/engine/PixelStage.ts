@@ -7,11 +7,6 @@ import type { GpuClock } from './GpuClock';
 /**
  * The pixel stage: render at chunky resolution, run effects there, upscale.
  *
- * This replaces three's `RenderPixelatedPass`, which did render-and-upscale
- * in one opaque step — and the slot between those two halves is where every
- * planned screen-space feature wants to live (SHADERS-AND-MATERIALS.md, R0). Owning the
- * stage turns that slot into a real thing:
- *
  * ```
  * scene ─► colour target (chunky, half-float, depth texture)
  *       ─► normal target  (chunky, override material)
@@ -19,31 +14,19 @@ import type { GpuClock } from './GpuClock';
  *       ─► upscale        (nearest blit, sRGB, dither, quantize)
  * ```
  *
- * The upscale is the only step in the pipeline that runs at device resolution,
- * so everything that has to happen there happens in its one shader — see
- * `RetroShader`.
- *
- * The differences from upstream are structural: the colour target keeps its
- * depth texture bound and hands it, with the normals, to whoever asks, and
- * effects run between render and upscale, each reading the chain's colour so
- * far and writing the next link.
- *
- * Half-float colour is deliberate and inherited from upstream: at this
- * resolution it costs nothing, and it is the headroom bloom and god rays
- * will add light into before the tone map.
+ * The upscale is the only step in the pipeline that runs at device resolution, so
+ * everything that has to happen there happens in its one shader — see
+ * `RetroShader`. The colour target keeps its depth texture bound and hands it,
+ * with the normals, to whoever asks; effects run between render and upscale, each
+ * reading the chain's colour so far and writing the next link. Half-float colour
+ * costs nothing at this resolution and is the headroom bloom adds light into.
  */
 
 /** What an effect pass gets to work with. All textures are chunky-resolution. */
 export interface EffectContext {
   /** The scene colour as accumulated so far — read this, never write it. */
   colour: THREE.Texture;
-  /**
-   * The scene's depth texture, from the colour render.
-   *
-   * Typed as what it is rather than as a plain texture, because bloom binds it
-   * as the *depth attachment* of its own target so that a lamp inside a hut is
-   * occluded by the hut. That needs the concrete type.
-   */
+  /** The scene's depth texture, from the colour render. Typed as what it is rather than as a plain texture, because bloom binds it as the depth attachment of its own target. */
   depth: THREE.DepthTexture;
   /** View-space normals, packed 0..1, from the override render. */
   normal: THREE.Texture;
@@ -52,19 +35,12 @@ export interface EffectContext {
   camera: THREE.PerspectiveCamera;
   /** Chunky resolution in pixels. */
   size: THREE.Vector2;
-  /**
-   * The scene itself, for the one effect that draws rather than filters.
-   *
-   * Bloom renders the emitters again on their own layer; everything else here
-   * is a texture-to-texture filter and has no business touching this.
-   */
+  /** The scene itself, for the one effect that draws rather than filters: bloom renders the emitters again on their own layer. */
   scene: THREE.Scene;
   /**
-   * Seconds since start-up — the same clock the sky and the wind read.
-   *
-   * Effects are spatial-only by ground rule 3, which forbids *accumulating*
-   * across frames. It does not forbid knowing what time it is: fog that drifts
-   * is a function of the clock, not a history of previous frames.
+   * Seconds since start-up — the same clock the sky and the wind read. Effects are
+   * spatial-only, which forbids accumulating across frames; it does not forbid
+   * knowing what time it is, so fog that drifts is a function of the clock.
    */
   time: number;
 }
@@ -90,15 +66,10 @@ export interface PixelEffect {
 
 /**
  * What the normal buffer is cleared to: the packed normal `(0, 0, 1)`, a flat
- * surface facing the camera.
- *
- * It has to decode to a unit vector, and the renderer's own clear colour — the
- * fog colour, set by `PostFX.apply` — does not: it is about 0.66 long, and the
- * sky dome is culled out of the normal pass, so every pixel the geometry misses
- * would carry a normal nobody meant.
- *
- * Linear on purpose: the target is raw half-float with no colour space, so the
- * clear lands in it unconverted.
+ * surface facing the camera. It has to decode to a unit vector, and the renderer's
+ * own clear colour does not — it is about 0.66 long, and the sky dome is culled out
+ * of the normal pass, so every pixel the geometry misses would carry a normal
+ * nobody meant. Linear on purpose: the target is raw half-float.
  */
 export const FLAT_NORMAL = new THREE.Color().setRGB(0.5, 0.5, 1, THREE.LinearSRGBColorSpace);
 
@@ -191,17 +162,12 @@ export class PixelStage extends Pass {
   }
 
   /**
-   * Coverage samples on the colour render. 0 is off. Clamped by the caller.
-   *
-   * **The colour target only.** An averaged normal across a silhouette is not a
-   * normal any surface has, so the normal target stays single-sampled; the ping
-   * pair is written by fullscreen quads, where there is no coverage to sample.
-   *
-   * Three builds the multisampled framebuffer once and never revisits the
-   * count, so the target has to be thrown away for a new one to take. The depth
-   * texture is detached first: `dispose` disposes it too, and bloom has it bound
-   * as the depth attachment of its *own* target — which three would not rebuild,
-   * because bloom's target has not changed. See `Bloom.renderEmitters`.
+   * Coverage samples on the colour render. 0 is off, and it is the colour target
+   * only: an averaged normal across a silhouette is not a normal any surface has,
+   * and the ping pair is written by fullscreen quads. Three builds the
+   * multisampled framebuffer once and never revisits the count, so the target has
+   * to be thrown away — with the depth texture detached first, because `dispose`
+   * disposes it too and bloom has it bound as its own depth attachment.
    */
   setSamples(samples: number): void {
     if (this.colourTarget.samples === samples) return;
@@ -227,10 +193,10 @@ export class PixelStage extends Pass {
   ): void {
     const gpu = this.clock;
 
-    // --- the two scene renders, exactly as the upstream pass did them ------
+    // --- the two scene renders ---------------------------------------------
     // The shadow map is drawn inside the first of these — `WebGLRenderer.render`
-    // calls the shadow pass before its own — so `scene` here is scene plus
-    // shadows, which is the honest grouping: they are one submission.
+    // calls the shadow pass before its own — so `scene` here is scene plus shadows,
+    // which is the honest grouping: they are one submission.
     gpu?.begin('scene');
     renderer.setRenderTarget(this.colourTarget);
     renderer.render(this.scene, this.camera);
@@ -283,10 +249,10 @@ export class PixelStage extends Pass {
     }
 
     // --- upscale ------------------------------------------------------------
-    // Nearest is the whole of the pixelation: one chunky texel becomes a block
-    // of identical device pixels, with no filtering to soften the step. The
-    // display encode, the halftone and the quantizer ride along in the same
-    // shader, because this is the one place they can all see a device pixel.
+    // Nearest is the whole of the pixelation: one chunky texel becomes a block of
+    // identical device pixels, with no filtering to soften the step. The display
+    // encode, the halftone and the quantizer ride along in the same shader, because
+    // this is the one place they can all see a device pixel.
     gpu?.begin('upscale');
     this.outputMaterial.uniforms.tDiffuse.value = colour;
     this.fsQuad.material = this.outputMaterial;
@@ -313,15 +279,11 @@ export class PixelStage extends Pass {
 }
 
 /**
- * The upscale, and with it everything the frame owes device resolution.
- *
- * It was three passes: this blit, three's `OutputPass` for the sRGB encode, and
- * `RetroShader` for the halftone and the quantizer — three trivial shaders each
- * reading and writing a full-resolution buffer, which at 1080p and a device
- * pixel ratio of two is about 25 M fragments and 133 MB of bandwidth a frame
- * spent moving a picture between targets. Concatenated they are one quad and
- * one buffer, and the same numbers come out: the order the three ran in is the
- * order the one shader does its work in.
+ * The upscale, and with it everything the frame owes device resolution. This blit,
+ * the sRGB encode and the halftone and quantizer are one quad and one buffer
+ * rather than three full-resolution passes — at 1080p and a device pixel ratio of
+ * two that is about 25 M fragments and 133 MB of bandwidth a frame saved. The
+ * order the three ran in is the order this shader does its work in.
  */
 function createOutputMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
