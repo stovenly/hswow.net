@@ -27,22 +27,10 @@ import { Soundscape } from '../audio/Soundscape';
 import { MusicDirector } from '../audio/music/director';
 import type { Reticle, Fade } from '../ui/Reticle';
 
-/**
- * Owns which place you are in, and moves you between places.
- *
- * Exactly one zone is in the scene and in the collider at any moment. Crossing
- * a threshold is: fade out, take the old zone's group out of the scene, put the
- * new one in, rebuild the collider from it, push the new zone's air and
- * acoustics into the render pipeline and the audio engine, drop the player on
- * the arrival marker, fade back in. All of it happens inside a single frame at
- * full black.
- *
- * The lights live here rather than in any zone. There is one sun and one
- * hemisphere light for the whole game and zones declare what they should be
- * doing, because lights that belong to a zone have to be added and removed with
- * it, and a frame where the old zone's lights have gone and the new zone's have
- * not yet arrived is a frame of pure black that no fade is covering.
- */
+// Owns which place you are in. Exactly one zone is in the scene and in the
+// collider at any moment; crossing a threshold swaps both, pushes the new air
+// and acoustics out and drops the player on the arrival marker, all at full
+// black in one frame. The three world lights live here, not in any zone.
 
 /** A `Layers` to test a mesh against, so the particle gate is one call. */
 const PARTICLE_MASK = new THREE.Layers();
@@ -52,14 +40,7 @@ PARTICLE_MASK.set(PARTICLE_LAYER);
 const COLLISION_MASK = new THREE.Layers();
 COLLISION_MASK.set(COLLISION_LAYER);
 
-/**
- * What a revealed barrier is drawn with.
- *
- * Unlit, translucent and writing no depth, so overlapping slabs read as
- * overlapping rather than as one solid, and the world behind stays legible —
- * the question this answers is *where* the wall is, which cannot be answered by
- * something that hides everything it is standing in front of.
- */
+/** Unlit, translucent and writing no depth, so overlapping slabs read as overlapping and the world behind stays legible. */
 const BARRIER_MATERIAL = new THREE.MeshBasicMaterial({
   color: 0xff5a3c,
   transparent: true,
@@ -68,12 +49,7 @@ const BARRIER_MATERIAL = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
 });
 
-/**
- * Shows or hides one piece of collision that is never drawn.
- *
- * The mesh's own material is put back on the way out rather than thrown away:
- * an invisible collider still has one, and several of them share it.
- */
+/** Shows or hides one piece of collision that is never drawn. The mesh's own material is put back, because several colliders share one. */
 function revealBarrier(mesh: THREE.Mesh, shown: boolean): void {
   if (shown) {
     mesh.userData.hiddenMaterial ??= mesh.material;
@@ -88,22 +64,8 @@ function revealBarrier(mesh: THREE.Mesh, shown: boolean): void {
 
 /**
  * Composes every matrix in a finished zone once, and stops three composing them
- * again on every frame for the rest of the session.
- *
- * A prop is placed where it is built and never moves, so recomposing its matrix
- * from a position, a quaternion and a scale sixty times a second produces the
- * number it already holds. The root goes with them and has to: a group left on
- * auto-update marks itself dirty every frame, and a dirty parent forces the
- * whole subtree behind it whatever its children say.
- *
- * **Anything already off is left alone.** A builder that turned this off has
- * written its own matrix — a window's light shaft is a sheared one, which no
- * position and rotation can express — and composing it here would quietly
- * replace it with an upright box.
- *
- * The flames are the exception in the other direction, and `LightActivity` turns
- * their auto-update back on as it collects them: whatever moves a thing is what
- * knows it moves.
+ * again every frame. Anything already off is left alone: a builder that turned
+ * it off wrote its own matrix. `LightActivity` turns the flames' back on.
  */
 function freezeMatrices(root: THREE.Object3D): void {
   root.traverse((object) => {
@@ -113,14 +75,7 @@ function freezeMatrices(root: THREE.Object3D): void {
   });
 }
 
-/**
- * What pressing the interact key would act on.
- *
- * A union rather than a door or null, because there are two verbs now and they
- * are not variants of one. A door moves you and a readable opens a page; the
- * caller has to say which, and a boolean dressed as an object is how that
- * decision ends up being made by whichever branch was written first.
- */
+/** What pressing the interact key would act on. A union, because a door moves you and a readable opens a page. */
 export type Focus =
   | { readonly kind: 'door'; readonly side: PortalSide }
   | { readonly kind: 'read'; readonly note: Note };
@@ -142,20 +97,11 @@ export interface ZoneAudio {
 }
 
 // three keys its program cache on per-type light counts, so every distinct
-// census is a full shader recompile. Zones pad up to these tiers so the
-// census takes a handful of values game-wide. See `padLights`.
+// census is a full shader recompile. Zones pad up to these tiers.
 const POINT_TIERS = [0, 4, 8] as const;
 const SPOT_TIERS = [0, 2] as const;
 
-/**
- * How often what is under the crosshair is re-tested, in seconds.
- *
- * Eighteen times a second. The probe is two raycasts — a mesh cast over the
- * registered interactables and a collider cast to check nothing is in the way —
- * and it feeds a reticle, which is the slowest-moving thing on screen. At a
- * walking pace nothing crosses the crosshair in under fifty milliseconds, so
- * this is the same reticle for a third of the cost.
- */
+/** How often what is under the crosshair is re-tested, in seconds. At walking pace nothing crosses the crosshair in under fifty milliseconds. */
 const PROBE_INTERVAL = 1 / 18;
 
 /** Where the camera is looking, refilled each life update. */
@@ -176,86 +122,39 @@ export class ZoneManager {
   private readonly options: ZoneManagerOptions;
   private audio: ZoneAudio | null = null;
   private doorAudio: DoorAudio | null = null;
-  /**
-   * The music director: one for the whole world, because a piece outlives any
-   * single zone — the drone retunes across a border rather than restarting.
-   */
+  /** One director for the whole world: a piece outlives any single zone, and the drone retunes across a border rather than restarting. */
   private director: MusicDirector | null = null;
 
-  /**
-   * One soundscape per zone that has been entered, kept for the session.
-   *
-   * Built lazily on first entry and never rebuilt. Granular models are not
-   * free to construct and zones are revisited constantly; a gap where the wind
-   * should be costs far more than a few dozen dormant filters.
-   */
+  /** One soundscape per zone that has been entered, kept for the session. Built lazily on first entry and never rebuilt. */
   private readonly soundscapes = new Map<ZoneId, Soundscape>();
-  /**
-   * Zones whose geometry has been built *and* indexed for collision.
-   *
-   * Distinct from `Zone.root`'s own cache: a zone can have been prebuilt
-   * without ever being entered. This is what decides whether entering shows
-   * anything, so it has to mean "the expensive part is already paid".
-   */
+  /** Zones whose geometry has been built *and* indexed for collision. A zone can be prebuilt without ever being entered. */
   private readonly warmed = new Set<ZoneId>();
   /** Guards against a second `enter` arriving mid-transition. See `enter`. */
   private entering = 0;
   private readonly building = new Building(document.body);
-  /**
-   * Whether the player has arrived anywhere yet.
-   *
-   * The first entry is part of booting, and boot already has a loading bar —
-   * `Loader`'s, in the same place on screen, saying the same thing. Putting the
-   * transition indicator up underneath it stacks two bars over each other for
-   * the length of the first zone build. So the first one is always silent, cold
-   * or not, and the boot screen speaks for it.
-   */
+  /** Whether the player has arrived anywhere yet. The first entry is silent, because boot already has a loading bar. */
   private arrived = false;
 
   private active: Zone | null = null;
-  /**
-   * The zone the player stepped out of, kept resident so pacing in a doorway is
-   * free. The whole of what the residency ring's second hop used to buy, and
-   * one room instead of a ring of them. See `residency.ts`.
-   */
+  /** The zone the player stepped out of, kept resident so pacing in a doorway is free. */
   private cameFrom: ZoneId | null = null;
   /** Zones whose portal doors have been built into them. */
   private doored = new Set<ZoneId>();
   /** Preparations still running, so two callers share one. See `prepare`. */
   private readonly preparing = new Map<ZoneId, Promise<THREE.Group>>();
-  /**
-   * The clutter in each built zone, collected while it was prepared.
-   *
-   * Gathered once rather than looked for each frame: a scene walk to find a few
-   * hundred meshes that never move would cost more than the draws it saves. See
-   * `cullClutter`.
-   */
+  /** The clutter in each built zone, collected while it was prepared rather than searched for each frame. */
   private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
   /** Parallax controllers per zone, collected on prepare. See `slideVista`. */
   private readonly parallax = new Map<ZoneId, VistaParallax[]>();
   /** Collision geometry that is never drawn, per zone. See `showBarriers`. */
   private readonly barriers = new Map<ZoneId, THREE.Mesh[]>();
   private barriersShown = false;
-  /**
-   * Holds every moving vista prop where it was placed.
-   *
-   * Inspection state, session-only, exactly like the layer-preview toggles:
-   * with parallax live, flying or walking slides the world under the prop being
-   * looked at, and there is no way to tell a placement that is wrong from a
-   * placement that is merely moving.
-   */
+  /** Holds every moving vista prop where it was placed. Session-only inspection state. */
   freezeVista = false;
 
   /**
-   * Draws the collision the player can hit but never see.
-   *
-   * Not only the vista showcase's boundary: anything at all that is collidable
-   * and invisible, which is a real category — a stair's walkway is a ramp
-   * standing in for a flight of treads, and the boundary of a level with a view
-   * instead of a rim is a plane. Both are correct and both are impossible to
-   * place by looking, because looking is exactly what they avoid.
-   *
-   * Session-only inspection state, like `freezeVista`.
+   * Draws the collision the player can hit but never see — a stair's ramp, a
+   * level's boundary plane. Session-only inspection state, like `freezeVista`.
    */
   get showBarriers(): boolean {
     return this.barriersShown;
@@ -270,12 +169,7 @@ export class ZoneManager {
   }
   /** Whether anything is currently hidden, so the default path stays free. */
   private clutterHidden = false;
-  /**
-   * Built zones with anything on the particle layer in them, which is what
-   * decides whether the particle pass runs. Observed while the zone is prepared
-   * — see `prepare` — for the reason `Zone.hasWater` is observed rather than
-   * declared.
-   */
+  /** Built zones with anything on the particle layer in them, which is what decides whether the particle pass runs. */
   private readonly particled = new Set<ZoneId>();
   /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
   private readonly activity = new LightActivity();
@@ -293,17 +187,10 @@ export class ZoneManager {
   /** When that probe ran, on the frame loop's own clock. */
   private probed = -Infinity;
 
-  /** Counts crossings, so the check suite can watch for growth across many. */
+  /** Counts crossings, for the readout. */
   crossings = 0;
 
-  /**
-   * Fired after every entry, including the first.
-   *
-   * How systems that are *not* zone-owned find out where they are. The Phase 3
-   * sound garden is the case: it belongs to the exterior, it cannot work out
-   * on its own that it has been left behind, and it has to be silenced rather
-   * than torn down.
-   */
+  /** Fired after every entry, including the first: how systems that are not zone-owned find out where they are. */
   onZoneChange: ((zone: Zone) => void) | null = null;
 
   constructor(options: ZoneManagerOptions) {
@@ -314,113 +201,58 @@ export class ZoneManager {
       fill: new THREE.DirectionalLight(0x8fa0b8, 0),
       ambient: new THREE.HemisphereLight(0x9dc4e8, 0x4c4536, 1.5),
     };
-    // A direction, not a place. A directional light has no position in any
-    // meaningful sense, and putting it inside a zone's group would mean its
-    // angle changed when the zone did.
-    // About 45° up and well round to one side — mid-morning.
-    //
-    // Halfway to the zenith is the useful compromise. Overhead, shadows are
-    // puddles under things and every vertical face catches the same light; down
-    // at 25° the shadows are long and handsome and the disc sits in the haze
-    // band where the sky is palest, which is where a bright object is hardest
-    // to see. This is high enough to be plainly in open sky and low enough that
-    // the two lit walls of a building still differ.
-    //
-    // Set far out along that direction rather than at a handful of metres. A
-    // directional light's *direction* is all the shading uses, but its
-    // **position is where the shadow camera stands** — so a light at 25 units
-    // with the scene spanning 48 puts half the world behind its own shadow
-    // camera. Pushed out to about 125, everything is comfortably in front of
-    // it and `near`/`far` can be drawn tight around the scene, which is what
-    // makes the small bias below sufficient.
+    // A direction, not a place: inside a zone's group its angle would change
+    // with the zone. About 45° up and well round to one side, mid-morning. Set
+    // far out along that direction, because a directional light's position is
+    // where the shadow camera stands — at 25 units half the world falls behind it.
     this.lights.sun.position.set(-70, 90, 50);
 
-    // Shadow setup, applied once. Whether it is *used* is `shadows`, below.
-    //
-    // A directional light's shadow camera is orthographic and has to be sized
-    // by hand: three defaults to a 10 m box, which for a zone 200 m across
-    // means everything past a few paces silently stops casting. Sized to the
-    // village instead, which is the largest place in the game.
-    //
-    // The cost of that is resolution — one map stretched over 120 m — so the
-    // map is large and the bias is generous. Shadow acne on flat-shaded
-    // low-poly geometry is far more conspicuous than a soft contact edge,
-    // because every facet is a single value and acne turns it into stripes.
+    // Shadow setup, applied once; whether it is used is `setShadows`. A
+    // directional light's shadow camera is orthographic and has to be sized by
+    // hand — three's 10 m default stops everything past a few paces casting.
     const shadow = this.lights.sun.shadow;
-    // 4096 rather than 2048, and this is the fix for the gap that was showing
-    // under everything. A shadow needs some depth bias or a surface shadows
-    // itself in stripes; bias large enough to stop that at low resolution also
-    // slides the shadow *away* from whatever cast it, so objects float above
-    // their own contact point. The way out is not more bias tuning, it is more
-    // texels: at 4096 over 96 m one texel is 2.3 cm, which needs a fraction of
-    // the bias and closes the gap.
+    // Texels rather than bias: at 4096 over 96 m one texel is 2.3 cm, which
+    // needs a fraction of the bias a lower resolution does.
     shadow.mapSize.set(4096, 4096);
     const extent = 48;
     shadow.camera.left = -extent;
     shadow.camera.right = extent;
     shadow.camera.top = extent;
     shadow.camera.bottom = -extent;
-    // Tight around the scene. Depth precision — and therefore how little bias
-    // is needed — depends on this range and not on the map resolution, so the
-    // 170-unit span here is worth as much as the extra texels above. It was
-    // 1 to 260, and a bias small enough to keep a bush joined to its shadow
-    // could not survive that.
+    // Tight around the scene. Depth precision, and so how little bias is needed,
+    // depends on this range rather than on the map resolution.
     shadow.camera.near = 55;
     shadow.camera.far = 225;
     shadow.bias = -0.00008;
-    // **The one that was actually causing the gap.** `normalBias` moves the
-    // lookup along the surface normal, so it grows the shadow-free margin
-    // around every silhouette — at 0.05 that margin was centimetres wide and it
-    // is precisely the bright seam that appeared between a thing and its own
-    // shadow. Small enough here to be invisible.
+    // `normalBias` grows the shadow-free margin around every silhouette, which
+    // is the bright seam between a thing and its own shadow. Small enough to hide.
     shadow.normalBias = 0.006;
     // How dark a shadow gets, 0..1. Not full strength: the sun is only part of
-    // the light in this world — there is a fill and a hemisphere too — and a
-    // shadow that removes all of it is a hole rather than shade. A third is
-    // enough to read as a shadow and leaves the material colour intact inside
-    // it, which matters more than usual here because the pipeline quantizes to
-    // a handful of levels and a dark shadow drives everything under it onto the
-    // bottom one.
+    // the light here, and the pipeline quantizes, so a dark shadow drives
+    // everything under it onto the bottom level.
     shadow.intensity = 0.34;
     // Opposed on both horizontal axes but still above, so it lifts the walls
     // the sun misses without lighting the ceiling from underneath.
     this.lights.fill.position.set(9, 7, -7);
-    // The three world lights are the scene's, not a zone's, so the walk in
-    // `prepare` never reaches them — see the note there for why the particle
-    // pass has to be shown every light there is.
+    // The three world lights are the scene's, not a zone's, so `prepare`'s walk
+    // never reaches them.
     for (const light of [this.lights.sun, this.lights.fill, this.lights.ambient]) {
       light.layers.enable(PARTICLE_LAYER);
     }
     options.scene.add(this.lights.sun, this.lights.fill, this.lights.ambient);
   }
 
-  /**
-   * Which way the sun shines, normalised and pointing *toward* it.
-   *
-   * A directional light in three is aimed from its position at its target, so
-   * the direction the light arrives from is its position. Exposed so the sky
-   * can draw its disc in the same place — a painted sun that disagrees with the
-   * one casting the shadows makes every shadow in the world look wrong at once.
-   */
+  /** Which way the sun shines, normalised and pointing toward it — a directional light arrives from its position. */
   get sunDirection(): THREE.Vector3 {
     return this.lights.sun.position;
   }
 
-  /**
-   * Turns cast shadows on or off for the whole game.
-   *
-   * One switch rather than a per-zone setting. Shadows are a *look*, in the
-   * same sense the dither and the palette are — they belong with the render
-   * preset and not with the description of a place, and a zone that quietly
-   * turned them off would read as a bug the moment you walked back out of it.
-   */
+  /** Turns cast shadows on or off for the whole game. Shadows are a look, and belong with the render preset rather than with a place. */
   setShadows(enabled: boolean): void {
     const sun = this.lights.sun;
     sun.castShadow = enabled;
-    // Three allocates the shadow map on first use and never gives it back, so
-    // the 4096² depth target — over a hundred megabytes, about half the game's
-    // video memory — stays resident for a setting that is switched off.
-    // Disposing releases it, and the next enable allocates a fresh one.
+    // Three allocates the shadow map on first use and never gives it back: over
+    // a hundred megabytes resident for a setting that is switched off.
     if (!enabled) sun.shadow.dispose();
   }
 
@@ -430,11 +262,7 @@ export class ZoneManager {
     return zone;
   }
 
-  /**
-   * Links two ends. Both zones must already be registered — a portal to a zone
-   * that does not exist is a door that cannot be walked back through, and it
-   * should fail at startup rather than when somebody opens it.
-   */
+  /** Links two ends. Both zones must already be registered, so a broken portal fails at startup rather than when somebody opens it. */
   link(portal: PortalDefinition): void {
     for (const end of [portal.a, portal.b]) {
       if (!this.zones.has(end.zone)) {
@@ -444,12 +272,7 @@ export class ZoneManager {
     this.portals.add(portal, (id) => this.zones.get(id)?.name ?? id);
   }
 
-  /**
-   * Builds a zone's geometry and collision ahead of time, without entering it.
-   *
-   * For the loading screen. A big zone's first entry otherwise pays its whole
-   * build cost behind the fade, which is only a third of a second of black.
-   */
+  /** Builds a zone's geometry and collision ahead of time, for the loading screen. */
   async prebuild(id: ZoneId): Promise<void> {
     const zone = this.zones.get(id);
     if (!zone) return;
@@ -457,16 +280,11 @@ export class ZoneManager {
     const root = await this.prepare(zone);
     root.updateWorldMatrix(true, true);
     this.options.collider.warm(root, zone.id);
-    // Prebuilding pays the whole cost up front, so entering later must take the
-    // silent path — that is the entire point of doing it at boot.
+    // Prebuilding pays the cost up front, so entering later takes the silent path.
     this.warmed.add(zone.id);
   }
 
-  /**
-   * Compiles a zone's shader programs ahead of entry. Safe to fire unawaited:
-   * parallel compile runs on driver threads, and an entry that arrives first
-   * just awaits the remainder behind its fade.
-   */
+  /** Compiles a zone's shader programs ahead of entry. Safe to fire unawaited: parallel compile runs on driver threads. */
   async precompile(id: ZoneId): Promise<void> {
     const zone = this.zones.get(id);
     if (!zone) return;
@@ -482,9 +300,8 @@ export class ZoneManager {
       return;
     }
     // A detached root compiles against a stand-in holding clones of the global
-    // rig: the real scene may hold another zone's lights (a combined census
-    // compiles a program nothing renders with), and passing the root as the
-    // pre-add object to its own scene would count its lights twice.
+    // rig: the real scene may hold another zone's lights, and passing the root
+    // to its own scene would count its lights twice.
     const stand = new THREE.Scene();
     stand.fog = scene.fog;
     stand.environment = scene.environment;
@@ -492,46 +309,16 @@ export class ZoneManager {
     await postfx.renderer.compileAsync(root, player.camera, stand);
   }
 
-  /**
-   * Which zones are currently holding memory. For the readout and the checks.
-   *
-   * "Built" rather than "resident" is the honest word: this is what exists, not
-   * what policy says should exist, and the difference between the two is the
-   * bug this is here to make visible.
-   */
+  /** Which zones are currently holding memory — what exists, not what policy says should exist. */
   get builtZones(): ZoneId[] {
     return [...this.zones.values()].filter((zone) => zone.isBuilt).map((zone) => zone.id);
   }
 
   /**
-   * Drops every zone further than `KEEP_WITHIN` doors from where the player is.
-   *
-   * **This is safe because builders are seeded.** A zone is a name and a list of
-   * seeds, and rebuilding one is guaranteed to give back the same world down to
-   * the position of every blade of grass — which is the return on banning
-   * `Math.random` from builders long before there was any thought of eviction.
-   * Nothing here would be defensible otherwise: dropping a room you cannot
-   * reconstruct exactly is dropping a room the player will notice changing.
-   *
-   * Everything the zone was costing has to go together, and the list is longer
-   * than the geometry:
-   *
-   * - **The geometry**, which is most of the memory — `Zone.dispose` frees the
-   *   buffers and leaves the shared materials alone.
-   * - **The collider's octree**, which is roughly a fifth as much again and is
-   *   held in a cache the zone knows nothing about.
-   * - **The doors**, which are built by the manager rather than by the zone, so
-   *   `dispose` cannot know about them. `doored` is cleared so the next entry
-   *   stands them again, and the portal graph is told to forget the meshes.
-   * - **The soundscape**, which is the one thing a dormant zone was already
-   *   paying almost nothing for — but "almost nothing" times a hundred and forty
-   *   rooms is worth collecting.
-   * - **The warm mark**, because the zone is now cold and its next entry should
-   *   show the indicator rather than hitching silently behind an instant fade.
-   *
-   * Called after an entry has fully settled, never during one: the active zone
-   * is exempt by construction, and releasing anything mid-transition would mean
-   * disposing geometry that the frame in flight is still holding a reference to.
+   * Drops every zone further than `KEEP_WITHIN` doors from the player. Safe
+   * because builders are seeded, so a rebuild gives back the same world down to
+   * the blade of grass. Geometry, octree, doors, soundscape and the warm mark
+   * all go together, and only once an entry has fully settled.
    */
   private evict(): void {
     if (!this.active) return;
@@ -568,7 +355,7 @@ export class ZoneManager {
     }
   }
 
-  /** Counts releases, so the check suite can tell eviction from never-built. */
+  /** Counts releases, so eviction can be told from never-built. */
   private evicted = 0;
 
   get evictions(): number {
@@ -576,17 +363,9 @@ export class ZoneManager {
   }
 
   /**
-   * What the ground sounds like at a position in the active zone.
-   *
-   * Zones declare one floor material, which is right for a room and wrong for
-   * anywhere outdoors — walking off a cobbled yard onto grass has to change the
-   * sound or the ground cover is only paint. A zone that varies overrides this.
-   *
-   * **A prop you are standing on beats both**, and it has to: a plank walkway
-   * over mud is timber underfoot, and a zone's paint has no way to know a prop
-   * was put there. Which prop that is comes from the player's own collision —
-   * see `Controller.groundSurface` — so it is whatever actually stopped them
-   * rather than whatever a search near their feet turned up.
+   * What the ground sounds like at a position in the active zone. A prop you
+   * are standing on beats the zone's paint and comes from the player's own
+   * collision — a plank walkway over mud is timber underfoot.
    */
   surfaceAt(x: number, z: number): SurfaceName {
     const zone = this.active;
@@ -615,32 +394,17 @@ export class ZoneManager {
     return this.transitioning;
   }
 
-  /** Puts the player in a zone. Used for the initial boot and by `use`. */
   /**
-   * Enters a zone, yielding to the browser while a cold one is built.
-   *
-   * **Async because building blocks, and a blocked frame cannot paint.** A
-   * dense zone runs every builder, merges the geometry and indexes the lot into
-   * an octree, which on the foliage gallery is comfortably over a second. Done
-   * synchronously the game simply stops: no frame is presented, so anything put
-   * on screen to say so is only drawn *after* the work it was describing. The
-   * two costly steps are therefore separated by a real yield, and the indicator
-   * goes up before either of them.
-   *
-   * A zone that has been entered before is cached in `Zone.root` and in the
-   * collider, so it takes the fast path and shows nothing at all — which is
-   * most doorways in the game.
+   * Enters a zone, yielding to the browser while a cold one is built. Async
+   * because building blocks and a blocked frame cannot paint: the two costly
+   * steps are separated by a real yield, with the indicator up before either.
    */
   async enter(id: ZoneId, at?: Placement): Promise<void> {
     const zone = this.zones.get(id);
     if (!zone) throw new Error(`no such zone "${id}"`);
 
-    // **Re-entry guard.** Once this is async a second call can arrive while the
-    // first is still yielding — a player mashing a door, or a jump from the
-    // debug panel mid-transition. The later call wins and the earlier one is
-    // abandoned at its next yield, because the later one is what the player
-    // asked for most recently. Ignoring it instead would leave the door they
-    // just used feeling dead.
+    // Re-entry guard. A second call can arrive while the first is yielding; the
+    // later one wins, because it is what the player asked for most recently.
     const token = ++this.entering;
     const stale = (): boolean => token !== this.entering;
 
@@ -649,17 +413,14 @@ export class ZoneManager {
 
     if (cold) {
       await this.building.show(`entering ${zone.name.toLowerCase()}`);
-      // Sweeping rather than sitting at a width. The step about to run is one
-      // synchronous `build()` that cannot report its own progress, and on a
-      // slow machine a bar frozen at 4% for two seconds reads as a hang. See
-      // `Building.step`.
+      // Sweeping rather than sitting at a width: the step about to run is one
+      // synchronous `build()` that cannot report its own progress.
       await this.building.step('raising the world');
       if (stale()) return;
     }
 
-    // The zone's code, if it lives in its own chunk. The prefetch on the last
-    // arrival usually means this is already resolved; a miss waits on the
-    // network here, under the indicator or the fade.
+    // The zone's code, if it lives in its own chunk. Usually already resolved by
+    // the prefetch on the last arrival; a miss waits on the network here.
     await zone.ensureLoaded();
     if (stale()) return;
 
@@ -676,19 +437,9 @@ export class ZoneManager {
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
 
-    // **Compiled before anything is swapped.** This await is the long pole on
-    // a cold entry, and every frame it yields still shows the old zone, whole,
-    // with the player standing on its collider. Compiling after the swap put
-    // rendered frames between the collider changing and the teleport — on a
-    // doorless jump the player fell through a world they were not in yet.
-    // The stand-in census in `compile` matches the scene the root is about to
-    // join, so the programs are the ones the first real frame asks for.
-    //
-    // There is nothing to arrange first. Every mesh already carries the one of
-    // two art materials it will keep (see `dressArtMesh`), so this pass
-    // compiles what the first real frame will ask for, and there is no second
-    // pass handing anything out afterwards. It used to need a probe and a
-    // deferral; MATERIAL-SYSTEM.md R5 retired both.
+    // Compiled before anything is swapped. Every frame this yields still shows
+    // the old zone with the player standing on its collider; compiling after the
+    // swap put rendered frames between the collider changing and the teleport.
     if (cold) await this.building.step('almost there', 0.96);
     await this.compile(root);
     if (stale()) return;
@@ -712,12 +463,10 @@ export class ZoneManager {
       fogColor: env.fogColor,
       fogNear: env.fogNear,
       fogFar: env.fogFar,
-      // Off the definition rather than the environment, because a volume has
-      // coordinates and an environment is shared between zones. See
-      // `ZoneDefinition.fogVolumes`.
+      // Off the definition rather than the environment: a volume has coordinates
+      // and an environment is shared between zones.
       fogVolumes: zone.fogVolumes,
-      // Read off what was actually built rather than off a declaration, which
-      // is why this is safe to ask here: `root()` ran a few lines up.
+      // Read off what was actually built rather than off a declaration.
       water: zone.hasWater,
       glass: zone.hasGlass,
       // Off `prepare`'s walk rather than off the zone, because the sparkles are
@@ -736,11 +485,9 @@ export class ZoneManager {
 
     this.applyAudio(zone);
 
-    // Doors, plus anything in the zone carrying a label. Collected by walking
-    // the zone once on entry rather than being registered by whoever built it:
-    // a builder deep inside a gallery has no handle on the interaction system,
-    // and making it acquire one would thread a dependency through every layer
-    // between them for the sake of a tooltip.
+    // Doors, plus anything in the zone carrying a label. Collected by walking the
+    // zone on entry: a builder deep inside a gallery has no handle on the
+    // interaction system, and threading one through would cost every layer between.
     const targets: THREE.Object3D[] = this.portals
       .in(zone.id)
       .map((side) => side.door)
@@ -764,21 +511,16 @@ export class ZoneManager {
     this.arrived = true;
     this.building.hide();
 
-    // **Last, and only once the arrival is complete.** Everything above this
-    // line holds live references into the zone being entered and, until
-    // `scene.remove` above, into the one being left — so releasing geometry any
-    // earlier means freeing buffers that the transition still has in hand. The
-    // player is standing still on their marker by the time this runs.
+    // Last, and only once the arrival is complete: everything above holds live
+    // references into both zones, so releasing earlier frees buffers still in hand.
     this.evict();
     this.prefetch();
   }
 
   /**
-   * Fires the chunk load for every zone within the residency ring, so the
-   * code behind each reachable door is cached before it is asked for. Every
-   * door the player can see leads one hop out, well inside the ring.
-   * Fire-and-forget: a failure clears itself and is retried, and surfaced, by
-   * whichever entry actually needs the zone.
+   * Fires the chunk load for every zone within the residency ring, so the code
+   * behind each reachable door is cached before it is asked for. Fire-and-forget:
+   * a failure is retried, and surfaced, by whichever entry actually needs it.
    */
   private prefetch(): void {
     if (!this.active) return;
@@ -798,24 +540,18 @@ export class ZoneManager {
       soundscape = new Soundscape(this.audio.engine, zone.environment.soundscape);
       this.soundscapes.set(zone.id, soundscape);
     }
-    // Everything else is silenced rather than disposed. Emitters cannot work
-    // out that they have become inaudible on their own: occlusion is a raycast
-    // against the collider, and the collider no longer holds the world they
-    // live in, so every one of them would report itself unobstructed.
+    // Everything else is silenced rather than disposed: an emitter cannot work
+    // out that it has become inaudible, because occlusion raycasts against a
+    // collider that no longer holds the world it lives in.
     for (const [id, other] of this.soundscapes) other.setActive(id === zone.id);
 
     this.director?.setZone(zone.environment.music ?? null);
   }
 
   /**
-   * Drives the active zone's ambience.
-   *
-   * Separate from `update` on the loop because the listener has to be moved
-   * before anything is judged against it — the caller pumps the engine first
-   * and passes on whether the occlusion raycasts are due this frame.
-   *
-   * The music director is deliberately not here. It reads no frame state, so it
-   * runs on its own timer off the frame loop entirely — see `dsp/ticker.ts`.
+   * Drives the active zone's ambience. Separate from `update` because the
+   * listener has to be moved before anything is judged against it. The music
+   * director reads no frame state and runs off the frame loop entirely.
    */
   updateSound(dt: number, retestOcclusion: boolean): void {
     if (!this.active) return;
@@ -833,22 +569,10 @@ export class ZoneManager {
   }
 
   /**
-   * Builds a zone's geometry and stands its doors in it.
-   *
-   * Doors are added by the manager rather than by the zone's own builder
-   * because a door is half of a link between two zones, and a zone should not
-   * have to know what is on the other side of its own walls. It also means the
-   * door mesh and the arrival marker are derived from the same placement, so
-   * they cannot disagree.
-   *
-   * Asynchronous for one reason: groundcover is sampled in a worker, and the
-   * point of that is not to hold this thread while a field is rolled. Every
-   * caller already awaits something either side of it.
-   *
-   * That await opens a window this used to be too short to have: a second
-   * caller arriving mid-preparation once saw the doors already claimed and took
-   * a root whose fields had not landed yet. In-flight work is shared instead, so
-   * both callers get the same finished zone.
+   * Builds a zone's geometry and stands its doors in it. Doors belong to the
+   * manager because a door is half a link, and a zone should not have to know
+   * what is on the other side of its own walls. In-flight work is shared, so
+   * two callers arriving mid-preparation get the same finished zone.
    */
   private prepare(zone: Zone): Promise<THREE.Group> {
     const pending = this.preparing.get(zone.id);
@@ -875,21 +599,10 @@ export class ZoneManager {
       this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
     }
 
-    // Every solid surface both casts and receives, decided once here rather
-    // than by each builder. Two exceptions, and both matter:
-    //
-    // - **Glow geometry never casts.** It is additive, unlit and has no
-    //   business occluding anything; a flame that threw a shadow would be
-    //   drawing the shape of the light source in darkness.
-    // - **Ground never casts.** A floor can only ever shadow itself, and
-    //   self-shadowing a vast flat plane is the classic source of acne — it is
-    //   pure cost for an effect that is at best invisible and at worst stripes.
-    //   Recognised by name for the two floors that predate the flag, and by
-    //   `userData.ground` for anything else that is a large near-horizontal
-    //   surface — a pond bed is one, and is not called either of those things.
-    // - **Clutter never casts.** Grass and small flowers are the bulk of the
-    //   object count in an outdoor zone and a couple of pixels each on screen,
-    //   and occlusion already grounds them; see `art/clutter.ts`.
+    // Every solid surface both casts and receives, decided once here rather than
+    // by each builder. Glow never casts: it is additive and unlit. Ground never
+    // casts: a floor can only shadow itself, which is the classic source of acne.
+    // Clutter never casts either, and occlusion already grounds it.
     const grounds: THREE.Mesh[] = [];
     const clutter: THREE.Mesh[] = [];
     const parallax: VistaParallax[] = [];
@@ -898,13 +611,9 @@ export class ZoneManager {
     let points = 0;
     let spots = 0;
     root.traverse((object) => {
-      // **Every light is shown to the particle pass.** That pass restricts the
-      // camera to `PARTICLE_LAYER`, and three collects only the lights a camera
-      // can see — so without this the particle material compiles against an
-      // empty light list and every flake in the zone comes out black. Enabled,
-      // not set, so nothing about ordinary rendering changes; and done here
-      // rather than in the builders so a forge lights the embers drifting off
-      // it without knowing particles exist.
+      // Every light is shown to the particle pass, which restricts the camera to
+      // `PARTICLE_LAYER` — three collects only the lights a camera can see, so
+      // without this every flake in the zone comes out black.
       if (object instanceof THREE.Light) {
         object.layers.enable(PARTICLE_LAYER);
         if (object instanceof THREE.PointLight) points++;
@@ -916,9 +625,8 @@ export class ZoneManager {
         parallax.push(object.userData.vistaParallax);
       }
       if (!(object instanceof THREE.Mesh)) return;
-      // Collidable and never drawn — see `showBarriers`. Caught before the
-      // shadow decision below because a revealed barrier must not start casting
-      // one; while it is hidden the flag means nothing either way.
+      // Collidable and never drawn. Caught before the shadow decision below,
+      // because a revealed barrier must not start casting one.
       if (!object.visible && object.layers.test(COLLISION_MASK)) {
         barriers.push(object);
         object.castShadow = false;
@@ -926,10 +634,9 @@ export class ZoneManager {
         if (this.barriersShown) revealBarrier(object, true);
         return;
       }
-      // What decides whether the particle pass runs here at all. The layer
-      // rather than the builder, because two unrelated things ride it — weather
-      // systems and the zone's sparkles — and a test that named either of them
-      // would go quietly wrong the first time the other one was alone in a zone.
+      // The layer rather than the builder: weather systems and the zone's
+      // sparkles both ride it, and a test naming either would go wrong the first
+      // time the other was alone in a zone.
       if (object.layers.test(PARTICLE_MASK)) particles = true;
       // A cloth panel is `noCollide` — its triangles stay out of the octree —
       // but it is solid to light: the sim moves the actual buffer, so its
@@ -944,8 +651,7 @@ export class ZoneManager {
       // decides shadows — see `cullClutter`.
       if (scatter) clutter.push(object);
       // Out-of-bounds scenery. The sun's shadow box is ±48 m and the vista band
-      // starts past it, so neither direction is ever going to do anything —
-      // stated on the tag rather than left depending on the box's size.
+      // starts past it.
       const vista = object.userData.vista === true;
       object.castShadow = !glow && !ground && !scatter && !vista;
       object.receiveShadow = !glow && !vista;
@@ -954,15 +660,10 @@ export class ZoneManager {
       if (ground || typeof object.userData.cover === 'string') grounds.push(object);
     });
 
-    // **Cover is a property of the ground, not a set of objects standing on
-    // it.** The same test that decided shadows decides this, so anything the
-    // manager already calls ground grows what its material says it grows —
-    // with no placement to author and nothing to invalidate when the mesh
-    // moves. A mesh that grows nothing returns null and costs no draw. Attached
-    // after the walk rather than during it, because adding to a tree you are
-    // traversing is how you end up covering the cover.
-    // Sampled together rather than one after another: the worker takes them in
-    // turn, and this thread is free for the whole of it either way.
+    // Cover is a property of the ground, not a set of objects standing on it, so
+    // the same test that decided shadows decides this. Attached after the walk
+    // rather than during it, because adding to a tree you are traversing is how
+    // you end up covering the cover.
     const covers = await Promise.all(grounds.map((mesh) => coverFor(mesh)));
     grounds.forEach((mesh, i) => {
       const cover = covers[i];
@@ -985,11 +686,8 @@ export class ZoneManager {
 
     this.clutter.set(zone.id, clutter);
     // Kept even when empty, so `slideVista` can tell "nothing moves here" from
-    // "not prepared yet" without asking the scene graph again.
-    //
-    // `thaw` puts auto-update back **on** for the moving props, after
-    // `freezeMatrices` has just turned it off across the whole zone — see
-    // `VistaParallax.thaw`.
+    // "not prepared yet". `thaw` puts auto-update back on for the moving props,
+    // which `freezeMatrices` has just turned off across the whole zone.
     for (const controller of parallax) controller.thaw();
     this.parallax.set(zone.id, parallax);
     this.barriers.set(zone.id, barriers);
@@ -1007,13 +705,8 @@ export class ZoneManager {
 
   /**
    * Pads the zone's light census up to the nearest tier with black
-   * zero-intensity lights, so its shader programs are shared game-wide.
-   *
-   * A black light holds its slot in the shader's light loop and contributes
-   * nothing; the cost is a few dead loop iterations per fragment. Pads carry
-   * no `userData.activity`, so `LightActivity` never collects them. The rule
-   * that keeps this working: flames flicker *intensity*, never `visible` — a
-   * light toggling visible changes the census mid-zone and forces a compile.
+   * zero-intensity lights, so its shader programs are shared game-wide. Flames
+   * must flicker *intensity*, never `visible`: that would change the census.
    */
   private padLights(root: THREE.Group, id: ZoneId, points: number, spots: number): void {
     const pad = (count: number, tiers: readonly number[], make: () => THREE.Light, kind: string): void => {
@@ -1037,24 +730,14 @@ export class ZoneManager {
   }
 
   /**
-   * Hides clutter past the view distance (VIEW-DISTANCE.md).
-   *
-   * Grass and small flowers are about a third of the meshes in a zone that
-   * scatters and almost none of the picture — near enough the fact that already
-   * stops them casting shadows — so they are the right thing to drop first when
-   * the view is pulled in. It removes draw calls rather than pixels, which is
-   * what a pipeline this chunky is short of.
-   *
-   * Positions come out of the matrices the renderer has already updated, so a
-   * zone that has never been drawn simply reads its meshes where they were
-   * placed. Nothing here touches collision: `Collider` walks the graph without
-   * asking what is visible, so the grass you cannot see is still grass.
+   * Hides clutter past the view distance. It removes draw calls rather than
+   * pixels, which is what a pipeline this chunky is short of. Nothing here
+   * touches collision — the grass you cannot see is still grass.
    */
   private cullClutter(): void {
     const radius = this.options.postfx.clutterRadius;
     if (radius === Infinity) {
-      // The default, and then this costs one comparison a frame. Releasing
-      // takes every built zone rather than the one being stood in: a zone left
+      // Releasing takes every built zone rather than the active one: a zone left
       // behind mid-cull would still be missing its grass on the way back.
       if (!this.clutterHidden) return;
       for (const zone of this.clutter.values()) for (const mesh of zone) mesh.visible = true;
@@ -1078,16 +761,9 @@ export class ZoneManager {
   }
 
   /**
-   * Slides the vista's moving props under the camera.
-   *
-   * All the arithmetic — how far each one goes, and what stops it — lives in
-   * `VistaParallax`. This hands it the camera and nothing else.
-   *
-   * **Frozen means as authored, not as you left it.** Holding a prop at
-   * whatever offset it had when the switch was thrown freezes a lie: the
-   * placement you would then be judging is the slide, not the thing that was
-   * placed. The origin puts every prop back where the ring built it, which is
-   * the state worth inspecting and the state the still band is already in.
+   * Slides the vista's moving props under the camera; the arithmetic lives in
+   * `VistaParallax`. Frozen means as authored, not as you left it — the origin
+   * puts every prop back where the ring built it.
    */
   private slideVista(): void {
     const list = this.active ? this.parallax.get(this.active.id) : undefined;
@@ -1098,12 +774,7 @@ export class ZoneManager {
     for (const controller of list) controller.update(x, z);
   }
 
-  /**
-   * Per-frame: what is under the crosshair, and should the prompt be showing.
-   *
-   * Returns what the interact key would act on, so the caller can act on it
-   * without probing a second time.
-   */
+  /** Per-frame: what is under the crosshair. Returns what the interact key would act on, so the caller need not probe again. */
   update(elapsed: number): Focus | null {
     const { interaction, collider, player, reticle } = this.options;
 
@@ -1122,11 +793,9 @@ export class ZoneManager {
       return null;
     }
 
-    // The probe is where the raycasts live, and it is the same answer for
-    // several frames at a time — a reticle refreshed eighteen times a second
-    // is indistinguishable from one refreshed sixty times, and the reticle is
-    // the only thing that reads it. The answer is held between probes so the
-    // interact key acts on what is being shown rather than on nothing.
+    // The probe is where the raycasts live and it is the same answer for several
+    // frames at a time. The answer is held between probes, so the interact key
+    // acts on what is being shown rather than on nothing.
     if (elapsed - this.probed < PROBE_INTERVAL) return this.focus;
     this.probed = elapsed;
     this.focus = this.lookAhead(interaction, collider, player, reticle);
@@ -1147,13 +816,9 @@ export class ZoneManager {
       return { kind: 'door', side: this.hovered };
     }
 
-    // Not a door. Three things it can still be, and they are told apart by what
-    // the object carries rather than by what kind of prop it is:
-    //
-    // - nothing named — no tooltip, no verb;
-    // - named and nothing more — a sign. The tooltip shows and the key does
-    //   nothing, which is a real state and the one a caption is in;
-    // - named and bound to a note — a readable. Two lines, and a verb.
+    // Not a door. Told apart by what the object carries: nothing named is no
+    // tooltip and no verb; named and nothing more is a sign; named and bound to
+    // a note is a readable, with a verb.
     const found = labelOf(hover?.object ?? null);
     if (!found) {
       reticle.set(null);
@@ -1161,25 +826,16 @@ export class ZoneManager {
     }
 
     // An id that resolves to nothing degrades to a plain label rather than
-    // opening a blank page. It is a content bug, and `check:world` is where it
-    // is meant to be caught — this is only what the game does meanwhile.
+    // opening a blank page.
     const note = found.text === undefined ? undefined : noteById(found.text);
     reticle.set({ title: found.label, target: note?.title, kind: 'read' });
     return note ? { kind: 'read', note } : null;
   }
 
   /**
-   * Uses a door.
-   *
-   * The door sound is fired *before* the fade and is not awaited. It is
-   * scheduled onto the audio clock in one go at this moment, so it survives the
-   * zone being torn down and rebuilt underneath it — the tail carries across
-   * the cut, which is most of what makes the transition feel like walking
-   * through a door rather than a screen wipe. It survives the *teleport* too,
-   * which took removing the panner: see `door.ts`.
-   *
-   * One sound, here, and nothing on arrival. A second cue on the far side read
-   * as a second event rather than as the other half of the same one.
+   * Uses a door. The sound fires before the fade and is not awaited: scheduled
+   * onto the audio clock in one go, its tail carries across the cut. One sound,
+   * here, and nothing on arrival.
    */
   async use(side: PortalSide): Promise<void> {
     if (this.transitioning) return;
@@ -1197,11 +853,7 @@ export class ZoneManager {
     this.transitioning = false;
   }
 
-  /**
-   * A doorless jump under the same fade a door gets: the debug menu's travel,
-   * and anything else scripted. Without the cover, the swap — however atomic —
-   * is a hard cut in full view.
-   */
+  /** A doorless jump under the same fade a door gets. Without the cover the swap, however atomic, is a hard cut in full view. */
   async travel(id: ZoneId, at?: Placement): Promise<void> {
     if (this.transitioning) return;
     this.transitioning = true;
@@ -1241,19 +893,12 @@ export class ZoneManager {
     this.horror.clear();
   }
 
-  /**
-   * Steps the active zone's cloths. Called from the loop after the wind ships,
-   * so the cloth answers the same frame's weather the trees do.
-   */
+  /** Steps the active zone's cloths. Called after the wind ships, so cloth and trees answer the same frame's weather. */
   updateCloth(dt: number, weather: Weather): void {
     this.cloth.update(this.active?.id ?? null, dt, weather, this.options.player.camera.position);
   }
 
-  /**
-   * Moves the active zone's creatures. Called from the loop after the sound
-   * update, so a creature's voice is placed after the listener is and before
-   * the wind ships. LIFE.md §7.
-   */
+  /** Moves the active zone's creatures. Called after the sound update, so a voice is placed after the listener and before the wind ships. */
   updateLife(dt: number, retestOcclusion: boolean): void {
     const { player, collider } = this.options;
     const ground = this.active?.definition.groundAt ?? (() => 0);
@@ -1278,9 +923,8 @@ export class ZoneManager {
 
   /**
    * Packs the active zone's glitch volumes into the shared uniform store.
-   * Called from the loop after the clock is current and before the frame that
-   * reads it — attached volumes re-read their object's world matrix here,
-   * which is what lets corruption follow a thing rather than a place.
+   * Attached volumes re-read their object's world matrix here, which is what
+   * lets corruption follow a thing rather than a place.
    */
   updateGlitch(elapsed: number): void {
     this.glitch.update(this.active?.id ?? null, elapsed, this.options.player.camera.position);
