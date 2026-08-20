@@ -17,11 +17,12 @@
  * can walk them forward and never look back.
  */
 
-import type { Consonant, Lect, Score, Tone } from '../speech';
+import type { Consonant, Lect, Score, Tone, Vowel } from '../speech';
 import type { Unit } from './types';
 import { CURVE, type Curve, type Track } from './body';
+import { vowelSpace, type Character } from './character';
 import {
-  CLOSURE, LATERAL, LIQUID, PALATE, PHARYNX, SHAPES, TIP_OPEN, TRILL_BEATS, TRILL_PERIOD,
+  CLOSURE, LATERAL, LIQUID, PALATE, PHARYNX, TIP_OPEN, TRILL_BEATS, TRILL_PERIOD,
   UVULA, VELAR, bodyAt, closer, fricGap, inBody, liquidGap, type Shape,
 } from './shapes';
 
@@ -150,6 +151,18 @@ export interface Identity {
   declination: number;
   /** Scales every written pause. */
   pauseScale: number;
+  /** How hard the accent lands, on both loudness and length. */
+  punch: number;
+  /** Where the accent peaks in the syllable, as a fraction of it. */
+  peakAt: number;
+  /** How much of the pitch is nobody's plan. */
+  wobble: number;
+  /** How far the folds drop into creak at the end of a phrase. */
+  creak: number;
+  /** Scales the mouth's approach into a vowel: above 1 undershoots. */
+  reach: number;
+  /** This one's own vowel space, not the world's. */
+  vowels: Record<Vowel, Shape>;
 }
 
 function hash(seed: number, n: number): number {
@@ -161,32 +174,30 @@ function hash(seed: number, n: number): number {
  * Who this one is. `tone` is the old control and still means the same thing:
  * above 1 is a shorter tract and a smaller person.
  *
- * The lect sets where in the spread this one falls — how fast their people
- * talk, how wide they swing it, how pressed the folds are. The per-seed
- * spread stays inside it, so two villagers still differ from each other.
+ * Length and f0 come off `size`; `rd` does not, which is what stops the whole
+ * cast being one voice at a range of sizes.
  */
-export function identity(seed: number, tone: number, pitch: number, lect: Lect): Identity {
-  // How big a person this is, 0 to 1. Pitch and tract follow it together —
-  // a long throat on a high voice is nobody — and the spread is the adult
-  // range, roughly 100 to 300 Hz over 14 to 18 cm, before `tone` shrinks it.
-  const size = hash(seed, 9);
-  const [slow, quick] = lect.rate;
-  const [narrow, wide] = lect.range;
+export function identity(who: Character, tone: number, pitch: number, lect: Lect): Identity {
+  // Roughly 100 to 300 Hz over 14 to 18 cm, before `tone` shrinks it.
   return {
-    rate: slow + hash(seed, 1) * (quick - slow),
-    lengthCm: (14.2 + 4 * size) / tone,
-    f0: pitch * (0.7 + 0.3 * tone) * (1.15 - 0.55 * size) * (0.9 + hash(seed, 8) * 0.2),
-    range: narrow + hash(seed, 6) * (wide - narrow),
-    // **This is the brightness of the voice.** `Rd` sets the length of the
-    // fold's return phase, which puts a second 6 dB an octave on everything
-    // above `f0 / 2π·Ra` — and that corner falls with f0, so a big low voice
-    // needs a lower Rd than a small high one to keep the same top.
-    rd: 0.58 + hash(seed, 2) * 0.24 - 0.18 * size + lect.rdBias,
+    rate: who.rate,
+    lengthCm: (14.2 + 4 * who.size) / tone,
+    f0: pitch * (0.7 + 0.3 * tone) * (1.15 - 0.55 * who.size) * who.f0Trim,
+    range: who.range,
+    // `Rd` sets the length of the fold's return phase, which puts a second
+    // 6 dB an octave on everything above `f0 / 2π·Ra`.
+    rd: 0.58 + who.rd + lect.rdBias,
     // Never dry. A voice with no air in it at all is a buzzer.
-    breath: 0.03 + hash(seed, 3) * 0.04,
-    velum: hash(seed, 12) * lect.velum,
-    declination: lect.declination,
-    pauseScale: lect.pauseScale,
+    breath: who.breath,
+    velum: who.velum,
+    declination: lect.declination * who.declination,
+    pauseScale: lect.pauseScale * who.pause,
+    punch: who.punch,
+    peakAt: who.peakAt,
+    wobble: who.wobble,
+    creak: who.creak,
+    reach: who.reach,
+    vowels: vowelSpace(who),
   };
 }
 
@@ -247,7 +258,15 @@ export function write(score: Score, me: Identity, at: number): Written {
   const lines = new Lines();
   const units: Unit[] = [];
   const unit = 1 / me.rate;
-  const rest = SHAPES['ə'];
+  const rest = me.vowels['ə'];
+  // How long the mouth is given to arrive at a vowel; a slow reach undershoots.
+  const approach = 0.03 * me.reach;
+  // How much of a syllable's length and loudness the stress is answerable for.
+  // Both stay at 1 on a full stress, so punch tilts the line rather than lifting
+  // it. The length is capped: an unstressed syllable shorter than the mouth's
+  // approach is one the mouth never arrives at.
+  const stretch = Math.min(0.58, 0.45 * me.punch);
+  const swell = 0.6 * me.punch;
 
   // No drawn breath. A villager's line is a second and a half at most, which
   // is not long enough to need one, and a third of a second of noise in front
@@ -287,14 +306,14 @@ export function write(score: Score, me: Identity, at: number): Written {
     // sentence stretches, and a line without that stretch is a list.
     const held = (s.pause >= 0.2 ? 1.35 : s.pause > 0 ? 1.1 : 1) * (s.final ? 1.2 : 1) * (s.long ? 1.45 : 1);
     const length =
-      unit * (lilt ? 0.5 + 0.14 * s.stress : 0.55 + 0.45 * s.stress) * held * (0.9 + hash(me.f0, 20 + i) * 0.2);
+      unit * (lilt ? 0.5 + 0.14 * s.stress : 1 - stretch + stretch * s.stress) * held * (0.9 + hash(me.f0, 20 + i) * 0.2);
     // The voice runs on into a voiced consonant rather than stopping and
     // starting again.
     const carries = !!next && s.pause === 0 && !unvoiced(next.onset);
     // An unstressed syllable is much quieter than a stressed one; a line whose
     // syllables are all one loudness is a machine reading a list.
     const level =
-      (0.4 + 0.6 * s.stress) * (s.tune === 'exclaim' ? 1.12 : lilt ? 1.08 : 1) * (0.9 + hash(me.f0, 60 + i) * 0.2);
+      (1 - swell + swell * s.stress) * (s.tune === 'exclaim' ? 1.12 : lilt ? 1.08 : 1) * (0.9 + hash(me.f0, 60 + i) * 0.2);
     const lead = leadFor(c);
     const on = cursor + lead;
     const end = on + length;
@@ -308,20 +327,21 @@ export function write(score: Score, me: Identity, at: number): Written {
     else if (s.tune === 'exclaim') contour = 1.32 - 0.3 * s.along;
     else if (lilt) contour = 1.18 + 0.12 * s.along + (s.final ? 0.1 : 0);
     else contour = 1.12 - me.declination * s.along;
-    contour *= 1 + (me.range + (lilt ? 0.08 : 0)) * (s.stress - 0.35) + (hash(me.f0, 100 + i) - 0.5) * 0.14;
+    contour *= 1 + (me.range + (lilt ? 0.08 : 0)) * (s.stress - 0.35) + (hash(me.f0, 100 + i) - 0.5) * me.wobble;
 
     // A creaky vowel sits low as well as rough.
     const target = me.f0 * contour * (creaky ? 0.86 : 1);
     const settles = s.pause > 0.3 && s.tune !== 'question' && !lilt;
     // A stressed syllable rises into its peak and falls off it; an unstressed
-    // one is passed through nearly level. A tone of its own overrides that.
+    // one is passed through nearly level. A tone of its own overrides that,
+    // `peakAt` and all — a written tone states its own shape.
     const peak = target * (lilt ? 1.06 : 1.01 + 0.05 * s.stress);
     const f0End = target * (settles ? 0.8 : lilt ? 1.04 : 0.99 - 0.05 * s.stress);
-    const shape = TONES[s.tone] ?? [[0.32, peak / target], [1, f0End / target]];
+    const shape = TONES[s.tone] ?? [[me.peakAt, peak / target], [1, f0End / target]];
     const from = afterPause ? target * 0.92 : f0;
 
-    // Up to the peak a third of the way in, then away from it to the end,
-    // always moving: a pitch that arrives and holds is a keyboard.
+    // Up to the peak, then away from it to the end, always moving: a pitch
+    // that arrives and holds is a keyboard.
     if (afterPause) lines.at('f0', cursor, from, 'step');
     if (c.air === 'implosive') {
       // The larynx drops behind the closure and comes back up as it opens.
@@ -344,8 +364,8 @@ export function write(score: Score, me: Identity, at: number): Written {
     lines.at('rd', end, me.rd + (s.pause > 0.2 ? 0.25 : 0.08), 'lin');
 
     // --- the consonant, ahead of the voice --------------------------------
-    const vowel = SHAPES[s.vowel];
-    const glide = SHAPES[s.glide];
+    const vowel = me.vowels[s.vowel];
+    const glide = me.vowels[s.glide];
     writeOnset(lines, c, on, lead, level, vowel, me, carried);
 
     // --- the vowel --------------------------------------------------------
@@ -360,14 +380,14 @@ export function write(score: Score, me: Identity, at: number): Written {
     lines.at('loud', on + length * 0.35, level * folds, 'lin');
     lines.at('loud', end - 0.02, level * 0.72 * folds, 'lin');
 
-    lines.at('jaw', on + 0.03, vowel.jaw, 'lin');
-    lines.at('bodyPos', on + 0.03, vowel.bodyPos, 'lin');
-    lines.at('bodyDia', on + 0.03, vowel.bodyDia, 'lin');
-    lines.at('lips', on + 0.03, vowel.lips, 'lin');
+    lines.at('jaw', on + approach, vowel.jaw, 'lin');
+    lines.at('bodyPos', on + approach, vowel.bodyPos, 'lin');
+    lines.at('bodyDia', on + approach, vowel.bodyDia, 'lin');
+    lines.at('lips', on + approach, vowel.lips, 'lin');
     // Out of the way, unless this vowel curls the tip itself. A fricative has
     // already put the tip where it wants it and is left alone.
     if (c.manner !== 'fricative' || vowel.tip !== undefined) {
-      lines.at('tip', on + 0.02, vowel.tip ?? TIP_OPEN, 'lin');
+      lines.at('tip', on + approach * 0.67, vowel.tip ?? TIP_OPEN, 'lin');
     }
 
     // The mouth moves on into the second vowel across the middle of it.
@@ -426,10 +446,12 @@ export function write(score: Score, me: Identity, at: number): Written {
     lines.at('breath', end + 0.1 + codaTail(s.coda), 0, 'lin');
 
     // A line that has come to rest goes down into creak: the pitch is low
-    // already and the folds stop being regular about it.
-    if (settles && !creaky) {
+    // already and the folds stop being regular about it. A habitually creaky
+    // voice does it at the end of every phrase, not only a settled one.
+    const rasp = settles ? 0.7 : s.pause > 0.2 || s.final ? me.creak : 0;
+    if (rasp > 0 && !creaky) {
       lines.at('chaos', end - 0.1, 0, 'lin');
-      lines.at('chaos', end + 0.02, 0.7, 'lin');
+      lines.at('chaos', end + 0.02, rasp, 'lin');
       lines.at('chaos', end + 0.12, 0, 'lin');
     }
 
@@ -1022,8 +1044,7 @@ function writeCoda(
   carries: boolean,
 ): void {
   const place = c.place;
-  const rest = SHAPES['ə'];
-  const { track, open } = closer(place, rest);
+  const { track, open } = closer(place, me.vowels['ə']);
   const body = inBody(place);
   switch (c.manner) {
     case 'nasal': {

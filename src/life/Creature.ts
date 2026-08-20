@@ -723,6 +723,7 @@ export class Creature {
         gain: 1.0,
         seed: this.spec.seed + spot,
         lect: this.spec.lect,
+        character: this.spec.character,
       });
       this.voice = voice;
       this.shot = voice;
@@ -738,9 +739,11 @@ export class Creature {
     this.said = this.voice.babble(kind, world.audio.context.currentTime + 0.05);
     if (flags.debug) {
       this.label ??= new VoiceLabel(this.mesh, this.spec.headHeight + 0.55);
-      // Says which lect it is speaking, and says MUTE where a throat failed to
-      // build — otherwise a silent villager reads as one with nothing to say.
-      const model = voiceState(world.audio.context) === 'ready' ? (this.spec.lect ?? 'country') : 'MUTE';
+      // Says which lect it is speaking and which named voice if any, and says
+      // MUTE where a throat failed to build — otherwise a silent villager reads
+      // as one with nothing to say.
+      const who = `${this.spec.lect ?? 'country'}${this.spec.character ? ` ${this.spec.character}` : ''}`;
+      const model = voiceState(world.audio.context) === 'ready' ? who : 'MUTE';
       this.label.show(`${this.voiceId} ${model}`, this.said.text);
     }
     return this.said;

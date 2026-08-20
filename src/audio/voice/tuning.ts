@@ -7,8 +7,10 @@
  * move while it is talking, on every voice in the world at once, and the ear
  * decides. The numbers that stick go back into `villagerBody`.
  *
- * Defaults mirror the villager preset. Changing one here overrides the preset
- * on every throat alive and every throat built afterwards.
+ * **Only a dial that has been moved is sent.** Six of these are `BodyPreset`
+ * fields drawn per creature, so pushing the defaults at construction would
+ * flatten every throat in the world into the same one. Moving a dial overrides
+ * the preset on every throat alive and every throat built afterwards.
  */
 
 export interface VoiceTuning {
@@ -43,12 +45,12 @@ export const VOICE_TUNING: VoiceTuning = {
 };
 
 const live = new Set<AudioWorkletNode>();
+/** Dials the panel has touched. A throat built later still gets them. */
+const moved = new Set<keyof VoiceTuning>();
 
 export function addThroat(node: AudioWorkletNode): void {
   live.add(node);
-  for (const key of Object.keys(VOICE_TUNING) as (keyof VoiceTuning)[]) {
-    node.port.postMessage({ kind: 'tune', key, value: VOICE_TUNING[key] });
-  }
+  for (const key of moved) node.port.postMessage({ kind: 'tune', key, value: VOICE_TUNING[key] });
 }
 
 export function dropThroat(node: AudioWorkletNode): void {
@@ -57,6 +59,7 @@ export function dropThroat(node: AudioWorkletNode): void {
 
 /** Pushes one dial to every throat that exists. */
 export function pushVoiceTuning(key: keyof VoiceTuning): void {
+  moved.add(key);
   const value = VOICE_TUNING[key];
   for (const node of live) node.port.postMessage({ kind: 'tune', key, value });
 }

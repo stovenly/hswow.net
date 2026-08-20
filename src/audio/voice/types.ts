@@ -18,6 +18,8 @@ export interface VoiceOptions {
   seed?: number;
   /** Which people this one speaks like. Absent is the countryside. */
   lect?: LectName;
+  /** A named voice from `VOICES`, which brings its own lect and overrides the draw. */
+  character?: string;
 }
 
 /** The peoples, by the name of how they talk. */
