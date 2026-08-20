@@ -8,53 +8,30 @@ import { outlineBounds, type Outline, type Skirt } from './vista';
 import { VistaParallax, type ParallaxProp } from './vista-parallax';
 
 /**
- * The vista ring: everything standing out of bounds — VISTA.md.
+ * The vista ring: everything standing out of bounds.
  *
- * ## Placement is an offset from the level, not a bearing from its middle
+ * Placement is an offset from the level, not a bearing from its middle. A bearing
+ * from the origin can point along an S-shaped level's path as easily as away from
+ * it, and "120 m out" can land inside the level's own far arm — so the whole ring
+ * is written against the skirt's signed distance. Hand placement is a world
+ * position; everything else is measured out from the outline.
  *
- * The spec wrote this as polar — hand-place by bearing and distance, scatter to
- * fill the gaps between. That works for a level shaped like a bowl and means
- * nothing for one shaped like an S: a bearing from the origin can point along
- * the path as easily as away from it, and "120 m out" can land inside the
- * level's own far arm.
+ * Merged means still, individual means moving: a prop with an `apparent` distance
+ * slides with the camera, and merged geometry has nowhere to hang a per-object
+ * transform, so the moving props are left as meshes of their own. The parallax set
+ * is sparse — ten hills and a tower against fifty still props.
  *
- * So the whole ring is written against the skirt's signed distance instead.
- * Hand placement is a world position, and everything else — the band, each
- * kind's own band, and the apparent distance a prop poses at — is measured
- * *out from the outline*. For a winding level that fills the crooks and hugs
- * the bends without a special case, and for a square one it is exactly the ring
- * the spec described.
- *
- * ## Merged means still, individual means moving
- *
- * A prop with an `apparent` distance slides with the camera, and merged
- * geometry has nowhere to hang a per-object transform. Rather than sorting the
- * band into layers that share one — which is what this used to do, and see
- * `vista-parallax.ts` for why that was the wrong shape — the moving props are
- * simply left as meshes of their own and everything else is merged.
- *
- * The parallax set is sparse: ten hills and a tower on a level, against fifty
- * or so still props. So the cost is a dozen draw calls, and the chunking they
- * would otherwise have shared was buying weak frustum culling anyway.
- *
- * ## Chunks are a grid, for the same reason bands are distances
- *
- * Sixty-degree arcs are polar too. Still props are bucketed into square cells
- * and each cell merges into one geometry, which behaves identically on a
- * compact level and correctly on a long one. Three.js frustum-culls per object
- * with no occlusion pass, so granularity is the only culling lever there is —
- * but be honest about the size of that win: a cell this large has a bounding
- * sphere that is in frustum most of the time. Chunks earn their keep mainly as
- * the rebuild-and-edit unit; the draw saving is a bonus.
+ * Still props are bucketed into square cells and each cell merges into one
+ * geometry, which behaves identically on a compact level and correctly on a long
+ * one. Chunks earn their keep mainly as the rebuild-and-edit unit; a cell this
+ * large has a bounding sphere in frustum most of the time.
  */
 
 /**
- * Metres across one merge cell, when the ring does not say.
- *
- * Sized so that a compact level's whole band comes out as a handful of chunks
- * rather than one per prop. The first pass used 64 m and produced twenty-one
- * chunks for nineteen props — every merge a merge of one, which is all of the
- * bookkeeping and none of the saving. A cell wants to hold several things.
+ * Metres across one merge cell, when the ring does not say. Sized so a compact
+ * level's whole band is a handful of chunks rather than one per prop — at 64 m it
+ * produced twenty-one chunks for nineteen props, which is all of the bookkeeping
+ * and none of the saving.
  */
 const CHUNK = 280;
 
@@ -67,13 +44,10 @@ export interface VistaProp {
   /** Which way it faces. Rolled from the seed when omitted. */
   yaw?: number;
   /**
-   * How far out it should *read*, in metres from the level's outline.
-   *
-   * The authoring handle for parallax, with `k` derived from it and from where
-   * the prop actually stands — so the composition survives the band's radii
-   * being retuned later, and a number in the same units as every other distance
-   * out here. Omitted, or no further out than the prop really is, and it stands
-   * still and merges with its neighbours.
+   * How far out it should read, in metres from the level's outline — the authoring
+   * handle for parallax, with `k` derived from it and from where the prop actually
+   * stands, so the composition survives the band's radii being retuned. Omitted, or
+   * no further out than the prop really is, and it stands still and merges.
    */
   apparent?: number;
 }
@@ -92,11 +66,9 @@ export interface VistaScatter {
   /** Keep this far from anything already placed, centre to centre. */
   spacing?: number;
   /**
-   * How far out these should read. A range is rolled per prop.
-   *
-   * Worth rolling rather than fixing: props at different apparent distances
-   * move against each other, and that difference is the depth cue. A whole
-   * band at one value is a tier by another name.
+   * How far out these should read. A range is rolled per prop, and worth rolling
+   * rather than fixing: props at different apparent distances move against each
+   * other, and that difference is the depth cue. A whole band at one value is a tier.
    */
   apparent?: number | readonly [number, number];
 }
@@ -117,14 +89,10 @@ export interface VistaRingOptions {
   /** Seeded fills between them. */
   scatter?: readonly VistaScatter[];
   /**
-   * Where a moving prop may never be dragged.
-   *
-   * For a compact level, the outline grown by whatever the still band reaches —
-   * `dilateOutline` does that. For a bent one it is drawn by hand, because the
-   * interesting case is a shape no dilation produces: a Y-shaped level wants a
-   * keep-out spanning the cup between its arms, so nothing can be pulled across
-   * the inside of the bend and cut the sightline down either one.
-   *
+   * Where a moving prop may never be dragged. For a compact level, the outline grown
+   * by whatever the still band reaches — `dilateOutline` does that. For a bent one
+   * it is drawn by hand, because the interesting case is a shape no dilation
+   * produces: a Y-shaped level wants a keep-out spanning the cup between its arms.
    * Omitted, nothing stops a moving prop but the props in front of it.
    */
   keepOut?: readonly Outline[];
@@ -151,12 +119,9 @@ function parallaxK(apparent: number | undefined, actual: number): number {
 }
 
 /**
- * Builds the ring.
- *
- * Returns a group of merged chunk meshes plus a mesh for each moving prop,
- * every one of them tagged as scenery: out of the collider, out of the shadow
- * box, and not moving in the wind. The parallax controller rides on the group's
- * own `userData`, for `ZoneManager` to drive.
+ * Builds the ring: a group of merged chunk meshes plus a mesh for each moving prop,
+ * every one tagged as scenery — out of the collider, out of the shadow box, and
+ * not moving in the wind. The parallax controller rides on the group's `userData`.
  */
 export function vistaRing(options: VistaRingOptions): THREE.Group {
   const { skirt, band } = options;
@@ -171,19 +136,17 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
 
   for (const fill of options.scatter ?? []) {
     const range = fill.band ?? band;
-    // **Per kind, not once for the ring.** A kind with a band of its own can
-    // sit further out than the ring's, and a box drawn to the ring's outer edge
-    // then never generates a single candidate that could pass — the filter
-    // rejects all of them and the kind silently places nothing.
+    // Per kind, not once for the ring: a kind with a band of its own can sit further
+    // out than the ring's, and a box drawn to the ring's outer edge then never
+    // generates a candidate that could pass, so the kind silently places nothing.
     const bounds = outlineBounds(skirt.outline, range.outer);
     const spacing = fill.spacing ?? fill.builder.radius * 1.4;
     let landed = 0;
-    // Rejection sampling over the bounding box. The band is a thin shell around
-    // an arbitrary outline and there is no cheap way to sample it directly, so
-    // this throws darts and keeps the ones that stick. Capped rather than
-    // looped until full, because a band that cannot hold `count` would spin.
-    // Generous, because the band is a thin shell inside a square box and most
-    // darts miss it before spacing is even considered.
+    // Rejection sampling over the bounding box: the band is a thin shell around an
+    // arbitrary outline and there is no cheap way to sample it directly. Capped
+    // rather than looped until full, because a band that cannot hold `count` would
+    // spin, and generous, because most darts miss the shell before spacing is
+    // even considered.
     for (let attempt = 0; attempt < fill.count * 200 && landed < fill.count; attempt++) {
       const x = rng.range(bounds.min[0], bounds.max[0]);
       const z = rng.range(bounds.min[1], bounds.max[1]);
@@ -194,11 +157,9 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
       const keep = fill.builder.radius * scale;
       let clear = true;
       for (const other of taken) {
-        // **A floor, not an addition.** Adding `spacing` on top of the two
-        // radii double-counts: a forest mass declares a 34 m radius and may be
-        // scaled past 3, so its own half-extent is already a hundred metres,
-        // and another thirty on top put the exclusion beyond anything the band
-        // could hold. Four kinds silently placed nothing before this changed.
+        // A floor, not an addition: adding `spacing` on top of the two radii
+        // double-counts, and a forest mass declaring a 34 m radius scaled past 3 has a
+        // half-extent of a hundred metres already.
         const clearance = Math.max((keep + other.keep) * 0.5, spacing);
         if (Math.hypot(x - other.x, z - other.z) < clearance) {
           clear = false;

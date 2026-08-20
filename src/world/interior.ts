@@ -4,35 +4,22 @@ import { createRng } from '../art/random';
 import { PALETTE, shade } from '../art/palette';
 
 /**
- * The shell of an interior: floor, four walls, a ceiling.
+ * The shell of an interior: floor, four walls, a ceiling, as one merged geometry
+ * with vertex colours — one draw call and one collider subtree however big it is.
  *
- * Built as one merged geometry with vertex colours, exactly like everything the
- * art kit makes, so an interior costs one draw call and one collider subtree
- * however big it is.
+ * The shell is sealed and has no doorway in it. Cutting an opening would mean
+ * constructive solid geometry, and there is nothing to see through it anyway: an
+ * interior is its own zone, so the far side of that wall is nothing at all. Portal
+ * doors stand against the wall and bring their own frame and dark backing panel.
  *
- * **The shell is sealed and has no doorway in it.** Cutting an opening would
- * mean constructive solid geometry, and there is nothing to see through it
- * anyway: an interior is its own zone, so the far side of that wall is not the
- * outside of the building, it is nothing at all. Portal doors stand against the
- * wall and bring their own frame and their own dark backing panel, which reads
- * as a doorway at every distance you can be from it in a room this size.
- *
- * Sealing matters beyond looks. The zone check fires rays out of the middle of
- * every interior in a few hundred directions and fails if any of them escapes,
- * because a gap is a place the player can fall through into a black void with
- * no floor and no way back. Walls therefore overlap at the corners rather than
- * meeting at them — each one spans the room's full outer extent on its long
- * axis, so a corner is two boxes intersecting rather than two boxes abutting,
- * and no rounding error can open a seam between them.
+ * Walls overlap at the corners rather than meeting at them — each spans the room's
+ * full outer extent on its long axis — so a corner is two boxes intersecting and
+ * no rounding error can open a seam a player could fall through.
  */
 
 export interface InteriorStyle {
   floor: number;
-  /**
-   * The slab under the boards, which shows only in the margin beneath the
-   * walls. It no longer colours a seam — the boards tile edge to edge and the
-   * joint is painted off `floor`. The name is now wrong; renaming it is yours.
-   */
+  /** The slab under the boards, which shows only in the margin beneath the walls. It no longer colours a seam: the boards tile edge to edge. */
   floorSeam: number;
   wall: number;
   wallTrim: number;
@@ -56,11 +43,9 @@ export const WORKS_STYLE: InteriorStyle = {
   floorSeam: 0x0e1012,
   wall: PALETTE.STONE,
   wallTrim: PALETTE.IRON,
-  // Not near-black, which it was. A works has a high roof and nothing on it, so
-  // the ceiling is a large unbroken plane — and a large unbroken plane at
-  // 0x1c1f22 is below the bottom quantization level everywhere at once, which
-  // is not "dark" but *absent*: a void where the roof should be, with the walls
-  // stopping in mid-air. Lit sootty steel rather than shadow.
+  // Not near-black. A works has a high roof and nothing on it, so the ceiling is a
+  // large unbroken plane — and one below the bottom quantization level everywhere at
+  // once is not dark but absent, a void with the walls stopping in mid-air.
   ceiling: 0x3d444a,
   beam: PALETTE.RUST,
 };
@@ -80,12 +65,9 @@ export interface InteriorOptions {
 }
 
 /**
- * Builds an interior shell centred on the origin, floor at y = 0.
- *
- * Centred rather than cornered because a portal door is placed against a wall
- * by measuring out from the middle, and half-extents are the numbers that makes
- * readable at the call site: `width / 2` is the wall, not `width` minus a
- * thickness you have to remember the sign of.
+ * Builds an interior shell centred on the origin, floor at y = 0. Centred rather
+ * than cornered because a portal door is placed against a wall by measuring out
+ * from the middle, and half-extents are the readable numbers at the call site.
  */
 export function buildInterior(options: InteriorOptions): THREE.Mesh {
   const {
@@ -107,13 +89,10 @@ export function buildInterior(options: InteriorOptions): THREE.Mesh {
   const outerZ = depth + t * 2;
 
   // --- shell --------------------------------------------------------------
-  // With boards on top, the slab is dropped a few millimetres.
-  //
-  // **This is the z-fighting fix.** Both surfaces were at exactly y = 0, so
-  // across the whole floor the depth buffer had two coplanar faces to choose
-  // between and picked differently from one pixel and one camera angle to the
-  // next — which reads as the floor crawling. Dropped, the boards simply win
-  // wherever they reach; the slab is what shows in the margin under the walls.
+  // With boards on top, the slab is dropped a few millimetres. Both at exactly
+  // y = 0, the depth buffer has two coplanar faces to choose between across the
+  // whole floor and picks differently from pixel to pixel, which reads as the floor
+  // crawling. Dropped, the boards win wherever they reach.
   const slabTop = planks ? -0.006 : 0;
   const floor = new THREE.BoxGeometry(outerX, t, outerZ);
   floor.translate(0, slabTop - t / 2, 0);
@@ -135,32 +114,27 @@ export function buildInterior(options: InteriorOptions): THREE.Mesh {
   }
 
   // --- floor boards -------------------------------------------------------
-  // Boards and seams tile the floor edge to edge, every top face at exactly
-  // y = 0 — so the walkable height does not depend on whether boards are on,
-  // and **the floor has no vertical faces in it**. That second part is the
-  // point. A recessed seam stands a 90° normal step in front of the edge
-  // detector, which resolves it to a bright line through a hard threshold and
-  // re-decides it every frame as the camera turns: a shimmering grid on the one
-  // surface you sweep across. See ANTIALIASING.md.
+  // Boards and seams tile edge to edge, every top face at exactly y = 0, so the
+  // walkable height does not depend on whether boards are on — and the floor has no
+  // vertical faces in it. That second part is the point: a recessed seam stands a
+  // 90° normal step in front of the edge detector, which resolves it to a bright
+  // line through a hard threshold and re-decides it every frame as the camera turns.
   if (planks) {
     const boardWidth = rng.range(0.24, 0.34);
     const count = Math.ceil(width / boardWidth);
-    // A joint lit like the boards either side of it, rather than the near-black
-    // of `floorSeam` — that was the colour of a *shadowed slot*, and nothing
-    // shadows it now. Wider than the slot was narrow, too: the same amount of
-    // dark spread across twice the line is the same seam and half the peak, and
-    // peak contrast at a low duty cycle is what sparkles at distance.
+    // A joint lit like the boards either side of it rather than the near-black of a
+    // shadowed slot, and wider: the same amount of dark spread across twice the line
+    // is the same seam at half the peak, and peak contrast at a low duty cycle is
+    // what sparkles at distance.
     const seamWidth = 0.009;
     const seamColor = shade(style.floor, 0.55);
     const strip = (from: number, span: number, color: number): void => {
       // Laid *into* the slab rather than on top of it.
       const geometry = new THREE.BoxGeometry(span, 0.03, depth);
       geometry.translate(from + span / 2, -0.015, 0);
-      // Each declares its own width as its feature size, so the two stop being
-      // drawn at very different ranges: the seam dissolves into the boards as
-      // soon as it is narrower than a pixel, while the board-to-board variation
-      // — thirty times wider and a fraction of the contrast — outlasts any room
-      // it could be standing in. See `art/detail.ts`.
+      // Each declares its own width as its feature size, so the two stop being drawn
+      // at very different ranges: the seam dissolves into the boards as soon as it is
+      // narrower than a pixel, while the board-to-board variation outlasts any room.
       parts.push({ geometry, color, sway: 0, detail: span, detailTint: style.floor });
     };
     for (let i = 0; i < count; i++) {
@@ -184,10 +158,8 @@ export function buildInterior(options: InteriorOptions): THREE.Mesh {
   }
 
   // --- skirting -----------------------------------------------------------
-  // A band where the wall meets the floor. It is a strip of trim and it does
-  // more for an interior than anything else this cheap: without it the wall
-  // and floor meet in a single hard line and the room reads as a texture-less
-  // box, which is exactly what it is.
+  // A band where the wall meets the floor. Without it the two meet in a single hard
+  // line and the room reads as a texture-less box, which is what it is.
   const skirt = 0.16;
   for (const sz of [-1, 1]) {
     const trim = new THREE.BoxGeometry(width, skirt, 0.06);

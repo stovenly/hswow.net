@@ -2,34 +2,23 @@ import { PALETTE, shade } from '../art/palette';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
- * Ground cover: what the floor of the world is made of, patch by patch.
+ * Ground cover: what the floor of the world is made of, patch by patch. Terrain
+ * shape and terrain surface are separate problems — landforms decide where the
+ * hills are, and this decides that the track between them is trodden earth and the
+ * yard is cobbled.
  *
- * Terrain shape and terrain *surface* are separate problems. Landforms decide
- * where the hills are; this decides that the track between them is trodden
- * earth, that the yard is cobbled, and that the strip behind the barn is crop.
- * Without it a heightfield is one colour of green with objects standing on it,
- * and no amount of clutter fixes that — clutter sits *on* the ground, it does
- * not make the ground itself mean anything.
- *
- * **A material is a colour and a sound.** That pairing is the whole point. A
- * cobbled path you can see but that still sounds like grass underfoot is worse
- * than no path at all, because the mismatch is exactly the sort of thing a
- * player notices without being able to say why. One table, both facts, so they
- * cannot drift apart.
- *
- * Patches are placed shapes, like landforms are, and for the same reason: this
- * is authored ground, and a list of paths and yards is something a person can
- * read, move and argue with.
+ * A material is a colour and a sound, and that pairing is the whole point: a
+ * cobbled path that still sounds like grass underfoot is worse than no path at
+ * all. One table, both facts, so they cannot drift apart. Patches are placed
+ * shapes, because this is authored ground.
  */
 
 export interface GroundMaterial {
   color: number;
   /**
-   * How much face-to-face brightness varies, 0..1.
-   *
-   * Cobble and gravel want a lot — they are made of separate pieces and the
-   * variation is what reads as pieces. Turf wants little. A material with none
-   * looks like painted concrete however good its colour is.
+   * How much face-to-face brightness varies, 0..1. Cobble and gravel want a lot —
+   * they are made of separate pieces and the variation is what reads as pieces. A
+   * material with none looks like painted concrete however good its colour is.
    */
   variation: number;
   /** Which footstep model plays when standing on it. */
@@ -78,11 +67,9 @@ export const GROUND = {
 export type GroundName = keyof typeof GROUND;
 
 /**
- * The shape of a painted region, without saying what is painted in it.
- *
- * Shared by ground materials and by cover, because "a route", "a rough circle"
- * and "a surveyed rectangle" are the three shapes an authored map wants and
- * neither list has a reason to disagree with the other about them.
+ * The shape of a painted region, without saying what is painted in it. Shared by
+ * ground materials and by cover, because a route, a rough circle and a surveyed
+ * rectangle are the three shapes an authored map wants.
  */
 export type PatchShape =
   /** A route. Followed through its points in order, with rounded ends. */
@@ -93,21 +80,18 @@ export type PatchShape =
   | { kind: 'field'; min: readonly [number, number]; max: readonly [number, number] };
 
 /**
- * A region of ground cover.
- *
- * Later patches win over earlier ones, so the list reads top to bottom like
- * layers of paint: lay the fields down, then the roads across them, then the
- * yard where the roads meet.
+ * A region of ground cover. Later patches win over earlier ones, so the list reads
+ * top to bottom like layers of paint: the fields, then the roads across them, then
+ * the yard where the roads meet.
  */
 export type GroundPatch = PatchShape & { material: GroundName };
 
 /**
- * Signed distance to a shape's edge: negative inside, positive outside.
- *
- * Here rather than with either caller because two of them want it for unrelated
- * jobs — the skirt measures how far out of bounds a point is, and the terrain
- * fades ground cover out as it approaches the level's edge — and a shape's
- * distance from a point is a fact about the shape.
+ * Signed distance to a shape's edge: negative inside, positive outside. Here rather
+ * than with either caller because two of them want it for unrelated jobs — the
+ * skirt measures how far out of bounds a point is, and the terrain fades ground
+ * cover out near the edge — and a shape's distance from a point is a fact about
+ * the shape.
  */
 export function shapeDistance(shape: PatchShape, x: number, z: number): number {
   switch (shape.kind) {
@@ -182,12 +166,10 @@ function inside(patch: PatchShape, x: number, z: number): boolean {
 }
 
 /**
- * Which patch covers a position, or null for none.
- *
- * Edges are **hard**, not blended. Everything in this project is flat-shaded
- * and quantized to a handful of levels, so a soft gradient between two ground
- * materials survives the render pipeline as a band of dither and reads as a
- * mistake. A crisp edge on a facet boundary reads as a kerb.
+ * Which patch covers a position, or null for none. Edges are hard, not blended:
+ * everything here is flat-shaded and quantized to a handful of levels, so a soft
+ * gradient between two ground materials survives as a band of dither and reads as
+ * a mistake, where a crisp edge on a facet boundary reads as a kerb.
  */
 export function patchAt(
   patches: readonly GroundPatch[],
@@ -204,27 +186,18 @@ export function patchAt(
 // --- cover ------------------------------------------------------------------
 
 /**
- * What grows on the ground, as opposed to what the ground is made of.
- *
- * The third fact about a material, beside its colour and its sound, and it
- * lives in the same file for the same reason those two do: a gravel path that
- * still has grass standing in it is the visual half of the mismatch that a
- * cobbled path sounding like turf is the audible half of.
- *
- * Read by the blade sampler in `art/cover.ts`, which turns each layer into
- * instanced geometry at zone build. This table is the only place the numbers
- * appear.
+ * What grows on the ground, as opposed to what the ground is made of — the third
+ * fact about a material, in the same file for the reason the other two are: a
+ * gravel path with grass still standing in it is the visual half of the mismatch
+ * that a cobbled path sounding like turf is the audible half of. Read by the blade
+ * sampler in `art/cover.ts`; this table is the only place the numbers appear.
  */
 export interface BladeLayer {
   /** Median blade length, metres. */
   length: number;
   /** Blade width at the root, metres. */
   width: number;
-  /**
-   * Blades per square metre at full thickness — the *ultra* figure, which is
-   * twice a thick field. The player's density tiers draw a fraction of this
-   * pool; high is 0.3 and medium 0.2.
-   */
+  /** Blades per square metre at full thickness — the ultra figure, twice a thick field. The player's tiers draw a fraction of this pool. */
   density: number;
   /** 0 rigid .. 1 floppy: how far wind and droop move the tip. */
   give: number;
@@ -233,20 +206,14 @@ export interface BladeLayer {
   /** Blade colour. Mixed with the ground's own so patches read through. */
   tint: number;
   /**
-   * How much of the ground's colour mixes into the tint, 0..1. Default 0.25.
-   *
-   * Near zero for anything that grows on surfaces darker than itself — moss
-   * lives on stone and mud, and inheriting a quarter of those makes it black
-   * wherever it is most at home.
+   * How much of the ground's colour mixes into the tint, 0..1. Default 0.25. Near
+   * zero for anything growing on surfaces darker than itself — moss lives on stone
+   * and mud, and inheriting a quarter of those makes it black where it is at home.
    */
   blend?: number;
   /** 0 even .. 1 ragged: how much blade length varies. Default 0.3. */
   vary?: number;
-  /**
-   * 0 blades .. 1 mass: height follows a smooth rolling field instead of
-   * per-blade jitter, and blades go blunt so neighbours merge — moss reads as
-   * soft mounds you can see the sides of, not as very short grass.
-   */
+  /** 0 blades .. 1 mass: height follows a smooth rolling field instead of per-blade jitter, and blades go blunt so neighbours merge — moss reads as soft mounds. */
   mound?: number;
 }
 
@@ -267,11 +234,7 @@ export interface PropLayer {
 export interface CoverType {
   blades?: BladeLayer;
   props?: PropLayer | readonly PropLayer[];
-  /**
-   * Grows on near-vertical faces instead of the ground, oriented to them —
-   * ivy on a wall. Stated per mesh (`userData.cover`), never painted on
-   * terrain, which turns steep faces to rock before this could see them.
-   */
+  /** Grows on near-vertical faces instead of the ground, oriented to them. Stated per mesh (`userData.cover`), never painted on terrain, which turns steep faces to rock first. */
   walls?: boolean;
 }
 
@@ -363,12 +326,7 @@ export type CoverName = keyof typeof COVER_TYPES;
 /** The shader's index for a cover type. `none` is 0 by construction. */
 export const COVER_ORDER = Object.keys(COVER_TYPES) as readonly CoverName[];
 
-/**
- * What each ground material grows. Absent means bare.
- *
- * Painting a gravel path across a field clears the grass off it for free, the
- * same way it already changes the footstep sound.
- */
+/** What each ground material grows. Absent means bare, so painting a gravel path across a field clears the grass off it the way it already changes the footstep sound. */
 export const COVER: Partial<Record<GroundName, CoverName>> = {
   turf: 'grass',
   meadow: 'tussock',
@@ -379,16 +337,11 @@ export const COVER: Partial<Record<GroundName, CoverName>> = {
 };
 
 /**
- * Cover painted directly, over whatever the material underneath would grow.
- *
- * Clover in this hollow, moss along the north wall, and `none` to clear a
- * patch that the material would otherwise cover. Wins outright, including over
- * the rock a steep face falls back to.
- *
- * Edges feather unless the patch says `hard`: neighbouring cover runs at full
- * density to a hard patch's line and never mixes across it — a mown edge, a
- * kerb — where a feathered boundary interleaves both types over a couple of
- * metres.
+ * Cover painted directly, over whatever the material underneath would grow — and
+ * `none` to clear a patch. Wins outright, including over the rock a steep face
+ * falls back to. Edges feather unless the patch says `hard`: a hard edge runs at
+ * full density to the line and never mixes across it, where a feathered one
+ * interleaves both types over a couple of metres.
  */
 export type CoverPatch = PatchShape & { cover: CoverName; edge?: 'feather' | 'hard' };
 
@@ -415,11 +368,9 @@ function smoothNoise(x: number, z: number, scale: number, seed: number): number 
 }
 
 /**
- * Where the cover stands taller and shorter, 0..1.
- *
- * Sweeps rather than noise: a field is not one height, and it is not a random
- * height per tuft either. Two octaves at 26 m and 9.5 m, so a plain has broad
- * areas you can see across and smaller ones inside them.
+ * Where the cover stands taller and shorter, 0..1. Sweeps rather than noise: a field
+ * is not one height, and it is not a random height per tuft either. Two octaves at
+ * 26 m and 9.5 m, so a plain has broad areas you can see across.
  */
 export function coverSwell(x: number, z: number): number {
   return smoothNoise(x, z, 26, 101) * 0.68 + smoothNoise(x, z, 9.5, 227) * 0.32;
@@ -430,11 +381,7 @@ export function coverThickness(x: number, z: number): number {
   return smoothNoise(x, z, 18, 613) * 0.7 + smoothNoise(x, z, 7, 859) * 0.3;
 }
 
-/**
- * Where a mounded cover stands tall and where it hollows, 0..1. Smaller
- * octaves than the swell — these are masses you see the sides of, not sweeps
- * you see across — but big enough that a mound is a chunk, not a pimple.
- */
+/** Where a mounded cover stands tall and where it hollows, 0..1. Smaller octaves than the swell — masses you see the sides of, not sweeps you see across. */
 export function coverMound(x: number, z: number): number {
   return smoothNoise(x, z, 3.4, 431) * 0.6 + smoothNoise(x, z, 1.3, 733) * 0.4;
 }
@@ -461,23 +408,17 @@ export function coverPatchWinner(
 }
 
 /**
- * A stable pseudo-random value for a position, for per-face variation.
- *
- * Hashed rather than drawn from an `Rng` because faces are visited in whatever
- * order the mesh builder happens to walk the grid — a sequence would make the
- * pattern depend on that order, and the same patch of ground would come out
- * differently if the loop were ever restructured. A hash of the coordinates
- * cannot: the ground at a place always looks the same.
+ * A stable pseudo-random value for a position, for per-face variation. Hashed
+ * rather than drawn from an `Rng`, because faces are visited in whatever order the
+ * mesh builder walks the grid and a sequence would make the pattern depend on that
+ * order. The ground at a place always looks the same.
  */
 export function groundJitter(x: number, z: number): number {
-  // Quantized at about a metre — deliberately coarser than the smallest facet.
-  //
-  // The value is sampled once per face, so a grid finer than the faces gives
-  // every face its own shade and the variation reads as per-triangle noise
-  // whose *scale changes* wherever the mesh density does. A grid coarser than
-  // the faces makes neighbouring small faces share a value, so the variation
-  // reads as patches of ground at a fixed size no matter how finely the ground
-  // beneath them happens to be cut up.
+  // Quantized at about a metre, deliberately coarser than the smallest facet. The
+  // value is sampled once per face, so a finer grid gives every face its own shade
+  // and the variation reads as per-triangle noise whose scale changes wherever the
+  // mesh density does; a coarser one makes neighbouring small faces share a value,
+  // so the variation reads as patches at a fixed size.
   let h = (Math.round(x / 1.2) * 374761393 + Math.round(z / 1.2) * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;

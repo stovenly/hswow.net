@@ -6,32 +6,18 @@ import { outlineBounds, type Skirt } from './vista';
 import type { Terrain } from './terrain';
 
 /**
- * Band 1: ordinary props along the level's boundary — VISTA.md.
+ * Band 1 of the vista: ordinary props at real scale along the level's boundary,
+ * the ones the player can walk up to. Its job is to break the sightline into the
+ * seam — ground cover thins to nothing before the edge and a little past that the
+ * level's own mesh gives out and the skirt takes over at a ninth of the
+ * resolution. Neither can be made invisible on its own, so what works is not
+ * looking at it: masses standing across the line of sight.
  *
- * The vista band is three layers. Band 2 is the scenery past the edge and band
- * 3 is the sky; this is band 1, the one made of *real* props at real scale that
- * the player can walk up to. It has one job, and it is a job nothing else can
- * do: **break the sightline into the seam.**
- *
- * There are two seams to hide and they sit on top of each other. Ground cover
- * thins to nothing over the last stretch before the edge (`TerrainOptions.
- * edgeFade`), and a little past that the level's own mesh gives out and the
- * skirt takes over at a ninth of the resolution. Neither can be made invisible
- * on its own — the fade is a gradient across open ground and the eye is very
- * good at gradients. What works is not looking at it: boulder runs, hedge
- * masses and thickets standing across the line of sight, so the ground behind
- * them is glimpsed rather than surveyed.
- *
- * ## It straddles the boundary on purpose
- *
- * Props inside the wall are ordinary world objects — solid, shadow-casting,
- * swaying, walked around. Props outside it are the same builders and are
- * scenery: unreachable, so their collision would only cost octree. `solidWithin`
- * is where that line falls, and it should be the boundary itself.
- *
- * Placement is the ring's own idiom — distance from the level's outline, where
- * negative is inside — so a winding level dresses its whole length without
- * anything here knowing what shape it is.
+ * It straddles the boundary on purpose. Props inside the wall are ordinary world
+ * objects; props outside it are the same builders as scenery, unreachable, so
+ * their collision would only cost octree. `solidWithin` is where that line falls.
+ * Placement is the ring's own idiom — distance from the level's outline, negative
+ * inside — so a winding level dresses its whole length.
  */
 
 export interface DressingKind {
@@ -39,24 +25,17 @@ export interface DressingKind {
   /** How many clumps to try for. Fewer may land if the band is tight. */
   count: number;
   /**
-   * Metres from the outline this kind lives in. Defaults to the whole band.
-   *
-   * **The lever that makes dressing affordable.** These are ordinary builders
-   * and they cost ordinary money — a gorse is 2 200 triangles and a hazel 2 700,
-   * against 78 for a bush and 55 for a rock. Detail that good is worth paying
-   * for where the player stands next to it and is pure waste on the far side of
-   * a boundary they can never cross, where the prop is only ever a mass in the
-   * middle distance. So the costly kinds get a band inside the wall and the
-   * cheap ones do the massing beyond it.
+   * Metres from the outline this kind lives in. Defaults to the whole band, and it
+   * is the lever that makes dressing affordable: a gorse is 2,200 triangles against
+   * 78 for a bush, which is worth paying where the player stands next to it and
+   * pure waste on the far side of a boundary they can never cross. The costly kinds
+   * get a band inside the wall and the cheap ones do the massing beyond it.
    */
   band?: { inner: number; outer: number };
   /**
-   * Props per clump.
-   *
-   * **Clumps, not a sprinkle.** Scattered evenly, boundary dressing reads as a
-   * fence of bushes somebody planted at one-metre centres — the regularity is
-   * more visible than the seam it was hiding. Gathered into runs and masses it
-   * reads as ground nobody has cleared, which is what a field edge is.
+   * Props per clump. Clumps, not a sprinkle: scattered evenly, boundary dressing
+   * reads as a fence of bushes planted at one-metre centres, and the regularity is
+   * more visible than the seam it was hiding.
    */
   clump?: readonly [number, number];
   /** How far a clump's members spread from its middle, in metres. */
@@ -84,11 +63,9 @@ export interface DressingOptions {
 }
 
 /**
- * Builds the dressing.
- *
- * Not merged, unlike the ring: these are ordinary props at ordinary scale, half
- * of them are in the collider, and several of them move in the wind — all three
- * of which want a mesh of their own.
+ * Builds the dressing. Not merged, unlike the ring: these are ordinary props at
+ * ordinary scale, half of them are in the collider, and several move in the wind —
+ * all three of which want a mesh of their own.
  */
 export function edgeDressing(options: DressingOptions): THREE.Group {
   const { terrain, skirt, band } = options;
@@ -106,10 +83,10 @@ export function edgeDressing(options: DressingOptions): THREE.Group {
     const spacing = kind.spacing ?? huddle * 2;
     let landed = 0;
 
-    // Rejection sampling over the bounding box, as the ring does: the band is a
-    // thin shell around an arbitrary outline and there is no cheap way to
-    // sample it directly. Capped rather than looped until full, so a band that
-    // cannot hold `count` finishes short instead of spinning.
+    // Rejection sampling over the bounding box, as the ring does: the band is a thin
+    // shell around an arbitrary outline and there is no cheap way to sample it
+    // directly. Capped rather than looped until full, so a band that cannot hold
+    // `count` finishes short instead of spinning.
     for (let attempt = 0; attempt < kind.count * 60 && landed < kind.count; attempt++) {
       const cx = rng.range(bounds.min[0], bounds.max[0]);
       const cz = rng.range(bounds.min[1], bounds.max[1]);
