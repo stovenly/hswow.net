@@ -14,26 +14,20 @@ import type { Loop } from '../../engine/Loop';
 import type { PerformanceHud } from '../Performance';
 
 /**
- * Where the player's settings meet the engine.
+ * Where the player's settings meet the engine. One function, called with the
+ * whole options object every time anything changes — deliberately blunt: a
+ * per-option dispatch table would be faster and would also be a dozen places
+ * to forget, and this runs when a slider moves, not sixty times a second.
  *
- * One function, called with the whole options object every time anything
- * changes. That is deliberately blunt: a per-option dispatch table would be
- * faster and would also mean a dozen places to forget, and none of this costs
- * anything measurable. It runs when a slider moves, not sixty times a second.
- *
- * **Everything applies live, with one exception.** Nothing here is read at boot and cached, so
- * dragging the field of view moves the camera under the panel, dropping the
- * shadows re-walks the zone that is already standing, and the colourblind
- * correction changes the picture behind the menu as the slider moves. That is
- * the whole reason the scrim is barely tinted — the point of adjusting a video
- * setting is watching what it does. The exception is the audio buffer, which
- * `audioLatencyHint` below hands to the engine once, at boot, because a
+ * **Everything applies live, with one exception.** Nothing is read at boot and
+ * cached, so dragging the field of view moves the camera under the panel and
+ * the colourblind correction changes the picture behind the menu as the slider
+ * moves. That is why the scrim is barely tinted. The exception is the audio
+ * buffer, which `audioLatencyHint` hands to the engine once at boot, because a
  * context's buffer size is fixed the moment it is opened.
  *
  * The unit conversions live here rather than in `model.ts` because they are
- * facts about the engine, not about the settings — a sensitivity of 5 means
- * `lookSensitivity: 0.0022` only for as long as that is what the controller is
- * tuned to.
+ * facts about the engine, not about the settings.
  */
 
 export interface OptionTargets {
@@ -47,13 +41,11 @@ export interface OptionTargets {
 }
 
 /**
- * The lowest sensitivity the slider can actually apply.
- *
- * The slider reads 0 at the bottom, and 0 would be a camera that cannot be
- * turned at all — a setting whose only effect is to make the game look frozen,
- * reachable by dragging one notch too far. This is two per cent of the
- * default: slow enough to be indistinguishable from stopped, fast enough to
- * get back to the menu and undo it.
+ * The lowest sensitivity the slider can actually apply. The slider reads 0 at
+ * the bottom, and 0 is a camera that cannot be turned at all — a setting whose
+ * only effect is to make the game look frozen. Two per cent of the default:
+ * slow enough to be indistinguishable from stopped, fast enough to get back to
+ * the menu and undo it.
  */
 const MIN_SENSITIVITY = 0.1;
 
@@ -61,20 +53,17 @@ const MIN_SENSITIVITY = 0.1;
 const SENSITIVITY_MIDPOINT = 5;
 
 /**
- * The interface size the text-size slider counts from, in CSS pixels.
- *
- * Two pixels above the browser's usual 16. The panel is set in a monospace
- * face at well under a rem for most of its text, and 16 put the sub-labels
- * close to the size where they stop being comfortable — so the baseline moved
- * up and the slider runs either side of it rather than only upwards.
+ * The interface size the text-size slider counts from, in CSS pixels. Two above
+ * the browser's usual 16: the panel is set in a monospace face at well under a
+ * rem for most of its text, and the slider runs either side of the baseline
+ * rather than only upwards.
  */
 const BASE_FONT_PX = 18;
 
 /**
  * The one setting that cannot be applied live, resolved for the engine's
- * constructor. Called from `main.ts` before the engine exists — which is the
- * only moment it can be, and the reason it is a separate function rather than a
- * line in `applyOptions`.
+ * constructor. Called from `main.ts` before the engine exists, which is the
+ * only moment it can be and the reason it is a separate function.
  */
 export function audioLatencyHint(options: Options): AudioContextLatencyCategory {
   return options.audioBuffer === 'large' ? 'playback' : 'interactive';
@@ -100,9 +89,8 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   // Snapped rather than eased — see `setFieldOfView`. A slider whose picture
   // arrives half a second after the number is a slider you cannot judge.
   //
-  // Sprint zoom off is a boost of zero, which is the whole switch: the effect
-  // is a delta, so removing it is setting it to nothing rather than making two
-  // numbers equal and hoping they stay that way.
+  // Sprint zoom off is a boost of zero: the effect is a delta, so removing it
+  // is setting it to nothing rather than making two numbers equal.
   player.setFieldOfView(
     options.fov,
     options.sprintZoom ? DEFAULT_TUNING.sprintFovBoost : 0,
@@ -116,9 +104,8 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   postfx.setColorblind(options.colorblind, options.colorblindStrength / 100);
   postfx.setGroundcover(options.groundcoverDensity);
   // Null rather than the number at the top of the slider: unlimited means the
-  // camera's own far plane, not a very large view distance, and the difference
-  // is the clutter cull and the fog clamp being off entirely rather than
-  // arithmetically harmless.
+  // camera's own far plane, so the clutter cull and the fog clamp are off
+  // entirely rather than arithmetically harmless.
   postfx.setViewDistance(
     options.viewDistance >= VIEW_UNLIMITED ? null : options.viewDistance,
   );

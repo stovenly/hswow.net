@@ -52,16 +52,16 @@ function another<T>(list: readonly T[], last: T): T {
 /**
  * One living thing: a rigged mesh, a bit of mind, and a voice.
  *
- * The mind is a small state machine — idle, walk, business, greet, talk —
- * over a home disc it wanders in. Attention is a separate, continuous thing:
- * within notice range the head tracks the player, glancing away and back;
- * within greeting range the body turns and the creature greets once, then
- * leaves it a good while.
+ * The mind is a small state machine — idle, walk, business, greet, talk — over
+ * a home disc it wanders in. Attention is separate and continuous: within
+ * notice range the head tracks the player, glancing away and back; within
+ * greeting range the body turns and the creature greets once, then leaves it a
+ * good while.
  *
  * Every frame the mind decides weights and phases, the layers in `gaits` are
  * summed into one pose, a biped's legs are solved from its planted feet, the
- * transition offset (if a state just changed) is added and decayed, and the
- * pose is written to the skeleton. LIFE.md §6.
+ * transition offset is added and decayed, and the pose is written to the
+ * skeleton.
  */
 
 export interface World {
@@ -249,8 +249,8 @@ export class Creature {
       // Aimed at the camera, which is not always over the player's feet.
       const eyeDist = Math.max(0.2, Math.hypot(world.eye.x - pos.x, world.eye.z - pos.z));
       const local = angleTo(this.yaw, Math.atan2(world.eye.x - pos.x, world.eye.z - pos.z));
-      // **A person stood behind you does not wait for you to turn round before
-      // they look.** A figure that is not walking twists as far as it goes
+      // A person stood behind you does not wait for you to turn round before
+      // they look. A figure that is not walking twists as far as it goes
       // whatever the angle, and unwinds as the shoulders come after it. An
       // animal keeps to its own neck, and nothing does it while walking away.
       const limit = spec.kind === 'biped' ? BIPED_YAW_LIMIT : HEAD_YAW_LIMIT;
@@ -355,15 +355,14 @@ export class Creature {
       case 'greet':
       case 'talk': {
         this.turnT += dt;
-        // **The head goes first and the body follows it.** The head has been
-        // tracking since you came into notice range; the shoulders come after
-        // it, and only far enough to leave you off one shoulder — nobody
-        // squares up to someone they are talking to. Swinging the whole figure
-        // onto you the instant it notices read as a machine on a target.
+        // The head goes first and the body follows it. The head has been
+        // tracking since you came into notice range; the shoulders come after,
+        // and only far enough to leave you off one shoulder — nobody squares up
+        // to someone they are talking to.
         //
         // How far it has to go decides both the wait and the speed. Someone
-        // stood behind you is not a leisurely quarter turn: the head cannot
-        // get there alone, so the shoulders go almost at once and go quickly.
+        // stood behind you is not a leisurely quarter turn: the head cannot get
+        // there alone, so the shoulders go almost at once and go quickly.
         const off = angleTo(this.yaw, bearing);
         const away = Math.abs(off);
         const hurry = clamp01((away - 0.5) / 1.5);

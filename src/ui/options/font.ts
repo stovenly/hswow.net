@@ -3,18 +3,14 @@ import type { Options } from './model';
 /**
  * The dyslexia-friendly typeface, fetched only if somebody asks for it.
  *
- * OpenDyslexic is 172 KB, which is not much next to a photograph and is a
- * great deal next to this game: the entire build is code, every triangle and
- * every sample is generated at boot, and nothing else is downloaded at all.
- * Bundling it would make the typeface the largest single asset in a game that
- * has no assets, and it would be paid for by everyone to serve the few people
- * who want it. So it stays in `public/` and is pulled in on demand — and
- * because that is a real download over a real connection, the menu says so
- * while it is happening rather than leaving a switch that appears to do
- * nothing for a second.
+ * OpenDyslexic is 172 KB, which is a great deal next to this game: the entire
+ * build is code and every triangle and sample is generated at boot, so nothing
+ * else is downloaded at all. Bundling it would make the typeface the largest
+ * single asset in a game that has no assets. It stays in `public/` and is
+ * pulled in on demand — and because that is a real download, the menu says so
+ * while it is happening.
  *
- * Weighted regular only. The interface has no bold or italic anywhere, so the
- * other faces would be three more downloads nobody would ever see.
+ * Regular weight only. The interface has no bold or italic anywhere.
  */
 
 const FAMILY = 'OpenDyslexic';
@@ -36,12 +32,10 @@ let wanted = false;
 const listeners = new Set<() => void>();
 
 /**
- * Turns the typeface on or off, fetching it the first time it is needed.
- *
- * Safe to call repeatedly with the same value, and safe to call again while a
- * load is in flight — the second call sets `wanted` and the load applies
- * whatever that says when it lands, so switching off and on again quickly
- * cannot leave the page in the wrong state.
+ * Turns the typeface on or off, fetching it the first time it is needed. Safe
+ * to call repeatedly with the same value, and safe to call again while a load
+ * is in flight — the second call sets `wanted` and the load applies whatever
+ * that says when it lands.
  */
 export function setDyslexicFont(enabled: boolean): void {
   wanted = enabled;

@@ -10,16 +10,14 @@ import { fontNote } from './font';
  *
  * **This file knows nothing about how any of it is applied.** It holds the
  * values, their ranges and the rules between them; `apply.ts` pushes them into
- * the engine and `menu.ts` draws them. Splitting it that way is what lets a
- * dependency — the four motion effects under reduced motion, the correction
- * strength under the correction — be stated once, as data, instead of being
- * re-derived in the menu, in the apply step and in the debug panel.
+ * the engine and `menu.ts` draws them. That split is what lets a dependency —
+ * the motion effects under reduced motion, the correction strength under the
+ * correction — be stated once, as data, instead of re-derived in three places.
  *
- * Values are stored in the units the *player* sees, not the ones the engine
- * wants: volumes are percentages, sensitivity is 0–10, field of view is
- * degrees. A settings file is something a person might one day read, and
- * `lookSensitivity: 0.0022` tells them nothing. Conversion happens on the way
- * out, in `apply.ts`.
+ * Values are stored in the units the *player* sees: volumes are percentages,
+ * sensitivity is 0-10, field of view is degrees. A settings file is something
+ * a person might read, and `lookSensitivity: 0.0022` tells them nothing.
+ * Conversion happens on the way out, in `apply.ts`.
  */
 
 const PRESET = 'options';
@@ -32,10 +30,9 @@ export interface Options {
   // --- audio ---------------------------------------------------------------
   /**
    * Every volume is a percentage of the level the game is *mixed* at, not a
-   * fraction of full scale. 100 therefore means "as designed" rather than "as
-   * loud as possible", and the sliders only ever attenuate — which is the
-   * behaviour that cannot surprise anybody, and the reason turning everything
-   * up can never push the limiter into working.
+   * fraction of full scale. 100 means "as designed" rather than "as loud as
+   * possible", and the sliders only ever attenuate — so turning everything up
+   * can never push the limiter into working.
    */
   masterVolume: number;
   musicVolume: number;
@@ -44,13 +41,11 @@ export interface Options {
   creatureVolume: number;
   npcVolume: number;
   /**
-   * How big a buffer the audio device is asked for.
-   *
-   * The one setting in this file that does not apply live: a context's buffer
-   * size is fixed when it is opened, so this is read once at boot and the menu
-   * says so. Small is the lowest latency the device will give; large trades a
-   * few milliseconds of it for the headroom that stops audio breaking up while
-   * something else on the machine is competing for the CPU.
+   * How big a buffer the audio device is asked for. The one setting here that
+   * does not apply live: a context's buffer size is fixed when it is opened, so
+   * this is read once at boot and the menu says so. Small is the lowest latency
+   * the device will give; large trades a few milliseconds for the headroom that
+   * stops audio breaking up while something else competes for the CPU.
    */
   audioBuffer: AudioBuffering;
 
@@ -63,22 +58,19 @@ export interface Options {
   /**
    * Multisampling on the colour render. A player option for the same reason
    * ambient occlusion is: real per-frame cost, and off, the world still reads
-   * as itself — with harder staircases on every thin edge.
-   *
-   * One switch and no tiers. How many samples is a developer's dial, and a
-   * quality ladder here would be two controls for one thing on screen.
+   * as itself with harder staircases on every thin edge. One switch and no
+   * tiers — a quality ladder would be two controls for one thing on screen.
    */
   antialias: boolean;
   /**
-   * Ambient occlusion. A player option by SHADERS-AND-MATERIALS.md's rule: real per-frame
-   * cost, purely additive shading — off, the world still reads as itself.
+   * Ambient occlusion. A player option because it has real per-frame cost and
+   * is purely additive shading — off, the world still reads as itself.
    */
   ambientOcclusion: boolean;
   /**
-   * Bloom. A player option for the same reason ambient occlusion is, plus one
-   * of its own: glow bleed is taste, and some people find it distracting. Off,
-   * the emitters still glow — the geometry is the glow — and only the bleed
-   * goes.
+   * Bloom. Real per-frame cost, and glow bleed is taste that some people find
+   * distracting. Off, the emitters still glow — the geometry is the glow — and
+   * only the bleed goes.
    */
   bloom: boolean;
   shadows: boolean;
@@ -88,34 +80,27 @@ export interface Options {
    *
    * The type table is authored at ultra; every tier below draws a prefix of the
    * same shuffled pool, so the scatter stays even and switching tiers is free.
-   * Off is the end of that scale rather than a switch above it, because a
-   * remembered tier under a switch that says no is two things to reason about
-   * for one thing on screen.
+   * Off is the end of that scale rather than a switch above it.
    *
-   * Called groundcover, not grass: it is the field itself, and the `CLUTTER`
-   * props are a different grass — see `art/clutter.ts`. The two never interact;
-   * neither casts a shadow.
+   * Groundcover, not grass: it is the field itself, and the `CLUTTER` props are
+   * a different grass — see `art/clutter.ts`. Neither casts a shadow.
    */
   groundcoverDensity: CoverDensity;
   /**
    * How far you can see, in metres, `VIEW_UNLIMITED` being as far as the world
-   * goes (VIEW-DISTANCE.md).
+   * goes.
    *
-   * It only ever pulls the view *in*. Every zone already says how thick its own
-   * air is, and this clamps under that rather than extending it — so indoors,
-   * where the fog ends well inside any of these numbers, it does nothing.
-   *
-   * A number rather than a tier, because metres is what it means and the
-   * failure it guards against — a cut with nothing in front of it — is a
-   * distance. The top stop reads as words for the same reason the frame cap's
-   * does: unlimited is a state, not a value.
+   * It only ever pulls the view *in*. Every zone says how thick its own air is
+   * and this clamps under that rather than extending it, so indoors it does
+   * nothing. A number rather than a tier, because metres is what it means and
+   * the failure it guards against — a cut with nothing in front of it — is a
+   * distance.
    */
   viewDistance: number;
   /**
-   * Frames per second, or `uncapped`.
-   *
-   * A string rather than a number so the dropdown can offer "uncapped" as one
-   * of its choices rather than as a magic value; `apply.ts` parses it.
+   * Frames per second, or `uncapped`. A string rather than a number so the
+   * dropdown can offer "uncapped" as one of its choices rather than as a magic
+   * value; `apply.ts` parses it.
    */
   fpsCap: string;
   performance: PerformanceMode;
@@ -133,20 +118,18 @@ export interface Options {
   reducedMotion: boolean;
   windSway: boolean;
   /**
-   * The cloth simulation, on or off — a real switch over real work, not a
-   * gate on other settings. Off freezes every cloth in its pre-draped settled
-   * pose: present, natural, still. Deliberately *not* under reduced motion —
-   * that option already stills cloth's wind response along with the trees',
-   * and the two compose without either becoming a no-op. See CLOTH.md §9.
+   * The cloth simulation, on or off — a real switch over real work, not a gate
+   * on other settings. Off freezes every cloth in its pre-draped settled pose:
+   * present, natural, still. Deliberately *not* under reduced motion, which
+   * already stills cloth's wind response along with the trees'; the two compose
+   * without either becoming a no-op.
    */
   clothSim: boolean;
   /**
-   * Waves, and the foam lapping the shore with them.
-   *
-   * Separate from `windSway` even though the two answer the same gust field,
-   * because they are separate things to be bothered by: a pond rocking in the
-   * corner of the eye is not grass moving. Off, every body of water in the game
-   * goes glass-still and its waterline stops creeping.
+   * Waves, and the foam lapping the shore with them. Separate from `windSway`
+   * even though both answer the same gust field, because they are separate
+   * things to be bothered by: a pond rocking in the corner of the eye is not
+   * grass moving. Off, every body of water goes glass-still.
    */
   waterMotion: boolean;
   headBob: boolean;
@@ -154,13 +137,11 @@ export interface Options {
    * Snow, rain, ash — the weather, and only the weather.
    *
    * An accessibility option rather than a video one, and a stronger case than
-   * wind sway: falling snow is constant motion across the whole frame. The trap
-   * is that there is **no still version of it** — snow that holds still is snow
-   * hanging in the air, which is worse than either state — so this removes the
-   * particles rather than freezing them, and that costs the zone something
-   * real. Motion is what makes a particle an accessibility question and a mist
-   * pool not one. Smoke and sparks stay: they are small, local, and looked at
-   * rather than looked through.
+   * wind sway: falling snow is constant motion across the whole frame. There is
+   * **no still version of it** — snow that holds still is snow hanging in the
+   * air — so this removes the particles rather than freezing them, and that
+   * costs the zone something real. Smoke and sparks stay: they are small,
+   * local, and looked at rather than looked through.
    */
   precipitation: boolean;
   /** The field of view widening while sprinting. */
@@ -183,10 +164,9 @@ export const DEFAULT_OPTIONS: Options = {
   audioBuffer: 'small',
 
   // Read off the movement tuning rather than restated, so the menu opens
-  // showing the value the game actually boots with. Two constants would drift
-  // the first time either was touched, and the symptom — a menu reporting a
-  // field of view the camera does not have — is one nobody would think to look
-  // for.
+  // showing the value the game actually boots with. Two constants would drift,
+  // and a menu reporting a field of view the camera does not have is not
+  // something anyone would think to look for.
   fov: DEFAULT_TUNING.fov,
   fovScaling: DEFAULT_TUNING.fovScaling,
   dither: true,
@@ -225,13 +205,12 @@ export const DEFAULT_OPTIONS: Options = {
  * What the engine actually gets, once the switches that override others have
  * had their say.
  *
- * **Nothing is ever written back.** An option that is being overridden keeps
- * the value the player chose, so turning reduced motion off hands back exactly
- * the world they had before they turned it on — including the head bob they
- * had already switched off by hand, which a restore-everything rule would
- * silently turn back on. The menu shows these values rather than the stored
- * ones, so a suppressed switch reads `off` while it is greyed out and visibly
- * returns when the switch above it is released.
+ * **Nothing is ever written back.** An option being overridden keeps the value
+ * the player chose, so turning reduced motion off hands back exactly the world
+ * they had before — including the head bob they had already switched off by
+ * hand, which a restore-everything rule would silently turn back on. The menu
+ * shows these values rather than the stored ones, so a suppressed switch reads
+ * `off` while greyed and visibly returns when the switch above it is released.
  */
 export function effective(options: Options): Options {
   const motion = !options.reducedMotion;
@@ -253,21 +232,17 @@ type KeysOf<T> = { [K in keyof Options]: Options[K] extends T ? K : never }[keyo
 interface ControlBase {
   label: string;
   /**
-   * False greys the row out. The value underneath is untouched.
-   *
-   * Greyed rather than removed, because these are options something *else* is
-   * overriding: the player set them, they still hold, and they come back the
-   * moment the switch above them is released. Hiding one would look like it
-   * had been thrown away.
+   * False greys the row out; the value underneath is untouched. Greyed rather
+   * than removed, because these are options something *else* is overriding:
+   * the player set them, they still hold, and they come back the moment the
+   * switch above them is released.
    */
   enabledWhen?: (options: Options) => boolean;
   /**
-   * False removes the row entirely.
-   *
-   * For an option that has no meaning at all yet rather than one being
-   * overridden — the correction strength before a correction has been chosen.
-   * There is nothing there to preserve and nothing to explain, so it appears
-   * when it starts to mean something.
+   * False removes the row entirely. For an option that has no meaning at all
+   * yet rather than one being overridden — the correction strength before a
+   * correction has been chosen. Nothing there to preserve and nothing to
+   * explain, so it appears when it starts to mean something.
    */
   shownWhen?: (options: Options) => boolean;
   /** A line under the row — what it is waiting on, or what it costs. */
@@ -325,23 +300,19 @@ const volume = (key: KeysOf<number>, label: string): SliderControl => ({
 });
 
 /**
- * The four categories that are not yet connected to anything.
- *
- * Said once, in the menu, rather than left for the player to discover by
- * dragging a slider that does nothing: every emitter connects straight to the
- * engine's dry and send buses, so a per-category volume needs gain nodes in
- * between and a category declared on every sound in the game. Worth doing when
- * there are creatures and voices to balance against each other; not worth
- * doing now, when there are neither.
+ * The four categories that are not yet connected to anything. Said once, in the
+ * menu, rather than left for the player to discover by dragging a slider that
+ * does nothing: every emitter connects straight to the engine's dry and send
+ * buses, so a per-category volume needs gain nodes in between and a category
+ * declared on every sound in the game.
  */
 const notWired = (): string => 'not connected yet';
 
 /**
- * The tabs, in the order they appear — and the first is the one the panel
- * opens on. Video leads because it is what somebody opens this menu to change:
- * the audio is two working sliders, four that are waiting on a mixer and one
- * setting that needs a reload, and putting those first means the panel opens on
- * the page with the least in it.
+ * The tabs, in the order they appear — and the first is the one the panel opens
+ * on. Video leads because it is what somebody opens this menu to change: the
+ * audio is two working sliders, four waiting on a mixer and one setting that
+ * needs a reload.
  */
 export const CATEGORIES: readonly Category[] = [
   {
@@ -488,11 +459,9 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     id: 'accessibility',
-    // Written out. It was abbreviated to "Access" to make four tabs fit, which
-    // was a bad trade in general and a worse one here: shortening the label on
-    // the accessibility tab specifically, so the layout stays tidy, is exactly
-    // the wrong thing to sacrifice. The tab strip wraps or scrolls before any
-    // of these names gets cut again.
+    // Written out rather than abbreviated. Shortening the label on the
+    // accessibility tab specifically, so the layout stays tidy, is exactly the
+    // wrong thing to sacrifice; the tab strip wraps or scrolls first.
     label: 'Accessibility',
     controls: [
       { kind: 'toggle', key: 'reducedMotion', label: 'reduced motion' },
@@ -547,9 +516,8 @@ export const CATEGORIES: readonly Category[] = [
         key: 'colorblind',
         label: 'colourblind mode',
         // The clinical name *and* the colour, because between them they cover
-        // everybody: somebody who has been diagnosed knows the first, and
-        // somebody who only knows they cannot tell two things apart on screen
-        // can find themselves by the second.
+        // everybody: somebody diagnosed knows the first, and somebody who only
+        // knows they cannot tell two things apart on screen finds the second.
         choices: [
           { value: 'off', label: 'off' },
           { value: 'protanopia', label: 'protanopia (red blindness)' },
@@ -591,13 +559,12 @@ export const CATEGORIES: readonly Category[] = [
 // --- persistence ------------------------------------------------------------
 
 /**
- * Reads the saved options, filling in anything a newer build has added.
- *
- * Merged over the defaults rather than trusted wholesale — a blob written
- * before an option existed is missing that key, and a missing boolean would
- * read as `undefined` and turn the feature off for everyone with an old save.
- * Every value is re-checked against its own control, because this is the one
- * input to the game a person can edit by hand.
+ * Reads the saved options, filling in anything a newer build has added. Merged
+ * over the defaults rather than trusted wholesale — a blob written before an
+ * option existed is missing that key, and a missing boolean would read as
+ * `undefined` and turn the feature off. Every value is re-checked against its
+ * own control, because this is the one input to the game a person can edit by
+ * hand.
  */
 export function loadOptions(): Options {
   const saved = (loadPreset<Options>(PRESET) ?? {}) as Record<string, unknown>;
@@ -616,11 +583,10 @@ export function loadOptions(): Options {
         // Validated against the declared choices immediately above, which is
         // the only check a string union can be given at runtime.
         //
-        // Written through `assign` rather than directly. The choice keys do
-        // not all hold the *same* union — one is hold-or-toggle, another is a
-        // colourblind mode — so a write indexed by the whole set of keys has
-        // to satisfy every one of them at once, which nothing can. Passing the
-        // key through a generic narrows it to one at a time.
+        // Written through `assign` rather than directly: the choice keys do not
+        // all hold the same union, so a write indexed by the whole set of keys
+        // would have to satisfy every one at once. Passing the key through a
+        // generic narrows it to one at a time.
         assign(options, control.key, value as Options[KeysOf<string>]);
       }
     }
