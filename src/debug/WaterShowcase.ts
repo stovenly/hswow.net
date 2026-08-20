@@ -9,52 +9,32 @@ import { signPost } from './galleries/layout';
 import { createRng } from '../art/random';
 
 /**
- * The Water Showcase: a jetty with four pools off it.
+ * The Water Showcase: a jetty with five pools off it and a bank of races
+ * beside it.
  *
- * Water makes three claims (SHADERS-AND-MATERIALS.md §7) and every one of them is a claim
- * about what a surface looks like from a particular place, which no headless
- * check can settle. So each gets a pool, and each pool has the *geometry* the
- * claim needs — because water over nothing proves nothing. A reflection with
- * no object to reflect is a picture of the sky, and a foam line with no bank to
- * run along is a straight edge.
+ * Every claim water makes is about how a surface looks from a particular
+ * place, so each pool carries the geometry that claim needs — water over
+ * nothing proves nothing.
  *
- * - **Rocks.** Boulders breaking the surface at mixed depths. The foam has to
- *   trace an arbitrary waterline; a foam band keyed to a clean contour looks
- *   perfect on a ramp and falls apart here, which is why this pool exists
- *   separately from the shore one.
- * - **Chop.** Full wave amplitude, driven by the same gust field that bends the
- *   trees, with mooring posts to watch it break against. This is where the
- *   crest foam and the wind coupling are judged.
- * - **Shore.** One long ramp from two and a half metres down to dry land, so
- *   the whole depth-difference gradient lies across a single pool: deep colour,
- *   shore colour, the bed coming back through, and the waterline, all in one
- *   look. The most important station and the least interesting to describe.
- * - **Still.** Twenty-six metres of mirror on the axis of the jetty, with
- *   pilings and a stone stack down the far end. Fresnel is an angle, so a
- *   reflection lives at the far end of a pool and nowhere near your feet —
- *   this one is long for that reason and no other. It is also where the
- *   screen-space march is judged against the sky it falls back to: the pilings
- *   are on screen and reflect properly, and the sky beyond them is exact.
+ * - **Rocks.** Boulders at mixed depths, so the foam has to trace an arbitrary
+ *   waterline rather than a clean contour.
+ * - **Chop.** Full wave amplitude on the gust field, with mooring posts to
+ *   break against. Crest foam and wind coupling.
+ * - **Shore.** One long ramp from 2.5 m down to dry land, so deep colour,
+ *   shore colour, the bed coming back through and the waterline all lie across
+ *   a single pool.
+ * - **Still.** Twenty-six metres of mirror on the jetty's axis. Fresnel is an
+ *   angle, so a reflection lives at the far end of a pool; the pilings are on
+ *   screen and reflect properly, the sky beyond them is the fallback.
+ * - **Beach.** A quarter-metre swell arriving square on the sand and dying as
+ *   the bed comes up.
  *
- * **There is no floor.** Every other gallery is a flat gridded plane with the
- * fog pulled in to hide its edge; this one is a jetty over water and open air
- * underneath. That is not scenery — a water surface is defined by what is
- * *under* it, so a room with a floor under the ponds would be measuring the
- * thing against a slab two centimetres down. The beds are the floor here, and
- * each of them shelves up to dry land at one end, so stepping off the jetty is
- * a wade with a way out rather than a fall.
+ * **There is no floor.** A water surface is defined by what is under it, so a
+ * slab two centimetres down would be measuring the wrong thing. The beds are
+ * the floor, and each shelves up to dry land at one end.
  *
- * **The fixtures are rough on purpose**, exactly as the Fog Showcase's are. A
- * boulder is a rotated box. They exist to break a waterline and to be
- * reflected; a well-modelled rock would prove nothing a box does not.
- *
- * ## Why this room is not silent
- *
- * Galleries are, and for a good reason — see `galleries/layout.ts`. This is not
- * a rank of rows, and the pairing is the whole point: SHADERS-AND-MATERIALS.md §7 opens by
- * observing that this project has had water *audio* since Phase 3 and no water
- * surface to put it on. Four pools with nothing coming off them would be the
- * same omission read from the other side.
+ * The fixtures are rough on purpose — a boulder is a rotated box. They exist
+ * to break a waterline and be reflected.
  */
 
 export const ZONE_WATER_SHOWCASE = 'water-showcase';
@@ -63,28 +43,16 @@ export const ZONE_WATER_SHOWCASE = 'water-showcase';
 const DECK_Y = 0.4;
 /**
  * Half-width of the jetty's *structure*, and therefore where the pools start.
- *
- * The boards themselves are wider — see `DECK_OVERHANG`. This is the number the
- * pools are written against, because it is the one that decides where the water
- * is, and the deck is allowed to hang over it.
+ * The boards may be wider; this is the number the pools are written against.
  */
 const DECK_HALF = 2.4;
 /**
- * How far the boards project past the structure, each side.
+ * How far the boards project past the structure, each side: none.
  *
- * **A lip, not an overhang, and it used to be 40 cm.** A pier overhangs, and it
- * looked right from across a pool — but the whole point of standing on this
- * jetty is looking down at the water beside it, and boards that stand 40 cm
- * proud hide the half-metre of water nearest them from anyone actually on the
- * deck. That strip is where the waterline is: the foam against the pier is the
- * thing you walk up to the edge to see, and it was under your feet.
- *
- * **Now zero**, and the lip went with the overhang. There is a metre and a half
- * of stone verge either side of the jetty (see `JETTY_GAP`), whose top is at the
- * same height as the boards — so any overhang at all puts two horizontal faces
- * on the same plane in the same place, which is the one arrangement that
- * genuinely z-fights. The boards read as boards because they are timber against
- * stone, which is a better reason than a six-centimetre step.
+ * There is a metre and a half of stone verge either side of the jetty (see
+ * `JETTY_GAP`) whose top is at deck height, so any overhang puts two horizontal
+ * faces on the same plane in the same place. An overhang also hides the
+ * half-metre of water nearest the deck, which is where the waterline is.
  */
 const DECK_OVERHANG = 0;
 /** Where the door home stands, the same distance in as a gallery's. */
@@ -100,19 +68,13 @@ const KERB = 0.7;
 const BANK_Y = 0.25;
 /**
  * Thickness of the jetty's boards, and therefore how far its underside clears
- * the water.
+ * the water. **A clearance, not a look.**
  *
- * **This is a clearance, not a look.** Water does its depth test in the shader
- * against the scene's depth, with two centimetres of slack — see `art/water.ts`.
- * Wave crests reach 8.5 cm above the mean surface at full amplitude, so boards
- * 30 cm thick put their underside 10 cm up and left a crest within 1.5 cm of
- * the planks: inside the slack, flickering in and out along the whole strip
- * under the overhang, which is exactly what z-fighting looks like even though
- * no depth buffer is involved.
- *
- * At 15 cm the underside sits 25 cm above the water — eight times the slack
- * against a full-amplitude crest, and still four times it at the dev panel's
- * maximum wave scale of 2. Any future prop hung over water owes the same sum.
+ * Water depth-tests in the shader against the scene's depth with two
+ * centimetres of slack (see `art/water.ts`), and wave crests reach 8.5 cm above
+ * the mean surface at full amplitude. At 15 cm the underside sits 25 cm above
+ * the water: eight times the slack against a full crest, four times it at the
+ * dev panel's maximum wave scale. Any prop hung over water owes the same sum.
  */
 const DECK_THICK = 0.15;
 
@@ -124,28 +86,19 @@ const TIMBER = new THREE.MeshLambertMaterial({ color: 0x6b563c, flatShading: tru
 type Bank = 'west' | 'east' | 'north';
 
 /**
- * How far a water plane is built past the basin it sits in.
- *
- * The plane's boundary is a hard geometric edge, and the honest place for it is
- * inside the kerb — which stands well above the water on every side, so the
- * overlap is behind opaque stone from any angle it could be seen from.
+ * How far a water plane is built past the basin it sits in. The plane's
+ * boundary is a hard geometric edge, so it goes inside the kerb, which stands
+ * well above the water on every side.
  */
 const WATER_MARGIN = 0.3;
 
 /**
  * Stone between the jetty and any water, on the side a pool faces it.
  *
- * **The jetty does not come up to the edge of the water, and this is the number
- * that says so.** The basins used to start at the pier face, on the reasoning
- * that the structure closed them for free and no kerb was needed there. It cost
- * three separate attempts to make the join look right — margins, overhangs, bed
- * extensions — and every one of them was working on the wrong problem. A jetty
- * standing in a pond has water lapping the middle of it, the strip you most
- * want to look at is under your feet, and the water's edge is inside a solid
- * you cannot see into.
- *
- * A metre and a half of stone. The pools are pools, the jetty is a jetty, and
- * the verge is somewhere to stand between them.
+ * A jetty standing *in* a pond has water lapping the middle of it, the strip
+ * you most want to look at is under your feet, and the water's edge is inside a
+ * solid you cannot see into. A metre and a half of stone: the pools are pools,
+ * the jetty is a jetty, and the verge is somewhere to stand between them.
  */
 const JETTY_GAP = 1.6;
 /** Where water is allowed to begin, either side of the jetty. */
@@ -173,19 +126,15 @@ interface Pool {
   /** 0 is a mirror, 1 is the full wind-driven chop, above 1 is a swell. */
   chop: number;
   /**
-   * Aims the wave trains and drifts the surface, in metres per second.
-   *
-   * Omitted, the pool answers the wind like every pond. Set, the waves run the
-   * way this points — which is how the beach gets swell arriving square on the
-   * sand instead of from wherever today's weather is coming from.
+   * Aims the wave trains and drifts the surface, in metres per second. Omitted,
+   * the pool answers the wind like every pond; set, the waves run the way this
+   * points, which is how the beach gets swell arriving square on the sand.
    */
   drift?: THREE.Vector2;
   /**
-   * Whether the chop tapers away as the bed comes up.
-   *
-   * Off, a pool carries the same wave height everywhere, which is right for
-   * anything you would call a pond. On, the swell dies as the water shallows —
-   * the difference between waves on water and waves driven through the sand.
+   * Whether the chop tapers away as the bed comes up. Off, a pool carries the
+   * same wave height everywhere, which is right for a pond. On, the swell dies
+   * as the water shallows.
    */
   taper?: boolean;
   /** Which side of this pool the jetty stands on, if any. See `JETTY_GAP`. */
@@ -197,23 +146,16 @@ interface Pool {
 }
 
 /**
- * The pools.
- *
- * Laid out around the jetty rather than in a rank: four flank it and the fifth
- * is on its axis past the end, because the still pool is the one that has to be
- * looked *down*. Every one of them is held off the jetty by a stone verge — see
- * `JETTY_GAP`, which is the number that keeps the walkway out of the water.
+ * The pools. Laid out around the jetty rather than in a rank: four flank it and
+ * the fifth is on its axis past the end, because the still pool is the one that
+ * has to be looked *down*. Every one is held off the jetty by `JETTY_GAP`.
  */
 const POOLS: readonly Pool[] = [
   {
-    // **The beach.** A quarter-metre swell running square onto the sand and
-    // dying as the bed comes up. Everything else in this room carries one wave
-    // height everywhere, which is right for a pond and is exactly what a coast
-    // does not do — the whole read here is the taper, and it is why the ramp is
-    // eighteen metres long rather than the shore pool's fourteen.
-    //
-    // Sited where you arrive, on the left as you come through the door, because
-    // it is the one pool worth seeing before you have decided where to walk.
+    // The beach. A quarter-metre swell running square onto the sand and dying
+    // as the bed comes up — the whole read here is the taper, which is why the
+    // ramp is eighteen metres long rather than the shore pool's fourteen.
+    // Sited where you arrive, on the left as you come through the door.
     name: 'beach',
     x: [-22, -POOL_EDGE],
     z: [9.4, 19],
@@ -312,16 +254,15 @@ function block(
 /**
  * A pool's bed: a flat floor that shelves up to dry land at one end.
  *
- * **Every pool has a bank, and it is not decoration.** The jetty is 0.4 m above
- * the water and the beds are two metres under it, so a player who steps off
- * without one is standing in a stone box with no way out of it. The ramp is
- * also the honest shape — water gets shallower at the edge — and on the shore
- * pool it is the entire station.
+ * Every pool has a bank. The jetty is 0.4 m above the water and the beds are
+ * two metres under it, so a player who steps off without one is in a stone box
+ * with no way out. It is also the honest shape, and on the shore pool it is the
+ * entire station.
  *
- * Subdivided about every 1.6 m along the shelving axis and every 4 m across.
- * The first number is so the ramp is a ramp rather than a crease, the second is
- * the figure `world/floor.ts` arrived at for the collider: a triangle spanning
- * a large part of a zone is inserted into a large fraction of the octree.
+ * Subdivided about every 1.6 m along the shelving axis so the ramp is a ramp
+ * rather than a crease, and every 4 m across, which is `world/floor.ts`'s
+ * figure for the collider: a triangle spanning a large part of a zone is
+ * inserted into a large fraction of the octree.
  */
 function slab(
   name: string,
@@ -372,11 +313,8 @@ function ease(t: number): number {
 
 /**
  * The height of a pool's bed at a point: flat, then shelving up to the bank.
- *
  * Shared rather than living inside the slab builder, because the beach's wave
- * height is a function of it — a swell that tapers as the water shallows needs
- * to know how shallow the water is, and asking the same function the bed was
- * built from is the only way the two cannot disagree.
+ * height is a function of it and the two must not disagree.
  */
 function poolBedAt(pool: Pool, x: number, z: number): number {
   const [x0, x1] = pool.x;
@@ -409,12 +347,9 @@ function bedSlab(pool: Pool): THREE.Mesh {
 }
 
 /**
- * How rough a pool is at a point.
- *
- * A number for most of them. For the beach it is the swell dying as the bed
- * comes up, measured against the depth of water actually over that bed — so the
- * waves are full height in two and a half metres of water, gone by the time
- * there is a hand's depth, and there is no wave left to drive through the sand.
+ * How rough a pool is at a point. A number for most of them; for the beach it
+ * is the swell dying against the depth of water actually over the bed — full
+ * height in two and a half metres, gone by a hand's depth.
  */
 function poolChop(pool: Pool): number | ((x: number, z: number) => number) {
   if (!pool.taper) return pool.chop;
@@ -427,15 +362,12 @@ function poolChop(pool: Pool): number | ((x: number, z: number) => number) {
 
 /**
  * The kerbs around a pool, on every side the jetty does not already close.
- *
  * Their tops are at deck level, so the rims and the jetty are one continuous
- * walkable frame — which is what lets you climb out of a pool at its bank and
- * walk back round to where you started.
+ * walkable frame.
  *
  * The two axes are cut differently on purpose: the X-running kerbs span the
- * full width including the corners and the Z-running ones stop short of them.
- * Two boxes overlapping with their tops at the same height would z-fight across
- * the whole square where they meet.
+ * full width including the corners and the Z-running ones stop short. Two boxes
+ * overlapping with their tops at the same height would z-fight where they meet.
  */
 function kerbs(pool: Pool): THREE.Mesh[] {
   const [x0, x1] = pool.x;
@@ -443,7 +375,7 @@ function kerbs(pool: Pool): THREE.Mesh[] {
   const height = DECK_Y - KERB_BOTTOM;
   const walls: THREE.Mesh[] = [];
 
-  // **A complete ring, on every pool.** There used to be a case here for basins
+  // **A complete ring, on every pool.** There is an argument for basins
   // the jetty closed on one side, which is how the jetty came to be standing in
   // the water — see `JETTY_GAP`. Now the side facing the jetty is simply a wider
   // kerb: a verge you can walk along, with the pier beyond it.
@@ -472,14 +404,12 @@ function kerbs(pool: Pool): THREE.Mesh[] {
 }
 
 /**
- * The jetty: a slab on a skirt, on posts.
+ * The jetty: a slab on a skirt, on posts. The skirt is narrower than the slab,
+ * which is what closes the near side of both flanking pools with one piece of
+ * geometry instead of four kerbs.
  *
- * The skirt is narrower than the slab, so the deck overhangs it — which is what
- * a pier looks like, and more usefully it is what closes the near side of both
- * flanking pools with one piece of geometry instead of four kerbs.
- *
- * Cut into four-metre bays rather than run as one long box, for the collider's
- * sake: a fifty-metre triangle is inserted into most of the octree.
+ * Cut into four-metre bays rather than one long box, for the collider's sake: a
+ * fifty-metre triangle is inserted into most of the octree.
  */
 function jetty(): THREE.Object3D[] {
   const parts: THREE.Object3D[] = [];
@@ -524,39 +454,24 @@ function piling(x: number, z: number, height: number, base: number): THREE.Mesh 
 // --- the races --------------------------------------------------------------
 //
 // Four straight channels side by side and one that turns a corner, cut into a
-// low stone apron west of the jetty. This is the *flow* half of the room, and
-// it exists because nothing in the four pools can show it: a pond answers the
-// wind, so every one of them moves the same way at the same speed, and a
-// surface that is going somewhere is a different claim entirely.
+// low stone apron west of the jetty. This is the *flow* half of the room:
+// a pond answers the wind, so every pool moves the same way at the same speed,
+// and a surface that is going somewhere is a different claim entirely.
 //
-// **The apron sits at 20 cm, not at jetty height, and that is a walkability
-// number rather than a look.** A channel bed is about 30 cm below the water; the
-// controller's step height is 45 cm; so a rim at deck level would make every
-// channel a box you could fall into and not climb out of. Twenty centimetres,
-// plus a bed that shelves up at the downstream end, means stepping into a race
-// is a paddle you walk out of.
+// The apron sits at 20 cm rather than deck height, which is a walkability
+// number: a channel bed is about 30 cm below the water and the controller's
+// step height is 45 cm, so a rim at deck level would make every channel a box
+// you could fall into and not climb out of.
 //
-// **What each channel is testing**, in order along the bank:
+// What each channel tests, in order along the bank: four *speeds* an octave
+// apart and otherwise identical; *obstacles*, posts that make moving water
+// legible by standing still in it and foam at their shallow margin; and the
+// *corner*, a per-vertex flow field, which is the whole reason flow is an
+// attribute and not a uniform.
 //
-// - *Speed.* Four flows an octave or so apart, side by side and otherwise
-//   identical, because a single channel tells you water is moving and four tell
-//   you whether the speed reads.
-// - *Obstacles.* Posts, and nothing but posts. A post makes moving water legible
-//   by standing still in it — the streaklines have to bend around something
-//   before anyone can see that they are bending, and the shallow margin at its
-//   foot foams, which is the depth-difference shading doing in flowing water
-//   what the shore pool does in still. The same four in every channel, in the
-//   same places, for the reason given where they are placed.
-// - *The corner.* A per-vertex flow field, which is the whole reason flow is an
-//   attribute and not a uniform: the direction turns through the elbow and the
-//   surface pattern turns with it.
-//
-// **What is not simulated, stated plainly:** the obstacles do not disturb the
-// water. There is no wake, no standing wave and no bow shock — the wave trains
-// pass through a post as though it were not there, and what you see around one
-// is the foam collar its shallow margin earns. Doing better means the water
-// knowing where the obstacles are, which is a per-obstacle uniform set and a
-// different design.
+// Not simulated, stated plainly: the obstacles do not disturb the water. No
+// wake, no standing wave, no bow shock. Doing better means the water knowing
+// where the obstacles are, which is a different design.
 
 /** Top of the stone apron the races are cut into. See the note above. */
 const APRON_Y = 0.2;
@@ -581,12 +496,9 @@ interface Race {
 }
 
 /**
- * Where the posts stand in every race: across the channel, and down it.
- *
- * Offset from side to side rather than in a line, so the water has to weave and
- * the streaklines have something to bend around. Four is enough that the flow
- * is legible along the whole length and few enough that they do not turn the
- * channel into a maze.
+ * Where the posts stand in every race: across the channel, and down it. Offset
+ * side to side rather than in a line, so the streaklines have something to bend
+ * around. Four is legible along the whole length without becoming a maze.
  */
 const POSTS: readonly (readonly [number, number])[] = [
   [-0.55, -8.6],
@@ -603,10 +515,9 @@ const RACES: readonly Race[] = [
 ];
 
 /**
- * The x span of the nth race, counting west from the jetty.
- *
- * Starting at the verge rather than at the pier, so the first channel is held
- * off the jetty exactly as the pools are — see `JETTY_GAP`.
+ * The x span of the nth race, counting west from the jetty. Starting at the
+ * verge rather than at the pier, so the first channel is held off the jetty
+ * exactly as the pools are — see `JETTY_GAP`.
  */
 function raceSpan(index: number): [number, number] {
   const east = -POOL_EDGE - index * (RACE_WIDE + RACE_WALL);
@@ -689,13 +600,9 @@ function raceBank(): THREE.Object3D[] {
       }),
     );
 
-    // **The same four posts in every channel, in the same places.** They were
-    // staggered between channels at first, on the reasoning that a repeating
-    // arrangement would read as a grid — which it does, and the grid is the
-    // point. These four races differ in exactly one thing, and a rig where the
-    // furniture also moves is a rig where you cannot tell which difference you
-    // are looking at. It is the argument the Sound Showcase makes about its
-    // stations, and it holds here for the same reason.
+    // The same four posts in every channel, in the same places. These four
+    // races differ in exactly one thing, and a rig where the furniture also
+    // moves is a rig where you cannot tell which difference you are looking at.
     for (const [dx, z] of POSTS) {
       parts.push(markCollidable(block(STONE, 0.32, 0.86, 0.32, middle + dx, race.deep, z)));
     }
@@ -713,18 +620,15 @@ function raceBank(): THREE.Object3D[] {
 /**
  * An L-shaped race, south-west of the bank.
  *
- * **One water plane over the whole rectangle, not two planes meeting at the
- * elbow.** Two would have to agree about the wave phase along their seam, and
- * they cannot: each carries its own flow direction, so the phase differs across
- * the join and the surface splits along a straight line. One plane with a flow
- * field that *turns* has no seam to disagree about, and the parts of it that are
- * not channel are inside the masonry and discard.
+ * **One water plane over the whole rectangle, not two meeting at the elbow.**
+ * Two would have to agree about the wave phase along their seam and cannot,
+ * since each carries its own flow direction, so the surface would split along a
+ * straight line. One plane with a flow field that *turns* has no seam, and the
+ * parts that are not channel are inside the masonry and discard.
  *
- * The chop is low for a related reason. Wave phase depends on the flow
- * direction, so a direction that varies from vertex to vertex shears the height
- * field — which through a gentle turn at this amplitude reads as water being
- * disturbed by the bend, and would read as a tear at any real wave height. The
- * surface *pattern* has no such constraint: noise shears cleanly, and it is what
+ * The chop is low for a related reason: wave phase depends on flow direction,
+ * so a direction varying vertex to vertex shears the height field. The surface
+ * *pattern* has no such constraint — noise shears cleanly, and it is what
  * carries the flow anyway.
  */
 const CORNER = {
@@ -735,11 +639,9 @@ const CORNER = {
   outZ: -23.6,
   /** West edge of the north–south stroke, which runs down the east side. */
   inX: -15.4,
-  // **Shallower and faster than the first cut**, both to make it rush. The
-  // surface break and the foam band are driven by speed in the shader, and the
-  // shallower the water the more of the channel is inside that band — so a
-  // corner at 22 cm and 2.8 m/s is white where one at 30 cm and 1.6 m/s was a
-  // mirror with a pattern sliding over it.
+  // Shallower and faster than the straight cuts, to make it rush. The surface
+  // break and the foam band are driven by speed, and the shallower the water
+  // the more of the channel is inside that band.
   deep: -0.22,
   speed: 2.8,
   /** Where the turn happens, in Z. Eased across, and the width matters — see below. */
@@ -748,32 +650,26 @@ const CORNER = {
 };
 
 /**
- * The inside of the bend — the concave corner the water sweeps around.
- *
- * Water on the inside of a curve travels slower than water on the outside, and
- * that difference is most of what makes a bend read as a bend rather than as a
- * channel that happens to point somewhere else. It costs nothing here: the flow
- * field is evaluated per vertex on the CPU, so the only thing needed is to know
- * which side of it a point is on.
+ * The inside of the bend — the concave corner the water sweeps around. Water on
+ * the inside of a curve travels slower than water on the outside, and that
+ * difference is most of what makes a bend read as a bend. The flow field is
+ * evaluated per vertex on the CPU, so it costs only knowing which side a point
+ * is on.
  */
 const CORNER_INSIDE = { x: CORNER.inX, z: CORNER.outZ };
 /**
  * How much faster the outside of the sweep runs than the inside, either way.
- *
- * Large, and deliberately larger than a river's. Speed is what the shader turns
- * into surface break, foam and streak length, so a wide spread across the sweep
- * is the difference between water that is *going round* a corner and water that
- * merely points a different way at the other end of it.
+ * Deliberately larger than a river's: speed is what the shader turns into
+ * surface break, foam and streak length, so a wide spread is the difference
+ * between water *going round* a corner and water that merely points a different
+ * way at the other end of it.
  */
 const CORNER_SWING = 0.6;
 
 /**
- * Widening on the east wall, so it meets the still pool's kerb.
- *
- * The corner sits between the race bank and the still pool, and the rims are
- * meant to be one continuous thing you can walk round. Left at the usual
- * thickness this wall stops six-tenths of a metre short of the pool's, and a
- * gap that size in a walkable rim is a hole to fall down rather than a detail.
+ * Widening on the east wall, so it meets the still pool's kerb. The rims are
+ * meant to be one continuous thing you can walk round, and a six-tenths gap in
+ * a walkable rim is a hole to fall down rather than a detail.
  */
 const CORNER_EAST = 1.3;
 
@@ -864,13 +760,11 @@ function cornerRace(): THREE.Object3D[] {
       width: x1 - x0 + 0.6,
       depth: z1 - z0 + 0.6,
       at: new THREE.Vector3((x0 + x1) / 2, 0, (z0 + z1) / 2),
-      // **Low, and lower than the straight races.** Wave phase is measured from
-      // the world origin, so a direction that changes by a few degrees between
-      // neighbouring vertices changes the phase by whole radians — through the
-      // elbow the trains decorrelate completely. At this amplitude that reads
-      // as water being churned by the bend, which is roughly true; at any real
-      // wave height it would read as a tear. The turn is carried by the
-      // streaklines instead, which shear cleanly and say far more.
+      // Low, and lower than the straight races. Wave phase is measured from the
+      // world origin, so a direction changing by a few degrees between
+      // neighbouring vertices changes the phase by whole radians and the trains
+      // decorrelate through the elbow. The turn is carried by the streaklines
+      // instead, which shear cleanly.
       chop: 0.22,
       flow: cornerFlow,
     }),
@@ -916,13 +810,10 @@ function poolCentre(pool: Pool): [number, number, number] {
 }
 
 /**
- * Four sources, one per pool, and every one of them is standing on something
- * you can see — which is the rule the rest of the world follows and the reason
- * this room can have sound at all.
- *
- * Reach is short and rolloff steep, because four continuous sources in one open
- * room otherwise build a wash that all four disappear into. Walking up to a
- * pool should be what makes it audible.
+ * Four sources, one per pool, every one standing on something you can see.
+ * Reach is short and rolloff steep: four continuous sources in one open room
+ * otherwise build a wash they all disappear into, and walking up to a pool
+ * should be what makes it audible.
  */
 const WATER_SOUND: SoundscapeSpec = {
   emitters: [
@@ -943,11 +834,10 @@ const WATER_SOUND: SoundscapeSpec = {
       rolloff: 1.6,
       reverb: 0.25,
     })),
-    // **Two for the races, not six.** One source per channel would be five
+    // Two for the races, not six. One source per channel would be five
     // running-water models within a few metres of each other, which the ear
-    // resolves as one wash — see the Sound Showcase on why three of the same
-    // model in a room stop being three objects. A bank of channels is a thing
-    // that makes a noise; the corner is another.
+    // resolves as one wash. A bank of channels is a thing that makes a noise;
+    // the corner is another.
     {
       model: 'water' as const,
       id: 'races',
@@ -1021,13 +911,9 @@ export function waterShowcaseZone(): ZoneDefinition {
         ),
       );
 
-      // **No widened platform at the end, and there was one.** Nine metres
-      // across at the head of the still pool made a good place to stand and put
-      // stone outriggers straight through the shore pool and through the race
-      // bank's south wall — the jetty standing *in* two of the things it exists
-      // to look at. The jetty is already five metres wide where it ends, which
-      // is a viewing platform; a wider one has nowhere to go that is not
-      // somebody else's water.
+      // No widened platform at the end. The jetty is already five metres wide
+      // where it ends, which is a viewing platform; a wider one has nowhere to
+      // go that is not somebody else's water.
 
       for (const pool of POOLS) {
         root.add(bedSlab(pool));

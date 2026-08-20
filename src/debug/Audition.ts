@@ -55,32 +55,22 @@ import baselines from '../audio/baselines.json';
  * Rendering the whole library and asking whether any of it sounds bad.
  *
  * The listening test is the real one and this does not replace it. What it
- * replaces is the *other* listening test — the one where you walk the sound
- * stage every time anything changes, trying to notice by ear that a model is
- * now three decibels louder than it was last week. Nobody notices that, and
- * everybody notices the mix it eventually ruins.
+ * replaces is the *other* listening test — walking the sound stage after every
+ * change, trying to notice by ear that a model is three decibels louder than
+ * it was last week. Nobody notices that, and everybody notices the mix it
+ * eventually ruins.
  *
- * ## What it catches, and what it cannot
+ * Two kinds of failure, and the distinction is the design. **Rules** are
+ * absolute and hold for anything in the library: clipping, DC offset, a texture
+ * that has fused into a drone or come apart into bubble wrap. **Baselines** are
+ * the recorded measurements of a specific model and catch *drift* — a change to
+ * a shared primitive that quietly moves six models nobody was thinking about.
+ * Baselines can only be produced by running this, which can only happen in a
+ * browser, so `baselines.json` starts with rules and no rows.
  *
- * Two kinds of failure, and the distinction is the design:
- *
- * - **Rules** are absolute and hold for anything in the library, whether or
- *   not it has ever been rendered before. Clipping, DC offset, a texture that
- *   has fused into a drone or come apart into bubble wrap, and — the one worth
- *   the whole harness — a loudness spread wider than three units across the
- *   library, which is the commonest single reason a procedural library sounds
- *   bad. These need no recorded history to check.
- * - **Baselines** are the recorded measurements of a specific model, and they
- *   catch *drift*: a change to a shared primitive that quietly moves six
- *   models nobody was thinking about. They can only be produced by running
- *   this, which can only happen in a browser, so `baselines.json` starts with
- *   rules and no rows and fills up as they are captured and committed.
- *
- * What none of it catches is whether a model sounds like the thing it claims
- * to be. A bird that measures perfectly and sounds like a kettle passes every
- * check here. That is what the sound stage and a pair of headphones are for,
- * and the division of labour is deliberate: the numbers take the tedious
- * faults so listening can be spent on judgement.
+ * What none of it catches is whether a model sounds like the thing it claims to
+ * be. A bird that measures perfectly and sounds like a kettle passes every
+ * check here. That is what the sound stage and a pair of headphones are for.
  */
 
 /** The recorded shape of one model. See the header. */
@@ -105,26 +95,21 @@ interface BaselineFile {
 }
 
 /**
- * What kind of source a subject is, which decides how it is judged.
- *
- * The distinction exists because crest factor means opposite things for the
- * two. A continuous texture with a very high crest has come apart into audible
- * individual grains — bubble wrap. An impulsive source with a high crest is
- * simply doing its job: silence with transients in it. Judged by one band, the
- * first version flagged the drip, the hammer, the clatter and the chime on a
- * run where all four were correct.
+ * What kind of source a subject is, which decides how it is judged. Crest
+ * factor means opposite things for the two: a continuous texture with a very
+ * high crest has come apart into audible individual grains, while an impulsive
+ * source with a high crest is doing its job — silence with transients in it.
  */
 type Kind = 'texture' | 'event';
 
 const spec = baselines as BaselineFile;
 
 /**
- * A one-shot rendered as a train of events.
- *
- * One hit measures the hit and nothing else, and half of what is being asked
- * about a one-shot is whether hearing it repeatedly is bearable — whether
- * successive events differ, and whether the tail of one lands on top of the
- * next. So they are fired at the rate their scatter fields actually use.
+ * A one-shot rendered as a train of events, fired at the rate its scatter
+ * fields actually use. One hit measures the hit and nothing else, and half of
+ * what is being asked about a one-shot is whether hearing it repeatedly is
+ * bearable — whether successive events differ, and whether the tail of one
+ * lands on top of the next.
  */
 function oneShot(name: string, shot: OneShotSpec, every: number, seconds = 8): Subject {
   return {
@@ -161,13 +146,11 @@ interface Line {
 }
 
 /**
- * An instrument rendered as a played line.
- *
- * The pitches are a fixed cycle, so the render is of the voice rather than of
- * a melody's luck; the velocities vary, because successive notes differing
- * from one another is half of what the humanization contract claims. The
- * sustained families play legato and are judged as textures; the struck ones
- * are silence with transients in it, which is an event.
+ * An instrument rendered as a played line. The pitches are a fixed cycle, so
+ * the render is of the voice rather than of a melody's luck; the velocities
+ * vary, because successive notes differing is half of what the humanisation
+ * contract claims. Sustained families play legato and are judged as textures;
+ * struck ones are silence with transients in it, which is an event.
  */
 function played(
   name: string,
@@ -218,8 +201,8 @@ function played(
  *
  * Render lengths differ by model and are not a knob. Each is long enough to
  * contain the model's own slowest rhythm — a bird's phrase interval, a
- * machine's load cycle — because a measurement taken over less than one period
- * of something describes a fragment of it.
+ * machine's load cycle — because a measurement over less than one period of
+ * something describes a fragment of it.
  */
 const SUBJECTS: readonly Subject[] = [
   { name: 'wind', seconds: 12, build: (engine) => createWind(engine) },
@@ -263,9 +246,9 @@ const SUBJECTS: readonly Subject[] = [
   oneShot('bell', { sound: 'bell' }, 3.5, 12),
   // --- the music rack -------------------------------------------------------
   //
-  // The director's instrument voices (Phase 6c), each played as a fixed line
-  // at defaults. The pitches are unremarkable on purpose — a mid-register
-  // handful per voice, chords without thirds where a voice plays chords.
+  // The director's instrument voices, each played as a fixed line at defaults.
+  // The pitches are unremarkable on purpose — a mid-register handful per voice,
+  // chords without thirds where a voice plays chords.
   played('music-strings', 'texture', 14, (engine) => createStrings(engine), {
     every: 3.5,
     duration: 3.4,
@@ -306,7 +289,7 @@ const SUBJECTS: readonly Subject[] = [
     every: 0.8,
     steps: [[196], [146.83], [220], [164.81]],
   }),
-  // The Phase 6f voices, same manner: mid-register lines at defaults.
+  // More voices, same manner: mid-register lines at defaults.
   played('music-trumpet', 'texture', 10, (engine) => createTrumpet(engine), {
     every: 1.2,
     duration: 1.0,
@@ -377,7 +360,7 @@ const SUBJECTS: readonly Subject[] = [
     every: 1.6,
     steps: [[659.25], [523.25], [783.99]],
   }),
-  // The Phase 6i voices: junk metal, the motor, glass, the transformer, the
+  // The industrial voices: junk metal, the motor, glass, the transformer, the
   // bottle. Stated lower than the pastoral rack, where those places sit.
   played('music-anvil', 'event', 10, (engine) => createAnvil(engine), {
     every: 0.9,
@@ -406,7 +389,7 @@ const SUBJECTS: readonly Subject[] = [
     duration: 1.5,
     steps: [[196], [261.63], [220], [174.61]],
   }),
-  // The Phase 6j performers. The steps leave gaps, so every note is a phrase
+  // The performers. The steps leave gaps, so every note is a phrase
   // start and the onset bends are what gets measured; the join glides only
   // happen under the director's overlapping phrases.
   played('music-fiddle', 'texture', 12, (engine) => createFiddle(engine), {
@@ -433,7 +416,7 @@ const SUBJECTS: readonly Subject[] = [
     every: 1.8,
     steps: [[130.81], [146.83], [110]],
   }),
-  // The Phase 6l voices: the low bow, the person, the drum-head pluck, the
+  // The wagon voices: the low bow, the person, the drum-head pluck, the
   // reed in the mouth, the bowed pan.
   played('music-viol', 'texture', 14, (engine) => createViol(engine), {
     every: 2.8,
@@ -498,13 +481,11 @@ export interface AuditionReport {
 }
 
 /**
- * The envelope, decimated, for the periodicity test.
- *
- * Run on the *envelope* rather than on the waveform, because the question is
- * whether the texture loops and not whether the signal is pitched — a machine
- * is strongly periodic at its fundamental and has nothing wrong with it. Fifty
- * millisecond windows put the useful lags in the range of seconds, which is
- * where a scheduler that has quietly become a loop would show up.
+ * The envelope, decimated, for the periodicity test. Run on the *envelope*
+ * rather than the waveform, because the question is whether the texture loops
+ * and not whether the signal is pitched — a machine is strongly periodic at its
+ * fundamental and has nothing wrong with it. Fifty-millisecond windows put the
+ * useful lags in the range of seconds.
  */
 function envelope(signal: Float32Array, rate: number): Float32Array {
   const window = Math.round(rate * 0.05);
@@ -542,10 +523,9 @@ function checkRules(m: Measurements, loop: number, kind: Kind): string[] {
  *
  * Three measures, and deliberately not the bands. Asserting on eight band
  * energies per model is 120 tripwires that largely restate the centroid, and
- * every honest re-tuning trips several of them — which trains you to ignore
- * the output, and an ignored check cannot catch the one that mattered. The
- * bands are still recorded and printed, because *reading* them is what caught
- * the friction model coming out spectrally flat.
+ * every honest re-tuning trips several of them — which trains you to ignore the
+ * output. The bands are still recorded and printed, because *reading* them is
+ * what caught the friction model coming out spectrally flat.
  */
 function checkDrift(name: string, m: Measurements): string[] {
   const was = spec.models[name];
@@ -567,12 +547,10 @@ function checkDrift(name: string, m: Measurements): string[] {
 }
 
 /**
- * Renders and measures every subject.
- *
- * Serially, and not for want of trying otherwise: several `OfflineAudioContext`
- * renders at once contend for the same audio thread, and worse, the suspend
- * and resume dance each one uses is per-context state that is far easier to
- * reason about one at a time. The whole run is a few seconds.
+ * Renders and measures every subject, serially. Several `OfflineAudioContext`
+ * renders at once contend for the same audio thread, and the suspend-and-resume
+ * dance each one uses is per-context state that is far easier to reason about
+ * one at a time. The whole run is a few seconds.
  */
 export async function runAudition(): Promise<AuditionReport> {
   const rows: AuditionRow[] = [];
@@ -612,18 +590,13 @@ export async function runAudition(): Promise<AuditionReport> {
 
   // --- reported, and asserted on never -------------------------------------
   //
-  // **This used to be a rule, and it was the wrong rule.** The plan called for
-  // every model to sit within three units of every other, on the reasoning
-  // that the commonest way a procedural library sounds bad is one model being
-  // four times louder than its neighbours. The reasoning is sound and the
-  // measurement does not test it: models render here at their *defaults*, and
-  // a zone spec sets `gain`, `refDistance` and `maxDistance`, so the mixing
-  // happens at placement. The real spread is 23 — a wind bed at −47 against an
-  // engine at −27 — and both are correct, because one is the air you stand in
-  // and the other is a thing you walk toward.
+  // Models render here at their *defaults*, and a zone spec sets `gain`,
+  // `refDistance` and `maxDistance` — so the mixing happens at placement and
+  // the spread across the library means nothing as a threshold. It is 23: a
+  // wind bed at −47 against an engine at −27, and both are correct, because one
+  // is the air you stand in and the other is a thing you walk toward.
   //
-  // The number is still worth seeing. A sudden change in it means something
-  // moved. It just cannot be a pass or a fail.
+  // Still worth seeing. A sudden change in it means something moved.
   const loud = rows.map((row) => row.measurements.loudness).filter(Number.isFinite);
   const spread = loud.length > 1 ? Math.max(...loud) - Math.min(...loud) : 0;
 
@@ -636,12 +609,9 @@ export async function runAudition(): Promise<AuditionReport> {
 }
 
 /**
- * Runs the audition and prints it.
- *
- * `console.table` rather than a rendered panel. The output is a grid of
- * numbers that wants sorting, copying and diffing against the last run, and a
- * dev-tools table does all three for nothing — building a nicer-looking one
- * inside the game would take work away from the models it exists to judge.
+ * Runs the audition and prints it. `console.table` rather than a rendered
+ * panel: the output is a grid of numbers that wants sorting, copying and
+ * diffing against the last run, and dev tools do all three for nothing.
  */
 export async function auditionToConsole(): Promise<AuditionReport> {
   console.log('audition: rendering the library…');
@@ -665,11 +635,10 @@ export async function auditionToConsole(): Promise<AuditionReport> {
   );
   // --- capturing -----------------------------------------------------------
   //
-  // Printed every run, not only when something is missing a baseline. Once
-  // rows exist, the thing you most often want after a deliberate change is to
-  // *re-*capture — the harness has correctly flagged drift, you have listened
-  // and you meant it — and having to reach for a flag to get the new numbers
-  // out is friction at exactly the wrong moment.
+  // Printed every run, not only when something is missing a baseline. Once rows
+  // exist, the thing most often wanted after a deliberate change is to
+  // *re*-capture, and reaching for a flag to get the new numbers out is
+  // friction at exactly the wrong moment.
   const block = JSON.stringify(report.captured, null, 2);
   const novel = report.rows.filter((row) => row.novel).map((row) => row.name);
   console.log(

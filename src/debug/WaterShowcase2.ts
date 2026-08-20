@@ -11,38 +11,27 @@ import { createRng } from '../art/random';
  * Water Showcase 2: one enormous body of water, and the stress test.
  *
  * The first showcase is a bench — five basins and five races, each sized to the
- * one claim it exists to settle, and none of them larger than a room. That is
- * the right shape for judging whether an effect is *correct*, and it says
- * nothing about whether it is affordable, because no view in it is more than a
- * third water.
+ * one claim it settles, and none larger than a room. That is the right shape
+ * for judging whether an effect is *correct* and says nothing about whether it
+ * is affordable, because no view in it is more than a third water.
  *
- * This is the other question. A hundred and seventy metres of open sea running
- * to the fog, with the horizon most of the way up the frame, is very close to
- * the worst case this pass can be put in:
+ * A hundred and seventy metres of open sea running to the fog, horizon most of
+ * the way up the frame, is very close to the worst case:
  *
- * - **Almost every pixel is water**, so the fragment cost is paid at full screen
- *   rather than over a pond-shaped patch of it.
+ * - **Almost every pixel is water**, so the fragment cost is paid at full
+ *   screen rather than over a pond-shaped patch of it.
  * - **Almost every one of those pixels marches**, because a near-planar surface
- *   seen at a grazing angle is exactly where fresnel is high — which is where
- *   the reflection matters and where sixteen steps and four refinements are
- *   spent per pixel rather than skipped.
- * - **The mesh is a hundred thousand triangles in one draw call**, which is a
- *   second, independent cost and the reason the segment size is a knob here.
+ *   at a grazing angle is where fresnel is high — sixteen steps and four
+ *   refinements spent per pixel rather than skipped.
+ * - **The mesh is a hundred thousand triangles in one draw call**, a second and
+ *   independent cost, and the reason the segment size is a knob here.
  *
- * If the water is going to cost frames anywhere, it costs them here.
- *
- * ## And it is a beach, not a rectangle of sea
- *
- * A stress test that is only a flat slab would answer the performance question
- * and nothing else, and everything expensive about water at this scale is bound
- * up in what makes it read at this scale: the swell has to taper as the bed
- * comes up or waves drive through the sand, the waterline has to meander or the
- * shore is a ruled line a hundred metres long, and there has to be a sandbar,
- * because a beach with one line of foam at the sand is a swimming pool.
- *
- * So the bed is a real profile: sand shelving down through a bar to seven
- * metres of water, meandering along its length. Walk in and you wade; keep
- * walking and it gets deep.
+ * And it is a beach, not a rectangle of sea. Everything expensive about water
+ * at this scale is bound up in what makes it *read* at this scale: the swell
+ * has to taper as the bed comes up or waves drive through the sand, the
+ * waterline has to meander or the shore is a ruled line a hundred metres long,
+ * and there has to be a sandbar, because a beach with one line of foam at the
+ * sand is a swimming pool. Walk in and you wade; keep walking and it gets deep.
  */
 
 export const ZONE_WATER_SHOWCASE_2 = 'water-showcase-2';
@@ -59,13 +48,10 @@ const SHORE_Z = -4;
 const BAR_Z = -27;
 
 /**
- * Metres per quad on the sea itself.
- *
- * **The stress knob.** At 0.7 m this is about a hundred and twenty thousand
- * triangles in a single draw call, which is the number worth measuring; the
- * shortest wave train is 2.6 m, so it is also about the coarsest the mesh can
- * be before that train reads as a zigzag rather than a wave. Anything finer is
- * a heavier test of the same thing.
+ * Metres per quad on the sea itself — **the stress knob**. At 0.7 m this is
+ * about a hundred and twenty thousand triangles in a single draw call, which is
+ * the number worth measuring; the shortest wave train is 2.6 m, so it is also
+ * about the coarsest the mesh can be before that train reads as a zigzag.
  */
 const SEA_SEGMENT = 0.7;
 
@@ -73,44 +59,38 @@ const SAND = new THREE.MeshLambertMaterial({ color: 0xa89877, flatShading: true 
 const TIMBER = new THREE.MeshLambertMaterial({ color: 0x6b563c, flatShading: true });
 
 /**
- * How much the shoreline wanders, at a given point along the beach.
- *
- * Two frequencies that do not divide evenly, for the reason everything else in
- * this project uses two: one makes a wave, two make a coast. Without it the
- * waterline is a straight edge a hundred and seventy metres long, which nothing
- * in nature has and which the foam band draws attention to rather than hides.
+ * How much the shoreline wanders at a given point along the beach. Two
+ * frequencies that do not divide evenly: one makes a wave, two make a coast.
+ * Without it the waterline is a straight edge a hundred and seventy metres
+ * long, which the foam band draws attention to rather than hides.
  */
 function meander(x: number): number {
   return 0.4 * Math.sin(x * 0.042) + 0.22 * Math.sin(x * 0.115 + 1.7);
 }
 
 /**
- * The sea bed, and the sand above it.
+ * The sea bed, and the sand above it. Three pieces, in the order they matter:
  *
- * Three pieces, in the order they matter:
- *
- * 1. **Above the waterline**, sand rising at about three degrees. Gentle enough
- *    to walk without thinking about it and steep enough that the beach is
+ * 1. **Above the waterline**, sand rising at about three degrees — gentle
+ *    enough to walk without thinking about it, steep enough that the beach is
  *    plainly a slope rather than a floor with water on one end.
  * 2. **Below it**, deepening to seven metres over ninety, with a slight power
- *    curve — a real profile is concave, steepest near the shore.
- * 3. **The bar**, a ridge parallel to the shore that comes up to within about a
+ *    curve, because a real profile is concave and steepest near the shore.
+ * 3. **The bar**, a ridge parallel to the shore coming up to within about a
  *    hand's depth of the surface. The swell tapers with depth, so it shrinks
- *    over the bar and reforms in the trough behind it, and the thin water on top
- *    is deep inside the foam band — which draws a broken line of white a long
- *    way offshore. That line is most of what makes this read as open coast
- *    rather than as a very large pond.
+ *    over the bar and reforms in the trough behind it, and the thin water on
+ *    top is deep inside the foam band — which draws a broken line of white a
+ *    long way offshore. That line is most of what makes this read as open coast.
  */
 function bedAt(x: number, z: number): number {
   const wander = meander(x);
   const shore = SHORE_Z + wander * 3;
   if (z >= shore) return (z - shore) * 0.055;
 
-  // **Concave, which is the way round a real beach goes** — steepest at the
-  // shore and flattening as it runs out. The first cut had the exponent above
-  // one, which is the other way about: it left twenty-five metres of ankle-deep
-  // flat before the bed did anything, so there was nowhere near the sand with
-  // enough water in it to carry a wave.
+  // Concave, which is the way round a real beach goes: steepest at the shore
+  // and flattening as it runs out. The other way about leaves twenty-five
+  // metres of ankle-deep flat with nowhere near the sand deep enough to carry
+  // a wave.
   const out = Math.min((shore - z) / 95, 1);
   const deep = -7 * out ** 0.8;
   const bar = 1.35 * Math.exp(-(((z - BAR_Z) / 8) ** 2));
@@ -124,23 +104,20 @@ function ease(t: number): number {
 }
 
 /**
- * How big the swell is at a point.
+ * How big the swell is at a point. **Two terms, and keeping them separate is
+ * the whole of it.**
  *
- * **Two terms, and keeping them separate is the whole of it.** The first cut
- * drove wave height from the water depth alone, which sounds right — a wave
- * cannot be taller than the water it is in — and gave a sea that started all at
- * once about thirty feet out. The reason is that a bed profile is not a smooth
- * ramp: it has a bar in it, so depth goes up, down over the ridge, and up again,
- * and anything keyed to it inherits every one of those steps.
- *
- * - **How far out you are** sets how much swell there is, and it climbs evenly
- *   over seventy metres. Nothing about the bed enters into this, so nothing in
- *   the bed can put a step in it.
+ * - **How far out you are** sets how much swell there is, climbing evenly over
+ *   seventy metres. Nothing about the bed enters into this, so nothing in the
+ *   bed can put a step in it.
  * - **How much water there is** then caps it, over the last metre and a bit of
  *   depth. This is the physical part: waves die where there is no water to
- *   carry them, so nothing is ever driven through the sand — and because the
- *   cap is soft, the bar dips the swell by a third as it passes over rather
- *   than switching it off.
+ *   carry them. The cap is soft, so the bar dips the swell by a third as it
+ *   passes over rather than switching it off.
+ *
+ * Driving height from depth alone inherits every step in the bed profile — a
+ * bar means depth goes up, down over the ridge, and up again — and gives a sea
+ * that starts all at once about thirty feet out.
  *
  * The floor is not zero either. Water that goes perfectly flat inshore reads as
  * a different material meeting the sea along a line; a couple of centimetres of
@@ -159,7 +136,7 @@ function swellAt(x: number, z: number): number {
  * shore so the beach is not one uninterrupted wedge; it gives the foam an edge
  * to wrap, which is where depth-difference shading is easiest to judge; and it
  * is **something for the reflection to find**. An empty sea reflects sky
- * everywhere, which is the screen-space march's miss case — so a sea with
+ * everywhere, which is the screen-space march's miss case, so a sea with
  * nothing standing in it would exercise the expensive path and never show
  * whether it works.
  */
@@ -181,14 +158,11 @@ function groyne(seed: number, x: number): THREE.Object3D[] {
 }
 
 /**
- * Wind and surf.
- *
- * The surf is one source well out in the water rather than a line of them along
- * the shore: a beach is heard as a single broad thing, and five copies of one
- * model spread across a hundred metres is the wash the Sound Showcase warns
- * about. Its reach is long and its rolloff shallow, which is the opposite of
- * everything in the first showcase and is right for the one sound here that is
- * genuinely the size of the room.
+ * Wind and surf. The surf is one source well out in the water rather than a
+ * line of them along the shore: a beach is heard as a single broad thing, and
+ * five copies of one model spread across a hundred metres is a wash. Its reach
+ * is long and its rolloff shallow, which is right for the one sound here that
+ * is genuinely the size of the room.
  */
 const SEA_SOUND: SoundscapeSpec = {
   bed: { model: 'wind', id: 'wind', options: { gain: 0.2, tone: 3000 } },

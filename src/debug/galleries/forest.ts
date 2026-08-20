@@ -96,8 +96,7 @@ export const ZONE_GALLERY_FOREST_MISC = 'gallery-forest-misc';
  *
  * `tree` and `small-tree` close the rank. They are the generic pair the middle
  * distance is actually made of — a hundred and thirty triangles against a
- * birch's three thousand — and they were in no gallery at all until this split,
- * which is exactly the kind of omission the old art check used to catch.
+ * birch's three thousand.
  */
 const TREE_BUILDERS = [
   oak,

@@ -3,26 +3,19 @@ import { markCollidable } from '../player/Collider';
 import { flatGround } from '../world/floor';
 
 /**
- * The Proving Ground: a permanent debug level that accumulates test fixtures as
- * each phase lands. Nothing here is game content — it exists so systems can be
- * exercised in isolation, at known scale, against known reference geometry.
+ * The Proving Ground: a permanent debug level of test fixtures. Nothing here is
+ * game content — it exists so systems can be exercised in isolation, at known
+ * scale, against known reference geometry.
  *
- * Phase 0 fixtures: ground grid, a 1.8 m height reference, measured cubes, and
- * distance markers for judging fog and audio falloff later.
+ * A ground grid, a 1.8 m height reference, measured cubes and distance markers.
+ * West of the origin, the movement gym: ramps at four angles, two stair
+ * pitches, kerbs at the step-up threshold, calibrated jump gaps, a high walkway
+ * to fall off, and the parkour courses — stepping stones, a crouch tunnel,
+ * balance beams and a squeeze.
  *
- * Phase 1 adds the movement gym, west of the origin: ramps at four angles, two
- * stair pitches, kerbs at the step-up threshold, calibrated jump gaps, a high
- * walkway to fall off, and the parkour courses — stepping stones, a crouch
- * tunnel, balance beams and a squeeze.
- *
- * **The audio fixtures are gone.** There was a sound garden here — a tree with
- * a bird in it, two bushes, a mill — and a two-room stone building whose whole
- * purpose was to have different acoustics on either side of a doorway. Both
- * were Phase 3 scaffolding from before there was anywhere better to put a
- * sound, and the Sound Stage supersedes them completely: every model in the
- * library, in a row, at identical distances, with the room dialled live. Two
- * places to judge a sound meant two places to tune one, and the worse of them
- * was also the one standing in the middle of the movement fixtures.
+ * No audio fixtures. The Sound Stage has every model in the library in a row at
+ * identical distances with the room dialled live, and two places to judge a
+ * sound means two places to tune one.
  */
 
 export type SurfaceName =
@@ -35,21 +28,15 @@ export type SurfaceName =
   | 'wall';
 
 /**
- * Warm ground, cool everything else.
+ * Warm ground, cool everything else — hue doing the work rather than
+ * brightness. Quantizing to a handful of levels collapses close values
+ * together, so a scene built from one family of blue-greys arrives at the
+ * dither as nearly a single colour. Splitting the floor onto the opposite side
+ * of the wheel survives quantization, because the levels are per-channel.
  *
- * Hue is doing the work here rather than brightness. Quantizing to a handful
- * of levels collapses close values together, so a scene built entirely from
- * one family of blue-greys arrives at the dither as very nearly a single
- * colour, and the dither pattern becomes the only thing with any structure in
- * it. Splitting the floor onto the opposite side of the colour wheel from
- * everything you can climb survives quantization, because the levels are
- * per-channel and the channels now disagree.
- *
- * The floor is also the *lightest* thing here, which hue alone was not
- * achieving: a dark warm floor under dark cool fixtures separates on a colour
- * wheel and not to the eye, so silhouettes went missing at any distance where
- * the fog had taken a little saturation out. A light floor gives every fixture
- * an edge against something, which is what a proving ground is for.
+ * The floor is also the lightest thing here, which hue alone was not achieving:
+ * a dark warm floor under dark cool fixtures separates on a colour wheel and
+ * not to the eye. A light floor gives every fixture an edge against something.
  */
 const DEFAULT_SURFACES: Record<SurfaceName, string> = {
   ground: '#cabb9c',
@@ -62,18 +49,10 @@ const DEFAULT_SURFACES: Record<SurfaceName, string> = {
 };
 
 /**
- * Edge of the ground plane, in metres.
- *
- * Widened three times: fixtures that crowd get tested together whether or not
- * that was the intention. The gallery once sat close enough to the movement gym
- * that walking one meant walking through the other, and eight instances per
- * builder need a long run of clear ground on their own.
- *
- * The last widening was because the gallery outgrew the floor. It lays rows out
- * by accumulating radii, so every builder added makes it longer — two dozen of
- * them plus the gaps between families now run past ninety metres, and the far
- * end of it was standing on nothing. Anything placed by accumulation will do
- * this again; the floor has to be checked whenever the kit grows.
+ * Edge of the ground plane, in metres. The gallery lays rows out by
+ * accumulating radii, so every builder added makes the rank longer — anything
+ * placed by accumulation will outgrow this again, and the floor has to be
+ * checked whenever the kit grows.
  */
 const GROUND = 208;
 
@@ -81,18 +60,15 @@ const GROUND = 208;
  * Ground cells along each edge — **four-metre quads**.
  *
  * The subdivision exists so the collider's broad phase has something to sort:
- * one triangle spanning the level would be a candidate for every query no
- * matter where the player is. But the octree stores a triangle in every cell it
- * touches, so the count is paid for more than once, and the collider is rebuilt
- * from scratch on every zone crossing.
+ * one triangle spanning the level would be a candidate for every query. But the
+ * octree stores a triangle in every cell it touches, so the count is paid for
+ * more than once, and the collider is rebuilt from scratch on every crossing.
  *
- * That rebuild is the budget. Widening the ground to 208 m at two-metre quads
- * took it to **246 ms** — a visible hitch on every threshold, most of it spent
- * indexing a flat floor nobody collides with in any interesting way. Four
- * metres costs 142 ms for exactly the same behaviour: a capsule on a plane does
- * not care how that plane is triangulated. Eight metres saves only another
- * 27 ms and starts making the triangles large against the octree's leaves,
- * which is the problem this subdivision exists to avoid.
+ * That rebuild is the budget. At two-metre quads this ground takes 246 ms — a
+ * visible hitch at every threshold, most of it spent indexing a flat floor.
+ * Four metres costs 142 ms for identical behaviour, since a capsule on a plane
+ * does not care how the plane is triangulated. Eight saves only another 27 ms
+ * and starts making the triangles large against the octree's leaves.
  *
  * The visible grid stays at one metre. Lines are not collision, so it is free.
  */
@@ -122,12 +98,10 @@ function box(
 }
 
 /**
- * A wedge you can walk up, rising along -Z over `run` metres.
- *
- * Extruded from a right-triangle profile rather than built from a tilted box,
- * so the foot of the slope actually meets the ground at zero height — a tilted
- * box leaves a lip, and a lip is exactly the thing that makes slope handling
- * look broken when it isn't.
+ * A wedge you can walk up, rising along -Z over `run` metres. Extruded from a
+ * right-triangle profile rather than built from a tilted box, so the foot of
+ * the slope meets the ground at zero height — a tilted box leaves a lip, and a
+ * lip is what makes slope handling look broken when it is not.
  */
 function ramp(
   width: number,
@@ -151,11 +125,10 @@ function ramp(
 }
 
 /**
- * An unlit strip whose colour sweeps left to right, for judging banding.
- *
- * Vertex colours are set through `SRGBColorSpace` so the ramp is even to the
- * eye rather than even in linear light — a linear sweep spends most of its
- * width in the highlights, which is the half that never bands.
+ * An unlit strip whose colour sweeps left to right, for judging banding. Vertex
+ * colours are set through `SRGBColorSpace` so the ramp is even to the eye
+ * rather than even in linear light — a linear sweep spends most of its width in
+ * the highlights, which is the half that never bands.
  */
 function ramp2d(
   width: number,
@@ -189,10 +162,9 @@ export class ProvingGround {
 
   /**
    * Live surface colours as hex, editable and then pushed with `applyColors`.
-   *
    * Held as strings rather than as `THREE.Color` so the colour picker and the
    * material agree: a `Color` stores linear light, and a picker showing those
-   * numbers as if they were sRGB shows the wrong colour and sets a wronger one.
+   * numbers as sRGB shows the wrong colour and sets a wronger one.
    */
   readonly colors: Record<SurfaceName, string> = { ...DEFAULT_SURFACES };
 
@@ -216,22 +188,20 @@ export class ProvingGround {
   /**
    * Fills `root` with the fixtures, or refills it after the zone was released.
    *
-   * **This exists because the Proving Ground outlives its own zone.** The
-   * exterior's `build()` returns *this* group rather than making a new one —
-   * `main.ts` holds the instance to spin the mill wheel and to drive the colour
-   * pickers — so when residency drops the hub, `Zone.dispose` empties a group
-   * that nothing else would ever refill. Walking three doors away and back used
-   * to return you to bare ground with a hut on it.
+   * **The Proving Ground outlives its own zone.** The exterior's `build()`
+   * returns *this* group rather than making a new one — `main.ts` holds the
+   * instance to spin the mill wheel and drive the colour pickers — so when
+   * residency drops the hub, `Zone.dispose` empties a group nothing else would
+   * refill.
    *
-   * Idempotent by checking the group rather than a flag, because the emptying is
-   * done by somebody else: a flag here would say "populated" about a group that
-   * `Zone.dispose` had since cleared, which is exactly the state this is for.
+   * Idempotent by checking the group rather than a flag, because the emptying
+   * is done by somebody else: a flag here would say "populated" about a group
+   * `Zone.dispose` had since cleared.
    *
-   * No lighting here. `ZoneManager` owns the sun and the hemisphere light for
-   * the whole game and drives them from the active zone's environment — lights
-   * parented into a zone would be removed with it, and the frame between one
-   * zone's lights leaving and the next zone's arriving is a frame of black that
-   * no fade is covering.
+   * No lighting here. `ZoneManager` owns the sun and the hemisphere light and
+   * drives them from the active zone's environment; lights parented into a zone
+   * would be removed with it, and the frame between one zone's lights leaving
+   * and the next's arriving is a frame of black no fade covers.
    */
   populate(): THREE.Group {
     if (this.root.children.length > 0) return this.root;
@@ -261,14 +231,12 @@ export class ProvingGround {
   private addGround(): void {
     // Subdivided rather than left as two enormous triangles: the collider's
     // broad phase indexes by triangle, and a triangle spanning the whole level
-    // is a candidate for every query no matter where you are.
+    // is a candidate for every query.
     //
-    // The grid used to be a `GridHelper` — 208 metre-spaced lines of geometry
-    // laid over the floor — and past about twenty metres it moiréd badly, the
-    // far lines resolving into smooth curves that swept across the ground as
-    // you turned. Line geometry has no mipmap chain and cannot be anisotropic-
-    // ally filtered, so there was nothing to turn on; drawn as a texture on the
-    // floor instead, the hardware handles both. See `world/floor.ts`.
+    // The grid is drawn as a texture on the floor rather than as line geometry.
+    // Lines have no mipmap chain and cannot be anisotropically filtered, so past
+    // about twenty metres they moiré badly, the far ones resolving into smooth
+    // curves that sweep across the ground as you turn. See `world/floor.ts`.
     this.root.add(
       flatGround(GROUND, { segments: GROUND_CELLS, material: this.materials.ground }),
     );
@@ -336,11 +304,10 @@ export class ProvingGround {
   }
 
   /**
-   * Four slopes, shallow to steep, left to right: 10°, 20°, 30°, 45°.
-   *
-   * The slope limit sits between two of these on purpose — the point is to see
-   * where walking stops and sliding starts, and to be able to move that line
-   * with the tuning panel and watch it change.
+   * Four slopes, shallow to steep, left to right: 10°, 20°, 30°, 45°. The slope
+   * limit sits between two of these on purpose — the point is to see where
+   * walking stops and sliding starts, and to move that line with the tuning
+   * panel and watch it change.
    */
   private addRamps(parent: THREE.Group): void {
     const angles = [10, 20, 30, 45];
@@ -357,23 +324,19 @@ export class ProvingGround {
       parent.add(box(2.5, 0.2, 2, this.materials.ramp, -6 - index * 4, rise - 0.2, -7));
     });
 
-    // **The one that has to refuse you**, behind the row so it needs no space
-    // of its own. Every ramp above is inside the slope limit, so until this
-    // existed the gym had never once asked whether a slope past the limit
-    // actually stops anybody — and it did not: `tryStepUp` climbed it a
-    // centimetre at a time regardless. A fixture that only ever passes is a
-    // fixture that proves nothing.
+    // The one that has to refuse you, behind the row so it needs no space of
+    // its own. Every ramp above is inside the slope limit, and a fixture that
+    // only ever passes is a fixture that proves nothing.
     const steep = ramp(2.5, 2, 60, this.materials.ramp);
     steep.position.set(-6, 0, -13);
     parent.add(steep);
   }
 
   /**
-   * Two pitches: an ordinary stair at 31°, and a steep one at 45°.
-   *
-   * Both are within the slope limit on purpose. A staircase is climbed as a
-   * sequence of ledges, but it is *felt* as a slope, and one pitched past the
-   * limit reads to the player as an invisible wall rather than as stairs.
+   * Two pitches: an ordinary stair at 31°, and a steep one at 45°. Both are
+   * within the slope limit on purpose — a staircase is climbed as a sequence of
+   * ledges but *felt* as a slope, and one pitched past the limit reads as an
+   * invisible wall rather than as stairs.
    */
   private addStairs(parent: THREE.Group): void {
     const flights = [
@@ -392,13 +355,11 @@ export class ProvingGround {
   }
 
   /**
-   * Isolated ledges bracketing the step height, from a kerb to waist height.
-   *
-   * The two low ones should be walked over without thinking about it and the
-   * tall one should stop you dead. The 0.5 m is the interesting case: it sits
-   * just past the step height, and it is climbed anyway, because the capsule's
-   * own shoulder carries it. That is the practical ceiling, and knowing where
-   * it is matters more than pretending the tuning value is exact.
+   * Isolated ledges bracketing the step height, from a kerb to waist height. The
+   * two low ones should be walked over without thinking about it and the tall
+   * one should stop you dead. The 0.5 m is the interesting case: just past the
+   * step height, and climbed anyway because the capsule's own shoulder carries
+   * it. That is the practical ceiling.
    */
   private addKerbs(parent: THREE.Group): void {
     [0.2, 0.35, 0.5, 0.9].forEach((height, index) => {
@@ -407,11 +368,10 @@ export class ProvingGround {
   }
 
   /**
-   * Gaps of 1.5, 2.5 and 3.5 m at a height that punishes a miss.
-   *
-   * With the default tuning these are, in order: a walking jump, a jump that
-   * needs a run-up, and one that needs a sprint. If that stops being true after
-   * a tuning pass, the numbers here are the thing that noticed.
+   * Gaps of 1.5, 2.5 and 3.5 m at a height that punishes a miss. With the
+   * default tuning these are, in order: a walking jump, a jump that needs a
+   * run-up, and one that needs a sprint. If that stops being true after a
+   * tuning pass, these numbers are the thing that noticed.
    */
   private addJumpGaps(parent: THREE.Group): void {
     const gaps = [1.5, 2.5, 3.5];
@@ -430,25 +390,14 @@ export class ProvingGround {
 
   /**
    * Four courses testing the parts of the controller the ramps and stairs do
-   * not reach.
-   *
-   * They stand in the ground the L-shaped strafe wall used to occupy — which
-   * was a sixteen-metre face with an arm across the end of it, and which had
-   * long since stopped earning that footprint. Sliding along a wall is one
-   * assertion; what it cost was the whole lane between the gym and the gallery
-   * rank, and it was close enough to the ramps that the movement check had to
-   * start its runs a metre and a half clear of it to avoid measuring the
-   * player climbing the wall instead of the slope.
-   *
-   * Each course below isolates one thing and grades it, so the answer is a
+   * not reach. Each isolates one thing and grades it, so the answer is a
    * *number* — which stone you fall at, which header stops you — rather than
-   * pass or fail. That is the same reasoning as the ramps being 10/20/30/45
-   * rather than one slope at the limit.
+   * pass or fail.
    *
    * Laid out west to east in one band at z 8..18, north of the kerbs and south
    * of the gallery doors' arrival markers at z ≈ 20.9. Anything added here has
-   * to stay clear of those: the world check probes a stride forward off every
-   * marker and reports a door that opens into a wall.
+   * to stay clear of those: a door that opens into a wall is a door nobody can
+   * use.
    */
   private addParkour(parent: THREE.Group): void {
     const course = new THREE.Group();
@@ -457,10 +406,9 @@ export class ProvingGround {
     // --- stepping stones, gaps widening ------------------------------------
     //
     // Pillar tops rather than platforms: at 0.7 m square there is no room to
-    // adjust after landing, so this tests the jump *and* the landing, which a
-    // wide platform lets you get away with separately. The gaps run 1.4 to
-    // 2.6 m, which brackets what a standing jump reaches, so the stone you
-    // fall at says which part of the tuning moved.
+    // adjust after landing, so this tests the jump *and* the landing. The gaps
+    // run 1.4 to 2.6 m, bracketing what a standing jump reaches, so the stone
+    // you fall at says which part of the tuning moved.
     let z = 8;
     for (const gap of [0, 1.4, 1.8, 2.2, 2.6]) {
       z += gap;
@@ -469,16 +417,14 @@ export class ProvingGround {
 
     // --- the crouch tunnel --------------------------------------------------
     //
-    // **The only fixture in the game that tests crouching at all.** The
-    // capsule really does shrink — see `crouchHeight` — and there has never
-    // been anything to shrink *under*, so the headroom test that stops a
-    // player standing up inside geometry has never been exercised by walking
-    // into it.
+    // The only fixture in the game that tests crouching. The capsule really does
+    // shrink — see `crouchHeight` — and the headroom test that stops a player
+    // standing up inside geometry needs something to shrink under.
     //
     // Three headers at falling clearance: 1.6 stops a standing capsule (1.8)
     // and passes a crouched one (1.04) easily, 1.3 is comfortable, and 1.1 is
     // six centimetres of margin. Walk in, duck, and try to stand up under the
-    // last one — that is the case the headroom probe exists for.
+    // last one.
     const lane = -10;
     for (const side of [-1, 1]) {
       course.add(box(0.3, 2.2, 7, this.materials.wall, lane + side * 1.05, 0, 11.5));
@@ -493,12 +439,11 @@ export class ProvingGround {
 
     // --- balance beams, narrowing ------------------------------------------
     //
-    // The capsule is 0.64 m across, so the last two beams are narrower than
-    // the player is. That is deliberate and it is the interesting part: the
-    // collider settles on whatever is under the capsule's *centre*, so a
-    // 0.35 m beam is walkable and feels like nothing else in the game. The
-    // step up onto the first one is there because a beam you cannot get onto
-    // tests nothing.
+    // The capsule is 0.64 m across, so the last two beams are narrower than the
+    // player is. That is the interesting part: the collider settles on whatever
+    // is under the capsule's *centre*, so a 0.35 m beam is walkable. The step up
+    // onto the first one is there because a beam you cannot get onto tests
+    // nothing.
     course.add(box(1.2, 0.6, 1.2, this.materials.platform, -14, 0, 7.4));
     z = 8.4;
     for (const width of [0.9, 0.7, 0.5, 0.35]) {
@@ -510,10 +455,9 @@ export class ProvingGround {
 
     // --- the squeeze --------------------------------------------------------
     //
-    // Pairs of blocks with the gap between them stepped either side of the
-    // capsule's diameter. 0.55 must not admit you and 0.75 must, which makes
-    // this the one fixture that would notice a change to the player's radius —
-    // a number nothing else in the gym depends on.
+    // Pairs of blocks with the gap stepped either side of the capsule's
+    // diameter. 0.55 must not admit you and 0.75 must, which makes this the one
+    // fixture that would notice a change to the player's radius.
     z = 8;
     for (const gap of [0.55, 0.65, 0.75, 0.9]) {
       for (const side of [-1, 1]) {
@@ -528,11 +472,9 @@ export class ProvingGround {
   }
 
   /**
-   * A walkway off the top of the steepest ramp, four metres up.
-   *
-   * Hung off the ramp rather than standing alone because the height has to be
-   * reachable on foot — a drop you can only reach by cheating tests nothing.
-   * Walk up the 45°, out along the plank, and off the end.
+   * A walkway off the top of the steepest ramp, four metres up. Hung off the
+   * ramp rather than standing alone because the height has to be reachable on
+   * foot — a drop you can only reach by cheating tests nothing.
    */
   private addFallWalkway(parent: THREE.Group): void {
     parent.add(box(2.5, 0.2, 8, this.materials.platform, -18, 3.8, -12));
@@ -541,12 +483,11 @@ export class ProvingGround {
   /**
    * Fixtures for judging the render pipeline. North-east of spawn, facing you.
    *
-   * The four of them answer different questions. Flat unlit swatches show what
-   * quantization does to a colour you chose deliberately. A greyscale ramp is
-   * the worst case for banding and the best case for seeing what the dither is
-   * actually doing. A *smooth-shaded* sphere and a tilted lit plane are there
-   * because the whole rest of the game is flat-shaded, and flat shading hides
-   * banding — the gradients that band are the ones you have to go looking for.
+   * Flat unlit swatches show what quantization does to a colour chosen
+   * deliberately. A greyscale ramp is the worst case for banding and the best
+   * case for seeing what the dither is doing. A *smooth-shaded* sphere and a
+   * tilted lit plane are there because the rest of the game is flat-shaded, and
+   * flat shading hides banding.
    */
   private addCalibrationBoard(): void {
     const board = new THREE.Group();
@@ -607,11 +548,9 @@ export class ProvingGround {
       new THREE.MeshLambertMaterial({ color: 0x6f7a7d, side: THREE.DoubleSide }),
     );
     // Half the height times cos(lean) puts the bottom edge exactly on the
-    // ground, so it stands like a board propped against something.
-    //
-    // Placed to the *left* of the board, beyond the sphere, rather than to the
-    // right: the rooms start at x = 15 and a six-metre panel on that side runs
-    // straight through the hall wall.
+    // ground, so it stands like a board propped against something. To the left
+    // of the board rather than the right: the rooms start at x = 15 and a
+    // six-metre panel on that side runs through the hall wall.
     rake.position.set(x - 13.5, 2 * Math.cos(lean), z);
     rake.rotation.x = -lean;
     board.add(markCollidable(rake));

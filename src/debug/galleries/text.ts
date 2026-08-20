@@ -48,8 +48,8 @@ const BUILDERS = [signboard, banner];
  * The lettering goes in its own mesh flagged `noCollide`, never merged with
  * the carpentry: letters are thousands of small triangles in a hand-span of
  * space, and a chart whose ink was swept into the octree cost the frame whole
- * milliseconds the moment the capsule pressed into it — crouch-walking into
- * the eye chart halved the frame rate, which is how this rule was found.
+ * milliseconds the moment the capsule pressed into it: crouch-walking into an
+ * eye chart halves the frame rate.
  * Stations that are nothing but ink come back as one uncollidable mesh.
  */
 function station(solid: Part[], ink: Part[]): THREE.Object3D {

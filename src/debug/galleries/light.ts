@@ -26,8 +26,7 @@ import { stove } from '../../art/builders/stove';
  * **The rank is the decorrelation test.** A gallery lays out eight of every
  * builder automatically, so eight candles stand in a line here without anything
  * being authored — and if any two of them are in step you can see it from the
- * door. That is the requirement the activity signal exists to meet, and it is
- * checked by eye here and by number in `check:art`.
+ * door. That is the requirement the activity signal exists to meet.
  *
  * Two bays off the rank, for the two things a rank cannot show:
  *

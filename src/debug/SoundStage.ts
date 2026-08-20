@@ -11,46 +11,31 @@ import { PALETTE, shade } from '../art/palette';
 /**
  * A room with one of everything in it, standing in a line.
  *
- * SPEC promised this in Phase 3 and it never got built, and the cost of not
- * having it has been paid steadily ever since: every model in the library was
- * tuned in whatever zone happened to contain it, against whatever else that
- * zone was playing, in whatever room that zone declares. Three variables, none
- * of them the model.
+ * Every model in the library would otherwise be tuned in whatever zone happened
+ * to contain it, against whatever else that zone was playing, in whatever room
+ * that zone declares. Three variables, none of them the model.
  *
- * ## What it is for, in order
- *
- * - **Comparison.** The commonest way a procedural library sounds bad is not
- *   that any one model is wrong — it is that one of them is four times louder
- *   than its neighbours, and nothing reveals that except hearing them in a row
- *   at the same distance. The stations are evenly spaced and identically
- *   configured for exactly that reason: every emitter here has the same
- *   `refDistance`, `maxDistance` and rolloff, so **the only difference between
- *   two stations is the model.** Any temptation to tune the spacing or the
- *   reach of one station is the temptation to hide the thing this room exists
- *   to show.
+ * - **Comparison.** The commonest way a procedural library sounds bad is that
+ *   one model is four times louder than its neighbours, and nothing reveals
+ *   that except hearing them in a row at the same distance. Every emitter here
+ *   has the same `refDistance`, `maxDistance` and rolloff, so **the only
+ *   difference between two stations is the model.** Any temptation to tune the
+ *   spacing or the reach of one station is the temptation to hide the thing
+ *   this room exists to show.
  * - **Isolation.** Walking up to a station gets you most of the way; `setSolo`
  *   gets the rest, because a shared room tail and a neighbouring drone sit
  *   underneath a source however close you stand.
  * - **Rooms.** The FDN's parameters are live, so a cave can be dialled in with
- *   no cave to stand in. This is the one thing here that cannot be done
- *   anywhere else at all.
+ *   no cave to stand in. The one thing here that cannot be done anywhere else.
  *
- * ## Why it is a rank and not a circle
+ * A rank and not a circle. A ring makes every station equidistant, which sounds
+ * like a fair test and removes the ability to *approach* anything — and half of
+ * what these models do is change with distance. A rank is walked.
  *
- * A ring of sources around a listener is the obvious layout and it is the
- * wrong one: it makes every station equidistant, which sounds like a fair test
- * and removes the ability to *approach* anything. Half of what these models do
- * is change with distance — air absorption darkens them, the panner LOD swaps
- * under them, the reverb send stays put while the dry path falls away — and
- * none of that is audible from a fixed radius. A rank is walked.
- *
- * ## The stage is silent until you are on it
- *
- * Fifteen sources at once is more than any real zone will ever run, which is
- * what makes it a performance test — and also means this room must never be
- * entered by accident. It has no door in the hub rank. The only way in is the
- * zone jump list under `?debug`, which is a deliberate act by someone who is
- * already holding the tools.
+ * Fifteen sources at once is more than any real zone will run, which makes it a
+ * performance test and means the room must never be entered by accident. It has
+ * no door in the hub rank; the only way in is the zone jump list under
+ * `?debug`.
  */
 
 export const ZONE_SOUND_STAGE = 'sound-stage';
@@ -63,38 +48,32 @@ const DOOR_Z = 14;
 export const PLINTH_H = 1.15;
 
 /**
- * One entry in the rack.
- *
- * `spec` is everything except the position, which the layout supplies — a
- * station that carried its own coordinates would drift out of line the moment
- * anything before it in the rack changed.
+ * One entry in the rack. `spec` is everything except the position, which the
+ * layout supplies — a station carrying its own coordinates would drift out of
+ * line the moment anything before it in the rack changed.
  */
 type Station =
   | { kind: 'emitter'; name: string; spec: Omit<EmitterSpec, 'at'> }
   | { kind: 'scatter'; name: string; spec: Omit<ScatterSpec, 'at'> };
 
 /**
- * Shared by every station, and the whole basis of the comparison.
- *
- * Generous reach, because the rank is wide and a source that goes virtual
- * halfway down it cannot be compared with anything. Gentle rolloff for the
- * same reason. A modest send: enough that the room is audible and not so much
- * that fifteen sources build a wash nobody can hear a model through.
+ * Shared by every station, and the whole basis of the comparison. Generous
+ * reach, because the rank is wide and a source that goes virtual halfway down
+ * it cannot be compared with anything. Gentle rolloff for the same reason. A
+ * modest send: enough that the room is audible and not so much that fifteen
+ * sources build a wash nobody can hear a model through.
  */
 const UNIFORM = { refDistance: 2, maxDistance: 42, rolloff: 1.2, reverb: 0.4 } as const;
 
 /**
- * The rack, in the order it stands.
+ * The rack, in the order it stands. Grouped by family rather than
+ * alphabetically — weather, then water, then fire and works, then voices, then
+ * the one-shots — because the comparison that matters is between things that
+ * might be confused for one another.
  *
- * Grouped by family rather than alphabetically — weather, then water, then
- * fire and works, then voices, then the one-shots — because the comparison
- * that matters is between things that might be confused for one another, and
- * that comparison is easiest when they are adjacent.
- *
- * Every model's options are its **defaults**, or as near as makes no
- * difference. A stage tuned to flatter each model is a stage that agrees with
- * itself and tells you nothing; what is wanted here is what a zone gets when
- * it declares a model and says nothing else.
+ * Every model's options are its **defaults**. A stage tuned to flatter each
+ * model agrees with itself and tells you nothing; what is wanted is what a zone
+ * gets when it declares a model and says nothing else.
  */
 const RACK: readonly Station[] = [
   // --- weather ------------------------------------------------------------
@@ -165,12 +144,11 @@ const RACK: readonly Station[] = [
   {
     kind: 'emitter',
     name: 'waveguide',
-    // Struck rather than blown, and driven steadily rather than by weather.
-    // Both for the same reason `friction` is `'steady'` here: a bench wants
-    // the model, not its silences, and `'chime'` is the mode that shows what
-    // the loop actually does — the timbre changing as it rings, which is the
-    // one thing the modal fallback cannot reproduce and therefore the thing
-    // worth being able to hear side by side.
+    // Struck rather than blown, and driven steadily rather than by weather, for
+    // the reason `friction` is `'steady'` here: a bench wants the model, not its
+    // silences. `'chime'` is the mode that shows what the loop actually does —
+    // the timbre changing as it rings, which the modal fallback cannot
+    // reproduce.
     spec: {
       model: 'waveguide',
       id: 'waveguide',
@@ -222,11 +200,9 @@ const RACK: readonly Station[] = [
 ];
 
 /**
- * Every station's id, in rack order. For the solo control.
- *
- * Every entry declares one — `Soundscape.setSolo` and `findField` both look
- * things up by it, and a station with no id is a station that cannot be
- * soloed, which on a bench is the same as not being there.
+ * Every station's id, in rack order, for the solo control. Every entry declares
+ * one: `Soundscape.setSolo` and `findField` both look things up by it, and a
+ * station that cannot be soloed is, on a bench, the same as not being there.
  */
 export const STAGE_STATIONS: readonly string[] = RACK.map(
   (station) => station.spec.id as string,
@@ -259,16 +235,15 @@ const PLINTH_TOP = new THREE.MeshLambertMaterial({
 /**
  * A block with a cap on it, and the station's name on a post beside it.
  *
- * **Something has to be standing where the sound is.** That rule is written
- * down for the world and it holds here for a different reason: a rack of
- * fifteen invisible sources is a room where you cannot tell whether you are
- * standing in front of a station or between two of them, and the whole method
- * depends on knowing which one you are hearing.
+ * **Something has to be standing where the sound is.** A rack of fifteen
+ * invisible sources is a room where you cannot tell whether you are in front of
+ * a station or between two of them, and the whole method depends on knowing
+ * which one you are hearing.
  *
  * Deliberately not an art-kit builder. Every builder in the kit is a *thing* —
- * a tree, an anvil, a hopper — and it carries associations that would be read
- * as part of the sound standing on it. A plain block carries none, which is
- * what a bench wants. Exported for the music stage, whose bench it also is.
+ * a tree, an anvil, a hopper — and carries associations that would be read as
+ * part of the sound standing on it. A plain block carries none. Exported for
+ * the music stage, whose bench it also is.
  */
 export function plinth(name: string, x: number): THREE.Group {
   const group = new THREE.Group();
@@ -330,11 +305,9 @@ export function soundStageZone(): ZoneDefinition {
 }
 
 /**
- * The stage end of a portal, for whoever wants to stand a door here.
- *
- * Nothing does yet, and that is on purpose — see the header. It exists so that
- * putting one in later is a line rather than a redesign, and so the zone can
- * be reached the way every other zone is if that ever becomes the right call.
+ * The stage end of a portal, for whoever wants to stand a door here. Nothing
+ * does yet, and that is on purpose — see the header. It exists so that putting
+ * one in later is a line rather than a redesign.
  */
 export function soundStageDoor(): PortalEnd {
   return {

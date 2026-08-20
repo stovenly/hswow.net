@@ -49,24 +49,19 @@ import { particleShowcasePortal } from './ParticleShowcase';
  * The prop halls: one antechamber per setting, with the setting's galleries
  * hanging off it.
  *
- * The hub used to carry one door per gallery, which was four doors and about to
- * be more — every new family of objects meant another door in the rank, and the
- * rank was on its way to being the sprawl the galleries were built to replace.
- * What the world is actually growing toward is a handful of *zones*, each with
- * its own palette of objects broken down by category — so the doors are grouped
- * the way the palettes will be: a hall for the industrial kit, a hall for the
+ * What the world is growing toward is a handful of *zones*, each with its own
+ * palette of objects broken down by category, so the doors are grouped the way
+ * the palettes will be: a hall for the industrial kit, a hall for the
  * countryside kit, and the categories as doors inside.
  *
  * **The halls are deliberately long and deliberately empty.** Empty because
  * they are corridors to galleries, not galleries — anything standing in one
  * would be the beginning of exactly the accumulation the galleries exist to
- * hold. Long because the doors inside them are one per subzone category, and
- * more categories are coming; a hall sized to today's doors would need
- * rebuilding every time the kit grows a family, and wall is cheap.
+ * hold. Long because more categories are coming and wall is cheap.
  *
- * Doors run down the east wall from the entrance, so walking in reads the
- * whole catalogue in one look down the room, and a new category is a door in
- * the next clear stretch of wall.
+ * Doors run down the east wall from the entrance, so walking in reads the whole
+ * catalogue in one look down the room, and a new category is a door in the next
+ * clear stretch of wall.
  */
 
 export const ZONE_INDUSTRIAL_PROPS = 'industrial-props';
@@ -74,62 +69,49 @@ export const ZONE_COUNTRYSIDE_PROPS = 'countryside-props';
 export const ZONE_GENERAL_PROPS = 'general-props';
 
 /**
- * How far a portal door stands out from the wall it is set into.
- *
- * Duplicated from `zones.ts` for the reason `chains.ts` gives: importing it
- * would make this module depend on the one that imports *it*, and the world
- * check measures the result rather than trusting the number.
+ * How far a portal door stands out from the wall it is set into. Duplicated
+ * from `zones.ts` for the reason `chains.ts` gives: importing it would make
+ * this module depend on the one that imports *it*.
  */
 const DOOR_PROUD = 0.07;
 
 /**
- * The halls, as half-extents the door placement is written against.
- *
- * Thirty metres deep against four doors' worth of need — see the header. The
- * proportions are otherwise their settings' own: the industrial hall is a
- * works corridor writ large, the countryside one a long timber room.
+ * The halls, as half-extents the door placement is written against. Thirty
+ * metres deep against four doors' worth of need — see the header. The
+ * proportions are otherwise their settings' own: the industrial hall is a works
+ * corridor writ large, the countryside one a long timber room.
  */
 const INDUSTRIAL = { width: 9, depth: 30, height: 4.5 };
 /**
  * Longer than the industrial hall, because the countryside kit is further on.
- *
- * Nine categories now — the buildings, the two village rooms, the animals,
- * three of the wood, the farm and the stone wall — and thirty metres does not
- * hold nine doors at a spacing that keeps their arrival sweeps apart. Wall is
- * cheap and the header above says so; this is what "sized so the wall can take
- * several more" was for.
+ * Nine categories, and thirty metres does not hold nine doors at a spacing that
+ * keeps their arrival sweeps apart.
  */
 const COUNTRYSIDE = { width: 8, depth: 56, height: 3.2 };
 
 /**
  * The general hall is not a hall at all — it is a gallery-style room: a flat
- * gridded floor in fogged open air, the same construction as the galleries
- * themselves. It has no setting to borrow a shell from, which is the point of
- * it, and the doors it will eventually carry get placed the way a gallery's
- * own door is: standing free on the grid, no wall required.
+ * gridded floor in fogged open air, the same construction as the galleries. It
+ * has no setting to borrow a shell from, which is the point of it, and its
+ * doors stand free on the grid with no wall required.
  */
 const GENERAL_FLOOR = 120;
 /** Where the door home stands, same distance in as a gallery's. */
 const GENERAL_DOOR_Z = 16;
 
 /**
- * Where gallery doors stand along a hall's east wall.
+ * Where gallery doors stand along a hall's east wall, **derived from the hall
+ * rather than listed**: a fixed array shared by both halls breaks the moment
+ * one of them needs more doors than the other has wall.
  *
- * **Derived from the hall rather than listed**, which it was — a fixed array of
- * six positions shared by both halls. That broke the moment the countryside
- * needed eight: the array had to grow past the industrial hall's own end walls,
- * so one hall's growth would have put the other hall's doors outside it.
+ * Five metres apart. The argument for wider centres is that two doors closer
+ * than their own arrival sweeps read as one door with a spare, which is true of
+ * doors facing *each other* and false of these — every door in a hall faces −X,
+ * so the walk-offs run parallel and never meet. A frame is about a metre and a
+ * half, leaving three and a half metres of clear floor between neighbours.
  *
- * Five metres apart, which is the showcase rank's spacing and holds for the same
- * reason: the argument for wider centres is that two doors closer than their own
- * arrival sweeps read as one door with a spare, which is true of doors facing
- * *each other* and false of these. Every door in a hall faces −X, so the
- * walk-offs run parallel and never meet. A frame is about a metre and a half,
- * which leaves three and a half metres of clear floor between neighbours.
- *
- * Centred in the room, so a hall with two doors in it does not have them both
- * huddled at one end, and a hall that grows keeps its rank in the middle of its
- * own wall instead of drifting toward the back.
+ * Centred in the room, so a hall with two doors does not have them huddled at
+ * one end and a hall that grows keeps its rank in the middle of its own wall.
  */
 const DOOR_PITCH = 5;
 
@@ -153,21 +135,15 @@ function doorSlot(shell: { depth: number }, slot: number, of: number): number {
 /**
  * Where the showcase doors stand on the general hall's grid, west to east.
  *
- * Five metres apart, and it was eight. The argument for eight was that two
- * doors closer than their own arrival sweeps would read as one door with a
- * spare — which is true of doors facing *each other* and false of these: they
- * all face +Z, so their walk-offs run parallel and never meet. A frame is about
- * a metre and a half, so this still leaves three and a half metres of clear
- * grid between neighbours.
- *
- * What eight actually bought was a rank forty metres wide. That is most of the
- * way to the fog, and a long walk between two rooms whose whole purpose is to
- * be compared with each other.
+ * Five metres apart, for `DOOR_PITCH`'s reason: they all face +Z, so their
+ * walk-offs run parallel and never meet. Wider centres buy a rank forty metres
+ * across, which is most of the way to the fog and a long walk between two rooms
+ * whose whole purpose is to be compared with each other.
  *
  * Centred on the arrival rather than running east from it, so walking in from
- * the hub puts the whole rank in one look instead of trailing off to one side.
- * An even number of doors therefore straddles the middle rather than standing
- * one on it, which is why these are on half-metres.
+ * the hub puts the whole rank in one look. An even number of doors therefore
+ * straddles the middle rather than standing one on it, which is why these are
+ * on half-metres.
  */
 const SHOWCASE_SLOTS = [
   -22.5, -17.5, -12.5, -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5, 52.5,
@@ -189,7 +165,7 @@ function gridDoor(slot: number, material: 'timber' | 'iron', seed: number): Port
  * beside — these halls are the *lobby* of their setting, so they borrow its
  * light and its acoustics rather than inventing their own. Fog pulled in the
  * way the factory corridor's is: a thirty-metre room whose far end fades is a
- * room with a far end, which is the one thing a long hall has to say.
+ * room with a far end.
  */
 const INDUSTRIAL_ENVIRONMENT = {
   ...INDOOR_ENVIRONMENT,
@@ -312,11 +288,10 @@ function wallDoor(
 }
 
 /**
- * Every door in and out of the two halls.
- *
- * The hub ends are passed in rather than derived, for the galleries' own
- * reason: where the doors stand in the hub is the hub's business, and a hall
- * knows what hangs off it and nothing about the world outside its door.
+ * Every door in and out of the two halls. The hub ends are passed in rather
+ * than derived, for the galleries' own reason: where the doors stand in the hub
+ * is the hub's business, and a hall knows what hangs off it and nothing about
+ * the world outside its door.
  */
 export function propPortals(
   industrialHub: PortalEnd,
@@ -360,8 +335,7 @@ export function propPortals(
       },
     },
     // The galleries, one door each, entrance end first. `galleryPortal` owns
-    // the gallery side, so a gallery cannot exist without a way in — the same
-    // guarantee the hub rank used to provide, moved one door deeper.
+    // the gallery side, so a gallery cannot exist without a way in.
     //
     // Interior before exterior in both halls, and the village pair before the
     // rest of the countryside: a hall is read walking in, so the categories of
@@ -426,10 +400,8 @@ export function propPortals(
     // --- the showcase rank, west to east ------------------------------------
     //
     // Everything here hangs off the general hall because it belongs to no
-    // setting, which is exactly what that room is for: lettering, air, a rack
-    // of machinery, a pond, the sea, and the ground.
-    //
-    // Fog first, at the west end. Air belongs to no setting either.
+    // setting, which is what that room is for: lettering, air, a rack of
+    // machinery, a pond, the sea, and the ground. Fog first, at the west end.
     galleryPortal(fogShowcasePlan, gridDoor(0, 'timber', 6432)),
     // Lettering, which was the first door out here and the reason the rank
     // exists.
@@ -457,16 +429,8 @@ export function propPortals(
       material: 'iron',
       seed: 6440,
     }),
-    // The Sound Showcase. It stood in the exterior, four paces from spawn, on
-    // the argument that it was the only place in the hub where a model could be
-    // heard and friction in front of the only door is just friction. That
-    // argument was about *reachability*, and it is answered as well by a door
-    // in the room the other showcases open off — while a workbench standing in
-    // the village street was always the odd thing out in a zone that is meant
-    // to read as a place.
-    //
-    // Iron rather than timber: what is behind it is a rack of machinery, and
-    // the door is the first thing that says so.
+    // The Sound Showcase. Iron rather than timber: what is behind it is a rack
+    // of machinery, and the door is the first thing that says so.
     soundStagePortal(gridDoor(2, 'iron', 6433)),
     // A pond is not industrial and it is not countryside; it is a surface.
     waterShowcasePortal(gridDoor(3, 'timber', 6434)),
@@ -482,10 +446,9 @@ export function propPortals(
     // than a place — ten systems standing in a line.
     particleShowcasePortal(gridDoor(7, 'iron', 6438)),
     // The readables close the rank, and take two doors rather than one. They
-    // belong to no setting either — a book is a book in a cottage and in a
-    // works, which is why there is a room out here rather than a row in one of
-    // the two halls — and the objects and the system they carry are separate
-    // questions, so they get separate rooms standing side by side.
+    // belong to no setting either — a book is a book in a cottage and in a works
+    // — and the objects and the system they carry are separate questions, so
+    // they get separate rooms standing side by side.
     galleryPortal(readablesGalleryPlan, gridDoor(8, 'timber', 6441)),
     galleryPortal(readablesShowcasePlan, gridDoor(9, 'timber', 6442)),
     // The finish fixtures — one door now, into an antechamber with six rooms

@@ -1,7 +1,7 @@
 /**
  * Tuning presets, stored in localStorage.
  *
- * Separate from Phase 9's autosave on purpose: that persists what the player
+ * Separate from the player's own autosave on purpose: that persists what they
  * did, this persists what the *look* is, and the two have different lifetimes.
  * A preset survives clearing a save, and clearing a save should not throw away
  * an afternoon of tuning.

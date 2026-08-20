@@ -27,9 +27,8 @@ import {
 /**
  * Every gallery. The hub reads this list to build the zones; the doors to them
  * stand in the two prop halls, one hall per setting — see `debug/props.ts`,
- * which is where a new gallery also gets its door. `check:art` still fails on
- * any builder that is in no gallery, so an unreachable gallery is caught from
- * both sides.
+ * which is where a new gallery also gets its door. Every builder belongs in
+ * exactly one gallery.
  *
  * Castle and Cave are absent deliberately. Those kits do not exist yet, and an
  * empty gallery is worse than no gallery: it reads as a bug, and it takes a
