@@ -2,23 +2,14 @@ import * as THREE from 'three';
 import { GLOW_LAYER } from '../layers';
 
 /**
- * Light you can see, as opposed to light that lands on things.
- *
- * A light in three illuminates surfaces; it draws nothing itself. So the source
- * has to be modelled twice — once as a `PointLight` for what it does to the
- * room, and once as geometry for what it looks like. This is the material that
- * geometry is drawn with: a lamp's flame, and anything else that is meant to be
- * emitting rather than reflecting.
- *
- * **Additive, and unlit.** Additive blending means the surface only ever
- * brightens what is behind it, so a dark part of it is *transparent* rather than
- * grey — falloff can be authored as vertex colour fading to black, with no alpha
- * channel and no sorting problems, because black adds nothing. Unlit, because a
- * flame being shaded by some other light is a contradiction.
- *
- * Fog is off for the same reason. Fog mixes toward the fog colour, and mixing an
- * additive surface toward a pale sky adds that sky on top of everything behind
- * it — a distant lamp would sit in a rectangle of haze.
+ * Light you can see, as opposed to light that lands on things. A light in three
+ * illuminates surfaces and draws nothing itself, so a source is modelled twice: a
+ * `PointLight` for what it does to the room, and geometry for what it looks like.
+ * This is that geometry's material — additive, so a dark part of it is
+ * transparent rather than grey and falloff can be vertex colour fading to black;
+ * unlit, because a flame shaded by some other light is a contradiction; and
+ * unfogged, because mixing an additive surface toward a pale sky would add that
+ * sky on top of everything behind it.
  */
 export const GLOW_MATERIAL = new THREE.MeshBasicMaterial({
   vertexColors: true,
@@ -34,12 +25,11 @@ export const GLOW_MATERIAL = new THREE.MeshBasicMaterial({
 });
 
 /**
- * Emissive text, drawn solid — see `letteringGlow` in `art/lettering`.
- *
- * Additive would be wrong for a caption twice over: it can only brighten what
- * is behind it, so a word against the pale sky disappears, and lettering's
- * overlapping strokes and joint discs would add three or four times at every
- * elbow. Fogged, because a distant sign should dim into the air.
+ * Emissive text, drawn solid — see `letteringGlow`. Additive would be wrong for a
+ * caption twice over: it can only brighten what is behind it, so a word against
+ * the pale sky disappears, and lettering's overlapping strokes and joint discs
+ * would add three or four times at every elbow. Fogged, because a distant sign
+ * should dim into the air.
  */
 export const TEXT_GLOW_MATERIAL = new THREE.MeshBasicMaterial({
   vertexColors: true,
@@ -92,19 +82,11 @@ TEXT_GLOW_ADDITIVE.onBeforeCompile = (shader) => {
 TEXT_GLOW_ADDITIVE.customProgramCacheKey = () => 'text-glow-additive';
 
 /**
- * Wraps merged glow geometry into a mesh.
- *
- * Two flags, both load-bearing:
- *
- * - `noCollide` keeps `markCollidable` out of this subtree. A builder returns
- *   one object and the caller marks the whole thing solid, so without this the
- *   player would walk into the flame and stop.
- * - `renderOrder` puts it after the opaque pass. Three sorts transparent
- *   objects behind opaque ones already; this keeps several glows in one prop
- *   in a stable order between frames.
- *
- * Which of the three glow materials is a caller's choice; that everything drawn
- * with one goes through here is not, for the layer reason below.
+ * Wraps merged glow geometry into a mesh. `noCollide` keeps `markCollidable` out
+ * of this subtree, so the player does not walk into the flame and stop, and
+ * `renderOrder` puts it after the opaque pass, which keeps several glows in one
+ * prop in a stable order between frames. Which of the three glow materials is a
+ * caller's choice; that everything goes through here is not.
  */
 export function finishGlow(
   geometry: THREE.BufferGeometry,
@@ -115,14 +97,10 @@ export function finishGlow(
   mesh.name = name;
   mesh.userData.noCollide = true;
   mesh.renderOrder = 2;
-  // Bloom's emitters pass selects the lights with this and nothing else. The
-  // one place a glow mesh is made is the one place it has to be said: a glow
-  // built by hand elsewhere would render normally and simply never bloom, which
-  // is the kind of silent omission a single constructor makes impossible.
-  //
-  // *Enabled*, not set — layer 0 stays on, so ordinary rendering is untouched.
-  // And the number comes from `src/layers.ts` rather than from here, which is a
-  // rule this file learned the hard way; that file says how.
+  // Bloom's emitters pass selects the lights with this layer and nothing else, so
+  // the one place a glow mesh is made is the one place it has to be said: a glow
+  // built by hand elsewhere would render normally and never bloom. Enabled, not
+  // set — layer 0 stays on. The number comes from `src/layers.ts`.
   mesh.layers.enable(GLOW_LAYER);
   return mesh;
 }

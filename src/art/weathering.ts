@@ -3,61 +3,29 @@ import { shade } from './palette';
 import { FIELD_ATTRIBUTE } from './fields';
 
 /**
- * Weathering: how one material shows through another.
+ * Weathering: how one material shows through another — rust through paint, moss
+ * over stone, soot up a chimney breast, polish where hands go.
  *
- * Rust through paint, moss over stone, soot up a chimney breast, polish where
- * hands go. Three generations of this module tried to paint that story into
- * vertex colours — raw per-face noise, then quantized cells, then an
- * irregular canvas — and every one of them read as what it was: triangles,
- * then squares, then irregular triangles. The resolution of vertex paint *is*
- * the face size, and no arrangement of faces at prop-scale budgets is finer
- * than the speckle being asked for.
+ * The speckle lives in the fragment shader, because the resolution of vertex
+ * paint is the face size and no prop-scale mesh is finer than the speckle being
+ * asked for. The design is the sway system's twin: attributes baked at build
+ * time, one patch on the shared art material, and the GPU does the rest.
  *
- * So the speckle moved to the one place with per-pixel resolution: the
- * fragment shader. The design is deliberately the sway system's twin —
- * per-vertex attributes baked at build time, one patch applied to the shared
- * art material, and the GPU does the rest:
+ * `Part.wear` says how much a region weathers, 0..1 — bias it toward the ground,
+ * the edges, the fixings, the weather side. It interpolates, so it needs only
+ * enough subdivision to bend the field. `Part.wearTint` says what the material
+ * weathers toward, per part, so one prop can rust its iron and mould its timber
+ * in one mesh. `applyWear` thresholds clumped value noise, generated from
+ * undisplaced object-space position, against the interpolated wear.
  *
- * - **`Part.wear`** (baked by `assemble` into a float attribute) says *how
- *   much* a region weathers, 0..1 — this is where the story goes: bias it
- *   toward the ground, the edges, the fixings (see `near`), the weather
- *   side. It varies per vertex and interpolates, so it needs only enough
- *   subdivision to bend the field, not to draw the patches.
- * - **`Part.wearTint`** (a vec3 attribute) says what colour the material
- *   weathers *toward* — rust, moss, patina, soot. Per part, so one prop can
- *   rust its iron and mould its timber in a single mesh and draw call.
- * - **`applyWear`** patches the shared material's fragment stage: clumped
- *   value noise generated from *undisplaced object-space position* — no
- *   texture object, no UVs, no asset, just arithmetic — thresholded against
- *   the interpolated wear, replacing the surface colour where it wins. The
- *   art direction's line is "no texture files in the codebase"; a texture
- *   computed from a sine at runtime is on the right side of it, exactly as a
- *   mesh computed from boxes is.
+ * Object space matters twice: it is stable while sway displaces the surface, and
+ * it is deterministic per prop.
  *
- * Object-space sampling matters twice: it is stable while the sway shader
- * displaces the surface (rust must not swim over a waving banner), and it is
- * deterministic per prop, which keeps the art check's rebuild guarantee.
- *
- * Costs, honestly: four floats per vertex across the whole kit (everything
- * shares the material, so everything carries the attributes — zeroed where
- * unused), and ~30 hash evaluations per fragment behind an early-out that
- * skips clean surfaces. The pixel pass renders at chunky-pixel resolution,
- * so the fragment count is a quarter of the screen at default settings.
- * Geometry cost: none. That is the entire point.
- *
- * One field helper survives from the earlier generations: `near`, for wear
- * that concentrates around fixings. Drip-streak geometry and quantized block
- * paint existed for a while and were cut on request — the shader layer is
- * the whole system now.
- *
- * **Weathering is opt-in per part, and the values are statements.** Rust
- * does not leap from a plate onto the hardware standing proud of it, painted
- * surfaces resist outright (zero wear on hazard blocks — paint is the
- * anti-rust technology), handled metal stays bright, and the accent is
- * matched to each surface with `weatherTint` rather than being one orange
- * everywhere. Accent colours should differ from the base in hue, not only
- * value — the quantizer collapses same-hue brightness steps; see the palette
- * header. And err quiet: weathering that announces itself reads as a
+ * Weathering is opt-in per part, and the values are statements. Rust does not
+ * leap from a plate onto the hardware standing proud of it, paint resists
+ * outright, handled metal stays bright, and an accent should differ from the base
+ * in hue rather than only in value, because the quantizer collapses same-hue
+ * brightness steps. Err quiet: weathering that announces itself reads as a
  * texture pack, not a place.
  */
 
@@ -66,15 +34,11 @@ import { FIELD_ATTRIBUTE } from './fields';
 export const WEAR_TINT_ATTRIBUTE = 'wearTint';
 
 /**
- * Adds the weathering stage to a material that already carries the sway
- * patch. Wrapping rather than replacing, because `onBeforeCompile` is a
- * single slot and sway got there first; the cache key changes so the
- * combined program is never confused with a sway-only one on the depth and
- * normal materials.
- *
- * Applied to the surface material only. The depth and edge passes read
- * geometry, not colour, and patching them would spend compile time on
- * nothing.
+ * Adds the weathering stage to a material that already carries the sway patch.
+ * Wrapping rather than replacing, because `onBeforeCompile` is a single slot and
+ * sway got there first; the cache key changes, so the combined program is never
+ * confused with a sway-only one. Surface material only — the depth and edge
+ * passes read geometry, not colour.
  */
 export function applyWear(material: THREE.Material): void {
   const prior = material.onBeforeCompile;

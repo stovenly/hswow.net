@@ -21,30 +21,13 @@ export {
 } from './cover-sample';
 
 /**
- * Groundcover: instanced blades sampled from any ground mesh.
- *
- * The Ghost of Tsushima shape, at this project's scale. Each blade is a small
+ * Groundcover: instanced blades sampled from any ground mesh. Each blade is a
  * camera-facing ribbon bent along a curve in the vertex shader; a CPU sampler
- * walks the ground's triangles once at zone build, reads the cover attribute
- * the terrain already writes, and packs one instance per blade. Clump cells
- * give blades local agreement — shared height, facing and shade — which is
- * what makes a field read as grown rather than scattered.
- *
- * Wall types (`walls` in the table) are the one exception to everything being
- * ground: they grow props on near-vertical faces, oriented to them — ivy on a
- * wall — and a mesh opts in with `userData.cover`.
- *
- * Three decisions carried over from the shell version this replaces:
- * blades rise from world-flat ground along +Y, never the face normal; broad
- * variation comes from `coverSwell`/`coverThickness` on world XZ; and the
- * cover stays out of the scene-wide normal *override* (see
- * `PostFX.hideGlowFromEdges`), drawing itself into the normal buffer
- * afterwards with its own patched materials — see `drawCoverNormals`.
- *
- * Two shading choices do most of the work: a blade is lit by the *ground's*
- * normal, so a field shades as one surface with the terrain under it, and a
- * blade never projects under one art pixel wide — thinner than that is not
- * thin, it is shimmer.
+ * walks the ground's triangles once at zone build and packs one instance per
+ * blade, with clump cells giving them local agreement. Blades rise along +Y,
+ * never the face normal, are lit by the ground's normal, and never project
+ * under one art pixel wide. Wall types grow on near-vertical faces instead,
+ * oriented to them, and a mesh opts in with `userData.cover`.
  */
 
 /** Blade ribbon segments. Two verts each plus a tip: 9 vertices a blade. */
@@ -362,17 +345,14 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
 TUFT_MATERIAL.customProgramCacheKey = () => 'cover-tufts';
 
 /**
- * The same cover, for the normal buffer. `PixelStage` renders the scene with a
- * scene-wide override that cannot know the instanced construction, so after
- * that pass the cover meshes swap to these and draw themselves in — otherwise
- * the edge detector outlines whatever stands *behind* a blade or a plume
- * straight through it. Same vertex build and same discard, so the normal
- * buffer agrees with the colour buffer per pixel; a blade writes the ground's
- * normal, which is also what it is lit by.
+ * The same cover, for the normal buffer. `PixelStage` renders the scene with an
+ * override that cannot know the instanced construction, so the cover meshes swap
+ * to these and draw themselves in afterwards — otherwise the edge detector
+ * outlines whatever stands behind a blade straight through it. Same vertex build
+ * and same discard, so the two buffers agree per pixel.
  */
 // The same air as everything else outdoors. After the patch above, not before:
-// the chain composes onto whatever `onBeforeCompile` is already there. See
-// `engine/fog.ts`.
+// the chain composes onto whatever `onBeforeCompile` is already there.
 applyAerialFog(COVER_MATERIAL);
 applyAerialFog(TUFT_MATERIAL);
 
@@ -489,8 +469,8 @@ function tuftGeometry(sink: TuftSink): THREE.BufferGeometry {
 
 /**
  * One fin of plume: a lance whose width and solidity both taper to nothing at
- * its base and its tip, so it grows out of whatever it stands on instead of
- * sitting on it. `haze` fades the whole fin toward stipple.
+ * its base and its tip, so it grows out of whatever it stands on. `haze` fades
+ * the whole fin toward stipple.
  */
 function plumeFin(
   sink: TuftSink,
@@ -537,11 +517,10 @@ function plumeFin(
 }
 
 /**
- * A pampas stalk, and a plume built in tiers rather than as one tuft: wisps
- * hugging the stem from partway down, a body of solid fins with hazier ones
- * between, and a narrower crown reaching past them. Every fin tapers into the
- * stalk at its base, which is what keeps the fluff from reading as a blob
- * balanced on a stick.
+ * A pampas stalk, and a plume built in tiers: wisps hugging the stem from partway
+ * down, a body of solid fins with hazier ones between, and a narrower crown
+ * reaching past them. Every fin tapers into the stalk at its base, which keeps
+ * the fluff from reading as a blob balanced on a stick.
  */
 function plumeGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
@@ -638,9 +617,8 @@ function bloomGeometry(): THREE.BufferGeometry {
 
 /**
  * One flat leaf quad in the wall plane, tipped slightly out. `cell` pins the
- * whole quad to one stipple cell, so a `solid` under 1 drops the *leaf* per
- * instance rather than eating its pixels — which is what keeps a wall of one
- * authored mesh from reading as the same shape stamped over and over.
+ * whole quad to one stipple cell, so a `solid` under 1 drops the leaf per
+ * instance rather than eating its pixels.
  */
 function wallLeaf(
   sink: TuftSink,
@@ -669,11 +647,10 @@ function wallLeaf(
 }
 
 /**
- * A crawl of ivy, authored in the wall's frame — X along it, Y up it, +Z out
- * of it. Wandering vine runs — kinked, asymmetric, one curling and one
- * drooping — with leaves scattered along them, each leaf droppable per
- * instance (see `wallLeaf`). The instance tint carries the green: leaves are
- * authored white and the vines dimmer, so they come out darker lines of it.
+ * A crawl of ivy, authored in the wall's frame — X along it, Y up it, +Z out of
+ * it. Wandering vine runs with leaves scattered along them, each leaf droppable
+ * per instance. Leaves are authored white and the vines dimmer, so the instance
+ * tint comes out as darker lines of the same green.
  */
 function ivyGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
@@ -753,9 +730,9 @@ function wallStem(
 
 /**
  * A posy for the climbing rose: three rosettes held just off the wall — five
- * petal quads fanned round a darker centre disc, with a depth fin so the
- * bloom has body edge-on — and a couple of tight buds. Authored white with a
- * dark heart; the instance tint is the rose.
+ * petal quads fanned round a darker centre disc, with a depth fin so the bloom
+ * has body edge-on — and a couple of tight buds. Authored white with a dark
+ * heart; the instance tint is the rose.
  */
 function posyGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
@@ -801,17 +778,11 @@ function wob(i: number, k: number): number {
 }
 
 /**
- * A wisteria raceme: two crossed strips as the hanging core, drifting a
- * little as they fall, with florets — small petal quads — stuck out around
- * the chain, shrinking and fading toward the stippled tail. Authored white;
- * the instance tint is the flower.
- *
- * One mesh has to look like many, so nothing about it is regular: the chain
- * wanders and pinches, florets come two or three to a level at wandering
- * angles, reaches and droops, and *every* floret is pinned to its own stipple
- * cell below full solidity — so each instance drops a different share of them
- * and no two racemes carry the same silhouette. Instances also turn about the
- * hang, which a hanging thing can do freely; see `PROP_TURN`.
+ * A wisteria raceme: two crossed strips as the hanging core, drifting as they
+ * fall, with florets stuck out around the chain, shrinking and fading toward the
+ * stippled tail. Nothing about it is regular, and every floret is pinned to its
+ * own stipple cell below full solidity, so no two instances carry the same
+ * silhouette. Instances also turn about the hang; see `PROP_TURN`.
  */
 function racemeGeometry(): THREE.BufferGeometry {
   const sink: TuftSink = { position: [], color: [], fin: [], index: [] };
@@ -916,11 +887,9 @@ let drawOn = true;
 let drawDensity = 1;
 
 /**
- * The whole sampled field for one chunk, on the heap.
- *
- * The type table is authored at ultra and the tiers below it draw a prefix of
- * the shuffled pool, so what a tier needs is the front of these arrays and
- * nothing else. Kept so a tier can be raised again without resampling.
+ * The whole sampled field for one chunk, on the heap. The type table is authored
+ * at ultra and lower tiers draw a prefix of the shuffled pool, so this is kept
+ * and a tier can be raised again without resampling.
  */
 interface CoverPool {
   base: THREE.BufferGeometry;
@@ -944,25 +913,17 @@ function poolFor(mesh: THREE.Mesh): CoverPool {
 
 /**
  * Uploads the first `count` instances of a chunk, and releases what was there.
- *
- * An attribute's buffer is the whole array it was built from, whatever
- * `instanceCount` says, and three cannot resize one — so the ultra pool was
- * resident in video memory at every tier and most of it was never drawn. This
- * builds a geometry over the front of the same arrays instead and disposes the
- * old one, which is the only public way to free a buffer.
- *
- * The arrays are not copied: an instance attribute is a view onto the pool, so
- * this moves video memory and nothing else. The base geometry is a handful of
- * vertices, so cloning it again costs nothing against the megabytes released.
+ * An attribute's buffer is the whole array it was built from whatever
+ * `instanceCount` says, and three cannot resize one — so this builds a geometry
+ * over the front of the same arrays and disposes the old one, which is the only
+ * public way to free a buffer. The arrays are views, not copies.
  */
 function upload(mesh: THREE.Mesh, count: number): void {
   const pool = poolFor(mesh);
   const geometry = new THREE.InstancedBufferGeometry();
-  // **Cloned, not shared, and `art/particles.ts` explains why at length.**
-  // `Zone.dispose` calls `dispose()` on this geometry, and three answers by
-  // deleting the GPU buffer behind every attribute it holds — so handing it the
-  // blade's own attributes meant releasing one zone tore the buffers out from
-  // under every chunk in every zone still standing.
+  // Cloned, not shared: `Zone.dispose` calls `dispose()` on this geometry, and
+  // three answers by deleting the GPU buffer behind every attribute it holds, so
+  // a shared one would tear the buffers out from under every other chunk.
   const index = pool.base.getIndex();
   if (index) geometry.setIndex(index.clone());
   for (const [attr, attribute] of Object.entries(pool.base.attributes)) {
@@ -1015,15 +976,10 @@ function refreshDraw(mesh: THREE.Mesh): void {
 }
 
 /**
- * Sets what the cover is drawn at. Off skips every draw outright.
- *
- * `density` thins by drawing a prefix of each chunk's instances — they are
- * shuffled at build, so a prefix is an even scatter rather than a region.
- *
- * Changing the tier re-uploads each chunk at its new size, which is tens of
- * milliseconds once, on a settings change. It used to be an instance count and
- * nothing else, and the price of that was the whole ultra pool sitting in video
- * memory at every tier.
+ * Sets what the cover is drawn at. Off skips every draw outright. `density`
+ * thins by drawing a prefix of each chunk's instances, which are shuffled at
+ * build, so a prefix is an even scatter. Changing the tier re-uploads each
+ * chunk: tens of milliseconds, once, on a settings change.
  */
 export function setCoverDraw(on: boolean, density: number, height: number, width: number): void {
   drawOn = on;
@@ -1035,10 +991,8 @@ export function setCoverDraw(on: boolean, density: number, height: number, width
 
 /**
  * Per frame: the width clamp's pixel size, the tread sphere, and the plume
- * backlight. Cheap — four uniforms.
- *
- * `artHeight` is the render height in chunky pixels; with the camera's
- * projection it gives the world size of one art pixel at unit depth, which is
+ * backlight. `artHeight` is the render height in chunky pixels, and with the
+ * camera's projection it gives the world size of one art pixel at unit depth —
  * the floor no blade projects under.
  */
 export function updateCover(
@@ -1063,10 +1017,9 @@ export function updateCover(
 }
 
 /**
- * Draws the cover into the normal buffer, after the scene-wide override pass
- * has drawn everything else. Called by `PixelStage` with the normal target
- * still bound; depth testing against the override pass's depth keeps a wall in
- * front of a field in front of it here too.
+ * Draws the cover into the normal buffer, after the scene-wide override pass has
+ * drawn everything else. Called by `PixelStage` with the normal target still
+ * bound, so depth testing keeps a wall in front of a field here too.
  */
 export function drawCoverNormals(
   renderer: THREE.WebGLRenderer,
@@ -1196,20 +1149,12 @@ function assemble(chunks: CoverChunks): THREE.Object3D {
 }
 
 /**
- * Cover for a ground mesh, or null if it grows nothing.
- *
- * Given any mesh: terrain, a flat floor, an ad-hoc slab in a debug zone. A
- * mesh with no `cover` attribute grows nothing unless it says otherwise, via
- * `userData.cover` or `type` here — which is what keeps gallery floors bare.
- * Returned as a group of chunk meshes, so the frustum can drop the parts of a
- * field behind the camera.
- *
- * **Asynchronous because the sampling happens in a worker.** It is the longest
- * arithmetic step in building a zone and it reads nothing but attributes and a
- * seed, so it has no business holding the main thread — awaited here, the
- * loading bar and the fade keep moving while a field is rolled. The answer is
- * identical either way: same code, same hashes, same field down to the blade.
- * Where there is no worker at all — the headless checks — it samples in place.
+ * Cover for a ground mesh, or null if it grows nothing. A mesh with no `cover`
+ * attribute grows nothing unless `userData.cover` or `type` says otherwise,
+ * which is what keeps gallery floors bare. Asynchronous because the sampling
+ * happens in a worker — the longest arithmetic step in building a zone, and it
+ * reads nothing but attributes and a seed. With no worker it samples in place,
+ * and the answer is identical either way.
  */
 export async function coverFor(
   ground: THREE.Mesh,
@@ -1229,23 +1174,13 @@ export async function coverFor(
 // --- the worker --------------------------------------------------------------
 
 /**
- * The sampling worker, built on first use and kept for the session.
- *
- * `undefined` means it has not been asked for yet, `null` that there is no
- * worker to be had — the headless checks run in Node, and a browser that
- * refuses one is a browser that still has to draw grass. Both fall back to
- * sampling in place, which is what this did before and is never wrong, only
- * blocking.
+ * The sampling worker, built on first use and kept for the session. `undefined`
+ * means it has not been asked for yet, `null` that there is none to be had.
+ * Both fall back to sampling in place, which is never wrong, only blocking.
  */
 let worker: Worker | null | undefined;
 
-/**
- * Requests still out, by id.
- *
- * The mesh is held with each one, because the answer to a worker that dies is
- * to sample its outstanding fields here instead — and a promise that is simply
- * never settled is a zone that never finishes being built.
- */
+/** Requests still out, by id. The mesh is held with each one, because the answer to a worker that dies is to sample its outstanding fields here. */
 const waiting = new Map<
   number,
   { ground: THREE.Mesh; type?: CoverName; settle: (chunks: CoverChunks | null) => void }
@@ -1286,11 +1221,9 @@ function coverWorker(): Worker | null {
 }
 
 /**
- * Flattens a ground mesh, samples it in the worker, and waits.
- *
- * Attributes are read through `getX`/`getY` rather than copied off
- * `attribute.array`: a ground mesh is whatever a builder made it, and one that
- * turned out to be interleaved, or shorts, would otherwise arrive as noise.
+ * Flattens a ground mesh, samples it in the worker, and waits. Attributes are
+ * read through `getX`/`getY` rather than copied off `attribute.array`: a ground
+ * mesh that turned out interleaved, or shorts, would otherwise arrive as noise.
  */
 async function sampleInWorker(ground: THREE.Mesh, type?: CoverName): Promise<CoverChunks | null> {
   const hired = coverWorker();

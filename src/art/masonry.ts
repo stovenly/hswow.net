@@ -4,50 +4,14 @@ import type { Rng } from './random';
 import { PALETTE, shade } from './palette';
 
 /**
- * Walls, piers and arches: stone laid by hand.
- *
- * Shared by `stone-wall`, `stone-wall-column` and `archway`, because they are
- * the same masonry at three sizes and a wall that did not match the gate beside
- * it would be worse than either.
- *
- * ## A face is split, then warped
- *
- * A face starts as one polygon and is cut in two, over and over, until the
- * pieces are near stone size, at whatever angle the piece wants. That gets
- * convex cells of every shape and orientation which still share their edges
- * exactly — but every edge is dead straight, and a cut made early in the
- * sequence leaves a run of collinear edges right across the wall that reads as a
- * crack rather than as masonry.
- *
- * So every vertex is then moved by a **smooth field of position**. Two things
- * fall out of doing it that way and both are the point:
- *
- * - Cells still tile. Two cells meeting at a vertex read the field at the same
- *   place and move together.
- * - Long edges are chopped first, so a line that ran a third of a metre without
- *   a joint in it now has several, and each of them moves by a different amount.
- *
- * Where an edge has a junction on one side and not the other the two disagree
- * slightly, and that is wanted too: it varies the width of the joint, which is
- * the last thing about a hand-built wall a regular tiling cannot fake. The
- * disagreement is bounded by the size of the warp, which is smaller than a
- * joint.
- *
- * ## A stone's outline lies in the face
- *
- * It is the widest part of the stone and the thing that reads as masonry, so it
- * sits at the surface, with a flat crown a couple of centimetres proud and the
- * rest tailing back into the hearting where nobody sees it. Put that outline
- * anywhere else — half way through the wall, say — and every stone is a lump on
- * a flat slab.
- *
- * ## Corners are their own stones
- *
- * Two skins bedded on two perpendicular faces both want the same corner of
- * space, and if both are allowed it they poke through each other the whole way
- * up. Quoins are what a mason does about that and what `quoinedPier` does here:
- * the corners are squared stones, a course at a time, and the panels stop short
- * of them.
+ * Walls, piers and arches: stone laid by hand, shared by `stone-wall`,
+ * `stone-wall-column` and `archway`, because they are the same masonry at three
+ * sizes. Cells come from scattered sites rather than from splitting a face, so
+ * no joint runs the whole way across; every vertex is then moved by a smooth
+ * field of position, which keeps the tiling exact while bending the edges. A
+ * stone's outline lies in the plane of the face, with a flat crown proud of it
+ * and a tail into the hearting. Corners are their own squared stones, and the
+ * panels stop short of them.
  */
 
 /** How far a face stone stands out from the hearting behind it. */
@@ -110,24 +74,10 @@ function area(cell: Cell): number {
 
 /**
  * Cells from scattered stones: every cell is the patch of face nearer to its own
- * stone than to any other.
- *
- * **Splitting a face cannot help leaving seams and this can.** Cut a rectangle
- * in two and the joint you made runs the whole way across it; cut the halves and
- * those joints run the whole way across a half. Warping bends such a line and
- * chopping breaks it into segments, but it is still one joint from one side of
- * the wall to the other, and the eye follows it. Splitting is hierarchical and a
- * wall is not.
- *
- * Sites have no hierarchy. Two stones share exactly one joint, and it is as long
- * as the two of them and no longer — in any direction. There is nothing left for
- * a seam to run along.
- *
- * Size comes from how close a stone was allowed to sit to the ones already down:
- * the clearance is rolled per stone, so some crowd in small and some take a wide
- * berth, which is the size variation a wall wants. Rejecting crowded ones at all
- * is what makes it *evenly* random — points thrown down with no clearance clump,
- * and a clump of sites is a cluster of splinters.
+ * stone than to any other. Splitting a face leaves a joint running the whole way
+ * across it, and the eye follows it; sites have no hierarchy, so two stones share
+ * exactly one joint and it is as long as the two of them. The clearance is rolled
+ * per stone, which is both the size variation and what keeps the scatter even.
  */
 export function scatter(
   rng: Rng,
@@ -135,13 +85,10 @@ export function scatter(
   sizeAt: (y: number) => number,
   out: Cell[],
   /**
-   * How much wider than tall the stones come out.
-   *
-   * Sites scattered evenly give cells that are as tall as they are wide, and a
-   * wall of those reads as a cobbled path stood on its end. A stone is laid on
-   * its bed, so the scatter is done in a space stretched upright and the cells
-   * are squashed back down afterwards — same tiling, same absence of seams,
-   * stones that lie down.
+   * How much wider than tall the stones come out. Evenly scattered sites give
+   * cells as tall as they are wide, and a wall of those reads as a cobbled path
+   * stood on its end — so the scatter runs in a space stretched upright and the
+   * cells are squashed back down afterwards.
    */
   lie = 1.5,
 ): void {
@@ -202,12 +149,10 @@ export function scatter(
 }
 
 /**
- * A smooth wander, read off position alone.
- *
- * Two sines per axis at frequencies with no visible common factor — one about a
- * metre across, one about a quarter of that. Because it is a function of *where
- * a vertex is* rather than of which cell it belongs to, two cells meeting at a
- * point move together and the tiling survives.
+ * A smooth wander, read off position alone: two sines per axis at frequencies
+ * with no visible common factor. Because it is a function of where a vertex is
+ * rather than of which cell it belongs to, two cells meeting at a point move
+ * together and the tiling survives.
  */
 function warp(p: Point, amount: number, a: number, b: number): Point {
   const dx =
@@ -228,13 +173,9 @@ export function wander(
   amount: number,
   held?: { at: number; over: number; seam: (y: number) => number },
   /**
-   * A height the wander is held to, and how far either side it eases off.
-   *
-   * For where one course has to meet another built separately — a coping on a
-   * wall face. Both are warped, by different fields, so their edges disagree by
-   * twice the warp; the only way to bed the coping close down onto the face
-   * without a gap opening somewhere along it is for neither of them to wander
-   * where they touch.
+   * A height the wander is held to, and how far either side it eases off — for
+   * where one course meets another built separately, a coping on a wall face.
+   * Both are warped by different fields, so neither may wander where they touch.
    */
   level?: { at: number; over: number },
 ): (p: Point) => Point {
@@ -255,15 +196,10 @@ export function wander(
 }
 
 /**
- * How the face wanders at a join, as a function of height and nothing else.
- *
- * The two pieces meeting there are built separately and cannot see each other,
- * so the only displacement they can both apply is one that depends on something
- * they agree about. Height is it: the same y is the same y in either piece's own
- * frame, so both sides of the join move together and the wall still tiles.
- *
- * Without it the join is the one dead-straight line in the wall, running its
- * whole height, which is exactly what a wall must never have.
+ * How the face wanders at a join, as a function of height and nothing else. The
+ * two pieces meeting there are built separately and can only both apply a
+ * displacement that depends on something they agree about, and the same y is the
+ * same y in either frame. Without it the join is one dead-straight line.
  */
 export function seam(rng: Rng, amount: number): (y: number) => number {
   const a = rng.range(0, 20);
@@ -312,12 +248,9 @@ function geometryOf(position: number[]): THREE.BufferGeometry {
 
 /**
  * A face stone: its outline in the plane of the surface, a flat crown `bulge`
- * proud of it, and a tail running back into the hearting.
- *
- * Four triangles a side. The crown fans from the middle rather than from a
- * corner, because a warped cell is not reliably convex and a corner fan on a
- * dented polygon turns triangles inside out — which the back-face cull then
- * punches a hole through.
+ * proud of it, and a tail running back into the hearting. The crown fans from
+ * the middle rather than from a corner, because a warped cell is not reliably
+ * convex and a corner fan on a dented polygon turns triangles inside out.
  */
 function faceStone(
   rng: Rng,
@@ -459,13 +392,10 @@ function hull(b: THREE.Vector3[], t: THREE.Vector3[]): THREE.BufferGeometry {
 }
 
 /**
- * A corner stone, laid on the same terms as the face stones beside it.
- *
- * A quoin cut as a plain box reads as machined next to hand-laid rubble, however
- * much its corners are knocked about — its edges are dead straight and it butts
- * its neighbours with no joint. This takes the corner's own plan, breaks the
- * long edges, wears the corners in and beds it off the courses above and below,
- * which is what `skin` does to a face stone and is why the two now match.
+ * A corner stone, laid on the same terms as the face stones beside it: the
+ * corner's own plan, long edges broken, corners worn in, bedded off the courses
+ * above and below. Cut as a plain box a quoin reads as machined next to
+ * hand-laid rubble, with dead straight edges and no joint.
  */
 export function quoinStone(
   rng: Rng,
@@ -474,10 +404,9 @@ export function quoinStone(
   high: number,
   point: Pointing,
 ): THREE.BufferGeometry {
-  // Worn in the plan, which is the x–z plane here — `bed` does not care which
-  // two axes it is given, only that they are the ones that show. Wound so the
-  // faces come out pointing away from the stone; the other way round it is
-  // inside out, and the back-face cull turns it into a hole.
+  // Worn in the plan, which is the x–z plane here — `bed` does not care which two
+  // axes it is given, only that they are the ones that show. Wound so the faces
+  // point away from the stone; the other way round it is inside out.
   let twice = 0;
   for (let i = 0; i < plan.length; i++) {
     const a = plan[i];
@@ -545,12 +474,9 @@ export function roughBox(
 }
 
 /**
- * A profile extruded through `depth`, centred on z = 0.
- *
- * The filler behind a run of dressed stones. Every stone is bedded a joint's
- * width off its neighbour, so a course laid on nothing at all has daylight
- * between each pair of them — and an arch made only of its own voussoirs is a
- * comb you can see the sky through.
+ * A profile extruded through `depth`, centred on z = 0. The filler behind a run
+ * of dressed stones: every stone is bedded a joint's width off its neighbour, so
+ * an arch made only of its own voussoirs is a comb you can see the sky through.
  */
 export function prism(profile: Cell, depth: number): THREE.BufferGeometry {
   const n = profile.length;
@@ -615,11 +541,9 @@ function blend(from: number, to: number, at: number): number {
 }
 
 /**
- * Grey with the odd warm one. Hue separates where brightness alone would not.
- *
- * `warmth` is how often a stone comes out brown. Rubble off a field is mixed;
- * dressed work — lintels, copings, a gateway's crown — was chosen from one bed
- * and passes zero.
+ * Grey with the odd warm one — hue separates where brightness alone would not.
+ * `warmth` is how often a stone comes out brown; rubble off a field is mixed,
+ * and dressed work chosen from one bed passes zero.
  */
 export function stoneColours(rng: Rng, warmth = 0.14): () => number {
   const greys = rng.chance(0.4)
@@ -634,10 +558,8 @@ export function stoneColours(rng: Rng, warmth = 0.14): () => number {
 
 /**
  * What shows in the joints: shadow on a dry wall, pointing on a mortared one.
- *
- * Both are mid greys. A joint dark enough to read as a hole draws the eye
- * straight to every place two stones failed to meet — a paler one takes the
- * same imperfection and reads it as a joint.
+ * Both are mid greys — a joint dark enough to read as a hole draws the eye to
+ * every place two stones failed to meet.
  */
 export function hearting(rng: Rng, dry: boolean): number {
   return dry
@@ -686,11 +608,8 @@ export function skin(
 
 /**
  * A regular polygon's plan, given the apothem — middle to the flat of a face.
- *
  * Face `k` looks along `phase + 2πk/n`; vertices sit halfway between faces.
- * Stated off the faces because everything about a pier is: the panels lie on
- * them and the quoins bridge them. Points are `Cell`'s `{x, y}`, where `y` is
- * the world's z.
+ * Points are `Cell`'s `{x, y}`, where `y` is the world's z.
  */
 export function polygonPlan(sides: number, apothem: number, phase = 0): Cell {
   const radius = apothem / Math.cos(Math.PI / sides);
@@ -704,12 +623,9 @@ export function polygonPlan(sides: number, apothem: number, phase = 0): Cell {
 
 /**
  * A plan extruded straight up. Convex plans only — the caps fan from the middle.
- *
- * **Winding matters and nothing downstream fixes it**: normals are derived from
- * it, so a face wound the wrong way is culled and lit inside out.
- * `polygonPlan` runs clockwise seen from above, so the *up* fan is
- * `(plan[j], plan[i], middle)` and the *down* fan is `(plan[i], plan[j],
- * middle)` — the opposite of what reads naturally.
+ * Winding matters and nothing downstream fixes it: `polygonPlan` runs clockwise
+ * seen from above, so the up fan is `(plan[j], plan[i], middle)` and the down
+ * fan is `(plan[i], plan[j], middle)`.
  */
 export function upright(plan: Cell, low: number, high: number): THREE.BufferGeometry {
   const n = plan.length;
@@ -761,15 +677,11 @@ export interface PolygonPierOptions {
 
 /**
  * A regular polygonal pier: hearting, squared quoins down every arris, rubble
- * panels between. `quoinedPier` generalised off the square, so a wall can turn
- * through angles a square pier cannot give it.
- *
- * The corner stones are the new problem. Off the square a quoin is not an
- * axis-aligned box but a parallelogram set by the two faces it bridges, and the
- * bite it takes along a face is `quoin / sin(2π/n)`. Both are solved rather than
- * approximated: a quoin that misses a face lets the panels through the arris.
- *
- * Standing on y = 0, centred on the origin.
+ * panels between. Off the square a quoin is not an axis-aligned box but a
+ * parallelogram set by the two faces it bridges, and the bite it takes along a
+ * face is `quoin / sin(2π/n)`; both are solved rather than approximated, because
+ * a quoin that misses a face lets the panels through the arris. Standing on
+ * y = 0, centred on the origin.
  */
 export function quoinedPolygon(rng: Rng, options: PolygonPierOptions): Part[] {
   const { sides, face, height, quoin, stone, point, fill, colour, phase = 0 } = options;
@@ -913,10 +825,10 @@ export function quoinedPier(rng: Rng, options: PierOptions): Part[] {
   core.translate(0, height / 2, 0);
   parts.push({ geometry: core, color: fill, sway: 0 });
 
-  // The quoins, one course at a time and the same heights all four corners
-  // round, because that is how a pier goes up. How far each stands proud
-  // alternates between the two axes course by course, which is the step in the
-  // arris that says long-and-short work without needing stones of two lengths.
+  // The quoins, one course at a time and the same heights all four corners round,
+  // because that is how a pier goes up. How far each stands proud alternates
+  // between the two axes course by course, which is the step in the arris that
+  // says long-and-short work without needing stones of two lengths.
   const courses: number[] = [];
   for (let y = 0; height - y > 1e-6; ) {
     let h = rng.range(0.24, 0.36);

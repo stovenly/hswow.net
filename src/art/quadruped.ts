@@ -9,21 +9,18 @@ import { PALETTE } from './palette';
 import type { LifeSpec, LifeOptions } from '../life/spec';
 
 /**
- * One body plan, four animals — cow, sheep, pig, dog.
+ * One body plan, four animals — cow, sheep, pig, dog. Proportion tells them
+ * apart: the body is a loft along the spine with a species profile (a cow is
+ * boxy with a sagging belly, a pig a torpedo), the legs have a knee and a hock,
+ * and every species builds its own head.
  *
- * Proportion tells them apart at a glance, so the plan carries proportion
- * properly: the body is a loft along the spine with a species profile (a cow
- * is boxy with a sagging belly, a pig a torpedo), the legs have a knee and a
- * hock, and every species builds its own head.
- *
- * Every animal is built facing +Z with its feet on y = 0, and comes back
- * rigged — see `art/rig.ts` and LIFE.md. Bones:
+ * Built facing +Z with its feet on y = 0, and rigged. Bones:
  *
  *   root ─ body ─ neck ─ head ─ earL/earR
  *        │        └ tail ─ tail2
  *        └ legFLu ─ legFLl   (and FR, BL, BR; u = upper, l = lower)
  *
- * The legs hang off the root rather than the body so a breathing or bobbing
+ * The legs hang off the root rather than the body, so a breathing or bobbing
  * body does not lift the feet off the ground.
  */
 

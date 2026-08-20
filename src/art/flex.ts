@@ -1,23 +1,17 @@
 /**
- * How much each species responds to wind, 0..1.
+ * How much each species responds to wind, 0..1. The per-vertex `sway` attribute
+ * every builder authors already says where a thing bends; this says whether the
+ * species bends at all, which is a fact about the plant rather than about a
+ * vertex — a mushroom's cap and a reed's tip are both the far end from the
+ * ground, and only one of them moves.
  *
- * The per-vertex `sway` attribute every builder authors already says *where* a
- * thing bends — roots pinned, tips free. What it cannot say is whether the
- * species bends **at all**, because that is a fact about the plant rather than
- * about a vertex: a mushroom's cap and a reed's tip are both "the far end from
- * the ground", and only one of them moves.
+ * One table rather than a field on each of seventy builders, because the
+ * judgement is comparative: the useful question is never how much a thistle moves
+ * but whether it moves more than a fern. A name that is not here does not move,
+ * which is the right default.
  *
- * Kept as one table rather than as a field on each of seventy builders,
- * because the judgement is comparative. The useful question is never "how much
- * does a thistle move" but "does a thistle move more or less than a fern", and
- * that is only answerable with the whole list in front of you.
- *
- * **A name that is not here does not move.** That is the right default: an
- * anvil that wobbles because somebody forgot is a worse failure than a new
- * plant that stands still until somebody notices.
- *
- * A leaf module with no imports, so `assemble` can apply it without a cycle
- * back through `sway`.
+ * A leaf module with no imports, so `assemble` can apply it without a cycle back
+ * through `sway`.
  */
 export const FLEX: Record<string, number> = {
   // Thin, light, and built to bend. The archetypes.
@@ -70,16 +64,11 @@ export const FLEX: Record<string, number> = {
   bramble: 0.4,
   thistle: 0.35,
 
-  // The two boundary masses, and they sit low for the same reason gorse does:
-  // what makes a hedge or a thicket read as impassable is that it is a solid
-  // interlocking body of wood, and a solid body of wood does not billow. A
-  // hedge moves less than the thicket beside it because it has been cut into
-  // one mass on purpose, where scrub is a heap of separate plants leaning on
-  // each other.
-  //
-  // `snag`, `deadfall` and `root-tangle` are deliberately absent. Dead wood
-  // does not bend — that is most of what makes it read as dead, and a swaying
-  // one would undo it from any distance.
+  // The two boundary masses sit low for gorse's reason: what makes a hedge or a
+  // thicket read as impassable is that it is a solid interlocking body of wood,
+  // and that does not billow. `snag`, `deadfall` and `root-tangle` are
+  // deliberately absent — dead wood does not bend, and that is most of what makes
+  // it read as dead.
   thicket: 0.3,
   hedge: 0.2,
 
@@ -92,13 +81,8 @@ export const FLEX: Record<string, number> = {
   // now (CLOTH.md), and their sway weights are zero — the wind shader leaves
   // them alone, so there is no double displacement.
 
-  // Moss is deliberately absent. It was here at 0.05, on the reasoning that a
-  // dead thing in a moving field draws the eye — which is true of a plant and
-  // false of this: moss is a mat lying flat against rock, with nothing
-  // standing clear of the surface to be pushed. Even a trace of movement reads
-  // as the *ground* breathing.
-  //
-  // Everything else is rigid by omission too. Mushrooms especially: a fungus
-  // is a stiff, low, fleshy thing, and a swaying one is instantly and
-  // obviously wrong in a way a stationary one never is.
+  // Moss is deliberately absent: it is a mat lying flat against rock with nothing
+  // standing clear of the surface to be pushed, and even a trace of movement reads
+  // as the ground breathing. Everything else is rigid by omission — a fungus
+  // especially, being a stiff, low, fleshy thing.
 };

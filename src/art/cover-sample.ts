@@ -13,17 +13,10 @@ import {
 
 /**
  * Where a field of groundcover is decided: the CPU sampler, and nothing else.
- *
- * Split out of `art/cover.ts` so it can run somewhere other than the main
- * thread. Nothing here touches a material, a uniform or a compiled geometry —
- * it reads a ground mesh's attributes and returns numbers — which is what lets
- * `cover.worker.ts` import it without dragging the whole art kit, and three's
- * renderer, into a worker bundle.
- *
- * It is also why the sampler is worth moving at all: it is the longest purely
- * arithmetic step in building a zone, it depends on nothing but the terrain and
- * a seed, and it already produces typed arrays that can be handed back without
- * a copy.
+ * Split out of `art/cover.ts` so it can run somewhere other than the main thread
+ * — nothing here touches a material, a uniform or a compiled geometry, which is
+ * what lets `cover.worker.ts` import it without dragging three's renderer into a
+ * worker bundle. It is the longest purely arithmetic step in building a zone.
  */
 
 /** `vec4` per terrain vertex: type index, feather, swell, thickness. */
@@ -65,15 +58,11 @@ export const PROP_ROLLS: Record<PropLayer['kind'], boolean> = {
 };
 
 /**
- * How far a wall prop turns about the vertical, radians either side of facing
- * its wall.
- *
- * A crawl gets none: it is a flat sheet half a metre wide lying in the wall
- * plane, and turning it about the vertical is what takes its far end *behind*
- * the wall, where it silently stops drawing. Its variety comes from the roll,
- * which stays in the plane. A raceme is the opposite case — compact, cannot
- * roll, but free to turn on the thing it hangs from, which shows a different
- * face of the same mesh. `check:art` measures each against its own turn.
+ * How far a wall prop turns about the vertical, radians either side of facing its
+ * wall. A crawl gets none: it is a flat sheet half a metre wide lying in the wall
+ * plane, and turning it about the vertical takes its far end behind the wall. Its
+ * variety comes from the roll. A raceme is compact and cannot roll, but is free
+ * to turn on the thing it hangs from.
  */
 export const PROP_TURN: Record<PropLayer['kind'], number> = {
   plume: 0,
@@ -118,12 +107,10 @@ export interface CoverSample {
 }
 
 /**
- * Walks the ground's triangles and rolls every blade and prop.
- *
- * Hash-driven throughout, keyed on face and blade index, so the same mesh
- * grows the same field every time a zone is rebuilt. A mesh with no painted
- * attribute grows a single stated type everywhere, with the broad fields
- * sampled at its world position — a slab beside the terrain sweeps with it.
+ * Walks the ground's triangles and rolls every blade and prop. Hash-driven
+ * throughout, keyed on face and blade index, so the same mesh grows the same
+ * field every time a zone is rebuilt. A mesh with no painted attribute grows a
+ * single stated type everywhere, sampled at its world position.
  */
 export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | null {
   const source = ground.geometry;

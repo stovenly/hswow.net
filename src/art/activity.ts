@@ -1,48 +1,19 @@
 import type { Rng } from './random';
 
 /**
- * What a source is *doing*, over time.
+ * What a source is doing, over time — not "flicker". Two halves: bands, a table
+ * of `{ hz, depth }` summed as value noise, which is how the source wanders; and
+ * events, which are what it does — a crackle, a spit, a log settling.
  *
- * Not "flicker". A flame, a firebox and a bed of coals differ in what they do,
- * and the light is only one of the things that follows from it — the sound is
- * another. So this describes the activity itself, and the consumers read it.
+ * Everything is a pure function of `t`, with no accumulated state, which is what
+ * lets the light and the sound answer the same crackle without either telling
+ * the other: the light samples backwards for envelopes that have not decayed,
+ * and a sound model enumerates forwards and schedules on the audio clock. The
+ * price of being seekable is that time is cut into slots holding at most one
+ * hashed event each, so the gaps vary widely but are not exponential.
  *
- * Two halves, and they are different kinds of thing:
- *
- * - **Bands** — how the source wanders. A table of `{ hz, depth }` summed as
- *   value noise. This is the frequency curve: a candle is mostly fast content,
- *   a stove is one slow band and nothing above it, a forge breathes at bellows
- *   pace.
- * - **Events** — what the source *does*. A crackle, a spit, a log settling. An
- *   event has a time, a strength and an envelope, and a light's response to one
- *   is a spike over the wander rather than part of it.
- *
- * ## Everything here is a pure function of `t`
- *
- * No accumulated state, no per-frame stepping. That is the load-bearing
- * decision, and it is what lets the light and the sound respond to the *same*
- * crackle without either telling the other:
- *
- * - the light samples **backwards** — which envelopes have not yet decayed;
- * - a sound model enumerates **forwards** over a lookahead window and schedules
- *   each event on the audio clock, exactly as `dsp/clock.ts` does today.
- *
- * `dsp/clock.ts` cannot serve this. It is a pump: you feed it a frame delta and
- * it hands back what happens next. It has no way to answer "what is the level
- * now", which is the only question the light asks.
- *
- * The price of being seekable is that the gaps are not exponential. True
- * Poisson arrivals have to be generated in sequence, so instead time is cut
- * into slots and each slot holds at most one hashed event — the gaps still vary
- * widely, which is what `dsp/clock.ts` is actually arguing for, but they are
- * not the real distribution.
- *
- * ## Which clock
- *
- * The frame loop's `elapsed`, in seconds. `AudioContext` counts its own and the
- * two are not the same number — an audio model reading this has to convert
- * through an epoch captured once at boot, or it will sample a signal minutes
- * away from the one lighting the room.
+ * The clock is the frame loop's `elapsed`, in seconds. `AudioContext` counts its
+ * own, so an audio model has to convert through an epoch captured at boot.
  */
 
 export interface ActivityBand {

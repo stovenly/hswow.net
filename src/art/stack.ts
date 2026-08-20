@@ -4,26 +4,15 @@ import type { MeshBuilder, BuilderWith, BuildOptions } from './types';
 import type { Rng } from './random';
 
 /**
- * Piling props on top of each other.
+ * Piling props on top of each other. `crate-stack` and `barrel-stack` are not new
+ * objects: they call the real builder and merge what comes back, rather than
+ * rebuilding a crate inside a second builder and having two definitions drift
+ * apart. That is only possible because everything the kit makes shares one
+ * attribute set, so merged geometry can be merged again.
  *
- * Two of the yard blockers — `crate-stack` and `barrel-stack` — are not new
- * objects at all. They are the crate and the barrel that already exist, several
- * of them, arranged into something that blocks a lane. Rebuilding a crate inside
- * a second builder would be the worst possible way to get that: two definitions
- * of the same object, drifting apart the first time either is touched.
- *
- * So they call the real builder and merge what comes back. That is only possible
- * because **everything the kit makes shares one attribute set** — `assemble`
- * writes every lane on every part, zeroed where unused, precisely so that merged
- * geometry can be merged again. A stack is that guarantee being spent.
- *
- * ## Measure, do not assume
- *
- * A crate rolls its own size class and a barrel sometimes lands on its side, so
- * the caller cannot know how tall a piece came out until it has one. `sizeOf`
- * answers that from the built geometry, which means a stack is laid by
- * *stacking* — put a piece down, ask how tall it is, put the next one on top —
- * rather than by guessing a pitch that a rare large roll would break.
+ * Measure, do not assume. A crate rolls its own size class and a barrel sometimes
+ * lands on its side, so a stack is laid by stacking — put a piece down, ask how
+ * tall it is, put the next one on top — rather than by guessing a pitch.
  */
 
 /** A built piece, waiting to be placed. */
@@ -33,12 +22,10 @@ export interface Piece {
 }
 
 /**
- * Builds one piece and measures it.
- *
- * Generic over the builder's own options, so a caller that needs to *say*
- * something — `barrel-stack` has to ask for an upright cask, because a cask on
- * its side cannot be stacked on — passes it through with the builder's own type
- * checking it, rather than having it silently dropped as an unknown property.
+ * Builds one piece and measures it. Generic over the builder's own options, so a
+ * caller that needs to say something — `barrel-stack` has to ask for an upright
+ * cask, because a cask on its side cannot be stacked on — passes it through with
+ * the builder's own type checking it.
  */
 export function piece<Options extends BuildOptions>(
   builder: BuilderWith<Options> | MeshBuilder,

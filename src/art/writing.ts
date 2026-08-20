@@ -4,31 +4,19 @@ import type { Rng } from './random';
 import { PALETTE } from './palette';
 
 /**
- * Marks that read as writing without being any.
+ * Marks that read as writing without being any: a caption on a plank, a page of
+ * prose in an open book — anything whose job is to say there are words here to
+ * somebody not close enough to read one of them.
  *
- * Real lettering exists — `art/lettering`, judged in the Text Showcase — and it
- * earns its keep at sign scale. This is the other end: a caption on a plank, a
- * page of prose in an open book, anything whose job is to say *there are words
- * here* to somebody who is not close enough to read a word of it. A few rows of
- * short dark bars at irregular lengths with gaps between them is what text
- * looks like once it is too small to resolve, and too small to resolve is the
- * state a reader is in until they pick the thing up.
+ * The point is the invitation, not the illusion. It has to survive being walked
+ * up to, so it must not resolve into fake glyphs; ragged word lengths on a ragged
+ * right margin is as much as the trick will bear. Nor is it to scale: a real page
+ * at 20 cm is forty lines of 2 mm type, which through this pipeline is a grey
+ * rectangle, so the marks are coarser than the thing they stand for.
  *
- * **The point is the invitation, not the illusion.** It has to survive being
- * walked up to, so it must not resolve into fake glyphs; ragged word lengths on
- * a ragged right margin is exactly as much as the trick can bear. It also does
- * not have to be to scale. A real page at 20 cm is forty lines of 2 mm type,
- * which through this pipeline is a grey rectangle — so the marks are coarser
- * than the thing they stand for, and picking the weight that *survives* beats
- * picking the weight that is correct.
- *
- * Parts rather than meshes, for the reason `art/book.ts` gives at greater
- * length: a page of this is sixty small boxes, and sixty meshes on a prop is
- * sixty draw calls for something the player reads as one surface.
- *
- * Written in the XY plane about the origin, standing out along Z and straddling
- * it — so a caller can lay the block onto any face with a rotation and not care
- * which way the relief ended up pointing.
+ * Parts rather than meshes, so a page is one draw call. Written in the XY plane
+ * about the origin, standing out along Z and straddling it, so a caller can lay
+ * the block onto any face without caring which way the relief ended up pointing.
  */
 
 export interface WritingStyle {
@@ -92,16 +80,11 @@ export function writing(
 }
 
 /**
- * A stable seed for whatever the writing is standing in for.
- *
- * Two marks of it: a given row's scribble is the same on every load, and two
- * rows never share one — which makes the marks *landmarks*. You learn where you
- * are in a rank by their shape before you can read a word of it. A note id goes
- * through here for the same reason, so a book's page does not reshuffle when
- * the world reloads.
- *
- * A cheap FNV hash. Any two distinct names have to land on distinct seeds far
- * more than they have to be well distributed.
+ * A stable seed for whatever the writing is standing in for. A given row's
+ * scribble is the same on every load and two rows never share one, which makes
+ * the marks landmarks — you learn where you are in a rank by their shape before
+ * you can read a word. A cheap FNV hash: distinctness matters far more than
+ * distribution.
  */
 export function textSeed(name: string): number {
   let hash = 2166136261;

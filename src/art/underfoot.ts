@@ -1,50 +1,26 @@
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
- * What a prop sounds like when you stand on it — **declared, one line each**.
+ * What a prop sounds like when you stand on it — declared, one line each.
  *
- * This was measured instead: every triangle's colour matched to a palette
- * family, weighted by area, largest total wins. The argument for it was good —
- * the answer is already in the geometry, a re-coloured prop changes its own
- * sound, and nobody has to remember a second place to edit. It does not work,
- * and the reason it does not work is worth stating plainly so it is not tried
- * again.
+ * Not measured off the colours. Nothing in the kit uses a palette entry raw:
+ * everything is `shade(X, k)`, and the families are only a few per cent apart at
+ * the dark end, so `STONE_DARK` shaded to 0.86 is nearer `IRON` than it is to
+ * `STONE_DARK`. A colour match is a coin flip — over eight seeds a cow came back
+ * as masonry four times. So the material is stated, and stated here in one list
+ * rather than scattered through ninety builders, because the question this file
+ * has to answer at a glance is whether anything claims to be metal that is not.
  *
- * **Nothing in the kit uses a palette entry raw.** Everything is `shade(X, k)`
- * — the same colour a bit darker or lighter — and the families are only a few
- * per cent apart in brightness at the dark end. `STONE_DARK` shaded to 0.86 is
- * nearer `IRON` than it is to `STONE_DARK`. So the measurement was a coin
- * flip, and measurably so: over eight seeds a stone wall came back as steel
- * once, a barrel as steel four times, a cow as *masonry* four times, and a
- * handrail as timber or stone in half its rolls. Every one of those is
- * something the player hears and cannot explain.
- *
- * Colour cannot tell iron from stone in this palette, and it was never going
- * to — the two are the same hue thirty per cent apart in brightness, and
- * shading moves a colour exactly that far. So the material is stated, and it
- * is stated **here**, in one list, rather than scattered through ninety
- * builders where nobody can scan it. That is the point of the shape: the
- * question this file has to answer at a glance is *"is anything claiming to be
- * metal that is not metal"*, and one screen answers it.
- *
- * ## What an entry means
- *
- * The material of the part of it you could **stand on**. Not what most of it
- * is made of — a stone wall with a timber gate hanging off it is stone,
- * because the wall is what holds you up.
- *
- * `null` is a real answer and the commonest one: **you cannot stand on this**.
- * A flower, a cow, a hanging lantern, a banner. The ground underneath answers
- * instead, which is right — you are not standing on a lantern's light.
+ * An entry is the material of the part you could stand on, not what most of it is
+ * made of: a stone wall with a timber gate hanging off it is stone. `null` is a
+ * real answer and the commonest one — you cannot stand on this, and the ground
+ * underneath answers instead.
  */
 
 /**
- * Every name that reaches `finish`, and what standing on it sounds like.
- *
- * Grouped by material rather than alphabetically, because the grouping is what
- * makes a mistake visible: a wall in the metal block is wrong on sight.
- * `check:art` asserts that every builder appears here, so a new prop cannot be
- * added without saying what it is.
+ * Every name that reaches `finish`, and what standing on it sounds like. Grouped
+ * by material rather than alphabetically, because the grouping is what makes a
+ * mistake visible: a wall in the metal block is wrong on sight.
  */
 export const MATERIALS: Record<string, SurfaceName | null> = {
   // --- stone ---------------------------------------------------------------

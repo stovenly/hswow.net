@@ -1,12 +1,10 @@
 import * as THREE from 'three';
 
 /**
- * The art kit's contract.
- *
- * Every buildable thing in the world is one of these. A builder takes a seed
- * and returns a finished mesh — no textures, no files, no loading. The seed is
- * the whole reason the world can be authored as data: a prop is a name and a
- * number, and the same number always gives back the same object.
+ * The art kit's contract. Every buildable thing in the world is one of these: a
+ * builder takes a seed and returns a finished mesh, with no textures, no files
+ * and no loading. A prop is a name and a number, and the same number always gives
+ * back the same object.
  */
 
 export interface BuildOptions {
@@ -17,13 +15,9 @@ export interface BuildOptions {
 }
 
 /**
- * What kind of thing a builder makes.
- *
- * Only used for ordering the gallery, but that is worth having: sorted purely
- * by name, a barrel sits between an ovine and a bovine and the row reads as an
- * alphabet rather than as a kit. Grouped, you can see at a glance whether the
- * furniture hangs together, whether the animals share a scale, and whether
- * anything is missing from a family.
+ * What kind of thing a builder makes. Only used for ordering the gallery, but
+ * grouped you can see at a glance whether the furniture hangs together, whether
+ * the animals share a scale, and whether anything is missing from a family.
  */
 export type BuilderCategory =
   | 'foliage'
@@ -35,9 +29,8 @@ export type BuilderCategory =
   | 'people'
   /**
    * Scenery beyond the rim — seen, never visited. A family by its invariants
-   * rather than by its subject: never solid, never swaying, never clutter,
-   * never a shadow, and a few dozen triangles each. See `art/vista.ts` and
-   * VISTA.md.
+   * rather than by its subject: never solid, never swaying, never clutter, never
+   * a shadow, and a few dozen triangles each. See `art/vista.ts`.
    */
   | 'vista';
 
@@ -57,54 +50,29 @@ export const CATEGORY_ORDER: readonly BuilderCategory[] = [
 export interface MeshBuilder {
   /** Stable identifier. Content data refers to props by this. */
   readonly name: string;
-  /**
-   * Which family it belongs to, for grouping the gallery.
-   *
-   * Required rather than optional with a default, so a new builder cannot
-   * silently land in whichever bucket the default happens to be — the art
-   * check fails until it declares one.
-   */
+  /** Which family it belongs to, for grouping the gallery. Required rather than defaulted, so a new builder cannot silently land in a bucket. */
   readonly category: BuilderCategory;
   /**
-   * What the player is told this is, when it differs from `name`.
-   *
-   * The two are not the same job. `name` is the identifier content data uses,
-   * and it says which *builder* made the thing — `hut-door` and `factory-door`
-   * are named for where they belong, which is what someone placing them needs
-   * to know. A player standing in front of one has no idea what a hut door is;
-   * they can see that it is wood, and that is the word they would use.
-   *
-   * So this is only worth setting where the builder's own name would say
-   * something the player has no way to check. Most props leave it alone,
-   * because for most props the name already is the plain word for the thing.
+   * What the player is told this is, when it differs from `name`. `name` is the
+   * identifier content data uses and says which builder made the thing —
+   * `hut-door` is named for where it belongs, which is what a placer needs. A
+   * player sees that it is wood. Only worth setting where the builder's own name
+   * would say something the player has no way to check.
    */
   readonly display?: string;
-  /**
-   * Rough horizontal extent in metres.
-   *
-   * Used to space the gallery and, later, to keep placed props from growing
-   * into one another. Approximate by design — it is a spacing hint, not a
-   * bounding volume.
-   */
+  /** Rough horizontal extent in metres, for spacing the gallery. Approximate by design: a hint, not a bounding volume. */
   readonly radius: number;
   /**
-   * How many of these are worth seeing side by side.
-   *
-   * One for a builder that does not vary with its seed. Most of the kit is meant
-   * to be scattered and rolls a different object every time, and a rank of eight
-   * is how you see whether the spread is even. A building that will be placed
-   * once in a world is designed rather than rolled, so eight of it is eight
-   * copies of one thing taking up a gallery.
-   *
-   * Omitted means the gallery's own count.
+   * How many of these are worth seeing side by side. One for a builder that does
+   * not vary with its seed; a rank of eight is how you see whether a scatter is
+   * even. A building placed once in a world is designed rather than rolled, so
+   * eight of it is eight copies of one thing. Omitted means the gallery's count.
    */
   readonly variants?: number;
   /**
-   * Whether the player collides with it. Defaults to true.
-   *
-   * Small soft things should be walked through. Blocking on a tuft of grass
-   * is not realism — it is the single most reliable way to make a world feel
-   * like a set of boxes, because the player feels every one of them.
+   * Whether the player collides with it. Defaults to true. Small soft things
+   * should be walked through: blocking on a tuft of grass is the single most
+   * reliable way to make a world feel like a set of boxes.
    */
   readonly solid?: boolean;
   build(options?: BuildOptions): THREE.Mesh;
@@ -112,12 +80,9 @@ export interface MeshBuilder {
 
 /**
  * A builder that takes something beyond the standard seed and scale — a
- * signboard's text, a fence's section count.
- *
- * It is still a `MeshBuilder`, so a gallery can call it with nothing and get
- * whatever the seed rolled, and it still sits in a list of them. This only adds
- * the option to *say*: a placer laying a boundary to a length wants the section
- * count checked rather than silently dropped as an unknown property.
+ * signboard's text, a fence's section count. Still a `MeshBuilder`, so a gallery
+ * can call it with nothing and get whatever the seed rolled; this only adds the
+ * option to say, so a placer's section count is checked rather than dropped.
  */
 export interface BuilderWith<Options extends BuildOptions> extends MeshBuilder {
   build(options?: Options): THREE.Mesh;

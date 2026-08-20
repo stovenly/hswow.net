@@ -5,36 +5,17 @@ import { createRng, type Rng } from './random';
 import { PALETTE } from './palette';
 
 /**
- * One flower plan, several species.
+ * One flower plan, several species: a stem, a disc and petals around it, at
+ * proportions that are nearly all of what tells a daisy from a sunflower from a
+ * poppy at more than a metre.
  *
- * A daisy, a sunflower and a poppy are the same three parts — a stem, a disc,
- * and petals around it — at wildly different proportions, and proportion is
- * nearly all of what tells them apart from more than a metre away. The same
- * argument the quadrupeds are built on, and it holds better here: a flower has
- * fewer distinguishing features than an animal, not more.
+ * The clump is the unit, not the bloom. Every builder here returns a spread, and
+ * the count, the spacing and the leans are what make a daisy lawn look like a
+ * daisy lawn. Every stem carries a flower: a bud at this scale is a green lump
+ * on a stick. Petals are flat cones, the same trick `grass` uses for blades.
  *
- * **The clump is the unit, not the bloom.** A single flower standing on its own
- * is a botanical illustration; what actually appears in a field is a patch of
- * them at different heights and angles, most of them not yet open. So every
- * builder here returns a spread — the count, the spacing and the proportion of
- * spacing are what make a daisy lawn look like a daisy lawn and a stand of
- * sunflowers look like a crop.
- *
- * **Every stem carries a flower.** An earlier version left a fraction of them
- * as closed buds, on the reasoning that a real patch is never all in bloom. It
- * is not, and it did not matter: a bud at this scale is a green lump on a
- * stick, indistinguishable from a modelling error, and a patch salted with them
- * reads as half-finished rather than as half-open. The variety that was wanted
- * is already there in the heights, the leans and the petal sizes.
- *
- * Petals are flat cones, the same trick `grass` uses for blades. A cone
- * squashed on one axis is three triangles and reads from every angle, where a
- * billboard needs an alpha-cut texture and there are no textures here.
- *
- * This file is not in `builders/`, so the registry does not pick it up as a
- * builder in its own right — only the species that use it are. The art check
- * maps one file in `builders/` to one builder name, so four species means four
- * files, each of which is a table and a line.
+ * Not in `builders/`, so the registry does not pick it up as a builder in its own
+ * right — only the species that use it are, one file each.
  */
 
 export interface Species {
@@ -60,43 +41,30 @@ export interface Species {
   /** Heads that hang rather than face up — a sunflower's whole posture. */
   nod: number;
   /**
-   * Builds the flowering part, replacing the disc-and-petals entirely.
+   * Builds the flowering part, replacing the disc-and-petals entirely. Four of
+   * the eight species are not a face on a stick — a foxglove is a column of
+   * bells hung down one side of a spire, cow parsley a flat table on forked rays
+   * — and those are architectures rather than proportions. A species that brings
+   * one still gets the stem, the clump, the lean and the sway weighting.
    *
-   * **Four of the eight species here are not a face on a stick**, and no amount
-   * of adjusting petal counts reaches them. A foxglove is a column of bells
-   * hung down one side of a spire; cow parsley is a flat table carried on
-   * forked rays; a thistle is a bristled globe with no petals at all. Those are
-   * *architectures*, not proportions.
-   *
-   * So a species that needs one brings it, and gets the stem, the clump, the
-   * lean and the sway weighting for nothing — which is the whole reason the
-   * shared plan is worth having even for the flowers that do not fit it.
-   *
-   * When present, `head`, `petals`, `reach`, `petalWidth`, `cup`, `petal`,
-   * `centre`, `nod` and `facing` are not consulted.
+   * When present, `petals`, `reach`, `petalWidth`, `cup`, `petal`, `centre`,
+   * `nod` and `facing` are not consulted.
    */
   head?: (context: HeadContext) => Part[];
   /**
-   * How far a head may point away from the clump's own bearing, in radians.
-   *
-   * Omit for a patch where every flower faces wherever it likes, which is right
-   * for daisies and for rough ground. Set it small for the heliotropes: a field
-   * of sunflowers all lean the *same* way, because they all spent the morning
-   * following the same sun, and a stand of them pointing in eight directions
-   * reads as wrong long before anyone works out why. Not zero, though — a
-   * perfectly aligned rank is a printed pattern.
+   * How far a head may point away from the clump's own bearing, in radians. Omit
+   * for a patch where every flower faces wherever it likes. Small for the
+   * heliotropes: a field of sunflowers all lean the same way, having spent the
+   * morning following the same sun. Not zero, though — a perfectly aligned rank
+   * is a printed pattern.
    */
   facing?: number;
 }
 
 /**
- * What a bespoke flowering head needs to know about the stem it grows on.
- *
- * `axis` is the important one. A stem is built vertical and then leaned, so any
- * point on it — a whorl a third of the way up, a bell two thirds — has to come
- * out of the same transform the geometry got. Working the offsets out by hand
- * is exactly how the heads ended up sitting beside their own stalks the first
- * time round.
+ * What a bespoke flowering head needs to know about the stem it grows on. `axis`
+ * is the important one: a stem is built vertical and then leaned, so any point on
+ * it has to come out of the same transform the geometry got.
  */
 export interface HeadContext {
   /** A point on the stem, `t` from 0 at the root to 1 at the tip. */
@@ -192,17 +160,11 @@ export function buildClump(name: string, species: Species, rng: Rng, { scale = 1
       }
     }
 
-    // Where the head sits, once the lean has carried the top of the stem off
-    // its own axis.
-    //
-    // **Taken from the transform rather than derived by hand.** The first
-    // version worked the offsets out on paper and got two signs and the height
-    // wrong, so the heads sat beside their own stems — invisible on a daisy
-    // leaning two degrees at 10 cm, and a third of a metre out on a sunflower.
-    // The stem geometry is rotated about X and then about Z, so the tip is
-    // exactly `Rz · Rx · (0, height, 0)`; asking `Vector3` for that cannot
-    // disagree with what the geometry actually did, and a hand-written formula
-    // can and did.
+    // Where the head sits, once the lean has carried the top of the stem off its
+    // own axis. Taken from the transform rather than derived by hand: the stem
+    // geometry is rotated about X and then about Z, so the tip is exactly
+    // Rz · Rx · (0, height, 0), and asking `Vector3` for that cannot disagree
+    // with what the geometry actually did.
     _tip.set(0, height, 0).applyAxisAngle(X_AXIS, tipX_a).applyAxisAngle(Z_AXIS, tipZ_b);
     const tipX = ox + _tip.x;
     const tipY = _tip.y;
@@ -247,12 +209,9 @@ export function buildClump(name: string, species: Species, rng: Rng, { scale = 1
     const petalLength = head * species.reach;
     for (let p = 0; p < species.petals; p++) {
       const bearing = (p / species.petals) * Math.PI * 2 + rng.range(-0.12, 0.12);
-      // Every petal a slightly different size. Partly because real ones are,
-      // and partly for a mechanical reason: petals built to identical
-      // dimensions and merged into one clump occasionally land exactly on top
-      // of each other, and two coincident faces z-fight against each other
-      // forever. A percent of variation makes the collision impossible rather
-      // than unlikely.
+      // Every petal a slightly different size. Partly because real ones are, and
+      // partly because petals built to identical dimensions occasionally land
+      // exactly on top of each other, and two coincident faces z-fight forever.
       const grown = petalLength * rng.range(0.88, 1.12);
       const petal = new THREE.ConeGeometry(grown * species.petalWidth * rng.range(0.9, 1.1), grown, 3);
       // Built pointing +Y and laid over to point outward, so the wide end is

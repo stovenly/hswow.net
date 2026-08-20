@@ -6,20 +6,12 @@ import { AERIAL_AIR_GLSL, fogUniforms } from '../engine/fog';
 import { REFLECT_GLSL } from '../engine/reflect';
 
 /**
- * The transmissive family: crystal, glass, bubble. SHADERS-AND-MATERIALS.md
- * Track B / M3.
- *
- * The fifth shared material, beside `ART_MATERIAL`, `ART_FINISHED_MATERIAL`,
- * `GLOW_MATERIAL` and `WATER_MATERIAL` — and water paid nearly every design cost
- * this needs, because water *is* a transmissive material with a wave generator
- * attached. What transfers verbatim: drawn in the effect chain with the opaque
- * pass's colour and depth bound as textures, its own exclusive layer, the hand
- * depth test, and pass gating from what the zone actually built.
- * `engine/Glass.ts` is the pass.
- *
- * Per-prop variation is per-vertex — `aGlass` and `aTint` — so several glass
- * props in one zone could merge into a single draw the way the art kit's parts
- * do, with no per-prop material and nothing to keep in step.
+ * The transmissive family: crystal, glass, bubble. The fifth shared material,
+ * and water paid nearly every design cost this needs — what transfers verbatim
+ * is drawing in the effect chain with the opaque pass's colour and depth bound
+ * as textures, its own exclusive layer, the hand depth test, and pass gating
+ * from what the zone actually built. Per-prop variation is per-vertex, so
+ * several glass props in one zone could merge into a single draw.
  */
 
 /** ior, dispersion, thickness in metres, density. */
@@ -207,18 +199,12 @@ export const GLASS_MATERIAL = new THREE.ShaderMaterial({
 
       float dotNV = clamp(dot(normal, view), 0.0, 1.0);
 
-      // **How much material the eye is looking through**, in metres, from the
-      // shape rather than from the depth buffer. The buffer knows where the
-      // *wall behind* is, which is the length of the air gap and not of the
-      // crystal — a gem held up against a distant sky would read as infinitely
-      // deep and one against a wall as paper thin. The chord through a convex
-      // solid is what is wanted, and for a body d deep it is d·cos(θ) where
-      // cos θ is dot(N, V): thickest looking into the middle, vanishing at the
-      // silhouette. The span is baked per face along that face's own normal, so a
-      // windowpane is three centimetres deep rather than as deep as it is wide.
-      //
-      // Flat facets make this jump facet to facet, which is not an artefact —
-      // it is what a cut gem does, each face showing its own depth of colour.
+      // How much material the eye is looking through, in metres, from the shape
+      // rather than from the depth buffer — the buffer knows where the wall
+      // behind is, which is the length of the air gap and not of the crystal. The
+      // chord through a convex solid d deep is d*cos(theta), thickest looking into
+      // the middle and vanishing at the silhouette. Flat facets make it jump,
+      // which is what a cut gem does: each face shows its own depth of colour.
       float path = span * dotNV;
 
       // --- refraction ---------------------------------------------------------
@@ -281,11 +267,9 @@ export const GLASS_MATERIAL = new THREE.ShaderMaterial({
       vec3 colour = mix(seen, reflection, fresnel);
 
       // --- fog ----------------------------------------------------------------
-      // **Only the part of this pixel that is ours gets fogged.** What came out
-      // of tScene — the refracted image, and anything the march found — was
-      // fogged for its own distance when it was drawn; hazing the composite
-      // again would fog it twice. What is genuinely this shader's is the
-      // absorption and an unmarched sky reflection.
+      // Only the part of this pixel that is ours gets fogged. What came out of
+      // tScene was fogged for its own distance when it was drawn; what is
+      // genuinely this shader's is the absorption and an unmarched sky reflection.
       float own = mix(absorbed, 1.0 - hit, fresnel);
       // The same air as the rest of the world, from the same functions - see
       // engine/fog.ts. No backticks in here: this is a template literal, and
@@ -306,17 +290,11 @@ export const GLASS_MATERIAL = new THREE.ShaderMaterial({
 };
 
 /**
- * Turns a geometry into a transmissive prop.
- *
- * **The geometry decides whether it facets**, and nothing else does: this reads
- * the interpolated vertex normal, so un-indexed geometry with face normals
- * gives hard facets and a smooth sphere gives a bubble. That is the same
- * distinction `flatShading` draws on the art material, made by construction
- * rather than by a flag that could disagree with the mesh.
- *
- * The thickness the shader absorbs over is measured here, per face and along
- * its own normal, so a big crystal is deeper than a small one of the same
- * recipe and a windowpane is as thin as it looks, with nothing to author.
+ * Turns a geometry into a transmissive prop. The geometry decides whether it
+ * facets, and nothing else does: this reads the interpolated vertex normal, so
+ * un-indexed geometry with face normals gives hard facets and a smooth sphere
+ * gives a bubble. The thickness the shader absorbs over is measured here, per
+ * face along its own normal, so a windowpane is as thin as it looks.
  */
 export function glassMesh(
   geometry: THREE.BufferGeometry,

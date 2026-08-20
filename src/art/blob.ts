@@ -3,21 +3,16 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Rng } from './random';
 
 /**
- * A sphere with its vertices shoved about — the kit's workhorse organic shape.
+ * A sphere with its vertices shoved about — the kit's workhorse organic shape,
+ * used for rocks, for the stones in a cairn, and for a sheep's fleece.
  *
- * Displacing a regular solid is most of what makes procedural geometry look
- * grown rather than generated, and it is used for rocks, for the stones in a
- * cairn, and for a sheep's fleece. Those all wanted the same twenty lines,
- * including the same non-obvious precondition, so they share them.
- *
- * **The weld has to happen first, and it has to be told what to ignore.**
- * `IcosahedronGeometry` is non-indexed: a corner shared by five faces exists
- * five times over at identical coordinates. Displace those copies
- * independently and the solid comes apart into loose triangles. `mergeVertices`
- * fixes that, but only welds vertices matching in *every* attribute — and a
- * flat-shaded polyhedron gives each face's corners that face's own normal, and
- * the UV seam gives them different texture coordinates. Both must be deleted
- * or nothing welds at all and the weld silently does nothing.
+ * The weld has to happen first, and it has to be told what to ignore.
+ * `IcosahedronGeometry` is non-indexed, so a corner shared by five faces exists
+ * five times over at identical coordinates, and displacing those copies
+ * independently pulls the solid apart. `mergeVertices` only welds vertices
+ * matching in every attribute, and a flat-shaded polyhedron gives each face's
+ * corners that face's own normal — so the normals and the UVs must be deleted or
+ * nothing welds at all.
  */
 export function lumpySphere(
   rng: Rng,
