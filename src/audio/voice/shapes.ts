@@ -42,6 +42,12 @@ export const LIQUID = 0.36;
 /** A fricative's gap, and the wider one a lateral hiss is forced through. */
 export const FRIC = 0.16;
 export const LATERAL = 0.26;
+/**
+ * An approximant's gap: just clear of the threshold the tube starts making
+ * turbulence at. A `w` or a `j` narrows without hissing, and that is the whole
+ * of the difference from a fricative.
+ */
+export const APPROX = 0.5;
 
 /** Where the tongue tip sits for a vowel: out of the way. */
 export const TIP_OPEN = 1.5;
@@ -179,7 +185,9 @@ export function liquidGap(c: Consonant, vowel: Shape): Gap {
   const { track } = closer(c.place, vowel);
   return {
     track,
-    gap: c.place === 'throat' ? 0.3 : LIQUID,
+    // A lateral is under the threshold on purpose — the midline is shut and
+    // the air goes round the sides — where an approximant stays clear of it.
+    gap: c.place === 'throat' ? 0.3 : c.manner === 'approximant' ? APPROX : LIQUID,
     jaw: Math.min(vowel.jaw, 0.4),
     bodyPos: inBody(c.place) ? bodyAt(c.place) : null,
     bodyDia: null,

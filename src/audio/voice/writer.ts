@@ -1089,10 +1089,10 @@ function writeCoda(
     }
     case 'lateral': {
       // Up into an l and held there as the voice goes.
-      lines.hold('tip', end - 0.03);
-      lines.at('tip', end, LIQUID, 'lin');
-      lines.hold('tip', end + 0.06);
-      lines.at('tip', end + 0.08, TIP_OPEN, 'lin');
+      lines.hold(track, end - 0.03);
+      lines.at(track, end, LIQUID, 'lin');
+      lines.hold(track, end + 0.06);
+      lines.at(track, end + 0.08, open, 'lin');
       lines.at('loud', end + 0.05, level * 0.5, 'lin');
       lines.at('loud', end + 0.08, 0, 'lin');
       return;

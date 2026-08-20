@@ -14,9 +14,10 @@
  */
 
 import type { AudioEngine } from '../AudioEngine';
-import { chatterScore, greetScore, lectOf, pick, score, type Score, type Tune } from '../speech';
+import {
+  babbleScore, chatterScore, greetScore, lectOf, pick, score, type Score, type Tune,
+} from '../speech';
 import type { Unit, Utterance, Voice, VoiceOptions } from './types';
-import { babbleScore } from '../speech';
 import { villagerBody } from './body';
 import { identity, write } from './writer';
 import { addThroat, dropThroat } from './tuning';
