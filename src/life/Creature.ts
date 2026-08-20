@@ -487,7 +487,7 @@ export class Creature {
       else graze(pose, t, this.salt, w, spec.grazeDrop);
     }
     if (spec.kind === 'biped' && this.state === 'business') {
-      bipedFidget(pose, this.fidget, 1 - this.timer / this.fidgetLength, t, this.salt, spec.handed ?? 1);
+      bipedFidget(pose, this.fidget, 1 - this.timer / this.fidgetLength, t, this.salt, spec.handed ?? 1, spec.gestures);
     }
 
     // The gesture, if one is running.
@@ -496,7 +496,7 @@ export class Creature {
       const t01 = this.gestureT / this.gestureLength;
       if (spec.kind === 'biped') {
         if (this.state === 'greet') {
-          bipedGreet(pose, this.greeting, t01, spec.handed ?? 1);
+          bipedGreet(pose, this.greeting, t01, spec.handed ?? 1, spec.gestures);
           faceGreet(pose, spec.face, envelope(t01, 0.22, 0.28));
         } else {
           const w = smooth(Math.min(t01 * 4, 1, (1 - t01) * 4));

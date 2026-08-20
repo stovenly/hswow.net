@@ -3,18 +3,19 @@ import type { BuilderWith } from '../types';
 import type { Part } from '../assemble';
 import { loft } from '../loft';
 import { finishRigged, type BoneSpec } from '../rig';
-import { createRng, type Rng } from '../random';
-import { PALETTE, shade } from '../palette';
+import { createRng } from '../random';
+import { shade } from '../palette';
 import type { LifeOptions, LifeSpec } from '../../life/spec';
 import { buildHead, type AnyHeadKind } from './figure-head';
-import { U_CHEST, U_WAIST, drawFrame, makeTrunk } from './figure-trunk';
-import { OVERLAYERS, SHOULDERS, WAISTS, dressBase, pickWeighted, wearExtras, type Ball, type Body } from './figure-wear';
-import { CITY_GARMENTS, CITY_OVERLAYERS, CITY_SHOULDERS, CITY_WAISTS, dressCity, wearCityExtras } from './figure-finery';
+import { U_CHEST, U_WAIST, drawFrame, makeTrunk, trunkSurface, type Body } from './figure-trunk';
+import { pickWeighted, type BoneBall } from './figure-surface';
+import { LayerStack, dress } from './figure-layers';
+import { COAT_PROUD, PEOPLE } from './figure-people';
 
 /**
  * A villager, or a cityfolk. Friendly, bipedal, and not a person. `folk` picks
- * the people: the same body in the countryside's dress and carved masks, or
- * the city's finery (`figure-finery.ts`) and helms (`figure-head-city.ts`).
+ * a `People` entry (`figure-people.ts`): the same body in the countryside's
+ * dress and carved masks, or the city's finery and helms.
  *
  * The trunk is one modelled surface (`figure-trunk.ts`): pelvis, waist,
  * ribcage and shoulders, skinned across `hips`, `torso`, `chest` and
@@ -32,110 +33,6 @@ import { CITY_GARMENTS, CITY_OVERLAYERS, CITY_SHOULDERS, CITY_WAISTS, dressCity,
  *               │        ├ clavL ─ armLu ─ armLl     (and R)
  *               └ legLu ─ legLl ─ legLf              (and R)
  */
-
-// --- palettes -------------------------------------------------------------------
-
-/** A villager's own colour: pale and desaturated, at the hands and nowhere else. */
-const HIDES = [0xc9b79c, 0xa8b08e, 0xb99a8f, 0xcdb197, 0xc2a374, 0x9c8f9e, 0xb0a48a, 0x8fa89a];
-/**
- * Cloth. One low-chroma earth palette for every villager, deliberately darker
- * than any hide and checked against it, so a crowd reads as one people and a
- * collar never reads as a bare patch.
- */
-const CLOTHS = [
-  PALETTE.BARK,
-  PALETTE.BARK_PALE,
-  PALETTE.TIMBER_DARK,
-  0x3a342b,
-  0x453d31,
-  0x4a4237,
-  0x554b42,
-  0x5a4e3e,
-  0x6b5b46,
-  0x6d5a4c,
-  0x7a6142,
-  0x7d6c53,
-  0x8a7458,
-  0x4e5344,
-  0x5f6650,
-  0x6f7562,
-  0x7a5a4a,
-];
-/** The one warmer note a villager may carry as its accent: dyed, but with earth in it. */
-const WARMS = [0x9a6b2f, 0x7a3b32, 0x4f5e34, 0x3f4a5a, 0x8a4a2a, 0x6b5a2a, 0x5b4a6a];
-const LEATHERS = [PALETTE.HIDE_DARK, PALETTE.BARK, 0x5a3a28, 0x4a3f36];
-const METALS = [PALETTE.IRON, PALETTE.BRONZE, PALETTE.IRON_PALE];
-
-/**
- * The city dresses by house: one hue taken down and up — the same dye dark,
- * mid and pale — and one contrast against it, gold, ivory, silver or black.
- * Black is only ever a contrast, never a house.
- * Everything a cityfolk wears, carries and is helmed in comes from its house,
- * so an outfit is one tone and one note, never a heap of colours.
- */
-interface House {
-  dark: number;
-  mid: number;
-  pale: number;
-  /** The contrasts the house allows, each with the metal that goes with it. */
-  contrasts: readonly { color: number; metal: number }[];
-  fur: number;
-  leather: number;
-  weight: number;
-}
-const GILT = 0xd8b45a;
-const SILVER = 0xc4c2ba;
-const GOLD = 0xc9a24a;
-const IVORY = 0xe4d9bd;
-const BLACK = 0x2b2926;
-const HOUSES: readonly House[] = [
-  // Purple.
-  { dark: 0x2e1a45, mid: 0x4b2a6b, pale: 0x7a5a99, contrasts: [{ color: GOLD, metal: GILT }, { color: IVORY, metal: GILT }], fur: 0xb19cb4, leather: 0x2a1a38, weight: 3 },
-  // Crimson.
-  { dark: 0x4a1218, mid: 0x7a1f2a, pale: 0xa8434c, contrasts: [{ color: GOLD, metal: GILT }, { color: BLACK, metal: GILT }], fur: 0x713a3e, leather: 0x3a1014, weight: 3 },
-  // Azure.
-  { dark: 0x182a58, mid: 0x2b4a86, pale: 0x5a78b0, contrasts: [{ color: IVORY, metal: SILVER }, { color: SILVER, metal: SILVER }], fur: 0xa1abbf, leather: 0x1a2440, weight: 3 },
-  // Murrey.
-  { dark: 0x3a1830, mid: 0x5c2a4a, pale: 0x8a5474, contrasts: [{ color: IVORY, metal: GILT }, { color: GOLD, metal: GILT }], fur: 0xb999a1, leather: 0x2c1424, weight: 2 },
-];
-
-/** How far apart two sRGB hexes are, as the largest channel difference. */
-function apart(a: number, b: number): number {
-  return Math.max(
-    Math.abs(((a >> 16) & 255) - ((b >> 16) & 255)),
-    Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)),
-    Math.abs((a & 255) - (b & 255)),
-  );
-}
-
-/** A cloth colour clear of the hide and of everything already worn. */
-function pickCloth(rng: Rng, hide: number, taken: readonly number[], from: readonly number[] = CLOTHS, apartBy = 34): number {
-  const clear = from.filter((c) => apart(c, hide) > 55 && taken.every((t) => apart(c, t) > apartBy));
-  return rng.pick(clear.length ? clear : from);
-}
-
-/** The three cloths: a family, not a set — the lower half and the accent are mostly the shirt taken up or down. */
-function outfit(rng: Rng, hide: number): { cloth: number; lower: number; accent: number } {
-  const cloth = pickCloth(rng, hide, []);
-  const lower = rng.chance(0.66) ? shade(cloth, rng.range(0.68, 0.82)) : pickCloth(rng, hide, [cloth]);
-  const accent = rng.chance(0.4)
-    ? pickCloth(rng, hide, [cloth, lower], WARMS)
-    : rng.chance(0.55)
-      ? shade(cloth, rng.chance(0.5) ? rng.range(0.5, 0.62) : rng.range(1.2, 1.34))
-      : pickCloth(rng, hide, [cloth, lower]);
-  return { cloth, lower, accent };
-}
-
-/** A cityfolk's house and everything drawn from it: the accent is the contrast or the pale, never a second hue. */
-function outfitCity(rng: Rng, hide: number, hose: 'plain' | 'dark'): { house: House; cloth: number; lower: number; accent: number; contrast: number; metal: number } {
-  const house = pickWeighted(rng, HOUSES);
-  const clear = house.contrasts.filter((c) => apart(c.color, hide) > 45);
-  const { color: contrast, metal } = rng.pick(clear.length ? clear : house.contrasts);
-  const cloth = house.mid;
-  const accent = rng.chance(0.6) ? contrast : house.pale;
-  const lower = hose === 'dark' ? house.dark : rng.chance(0.5) ? house.dark : shade(house.mid, 0.8);
-  return { house, cloth, lower, accent, contrast, metal };
-}
 
 const LIMB_SIDES = 8;
 
@@ -198,9 +95,10 @@ export const figure: BuilderWith<LifeOptions> = {
   radius: 0.5,
   solid: false,
 
-  build({ seed = 1, scale = 1, roam, folk = 'country', face = folk === 'city' ? 'greathelm' : 'round' }: LifeOptions = {}) {
+  build({ seed = 1, scale = 1, roam, folk = 'country', face }: LifeOptions = {}) {
     const rng = createRng(seed);
-    const city = folk === 'city';
+    const people = PEOPLE[folk];
+    const kind = (face ?? people.heads.default) as AnyHeadKind;
     const parts: Part[] = [];
     const bones: BoneSpec[] = [];
     // Names for the debug picker: everything pushed since the last mark, unless it named itself.
@@ -214,35 +112,29 @@ export const figure: BuilderWith<LifeOptions> = {
     // Height first, and everything fitted into it. The head is big — a shell
     // about twice as tall as it is wide — and under it the legs take more
     // than half, as they do on anything that walks upright.
-    const height = rng.range(1.28, 1.68);
-    const headR = rng.range(0.135, 0.172);
+    const phy = people.physique;
+    const height = rng.range(...phy.height);
+    const headR = rng.range(...phy.headR);
     const rest = height - headR * 2.6;
-    const legLength = rest * rng.range(0.53, 0.58);
+    const legLength = rest * rng.range(...phy.legFraction);
     const T = rest - legLength;
     const bottom = legLength;
     const top = bottom + T;
 
-    const frame = drawFrame(rng, T, bottom);
+    const frame = drawFrame(rng, T, bottom, phy.frame);
     // The shoulder pivot hangs just inside the acromion, so the deltoid ball
     // is seated under the shoulder cap with the cap's tip reaching over it;
     // where the upper arm needs more room to clear the ribs and a coat over
     // them, the shoulders broaden to give it.
-    const armR = T * 0.068;
+    const armR = T * phy.armR;
     const out = T * 0.1;
-    const ribsNeed = T * 0.25 * frame.chest + 0.024 + armR * 1.04 - out * 0.25;
+    const ribsNeed = T * 0.25 * frame.chest + COAT_PROUD + armR * 1.04 - out * 0.25;
     const jointX = Math.max(ribsNeed, T * 0.3 * frame.breadth - T * 0.02);
     frame.breadth = (jointX + T * 0.02) / (T * 0.3);
     const trunk = makeTrunk(frame);
-    const hide = rng.pick(HIDES);
-    // The city's base garment is drawn first: the hose under it follow its cut.
-    const garment = city ? pickWeighted(rng, CITY_GARMENTS) : undefined;
-    const dressed = garment ? outfitCity(rng, hide, garment.hose) : undefined;
-    const { cloth, lower, accent } = dressed ?? outfit(rng, hide);
-    const leather = dressed ? dressed.house.leather : rng.pick(LEATHERS);
-    const metal = dressed ? dressed.metal : rng.pick(METALS);
-    const trim = dressed ? dressed.contrast : accent;
-    const fur = dressed ? dressed.house.fur : shade(leather, 1.25);
-    const house = dressed ? { dark: dressed.house.dark, mid: dressed.house.mid, pale: dressed.house.pale, contrast: dressed.contrast, metal, fur } : undefined;
+    const hide = rng.pick(people.hides);
+    const o = people.outfit(rng, hide);
+    const { cloth, lower, accent, trim, leather, metal, fur } = o;
     const dominant: 1 | -1 = rng.chance(0.5) ? 1 : -1;
     const waistY = trunk.yOf(U_WAIST);
 
@@ -260,7 +152,7 @@ export const figure: BuilderWith<LifeOptions> = {
     bones.push({ name: 'neck', parent: 'chest', at: [0, top + 0.005, 0] });
     bones.push({ name: 'head', parent: 'neck', at: [0, top + 0.005 + neckLength, 0] });
     const built = buildHead(
-      face as AnyHeadKind,
+      kind,
       {
         rng,
         base: top + 0.005 + neckLength,
@@ -271,7 +163,7 @@ export const figure: BuilderWith<LifeOptions> = {
         leather,
         metal,
         side: dominant,
-        house,
+        house: o.house,
       },
       parts,
       bones,
@@ -287,21 +179,17 @@ export const figure: BuilderWith<LifeOptions> = {
     // cap, whose thin tip reaches over it. Hung a few degrees
     // out from the side, elbows a touch forward — a stance, not a plumb line.
     const deltoidR = armR * 1.25;
-    const upperLen = T * 0.49;
-    const foreLen = T * 0.4;
-    // The city is always sleeved, sometimes in the second cloth below the elbow, and often gloved.
-    const sleeveEnd = city ? rng.range(0.6, 0.95) : rng.range(0.35, 0.9);
-    const armWraps = city ? false : rng.chance(0.25);
-    const foreCloth = city && rng.chance(0.35) ? accent : cloth;
-    const glove = city && rng.chance(0.45) ? rng.pick([IVORY, leather, trim]) : undefined;
-    const deltoids: Ball[] = [];
+    const upperLen = T * phy.upperArm;
+    const foreLen = T * phy.forearm;
+    const { sleeveEnd, armWraps, foreCloth, glove } = people.sleeves(rng, o);
+    const deltoids: BoneBall[] = [];
     for (const side of [1, -1] as const) {
       const tag = side > 0 ? 'armL' : 'armR';
       const a = trunk.acromion;
       const joint = new THREE.Vector3(side * jointX, a.y - T * 0.09, a.z);
       const elbow = new THREE.Vector3(joint.x + side * out, joint.y - Math.sqrt(upperLen * upperLen - out * out), joint.z + T * 0.01);
       const wrist = elbow.clone().add(new THREE.Vector3(side * T * 0.015, -Math.cos(0.22) * foreLen, Math.sin(0.22) * foreLen));
-      deltoids.push({ x: joint.x, y: joint.y, z: joint.z, r: deltoidR });
+      deltoids.push({ x: joint.x, y: joint.y, z: joint.z, r: deltoidR, bone: `${tag}u` });
 
       // The deltoid is a ball on the pivot, its top just under the shoulder cap.
       const upper: [number, number][] = [
@@ -368,23 +256,13 @@ export const figure: BuilderWith<LifeOptions> = {
     // Hip joints just above the crotch, the thigh's head sat inside the
     // pelvis, and the pair of them filling the seat's width — a body wider at
     // the bottom than its own legs is a skirt.
-    const legR = T * 0.095;
+    const legR = T * phy.legR;
     const seatW = trunk.extent(0.06).w;
     const stance = seatW - legR * 1.28 * 1.02;
     const hipY = bottom + T * 0.06;
     const hipZ = trunk.extent(0.06).cz;
-    // The city wears hose, gartered under the knee or not, in pointed shoes or in boots.
-    const lowerStyle = city
-      ? pickWeighted(rng, [
-          { weight: 0.6, kind: 'hose' as const },
-          { weight: 0.4, kind: 'garters' as const },
-        ]).kind
-      : pickWeighted(rng, [
-          { weight: 0.5, kind: 'trousers' as const },
-          { weight: 0.28, kind: 'wraps' as const },
-          { weight: 0.22, kind: 'breeches' as const },
-        ]).kind;
-    const shoes = city && rng.chance(0.6);
+    const lowerStyle = pickWeighted(rng, people.lowerStyles).kind;
+    const shoes = people.shoes(rng);
     for (const side of [1, -1] as const) {
       const tag = side > 0 ? 'legL' : 'legR';
       const joint = new THREE.Vector3(side * stance, hipY, hipZ);
@@ -457,54 +335,19 @@ export const figure: BuilderWith<LifeOptions> = {
 
     // --- the outfit -------------------------------------------------------
     const body: Body = {
-      trunk,
-      hide,
+      surface: trunkSurface(trunk, deltoids),
+      layers: new LayerStack(),
       cloth,
       lower,
       accent,
       leather,
       metal,
       side: dominant,
-      deltoids,
-      layer: 0,
-      neck: 0,
-      hemU: garment ? garment.hem(rng) : rng.range(0.24, 0.36),
+      hemU: o.hem(rng),
       trim,
       fur,
     };
-    if (garment) {
-      dressCity(body, parts, garment);
-      mark('base garment');
-      const over = pickWeighted(rng, CITY_OVERLAYERS);
-      body.layer = over.proud ?? 0;
-      parts.push(...over.build(rng, body));
-      mark(`overlayer #${CITY_OVERLAYERS.indexOf(over)}`);
-      const waist = pickWeighted(rng, CITY_WAISTS);
-      parts.push(...waist.build(rng, body));
-      mark(`waist #${CITY_WAISTS.indexOf(waist)}`);
-      // Over a bulky coat (the surcoat or the cote) no cloak goes on top: one coat at a time.
-      const shoulderTable = body.layer >= 0.018 ? CITY_SHOULDERS.filter((s) => s !== CITY_SHOULDERS[1]) : CITY_SHOULDERS;
-      const shoulder = pickWeighted(rng, shoulderTable);
-      parts.push(...shoulder.build(rng, body));
-      mark(`shoulders #${CITY_SHOULDERS.indexOf(shoulder)}`);
-      wearCityExtras(rng, body, parts);
-      mark('extras');
-    } else {
-      dressBase(rng, body, parts);
-      mark('base garment');
-      const over = pickWeighted(rng, OVERLAYERS);
-      body.layer = over.proud ?? 0;
-      parts.push(...over.build(rng, body));
-      mark(`overlayer #${OVERLAYERS.indexOf(over)}`);
-      const waist = pickWeighted(rng, WAISTS);
-      parts.push(...waist.build(rng, body));
-      mark(`waist #${WAISTS.indexOf(waist)}`);
-      const shoulder = pickWeighted(rng, SHOULDERS);
-      parts.push(...shoulder.build(rng, body));
-      mark(`shoulders #${SHOULDERS.indexOf(shoulder)}`);
-      wearExtras(rng, body, parts);
-      mark('extras');
-    }
+    dress(rng, body, parts, o.base, people.catalogs, mark);
 
     const mesh = finishRigged(parts, { bones }, 'figure', 0, scale);
     const life: LifeSpec = {
@@ -522,7 +365,8 @@ export const figure: BuilderWith<LifeOptions> = {
       grazes: false,
       grazeDrop: 0,
       handed: dominant,
-      face,
+      face: kind,
+      gestures: phy.gestures,
       legs: {
         thigh: legJoint.distanceTo(legKnee) * scale,
         shin: legKnee.distanceTo(legAnkle) * scale,
