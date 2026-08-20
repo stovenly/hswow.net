@@ -41,6 +41,9 @@ import type { Catalogs, Wear } from './figure-layers';
 
 const IVORY = 0xe4d9bd;
 
+/** Where the base garment's front panel stops, below the shoulders. */
+const YOKE_U = 0.9;
+
 /** A base garment: bands up the trunk, and how the legs go under it. */
 export interface CityGarment {
   weight: number;
@@ -51,6 +54,10 @@ export interface CityGarment {
   bands(hem: number, m: Body): [number, number, number][];
   /** A panel up the front from the hem to the yoke, in this colour, as wide as `half` columns either side of centre are at the trunk’s narrowest. */
   panel?(m: Body): { color: number; half: number };
+  /** Mi-parti: the body cloth's band split down the middle, the off side in this colour. */
+  parti?(m: Body): number;
+  /** Parts of the garment beyond its bands: buttons, dagging. */
+  extra?(rng: Rng, m: Body): Part[];
 }
 
 export const CITY_GARMENTS: readonly CityGarment[] = [
@@ -70,7 +77,8 @@ export const CITY_GARMENTS: readonly CityGarment[] = [
     bands: (hem, m) => [[0, hem, m.lower], [hem, hem + 0.04, m.trim], [hem + 0.04, 1, m.cloth]],
     panel: (m) => ({ color: m.accent, half: 2 }),
   },
-  // A houppelande: long, with a broad band of the second cloth at the hem and over the shoulders.
+  // A houppelande: long, with a broad band of the second cloth at the hem and
+  // over the shoulders, the bands often dagged along their lower edges.
   {
     weight: 0.18,
     hose: 'dark',
@@ -78,6 +86,12 @@ export const CITY_GARMENTS: readonly CityGarment[] = [
     bands: (hem, m) => {
       const band = blend(m.accent, m.cloth, 0.45);
       return [[0, hem, m.lower], [hem, hem + 0.09, band], [hem + 0.09, 0.86, m.cloth], [0.86, 1, band]];
+    },
+    extra: (rng, m) => {
+      if (!rng.chance(0.65)) return [];
+      const band = blend(m.accent, m.cloth, 0.45);
+      const all: Columns = { from: 0, to: m.surface.sides - 1 };
+      return [...fringe(m, m.hemU + 0.005, all, 0.006, 0.045, band, 0.24), ...fringe(m, 0.865, all, 0.006, 0.04, band, 0.24)];
     },
   },
   // A robe of office: dark, faced at the hem, a pale stole down the front.
@@ -88,12 +102,44 @@ export const CITY_GARMENTS: readonly CityGarment[] = [
     bands: (hem, m) => [[0, hem, m.lower], [hem, hem + 0.04, m.trim], [hem + 0.04, 1, shade(m.cloth, 0.8)]],
     panel: (m) => ({ color: m.trim, half: 1 }),
   },
+  // A mi-parti doublet: the body cloth split down the middle, the off side in
+  // the accent, both seams piped in trim.
+  {
+    weight: 0.16,
+    hose: 'plain',
+    hem: (rng) => rng.range(0.38, 0.46),
+    bands: (hem, m) => [[0, hem, m.lower], [hem, hem + 0.025, m.trim], [hem + 0.025, 1, m.cloth]],
+    parti: (m) => m.accent,
+  },
+  // A peascod doublet: the front panel proud and pale, closed by a row of
+  // metal buttons from the collar to the belt.
+  {
+    weight: 0.16,
+    hose: 'plain',
+    hem: (rng) => rng.range(0.42, 0.48),
+    bands: (hem, m) => [[0, hem, m.lower], [hem, hem + 0.02, m.trim], [hem + 0.02, 1, m.cloth]],
+    panel: (m) => ({ color: shade(m.cloth, 1.16), half: 1 }),
+    extra: (rng, m) => {
+      const r = 0.0075;
+      // The run stops a button clear of the panel's top edge, so the last one sits on the panel.
+      const T = m.surface.yOf(1) - m.surface.yOf(0);
+      const low = m.hemU + 0.05;
+      const top = YOKE_U - (r + 0.004) / T;
+      const n = rng.int(6, 8);
+      const parts: Part[] = [];
+      for (let i = 0; i < n; i++) {
+        const u = low + ((top - low) * i) / (n - 1);
+        parts.push(stuck(m, new THREE.IcosahedronGeometry(r, 0), m.surface.yOf(u), 0, 0.014, m.metal));
+      }
+      return parts;
+    },
+  },
 ];
 
 /** The base cloth in bands of one sheet, closed at the crotch and the neck, and the panel laid over it. */
-export function dressCity(m: Body, parts: Part[], style: CityGarment): void {
+export function dressCity(rng: Rng, m: Body, parts: Part[], style: CityGarment): void {
   const collarU = 0.96;
-  const yokeU = 0.9;
+  const yokeU = YOKE_U;
   const bands = splitAt(style.bands(m.hemU, m), collarU).map((b) => (b[0] >= collarU - 1e-6 ? [b[0], b[1], m.trim] : b) as [number, number, number]);
   const us = [...new Set([...m.surface.us, ...bands.flatMap((b) => [b[0], b[1]])])].sort((a, b) => a - b);
 
@@ -101,6 +147,20 @@ export function dressCity(m: Body, parts: Part[], style: CityGarment): void {
     if (to - from < 1e-3) continue;
     const rows = bareRows(m.surface, us.filter((u) => u >= from - 1e-6 && u <= to + 1e-6));
     if (rows.length < 2) continue;
+    if (style.parti && base === m.cloth) {
+      // Mi-parti: the cloth band as two half sheets, split at the column
+      // boundaries nearest the centre lines — vertex S in front, S + half
+      // behind — with the seams piped in trim. The dominant side wears the off colour.
+      const N = m.surface.sides;
+      const S = Math.ceil(0.75 * N);
+      const [left, right] = m.side > 0 ? [style.parti(m), base] : [base, style.parti(m)];
+      parts.push({ geometry: sheet(rows, { columns: { from: S, to: S + N / 2 - 1 } }), color: left, skin: m.surface.skin, name: 'garment mi-parti' });
+      parts.push({ geometry: sheet(rows, { columns: { from: S + N / 2, to: S + N - 1 } }), color: right, skin: m.surface.skin, name: 'garment mi-parti' });
+      const seam = ((S + 0.5) / N) * Math.PI * 2 - 1.5 * Math.PI;
+      parts.push(ribbon(m, from + 0.01, to - 0.005, seam, 0.15, 0.004, 0.006, m.trim));
+      parts.push(ribbon(m, from + 0.01, to - 0.005, seam + Math.PI, 0.15, 0.004, 0.006, m.trim));
+      continue;
+    }
     const caps = { start: from <= 1e-6, end: to >= 1 - 1e-6 };
     parts.push({ geometry: sheet(rows, { caps }), color: base, skin: m.surface.skin, name: `garment ${from.toFixed(2)}-${to.toFixed(2)}` });
   }
@@ -113,6 +173,7 @@ export function dressCity(m: Body, parts: Part[], style: CityGarment): void {
     parts.push(stole(m, m.hemU + 0.02, yokeU, Math.sin(((panel.half + 0.5) * 2 * Math.PI) / m.surface.sides) * minW, panel.color));
   }
 
+  if (style.extra) parts.push(...style.extra(rng, m));
   parts.push(hemLip(m, m.hemU, bands));
 }
 
@@ -227,6 +288,22 @@ export const CITY_OVERLAYERS: readonly Wear<Body>[] = [
         roll.rotateX(Math.PI / 2);
         roll.translate(b.x, b.y + b.r * 0.4, b.z);
         parts.push({ geometry: roll, color: m.accent, bone: b.bone });
+      }
+      return parts;
+    },
+  },
+  // A paned doublet: puffed panes of the accent standing in ranks round the
+  // body, a darker ground showing in the grooves between.
+  {
+    regions: { waist: 0.022 },
+    weight: 0.14,
+    build: (rng, m) => {
+      const low = Math.max(m.hemU + 0.01, U_WAIST - 0.02);
+      const top = 0.9;
+      const color = shade(m.accent, rng.range(0.9, 1.05));
+      const parts: Part[] = [shell(m, low, top, 0.01, shade(m.cloth, 0.55), { fold: true })];
+      for (let c = 0; c < m.surface.sides; c += 2) {
+        parts.push(ribbon(m, low + 0.012, top - 0.012, columnBearing(m.surface, c), 0.22, 0.011, 0.011, color));
       }
       return parts;
     },
@@ -450,7 +527,7 @@ export const CITY_EXTRAS: readonly Wear<Body>[] = [
         const [x, y, z] = surface(m, u, atBearing(bearing), 0.02);
         const bead = new THREE.IcosahedronGeometry(i % 5 === 0 ? 0.008 : 0.006, 0);
         bead.translate(x, y, z);
-        parts.push({ geometry: bead, color: i % 5 === 0 ? m.metal : dark, skin: dressedSkinOf(m) });
+        parts.push({ geometry: bead, color: i % 5 === 0 ? m.metal : dark, skin: dressedSkinOf(m, 0.02) });
       }
       const y = m.surface.yOf(U_WAIST - 0.19);
       const medal = new THREE.CylinderGeometry(0.011, 0.011, 0.004, 8);
@@ -478,7 +555,7 @@ export const CITY_EXTRAS: readonly Wear<Body>[] = [
         const [x, y, z] = surface(m, u, atBearing(bearing), 0.022);
         const link = new THREE.IcosahedronGeometry(0.005, 0);
         link.translate(x, y, z);
-        parts.push({ geometry: link, color: m.metal, skin: dressedSkinOf(m) });
+        parts.push({ geometry: link, color: m.metal, skin: dressedSkinOf(m, 0.022) });
       }
       const y = m.surface.yOf(top - drop);
       const ball = new THREE.IcosahedronGeometry(0.02, 1);

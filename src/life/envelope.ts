@@ -10,7 +10,8 @@
  * One entry per left-side bone; the right side mirrors it. The legs are
  * absent on purpose: they are solved from planted feet (`legs.ts`), not
  * turned by a layer. Contact gestures scale with `GestureFit`; these are
- * the values at fit 1.
+ * the values at fit 1. `armLs`, the shoulder follower, is driven at half of
+ * `armLu` and so stays inside half its entry.
  */
 export const BIPED_ENVELOPE: Record<string, { rx: number; ry: number; rz: number }> = {
   hips: { rx: 0, ry: 0.06, rz: 0.06 }, // walk sway; the shift fidget

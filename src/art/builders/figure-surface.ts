@@ -36,6 +36,8 @@ export interface BoneBall {
   r: number;
   /** What the ball rides: the bone that carries it away when the limb moves. */
   bone: string;
+  /** A follower at the same pivot turned half as far, for the fade to blend through. */
+  half?: string;
 }
 
 /** A body surface the vocabulary dresses: heights u = 0..1, a bearing round each. */
@@ -123,22 +125,37 @@ export function surface(m: Wearer, u: number, bearing: number, proud = 0): Vec3 
 /**
  * The dressed surface's binding: the bare surface's blended weights handed
  * over to an obstacle's bone wherever the vertex stands on or near the ball —
- * 1 inside it, fading out half a radius beyond — so a band crossing a
- * shoulder travels with the arm and stretches smoothly into the part that
- * stays on the body. Rest pose unchanged: weights only matter once bones
- * move. Trimmed to the four largest and renormalised *here* — `assemble`
- * slices to four but normalises over the full list.
+ * grown by `over`, the piece's own stand-off, as `surface` grew it to drape
+ * the piece — 1 on the grown ball, fading out half a radius beyond — so a
+ * band crossing a shoulder travels with the arm and stretches smoothly into
+ * the part that stays on the body. Rest pose unchanged: weights only matter
+ * once bones move. Trimmed to the four largest and renormalised *here* —
+ * `assemble` slices to four but normalises over the full list.
+ *
+ * Where the ball names a `half` follower, the fade goes arm → half → trunk:
+ * a straight arm↔trunk blend under a big turn averages positions along the
+ * chord of the whole arc, sinking the cloth into the ball and the limb. The
+ * tent split keeps the small-angle follow equal to `w` while halving the arc
+ * any one blend spans.
  */
-export function dressedSkinOf(m: Wearer): NonNullable<Part['skin']> {
+export function dressedSkinOf(m: Wearer, over = 0): NonNullable<Part['skin']> {
   return (x, y, z) => {
     const pairs: [string, number][] = [];
     let rest = 1;
     for (const b of m.surface.obstacles) {
       const d = Math.hypot(x - b.x, y - b.y, z - b.z);
-      const w = ease(1 - Math.max(0, d - b.r) / (0.5 * b.r));
+      const w = ease(1 - Math.max(0, d - b.r - over) / (0.5 * b.r));
       if (w <= 0) continue;
-      pairs.push([b.bone, w]);
-      rest -= w;
+      if (b.half) {
+        const hi = Math.max(0, 2 * w - 1);
+        const mid = Math.min(2 * w, 2 - 2 * w);
+        if (hi > 0) pairs.push([b.bone, hi]);
+        pairs.push([b.half, mid]);
+        rest -= hi + mid;
+      } else {
+        pairs.push([b.bone, w]);
+        rest -= w;
+      }
     }
     if (rest > 1e-6) for (const [bone, w] of m.surface.skin(x, y, z)) pairs.push([bone, w * rest]);
     pairs.sort((a, b) => b[1] - a[1]);
@@ -198,7 +215,7 @@ export function band(m: Wearer, y: number, height: number, proud: number, color:
   const bevel = (u1 - u0) * 0.28;
   const drop = Math.max(0, proud - over) * 0.6;
   const rows = rowsOf(m, [u0, u0 + bevel, u1 - bevel, u1], proud, (u) => (u <= u0 || u >= u1 ? -drop : 0));
-  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m, proud) };
 }
 
 /**
@@ -241,7 +258,7 @@ export function shell(
   ];
   const flare = (u: number): number =>
     ((foldStart && u <= u0) || (foldEnd && u >= u1) ? -(proud - foldTo) - 0.0004 : 0) + (o.flare ? o.flare(u) : 0);
-  if (o.over) return { geometry: sheet(rowsOf(m, us, proud, flare), { caps: o.caps, columns: o.columns }), color, skin: dressedSkinOf(m) };
+  if (o.over) return { geometry: sheet(rowsOf(m, us, proud, flare), { caps: o.caps, columns: o.columns }), color, skin: dressedSkinOf(m, proud) };
   const rows = bareRows(m.surface, us, proud, flare);
   const inArm = (s: number, c: number): boolean => {
     const [x, y, z] = rows[s][c % m.surface.sides];
@@ -275,7 +292,7 @@ export function cape(m: Wearer, u0: number, u1: number, proud: number, thick: nu
   const us = [u0, ...m.surface.us.filter((u) => u > u0 + 1e-6 && u < u1 - 1e-6), u1];
   const outer = rowsOf(m, us, proud, flare);
   const inner = rowsOf(m, us, proud - thick, flare).reverse();
-  return { geometry: sheet([...inner, ...outer], { caps: { start: false, end: true } }), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet([...inner, ...outer], { caps: { start: false, end: true } }), color, skin: dressedSkinOf(m, proud) };
 }
 
 /**
@@ -289,7 +306,7 @@ export function stuck(m: Wearer, geometry: THREE.BufferGeometry, y: number, bear
   // rotateY(bearing) takes +Z to (sin, 0, cos): the piece faces out along its bearing.
   geometry.rotateY(bearing);
   geometry.translate(x, py, z);
-  const weights = dressedSkinOf(m)(x, py, z);
+  const weights = dressedSkinOf(m, proud)(x, py, z);
   return { geometry, color, skin: () => weights };
 }
 
@@ -307,18 +324,18 @@ export function ribbon(m: Wearer, u0: number, u1: number, bearing: number, width
     surface(m, u, at(bearing + width / 2), proud + thick),
     surface(m, u, at(bearing + width / 2), proud),
   ]);
-  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m, proud + thick) };
 }
 
 /**
  * Strips hanging from a line round the body at `u`, one per column in the
  * run: fringe on a hem or a yoke seam.
  */
-export function fringe(m: Wearer, u: number, columns: Columns, proud: number, length: number, color: number): Part[] {
+export function fringe(m: Wearer, u: number, columns: Columns, proud: number, length: number, color: number, width = 0.11): Part[] {
   const parts: Part[] = [];
   const drop = length / (m.surface.yOf(1) - m.surface.yOf(0));
   for (let c = columns.from; c <= columns.to; c++) {
-    parts.push(ribbon(m, u - drop, u, columnBearing(m.surface, c), 0.11, proud, 0.005, color));
+    parts.push(ribbon(m, u - drop, u, columnBearing(m.surface, c), width, proud, 0.005, color));
   }
   return parts;
 }
@@ -359,7 +376,7 @@ export function stole(m: Wearer, u0: number, u1: number, reach: number, color: n
     for (let i = 1; i < N; i++) row.push(surface(m, u, at(bIn - (2 * bIn * i) / N), proud));
     return row;
   });
-  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m), name: 'garment panel' };
+  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m, proud + thick), name: 'garment panel' };
 }
 
 /**
@@ -375,7 +392,7 @@ export function pleated(m: Wearer, u0: number, u1: number, proud: number, depth:
     for (let i = 0; i < m.surface.sides; i++) row.push(surface(m, u, ((i + 0.5) / m.surface.sides) * Math.PI * 2, proud + (i % 2 ? depth * k : 0)));
     return row;
   });
-  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m, proud + depth) };
 }
 
 /**
@@ -396,7 +413,7 @@ export function sash(m: Wearer, from: [number, number], to: [number, number], wi
       surface(m, u, at(b + width / 2), proud),
     ]);
   }
-  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m, proud + thick) };
 }
 
 /**
@@ -425,8 +442,10 @@ export function facing(m: Wearer, u0: number, u1: number, s: 1 | -1, xIn: number
     const ba = s * ((1 - k) * solve(u, xIn) + k * bIn);
     const bb = s * ((1 - k) * solve(u, xOut) + k * bOut);
     const bm = (ba + bb) / 2;
-    // A thin closed ring, as `ribbon`'s are: up the near edge, across the crown, down the far edge, back across the foot.
-    return [
+    // A thin closed ring, as `ribbon`'s are: up the near edge, across the crown,
+    // down the far edge, back across the foot. On s = −1 the bearings run
+    // clockwise, so the ring reverses to keep the faces outward.
+    const ring: Vec3[] = [
       surface(m, u, at(ba), lo),
       surface(m, u, at(ba), hi),
       surface(m, u, at(bm), hi),
@@ -434,8 +453,9 @@ export function facing(m: Wearer, u0: number, u1: number, s: 1 | -1, xIn: number
       surface(m, u, at(bb), lo),
       surface(m, u, at(bm), lo),
     ];
+    return s > 0 ? ring : ring.reverse();
   });
-  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet(rows, { caps: { start: true, end: true } }), color, skin: dressedSkinOf(m, hi) };
 }
 
 /** Both facings of an open front, covering the body's own edge columns wherever the chest carries them. */
@@ -478,20 +498,36 @@ export function cloak(m: Wearer, u0: number, u1: number, proud: number, color: n
   };
   const us = [u0, ...m.surface.us.filter((u) => u > u0 + 1e-6 && u < u1 - 1e-6), u1];
   const N = 20;
+  // The lining closes onto its face over the deltoids. It is bound as though
+  // it stood where the face does, so depth there is depth it slides through
+  // as the arm turns, and it would come out past the layer under the cloak.
+  const linAt = (u: number, t: number, off: number, depth: number): number => {
+    const [x, y, z] = surface(m, u, t, off);
+    let w = 0;
+    for (const b of m.surface.obstacles) {
+      const d = Math.hypot(x - b.x, y - b.y, z - b.z);
+      w = Math.max(w, ease(1 - Math.max(0, d - b.r - off) / (0.5 * b.r)));
+    }
+    return off - Math.max(0.0006, depth * (1 - w));
+  };
   const rows = us.map((u): Vec3[] => {
     const off = proud + (flare ? flare(u) : 0);
-    const lin = off - 0.006 * Math.min(1, (u1 - u) / 0.02);
+    const depth = 0.006 * Math.min(1, (u1 - u) / 0.02);
+    const lin = (t: number): number => linAt(u, t, off, depth);
     const k = u <= yoke ? 0 : (u - yoke) / (u1 - yoke);
     const bA = (1 - k) * solve(u, off) + k * bTop;
     const span = 2 * Math.PI - 2 * bA;
     // A thin C round the back: up the near edge, across the outer face, down the far edge, back across the lining.
-    const row: Vec3[] = [surface(m, u, at(bA), lin)];
+    const row: Vec3[] = [surface(m, u, at(bA), lin(at(bA)))];
     for (let i = 0; i <= N; i++) row.push(surface(m, u, at(bA + (span * i) / N), off));
-    row.push(surface(m, u, at(bA + span), lin));
-    for (let i = N - 1; i >= 1; i--) row.push(surface(m, u, at(bA + (span * i) / N), lin));
+    row.push(surface(m, u, at(bA + span), lin(at(bA + span))));
+    for (let i = N - 1; i >= 1; i--) {
+      const t = at(bA + (span * i) / N);
+      row.push(surface(m, u, t, lin(t)));
+    }
     return row;
   });
-  return { geometry: sheet(rows), color, skin: dressedSkinOf(m) };
+  return { geometry: sheet(rows), color, skin: dressedSkinOf(m, proud) };
 }
 
 // --- the base garment's shared pieces --------------------------------------------
