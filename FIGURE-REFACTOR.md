@@ -310,7 +310,7 @@ path of least resistance:
 - No cloth simulation, no weathering, no per-frame garment work.
 - No checks, probes, or throwaway tools — correctness is established by
   reading the code and by the villager/cityfolk galleries in the world.
-  the world's report is the ground truth on how it looks.
+  The report from the world is the ground truth on how it looks.
 
 ## 5. The path
 
