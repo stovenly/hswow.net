@@ -10,55 +10,39 @@ import type { Collider } from '../player/Collider';
  *           (lowpass)      (gain)              └─► send (reverb)
  * ```
  *
- * The panner does direction. Everything interesting about *place* happens in
- * the two nodes before it:
+ * The panner does direction. Everything about *place* happens in the two nodes
+ * before it. Air absorbs high frequencies far faster than low, so distance
+ * darkens a sound as well as quietening it — inverse-square alone gives a
+ * quiet sound that still seems to be next to your ear. And a wall cuts the
+ * highs hardest, because low frequencies diffract around obstacles: a machine
+ * behind a wall should thud, not vanish.
  *
- * - **Air absorption.** High frequencies are absorbed by air far faster than
- *   low ones, so distance does not merely quieten a sound, it darkens it. This
- *   is what actually sells distance; inverse-square attenuation alone gives you
- *   a quiet sound that still seems to be next to your ear.
- * - **Occlusion.** A wall between listener and source cuts the highs hardest,
- *   because low frequencies diffract around obstacles and high ones do not. A
- *   machine behind a wall should thud, not vanish.
+ * Both move with `setTargetAtTime` rather than being assigned. An `AudioParam`
+ * set directly jumps between render quanta, and a jumping cutoff is a zip.
  *
- * Both are moved with `setTargetAtTime` rather than assigned. An `AudioParam`
- * set directly jumps between render quanta, and a jumping filter cutoff is an
- * audible zip.
+ * Every emitter sits at one of three detail levels, assigned by the engine:
  *
- * ## Detail levels
+ * - `'hrtf'` — full spatialisation, for the nearest handful. A continuous
+ *   convolution per source, and the only thing that puts a sound outside your
+ *   head rather than merely on your left.
+ * - `'panned'` — equal-power. Direction without the convolution; at twenty
+ *   metres nobody can tell, and it costs almost nothing.
+ * - `'virtual'` — the model is **disconnected**, not turned down. A silent
+ *   source still has its filters and panner processed every quantum, so gating
+ *   on gain saves nothing. This is where the budget comes from.
  *
- * **HRTF panning is the most expensive node in the Web Audio API.** It runs a
- * continuous convolution against a head-related impulse response, per source,
- * forever — and it is what makes a sound seem to be *outside your head* rather
- * than merely on your left, so it is also the one thing here worth paying for.
- * The way to afford both is to pay for it only where it is audible.
- *
- * Every emitter sits at one of three levels, assigned by the engine:
- *
- * - `'hrtf'` — full spatialisation. Reserved for the nearest handful, where
- *   the difference is obvious.
- * - `'panned'` — equal-power panning. Direction without the convolution. At
- *   twenty metres nobody can tell, and it costs almost nothing.
- * - `'virtual'` — **the model is disconnected from the graph entirely.** Not
- *   turned down: disconnected. A silent source still has its filters and its
- *   panner processed every quantum, so gating on gain saves nothing at all.
- *   This is where the real budget comes from.
- *
- * Switching between the first two is done under a brief gain dip, because
- * HRTF carries an inherent delay that equal-power does not, and stepping
- * between them mid-signal is an audible discontinuity.
+ * Switching between the first two goes through a brief gain dip: HRTF carries
+ * an inherent delay that equal-power does not.
  */
 
 export interface SoundModel {
   readonly output: AudioNode;
   /**
-   * Called each frame while audible.
-   *
-   * `at` is where this model is standing, and models that care about wind
-   * should read `engine.weather.strengthAt(at.x, at.z)` rather than the global
-   * `strength`. The gust field travels, so the far treeline quickens before
-   * the near hedge — in the same order you watch it cross them. A bed has no
-   * position of its own and is handed the listener's.
+   * Called each frame while audible. `at` is where this model is standing, and
+   * models that care about wind should read `engine.weather.strengthAt(at.x,
+   * at.z)` rather than the global `strength` — the gust field travels, so the
+   * far treeline quickens before the near hedge. A bed has no position of its
+   * own and is handed the listener's.
    */
   update?(dt: number, engine: AudioEngine, at: THREE.Vector3): void;
   /** Told when the emitter goes virtual, so models can stop scheduling work. */
@@ -84,11 +68,9 @@ export interface EmitterOptions {
   coneOuter?: number;
   coneOuterGain?: number;
   /**
-   * How hard this emitter competes for the voice budget.
-   *
-   * Priority is distance divided by importance, so 2 makes an emitter behave
-   * as though it were half as far away. For the one sound in a zone that has
-   * to be heard — the thing the player is meant to walk toward — not for
+   * How hard this emitter competes for the voice budget. Priority is distance
+   * divided by importance, so 2 makes an emitter behave as though it were half
+   * as far away. For the one sound in a zone that has to be heard — not for
    * making something louder, which is what `refDistance` is for.
    */
   importance?: number;
@@ -96,25 +78,20 @@ export interface EmitterOptions {
   // --- deliberate violations of physics -----------------------------------
   //
   // Everything above models how sound actually behaves. These three switch
-  // parts of that off, and they exist for exactly one reason: in a world with
-  // a magical register, the way you signal that something is *not* an ordinary
-  // object making an ordinary noise is to have it disobey the rules every
-  // other sound in the world visibly obeys. A voice that does not get duller
-  // with distance, or that walls do not muffle, is placed by the ear as "not
-  // here" long before the player could say why.
-  //
-  // Used sparingly they are uncanny. Used often they are just a mix with no
-  // depth in it.
+  // parts of it off. In a world with a magical register, the way to signal
+  // that something is not an ordinary object making an ordinary noise is to
+  // have it disobey the rules every other sound obeys — a voice that does not
+  // dull with distance is placed by the ear as "not here" before the player
+  // could say why. Used often they are a mix with no depth in it.
 
   /** Distance stops darkening it. Reads as unnaturally present. */
   ignoreAbsorption?: boolean;
   /** Walls stop muffling it. Reads as coming from nowhere in particular. */
   ignoreOcclusion?: boolean;
   /**
-   * Clearer the further away you get, silent when you reach it.
-   *
-   * The panner's own distance model is switched off and the curve is driven
-   * from here instead, because no distance model in Web Audio runs backwards.
+   * Clearer the further away you get, silent when you reach it. The panner's
+   * own distance model is switched off and the curve driven from here, because
+   * no distance model in Web Audio runs backwards.
    */
   invertDistance?: boolean;
 }
@@ -133,17 +110,14 @@ const SWAP_DIP = 0.04;
 /**
  * Where the distance taper begins, as a fraction of `maxDistance`.
  *
- * **Web Audio's distance models never reach zero.** `inverse` clamps the
- * distance to `maxDistance` and holds whatever gain that implies — for a source
- * with `refDistance` 2.5 and `rolloff` 1.1 at 40 m that is about −29 dB, which
- * is quiet but perfectly audible in a still scene. The emitter then goes
- * virtual one metre later and stops dead.
+ * Web Audio's distance models never reach zero: `inverse` clamps the distance
+ * to `maxDistance` and holds whatever gain that implies, which for a typical
+ * source at 40 m is about -29 dB — quiet, but audible in a still scene, and
+ * then the emitter goes virtual a metre later and stops dead.
  *
- * So the far field was both too loud and, at the very edge, a step. This tapers
- * the last part of the range smoothly to silence, which makes `maxDistance`
- * mean what it looks like it means: the distance past which you cannot hear
- * this. Raising an emitter's `rolloff` steepens the near field; this fixes the
- * far one, and the two are worth tuning separately.
+ * This tapers the last of the range smoothly to silence, so `maxDistance`
+ * means the distance past which you cannot hear this. `rolloff` steepens the
+ * near field; the two are worth tuning separately.
  */
 const TAPER_FROM = 0.5;
 
@@ -233,10 +207,8 @@ export class Emitter {
   }
 
   /**
-   * Assigned by the engine once per occlusion tick. See the class doc.
-   *
-   * Idempotent — called with the same value most ticks, and only a change
-   * does anything.
+   * Assigned by the engine once per occlusion tick — see the class doc.
+   * Idempotent: called with the same value most ticks.
    */
   setDetail(next: Detail): void {
     if (next === this.detail) return;
@@ -247,16 +219,15 @@ export class Emitter {
   /**
    * Fades out, changes what the signal is routed through, fades back in.
    *
-   * **Every transition goes through silence, including going virtual.** HRTF
+   * Every transition goes through silence, including going virtual. HRTF
    * delays its output by the length of the impulse response and equal-power
-   * does not, so swapping between them mid-signal steps the waveform. And
-   * disconnecting a source that is still audible is a cut, which is worse —
-   * the `enabled` path in particular reaches here while the emitter is still
-   * at a fifth of its level, so a bare `disconnect()` would click every time a
-   * zone changed.
+   * does not, so swapping mid-signal steps the waveform; and disconnecting a
+   * source that is still audible is a cut. The `enabled` path reaches here
+   * while the emitter is still at a fifth of its level, so a bare
+   * `disconnect()` would click every time a zone changed.
    *
-   * Forty milliseconds each way, once per transition, on sounds that are by
-   * definition not the ones being listened to.
+   * Forty milliseconds each way, on sounds that are by definition not the ones
+   * being listened to.
    */
   private retarget(): void {
     const context = this.engine.context;
@@ -266,10 +237,9 @@ export class Emitter {
     this.swap.gain.setValueAtTime(this.swap.gain.value, now);
     this.swap.gain.linearRampToValueAtTime(0, now + SWAP_DIP);
 
-    // One timer per emitter. A transition that arrives while another is still
-    // pending supersedes it rather than queueing behind it — otherwise a fast
-    // walk past a cluster of sources leaves a backlog of stale swaps that fire
-    // in the wrong order.
+    // One timer per emitter. A transition arriving while another is pending
+    // supersedes it rather than queueing — a fast walk past a cluster of
+    // sources would otherwise leave stale swaps firing in the wrong order.
     window.clearTimeout(this.pending);
     this.pending = window.setTimeout(
       () => {
@@ -299,9 +269,9 @@ export class Emitter {
   }
 
   /**
-   * @param retestOcclusion Whether the occlusion raycast is due this frame.
-   *   The engine paces it; casting every frame for every emitter is the one
-   *   part of this that would actually cost something.
+   * @param retestOcclusion Whether the occlusion raycast is due this frame. The
+   *   engine paces it; casting every frame for every emitter is the one part of
+   *   this that would actually cost something.
    */
   update(dt: number, collider: Collider, retestOcclusion: boolean): void {
     if (this.detail === 'virtual' || !this.enabled) {
@@ -311,13 +281,11 @@ export class Emitter {
 
     this.model.update?.(dt, this.engine, this.position);
 
-    // **Everything below rides the occlusion tick rather than the frame.** The
-    // three writes at the end are `setTargetAtTime` with an 0.08 s time
-    // constant and a plain send level, so the filter already smooths five
-    // frames of them and a listener cannot tell 60 Hz from 8 Hz. Folding them
-    // in means one distance per emitter per tick serving the raycast, the
-    // absorption curve and the taper, instead of one per emitter per frame
-    // serving two of the three.
+    // Everything below rides the occlusion tick rather than the frame. The
+    // three writes at the end are `setTargetAtTime` with an 0.08 s constant and
+    // a plain send level, so the filter already smooths five frames of them.
+    // One distance per emitter per tick serves the raycast, the absorption
+    // curve and the taper together.
     if (!retestOcclusion) return;
 
     const distance = this.position.distanceTo(this.engine.listenerPosition);
@@ -358,9 +326,9 @@ export class Emitter {
    * is something in the way.
    *
    * Deliberately binary. Real occlusion is a question of how much material is
-   * between two points and what it is made of, and the honest answers to that
-   * cost more than this whole engine. A single ray plus a slow crossfade gets
-   * most of the way there.
+   * between two points and what it is made of, and honest answers to that cost
+   * more than this whole engine. One ray plus a slow crossfade gets most of
+   * the way there.
    */
   private testOcclusion(collider: Collider, distance: number): boolean {
     if (distance < 0.5) return false;

@@ -16,37 +16,22 @@ import { ScatterField, type ScatterSpec } from './Scatter';
 import type { Collider } from '../player/Collider';
 
 /**
- * What a place sounds like, built from a description.
- *
- * This replaces `debug/SoundGarden.ts`, which was Phase 3 scaffolding: a
- * hand-wired list of emitters hardcoded to the proving ground's anchors, whose
- * own header said it should have gone away in Phase 5. It did not, and the
- * consequence was that Arkstin Village — the first zone in this game that is a
- * *place* rather than a fixture — was silent apart from footsteps and doors.
- *
- * A zone now declares its soundscape as data, the same way it declares its fog
- * and its light, and this builds it. Content stays plain data with no engine
- * imports, which is the property Phase 10 depends on.
- *
- * ## Built once, silenced often
+ * What a place sounds like, built from a description. A zone declares its
+ * soundscape as data the same way it declares its fog and its light, and this
+ * builds it. Content stays plain data with no engine imports.
  *
  * A soundscape is **not** torn down when you walk through a door. Zones are
  * revisited constantly, granular models are not free to construct, and a gap
  * where the wind should be is far more noticeable than the memory of a few
- * dozen dormant filters. So `setActive(false)` silences and disconnects; only
- * disposing the zone itself disposes the sound.
- *
- * That mirrors the geometry rule in the other direction, and the reasoning is
- * the same one as "never dispose materials per zone": the expensive shared
- * thing outlives the cheap thing that referenced it.
+ * dozen dormant filters. `setActive(false)` silences and disconnects; only
+ * disposing the zone disposes the sound. Same rule as materials: the expensive
+ * shared thing outlives the cheap thing that referenced it.
  */
 
 /**
- * A model and its settings.
- *
- * A discriminated union rather than `{ model: string; options: object }`, so
- * that a typo in an option name is a compile error in the zone file rather
- * than a control that silently does nothing.
+ * A model and its settings. A discriminated union rather than `{ model:
+ * string; options: object }`, so a typo in an option name is a compile error
+ * in the zone file rather than a control that silently does nothing.
  */
 export type ModelSpec =
   | { model: 'wind'; options?: WindOptions }
@@ -80,28 +65,24 @@ export type EmitterSpec = ModelSpec & {
 };
 
 /**
- * A model with no position: the air you are standing in.
- *
- * Wind is the obvious one. It is not *somewhere* — you do not walk toward it —
- * so spatialising it is not merely wasteful but wrong, and it goes straight to
- * the dry bus.
+ * A model with no position: the air you are standing in. Wind is the obvious
+ * one — it is not *somewhere*, you do not walk toward it — so spatialising it
+ * is wrong as well as wasteful, and it goes straight to the dry bus.
  */
 export type BedSpec = ModelSpec & { id?: string; gain?: number };
 
 export interface SoundscapeSpec {
   /**
    * One or several. The air in a place is not one thing — wind and rain are
-   * both everywhere at once and neither is *somewhere* — so a bed is a list,
-   * mixed into one bus that `setBedLevel` ducks as a whole.
+   * both everywhere at once — so a bed is a list, mixed into one bus that
+   * `setBedLevel` ducks as a whole.
    */
   bed?: BedSpec | readonly BedSpec[];
   emitters?: readonly EmitterSpec[];
   /**
-   * One-shots fired at random points in a region at Poisson intervals.
-   *
-   * The part that makes a place sound inhabited rather than merely present.
-   * See `Scatter.ts` — the reasoning is all there, because it is more about
-   * timing than about synthesis.
+   * One-shots fired at random points in a region at Poisson intervals: the
+   * part that makes a place sound inhabited rather than merely present. See
+   * `Scatter.ts` — it is more about timing than about synthesis.
    */
   scatter?: readonly ScatterSpec[];
 }
@@ -194,12 +175,10 @@ export class Soundscape {
   }
 
   /**
-   * Switches the whole soundscape with its zone.
-   *
-   * The emitters cannot work this out for themselves: occlusion is a raycast
-   * against the collider, and once you are indoors the collider no longer
-   * contains the world they live in, so every one of them would report itself
-   * unobstructed and audible. The manager has to tell them.
+   * Switches the whole soundscape with its zone. The emitters cannot work this
+   * out for themselves: occlusion is a raycast against the collider, and once
+   * you are indoors the collider no longer contains the world they live in, so
+   * every one of them would report itself unobstructed and audible.
    */
   setActive(active: boolean): void {
     if (active === this.active) return;
@@ -210,13 +189,10 @@ export class Soundscape {
   }
 
   /**
-   * Ducks the non-positional bed without deactivating the soundscape.
-   *
-   * For being *inside* something that is not a zone of its own — the proving
-   * ground's test rooms are rooms within the exterior, and standing in one has
-   * to take the wind down and dull it, because you are hearing it through a
-   * wall. Separate from `setActive`, which is for having left the place
-   * entirely.
+   * Ducks the non-positional bed without deactivating the soundscape, for being
+   * inside something that is not a zone of its own — a test room within the
+   * exterior takes the wind down and dulls it, because you are hearing it
+   * through a wall. Separate from `setActive`, which is for having left.
    */
   setBedLevel(level: number, seconds = 0.35): void {
     if (!this.bedBus || !this.active) return;
@@ -234,12 +210,10 @@ export class Soundscape {
   }
 
   /**
-   * A model by its declared `id`.
-   *
-   * The escape hatch for the two things a pure data spec cannot express: a
-   * tuning panel that wants a live control, and a visual that has to agree
-   * with a sound — the proving ground's flywheel turns at the rpm its clank is
-   * firing at, and that link has to survive the model being declared as data.
+   * A model by its declared `id`. The escape hatch for the two things a pure
+   * data spec cannot express: a tuning panel that wants a live control, and a
+   * visual that has to agree with a sound — a flywheel turning at the rpm its
+   * clank is firing at.
    */
   find<T extends SoundModel>(id: string): T | null {
     return (this.models.get(id) as T | undefined) ?? null;
@@ -253,15 +227,15 @@ export class Soundscape {
   /**
    * Silences every emitter but one. `null` restores the lot.
    *
-   * For the sound stage, and the reason it exists: a model that sounds wrong
-   * in a mix is either wrong or merely masked, and there is no way to tell
-   * which without hearing it alone. Walking up to a source gets most of the
-   * way there and not all — the room tail is shared, and a neighbouring drone
-   * sits underneath everything however close you stand.
+   * For the sound stage: a model that sounds wrong in a mix is either wrong or
+   * merely masked, and there is no way to tell which without hearing it alone.
+   * Walking up to a source gets most of the way there and not all — the room
+   * tail is shared, and a neighbouring drone sits underneath however close you
+   * stand.
    *
-   * Deliberately not persisted anywhere. Leaving a zone re-activates every
-   * emitter through `setActive`, so a soloed stage cannot follow you out of
-   * the room and leave the world half-silent with no visible cause.
+   * Deliberately not persisted. Leaving a zone re-activates every emitter
+   * through `setActive`, so a soloed stage cannot follow you out of the room
+   * and leave the world half-silent with no visible cause.
    */
   setSolo(id: string | null): void {
     if (!this.active) return;

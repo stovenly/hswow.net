@@ -3,49 +3,32 @@ import type { OneShot } from '../Scatter';
 import { excite } from '../dsp/impact';
 
 /**
- * A bell.
+ * A bell, additive rather than modal.
  *
- * ## Why this is additive and not a modal bank
+ * `dsp/modal.ts` is the right tool for almost everything struck and the wrong
+ * one here. Its argument is that a resonator sharp enough to ring for a long
+ * time has no bandwidth left to carry timbre — and for wood, stone or iron
+ * that is fatal, because the noise *is* the material. A bell's partials
+ * genuinely are near-pure sines and they ring for ten or twenty seconds, so
+ * the thing modal synthesis loses is the thing a bell does not have. An
+ * oscillator per partial with its own exponential decay is also cheaper,
+ * exactly controllable, and numerically safe in a way a biquad at Q 600 is not.
  *
- * `dsp/modal.ts` is the right tool for almost everything struck, and it is the
- * wrong tool for this. Its whole argument is that a resonator sharp enough to
- * ring for a long time has no bandwidth left to carry timbre — a Q of 200 passes
- * a slice a few hertz wide, "a sine wave with a rumour of noise in it". For
- * wood, stone or iron that is a fatal loss, because the noise *is* the material.
- *
- * **A bell's partials genuinely are near-pure sines**, and they ring for ten or
- * twenty seconds. So the thing modal synthesis loses is the thing a bell does
- * not have, and the honest implementation is the direct one: an oscillator per
- * partial with its own exponential decay. It is also cheaper, exactly
- * controllable, and numerically safe in a way a biquad at Q = 600 is not.
- *
- * This is why there is no `bell.dsp`. The plan reserved a Faust physical model
- * for it; additive gets the same result with no wasm module, and the Faust tier
- * is better spent on the things nodes genuinely cannot do — per-sample feedback
- * loops like friction.
- *
- * ## What makes a bell a bell
- *
- * Two things, and both are in the table below.
+ * Two things make it a bell, and both are in the table below.
  *
  * **The minor third.** A tuned church bell's partials are deliberately not
- * harmonic: hum at 0.5, prime at 1, *tierce at 1.2* — a minor third above the
+ * harmonic: hum at 0.5, prime at 1, tierce at 1.2 — a minor third above the
  * strike note — then the quint at 1.5 and the nominal at 2. That flat third is
- * why bells sound solemn to Western ears and why a bell built on a harmonic
- * series sounds like an organ pipe instead.
+ * why bells sound solemn, and why a bell on a harmonic series is an organ pipe.
  *
  * **The strike note is not there.** What you hear as the pitch of a big bell is
- * the *nominal*, an octave up, which the ear folds down into a virtual pitch
- * that no partial actually occupies. This is not a curiosity — it means the
- * apparent pitch survives the low partials being filtered away by distance, and
- * it is why a bell two miles off still has a note.
- *
- * ## Warble
+ * the nominal, an octave up, which the ear folds down into a virtual pitch no
+ * partial occupies. So the apparent pitch survives the low partials being
+ * filtered away by distance, and a bell two miles off still has a note.
  *
  * Every partial is doubled and detuned by a fraction of a percent. Real bells
- * are never perfectly axisymmetric, so each mode splits into two at slightly
- * different frequencies and they beat against each other at a fraction of a
- * hertz. Without it the tail is dead and synthetic; with it the bell breathes.
+ * are never perfectly axisymmetric, so each mode splits into two and they beat
+ * against each other at a fraction of a hertz. Without it the tail is dead.
  */
 
 export interface Partial {

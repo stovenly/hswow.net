@@ -1,9 +1,6 @@
 /**
- * What a voice is, to everything outside it.
- *
- * These were declared beside the old node-graph model. They live here now,
- * with the throat, so nothing has to import a deleted file to know what an
- * `Utterance` is.
+ * What a voice is, to everything outside it. Declared here, with the throat,
+ * so nothing has to reach into the worklet to know what an `Utterance` is.
  */
 
 import type { OneShot } from '../Scatter';

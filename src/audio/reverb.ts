@@ -1,23 +1,18 @@
 /**
- * Impulse responses, generated rather than recorded.
+ * Impulse responses, generated rather than recorded — this project has no
+ * files. A synthesised IR is noise shaped by an exponential decay: noise
+ * because a room's late reverberation is dense random reflections, exponential
+ * because energy is lost as a fixed fraction per bounce.
  *
- * A convolution reverb needs an impulse response, and an IR is normally a
- * recording of a real room — a file, and this project has no files. Synthesised
- * IRs are noise shaped by an exponential decay: noise because a room's late
- * reverberation *is* dense random reflections, exponential because energy is
- * lost as a fixed fraction per bounce.
+ * That gets the tail. Two details get the room. **Damping**: air and soft
+ * surfaces absorb high frequencies faster, so a real tail darkens as it
+ * decays, and a flat-spectrum tail is a spring rather than a space.
+ * **Decorrelation**: the two channels must be different noise, or the reverb
+ * collapses to the centre of the head, which is the one thing a room never
+ * does.
  *
- * That gets you the tail. Two details get you the room:
- *
- * - **Damping.** Air and soft surfaces absorb high frequencies faster than
- *   low ones, so a real tail gets darker as it decays. A flat-spectrum tail
- *   sounds like a spring, not a space.
- * - **Decorrelation.** The two channels must be different noise. Identical
- *   channels collapse the reverb to the centre of the head, which is the one
- *   thing a room never does.
- *
- * Rendered in an `OfflineAudioContext` so the damping filter is the same
- * biquad the live graph would use, running as fast as the CPU allows.
+ * Rendered in an `OfflineAudioContext`, so the damping filter is the same
+ * biquad the live graph would use.
  */
 
 export interface RoomAcoustics {
@@ -43,10 +38,9 @@ export const ROOM_PRESETS = {
 export type RoomName = keyof typeof ROOM_PRESETS;
 
 /**
- * Renders an impulse response for the given room.
- *
- * Returns a promise: `OfflineAudioContext` is asynchronous, and at these
- * lengths the render takes long enough to matter on a phone.
+ * Renders an impulse response for the given room. Returns a promise:
+ * `OfflineAudioContext` is asynchronous, and at these lengths the render takes
+ * long enough to matter.
  */
 export async function generateImpulseResponse(
   sampleRate: number,
@@ -59,10 +53,9 @@ export async function generateImpulseResponse(
   const source = offline.createBufferSource();
   source.buffer = decayingNoise(offline, length, sampleRate, room);
 
-  // One-pole-ish lowpass standing in for absorption. It shapes the whole tail
-  // rather than the decay curve, which is a simplification — real damping is
-  // frequency-dependent decay *rate* — but the ear reads a darker tail as a
-  // softer room either way.
+  // A one-pole-ish lowpass standing in for absorption. It shapes the whole tail
+  // rather than the decay curve — real damping is a frequency-dependent decay
+  // *rate* — but the ear reads a darker tail as a softer room either way.
   const damp = offline.createBiquadFilter();
   damp.type = 'lowpass';
   // 18 kHz down to about 700 Hz across the damping range.

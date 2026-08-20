@@ -22,12 +22,11 @@ import { registerVoice } from './voice/Voice';
  * buffer cuts its tail dead, so walking through a doorway would chop the room
  * you just left instead of letting it fall away behind you.
  *
- * The duck bus does nothing yet. Phase 8 pulls it down under dialogue.
+ * The duck bus is a stub until there is dialogue to duck under.
  *
  * Browsers refuse to start an `AudioContext` without a user gesture, so the
- * context is created suspended and resumed on the first click, key or touch.
- * On desktop that is the same click that grabs pointer lock, so nothing has to
- * be asked of the player.
+ * context is created suspended and resumed on the first click or key. On
+ * desktop that is the same click that grabs pointer lock.
  */
 
 export interface AudioSettings {
@@ -35,12 +34,9 @@ export interface AudioSettings {
   /** Multiplies every emitter's reverb send. 0 kills the rooms entirely. */
   reverbAmount: number;
   /**
-   * How hard distance darkens a sound, 0..1.
-   *
-   * Air absorbs high frequencies far more than low ones, so a distant sound is
-   * not merely a quiet one — it is a dull one. This is the single control that
-   * most decides whether the world has depth or is a flat mix of loud and
-   * soft things.
+   * How hard distance darkens a sound, 0..1. Air absorbs high frequencies far
+   * more than low, so a distant sound is dull as well as quiet — this is the
+   * control that most decides whether the world has depth.
    */
   airAbsorption: number;
   /** How much a wall between you and a sound muffles it, 0..1. */
@@ -61,22 +57,18 @@ export const DEFAULT_AUDIO: AudioSettings = {
 const OCCLUSION_INTERVAL = 0.12;
 
 /**
- * How many emitters get full HRTF spatialisation.
- *
- * The most expensive node in the API, and the one that makes a sound seem to
- * be outside your head rather than merely on one side of it. Eight is enough
- * that everything in the room with you is fully placed, and few enough that a
- * zone can afford forty sources.
+ * How many emitters get full HRTF spatialisation. The most expensive node in
+ * the API, and the one that puts a sound outside your head rather than merely
+ * on one side of it. Enough that everything in the room with you is placed,
+ * few enough that a zone can afford forty sources.
  */
 const HRTF_VOICES = 8;
 
 /**
- * Ceiling on emitters that are audible at all.
- *
- * Beyond this the quietest are forced virtual — disconnected, not turned down.
- * A cap is what stops a dense zone degrading into a wash: past a couple of
- * dozen simultaneous sources nothing is individually audible anyway, so the
- * ones that lose are ones nobody could have picked out.
+ * Ceiling on emitters that are audible at all. Beyond this the quietest are
+ * forced virtual — disconnected, not turned down. Past a couple of dozen
+ * simultaneous sources nothing is individually audible anyway, so the ones
+ * that lose are ones nobody could have picked out.
  */
 const VOICE_CAP = 24;
 
@@ -106,30 +98,24 @@ export class AudioEngine {
   private occlusionTimer = 0;
 
   /**
-   * Every live emitter, so the budget can be allocated across all of them.
-   *
-   * An emitter cannot decide its own detail level: whether it deserves HRTF
-   * depends entirely on what *else* is audible, which is knowledge only the
-   * engine has. Emitters register themselves on construction.
+   * Every live emitter, so the budget can be allocated across all of them. An
+   * emitter cannot decide its own detail level: whether it deserves HRTF
+   * depends on what *else* is audible, which only the engine knows. Emitters
+   * register themselves on construction.
    */
   private readonly emitters = new Set<Emitter>();
   /**
-   * The ranking, and the entries it is built out of.
-   *
-   * The array was reused across ticks and its *contents* were not — one object
-   * literal per emitter per tick, a few hundred short-lived objects a second
-   * for a list that is thrown away immediately. `entries` holds one object per
-   * rank and grows to the high-water mark; `ranking` is emptied and refilled
-   * with references to them, which allocates nothing.
+   * The ranking, and the entries it is built out of. `entries` holds one object
+   * per rank and grows to the high-water mark; `ranking` is emptied and
+   * refilled with references to them, so a tick allocates nothing.
    */
   private readonly entries: { emitter: Emitter; priority: number }[] = [];
   private readonly ranking: { emitter: Emitter; priority: number }[] = [];
 
   /**
-   * The feedback-delay-network reverb, when it loads.
-   *
-   * `null` means the wasm did not arrive and the convolvers below are carrying
-   * the rooms instead. Both paths exist permanently and exactly one is audible.
+   * The feedback-delay-network reverb, when it loads. `null` means the wasm did
+   * not arrive and the convolvers are carrying the rooms instead. Both paths
+   * exist permanently and exactly one is audible.
    */
   private faust: FaustNode | null = null;
   private faustWet: GainNode | null = null;
@@ -140,9 +126,8 @@ export class AudioEngine {
    * @param latencyHint How big a buffer to ask the device for. `'interactive'`
    *   is the smallest it will give, because footsteps that arrive late feel
    *   like someone else's footsteps; `'playback'` is at least 20 ms on Windows
-   *   and is what survives a machine that is busy with something else. A
-   *   context's buffer size is fixed once it is open, so this is the one player
-   *   setting that cannot be changed without a reload.
+   *   and survives a busy machine. A context's buffer size is fixed once it is
+   *   open, so this cannot be changed without a reload.
    */
   constructor(latencyHint: AudioContextLatencyCategory = 'interactive') {
     this.context = new AudioContext({ latencyHint });
@@ -154,13 +139,12 @@ export class AudioEngine {
 
     // A limiter, not a compressor, despite the node's name. Procedural audio
     // has no mastering engineer, and a dozen emitters lining up in phase is a
-    // matter of when, not if.
+    // matter of when rather than if.
     //
-    // It has to be **out of the way until something would actually clip**. At
-    // −6 dB with a 6 dB knee it began working at −12, which a villager talking
-    // three metres away clears on its own: every syllable pulled the whole mix
-    // down and let it back up over a quarter of a second, and a voice put
-    // through that sounds compressed, because it is.
+    // It has to stay out of the way until something would actually clip. A
+    // threshold that starts working on a villager talking three metres away
+    // pulls the whole mix down on every syllable, and a voice through that
+    // sounds compressed, because it is.
     const limiter = this.context.createDynamicsCompressor();
     limiter.threshold.value = -2;
     limiter.knee.value = 2;
@@ -206,12 +190,9 @@ export class AudioEngine {
       names.map((name) => generateImpulseResponse(this.context.sampleRate, ROOM_PRESETS[name])),
     );
 
-    // **Only if the network did not arrive.** A `ConvolverNode` is one of the
-    // most expensive nodes in the API and it does not stop working when its
-    // output gain is zero — it keeps convolving the send bus into silence. The
-    // first version built all three regardless and left them running forever
-    // behind a muted gain, which is three FFT-based convolutions a quantum for
-    // nothing at all.
+    // Only if the network did not arrive. A `ConvolverNode` is one of the most
+    // expensive nodes in the API and it does not stop working when its output
+    // gain is zero — it keeps convolving the send bus into silence.
     if (this.faust) return;
 
     names.forEach((name, index) => {
@@ -242,13 +223,10 @@ export class AudioEngine {
 
     // --- the network -------------------------------------------------------
     //
-    // **No crossfade, and that is the improvement.** Swapping a convolver's
-    // buffer cuts its tail dead, which is why there are two of them fading
-    // past each other. An FDN has no buffer to swap: changing its decay
-    // changes the feedback gains, so the tail already ringing carries on and
-    // simply starts dying at the new rate. Walking out of a hall stops being
-    // a crossfade between two rooms and becomes the room itself changing size,
-    // which is what actually happens.
+    // No crossfade, and none is wanted. An FDN has no buffer to swap: changing
+    // its decay changes the feedback gains, so the tail already ringing carries
+    // on and starts dying at the new rate. Walking out of a hall is the room
+    // changing size rather than two rooms fading past each other.
     if (this.faust && this.faustWet) {
       // Bass rings longer than treble in any real room — it is most of what
       // makes stone sound like stone — and a single RT60 cannot say so.
@@ -285,21 +263,13 @@ export class AudioEngine {
   }
 
   /**
-   * The reverb's compiled module, for a generated tuning panel.
+   * The reverb's compiled module, for a generated tuning panel. `null` on the
+   * convolution fallback, which has nothing to expose — an impulse response is
+   * not adjustable, and that is the whole reason the network exists.
    *
-   * `null` on the convolution fallback, which has nothing to expose — an
-   * impulse response is not adjustable, and that is the whole reason the
-   * network exists. **This is what it was worth building for.** `ROOM_PRESETS`
-   * are three fixed rooms and the way to arrive at a fourth is to hear the dial
-   * move, which an IR cannot do: changing one means rendering a new one, and
-   * the swap cuts the tail dead at the exact moment you would be listening.
-   *
-   * There was a `tuneRoom(rt60, damping, preDelay)` here, taking preset units
-   * and mapping them onto the module's controls. The generated panel covers
-   * strictly more — separate low and mid decay, and the crossover between
+   * The panel reaches separate low and mid decay and the crossover between
    * them, which is most of what makes stone sound like stone and which a
-   * single RT60 cannot say — so the wrapper was two unit conversions guarding
-   * a narrower surface.
+   * single RT60 cannot say.
    *
    * `setRoom` rewrites all of these on every zone change, so a hand-set decay
    * lasts until the next doorway. That is the intended lifetime: the panel is
@@ -311,11 +281,9 @@ export class AudioEngine {
 
   /**
    * An analyser across the master bus, built the first time it is asked for.
-   *
-   * Tapped off `master` rather than off the destination, because the limiter
-   * sits after it and looking at a limited signal tells you what survived
-   * rather than what was sent. Never created unless something asks: an FFT per
-   * frame is not free, and nothing in the game proper wants one.
+   * Tapped off `master` rather than the destination, because the limiter sits
+   * after it and a limited signal tells you what survived rather than what was
+   * sent. Never created unless something asks — an FFT per frame is not free.
    */
   get analyser(): AnalyserNode {
     if (!this.tap) {
@@ -369,12 +337,10 @@ export class AudioEngine {
   }
 
   /**
-   * Hands out the HRTF and audibility budgets.
-   *
-   * Ranked by distance over importance, so an emitter marked important
-   * competes as though it were nearer. Anything past its own `maxDistance` is
-   * out regardless of rank — the budget decides between things you *could*
-   * hear, it does not resurrect things you could not.
+   * Hands out the HRTF and audibility budgets, ranked by distance over
+   * importance, so an emitter marked important competes as though it were
+   * nearer. Anything past its own `maxDistance` is out regardless of rank: the
+   * budget decides between things you could hear.
    */
   private allocateVoices(): void {
     this.ranking.length = 0;
@@ -398,12 +364,9 @@ export class AudioEngine {
 
     this.ranking.sort((a, b) => a.priority - b.priority);
 
-    // **Hysteresis, or the boundaries chatter.** Two emitters at nearly equal
-    // priority swap ranks on almost every tick, and each swap costs a fade out
-    // and back in. Without a dead band, standing still between two sources of
-    // similar distance produces a continuous flutter on both. Holding a level
-    // until the emitter is clearly past the threshold costs a couple of extra
-    // HRTF voices in the worst case and removes the artifact entirely.
+    // Hysteresis, or the boundaries chatter. Two emitters at nearly equal
+    // priority swap ranks on almost every tick and each swap costs a fade out
+    // and back in. A dead band costs a couple of extra HRTF voices at worst.
     const SLACK = 2;
     for (let i = 0; i < this.ranking.length; i++) {
       const { emitter } = this.ranking[i];

@@ -1,43 +1,36 @@
 /**
- * Global weather: one wind, felt by everything.
- *
- * Wind speed and direction are world parameters rather than per-emitter ones,
- * so the trees rustle when the wind actually gusts. Coherence is the whole
- * point — a foliage emitter with its own private randomness sounds like a
- * separate machine making leaf noises, however good the grain synthesis is.
+ * Global weather: one wind, felt by everything. Speed and direction are world
+ * parameters rather than per-emitter ones, so the trees rustle when the wind
+ * actually gusts — a foliage emitter with its own private randomness sounds
+ * like a separate machine making leaf noises, however good the synthesis is.
  *
  * The gust signal is smooth 1-D value noise, not an LFO. An LFO reads as
- * periodic inside about thirty seconds, and once heard it cannot be unheard;
+ * periodic inside about thirty seconds and cannot be unheard once it does;
  * layered value noise never repeats at any scale a player will sit through.
  */
 
 /**
- * Octave weights for the gust field.
- *
- * Weighted hard toward the slowest layer rather than the usual halving. Equal
- * octaves give a field that is busy at every scale at once — constant fidget,
- * no shape — and summing several of them also pulls the distribution into a
- * tight clump around the mean. One dominant slow layer with detail sprinkled
- * on top is what gusting actually sounds like: a long push with texture in it.
+ * Octave weights for the gust field. Weighted hard toward the slowest layer
+ * rather than the usual halving: equal octaves give a field busy at every
+ * scale at once — constant fidget, no shape — and summing several also pulls
+ * the distribution into a tight clump around the mean. One dominant slow layer
+ * with detail on top is what gusting sounds like.
  */
 const OCTAVE_AMPLITUDES = [1, 0.4, 0.2, 0.1];
 const OCTAVE_FREQUENCIES = [1, 2.7, 6.1, 13.3];
 
 /**
- * How much slower the swell runs than the gusting.
- *
- * This is the ebb and flow: a separate, very slow field that moves the
- * baseline wind up and down over minutes, so there are long calm stretches and
- * long blustery ones rather than a permanent medium breeze with bumps in it.
- * At the default gust rate one swell takes something over three minutes.
+ * How much slower the swell runs than the gusting. This is the ebb and flow: a
+ * very slow field moving the baseline up and down over minutes, so there are
+ * long calm stretches and long blustery ones rather than a permanent medium
+ * breeze with bumps in it. One swell takes something over three minutes.
  */
 const SWELL_RATIO = 0.11;
 
 /**
- * Integer mix rather than the usual `fract(sin(n) * large)`. The sine trick
- * has structure in it — visible as banding in graphics, and here as slow
- * correlations that would put a period back into a signal whose whole purpose
- * is not having one.
+ * Integer mix rather than the usual `fract(sin(n) * large)`. The sine trick has
+ * structure in it — banding in graphics, and here slow correlations that would
+ * put a period back into a signal whose whole purpose is not having one.
  */
 function hash(n: number): number {
   let x = Math.imul(n | 0, 0x27d4eb2d);
@@ -56,18 +49,14 @@ function valueNoise(t: number): number {
 }
 
 /**
- * Expansion applied to the summed octaves.
- *
- * Adding several independent random octaves produces a distribution clustered
- * hard around its mean — the central limit theorem, doing exactly what it
- * always does. Left alone, the gust technically varies across its full range
- * and audibly never leaves the middle of it: measured over ten minutes, the
- * raw field spent one second above 0.75, so the wind's whistle layer, which
- * scales as the cube of strength, would effectively have been dead code.
+ * Expansion applied to the summed octaves. Adding several independent random
+ * octaves clusters the distribution hard around its mean, so the raw field
+ * varies across its full range and audibly never leaves the middle of it —
+ * and the wind's whistle layer, which scales as the cube of strength, would
+ * never trigger.
  *
  * Expanding and clamping costs the very extremes, which become brief plateaus.
- * That is not a defect: a sustained lull and a gust that holds are both things
- * weather does.
+ * A sustained lull and a gust that holds are both things weather does.
  */
 const CONTRAST = 1.35;
 
@@ -92,28 +81,23 @@ export interface WeatherSettings {
   /** Compass direction the wind comes from, radians. Used for panning bias. */
   windDirection: number;
   /**
-   * How fast a gust travels across the world, in metres per second.
-   *
-   * **This is what makes the wind a front rather than a switch.** Without it
-   * the whole world's strength is one number, so every tree in a valley starts
-   * moving on the same frame and every foliage emitter quickens together —
-   * which does not read as weather, it reads as a global parameter being
-   * turned, because that is exactly what it is.
+   * How fast a gust travels across the world, in metres per second — what makes
+   * the wind a front rather than a switch. Without it every tree in a valley
+   * starts moving on the same frame, which reads as a global parameter being
+   * turned, because that is what it is.
    *
    * With it, the same gust reaches each point later the further downwind it
-   * stands, and you can watch it cross. At 9 m/s a gust takes about eleven
-   * seconds to cross Arkstin's bowl: slow enough to see coming, fast enough
-   * not to read as a wave effect rolling through.
+   * stands. At 9 m/s a gust takes about eleven seconds to cross Arkstin's
+   * bowl: slow enough to see coming, fast enough not to read as a wave.
    */
   frontSpeed: number;
 }
 
 export const DEFAULT_WEATHER: WeatherSettings = {
   windSpeed: 0.5,
-  // Wide on purpose. Layered value noise clusters around its mean — the sum of
-  // several random octaves rarely reaches its extremes — so a modest depth
-  // gives a wind that technically varies and audibly does not. The wind
-  // whistle scales as the cube of strength, and a signal that never gets past
+  // Wide on purpose. Layered value noise clusters around its mean, so a modest
+  // depth gives a wind that technically varies and audibly does not — and the
+  // whistle scales as the cube of strength, so a signal that never gets past
   // 0.6 never triggers it at all.
   gustDepth: 0.6,
   gustRate: 0.06,
@@ -141,23 +125,19 @@ export class Weather {
   }
 
   /**
-   * The field itself: strength at a point in gust-time.
-   *
-   * **A pure function of its argument, and that is the whole design.** It is
-   * evaluated three ways — here for the global reading, per emitter for the
-   * audio, and per vertex on the GPU through a lookup table sampled from this
-   * very method — and because it depends on nothing but the phase handed to
-   * it, all three agree exactly. What you see and what you hear are then the
-   * same event rather than two ambiences that happen to share a room.
+   * The field itself: strength at a point in gust-time, and a pure function of
+   * its argument. It is evaluated three ways — here for the global reading, per
+   * emitter for the audio, and per vertex on the GPU through a lookup table
+   * sampled from this method — and because it depends on nothing but the phase
+   * handed to it, all three agree exactly.
    */
   fieldAt(phase: number): number {
     const { windSpeed, gustDepth } = this.settings;
     const gust = fbm(phase);
     const swell = valueNoise(phase * SWELL_RATIO + 91.7);
     // Three scales stacked: the setting is the climate, the swell is the hour,
-    // the gust is the moment. Without the middle one the wind has no shape
-    // over any span longer than about ten seconds, which is the difference
-    // between weather and a texture that happens to wobble.
+    // the gust is the moment. Without the middle one the wind has no shape over
+    // any span longer than about ten seconds.
     const baseline = windSpeed * (0.45 + swell * 1.1);
     return Math.min(1, Math.max(0, baseline + (gust - 0.5) * gustDepth));
   }
@@ -166,11 +146,10 @@ export class Weather {
    * How far behind the leading edge a point in the world is, in gust-time.
    *
    * A gust travels along the wind, so somewhere downwind meets it later. The
-   * lag is the distance measured *along* the wind divided by how fast the
-   * front moves — and the projection is what makes it a front: everything on
-   * the same line across the wind receives it together, which is what a front
-   * is. Upwind points give a negative lag and are ahead of the reading here,
-   * which is fine, because the field is defined for any phase.
+   * lag is the distance measured *along* the wind divided by how fast the front
+   * moves, and the projection is what makes it a front: everything on the same
+   * line across the wind receives it together. Upwind points give a negative
+   * lag, which is fine — the field is defined for any phase.
    *
    * `gustRate` converts seconds into the units `time` counts in.
    */
@@ -181,11 +160,9 @@ export class Weather {
   }
 
   /**
-   * Wind strength where something actually stands.
-   *
-   * What every emitter should use instead of `strength`. The far treeline
-   * quickens before the near hedge does, in the order you watch the same gust
-   * cross them.
+   * Wind strength where something actually stands — what every emitter should
+   * use instead of `strength`. The far treeline quickens before the near hedge,
+   * in the order you watch the same gust cross them.
    */
   strengthAt(x: number, z: number): number {
     return this.fieldAt(this.time - this.lagAt(x, z));

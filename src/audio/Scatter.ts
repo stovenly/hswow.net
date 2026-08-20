@@ -13,58 +13,38 @@ import { createVoice } from './voice/Voice';
 /**
  * Sounds that happen once, somewhere over there, every so often.
  *
- * **This is the missing primitive.** Every model in the library up to here is a
- * continuous emitter that lives at a fixed point and never stops — wind,
- * foliage, a mill, a fire. Continuous sources establish that a place exists.
- * They cannot establish that anybody *lives* in it, because the sounds people
- * make are intermittent, and they come from somewhere slightly different every
- * time.
+ * Every other model in the library is a continuous emitter at a fixed point
+ * that never stops. Continuous sources establish that a place exists; they
+ * cannot establish that anybody *lives* in it, because the sounds people make
+ * are intermittent and come from somewhere slightly different every time. A
+ * hammer two streets over, once every twenty seconds, does more for a village
+ * than any three continuous models, and nothing runs between events.
  *
- * A hammer two streets over, once every twenty seconds, from a slightly
- * different spot, does more for a village than any three continuous models. It
- * is also the cheapest thing in the library: nothing runs between events.
- *
- * ## Poisson, not a timer
- *
- * Gaps are exponentially distributed. A one-shot every twelve seconds *exactly*
- * is a clock, and the ear finds clocks in about three repetitions; the same
- * mean with exponential gaps sometimes gives you two in a row and sometimes
- * gives you forty seconds of nothing, which is what intermittent human activity
- * actually looks like. This matters far more here than it does inside a
- * texture, because these events are individually audible by design.
- *
- * The clock resyncs with `'oneGap'` for the same reason: resuming immediately
- * would put a hammer blow at the precise instant you walked into range, which
- * reads as a trigger rather than as a village.
- *
- * ## Voices
+ * Gaps are exponentially distributed. A one-shot every twelve seconds exactly
+ * is a clock and the ear finds clocks in about three repetitions; the same
+ * mean with exponential gaps sometimes gives two in a row and sometimes forty
+ * seconds of nothing. The clock resyncs with `'oneGap'` so that walking into
+ * range does not put a hammer blow at the instant you arrive.
  *
  * Each field owns a small pool of `Emitter`s, and each emitter wraps its own
- * copy of the one-shot. That buys spatialisation, air absorption, occlusion and
- * detail-level management for free — a scatter field beyond the voice budget
- * goes virtual and stops scheduling entirely, which is the whole reason the
- * emitter rework came first.
- *
- * A voice is busy until its event has rung out, because the one-shot's
- * resonators are shared across the strikes it makes: firing twice into one
- * hammer rings one anvil twice, not two anvils. Two is usually enough. If every
- * voice is busy the event is simply dropped — an ambience that misses one
- * bucket is indistinguishable from one that did not, and the alternative is
- * unbounded node allocation on a mistyped interval.
+ * copy of the one-shot, which buys spatialisation, occlusion and detail-level
+ * management for free — a field beyond the voice budget goes virtual and stops
+ * scheduling entirely. A voice is busy until its event has rung out, because
+ * the one-shot's resonators are shared across its strikes: firing twice into
+ * one hammer rings one anvil twice, not two anvils. If every voice is busy the
+ * event is dropped, which is indistinguishable from it not having been due.
  */
 
 /**
- * A sound with a beginning and an end.
- *
- * Extends `SoundModel` so an `Emitter` can carry one unmodified — the whole
- * spatial chain works the same whether what is upstream of it runs forever or
- * for a fifth of a second.
+ * A sound with a beginning and an end. Extends `SoundModel` so an `Emitter`
+ * can carry one unmodified — the spatial chain works the same whether what is
+ * upstream runs forever or for a fifth of a second.
  */
 export interface OneShot extends SoundModel {
   /**
    * Schedules one event.
    *
-   * @param at Audio-clock time. In the future; this schedules, it does not play.
+   * @param at Audio-clock time, in the future.
    * @param force Scales the event, 0..1-ish.
    * @returns Seconds this voice stays busy, including the ring-out.
    */
@@ -89,24 +69,18 @@ export type ScatterSpec = OneShotSpec & {
   /** Centre of the region events land in. */
   at: readonly [number, number, number];
   /**
-   * Half-extents of that region.
-   *
-   * Not decoration. A source that comes from an identical point every time is
-   * heard as a loudspeaker; a few metres of wander is heard as a person moving
-   * about their work. Default is flat and modest — most activity happens on the
-   * ground and within a yard.
+   * Half-extents of that region. A source that comes from an identical point
+   * every time is heard as a loudspeaker; a few metres of wander is heard as a
+   * person moving about their work. Default is flat and modest.
    */
   spread?: readonly [number, number, number];
   /** Mean seconds between events. Exponentially distributed by default. */
   every: number;
   /**
-   * How the gaps are distributed.
-   *
-   * `'poisson'` for anything a person or animal does, which is nearly
-   * everything. `'periodic'` for the few sources that genuinely are regular:
-   * water accumulating at a fixed rate and falling at a fixed volume is the
-   * clear case, and a drip scattered by a Poisson process reads as several
-   * leaks rather than one.
+   * How the gaps are distributed. `'poisson'` for anything a person or animal
+   * does, which is nearly everything. `'periodic'` for the few sources that
+   * genuinely are regular — a drip scattered by a Poisson process reads as
+   * several leaks rather than one.
    */
   rhythm?: 'poisson' | 'periodic';
   /** Level range per event. Variation is most of what stops repetition. */
@@ -125,11 +99,9 @@ export type ScatterSpec = OneShotSpec & {
 };
 
 /**
- * Builds a one-shot from its spec.
- *
- * Exported for the audition harness, which measures one-shots the same way it
- * measures continuous models and would otherwise need a second copy of this
- * switch — the exact duplication the discriminated union exists to avoid.
+ * Builds a one-shot from its spec. Exported for the audition harness, which
+ * measures one-shots the same way it measures continuous models and would
+ * otherwise need a second copy of this switch.
  */
 export function buildOneShot(engine: AudioEngine, spec: OneShotSpec): OneShot {
   switch (spec.sound) {
@@ -247,11 +219,10 @@ export class ScatterField {
   }
 
   /**
-   * Fires one event now, ignoring the schedule.
-   *
-   * Tuning a sound whose whole design is that it happens every twenty seconds
-   * is otherwise mostly waiting, and waiting is how a parameter gets changed
-   * twice between hearings.
+   * Fires one event now, ignoring the schedule. Tuning a sound whose whole
+   * design is that it happens every twenty seconds is otherwise mostly
+   * waiting, and waiting is how a parameter gets changed twice between
+   * hearings.
    */
   trigger(): void {
     this.fire(this.context.currentTime + 0.02);
