@@ -7,7 +7,7 @@ import { createBell, type BellOptions } from './oneshots/bell';
 import { createHammer, type HammerOptions } from './oneshots/hammer';
 import { createClatter, type ClatterOptions } from './oneshots/clatter';
 import { createAnimal, type AnimalOptions } from './oneshots/animal';
-import type { VoiceOptions } from './oneshots/voice';
+import type { VoiceOptions } from './voice/types';
 import { createVoice } from './voice/Voice';
 
 /**
