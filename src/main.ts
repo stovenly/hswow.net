@@ -68,10 +68,9 @@ let clock = 0;
 // Created before PostFX, which owns the fog's colour and distances from here on.
 viewport.scene.fog = new THREE.Fog(0x0a0a0f, 20, 90);
 
-// Dev server only, and compiled out of the production build entirely. Cancels
-// Vite's full reload and shows a banner instead — a reload drops pointer lock
-// and sends you back to spawn, which is expensive at the exact moment you are
-// standing still looking at something.
+// Dev server only, compiled out of the production build. Cancels Vite's full
+// reload and shows a banner instead — a reload drops pointer lock and sends you
+// back to spawn.
 installReloadBanner();
 
 // **Before anything compiles a program.** Materials bake the fog chunk in at
@@ -79,12 +78,10 @@ installReloadBanner();
 // session runs on planar fog whatever the source says. See `engine/fog.ts`.
 useAerialFog();
 
-// **Before PostFX**, and that ordering is load-bearing rather than tidy. The
-// kit's shared material is patched in place, so a prop built later picks the
-// sway up without knowing about it — but `PostFX` reaches into the normal pass
-// and patches *that* material too, and it can only do so once the patch
-// exists. Constructed the other way round it silently did nothing, and a
-// swaying plant stood still in the normal buffer.
+// **Before PostFX**, and load-bearing. The kit's shared material is patched in
+// place, so a prop built later picks the sway up without knowing about it — and
+// `PostFX` reaches into the normal pass and patches *that* material too, which
+// it can only do once the patch exists.
 patchArtMaterial();
 
 const postfx = new PostFX(viewport);
@@ -97,12 +94,9 @@ const player = new Controller(viewport.camera, input, collider);
 
 // --- boot -------------------------------------------------------------------
 // Sequenced behind a loading screen rather than run in one synchronous burst.
-//
 // None of this is a download — every triangle and every sample is generated
 // here — so there is no network progress to report, but there is easily a
-// second of work, and a second of blank page looks like a fault. Splitting it
-// into steps also stops the whole thing landing in one frame, which is what
-// made the first seconds of play stutter.
+// second of work, and a second of blank page looks like a fault.
 const loader = new Loader(document.body);
 
 const provingGround = await loader.step(
@@ -113,8 +107,7 @@ const provingGround = await loader.step(
 
 // --- zones ------------------------------------------------------------------
 // Nothing is added to the scene or to the collider here. `ZoneManager.enter`
-// owns both, because exactly one zone is ever present in either, and having two
-// places that add geometry is how a zone ends up half-swapped.
+// owns both, because exactly one zone is ever present in either.
 const zones = new ZoneManager({
   scene: viewport.scene,
   collider,
@@ -129,9 +122,7 @@ const zones = new ZoneManager({
 //
 // Kept out of `RenderSettings` on purpose. That is a saved *preset* — the look,
 // dialled in and shared between machines — and these are one player's
-// preferences on one machine; a shadow switch that travelled with a preset
-// would arrive turned off on somebody else's computer for no reason they could
-// see. Separate store, separate lifetime. See `ui/options/`.
+// preferences on one machine. Separate store, separate lifetime.
 const options = loadOptions();
 
 const world = createTestWorld(provingGround);
@@ -142,10 +133,11 @@ for (const portal of world.portals) zones.link(portal);
 
 // Builds the exterior's geometry and indexes all of it for collision, which on
 // a world this size is a couple of hundred milliseconds on its own.
-// Ahead of the first build rather than in `applyOptions` below, which cannot
-// run until the audio engine exists. It is read as a zone's meshes are
-// prepared, so setting it afterwards would raise the exterior with the wrong
-// casters and then walk all of it again to correct them.
+//
+// Shadows are set ahead of the first build rather than in `applyOptions`, which
+// cannot run until the audio engine exists. The flag is read as a zone's meshes
+// are prepared, so setting it afterwards would raise the exterior with the
+// wrong casters and then walk all of it again to correct them.
 zones.setShadows(options.shadows);
 // The drawn sun and the shadow-casting one are the same direction by
 // construction. Static for now; when it moves, this call moves with it.
@@ -155,38 +147,32 @@ await loader.step('settling the world', 0.6, () => zones.enter(ZONE_EXTERIOR));
 
 // Built now rather than on first entry. A zone this size takes longer to raise
 // than the transition fade is black for, so paying it here keeps the doorway
-// instant — and the collider caches it, so it is paid exactly once. Its shader
-// compile is NOT here: that fires in the background after boot, below.
+// instant, and the collider caches it. Its shader compile is NOT here: that
+// fires in the background after boot, below.
 await loader.step('raising the countryside', 0.78, () => zones.prebuild(ZONE_COUNTRYSIDE));
 
 // --- audio ----------------------------------------------------------------
 // The context is suspended until a gesture, but the noise buffers and the room
 // impulse responses are rendered offline regardless, and the emitters cannot be
-// built until they are done.
-// The buffer size is read here rather than in `applyOptions`: it can only be
-// chosen as the context is opened, which is this line.
+// built until they are done. The buffer size is read here rather than in
+// `applyOptions`: it can only be chosen as the context is opened.
 const audio = new AudioEngine(audioLatencyHint(options));
 
 /**
- * Your own feet, which belong to you rather than to any zone.
- *
- * Everything else audible is declared by the zone you are standing in and built
- * by `ZoneManager`. Footsteps are the exception: they happen *at* the listener,
- * they follow you through every door, and they are the one sound that would be
- * wrong to tear down and rebuild on a threshold.
+ * Your own feet, which belong to you rather than to any zone. Everything else
+ * audible is declared by the zone you are standing in; footsteps happen *at*
+ * the listener, follow you through every door, and would be wrong to tear down
+ * and rebuild on a threshold.
  */
 let footsteps: Footsteps | null = null;
 
 /**
  * Base leaf articulation per foliage emitter, so one slider can scale them all.
- *
  * Read off the specs rather than guessed: a hedge ticks where a canopy hushes,
- * and a single absolute value applied to both flattens that distinction.
+ * and one absolute value applied to both flattens that distinction.
  *
  * Looked up by id against whatever zone is current, so entries for a zone you
- * are not standing in simply find nothing. `canopy` and the two shrubs were
- * the proving ground's sound garden and are kept: the sound stage declares a
- * `foliage` station, and the countryside demo its own hedgerows.
+ * are not standing in simply find nothing.
  */
 const FOLIAGE_BASE = new Map<string, number>([
   ['canopy', 0.22],
@@ -247,20 +233,19 @@ if (isTouchDevice()) {
 // audio engine most of all — does not exist until boot has finished. Everything
 // they govern has a sensible value in the meantime, and the two that have to be
 // right *before* the world is raised are set above.
+//
 // Named `perfHud` rather than `performance`, which is a global this file
-// already reads for the heap size — shadowing it here would break that at a
-// distance, in a readout, silently.
+// already reads for the heap size.
 const perfHud = new PerformanceHud(overlay, viewport.renderer, postfx.gpu);
 
 // The reading screen. Not a pause: the world keeps running behind it, exactly
 // as it does behind the options panel — what stops is *steering*, and that
-// falls out of releasing the pointer lock rather than being a mode of its own,
-// because `Input` already ignores the whole keyboard while the mouse is free.
+// falls out of releasing the pointer lock, because `Input` already ignores the
+// whole keyboard while the mouse is free.
 //
 // Closing puts the mouse back exactly where it was rather than always taking
 // it: a note opened from the world was opened by somebody who was playing, and
-// one opened from the debug panel was not. Re-capturing unconditionally would
-// throw the second case into the game on the way out.
+// one opened from the debug panel was not.
 let wasPlaying = false;
 const reading = new Reading(overlay, {
   onOpen: () => {
@@ -273,10 +258,9 @@ const reading = new Reading(overlay, {
   onClose: () => {
     if (!wasPlaying) return;
     // Held until the mouse is genuinely back. `is-reading` comes off the moment
-    // the page closes, and the lock does not come back on that frame — the
-    // browser holds a cooldown after a user-initiated exit — so for a few
-    // hundred milliseconds the interface believes nobody is playing and raises
-    // the capture panel. Closing a book flashed the pause screen every time.
+    // the page closes and the lock does not come back on that frame — the
+    // browser holds a cooldown after a user-initiated exit — so without this
+    // the interface believes nobody is playing and raises the capture panel.
     document.body.classList.add('is-capturing');
     void input.capture().finally(() => document.body.classList.remove('is-capturing'));
   },
@@ -313,8 +297,7 @@ if (dev.gui) {
   const look = dev.gui.addFolder('look');
   // The same boolean the options menu edits, not a parallel one. Bound with
   // `.listen()` so a change made in the menu moves the control here, and routed
-  // through `commit` so it lands in the engine and in storage the same way the
-  // menu's would.
+  // through `commit` so it lands in the engine and in storage the same way.
   look.add(options, 'shadows').name('cast shadows').listen().onChange(settings.commit);
   look.add({ open: settings.open }, 'open').name("open the player's menu");
   look.add(r, 'pixelSize', 1, 12, 1).onChange(refresh);
@@ -375,10 +358,8 @@ if (dev.gui) {
   finishFolder.add(r.finish, 'specular', 0, 2, 0.05).onChange(refresh);
   finishFolder.add(r.finish, 'environment', 0, 2, 0.05).onChange(refresh);
 
-  // Every look, under the field whose shader it drives. The four knobs were
-  // constants spliced into the shader until R2 and the three params until R6,
-  // so nothing in here recompiles — and before those phases there was no way to
-  // move any of it short of an edit and a reload.
+  // Every look, under the field whose shader it drives. Nothing in here
+  // recompiles: the knobs and the params are uniform table rows.
   //
   // **The params are where a new colorway gets designed.** Drag them with the
   // ramp folder open beside this one and what comes out is a table row.
@@ -418,10 +399,9 @@ if (dev.gui) {
     });
   }
 
-  // Not in the player's menu, and not because it was forgotten: a pond is part
-  // of the place, by SHADERS-AND-MATERIALS.md's line on what crosses into the options screen.
-  // Both of these are global because water is one material — how rough a
-  // particular pool is rides on the geometry. See `art/water.ts`.
+  // Not in the player's menu: a pond is part of the place. Both of these are
+  // global because water is one material — how rough a particular pool is rides
+  // on the geometry. See `art/water.ts`.
   const water = dev.gui.addFolder('water');
   water.add(r.water, 'waves', 0, 2, 0.05).onChange(refresh);
   water
@@ -476,7 +456,7 @@ if (dev.gui) {
   // Inspection state, session-only and deliberately not a player setting: with
   // parallax live, walking slides the band under the prop being looked at, so
   // there is no way to tell a placement that is wrong from one that is merely
-  // moving. VISTA.md.
+  // moving.
   const vista = dev.gui.addFolder('vista');
   vista.add(zones, 'freezeVista').name('freeze parallax');
   // Not vista-only despite living here: it reveals any collision that is never
@@ -512,10 +492,10 @@ if (dev.gui) {
   lights.add(zones.lights.sun, 'intensity', 0, 5, 0.1).name('sun');
   lights.add(zones.lights.ambient, 'intensity', 0, 5, 0.1).name('ambient');
 
-  // Placed volumes, as opposed to the distance fog below — see SHADERS-AND-MATERIALS.md §2.
-  // Only a switch, and deliberately: a volume's density, tint and size belong
-  // to the zone that placed it, so there is nothing global here to tune. Not in
-  // the player's menu either; see `PostFX.setFogVolumes`.
+  // Placed volumes, as opposed to the distance fog below. Only a switch, and
+  // deliberately: a volume's density, tint and size belong to the zone that
+  // placed it, so there is nothing global here to tune. Not in the player's
+  // menu either; see `PostFX.setFogVolumes`.
   const volumetric = { enabled: true };
   const fogVolumes = dev.gui.addFolder('fog volumes');
   fogVolumes
@@ -529,8 +509,8 @@ if (dev.gui) {
   fogFolder.add(r, 'fogNear', 0, 200, 1).onChange(refresh);
   fogFolder.add(r, 'fogFar', 0, 400, 1).onChange(refresh);
   // Aerial perspective — see `engine/fog.ts`. `sky colour` at 0 and `thins
-  // above` at its ceiling is the flat distance fog this replaced, exactly, and
-  // is the honest A/B for whether any of it is an improvement.
+  // above` at its ceiling is flat distance fog, exactly, which is the honest
+  // A/B for whether any of it is an improvement.
   //
   // The low end of this range is not a setting, it is a demonstration: under a
   // hundred or so, distant props visibly fade out from the bottom.
@@ -627,9 +607,9 @@ if (dev.gui) {
   sound.add(audio.settings, 'occlusion', 0, 1, 0.01).name('occlusion');
 
   // The throat, live, on every villager at once. These are the numbers that
-  // decide how a voice *sounds*, and they have proved impossible to reason to
-  // — so they move while it is talking and the ear picks. Whatever sticks goes
-  // into `villagerBody`. Top four are the ones that change how bright it is.
+  // decide how a voice *sounds*, and they cannot be reasoned to — so they move
+  // while it is talking and the ear picks. Whatever sticks goes into
+  // `villagerBody`. The top four change how bright it is.
   const throat = dev.gui.addFolder('voice');
   const dial = (key: keyof VoiceTuning, min: number, max: number, step: number, label: string): void => {
     throat.add(VOICE_TUNING, key, min, max, step).name(label).onChange(() => pushVoiceTuning(key));
@@ -653,8 +633,7 @@ if (dev.gui) {
     .name('wind direction');
   // How fast a gust crosses the world. The control that decides whether the
   // wind reads as weather or as a global parameter being turned: at the top of
-  // this range the front is near enough instant and everything moves together,
-  // which is what it looked like before the field travelled at all.
+  // this range the front is near enough instant and everything moves together.
   weather
     .add(audio.weather.settings, 'frontSpeed', 1, 60, 0.5)
     .name('front speed (m/s)');
@@ -663,10 +642,10 @@ if (dev.gui) {
   // other. `art/flex.ts` holds the per-species part.
   weather.add(windUniforms.swayAmount, 'value', 0, 2, 0.01).name('sway');
 
-  // The fabrics gallery's station controls (CLOTH.md §10): a wind override so
-  // calm, breeze and gale can be reproduced on demand, the collider
-  // wireframes behind the no-clipping test, and a freeze switch mirroring the
-  // options toggle without fighting it.
+  // The fabrics gallery's station controls: a wind override so calm, breeze and
+  // gale can be reproduced on demand, the collider wireframes behind the
+  // no-clipping test, and a freeze switch mirroring the options toggle without
+  // fighting it.
   const clothFolder = dev.gui.addFolder('cloth');
   const clothState = { wind: 'live', frozen: false, wireframes: false };
   clothFolder
@@ -680,10 +659,9 @@ if (dev.gui) {
     .name('collider wireframes')
     .onChange((on: boolean) => zones.setClothWireframes(on));
 
-  // The glitch showcase's station controls (GLITCH-SHADERS.md §7): a steady
-  // strength override so any rung of the ladder can be judged without waiting
-  // on a burst, a freeze that holds the clock mid-burst, and the pass switch.
-  // Not in the player's menu; see `PostFX.setGlitch`.
+  // The glitch showcase's station controls: a steady strength override so any
+  // rung of the ladder can be judged without waiting on a burst, a freeze that
+  // holds the clock mid-burst, and the pass switch. Not in the player's menu.
   const glitchFolder = dev.gui.addFolder('glitch');
   const glitchState = { enabled: true, override: false, strength: 0.5, frozen: false };
   const applyGlitchOverride = (): void =>
@@ -707,8 +685,8 @@ if (dev.gui) {
   // Bound through the active zone's soundscape rather than to a model directly.
   // A zone declares its sound as data and the models are built on entry, so a
   // panel that captured one at startup would be tuning the proving ground's
-  // tree while the player stands in the countryside. `find` looks it up by the `id` the
-  // spec declared, every time the slider moves.
+  // tree while the player stands in the countryside. `find` looks it up by the
+  // `id` the spec declared, every time the slider moves.
   const tuning = {
     windTone: 3400,
     leaves: 1,
@@ -776,10 +754,9 @@ if (dev.gui) {
     grounded: 'no',
     position: '',
     triangles: collider.triangles,
-    // What the frame actually costs, as opposed to what the arithmetic in
-    // SCALING.md predicts it costs. Accumulated across every pass in the frame
-    // and including the shadow draws — see `Viewport`, which turns `autoReset` off
-    // to make that true.
+    // What the frame actually costs. Accumulated across every pass in the frame
+    // and including the shadow draws — see `Viewport`, which turns `autoReset`
+    // off to make that true.
     draws: 0,
     drawn: '0',
     // Should plateau after the first few zones of a cold walk — a count that
@@ -789,8 +766,7 @@ if (dev.gui) {
     // Zones currently holding memory, and how many have been released. Together
     // these are the readable form of the residency policy: the first should
     // settle rather than climb across a long session, and the second proves the
-    // first is settling because eviction is *working* rather than because
-    // nowhere new has been visited.
+    // first is settling because eviction is *working*.
     resident: '—',
     buffers: '—',
     zone: '—',
@@ -830,28 +806,25 @@ if (dev.gui) {
   // **The number that says whether a long walk is leaking.** Geometries and
   // textures the renderer is holding, which is not the same question as the JS
   // heap: a buffer freed on the GPU and still referenced in JS shows up in one
-  // and not the other, and the reverse happens too. Walk a wing of galleries and
-  // come back: this should settle, not climb.
+  // and not the other, and the reverse happens too. Walk a wing of galleries
+  // and come back — this should settle, not climb.
   state.add(readout, 'buffers').name('geometries / textures').listen().disable();
-  // Triangles change with the zone now, so this has to be watched rather than
-  // read once — it is also the first place a collider leak would show up.
+  // Triangles change with the zone, so this is watched rather than read once —
+  // it is also the first place a collider leak would show up.
   //
-  // Named rather than left as `triangles`: sat next to the renderer's count it
-  // is two numbers of the same name measuring different things, and the one
-  // that matters here is *collision* geometry — a number that is usually a
-  // fraction of what is drawn and grows for entirely different reasons.
+  // Named rather than left as `triangles`: beside the renderer's count it is
+  // two numbers of the same name measuring different things, and the one that
+  // matters here is *collision* geometry.
   state.add(readout, 'triangles').name('collider tris').listen().disable();
   state.add({ respawn: () => zones.respawn() }, 'respawn');
 
-  // Jumping straight to a zone, without walking to its door. Mostly for
-  // getting back out of an interior after breaking the door that leads there.
-  // Also the only way into the sound stage, which deliberately has no door.
+  // Jumping straight to a zone, without walking to its door. Mostly for getting
+  // back out of an interior after breaking the door that leads there, and the
+  // only way into the sound stage, which deliberately has no door.
   //
   // Grouped the way the world is: a family per hall, with the hub and anything
-  // else that belongs to no setting sitting loose at the top. A flat list was
-  // fine at six zones and is not at twenty-six — and the grouping is the zone's
-  // own (`ZoneDefinition.group`) rather than a second list maintained here,
-  // which would be the sort that drifts a room at a time.
+  // that belongs to no setting sitting loose at the top. The grouping is the
+  // zone's own (`ZoneDefinition.group`) rather than a second list here.
   const travel = dev.gui.addFolder('zones');
   const all = [...zones.zones.values()];
   const go = (folder: typeof travel, id: string, name: string): void => {
@@ -873,8 +846,7 @@ if (dev.gui) {
   //
   // A way in that is not a walk across a room. Everything here is also bound to
   // a book in the Readables Showcase and reachable the way a player reaches it;
-  // this is for the times you are tuning the type and do not want the walk
-  // between one look and the next.
+  // this is for tuning the type without the walk between one look and the next.
   const read = dev.gui.addFolder('reading').close();
   for (const note of [...NOTES, ...READING_FIXTURES]) {
     read.add({ open: () => reading.open(note) }, 'open').name(note.title.toLowerCase());
@@ -884,10 +856,11 @@ if (dev.gui) {
   //
   // Closed by default, and everything in it acts on whatever soundscape is
   // current rather than on the stage specifically. Solo is as useful standing
-  // in the countryside trying to work out which of six sources is the harsh one, and
+  // in the countryside working out which of six sources is the harsh one, and
   // the room controls are the only way to tune an acoustic at all.
-  // Built here rather than at boot: it taps an analyser off the master bus,
-  // and nothing outside `?debug` should be paying for an FFT.
+  //
+  // Built here rather than at boot: it taps an analyser off the master bus, and
+  // nothing outside `?debug` should be paying for an FFT.
   const meter = createMeter(audio);
   loop.add(() => meter.update());
 
@@ -913,18 +886,16 @@ if (dev.gui) {
 
   // --- the music stage --------------------------------------------------------
   //
-  // Controls meant to be used together: pick a vibe, press play, and the
-  // whole thing — every layer — is stated within seconds. The vibe control
-  // hands the director a spec exactly as a border crossing does, so switching
-  // mid-piece *is* the retune, demonstrated on demand. 'zone' hands back
-  // whatever the current zone declares; the night toggle is the same spec
-  // under a different touch — same seeds, same rack — which is the claim it
-  // exists to prove. None of it follows the player through doors: any
-  // crossing re-applies the zone's own spec over the vibe control.
+  // Controls meant to be used together: pick a vibe, press play, and the whole
+  // thing is stated within seconds. The vibe control hands the director a spec
+  // exactly as a border crossing does, so switching mid-piece *is* the retune,
+  // demonstrated on demand. `zone` hands back whatever the current zone
+  // declares; the night toggle is the same spec under a different touch. None
+  // of it follows the player through doors — any crossing re-applies the zone's
+  // own spec over the vibe control.
   //
   // No solo control for the instrument stations, because distance already is
-  // one: a station's reach ends before its neighbour begins, so standing at
-  // a plinth is the solo.
+  // one: a station's reach ends before its neighbour begins.
   const music = dev.gui.addFolder('music stage').close();
   const musicState = {
     vibe: 'zone',
@@ -949,15 +920,12 @@ if (dev.gui) {
   //
   // Not written, read. Every compiled module declares its controls' ranges and
   // the build tool carries them through, so these folders build themselves —
-  // which is the whole return on that change: `friction` had seven controls
-  // and no panel, and the reverb had three hand-written sliders that covered
-  // less than the module actually exposes. The generated one has `decayLow`
-  // and `decayMid` separately, and the crossover between them, which is the
-  // control a stone room actually needs.
+  // which is how the reverb panel comes to have `decayLow` and `decayMid`
+  // separately, and the crossover between them, which is the control a stone
+  // room actually needs.
   //
   // Each follows its model through zone changes and disappears with it, so the
-  // panel always reflects what is currently audible rather than accumulating
-  // folders for rooms you have left.
+  // panel always reflects what is currently audible.
   const panels = [
     attachFaustPanel(stage, 'reverb', () => audio.reverbControls),
     // Every friction source in the game, by declared id. A lookup that finds
@@ -1004,10 +972,9 @@ if (dev.gui) {
     readout.swell = audio.weather.swell.toFixed(2);
     readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
     readout.music = zones.music?.status ?? '—';
-    // The voice budget, made visible. HRTF panning is the most expensive node
-    // in the API, so "how many are running one" is the number that decides
-    // whether a dense zone is affordable — and it is not a number worth
-    // assuming.
+    // The voice budget, made visible. HRTF panning is the most expensive node in
+    // the API, so "how many are running one" is the number that decides whether
+    // a dense zone is affordable.
     const voices = audio.voiceCounts;
     readout.emitters =
       zones.sound === null
@@ -1017,25 +984,21 @@ if (dev.gui) {
 
   // **Sorted and shut, last of all.**
   //
-  // The panel has grown past thirty folders and a few hundred controls, and it
-  // was ordered by the accident of which feature was built first — so finding
-  // anything meant reading the whole list. Alphabetical is not better ordering,
-  // it is *predictable* ordering, which is the only kind that helps at this
-  // count. Closed for the same reason: opened, it is several screens tall and
-  // whatever is being looked for is below the fold.
+  // Thirty-odd folders and a few hundred controls. Alphabetical is not better
+  // ordering, it is *predictable* ordering, which is the only kind that helps
+  // at this count. Closed for the same reason: opened, it is several screens
+  // tall and whatever is being looked for is below the fold.
   //
   // Done here rather than at each `addFolder` so both apply to a folder added
   // later without anybody having to remember, and recursively so a nested wing
-  // is sorted and shut inside its parent too.
+  // is sorted and shut inside its parent too. Re-appending a node already in
+  // the DOM moves it, so appending every folder in sorted order is the reorder;
+  // loose controllers are left where they are, which keeps `noclip fly` at the
+  // top.
   //
-  // Re-appending a node that is already in the DOM moves it, so appending every
-  // folder in sorted order is the reorder. Loose controllers are left where
-  // they are, which keeps `noclip fly` at the top where it was put on purpose.
   // Names are load-bearing now that the order comes from them: a folder that
-  // belongs beside another has to be *named* beside it. Hence `sky clouds`, and
-  // the `player …` set — which also stops the controller's `view` sorting a
-  // dozen folders away from `view distance`, two unrelated things that used to
-  // sit together only because they were built at the same time.
+  // belongs beside another has to be *named* beside it. Hence `sky clouds` and
+  // the `player …` set.
   const sortFolders = (gui: NonNullable<typeof dev.gui>): void => {
     const byName = [...gui.folders].sort((a, b) =>
       (a.$title.textContent ?? '').localeCompare(b.$title.textContent ?? ''),
@@ -1084,10 +1047,10 @@ loop.add((rawDt, rawElapsed) => {
   zones.updateLife(dt, retestOcclusion);
 
   // **After the audio, and that ordering is the point.** `audio.update` steps
-  // the gust field; this ships the *same* field to the vertex shader. Done the
-  // other way round the world would bend to one frame's weather while the
-  // rustle answered the next, which is a whole frame of drift between a sight
-  // and a sound that are meant to be one event.
+  // the gust field; this ships the *same* field to the vertex shader. The other
+  // way round the world bends to one frame's weather while the rustle answers
+  // the next — a whole frame of drift between a sight and a sound that are
+  // meant to be one event.
   updateWind(audio.weather, elapsed);
   // After the wind for the same reason again: each cloth samples the same
   // field the trees just bent to, so a gust arrives at the flag and the tree
@@ -1107,13 +1070,9 @@ loop.add((rawDt, rawElapsed) => {
   // pixels, so it moves with the window and with the pixel-size setting.
   updateParticles(viewport.camera, postfx.artHeight);
 
-  // **The hand-driven room switching is gone with the rooms.** The proving
-  // ground used to contain a two-room stone building that was not a zone, so
-  // nothing in the zone system knew about it and the acoustic, the wind bed
-  // and the footstep surface all had to be swapped from here by testing the
-  // listener's position against two boxes. Every one of those is a property of
-  // a *zone*, and the sound stage is one — so all of it is declared now, and
-  // the loop no longer has an opinion about where in a zone you are standing.
+  // Every acoustic, wind bed and footstep surface is a property of a *zone* and
+  // is declared as one, so the loop has no opinion about where inside a zone
+  // the player is standing.
   postfx.render(elapsed);
   // After the render, and in the same frame: the default framebuffer is only
   // reliably readable before the browser composites it.
@@ -1127,16 +1086,14 @@ loop.add((rawDt, rawElapsed) => {
 });
 
 // One frame drawn *before* the boot screen fades, so it reveals the world
-// rather than an empty canvas. Nothing has been drawn at this point — the
-// pipeline's targets are allocated and empty — and fading out over that shows
-// black for the length of the fade.
+// rather than an empty canvas: the pipeline's targets are allocated and empty
+// at this point, and fading out over that shows black for the length of the
+// fade.
 //
 // The zero-length update is not a formality. `teleport` moves the *capsule*;
 // the camera is only placed by `applyCamera`, which runs at the end of an
-// update — so until one has happened the camera is still at the origin the
-// `PerspectiveCamera` constructor left it at. Rendering before that draws the
-// world from ground level, and the player sees themselves half sunk into the
-// floor for a frame before the loop starts and pops them up to eye height.
+// update — so until one has happened the camera is still where the
+// `PerspectiveCamera` constructor left it, at the origin.
 player.update(0);
 // Before that first real frame, and behind the boot screen: every effect pass
 // forced on for two throwaway frames, so water, glass, glitch, horror and the
