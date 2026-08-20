@@ -9,27 +9,17 @@ import type { PixelEffect, EffectContext } from './PixelStage';
 /**
  * The owner-id mask: which marked object, if any, each chunky pixel shows.
  *
- * The screen-space corruption passes cannot tell an object from the floor it
- * stands on by position alone — the two are a centimetre apart, and depth
- * reconstruction at grazing range errs by several times that (the resolve of a
- * multisampled depth buffer picks an arbitrary sample, not the pixel centre).
- * So attached volumes are gated by *identity* instead: this pass draws every
- * mask-layer mesh into a one-channel target, writing the owner id baked into
- * its geometry, and the passes compare that id against each volume's owner.
- * The floor is never drawn here, so it can never leak, at any distance.
+ * A screen-space pass cannot tell an object from the floor it stands on by
+ * position alone — the two are a centimetre apart, and depth reconstruction at
+ * grazing range errs by several times that. So this draws every mask-layer mesh
+ * into a one-channel target, writing the owner id baked into its geometry, and the
+ * corruption passes compare that id against each volume's owner. The floor is
+ * never drawn here, so it can never leak.
  *
- * It runs as a passthrough effect just ahead of the passes that read it, only
- * on frames where an activity packed at least one owned volume — a zone with
- * no attached effects pays nothing. Cost when live: the owned meshes once
- * more at chunky resolution with an unlit constant-colour fragment.
- *
- * The material carries the same displacement chain as the shadow-depth and
- * outline-normal materials, and for their reason: the mask has to hug the
- * geometry mid-convulsion, not outline where it used to be. It tests against
- * the scene's own depth (bloom's trick of binding the resolved depth as an
- * attachment), so an owned mesh behind a wall masks nothing — with a little
- * polygon offset toward the camera, because the resolved depth it tests
- * against is sample-picked and would otherwise z-fight its own surface.
+ * A passthrough effect just ahead of the passes that read it, live only on frames
+ * where an activity packed an owned volume. The material carries the same
+ * displacement chain as the shadow-depth and outline-normal materials, and tests
+ * against the scene's own depth with a little polygon offset toward the camera.
  */
 export class EffectMaskPass implements PixelEffect {
   readonly label = 'mask';
@@ -113,9 +103,9 @@ function createMaskMaterial(): THREE.MeshBasicMaterial {
   material.depthWrite = false;
   material.depthTest = true;
   // Pulled slightly toward the camera: the attached depth is the resolved
-  // multisample buffer, whose per-pixel value is an arbitrary sample rather
-  // than the centre this pass rasterises at, and an exact comparison would
-  // punch pinholes in the mask wherever the surface is steep.
+  // multisample buffer, whose per-pixel value is an arbitrary sample rather than
+  // the centre this pass rasterises at, and an exact comparison would punch
+  // pinholes in the mask wherever the surface is steep.
   material.polygonOffset = true;
   material.polygonOffsetFactor = -2;
   material.polygonOffsetUnits = -2;

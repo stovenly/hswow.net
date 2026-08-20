@@ -4,13 +4,11 @@ import type { Weather } from '../audio/weather';
 import type { ClothInstance } from '../art/clothMesh';
 
 /**
- * Drives every simulated cloth in the active zone. CLOTH.md §8–§9.
- *
- * The `LightActivity` shape: collected once when a zone is prepared, released
- * when it is evicted, stepped only for the zone you are standing in. Each
- * cloth samples `Weather.strengthAt` at its own position — the gust front you
- * watch cross the valley bending trees arrives at the flag on the same frame
- * it arrives at the tree beside it.
+ * Drives every simulated cloth in the active zone. The `LightActivity` shape:
+ * collected once when a zone is prepared, released when it is evicted, stepped
+ * only for the zone you are standing in. Each cloth samples `Weather.strengthAt`
+ * at its own position, so the gust that bends a tree reaches the flag beside it on
+ * the same frame.
  */
 
 /** Past this, a cloth freezes in its last pose. A banner there is a few pixels. */

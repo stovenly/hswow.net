@@ -5,25 +5,18 @@ import { maskUniforms } from '../art/effectId';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Placed glitch volumes: digital corruption as set dressing. GLITCH-SHADERS.md.
+ * Placed glitch volumes: digital corruption as set dressing. A volume is authored
+ * data, exactly as a fog volume is — no geometry, no collision, pushed to the GPU
+ * as uniforms. The in-scene half (`art/glitch.ts`) makes the object misbehave;
+ * this pass makes the image of it misbehave, with channel splits, tears, block
+ * copies and dropped rows. The two together read as a signal going bad.
  *
- * A volume is authored data, exactly as a fog volume is — no geometry, no
- * collision, pushed to the GPU as uniforms. What stands inside one corrupts:
- * the in-scene half (art/glitch.ts) makes the *object* misbehave — vertices
- * shiver, bands shear, facets flash and fall off — and this pass makes the
- * *image* of it misbehave — channel splits, tears, block copies, dropped rows.
- * The two together are what reads as a signal going bad rather than a material.
- *
- * This pass works per chunky pixel, gated by a world-space membership test
- * reconstructed from depth (FogVolumes' method), so the corruption tracks the
- * volume and respects occlusion with nothing to author. Everything is a pure
- * function of the clock — bursts are hashed slots, not accumulated state — so
- * there is no history buffer and nothing to invalidate. True datamoshing and
- * pixel sorting need exactly that history and are deliberately absent; the
- * block-copy and tear approximations cover the same visual ground.
- *
- * The two halves read the *same* uniform store (`art/glitch.ts`), packed once
- * per frame by `GlitchActivity`. This file owns only the screen-space half.
+ * Per chunky pixel, gated by a world-space membership test reconstructed from
+ * depth, so corruption tracks the volume and respects occlusion with nothing to
+ * author. Everything is a pure function of the clock — bursts are hashed slots,
+ * not accumulated state — so there is no history buffer, which is also why true
+ * datamoshing and pixel sorting are deliberately absent. Both halves read the same
+ * uniform store, packed once per frame by `GlitchActivity`.
  */
 
 export type GlitchShape = 'sphere' | 'box';
@@ -58,14 +51,10 @@ function on(name: GlitchEffectName): string {
 }
 
 /**
- * One authored piece of corruption.
- *
- * The master dial is `strength`, 0..1: each effect has a fixed onset along it,
- * so one number walks an object from "something is faintly wrong" through
- * "visibly breaking apart" to "unreadable under the noise". `weights` are the
- * per-effect sliders layered over that — 1 by default, 0 silences an effect
- * entirely, so a placement can be authored as pure channel-split or as a
- * recipe that never destroys geometry.
+ * One authored piece of corruption. `strength` is the master dial, 0..1, and each
+ * effect has a fixed onset along it, so one number walks an object from faintly
+ * wrong through visibly breaking apart to unreadable. `weights` are per-effect
+ * sliders over that — 1 by default, 0 silences an effect entirely.
  */
 export interface GlitchSpec {
   /** Default 'sphere'. */
@@ -78,11 +67,7 @@ export interface GlitchSpec {
   seed?: number;
   /** Burst cadence multiplier. Default 1; 0 approaches steady corruption. */
   tempo?: number;
-  /**
-   * Where the volume sits relative to the object it is attached to, for
-   * `markGlitched` specs only — a figure wants its volume mid-torso, not at
-   * its feet. Ignored on free-standing placements, which carry a `center`.
-   */
+  /** Where the volume sits relative to the object it is attached to, for `markGlitched` specs only. Ignored on free-standing placements, which carry a `center`. */
   offset?: THREE.Vector3;
   /** Per-effect sliders, 0..1 each. Absent means 1. */
   weights?: Partial<Record<GlitchEffectName, number>>;

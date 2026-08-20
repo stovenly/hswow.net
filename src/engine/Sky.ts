@@ -2,21 +2,15 @@ import * as THREE from 'three';
 import { NOISE_GLSL } from './noise';
 
 /**
- * A procedural sky: vertical gradient plus a drifting cloud layer.
+ * A procedural sky: vertical gradient plus a drifting cloud layer. No cubemap and
+ * no texture — the gradient is three bands and the clouds are fractal value noise
+ * projected onto a flat layer overhead.
  *
- * No cubemap and no texture — there are none anywhere in this project. The
- * gradient is three bands (ground, horizon, zenith) and the clouds are fractal
- * value noise projected onto a flat layer overhead.
- *
- * The horizon colour matters more than it looks. Distant geometry fades to the
- * *fog* colour, so if the fog and the horizon disagree, everything far away
- * dissolves into a band of the wrong colour hanging in front of the sky. They
- * are linked by default for that reason.
- *
- * Drawn as a sphere recentred on the camera each frame rather than a fixed one
- * large enough not to notice. A fixed sphere has parallax — walk toward the
- * horizon and it slides — which is subtle enough to be felt as wrongness
- * without being seen as an error.
+ * The horizon colour matters more than it looks: distant geometry fades to the fog
+ * colour, so if the two disagree everything far away dissolves into a band of the
+ * wrong colour hanging in front of the sky. Drawn as a sphere recentred on the
+ * camera each frame — a fixed one has parallax, which is felt as wrongness without
+ * being seen as an error.
  */
 
 export interface SkySettings {
@@ -24,51 +18,26 @@ export interface SkySettings {
   zenith: string;
   ground: string;
   /**
-   * How fast the horizon haze gives way to open sky.
-   *
-   * **Not as low as it looks like it should be.** This was 0.35, which put the
-   * dome a quarter of the way to zenith one degree above the horizon and nearly
-   * half by six — so the sky went deep blue in the exact band the vista sits in,
-   * and distant land fading to horizon colour had nothing to blend into. It read
-   * as a pale cut-out against a dark backdrop, which is not what a range of hills
-   * looks like from anywhere.
-   *
-   * A real sky holds its pale band for ten or fifteen degrees and deepens above
-   * that, which is what this is now. Distant geometry meets it at the horizon and
-   * separates from it gradually, rather than all at once.
+   * How fast the horizon haze gives way to open sky. A real sky holds its pale band
+   * for ten or fifteen degrees and deepens above that, so distant geometry meets it
+   * at the horizon and separates from it gradually rather than all at once.
    */
   curve: number;
   /**
-   * How fast the *fog* leaves the horizon, going up.
-   *
-   * **Not `curve`, and the difference is load-bearing.** `curve` describes the
-   * dome — kilometres of atmosphere seen looking up — and it is deliberately
-   * steep. Airlight over a couple of hundred metres of near-horizontal path is
-   * horizon light and almost nothing else, so this stays well above `curve`.
-   *
-   * **The failure is when the two are equal.** Then an object's own vertical
-   * ramp is the sky's ramp, it has no value of its own left, and it reads as a
-   * window rather than as a hill. Keeping this above `curve` leaves a gap that
-   * widens with height — at 1.4 against a dome at 0.75, a hill at 250 m matches
-   * the sky at its foot and is 14 points lighter at its crown, which is exactly
-   * how a distant range sits in the air. Flat (above 2) is also safe and is what
-   * this was; it just means tall things never deepen at all.
+   * How fast the fog leaves the horizon, going up — not `curve`, and the difference
+   * is load-bearing. `curve` describes the dome, kilometres of atmosphere seen
+   * looking up; airlight over a couple of hundred metres of near-horizontal path is
+   * horizon light and almost nothing else, so this stays well above it. Equal, an
+   * object's own vertical ramp is the sky's ramp and it reads as a window rather
+   * than as a hill.
    */
   airCurve: number;
   /**
-   * The same, downward — how fast the dome leaves the horizon for `ground`.
-   *
-   * **Its own number, and it has to be.** Sharing `curve` was a bug that only
-   * showed up once there was land to compare against: at 0.35 the dome is a
-   * fifth of the way to grey half a degree below the horizon, while the land in
-   * front of it is fading to the sky's *horizon* colour, so the two disagree
-   * along the exact line the vista band exists to hide. Standing on the ground
-   * that band is a couple of pixels tall; fifty metres up, where the land's
-   * edge drops nine degrees, it is a grey wedge under the whole sky.
-   *
-   * Above 1 the horizon colour holds a long way down and `ground` is only
-   * reached looking steeply into the earth — which is what you want, because
-   * everything in that range is covered by land anyway.
+   * The same, downward — how fast the dome leaves the horizon for `ground`. Its own
+   * number, and it has to be: sharing `curve` puts the dome a fifth of the way to
+   * grey half a degree below the horizon while the land in front of it is fading to
+   * the sky's horizon colour, and the two disagree along the exact line the vista
+   * band exists to hide. Above 1 the horizon colour holds a long way down.
    */
   underCurve: number;
 
@@ -88,13 +57,10 @@ export interface SkySettings {
   sun: boolean;
   sunColor: string;
   /**
-   * How much the sky warms on the sun's side of the world, 0..1.
-   *
-   * Broad and low, and nothing to do with the disc's halo below — that is a
-   * couple of degrees wide and this is most of a hemisphere. It is here rather
-   * than with the fog because the fog fades to this gradient: warming one and
-   * not the other puts distant land at odds with the sky behind it every time
-   * you look west.
+   * How much the sky warms on the sun's side of the world, 0..1. Broad and low, and
+   * nothing to do with the disc's halo. Here rather than with the fog because the
+   * fog fades to this gradient: warming one and not the other puts distant land at
+   * odds with the sky behind it.
    */
   warmth: number;
   /** Angular radius of the disc, in degrees. The real one is about 0.27. */
@@ -107,25 +73,19 @@ export interface SkySettings {
 const RADIUS = 400;
 
 /**
- * The dome's share of the far plane. Under 1 so it is never clipped away, and
- * above the fog's share so whatever stands behind it is already solid fog —
- * the dome writes depth in the *normal* pass and would take those outlines
- * with it. See VIEW-DISTANCE.md.
+ * The dome's share of the far plane. Under 1 so it is never clipped away, and above
+ * the fog's share so whatever stands behind it is already solid fog — the dome
+ * writes depth in the normal pass and would take those outlines with it.
  */
 export const SKY_FRACTION = 0.95;
 
 /**
- * The sky's uniforms, at module scope and shared.
- *
- * Held here rather than cloned per material for the reason `windUniforms` is:
- * **there is one sky, and everything that asks what colour it is has to get the
- * same answer.** The dome is only the first caller. Water reflects into the sky
- * where its screen-space march finds nothing (SHADERS-AND-MATERIALS.md §8), and a reflection
- * evaluated against a second copy of these numbers would drift from the sky it
- * is supposed to be reflecting the moment either was tuned.
- *
- * `Sky.apply` writes them; anything else reads. There is exactly one `Sky`, so
- * sharing costs nothing and rules out the whole class of disagreement.
+ * The sky's uniforms, at module scope and shared, for `windUniforms`' reason:
+ * there is one sky, and everything that asks what colour it is has to get the same
+ * answer. Water reflects into the sky where its screen-space march finds nothing,
+ * and a reflection evaluated against a second copy would drift from the sky it is
+ * reflecting the moment either was tuned. `Sky.apply` writes them; anything else
+ * reads.
  */
 export const skyUniforms = {
   uHorizon: { value: new THREE.Color() },
@@ -152,42 +112,18 @@ export const skyUniforms = {
 };
 
 /**
- * Two colours of air: what the dome shows, and what the fog fades to.
+ * Two colours of air: what the dome shows, and what the fog fades to. The same
+ * function with different curves — both run horizon → zenith upward and horizon →
+ * ground downward, both warm on the sun's side, and both are exactly the horizon
+ * colour at direction.y = 0, which is the one line the vista band cannot afford a
+ * seam on.
  *
- * **They are the same function with different curves, and that difference is
- * the whole design.** Both bands run horizon → zenith upward and horizon →
- * ground downward, both warm on the sun's side, and both are exactly the
- * horizon colour at `direction.y` = 0 — which is the one line the vista band
- * cannot afford a seam on, and it is closed by construction.
- *
- * What differs is how fast they leave the horizon going up.
- *
- * `uCurve` is the **dome's** number and it is tiny (0.35), because that is what
- * a sky looks like: the blue takes over within a few degrees. Handing that same
- * curve to the fog was the bug that made distant geometry go transparent, and it
- * is a category error rather than a tuning miss. The dome's gradient is eight
- * kilometres of atmosphere seen looking *up*; the fog's colour is airlight over
- * two hundred metres of nearly *horizontal* path, which is horizon light almost
- * exclusively. Feed the dome's curve to the fog and a hill at 250 m has a steep
- * blue ramp painted down it — 16 % toward zenith at its foot, 44 % at its crown
- * — and the sky right behind it has the identical ramp, because it is the same
- * function of the same view direction. The hill stops being a hill and becomes a
- * window onto the gradient.
- *
- * `uAirCurve` is the fog's own, and it is large. Above 2 the air is horizon
- * coloured across every elevation anything hazy occupies — flat, so nothing gets
- * a ramp painted on it, and distant land keeps its contrast against the brighter
- * sky above it. It still varies where it should: with bearing toward the sun,
- * and below the horizon where the skirt has to meet the dome.
- *
- * Clouds are in neither. They live overhead; the air in front of a hill three
- * hundred metres away is not cloud coloured, and anything drawn on the dome that
- * finds its way into the air is painted *across* the geometry standing in front
- * of it, which reads as that geometry having gone transparent.
- *
- * Guarded, because `art/finish.ts` pulls in the whole of `SKY_GLSL` for its
- * environment term and the fog patch pulls in this — two includes in one
- * program, and GLSL will not take the function twice.
+ * uCurve is the dome's number and it is tiny, because that is what a sky looks
+ * like: the blue takes over within a few degrees. uAirCurve is the fog's own and
+ * it is large, so the air is horizon coloured across every elevation anything hazy
+ * occupies — flat, so nothing gets a ramp painted on it. Handing the dome's curve
+ * to the fog paints a steep blue ramp down a distant hill and the identical ramp
+ * on the sky right behind it, and the hill becomes a window onto the gradient.
  */
 export const SKY_GRADIENT_GLSL = /* glsl */ `
   #ifndef SKY_GRADIENT_INCLUDED
@@ -234,24 +170,14 @@ export const SKY_GRADIENT_GLSL = /* glsl */ `
 
 /**
  * What colour the sky is in a given direction — the dome's own shading, as a
- * function anything can call.
+ * function anything can call: the gradient, then the disc and halo, then the cloud
+ * layer. It has a name because screen-space reflection can only reflect what is on
+ * screen, and here the miss case is not an approximation — the reflected direction
+ * is a direction, and this returns exactly the sky that is in it, sun disc
+ * included, for the price of one call.
  *
- * **Moved out of the dome's `main` unchanged.** This used to be the body of the
- * fragment shader and it still is, line for line: the gradient, then the disc
- * and halo, then the cloud layer. Nothing about the sky is different for having
- * a name.
- *
- * It has a name because of what SHADERS-AND-MATERIALS.md §8 calls the quiet advantage of a
- * procedural sky. Screen-space reflection can only reflect what is on screen,
- * and the miss case — a ray that leaves the frame, which for a near-horizontal
- * surface is most of them — is where every SSR implementation looks broken.
- * Here the miss is not an approximation at all: the reflected direction is a
- * direction, and this returns exactly the sky that is in it, sun disc included,
- * for the price of one call.
- *
- * **Include `NOISE_GLSL` before this**, which the clouds need. Left to the
- * caller rather than bundled, so a shader that already has the noise for its
- * own reasons does not end up declaring `fbm` twice.
+ * Include `NOISE_GLSL` before this, which the clouds need. Left to the caller, so a
+ * shader that already has the noise does not declare `fbm` twice.
  *
  * (No backticks anywhere below: this is a template literal, and one inside a
  * comment would end it mid-GLSL.)
@@ -270,21 +196,13 @@ export const SKY_GLSL = /* glsl */ `
   uniform float uSunGlow;
 
   /**
-   * The sky, with the sun's own brightness under the caller's control.
-   *
-   * **Why anything would want less than all of it.** A flat-shaded facet has one
-   * normal, so it has one reflected direction, so when that direction lands on
-   * the sun the *entire triangle* comes back as uSunColor — a hard white polygon
-   * stuck to the side of an object. On the dome, where the direction varies per
-   * pixel, that is a sun; on a faceted prop reflecting it, that is a bug you
-   * cannot tune your way out of from the material side.
-   *
-   * The finish stage's roughness blur is no help either: it only starts mixing
-   * above roughness 0.15, and the surfaces this bites hardest are the smooth
-   * ones.
-   *
-   * So a reflector may ask for a fraction of the sun and get the rest of the sky
-   * unchanged — gradient, horizon, ground and clouds all exactly as drawn.
+   * The sky, with the sun's own brightness under the caller's control. A
+   * flat-shaded facet has one normal and so one reflected direction, so when that
+   * direction lands on the sun the entire triangle comes back as uSunColor — a
+   * hard white polygon stuck to the side of an object. The finish stage's
+   * roughness blur is no help, since it only starts mixing above roughness 0.15
+   * and the surfaces this bites hardest are the smooth ones. So a reflector may
+   * ask for a fraction of the sun and get the rest of the sky unchanged.
    */
   vec3 skyColourWithSun(vec3 direction, float sunScale) {
     float height = direction.y;
@@ -293,15 +211,11 @@ export const SKY_GLSL = /* glsl */ `
     // The band the fog also fades to, so the two cannot drift apart.
     vec3 colour = skyGradient(direction);
 
-    // The sun, drawn before the clouds so they pass in front of it.
-    //
-    // A disc plus a halo, both from the same dot product. The disc alone is a
-    // sticker: a real sun is surrounded by scattered light for many times its
-    // own diameter, and that halo is most of what makes the sky look lit
-    // *by* it rather than merely containing it.
-    //
-    // uSunSize is a cosine rather than an angle, so the comparison is against
-    // the dot product directly and no inverse cosine runs per pixel.
+    // The sun, drawn before the clouds so they pass in front of it: a disc plus a
+    // halo from the same dot product, because a real sun is surrounded by scattered
+    // light for many times its own diameter, and that halo is most of what makes
+    // the sky look lit by it. uSunSize is a cosine rather than an angle, so no
+    // inverse cosine runs per pixel.
     if (sunPower > 0.0) {
       float toSun = dot(direction, normalize(uSunDirection));
       float halo = pow(max(toSun, 0.0), uSunGlow);
@@ -332,11 +246,7 @@ export const SKY_GLSL = /* glsl */ `
     return colour;
   }
 
-  /**
-   * The sky as the dome draws it, and as everything drew it before the
-   * parameter above existed. Bit-identical: sunScale 1.0 multiplies
-   * uSunIntensity by one.
-   */
+  /** The sky as the dome draws it: skyColourWithSun at a sunScale of 1.0, which multiplies uSunIntensity by one and is bit-identical. */
   vec3 skyColour(vec3 direction) {
     return skyColourWithSun(direction, 1.0);
   }
@@ -463,12 +373,10 @@ export class Sky {
   }
 
   /**
-   * Points the drawn sun at wherever the scene's sun light is.
-   *
-   * Taken from the light rather than authored separately, and this is the whole
-   * reason the disc is worth having: shadows fall away from a direction, and a
-   * sun painted somewhere else in the sky makes every shadow in the world look
-   * wrong at once. One source of truth, and the light is it.
+   * Points the drawn sun at wherever the scene's sun light is. Taken from the light
+   * rather than authored separately, which is the whole reason the disc is worth
+   * having: shadows fall away from a direction, and a sun painted somewhere else in
+   * the sky makes every shadow in the world look wrong at once.
    */
   aimAt(direction: THREE.Vector3): void {
     (this.material.uniforms.uSunDirection.value as THREE.Vector3)

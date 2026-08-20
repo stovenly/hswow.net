@@ -4,26 +4,16 @@ import { ownerIdFor, maskState } from '../art/effectId';
 import type { GlitchEffectName, GlitchPlacement, GlitchSpec } from './Glitch';
 
 /**
- * Drives every glitch volume in the active zone. GLITCH-SHADERS.md §4.
+ * Drives every glitch volume in the active zone. The `LightActivity` shape:
+ * collected once when a zone is prepared, released when it is evicted, packed only
+ * for the zone you are standing in. Two kinds of entry share the list —
+ * free-standing placements, and specs attached to objects with `markGlitched`,
+ * whose centres are re-read from the object's world matrix every frame. That
+ * re-read is what lets corruption follow a thing rather than a place.
  *
- * The `LightActivity` shape: collected once when a zone is prepared, released
- * when it is evicted, packed only for the zone you are standing in. Two kinds
- * of entry share the list — free-standing placements off `ZoneDefinition.
- * glitches`, and specs attached to objects with `markGlitched`, whose centres
- * are re-read from the object's world matrix every frame. That re-read is the
- * one thing fog volumes never needed and the reason this class exists: it is
- * what lets corruption follow a thing rather than a place.
- *
- * The burst envelope is evaluated here, on the CPU, as a pure function of the
- * clock — hashed slots with attack, hold and tail, `art/activity.ts`'s
- * philosophy at a different tempo. Constant corruption reads as a material;
- * intermittent corruption reads as a malfunction. The master strength raises
- * both the resting floor and the duty cycle, so a faint glitch is a rare
- * half-second event and a strong one never fully settles.
- *
- * At most `MAX_GLITCHES` are live at once, nearest first — only the showcase
- * ever exceeds the budget, and there the nearest eight are the ones being
- * looked at.
+ * The burst envelope is evaluated here as a pure function of the clock: constant
+ * corruption reads as a material, intermittent corruption as a malfunction. At
+ * most `MAX_GLITCHES` are live at once, nearest first.
  */
 
 /** Past this, a volume is left out of the pack entirely. */
@@ -245,11 +235,9 @@ function entryFor(
 
 /**
  * The burst envelope: a pure function of the clock, so it is seekable and the
- * freeze switch is just a held timestamp. Slots fire on a hash; a firing slot
+ * freeze switch is just a held timestamp. Slots fire on a hash, and a firing slot
  * carries one burst with a sharp attack, a varied hold and a decaying tail.
- * Strength raises the resting floor, the slot rate and how often a slot fires
- * — a 0.1 glitch is a half-second event a few times a minute, a 1.0 glitch
- * never fully settles.
+ * Strength raises the resting floor, the slot rate and how often a slot fires.
  */
 function sampleBurst(seed: number, tempo: number, strength: number, t: number): number {
   const floor = 0.25 * strength * (1 + strength);

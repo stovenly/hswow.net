@@ -2,35 +2,15 @@ import * as THREE from 'three';
 import { createRng } from '../art/random';
 
 /**
- * Noise, shared between the sky and the fog volumes.
- *
- * Two things live here, and they are different answers to the same question.
- *
- * `NOISE_GLSL` is the sky's own fractal value noise, lifted out of `Sky.ts`
- * **verbatim** so that moving it changes nothing about the clouds. It is
- * hash-based and two-dimensional: five octaves of four hashes each, which is
- * twenty hashes per lookup. That is the right trade for a sky, where the
- * lookup happens once per pixel on the dome and nowhere else.
- *
- * `VOLUME_NOISE_GLSL` is the answer for a raymarch, where the lookup happens
- * eight times per volume per pixel and twenty hashes apiece would be the whole
- * cost of the effect. It reads a small tileable noise texture instead — one
- * hardware-filtered fetch where the hash version does four, and the filtering
- * is free.
- *
- * **The texture is built at boot from arithmetic, not shipped.** Ground rule 5
- * in SHADERS-AND-MATERIALS.md: no texture assets anywhere in this project. The wind field in
- * `art/sway.ts` is the precedent, and this is the same move at a different
- * size.
+ * Noise, shared between the sky and the fog volumes — two answers to one question.
+ * `NOISE_GLSL` is the sky's own fractal value noise, hash-based and
+ * two-dimensional at twenty hashes a lookup, which is the right trade for a dome
+ * sampled once per pixel. `VOLUME_NOISE_GLSL` reads a small tileable noise texture
+ * instead, because a raymarch looks up eight times per volume per pixel. The
+ * texture is built at boot from arithmetic: there are no texture assets here.
  */
 
-/**
- * The sky's noise, unchanged.
- *
- * Kept as a string rather than left in `Sky.ts` because the fog volumes wanted
- * the same functions and a second copy is a second thing to keep in agreement.
- * Nothing in here is ours to improve — the cloud look is tuned against it.
- */
+/** The sky's noise, unchanged. Kept as a string because the fog volumes want the same functions, and a second copy is a second thing to keep in agreement. */
 export const NOISE_GLSL = /* glsl */ `
   #ifndef NOISE_INCLUDED
   #define NOISE_INCLUDED
@@ -76,15 +56,9 @@ const NOISE_SIZE = 64;
 let texture: THREE.DataTexture | null = null;
 
 /**
- * The tileable noise texture, built once.
- *
- * White noise rather than pre-smoothed value noise, because the smoothing is
- * what the hardware's bilinear filter does for free on the way out — baking it
- * in as well would only blur the result twice and cost a lookup its detail.
- *
- * Seeded, like everything else that is generated in this project: an
- * unreproducible cloud bank is a cloud bank nobody can tune against a
- * screenshot.
+ * The tileable noise texture, built once. White noise rather than pre-smoothed
+ * value noise, because the smoothing is what the hardware's bilinear filter does
+ * for free. Seeded, like everything else generated in this project.
  */
 export function noiseTexture(): THREE.DataTexture {
   if (texture !== null) return texture;
@@ -111,28 +85,18 @@ export function noiseTexture(): THREE.DataTexture {
 }
 
 /**
- * Three-dimensional fractal noise from a two-dimensional texture.
- *
- * **The trick is that a 3D lookup is two 2D lookups.** Quantize the third axis
- * into slices, offset the xz lookup by a per-slice amount that wraps the
+ * Three-dimensional fractal noise from a two-dimensional texture: quantize the
+ * third axis into slices, offset the xz lookup by a per-slice amount that wraps the
  * texture into an unrelated part of itself, and interpolate between the two
- * neighbouring slices. Two fetches per octave, hardware-filtered within each
- * slice, and the vertical structure is real rather than a column of the same
- * value repeated up the height of the volume.
+ * neighbouring slices. Two hardware-filtered fetches an octave, with real vertical
+ * structure rather than one value repeated up the volume.
  *
- * The offsets are deliberately not round numbers. A slice offset that lands on
- * a texel boundary would make two slices correlate, and the result reads as
- * horizontal banding through the middle of a mist pool.
+ * The offsets are deliberately not round numbers — one landing on a texel boundary
+ * correlates two slices, which reads as horizontal banding through a mist pool.
  *
- * **`p` is measured in billows, not in metres or in UV.** One unit of `p` is
- * one texel across and one slice up — so a caller dividing world position by a
- * size in metres gets features of exactly that size, and the horizontal and
- * vertical detail come out matched. Getting this wrong is not subtle and is
- * easy to do: feeding UV straight in makes the base octave a *texel* wide,
- * which for a five-metre feature size is eight centimetres of detail, and the
- * volume fills with hash instead of billowing.
- *
- * Requires `uNoise` to be in scope.
+ * `p` is measured in billows, not in metres or in UV: one unit is one texel across
+ * and one slice up, so a caller dividing world position by a size in metres gets
+ * features of exactly that size. Requires `uNoise` in scope.
  */
 export const VOLUME_NOISE_GLSL = /* glsl */ `
   uniform sampler2D uNoise;

@@ -3,54 +3,22 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Ground-truth ambient occlusion, at chunky resolution. SHADERS-AND-MATERIALS.md §1 / R1.
+ * Ground-truth ambient occlusion, at chunky resolution. For a flat-shaded world AO
+ * is the missing ingredient rather than a refinement: Lambert under a hemisphere
+ * light produces no contact darkening, so props sit on the ground rather than in
+ * it. GTAO over classic SSAO because at equal cost it is better — horizon marching
+ * with an analytic cosine-weighted integral instead of a noisy kernel.
  *
- * For a flat-shaded world AO is the missing ingredient, not a refinement:
- * Lambert under a hemisphere light produces zero contact darkening, so props
- * sit *on* the ground rather than in it. GTAO over classic SSAO because at
- * equal cost it is simply better — horizon marching with an analytic
- * cosine-weighted integral instead of a noisy kernel with two bias knobs.
+ * Three sub-passes. A horizon march of 4 slices × 6 steps each way, rotated per
+ * chunky pixel by interleaved gradient noise, which gives neighbouring pixels
+ * complementary rotations so a small blur can average a full direction set. Then
+ * two 3×3 depth-aware blurs, both one texel apart, so the pair is a triangle
+ * rather than a flat box. Then a composite, faded by the same linear fog the
+ * materials apply, so distant AO does not paint grime onto the haze.
  *
- * Three sub-passes, all chunky-to-chunky:
- *
- * 1. **Horizon march.** 4 slice directions × 6 steps each way (48 taps),
- *    rotated per chunky pixel by *interleaved gradient noise* — stable per
- *    pixel, no temporal anything. IGN rather than a white-noise hash: white
- *    noise gives neighbouring pixels unrelated estimates, which a small blur
- *    cannot reconstruct. IGN gives neighbours maximally *complementary*
- *    rotations, so the blur below averages a full direction set.
- *
- *    Where the taps land matters more than how many there are, and three of
- *    the rules that put them there cost nothing. The reach is per-axis, so the
- *    march is a circle in the world rather than an ellipse; the spacing is
- *    squared, so taps crowd where a contact shadow's horizon is; and each
- *    sample is read off a texel centre and weighed against the surface's own
- *    tangent plane — see `horizon`, which is where an open floor stops
- *    wearing a band of shimmer toward the horizon.
- *
- *    Steps and slices quiet different noise. Radial steps are what a chair
- *    leg falls between: more of them catch thinner occluders, and deepen the
- *    estimate toward truth as they do. Slices are the directions marched, and
- *    close to furniture — a seat with a table top a hand-span above it —
- *    direction is most of the variance: which way a slice points decides
- *    whether the table top is seen at all. Four slices halve that draw
- *    without moving the expected shading anywhere.
- *
- *    World radius default 0.8 m, quadratic falloff, so a distant sample fades
- *    out of the horizon rather than snapping.
- * 2. **Two 3×3 depth-aware blurs, both one texel apart.** Two boxes in series
- *    are a triangle, and that shape is the point: it falls off smoothly, so
- *    what it leaves is fine grain rather than flat plateaus with steps between
- *    them. Spacing the second pass wider makes the pair a flat box instead,
- *    which is what banding is made of — see the note in SHADERS-AND-MATERIALS.md.
- * 3. **Composite.** `colour × mix(1, ao, strength · fogFactor)` — faded by
- *    the same linear fog the materials apply, so distant AO does not paint
- *    grime onto the haze.
- *
- * The sky never occludes and is never occluded: sky pixels return full
- * visibility, and a marched sample that lands on sky attenuates to nothing —
- * which is what keeps swaying foliage from wearing a dark halo against it,
- * the regression R1's exit criteria call out by name.
+ * The sky never occludes and is never occluded: sky pixels return full visibility,
+ * and a marched sample landing on sky attenuates to nothing, which is what keeps
+ * swaying foliage from wearing a dark halo against it.
  */
 
 export class GTAOEffect implements PixelEffect {
@@ -124,10 +92,9 @@ export class GTAOEffect implements PixelEffect {
     this.quad.render(renderer);
 
     // --- 2: the blur, twice -------------------------------------------------
-    // Ping-ponged through the two AO targets, so the second pass costs no
-    // extra memory. Both passes one texel apart, which makes the pair a
-    // triangle across five texels — see the note on why the spacing must not
-    // be widened.
+    // Ping-ponged through the two AO targets, so the second pass costs no extra
+    // memory. Both passes one texel apart, which makes the pair a triangle across
+    // five texels; spacing the second wider makes it a flat box, which bands.
     const blur = this.blurMaterial.uniforms;
     blur.tDepth.value = context.depth;
     blur.uNear.value = camera.near;
@@ -205,10 +172,9 @@ function createAoMaterial(): THREE.ShaderMaterial {
       // counts as standing on it. A sine, so about 6 degrees.
       #define TANGENT_BIAS 0.1
 
-      // Interleaved gradient noise (Jimenez). Not a hash: neighbouring
-      // pixels land on maximally different values, which is what lets the
-      // 3x3 blurs downstream average a complete rotation set out of a small
-      // neighbourhood. White noise here reads as grain no blur can fix.
+      // Interleaved gradient noise (Jimenez), not a hash: neighbouring pixels land
+      // on maximally different values, which is what lets the 3x3 blurs downstream
+      // average a complete rotation set out of a small neighbourhood.
       float gradientNoise(vec2 p) {
         return fract(52.9829189 * fract(0.06711056 * p.x + 0.00583715 * p.y));
       }
@@ -220,25 +186,15 @@ function createAoMaterial(): THREE.ShaderMaterial {
       }
 
       /**
-       * How high one sample raises the horizon, as a cosine about V. -1 is a
-       * sample that raises it not at all.
+       * How high one sample raises the horizon, as a cosine about V. -1 is a sample
+       * that raises it not at all.
        *
-       * Two rules here, and between them they are the whole of why an open
-       * floor comes out clean.
-       *
-       * **Read the texel, not the point between texels.** The depth fetch is
-       * nearest, so the value comes from a texel centre; reconstructing with
-       * the un-snapped uv builds a point that is on no surface at all — that
-       * texel's depth, along a ray beside it. Displaced sideways off the
-       * plane, which is exactly what a spurious occluder looks like.
-       *
-       * **A sample on this surface's own plane is not an occluder.** The
-       * horizon is a maximum, so noise in a near-tangent reading can only ever
-       * push it up, never down: a flat floor seen at a grazing angle collects
-       * a band of darkening that grows toward the horizon, and it shimmers
-       * because the noise is keyed to the per-pixel rotation. Weighting the
-       * sample by how far it stands off the tangent plane costs one dot
-       * product and takes that band to nothing.
+       * Read the texel, not the point between texels: the depth fetch is nearest,
+       * so reconstructing with the un-snapped uv builds a point on no surface at
+       * all. And a sample on this surface's own plane is not an occluder — the
+       * horizon is a maximum, so noise in a near-tangent reading can only push it
+       * up, and a floor at a grazing angle collects a shimmering band without the
+       * tangent-plane weight.
        */
       float horizon(vec2 uv, vec3 P, vec3 N, vec3 V) {
         vec2 texel = (floor(uv * uResolution.xy) + 0.5) * uResolution.zw;
@@ -266,17 +222,11 @@ function createAoMaterial(): THREE.ShaderMaterial {
         vec3 N = normalize(texture2D(tNormal, vUv).rgb * 2.0 - 1.0);
         vec3 V = normalize(-P);
 
-        // **The world radius on screen, and it is two numbers.** UV is not
-        // isotropic: the projection scales x and y by different amounts, so one
-        // radius for both marches a circle in UV, which is an *ellipse* in the
-        // world reaching the aspect ratio further sideways than up — 1.78x on a
-        // 16:9 screen, where the falloff then discards most of what the
-        // sideways taps found. Scaled per axis, every direction reaches the same
-        // distance and no tap is spent outside the radius.
-        //
-        // Clamped: a wall against the camera would otherwise march most of the
-        // frame for information the falloff will throw away anyway. On both
-        // axes together, so the clamp shortens the reach without re-shaping it.
+        // The world radius on screen, and it is two numbers: UV is not isotropic, so
+        // one radius for both marches an ellipse in the world, reaching the aspect
+        // ratio further sideways than up. Clamped on both axes together, so a wall
+        // against the camera does not march most of the frame for information the
+        // falloff will throw away.
         vec2 radiusUv = uRadius * uProjScale * 0.5 / max(-P.z, 0.05);
         radiusUv *= min(1.0, 0.35 / max(radiusUv.x, radiusUv.y));
 
@@ -314,15 +264,10 @@ function createAoMaterial(): THREE.ShaderMaterial {
           float maxCos1 = -1.0;
           float maxCos2 = -1.0;
           for (int s = 0; s < STEPS; s++) {
-            // **Squared, so the steps crowd toward the centre.** The radius
-            // covers 50 to 190 texels at ordinary viewing distances, and
-            // evenly spread steps leave gaps of tens of texels: an occluder
-            // thinner than a gap is caught or missed depending on where this
-            // pixel's jitter happened to land, and its neighbour decides
-            // differently. That is the grain, and a chair leg is a few texels
-            // wide. Squared, the six taps sit at roughly 1, 6, 17, 34, 56 and
-            // 84 percent of the reach — dense where a contact shadow's horizon
-            // is, and still out to the rim.
+            // Squared, so the steps crowd toward the centre. Evenly spread, six taps
+            // over 50 to 190 texels leave gaps of tens of texels, and an occluder
+            // thinner than a gap is caught or missed on this pixel's jitter alone.
+            // Squared, they sit at roughly 1, 6, 17, 34, 56 and 84 percent of reach.
             float t = (float(s) + stepJitter + 0.5) / float(STEPS);
             vec2 offset = dir2 * radiusUv * t * t;
             maxCos2 = max(maxCos2, horizon(vUv + offset, P, N, V));
@@ -342,20 +287,13 @@ function createAoMaterial(): THREE.ShaderMaterial {
           open += projLen * (cosN + n * sin(n));
         }
 
-        // **Normalised against the unoccluded response, not the slice count.**
-        // An open slice does not integrate to 1 — it integrates to
-        // cos(n) + n sin(n), which is 1 only when the surface faces the camera
-        // squarely and climbs above it as the surface tilts away. Dividing by
-        // SLICES therefore discards visibility in proportion to how obliquely
-        // the surface is seen: 3% at 40 degrees off the view axis. Small, but
-        // its contours are circles centred on the optical axis, and a 16-level
-        // quantizer downstream turns a smooth 3% ramp into one hard ring that
-        // slides across a near wall as the camera turns. Note this is a
-        // normalisation error, not a sampling one — more slices do not fix it.
-        //
-        // Dividing by the accumulated open response is exact for a flat
-        // surface at any angle, and it also drops the slices skipped above
-        // out of the denominator instead of counting them as fully occluded.
+        // Normalised against the unoccluded response, not the slice count. An open
+        // slice integrates to cos(n) + n sin(n), which is 1 only when the surface
+        // faces the camera squarely, so dividing by SLICES discards visibility in
+        // proportion to obliquity — 3% at 40 degrees, whose contours are circles
+        // about the optical axis and which a 16-level quantizer turns into one hard
+        // ring. Dividing by the accumulated open response is exact at any angle, and
+        // drops the skipped slices out of the denominator.
         visibility = open > 1e-4 ? clamp(visibility / open, 0.0, 1.0) : 1.0;
         gl_FragColor = vec4(vec3(visibility), 1.0);
       }
@@ -389,13 +327,10 @@ function createBlurMaterial(): THREE.ShaderMaterial {
 
       void main() {
         float centre = viewDepth(vUv);
-        // **The tolerance is a fraction of distance, not a fixed number of
-        // metres.** An absolute threshold looks correct and fails exactly
-        // where it is needed most: a floor viewed at a grazing angle changes
-        // depth fast from pixel to pixel, so every neighbour reads as "across
-        // a silhouette", the blur rejects them all, and the raw noise stands
-        // untouched on the one surface the player is always looking at. A
-        // relative tolerance follows the surface instead of fighting it.
+        // The tolerance is a fraction of distance, not a fixed number of metres. An
+        // absolute threshold fails exactly where it is needed most: a floor at a
+        // grazing angle changes depth fast from pixel to pixel, so every neighbour
+        // reads as across a silhouette and the raw noise stands untouched.
         float tolerance = max(centre * 0.03, 0.02);
         float total = 0.0;
         float weightSum = 0.0;
@@ -444,10 +379,9 @@ function createCompositeMaterial(): THREE.ShaderMaterial {
         vec4 colour = texture2D(tDiffuse, vUv);
         float ao = texture2D(tAO, vUv).r;
 
-        // The same fog the materials applied — smoothstep, exactly as
-        // three's linear fog chunk computes it, because AO multiplied on
-        // after fog would darken the haze itself. Its strength fades out as
-        // the fog fades in.
+        // The same fog the materials applied — smoothstep, exactly as three's linear
+        // fog chunk computes it, because AO multiplied on after fog would darken the
+        // haze itself.
         float d = texture2D(tDepth, vUv).r;
         float dist = -(uNear * uFar) / ((uFar - uNear) * d - uFar);
         float fogAmount = smoothstep(uFogNear, uFogFar, dist);

@@ -2,18 +2,14 @@ export type UpdateFn = (dt: number, elapsed: number) => void;
 
 /**
  * The frame loop. Subscribers are called in insertion order with a delta in
- * seconds; anything needing wall-clock scheduling (audio grains, for one)
- * should use AudioContext.currentTime instead of this.
+ * seconds; anything needing wall-clock scheduling should use
+ * `AudioContext.currentTime` instead.
  */
 /**
- * How early a frame may arrive and still be drawn, in milliseconds.
- *
- * Without it a cap almost never lands where it is set. Frames are delivered on
- * the display's cadence — 16.67 ms apart on a 60 Hz panel — so a 60 fps cap
- * asking for exactly 16.67 ms rejects any frame that arrives a fraction early
- * and takes the next one instead, halving the rate to 30. A millisecond of
- * slack is far below any interval anybody would cap at and removes the whole
- * class of problem.
+ * How early a frame may arrive and still be drawn, in milliseconds. Without it a
+ * cap almost never lands where it is set: frames are delivered on the display's
+ * cadence, so a 60 fps cap asking for exactly 16.67 ms rejects any frame that
+ * arrives a fraction early and takes the next one, halving the rate to 30.
  */
 const CAP_SLACK = 1;
 
@@ -33,18 +29,11 @@ export class Loop {
   }
 
   /**
-   * Caps the frame rate, or removes the cap with `null`.
-   *
-   * **Skipped frames, not a timer.** `setTimeout` and `setInterval` are not
-   * synchronised to the display, so driving the loop from one produces frames
-   * that land at arbitrary points in the refresh cycle and judder however
-   * steady the rate is. Asking for every frame and declining to *use* some of
-   * them keeps every frame that is drawn aligned to a refresh.
-   *
+   * Caps the frame rate, or removes the cap with `null`. Skipped frames, not a
+   * timer: `setTimeout` is not synchronised to the display, so driving the loop
+   * from one produces frames landing at arbitrary points in the refresh cycle.
    * The consequence is that a cap is only exactly reached when it divides the
-   * refresh rate: 30 on a 60 Hz panel is every second frame, and 144 on the
-   * same panel is simply 60. That is honest — the display cannot show more —
-   * and it is why the choices offered are the common refresh rates.
+   * refresh rate, which is why the choices offered are the common refresh rates.
    */
   setFpsCap(fps: number | null): void {
     this.minInterval = fps && fps > 0 ? 1000 / fps : 0;
@@ -58,10 +47,9 @@ export class Loop {
     const tick = (now: number): void => {
       this.handle = requestAnimationFrame(tick);
 
-      // Declined, and nothing is advanced: `last` stays where it was, so the
-      // delta handed to subscribers when a frame *is* taken covers the whole
-      // span since the last one. Moving it here instead would make the game
-      // run slow in proportion to the frames dropped.
+      // Declined, and nothing is advanced: `last` stays where it was, so the delta
+      // handed to subscribers when a frame is taken covers the whole span since the
+      // last one.
       if (this.minInterval > 0 && now - this.last < this.minInterval - CAP_SLACK) return;
 
       // Clamped so returning to a backgrounded tab doesn't deliver a

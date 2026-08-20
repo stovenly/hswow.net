@@ -5,37 +5,18 @@ import { GLASS_MATERIAL } from '../art/glass';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * The glass pass. SHADERS-AND-MATERIALS.md Track B / M3.
+ * The glass pass, `WaterEffect`'s shape near enough line for line: blit the
+ * chain's colour forward, then re-render the scene with the camera restricted to
+ * `GLASS_LAYER` into that same target, with the scene's colour and depth bound as
+ * uniforms. Nothing here is lit — the camera is on a layer no light is on, so no
+ * light is pushed and the shadow map is not redrawn.
  *
- * `WaterEffect`'s shape, near enough line for line, because it is the same kind
- * of thing: blit the chain's colour forward, then re-render the scene with the
- * camera restricted to `GLASS_LAYER` into that same target, with the scene's
- * colour and depth bound as uniforms. Three culls by layer while building the
- * render list, so this costs the glass draw calls and a scene-graph walk.
- *
- * **Nothing here is lit**, and nothing needs to be — the camera is on a layer no
- * light is on, so no light is pushed and the shadow map is not redrawn.
- * `GLASS_MATERIAL` shades itself from the sky and the buffers below it.
- *
- * ## Where it sits
- *
- * ```
- * GTAO ─► water ─► underwater ─► glass ─► fog volumes ─► particles ─► bloom
- * ```
- *
- * - **After water and underwater**, so a crystal standing over a pond refracts
- *   the pond, and so a crystal seen from underwater is behind the murk rather
- *   than in front of it. Both of those are surfaces; glass is a surface too,
- *   and the one that reads all the others.
- * - **Before the fog volumes and bloom**, for the reasons water gives: mist
- *   hangs in front of a crystal rather than inside it, and a lantern's halo
- *   lies over the glass. The refraction reads the pre-bloom colour, so a
- *   refracted lamp shows the lamp and not its bleed — correct, since the bleed
- *   is in the air near the lamp rather than on its surface.
- *
- * A pass that costs a scene walk must not run in the zones with no glass in
- * them, so `setActive` fires on every crossing with what the entered zone
- * actually built — observed rather than declared, see `Zone.hasGlass`.
+ * After water and underwater, so a crystal standing over a pond refracts the pond
+ * and one seen from underwater is behind the murk. Before the fog volumes and
+ * bloom, so mist hangs in front of a crystal rather than inside it and a lantern's
+ * halo lies over the glass. `setActive` fires on every crossing with what the
+ * entered zone actually built, because a pass that costs a scene walk must not run
+ * in a zone with no glass in it.
  */
 export class GlassEffect implements PixelEffect {
   readonly label = 'glass';
@@ -79,11 +60,7 @@ export class GlassEffect implements PixelEffect {
     this.quad = new FullScreenQuad(this.blitMaterial);
   }
 
-  /**
-   * Tells the pass whether the zone now standing has glass in it. Called at the
-   * same moment the fog volumes and the water flag are swapped, and for the
-   * same reason: it happens at full black during a crossing.
-   */
+  /** Tells the pass whether the zone now standing has glass in it. Called at full black during a crossing, with the fog volumes and the water flag. */
   setActive(present: boolean): void {
     this.present = present;
   }
@@ -121,10 +98,9 @@ export class GlassEffect implements PixelEffect {
     );
 
     // --- the draw -------------------------------------------------------------
-    // No clear of any kind: the blit above is the frame, and the depth attached
-    // to this target is a renderbuffer nothing here reads — the glass tests
-    // itself in the shader against the scene's depth texture, which is a
-    // different buffer and is not bound here.
+    // No clear of any kind: the blit above is the frame, and the depth attached to
+    // this target is a renderbuffer nothing here reads — the glass tests itself in
+    // the shader against the scene's depth texture, which is not bound here.
     const priorAutoClear = renderer.autoClear;
     const priorMask = camera.layers.mask;
 

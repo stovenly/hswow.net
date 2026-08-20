@@ -52,13 +52,10 @@ export interface HorrorSpec {
   /** Fit cadence multiplier. Default 1; the showcase runs hot. */
   tempo?: number;
   /**
-   * Whether this thing stands on the floor and should stay standing on it.
-   *
-   * Off by default, and that default is the honest one: most of the kit is not
-   * a body with feet. Off, the shape-changing effects pivot about the volume's
-   * own centre — a hanging sign, a boulder or a floating orb tips and stretches
-   * in place. On, they pivot about the object's base, so a figure leans from
-   * the ankles and grows from the floor rather than sinking through it.
+   * Whether this thing stands on the floor and should stay standing on it. Off by
+   * default, because most of the kit is not a body with feet: off, the
+   * shape-changing effects pivot about the volume's own centre, so a hanging sign
+   * or a boulder tips in place. On, they pivot about the object's base.
    */
   grounded?: boolean;
   /** Volume position relative to the object, for `markHaunted` specs only. */

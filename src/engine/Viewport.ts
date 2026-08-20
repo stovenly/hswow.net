@@ -33,54 +33,36 @@ export class Viewport {
     });
     this.renderer.setClearColor(0x0a0a0f, 1);
 
-    // On at the renderer, and gated at the light. `shadowMap.enabled` is a
-    // shader-compilation switch — flipping it invalidates every program in the
-    // scene and stalls for a frame or more — so the runtime toggle sets
-    // `castShadow` on the sun instead, which costs nothing to change.
-    //
-    // PCF soft rather than basic: the pipeline renders at a third of display
-    // resolution and then quantizes, so a hard shadow edge lands on a
-    // three-pixel block boundary and crawls as the camera moves.
+    // On at the renderer, and gated at the light: `shadowMap.enabled` is a
+    // shader-compilation switch, so flipping it invalidates every program in the
+    // scene, and the runtime toggle sets `castShadow` on the sun instead. PCF soft
+    // rather than basic — the pipeline renders at a third of display resolution and
+    // then quantizes, so a hard shadow edge crawls as the camera moves.
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // **The shadow map is drawn once a frame, not once a pass.**
-    // `WebGLRenderer.render` calls `shadowMap.render()` unconditionally, and
-    // the pipeline renders the scene twice — once for beauty and once with
-    // `overrideMaterial` set to a normal material for the edge detector. The
-    // second shadow render is pure waste: the shadow pass uses its own depth
-    // materials and ignores `overrideMaterial` entirely, so it redraws exactly
-    // the same map and throws the first one away.
-    //
-    // With `autoUpdate` off, `WebGLShadowMap` returns early unless `needsUpdate`
-    // is set, and clears the flag once it has drawn. `PostFX.render` sets it
-    // once per frame, so the first pass draws the map and the rest reuse it.
-    // Byte-identical output, half the shadow cost.
+    // The shadow map is drawn once a frame, not once a pass. `WebGLRenderer.render`
+    // calls `shadowMap.render()` unconditionally and this pipeline renders the scene
+    // twice, but the shadow pass uses its own depth materials and ignores
+    // `overrideMaterial`, so the second render is pure waste. With `autoUpdate` off
+    // it returns early unless `needsUpdate` is set, which `PostFX.render` does once
+    // per frame. Byte-identical output, half the shadow cost.
     this.renderer.shadowMap.autoUpdate = false;
 
-    // **And the frame counters are reset once a frame, for the same reason.**
-    // `info.reset()` normally runs inside every `render()` call — *after* the
-    // shadow pass, and once per `render()` call — so read at the end of a frame
-    // `info.render.calls` would report the last fullscreen quad and nothing
-    // else. Off, it accumulates across every pass and includes the shadow
-    // draws, which is the number the debug readout is actually asking for.
+    // And the frame counters are reset once a frame, for the same reason:
+    // `info.reset()` normally runs inside every `render()` call, after the shadow
+    // pass, so read at the end of a frame it would report the last fullscreen quad
+    // and nothing else.
     this.renderer.info.autoReset = false;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, CAMERA_FAR);
 
-    // **And the world matrices are updated once a frame, by hand.** The third
-    // switch of the same shape as the two above, and the largest of the three.
-    // `WebGLRenderer.render` calls `scene.updateMatrixWorld()` on the way in,
-    // and this pipeline renders the scene up to eight times a frame — colour,
-    // the normal override, the cover normals, and one per layer pass. Nothing
-    // moves between those calls, so seven of the eight walks recompute matrices
-    // that already hold the right numbers.
-    //
-    // Off here, whoever draws does it once and says so: `PostFX.render` and
-    // `render` below, each on its way into the frame. That is where the first
-    // implicit walk used to happen, so nothing reads a matrix any staler than
-    // it did before.
+    // And the world matrices are updated once a frame, by hand.
+    // `WebGLRenderer.render` calls `scene.updateMatrixWorld()` on the way in, and
+    // this pipeline renders the scene up to eight times a frame with nothing moving
+    // between the calls. Off here, whoever draws does it once and says so —
+    // `PostFX.render` and `render` below, each on its way into the frame.
     this.scene.matrixAutoUpdate = false;
     this.scene.matrixWorldAutoUpdate = false;
 
@@ -105,14 +87,10 @@ export class Viewport {
   }
 
   /**
-   * Straight to the screen, with no post pipeline. Nothing calls this — the
-   * game renders through `PostFX` — and it is kept as the plain path for
-   * bisecting a problem down to "is it the pipeline or the scene".
-   *
-   * It carries the same per-frame bookkeeping `PostFX.render` does, because
-   * both switches above are off by default now: without the reset the counters
-   * would climb forever, and without `needsUpdate` the shadow map would be
-   * whatever the last full frame left behind.
+   * Straight to the screen, with no post pipeline. Nothing calls this; it is kept
+   * as the plain path for bisecting a problem down to the pipeline or the scene. It
+   * carries the same per-frame bookkeeping `PostFX.render` does, because both
+   * switches above are off by default.
    */
   render(): void {
     this.renderer.info.reset();
