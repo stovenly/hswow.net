@@ -62,7 +62,7 @@ export type Vowel =
 
 /** The pitch shape a syllable carries of its own, under the phrase's tune. */
 export type Tone = 'level' | 'high' | 'low' | 'rise' | 'fall' | 'dip';
-export type Phonation = 'modal' | 'creaky' | 'breathy';
+export type Phonation = 'modal' | 'creaky' | 'breathy' | 'whisper' | 'harsh';
 
 const c = (
   manner: Manner, place: Place, voice: Voicing, extra: Partial<Consonant> = {},
@@ -81,26 +81,44 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['p', c('stop', 'lip', 'off')],
   ['t', c('stop', 'ridge', 'off')],
   ['k', c('stop', 'back', 'off')],
-  ['c', c('stop', 'back', 'off')],
-  ['q', c('stop', 'back', 'off')],
-  ['ɢ', c('stop', 'back', 'on')],
+  ['ɟ', c('stop', 'palate', 'on')],
+  ['c', c('stop', 'palate', 'off')],
+  ['ɢ', c('stop', 'uvula', 'on')],
+  ['q', c('stop', 'uvula', 'off')],
   ['pʰ', c('stop', 'lip', 'off', { release: 'aspirated' })],
   ['tʰ', c('stop', 'ridge', 'off', { release: 'aspirated' })],
-  ['cʰ', c('stop', 'back', 'off', { release: 'aspirated' })],
+  ['cʰ', c('stop', 'palate', 'off', { release: 'aspirated' })],
   ['kʰ', c('stop', 'back', 'off', { release: 'aspirated' })],
-  ['qʰ', c('stop', 'back', 'off', { release: 'aspirated' })],
+  ['qʰ', c('stop', 'uvula', 'off', { release: 'aspirated' })],
   ['pʼ', c('stop', 'lip', 'off', { air: 'ejective' })],
   ['tʼ', c('stop', 'ridge', 'off', { air: 'ejective' })],
+  ['cʼ', c('stop', 'palate', 'off', { air: 'ejective' })],
   ['kʼ', c('stop', 'back', 'off', { air: 'ejective' })],
-  ['cʼ', c('stop', 'back', 'off', { air: 'ejective' })],
-  ['qʼ', c('stop', 'back', 'off', { air: 'ejective' })],
+  ['qʼ', c('stop', 'uvula', 'off', { air: 'ejective' })],
   ['ɓ', c('stop', 'lip', 'on', { air: 'implosive' })],
   ['ɗ', c('stop', 'ridge', 'on', { air: 'implosive' })],
+  ['ʄ', c('stop', 'palate', 'on', { air: 'implosive' })],
   ['ɠ', c('stop', 'back', 'on', { air: 'implosive' })],
   ['bʱ', c('stop', 'lip', 'murmur')],
   ['dʱ', c('stop', 'ridge', 'murmur')],
+  ['ɟʱ', c('stop', 'palate', 'murmur')],
   ['gʱ', c('stop', 'back', 'murmur')],
+  ['ʈ', c('stop', 'ridge', 'off', { shade: 'retroflex' })],
+  ['ɖ', c('stop', 'ridge', 'on', { shade: 'retroflex' })],
   ['ʔ', c('glottal', 'glottis', 'off')],
+
+  // Affricates: a stop that opens into its own channel and holds it there
+  // instead of opening all the way.
+  ['ts', c('stop', 'ridge', 'off', { release: 'affricated', shade: 'plain' })],
+  ['dz', c('stop', 'ridge', 'on', { release: 'affricated', shade: 'plain' })],
+  ['tʃ', c('stop', 'ridge', 'off', { release: 'affricated', shade: 'hush' })],
+  ['dʒ', c('stop', 'ridge', 'on', { release: 'affricated', shade: 'hush' })],
+  ['tɕ', c('stop', 'ridge', 'off', { release: 'affricated', shade: 'alveolopalatal' })],
+  ['dʑ', c('stop', 'ridge', 'on', { release: 'affricated', shade: 'alveolopalatal' })],
+  ['tɬ', c('stop', 'ridge', 'off', { release: 'affricated', shade: 'lateral' })],
+  ['pf', c('stop', 'lip', 'off', { release: 'affricated' })],
+  ['kx', c('stop', 'back', 'off', { release: 'affricated' })],
+  ['qχ', c('stop', 'uvula', 'off', { release: 'affricated' })],
 
   // Fricatives. `s` and `ʃ` differ by the shade, not by where the tip is.
   ['s', c('fricative', 'ridge', 'off', { shade: 'plain' })],
@@ -114,7 +132,6 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['θ', c('fricative', 'ridge', 'off', { shade: 'dental' })],
   ['ð', c('fricative', 'ridge', 'on', { shade: 'dental' })],
   ['th', c('fricative', 'ridge', 'off', { shade: 'dental' })],
-  ['j', c('fricative', 'ridge', 'off', { shade: 'hush' })],
   ['sh', c('fricative', 'ridge', 'off', { shade: 'hush' })],
   ['ch', c('fricative', 'ridge', 'off', { shade: 'hush' })],
   ['zh', c('fricative', 'ridge', 'off', { shade: 'hush' })],
@@ -122,12 +139,16 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   ['β', c('fricative', 'lip', 'on')],
   ['f', c('fricative', 'lip', 'off')],
   ['v', c('fricative', 'lip', 'on')],
+  ['ç', c('fricative', 'palate', 'off')],
+  ['ʝ', c('fricative', 'palate', 'on')],
   ['x', c('fricative', 'back', 'off')],
   ['ɣ', c('fricative', 'back', 'on')],
-  ['χ', c('fricative', 'back', 'off')],
+  ['χ', c('fricative', 'uvula', 'off')],
+  ['ʁ', c('fricative', 'uvula', 'on')],
   ['ħ', c('fricative', 'throat', 'off')],
   ['ʕ', c('fricative', 'throat', 'on')],
   ['ɬ', c('lateralFricative', 'ridge', 'off')],
+  ['ɮ', c('lateralFricative', 'ridge', 'on')],
 
   // An h is the vowel's own shape breathed before it is voiced. Voiced, it is
   // the same gesture with the folds left slack under it.
@@ -137,34 +158,46 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
   // Nasals. A ring under one takes the voice out of it.
   ['m', c('nasal', 'lip', 'on')],
   ['n', c('nasal', 'ridge', 'on')],
+  ['ɲ', c('nasal', 'palate', 'on')],
   ['ŋ', c('nasal', 'back', 'on')],
   ['ng', c('nasal', 'back', 'on')],
+  ['ɴ', c('nasal', 'uvula', 'on')],
   ['m̥', c('nasal', 'lip', 'off')],
   ['n̥', c('nasal', 'ridge', 'off')],
+  ['ɲ̊', c('nasal', 'palate', 'off')],
   ['ŋ̊', c('nasal', 'back', 'off')],
 
   // Trills, and the taps that are one beat of the same gesture.
   ['ʙ', c('trill', 'lip', 'on')],
   ['r', c('trill', 'ridge', 'on')],
-  ['ʀ', c('trill', 'back', 'on')],
+  ['ʀ', c('trill', 'uvula', 'on')],
+  ['ʙ̥', c('trill', 'lip', 'off')],
+  ['r̥', c('trill', 'ridge', 'off')],
+  ['ʀ̥', c('trill', 'uvula', 'off')],
   ['ɾ', c('tap', 'ridge', 'on')],
   ['ɽ', c('tap', 'ridge', 'on', { shade: 'retroflex' })],
   ['ɺ', c('tap', 'ridge', 'on', { shade: 'lateral' })],
 
-  // Liquids and approximants: a real constriction with the voice on.
+  // Liquids and approximants: a real constriction with the voice on. A dark
+  // l is a plain one with the tongue body pulled back, and nothing else.
   ['l', c('lateral', 'ridge', 'on')],
-  ['ɭ', c('lateral', 'ridge', 'on')],
-  ['ʎ', c('lateral', 'ridge', 'on')],
-  ['w', c('approximant', 'lip', 'on')],
+  ['ɭ', c('lateral', 'ridge', 'on', { shade: 'retroflex' })],
+  ['ɫ', c('lateral', 'ridge', 'on', { colour: 'velar' })],
+  ['ʎ', c('lateral', 'palate', 'on')],
+  ['ʟ', c('lateral', 'back', 'on')],
+  ['w', c('approximant', 'lip', 'on', { colour: 'velar' })],
+  ['ʋ', c('approximant', 'lip', 'on')],
   ['ɹ', c('approximant', 'ridge', 'on')],
+  ['j', c('approximant', 'palate', 'on')],
   ['ɰ', c('approximant', 'back', 'on')],
+  ['ʁ̞', c('approximant', 'uvula', 'on')],
 
   // Clicks: two closures and the pop of the pocket between them.
   ['ʘ', c('click', 'lip', 'off')],
+  ['ǀ', c('click', 'ridge', 'off', { shade: 'dental' })],
   ['ǃ', c('click', 'ridge', 'off')],
-  ['ǀ', c('click', 'ridge', 'off')],
-  ['ǁ', c('click', 'ridge', 'off')],
-  ['ǂ', c('click', 'ridge', 'off')],
+  ['ǂ', c('click', 'ridge', 'off', { shade: 'alveolopalatal' })],
+  ['ǁ', c('click', 'ridge', 'off', { shade: 'lateral' })],
 ];
 
 /**
@@ -175,8 +208,10 @@ export const CONSONANTS: readonly (readonly [string, Consonant])[] = [
 export const PRENASAL: readonly (readonly [string, Consonant])[] = [
   ['mb', c('stop', 'lip', 'on', { attack: 'prenasal' })],
   ['nd', c('stop', 'ridge', 'on', { attack: 'prenasal' })],
+  ['ɲɟ', c('stop', 'palate', 'on', { attack: 'prenasal' })],
   ['ŋg', c('stop', 'back', 'on', { attack: 'prenasal' })],
-  ['nj', c('stop', 'ridge', 'on', { attack: 'prenasal' })],
+  ['ɴɢ', c('stop', 'uvula', 'on', { attack: 'prenasal' })],
+  ['nj', c('stop', 'palate', 'on', { attack: 'prenasal' })],
 ];
 
 /** Everything the parser may match, longest key first. */
@@ -213,10 +248,34 @@ export function sound(letter: string): Consonant {
   return found;
 }
 
+/**
+ * A second constriction held through a consonant, written after it. The point
+ * of these is that two peoples can share a phoneme and still not share a
+ * sound: the same /t/ is `tʲ` for one and `tˠ` for the other.
+ */
+export const COLOUR: Record<string, NonNullable<Consonant['colour']>> = {
+  'ʷ': 'round', 'ʲ': 'palatal', 'ˠ': 'velar', 'ˤ': 'pharyngeal',
+};
+const COLOUR_MARK: Record<NonNullable<Consonant['colour']>, string> = {
+  round: 'ʷ', palatal: 'ʲ', velar: 'ˠ', pharyngeal: 'ˤ',
+};
+
 /** The letter a bundle would be written with, or nothing if none writes it. */
 export function spellConsonant(x: Consonant): string {
   if (x.manner === 'none') return '';
-  return LETTER.get(key(x)) ?? '';
+  const direct = LETTER.get(key(x));
+  if (direct) return direct;
+  // Not in the table on its own: the marks come off one at a time until
+  // something is.
+  if (x.long) {
+    const base = spellConsonant({ ...x, long: false });
+    if (base) return `${base}ː`;
+  }
+  if (x.colour) {
+    const base = spellConsonant({ ...x, colour: undefined });
+    if (base) return base + COLOUR_MARK[x.colour];
+  }
+  return '';
 }
 
 export const VOWEL_LIST: readonly Vowel[] = [
