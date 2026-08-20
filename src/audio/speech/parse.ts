@@ -9,7 +9,7 @@
  */
 
 import {
-  MATCHES, OPEN, PRENASAL_MATCHES, VOWEL_OF, spellConsonant,
+  COLOUR, MATCHES, OPEN, PRENASAL_MATCHES, VOWEL_OF, spellConsonant,
   type Consonant, type Phonation, type Tone, type Vowel,
 } from './phonemes';
 
@@ -76,6 +76,14 @@ function consonants(cluster: string, initial: boolean): { c: Consonant; text: st
       continue;
     }
     i += hit.text.length;
+    // Then whatever is held through it: a colour, or a doubled length.
+    while (i < cluster.length) {
+      const colour = COLOUR[cluster[i]];
+      if (colour) hit = { c: { ...hit.c, colour }, text: hit.text + cluster[i] };
+      else if (cluster[i] === 'ː') hit = { c: { ...hit.c, long: true }, text: `${hit.text}ː` };
+      else break;
+      i++;
+    }
     out.push(hit);
   }
   return out;
@@ -100,7 +108,12 @@ function marksOf(marks: string): { tone: Tone; voice: Phonation; nasal: boolean;
     else if (last < first) tone = 'fall';
     else tone = first >= 3 ? 'high' : first <= 1 ? 'low' : 'level';
   }
-  const voice: Phonation = marks.includes('̰') ? 'creaky' : marks.includes('̤') ? 'breathy' : 'modal';
+  const voice: Phonation =
+    marks.includes('̰') ? 'creaky'
+      : marks.includes('̤') ? 'breathy'
+        : marks.includes('̥') ? 'whisper'
+          : marks.includes('͈') ? 'harsh'
+            : 'modal';
   return { tone, voice, nasal: marks.includes('̃'), long: marks.includes('ː') };
 }
 
@@ -245,6 +258,9 @@ export function score(raw: string): Score {
 }
 
 const TONE_MARK: Record<Tone, string> = { level: '', high: '́', low: '̀', rise: '̌', fall: '̂', dip: '˨˩˦' };
+/** How the folds are set, under the vowel. */
+const VOICE_MARK: Record<Phonation, string> =
+  { modal: '', creaky: '̰', breathy: '̤', whisper: '̥', harsh: '͈' };
 
 /**
  * Writes a score back out as the word it would be if it were one.
@@ -260,8 +276,7 @@ export function spell(syllables: readonly Syllable[]): string {
     const mark = TONE_MARK[s.tone];
     const marks =
       (mark.length === 1 ? mark : '') +
-      (s.nasal ? '̃' : '') +
-      (s.voice === 'creaky' ? '̰' : s.voice === 'breathy' ? '̤' : '');
+      (s.nasal ? '̃' : '') + VOICE_MARK[s.voice];
     out += s.vowel + marks;
     if (s.glide !== s.vowel) out += s.glide;
     if (s.long) out += 'ː';

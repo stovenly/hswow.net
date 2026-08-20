@@ -21,8 +21,8 @@ import type { Consonant, Score, Tone } from '../speech';
 import type { Unit } from './types';
 import { CURVE, type Curve, type Track } from './body';
 import {
-  CLOSURE, LATERAL, LIQUID, PHARYNX, SHAPES, TIP_OPEN, TRILL_BEATS, TRILL_PERIOD, UVULA,
-  bodyAt, closer, fricGap, inBody, liquidGap, type Shape,
+  CLOSURE, LATERAL, LIQUID, PALATE, PHARYNX, SHAPES, TIP_OPEN, TRILL_BEATS, TRILL_PERIOD,
+  UVULA, VELAR, bodyAt, closer, fricGap, inBody, liquidGap, type Shape,
 } from './shapes';
 
 export type { Unit };
@@ -49,37 +49,51 @@ const OPEN = 0.012;
 
 /** The voice does not run into these from the vowel before. */
 function unvoiced(c: Consonant): boolean {
-  if (c.air === 'ejective') return true;
+  if (c.manner === 'none') return false;
+  if (c.manner === 'glottal' || c.manner === 'click' || c.air === 'ejective') return true;
+  // A stop with a hum in front of it is voiced however the closure is.
+  if (c.attack === 'prenasal') return false;
+  return c.voice === 'off';
+}
+
+/** These write their own breath into the start of the vowel. */
+function breathed(c: Consonant): boolean {
+  if (c.voice === 'murmur' || c.release === 'aspirated') return true;
   switch (c.manner) {
-    case 'glottal':
-    case 'click':
-      return true;
-    // A stop with a hum in front of it is voiced however the closure is.
-    case 'stop':
-      return c.voice === 'off' && !c.attack;
     case 'fricative':
     case 'lateralFricative':
     case 'breath':
+      return true;
     case 'nasal':
+    case 'trill':
+    case 'tap':
+    case 'lateral':
+    case 'approximant':
       return c.voice === 'off';
     default:
       return false;
   }
 }
 
-/** These write their own breath into the start of the vowel. */
-function breathed(c: Consonant): boolean {
-  if (c.voice === 'murmur') return true;
-  switch (c.manner) {
-    case 'fricative':
-    case 'lateralFricative':
-    case 'breath':
-      return true;
-    case 'nasal':
-      return c.voice === 'off';
-    default:
-      return false;
+/**
+ * The shape a consonant's *other* articulators hold, once a colour is on it.
+ *
+ * A colour is a second constriction held right through the primary one, and
+ * the area function is a sum of windows, so it costs nothing — but only where
+ * the primary is not already using that articulator. Where they would fight,
+ * the colour falls through to plain.
+ */
+function coloured(c: Consonant, vowel: Shape): Shape {
+  if (!c.colour) return vowel;
+  if (c.colour === 'round') {
+    return c.place === 'lip' ? vowel : { ...vowel, lips: Math.min(vowel.lips, 0.55) };
   }
+  // The other three are the tongue body, so they are free only where something
+  // else is making the closure.
+  if (inBody(c.place)) return vowel;
+  const pos = c.colour === 'palatal' ? PALATE : c.colour === 'velar' ? VELAR : PHARYNX;
+  const dia = c.colour === 'palatal' ? 0.7 : c.colour === 'velar' ? 0.65 : 0.5;
+  return { ...vowel, bodyPos: pos, bodyDia: Math.min(vowel.bodyDia, dia) };
 }
 
 /** The voice comes on all at once, rather than easing up into the vowel. */
@@ -325,11 +339,14 @@ export function write(score: Score, me: Identity, at: number): Written {
     // --- the vowel --------------------------------------------------------
     // An arc, not a plateau: up to full over the first third, easing off
     // toward the end.
-    const plainStop = c.manner === 'stop' && !c.air && !c.attack && c.voice !== 'murmur';
+    const plainStop = c.manner === 'stop' && !c.air && !c.attack && !c.release && c.voice !== 'murmur';
     const rise = abrupt(c) ? 0.006 : plainStop ? 0.014 : c.manner === 'none' ? 0.028 : 0.02;
-    lines.at('loud', on + rise, level * 0.9, 'lin');
-    lines.at('loud', on + length * 0.35, level, 'lin');
-    lines.at('loud', end - 0.02, level * 0.72, 'lin');
+    // A whispered vowel is the tract shaping breath with the folds silent, so
+    // it is a vowel you can still hear the mouth of and not a hiss.
+    const folds = s.voice === 'whisper' ? 0 : 1;
+    lines.at('loud', on + rise, level * 0.9 * folds, 'lin');
+    lines.at('loud', on + length * 0.35, level * folds, 'lin');
+    lines.at('loud', end - 0.02, level * 0.72 * folds, 'lin');
 
     lines.at('jaw', on + 0.03, vowel.jaw, 'lin');
     lines.at('bodyPos', on + 0.03, vowel.bodyPos, 'lin');
@@ -368,12 +385,26 @@ export function write(score: Score, me: Identity, at: number): Written {
       lines.at('chaos', end + 0.04, 0, 'lin');
     }
 
+    // Harsh: the one thing the `modulate` track is for, roughness rolled on
+    // at the fold rate. It is a growl and nothing else uses it.
+    if (s.voice === 'harsh') {
+      lines.at('modulate', on, 0.5, 'lin');
+      lines.hold('modulate', end);
+      lines.at('modulate', end + 0.04, 0, 'lin');
+    }
+
     // Breath under the voice, more at a word's start and in the tail, and
-    // most of all under a breathy vowel.
+    // most of all under a breathy vowel. A whisper is all breath.
     const air = breathy ? 3.5 : 1;
-    if (!breathed(c)) lines.at('breath', on, me.breath * (1 + s.stress) * air, 'lin');
-    lines.at('breath', on + length * 0.5, me.breath * 0.6 * air, 'lin');
-    lines.at('breath', end, me.breath * (s.pause > 0.2 ? 1 : 0.5), 'lin');
+    if (s.voice === 'whisper') {
+      lines.at('breath', on, 0.5, 'lin');
+      lines.hold('breath', end - 0.02);
+      lines.at('breath', end, 0.2, 'lin');
+    } else {
+      if (!breathed(c)) lines.at('breath', on, me.breath * (1 + s.stress) * air, 'lin');
+      lines.at('breath', on + length * 0.5, me.breath * 0.6 * air, 'lin');
+      lines.at('breath', end, me.breath * (s.pause > 0.2 ? 1 : 0.5), 'lin');
+    }
 
     // --- the coda ---------------------------------------------------------
     writeCoda(lines, s.coda, end, level, me, carries);
@@ -426,13 +457,15 @@ export function write(score: Score, me: Identity, at: number): Written {
  */
 function leadFor(c: Consonant): number {
   const attack = c.attack === 'prenasal' ? 0.06 : c.attack === 'preaspirated' ? 0.05 : 0;
-  return attack + coreLead(c) + releaseLead(c);
+  // A geminate is the same gesture held twice as long, and only the middle of
+  // it stretches — the release costs what it always cost.
+  return attack + coreLead(c) * (c.long ? 2 : 1) + releaseLead(c);
 }
 
 function coreLead(c: Consonant): number {
   switch (c.manner) {
     case 'stop':
-      return CLOSURE[c.place] * (c.long ? 2 : 1);
+      return CLOSURE[c.place];
     case 'fricative':
       return 0.085;
     case 'lateralFricative':
@@ -521,7 +554,7 @@ function writeOnset(
   on: number,
   lead: number,
   level: number,
-  vowel: Shape,
+  plain: Shape,
   me: Identity,
   carried: boolean,
 ): void {
@@ -530,6 +563,20 @@ function writeOnset(
   // until this one starts, rather than creeping up across the gap.
   if (carried) lines.hold('loud', begin);
   else lines.at('loud', begin, 0, 'step');
+
+  // The colour rides on the posture the core is given, because that is what a
+  // second constriction is: everything not making the closure is somewhere
+  // else. Chaos and creak are their own lines and go on first, since the
+  // cores that write chaos all write it at `on` or later.
+  const vowel = coloured(c, plain);
+  if (c.colour === 'pharyngeal' && !inBody(c.place)) {
+    lines.at('chaos', begin, 0.3, 'lin');
+    lines.at('chaos', on + 0.02, 0, 'lin');
+  }
+  if (c.voice === 'creak') {
+    lines.at('chaos', begin, 0.5, 'lin');
+    lines.at('chaos', on + 0.02, 0, 'lin');
+  }
 
   switch (c.manner) {
     case 'stop':
@@ -546,7 +593,7 @@ function writeOnset(
       return;
     case 'trill':
     case 'tap':
-      writeTrill(lines, c, on, begin, level, vowel);
+      writeTrill(lines, c, on, begin, level, vowel, me);
       return;
     case 'lateral':
     case 'approximant':
@@ -587,6 +634,9 @@ function writeStop(
   const release = on - releaseLead(c);
   const { track, open } = closer(c.place, vowel);
   const prenasal = c.attack === 'prenasal';
+  // A preaspirated stop breathes first and only then shuts, so its closure
+  // starts a little after the gesture does.
+  const shutAt = begin + (c.attack === 'preaspirated' ? 0.05 : 0);
   const seal = begin + 0.06 + CLOSURE[c.place] * 0.4;
 
   if (prenasal) {
@@ -595,10 +645,27 @@ function writeStop(
     lines.hold('velum', seal - 0.02);
     lines.at('velum', seal, me.velum, 'lin');
   }
-  shut(lines, track, begin, release);
-  lines.at(track, release + OPEN, open, 'lin');
+  shut(lines, track, shutAt, release);
+  if (c.release === 'affricated') {
+    // It does not open: it opens as far as its own channel and holds there,
+    // which is the whole of what an affricate is.
+    const channel = fricGap({ ...c, manner: c.shade === 'lateral' ? 'lateralFricative' : 'fricative' });
+    lines.at(track, release + OPEN, channel.gap, 'lin');
+    lines.hold(track, on - 0.02);
+    lines.at(track, on, open, 'lin');
+  } else if (c.release === 'lateral') {
+    lines.at(track, release + OPEN, LATERAL, 'lin');
+    lines.at(track, on + 0.03, open, 'lin');
+  } else {
+    lines.at(track, release + OPEN, open, 'lin');
+  }
   lines.at('jaw', begin, prenasal ? 0.3 : Math.min(vowel.jaw, 0.35), 'lin');
-  settle(lines, c.place, vowel, begin, release);
+  settle(lines, c.place, posture(c, vowel), begin, release);
+  if (c.release === 'nasal') {
+    // The velum opens instead of the mouth, and shuts once the vowel is under way.
+    lines.at('velum', release, 1.1, 'lin');
+    lines.at('velum', on + 0.035, me.velum, 'lin');
+  }
 
   if (eject) {
     // It lets go hard, then nothing, and the voice comes in late, all at once,
@@ -635,6 +702,11 @@ function writeStop(
     // real puff of air on the release is heard as a crack.
     lines.at('loud', begin + 0.015, level * 0.1, 'lin');
     lines.hold('loud', release);
+    // A voiced affricate keeps the folds going through the frication too.
+    if (c.release === 'affricated') {
+      lines.at('loud', release + 0.012, level * 0.4, 'lin');
+      lines.hold('loud', on - 0.01);
+    }
   }
 
   if (c.release === 'aspirated') {
@@ -646,7 +718,20 @@ function writeStop(
     lines.at('breath', on + 0.02, me.breath, 'lin');
     return;
   }
-  lines.at('breath', begin, me.breath * 0.5, 'step');
+  if (c.release === 'affricated') {
+    lines.at('breath', begin, me.breath * 0.5, 'step');
+    lines.at('breath', release, 0.4, 'lin');
+    lines.hold('breath', on - 0.015);
+    lines.at('breath', on + 0.01, me.breath, 'lin');
+    return;
+  }
+  if (c.attack === 'preaspirated') {
+    // Noise first, then the closure lands in the middle of it.
+    lines.at('breath', begin, 0.35, 'lin');
+    lines.at('breath', shutAt, me.breath * 0.5, 'lin');
+  } else {
+    lines.at('breath', begin, me.breath * 0.5, 'step');
+  }
   if (c.voice === 'murmur') {
     // Lets go with the folds slack: a rush of air under the vowel's first
     // stretch, and Rd is up there too.
@@ -656,6 +741,28 @@ function writeStop(
     lines.at('breath', release, me.breath * (c.voice === 'off' ? 1.8 : 1.2), 'lin');
     lines.at('breath', on + 0.012, me.breath, 'lin');
   }
+}
+
+/**
+ * Where the articulators that are *not* making the closure stand. An affricate
+ * holds its fricative's posture from the moment the closure is made, so the
+ * rounding on a `tʃ` is there before it lets go and not just after.
+ */
+function posture(c: Consonant, vowel: Shape): Shape {
+  if (c.release === 'affricated') {
+    const channel = fricGap({ ...c, manner: c.shade === 'lateral' ? 'lateralFricative' : 'fricative' });
+    return {
+      ...vowel,
+      bodyPos: channel.bodyPos ?? vowel.bodyPos,
+      bodyDia: inBody(c.place) ? vowel.bodyDia : channel.bodyDia ?? vowel.bodyDia,
+      lips: channel.lips ?? vowel.lips,
+    };
+  }
+  // A retroflex closure has the tongue body dropped back behind it. The
+  // closure itself is total either way, so that transition is the only thing
+  // there is to hear it by.
+  if (c.place === 'ridge' && c.shade === 'retroflex') return { ...vowel, bodyPos: 0.55 };
+  return vowel;
 }
 
 /**
@@ -751,7 +858,7 @@ function writeNasal(
 
 /** Beats of closure with the voice on under them. One beat is a tap. */
 function writeTrill(
-  lines: Lines, c: Consonant, on: number, begin: number, level: number, vowel: Shape,
+  lines: Lines, c: Consonant, on: number, begin: number, level: number, vowel: Shape, me: Identity,
 ): void {
   const { track, open } = closer(c.place, vowel);
   const beats = c.manner === 'tap' ? 1 : TRILL_BEATS;
@@ -759,11 +866,20 @@ function writeTrill(
   // A back trill is the uvula, not the velum: it is the only thing loose
   // enough back there to beat against the tongue.
   const pos = c.place === 'back' || c.place === 'uvula' ? UVULA : undefined;
-  settle(lines, c.place, vowel, begin, on + 0.02, pos);
+  settle(lines, c.place, posture(c, vowel), begin, on + 0.02, pos);
   lines.hold(track, begin - 0.03);
   trill(lines, track, c.place, begin, beats);
   lines.at(track, on + 0.03, open, 'lin');
-  lines.at('loud', begin + 0.012, level * 0.7, 'lin');
+  if (c.voice === 'off') {
+    // The beats are still there; it is air going through them and not voice.
+    lines.at('breath', begin, 0.4, 'lin');
+    lines.hold('breath', on - 0.02);
+    lines.at('breath', on + 0.01, me.breath, 'lin');
+    lines.hold('loud', on - 0.02);
+    lines.at('loud', on - 0.005, level * 0.5, 'lin');
+  } else {
+    lines.at('loud', begin + 0.012, level * 0.7, 'lin');
+  }
 }
 
 /**
@@ -789,7 +905,14 @@ function writeLiquid(
   lines.at(track, begin, g.gap, 'lin');
   lines.hold(track, on + 0.02);
   lines.at(track, on + 0.06, open, 'lin');
-  lines.at('loud', begin + 0.012, level * 0.6, 'lin');
+  if (c.voice === 'off') {
+    lines.hold('loud', on - 0.02);
+    lines.at('loud', on - 0.005, level * 0.5, 'lin');
+    lines.at('breath', begin, 0.35, 'lin');
+    lines.hold('breath', on - 0.02);
+  } else {
+    lines.at('loud', begin + 0.012, level * 0.6, 'lin');
+  }
   // A pharyngeal is rough by nature.
   if (c.place === 'throat') {
     lines.at('chaos', begin, 0, 'lin');
@@ -808,7 +931,10 @@ function writeClick(
 ): void {
   const pop = on - 0.06;
   const front = closer(c.place, vowel);
-  lines.at('jaw', begin, 0.3, 'lin');
+  // The shade is what tells the four apart: a lateral one lets go round the
+  // sides and is duller, a sharper one has less mouth in front of it.
+  const lateral = c.shade === 'lateral';
+  lines.at('jaw', begin, c.shade === 'alveolopalatal' ? 0.22 : c.shade === 'dental' ? 0.26 : 0.3, 'lin');
   lines.hold('bodyPos', begin - CLOSE);
   lines.at('bodyPos', begin, bodyAt('back'), 'lin');
   lines.hold('bodyPos', pop + 0.02);
@@ -817,7 +943,8 @@ function writeClick(
   lines.hold('bodyDia', pop + 0.02);
   lines.at('bodyDia', pop + 0.05, vowel.bodyDia, 'lin');
   shut(lines, front.track, begin, pop);
-  lines.at(front.track, pop + 0.004, front.open, 'lin');
+  lines.at(front.track, pop + 0.004, lateral ? LATERAL : front.open, 'lin');
+  if (lateral) lines.at(front.track, pop + 0.03, front.open, 'lin');
   if (c.place !== 'lip') lines.at('lips', begin, vowel.lips, 'lin');
   lines.hold('loud', on - 0.004);
   lines.at('loud', on, level * 0.8, 'lin');

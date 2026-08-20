@@ -147,7 +147,9 @@ function channel(c: Consonant): Gap {
   }
   if (c.place === 'ridge') {
     const ridge = { track: 'tip' as Track, jaw: 0.22, bodyPos: 0.75, bodyDia: 1.0, lips: null };
-    switch (c.shade) {
+    // A palatalised sibilant *is* the alveolopalatal channel — the body cannot
+    // be at the palate and behind the tip at once, so the colour picks a shade.
+    switch (c.shade ?? (c.colour === 'palatal' ? 'alveolopalatal' : 'plain')) {
       case 'hush':
         // Wide and rounded: the front cavity is longer, so it sits lower.
         return { ...ridge, gap: 0.22, lips: 0.85 };
