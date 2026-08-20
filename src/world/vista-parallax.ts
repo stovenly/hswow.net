@@ -3,65 +3,31 @@ import { outlineDistance } from './ground';
 import type { Outline } from './vista';
 
 /**
- * The half of the lie that scale cannot tell: moving the far props with the
- * camera, one at a time — VISTA.md.
- *
- * ## One prop, one `k`, no layers
+ * The half of the lie that scale cannot tell: moving the far props with the camera,
+ * one at a time.
  *
  * A prop slides with the camera by a fraction `k` of its travel, so what is left
- * over — `1 - k` — is the parallax the eye reads. `k = 0.75` moves a quarter as
- * much as the ground does and therefore reads four times further away than it
- * is.
+ * over is the parallax the eye reads — `k = 0.75` moves a quarter as much as the
+ * ground and reads four times further away than it is. One `k` per prop, not per
+ * tier: two props at different apparent distances moving differently against each
+ * other is not warping, it is parallax, and it is the depth cue tiers flatten.
  *
- * This was first built as *tiers*: one `k` for a whole merged group. That
- * existed because merged geometry has nowhere to hang a per-object transform —
- * an implementation constraint that got written down as a design principle, and
- * grew clearance arithmetic, placement rules and a region-splitting scheme to
- * serve it. The parallax set is sparse: ten hills and a tower is fifteen matrix
- * updates a frame. There is no reason for them to share a transform, and every
- * reason not to — two props at different apparent distances moving differently
- * against each other is not warping, it **is** parallax, and it is the depth cue
- * the tier scheme was flattening.
+ * A prop carried toward the keep-out stops, at whatever angle it arrived, and does
+ * not slide along the boundary — projecting the offset onto the allowed region
+ * changes the prop's bearing, and a horizon that rearranges itself as you walk is
+ * the artefact this system exists to avoid. So the clamp is on the magnitude of
+ * the offset, along its own direction. Parallax saturating is not a failure.
  *
- * ## Stopping, not sliding
+ * Only stopped props are obstacles. Props are resolved in order of how close they
+ * were placed to the keep-out, and one that had to stop short becomes a circle the
+ * ones behind it must clear; a prop that got where it was going imposes nothing.
+ * Treating free-moving props as obstacles freezes the band, because the placer
+ * allows two hills to overlap at the base and the relative drift between two of
+ * them *is* the parallax.
  *
- * A prop carried toward the keep-out **stops, at whatever angle it arrived**. It
- * does not slide along the boundary: projecting the offset onto the allowed
- * region changes the prop's bearing, and a horizon that rearranges itself as you
- * walk is the exact artefact this whole system exists to avoid. So the clamp is
- * on the *magnitude* of the offset, along the offset's own direction, and the
- * direction is never touched.
- *
- * Parallax saturating is not a failure. A prop that stops moving is
- * indistinguishable from a prop that is genuinely very far away, which is what
- * it is pretending to be; an arrangement that warps has no such excuse.
- *
- * ## Only *stopped* props are obstacles
- *
- * Props are resolved in order of how close they were placed to the keep-out, and
- * one that had to stop short becomes a circle the ones behind it must clear —
- * so a prop carried toward a stopped one stops short of *it* rather than
- * continuing to the boundary behind it. Fixed order, so the arrangement is the
- * same every frame and the same on every machine.
- *
- * **A prop that got where it was going imposes nothing.** This is the whole
- * difference between clamping and bunching, and getting it wrong freezes the
- * band: the placer allows two props to sit well inside the sum of their radii,
- * because two hills overlapping at the base is what a range of hills looks like,
- * so a pair at exactly its authored spacing is already in contact by any radius
- * measure. Treat that as a collision and every prop reports itself blocked
- * before it has moved a metre. Meanwhile the relative drift between two
- * free-moving props at different apparent distances is not bunching at all — it
- * **is** the parallax, and clamping it away is clamping away the effect.
- *
- * ## The clamp is one-sided, because motion is a ray
- *
- * Every prop travels along a fixed direction from where it was placed, so
- * "where does it first touch something" is a ray cast and is solved as one:
- * analytically against each stopped prop's circle, and by sphere tracing
- * against the keep-out's distance field. Both are one-sided — a prop already
- * touching something is free to move *away* from it and only forbidden to move
- * further in. A two-sided test would read contact as immobility.
+ * The clamp is one-sided, because motion is a ray: solved analytically against
+ * each stopped prop's circle and by sphere tracing against the keep-out's distance
+ * field. A prop already touching something is free to move away from it.
  */
 
 /** One prop that moves, and what it needs to know to be stopped. */
@@ -76,13 +42,9 @@ export interface ParallaxProp {
 }
 
 /**
- * Steps of sphere tracing along the offset.
- *
- * Each step advances by the clearance at the current point, which can never
- * overshoot the boundary — so running out of steps leaves the prop *short* of
- * where it could have gone rather than through something. Twelve is generous
- * for the case that costs the most, a prop travelling nearly parallel to a
- * boundary it is already close to.
+ * Steps of sphere tracing along the offset. Each advances by the clearance at the
+ * current point, which can never overshoot the boundary — so running out of steps
+ * leaves the prop short of where it could have gone rather than through something.
  */
 const MARCH = 12;
 
@@ -139,17 +101,11 @@ export class VistaParallax {
   }
 
   /**
-   * Puts every prop where the camera being at `(x, z)` says it should be.
-   *
-   * Translate only, never rotate: a prop that yaw-locks to the camera is a
-   * skybox, and the moment the band stops holding still under a turn it stops
-   * being a place. XZ only as well — vertical travel is a few metres, and
-   * vertical slide against the horizon line is the most detectable kind there
-   * is. Zones are authored about their own origin, so the camera's position
-   * *is* its offset from that origin and there is nothing to subtract.
-   *
-   * Pass `(0, 0)` to put everything back where it was authored, which is what
-   * freezing means.
+   * Puts every prop where the camera being at `(x, z)` says it should be. Translate
+   * only, never rotate: a prop that yaw-locks to the camera is a skybox. XZ only as
+   * well — vertical slide against the horizon line is the most detectable kind
+   * there is. Zones are authored about their own origin, so the camera's position
+   * is its offset. Pass `(0, 0)` to put everything back where it was authored.
    */
   update(x: number, z: number): void {
     if (x === this.lastX && z === this.lastZ) return;
@@ -196,26 +152,19 @@ export class VistaParallax {
   }
 
   /**
-   * Lets these props keep their own matrices.
-   *
-   * `freezeMatrices` turns auto-update off across a whole zone once it is built,
-   * and a prop that moves with a frozen matrix takes its new `position` and
-   * draws where it used to be. Same exception the flames take, for the same
-   * reason: whatever moves a thing is what knows it moves.
+   * Lets these props keep their own matrices. `freezeMatrices` turns auto-update off
+   * across a whole zone once it is built, and a prop that moves with a frozen matrix
+   * takes its new `position` and draws where it used to be.
    */
   thaw(): void {
     for (const prop of this.props) prop.mesh.matrixAutoUpdate = true;
   }
 
   /**
-   * How far prop `i` may run along `(dx, dz)` before it reaches the keep-out,
-   * up to `span`.
-   *
-   * Sphere tracing: each step advances by the distance to the boundary, which
-   * cannot overshoot it in any direction. Running out of steps therefore leaves
-   * the prop short of where it could have gone rather than through something —
-   * the conservative failure, and the one that reads as more distance rather
-   * than less.
+   * How far prop `i` may run along `(dx, dz)` before it reaches the keep-out, up to
+   * `span`. Sphere tracing: each step advances by the distance to the boundary,
+   * which cannot overshoot it, so running out of steps leaves the prop short —
+   * the conservative failure, and the one that reads as more distance.
    */
   private freeRun(i: number, dx: number, dz: number, span: number): number {
     if (this.keepOut.length === 0) return span;
@@ -232,11 +181,9 @@ export class VistaParallax {
   }
 
   /**
-   * Where a ray first touches a circle, as a distance along the ray. Infinity
-   * if it never does.
-   *
-   * One-sided on purpose: a ray starting *inside* the circle is free to leave
-   * and forbidden to sink further, rather than being pinned where it stands.
+   * Where a ray first touches a circle, as a distance along the ray, or Infinity.
+   * One-sided on purpose: a ray starting inside the circle is free to leave and
+   * forbidden to sink further, rather than being pinned where it stands.
    */
   private rayCircle(
     x: number,

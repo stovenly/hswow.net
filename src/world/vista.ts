@@ -17,12 +17,10 @@ import { GROUND, outlineDistance, shapeDistance, type PatchShape } from './groun
 import type { Terrain } from './terrain';
 
 /**
- * The out-of-bounds world's ground, and the shape the level cuts out of it —
- * VISTA.md.
- *
- * The roster is listed here rather than read off `art/registry`, which is
- * Vite-only: the headless checks reach this module through esbuild, and the
- * ring placer wants a palette to draw from anyway.
+ * The out-of-bounds world's ground, and the shape the level cuts out of it. The
+ * roster is listed here rather than read off `art/registry`, which is Vite-only:
+ * the headless checks reach this module through esbuild, and the ring placer wants
+ * a palette to draw from anyway.
  */
 export const VISTA_BUILDERS: readonly MeshBuilder[] = [
   vistaHill,
@@ -40,40 +38,29 @@ export const VISTA_BUILDERS: readonly MeshBuilder[] = [
 // The outline
 
 /**
- * The shape of the level, for everything out here that has to know where it
- * ends.
- *
- * **`PatchShape` rather than a type of its own**, and deliberately: an outline
- * is the same three shapes ground materials and cover are already painted in —
- * a route, a rough circle, a surveyed rectangle — and a second vocabulary for
- * the same three would be one more thing to keep in agreement. A winding level
- * is a `path` with a width; an L is two segments, an S three or four.
- *
- * A list is a union. Nothing here is subtractive, because a hole in the middle
- * of a level is a hole the skirt would have to fill *upward*, and the skirt runs
- * underneath by construction.
+ * The shape of the level, for everything out here that has to know where it ends.
+ * `PatchShape` rather than a type of its own: an outline is the same three shapes
+ * ground materials and cover are already painted in, and a second vocabulary for
+ * them would be one more thing to keep in agreement. A list is a union — nothing
+ * here is subtractive, because a hole in the middle of a level is a hole the skirt
+ * would have to fill upward, and the skirt runs underneath by construction.
  */
 export type Outline = PatchShape;
 
 /**
- * How far outside the level a point is. Negative inside.
- *
- * The one number the whole band is written against — the collar, the apron, the
- * band's own edges and the scatter's filter are all thresholds on this. That is
- * what makes an S-shaped level cost nothing extra: the vista fills the crooks
- * because the distance field says the level is near there, not because anything
- * special-cases a bend. Shared with the terrain, which fades ground cover out
- * against the same field — see `world/ground.ts`.
+ * How far outside the level a point is. Negative inside. The one number the whole
+ * band is written against — the collar, the apron, the band's edges and the
+ * scatter's filter are all thresholds on it, which is what makes an S-shaped level
+ * cost nothing extra. Shared with the terrain, which fades ground cover out
+ * against the same field.
  */
 export { outlineDistance };
 
 /**
- * The nearest point on or inside the level, for sampling the ground there.
- *
- * Inside, that is the point itself. Outside, it is the closest point on the
- * boundary of whichever shape is nearest — so the skirt continues the level's
- * own height outward rather than falling off whatever the heightfield happens
- * to hold beyond its edge.
+ * The nearest point on or inside the level, for sampling the ground there. Inside,
+ * the point itself; outside, the closest point on the boundary of whichever shape
+ * is nearest — so the skirt continues the level's own height outward rather than
+ * falling off whatever the heightfield holds beyond its edge.
  */
 export function outlineClamp(
   outline: readonly Outline[],
@@ -170,22 +157,14 @@ export function outlineBounds(
 }
 
 /**
- * The same region, grown outward by `by` metres.
+ * The same region, grown outward by `by` metres — what a compact level's parallax
+ * keep-out is. A bent level wants its keep-out drawn by hand instead, because the
+ * interesting case is a shape no dilation produces.
  *
- * What a compact level's parallax keep-out is: the outline dilated by whatever
- * the still band reaches, so nothing that moves can be dragged in among things
- * that do not. A bent level wants its keep-out drawn by hand instead — the
- * interesting case is a shape no dilation produces, like the cup between the
- * arms of a Y — which is why this is a helper and not what the ring does for
- * you.
- *
- * Exact for all three shapes, and each stays in the same vocabulary:
- *
- * - A disc grows its radius.
- * - A route grows its width, by twice — the width is measured across.
- * - A rectangle becomes itself plus a rounded band traced round its perimeter.
- *   The union is the dilated rectangle exactly; the band alone would leave the
- *   middle uncovered on anything wider than `by`.
+ * Exact for all three shapes, and each stays in the same vocabulary: a disc grows
+ * its radius; a route grows its width by twice, since the width is measured
+ * across; a rectangle becomes itself plus a rounded band traced round its
+ * perimeter, whose union is the dilated rectangle exactly.
  */
 export function dilateOutline(outline: readonly Outline[], by: number): Outline[] {
   const grown: Outline[] = [];
@@ -231,19 +210,12 @@ function ease(t: number): number {
 }
 
 /**
- * Distant country, built around the level's own ground colour.
- *
- * **Centred on it, not merely near it.** The wash bunches toward the middle of
- * its palette, so putting the level's colour there makes the *average* skirt the
- * same green as the field the player is standing in — and the boundary stops
- * being a place where the value changes. A fixed palette had the skirt
- * averaging a full step darker than the turf, which drew the exact line the
- * band exists to hide, and no amount of dressing in front of it helps when the
- * two sides of the seam are different colours.
- *
- * A narrow spread either side, because three greens this close give land
- * variety without giving it a pattern. It was four colours ending in bare
- * earth, which at this scale reads as a quilt however smoothly it is blended.
+ * Distant country, built around the level's own ground colour — centred on it, not
+ * merely near it. The wash bunches toward the middle of its palette, so putting the
+ * level's colour there makes the average skirt the same green as the field the
+ * player is standing in, and the boundary stops being a place where the value
+ * changes. A narrow spread either side: three greens this close give land variety
+ * without giving it a pattern.
  */
 function country(ground: number): readonly number[] {
   return [shade(ground, 0.8), ground, shade(ground, 1.1)];
@@ -258,12 +230,10 @@ export interface SkirtOptions {
    */
   outline?: readonly Outline[];
   /**
-   * How far past the level's outline the ground reaches.
-   *
-   * Measured from the *outline* rather than from the origin, because the player
-   * can be anywhere in the level and fog is measured from where they stand. Past
-   * `fogFar` means the last ring of vertices is fully dissolved into horizon
-   * colour wherever it is seen from, and no rim can ever show.
+   * How far past the level's outline the ground reaches. Measured from the outline
+   * rather than the origin, because the player can be anywhere in the level and fog
+   * is measured from where they stand. Past `fogFar` the last ring of vertices is
+   * fully dissolved into horizon colour wherever it is seen from.
    */
   reach: number;
   /** Roughly metres between vertices. The grid lands exactly on its bounds. */
@@ -275,51 +245,29 @@ export interface SkirtOptions {
   /** How far below the level the skirt runs where it is hidden underneath it. */
   sink?: number;
   /**
-   * How much the open country rolls, as a multiple of the authored waves.
-   *
-   * **Zero is a real answer and often the right one.** Ground outside the
-   * boundary that rises above the level is a low ridge, and a low ridge close
-   * to the player is the worst thing that can happen to a vista: it hides what
-   * is behind it, and it gathers the whole remaining fog gradient into the few
-   * pixels at its crest, where there is no room for a gradient at all. Three
-   * waves at up to 3.6 m each reach 7.5 m, which from an eye 1.35 m up is more
-   * than two degrees *above* eye level at 160 m — a wall, drawn in ground.
-   *
-   * Level with the walkable terrain, none of that happens: the horizon is where
-   * it should be, everything in the band stands clear of it, and the fog has
-   * the whole of the ground plane to fade across instead of one crest line.
+   * How much the open country rolls, as a multiple of the authored waves. Zero is a
+   * real answer and often the right one: ground outside the boundary that rises
+   * above the level is a low ridge, which hides what is behind it and gathers the
+   * whole remaining fog gradient into the few pixels at its crest. Three waves at up
+   * to 3.6 m reach 7.5 m, which from an eye 1.35 m up is more than two degrees above
+   * eye level at 160 m — a wall, drawn in ground.
    */
   roll?: number;
   /**
-   * Radius of the world the ground pretends to sit on, in metres. Omitted, the
-   * sheet is flat.
-   *
-   * **Not a fix for the horizon step, and it was tried as one.** Bowing the
-   * ground away compresses the visible band rather than spreading it: near
-   * ground hardly moves and far ground drops a long way, so the two converge in
-   * angle. Measured over the 70–240 m fog ramp it took 0.78 degrees down to
-   * 0.19. It also brings the true horizon in to sqrt(2 R h), which at five
-   * kilometres is 116 m — close enough to hide the whole band behind the
-   * bulge. Kept because a very large radius is a real thing a level might want;
-   * do not reach for it to solve a gradient.
+   * Radius of the world the ground pretends to sit on, in metres. Omitted, the sheet
+   * is flat. Not a fix for the horizon step: bowing the ground away compresses the
+   * visible band rather than spreading it, and it brings the true horizon in to
+   * sqrt(2 R h), which at five kilometres is 116 m — close enough to hide the whole
+   * band behind the bulge.
    */
   curve?: number;
   /**
-   * Where the rolling ground gives out and the sheet goes dead flat.
-   *
-   * **This exists for the parallax props, and it is not cosmetic.** A prop is
-   * dropped onto the skirt at build time and then slides horizontally with the
-   * camera, so it ends up over ground it was never measured against — and the
-   * rolling is several metres peak to peak, so its footings lift off and you
-   * see straight under them. Flat ground cannot do that: every point out there
-   * is the same height, so a prop may slide as far as it likes and still meet
-   * it exactly.
-   *
-   * Costs nothing to look at. Everything past this distance is most of the way
-   * to the fog's end, where the ground is a value and not a shape.
-   *
-   * Metres out from the outline, tapering between the two. Omitted, the ground
-   * rolls all the way out, which is right for a level with nothing moving.
+   * Where the rolling ground gives out and the sheet goes dead flat. This exists for
+   * the parallax props: a prop is dropped onto the skirt at build time and then
+   * slides horizontally with the camera, so it ends up over ground it was never
+   * measured against, and rolling several metres peak to peak lifts its footings
+   * off. Flat ground cannot do that. Metres out from the outline, tapering between
+   * the two; omitted, the ground rolls all the way out.
    */
   flatten?: { from: number; to: number };
   /**
@@ -333,19 +281,15 @@ export interface SkirtOptions {
 }
 
 /**
- * A coarse sheet of ground from well inside the level out past the fog.
- *
- * **It runs underneath the level, not up against it.** The level is a lid laid
- * on top; only a collar either side of the boundary has to agree in height, and
- * everywhere further in the skirt is hidden and free to be wrong. That is what
- * makes it indifferent to the level's *shape* — square, ring, L or S — and it
- * is why generalising from a square cost one distance function rather than a
- * rewrite. Butting a ring against a square would have left holes on the axes
- * and overlaps into the corners; running underneath has no such case.
+ * A coarse sheet of ground from well inside the level out past the fog. It runs
+ * underneath the level, not up against it: the level is a lid laid on top, and only
+ * a collar either side of the boundary has to agree in height. That is what makes
+ * it indifferent to the level's shape — butting a ring against a square would leave
+ * holes on the axes and overlaps into the corners.
  *
  * Resolution is brutal on purpose: this is value and silhouette, never walkable
- * ground. It is not in the collider, `surfaceAt`/`groundAt` never consult it,
- * and nothing grows on it — field colour is vertex colour on the skirt itself.
+ * ground. Not in the collider, never consulted by `surfaceAt`/`groundAt`, and
+ * nothing grows on it.
  */
 export class Skirt {
   readonly reach: number;
@@ -382,11 +326,9 @@ export class Skirt {
     this.roll = options.roll ?? 1;
 
     const rng = createRng(options.seed);
-    // **Long and shallow.** The skirt is flat-shaded on a nine-metre grid, so
-    // every degree of difference between neighbouring facets is a visible edge
-    // — short, tall waves turn distant plains into a field of scales. Stretched
-    // out and flattened, adjacent faces very nearly agree and the ground reads
-    // as ground.
+    // Long and shallow. The skirt is flat-shaded on a nine-metre grid, so every
+    // degree of difference between neighbouring facets is a visible edge — short,
+    // tall waves turn distant plains into a field of scales.
     this.waves = Array.from({ length: 3 }, () => {
       const angle = rng.range(0, Math.PI * 2);
       return {
@@ -445,12 +387,9 @@ export class Skirt {
   }
 
   /**
-   * One mesh, one draw, no collider.
-   *
-   * The grid is the outline's bounding box, and every cell further than the
-   * reach from the outline is dropped. That is what stops a winding level
-   * paying for the empty corners of its own bounding box — an S in an
-   * 800 × 800 box would otherwise be mostly ground nobody can see.
+   * One mesh, one draw, no collider. The grid is the outline's bounding box, and
+   * every cell further than the reach from the outline is dropped — which is what
+   * stops a winding level paying for the empty corners of its own bounding box.
    */
   build(): THREE.Mesh {
     const bounds = outlineBounds(this.outline, this.reach);

@@ -2,32 +2,24 @@ import * as THREE from 'three';
 import type { Collider } from '../player/Collider';
 
 /**
- * What the player is looking at, and whether they can reach it.
+ * What the player is looking at, and whether they can reach it. There is no mouse
+ * cursor to hover with — the crosshair in the middle of the screen is the cursor —
+ * so hovering means a ray straight down the view axis.
  *
- * There is no mouse cursor to hover with — the pointer is captured, and the
- * crosshair in the middle of the screen *is* the cursor. So "hovering over a
- * door" means a ray straight down the view axis, and the tooltip appears above
- * the crosshair rather than above a pointer that does not exist.
- *
- * Everything is gated on `reach`. That is not only a rule about how far you can
- * lean; it is what makes the tooltip mean something. A label that appears the
- * moment a door is anywhere in view would be a caption on the scenery, and the
- * player would have to learn separately how close they need to be. Showing it
- * only within reach makes the tooltip and the affordance the same fact: **if
- * you can read it, you can use it.**
+ * Everything is gated on `reach`, which is what makes the tooltip mean something:
+ * a label that appeared the moment a door was in view would be a caption on the
+ * scenery. If you can read it, you can use it.
  */
 
 /** Metres. A little more than arm's length, so you needn't press up against it. */
 export const DEFAULT_REACH = 3.2;
 
 /**
- * Slack when comparing the interaction ray against the collision ray.
- *
- * Doors are solid, so the collider's nearest hit along the view axis is
- * normally the door itself, at very nearly the same distance the mesh raycast
- * reported. Only something meaningfully *nearer* than the door counts as being
- * in the way. Too small and a door occludes itself; too large and you can use
- * a door through a thin wall.
+ * Slack when comparing the interaction ray against the collision ray. Doors are
+ * solid, so the collider's nearest hit is normally the door itself at very nearly
+ * the same distance; only something meaningfully nearer counts as being in the
+ * way. Too small and a door occludes itself, too large and you can use one
+ * through a thin wall.
  */
 const OCCLUSION_SLACK = 0.15;
 
@@ -37,21 +29,12 @@ export interface Hover {
 }
 
 /**
- * Marks an object as something the player can read but not use.
- *
- * A door is a *link*: hovering it offers a place to go, and pressing the key
- * takes you there. A gallery sign is not — it is a caption on a row of props,
- * and there is nothing to press. Both want the same tooltip, so the label is
- * stored on the object rather than derived from the portal graph, and the zone
- * manager falls back to it when the thing under the crosshair turns out not to
- * be a door.
- *
- * This is also how most of the kit gets labels. The world *can* carry text
- * now — `art/lettering` builds sign-scale geometric letters that survive the
- * pipeline — but that works at sign scale and above, and a caption has to be
- * readable at caption scale. The tooltip layer sits above the canvas and
- * stays sharp, which keeps "walk up to it and read it" the right way to name
- * anything smaller than a sign.
+ * Marks an object as something the player can read but not use. A door is a link;
+ * a gallery sign is a caption on a row of props with nothing to press. Both want
+ * the same tooltip, so the label is stored on the object rather than derived from
+ * the portal graph. The tooltip layer sits above the canvas and stays sharp, which
+ * is what keeps walking up to a thing the right way to name anything smaller than
+ * a sign.
  */
 export function markLabelled<T extends THREE.Object3D>(object: T, label: string): T {
   object.userData.label = label;
@@ -59,26 +42,19 @@ export function markLabelled<T extends THREE.Object3D>(object: T, label: string)
 }
 
 /**
- * Marks an object as something the player can read *and* open.
- *
- * A third state, and the reason the zone manager stopped answering a question
- * with yes or no. A door is a link, a sign is a caption, and a bound book is
- * neither: it names itself over the crosshair like the sign and it does
- * something when you press the key like the door.
- *
- * The binding is one id into `content/notes`, never the prose itself. And **it
- * is the binding that makes the tooltip two lines** — there is no opt-in and no
- * per-prop switch. A book with words in it says what is written in it, always;
- * a book with none is furniture and says only what it is.
+ * Marks an object as something the player can read and open — the third state, and
+ * why the zone manager stopped answering with yes or no: a bound book names itself
+ * over the crosshair like a sign and does something when you press the key like a
+ * door. The binding is one id into `content/notes`, never the prose, and it is the
+ * binding that makes the tooltip two lines.
  */
 export function markReadable<T extends THREE.Object3D>(
   object: T,
   /**
-   * The builder that made it, not a string. What the player calls a prop is
-   * fixed per builder (`MeshBuilder.display`), so taking it from the source
-   * means a cover cannot be renamed in one place and keep its old name over
-   * every crosshair in the world. Structurally typed, so this file does not
-   * have to learn about the art kit to ask a builder its name.
+   * The builder that made it, not a string: what the player calls a prop is fixed
+   * per builder, so taking it from the source means a cover cannot be renamed in
+   * one place and keep its old name over every crosshair. Structurally typed, so
+   * this file does not have to learn about the art kit.
    */
   source: { readonly name: string; readonly display?: string },
   text: string,
@@ -96,11 +72,9 @@ export interface Labelled {
 }
 
 /**
- * Reads the label off an object or the nearest ancestor carrying one.
- *
- * Both fields come from the *same* node rather than from two separate walks, so
- * a book standing inside something else that happens to be labelled cannot end
- * up showing one thing's name over another thing's prose.
+ * Reads the label off an object or the nearest ancestor carrying one. Both fields
+ * come from the same node rather than from two separate walks, so a book standing
+ * inside something else labelled cannot show one thing's name over another's prose.
  */
 export function labelOf(object: THREE.Object3D | null): Labelled | null {
   for (let node = object; node; node = node.parent) {
@@ -132,14 +106,10 @@ export class Interaction {
   }
 
   /**
-   * The nearest interactable under the crosshair, or null.
-   *
-   * Two rays, not one. The first is a mesh raycast against the handful of
-   * registered interactables, which is cheap because there are only ever a few
-   * of them and it gives back the object identity that the collider's triangle
-   * soup cannot. The second is the collider, which knows about walls the
-   * interactable set has never heard of — without it you could open a door
-   * from the far side of the wall it is set into.
+   * The nearest interactable under the crosshair, or null. Two rays, not one: a mesh
+   * raycast against the handful of registered interactables, which gives back the
+   * object identity the collider's triangle soup cannot, and the collider, which
+   * knows about walls the interactable set has never heard of.
    */
   probe(camera: THREE.Camera, collider: Collider): Hover | null {
     if (this.targets.length === 0) return null;

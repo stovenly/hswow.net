@@ -3,24 +3,15 @@ import type { ZoneId, Placement } from './Zone';
 import type { DoorMaterial } from '../audio/models/door';
 
 /**
- * Portals: the doors between zones.
+ * Portals: the doors between zones. A portal is one link with two ends, and each
+ * end is a door and a place to stand in front of it. Both markers are derived from
+ * their own door by default — a door knows where it is and which way it faces, and
+ * in front of it facing out is a rotation and a step — so a marker cannot drift
+ * out of alignment with the door it belongs to. `arrival` overrides that where the
+ * derived spot lands somewhere awkward.
  *
- * A portal is one link with **two ends**, and each end is two things — a door
- * and a place to stand in front of it. So four objects in the world per portal:
- * the door on the outside, the door on the inside, and the arrival marker in
- * front of each. Using one end puts you at the other end's marker.
- *
- * Both markers are *derived from their own door* by default. A door knows where
- * it is and which way it faces, and "in front of it, facing out of it" is a
- * rotation and a step — so authoring a portal is normally two placements
- * rather than four, and the marker cannot drift out of alignment with the door
- * it belongs to because it is not stored separately. `arrival` overrides it for
- * the cases where the derived spot lands somewhere awkward — a step, a corner,
- * the wrong side of a pillar.
- *
- * Doors do not open. There is no swing, no animation and no hinge axis: using
- * one is a fade and a teleport. The sound carries the gesture instead, which
- * `audio/models/door` does with a synthetic swing trajectory.
+ * Doors do not open: using one is a fade and a teleport, and `audio/models/door`
+ * carries the gesture with a synthetic swing.
  */
 
 /** One side of a portal. */
@@ -28,13 +19,7 @@ export interface PortalEnd {
   zone: ZoneId;
   /** Foot of the door — the door mesh stands on this point. */
   position: THREE.Vector3;
-  /**
-   * Which way the door faces, in radians.
-   *
-   * "Faces" means out of the doorway, toward whoever is looking at it. The
-   * door builder builds toward +Z, so this is a plain rotation about Y and the
-   * facing vector is `(sin yaw, 0, cos yaw)`.
-   */
+  /** Which way the door faces, in radians — out of the doorway, toward whoever is looking. The door builder builds toward +Z, so the facing vector is `(sin yaw, 0, cos yaw)`. */
   yaw: number;
   /** Look and voice. Rolled from the seed if omitted. */
   material?: DoorMaterial;
@@ -53,13 +38,10 @@ export interface PortalDefinition {
 }
 
 /**
- * How far in front of the door you arrive, in metres.
- *
- * Has to clear the player's capsule radius plus the thickness of the door and
- * its frame, or you arrive intersecting the thing you just came through and
- * the collider ejects you sideways. It also has to stay inside the reach of
- * the interaction ray, or you would land somewhere you cannot use the door you
- * are standing in front of — which is how a one-way trip happens.
+ * How far in front of the door you arrive, in metres. Has to clear the player's
+ * capsule radius plus the door and its frame, or the collider ejects you sideways,
+ * and has to stay inside the interaction ray's reach, or you land somewhere you
+ * cannot use the door you are standing in front of.
  */
 export const ARRIVAL_STANDOFF = 1.15;
 
@@ -69,13 +51,9 @@ export function doorFacing(yaw: number, out = new THREE.Vector3()): THREE.Vector
 }
 
 /**
- * The arrival marker for an end: in front of its door, facing away from it.
- *
- * The yaw offset is π because the controller's forward vector is
- * `(-sin yaw, 0, -cos yaw)` — the camera looks down -Z at yaw 0, where the
- * door faces +Z. Arriving facing the door you just came through would be
- * correct for a door you had opened and stepped through backwards, and wrong
- * for every other reading of the gesture.
+ * The arrival marker for an end: in front of its door, facing away from it. The yaw
+ * offset is π because the controller's forward vector is `(-sin yaw, 0, -cos yaw)`
+ * — the camera looks down −Z at yaw 0, where the door faces +Z.
  */
 export function arrivalFor(end: PortalEnd): Placement {
   if (end.arrival) {
@@ -97,23 +75,16 @@ export interface PortalSide {
   readonly arrival: Placement;
   /** Set once the door mesh has been built into its zone. */
   door: THREE.Mesh | null;
-  /**
-   * What kind of door this is — the tooltip's first line.
-   *
-   * Filled in when the mesh is bound, because the kind is rolled from the
-   * door's seed and is not knowable before it has been built.
-   */
+  /** What kind of door this is — the tooltip's first line. Filled in when the mesh is bound, because the kind is rolled from the door's seed. */
   title: string;
   /** Where it goes — the tooltip's last line. Resolved against zone names. */
   label: string;
 }
 
 /**
- * Both sides of every portal, indexed by the zone they stand in.
- *
- * Zones ask "which doors are in me?" when they are built, and the interaction
- * ray asks "what does this mesh do?" when it hits something. Those are the two
- * queries, so those are the two indexes.
+ * Both sides of every portal, indexed by the zone they stand in. Zones ask which
+ * doors are in them when they are built, and the interaction ray asks what a mesh
+ * does when it hits one: two queries, two indexes.
  */
 export class PortalGraph {
   private readonly byZone = new Map<ZoneId, PortalSide[]>();
@@ -165,15 +136,9 @@ export class PortalGraph {
 
   /**
    * Forgets a side's door mesh, because the zone holding it has been released.
-   *
-   * **The lookup table is the reason this has to exist.** `bind` puts the mesh
-   * into `byDoor`, which is a strong reference held by the graph for the life
-   * of the session — so a zone that is torn down and rebuilt would leave its
-   * old door in there forever, one per crossing, each keeping a disposed
-   * geometry's wrapper alive. That is a leak whose whole symptom is a number
-   * climbing slowly in a heap profile, which is exactly the kind nobody finds.
-   *
-   * Idempotent, so releasing a zone whose doors were never built is fine.
+   * `bind` puts the mesh into `byDoor`, a strong reference held for the life of the
+   * session, so a zone torn down and rebuilt would leave its old door in there
+   * forever, one per crossing. Idempotent.
    */
   unbind(side: PortalSide): void {
     if (side.door) this.byDoor.delete(side.door);
