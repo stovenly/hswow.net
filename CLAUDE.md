@@ -98,6 +98,12 @@ fourth line is wrong; cut it or move it to the area's `CLAUDE.md`.
 **When editing existing code, delete comments that break these rules** in the
 region you are already touching. Do not preserve them out of politeness.
 
+**Never write the repo owner's real name** into code, comments, commit messages,
+docs, file names, fixtures or sample data — not as an author, not as an example,
+not in a string. Use the configured git identity or a placeholder. Seeing the
+name in a git config, an email address or a file path is not permission to
+repeat it.
+
 ## No checks. None.
 
 **Do not write checks, probes, verification scripts or throwaway `tools/`
