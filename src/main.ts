@@ -20,6 +20,7 @@ import type { WaterModel } from './audio/models/water';
 import { AudioEngine } from './audio/AudioEngine';
 import { VOICE_TUNING, pushVoiceTuning, type VoiceTuning } from './audio/voice/tuning';
 import { createDevTools } from './debug/DevPanel';
+import { Identify } from './debug/Identify';
 import { ZoneManager } from './world/ZoneManager';
 import { Interaction } from './world/Interaction';
 import { Reticle, Fade } from './ui/Reticle';
@@ -60,6 +61,9 @@ if (!(overlay instanceof HTMLElement)) {
 const viewport = new Viewport(canvas);
 const loop = new Loop();
 const dev = createDevTools();
+// The debug picker, and the last clock the loop saw — held while it is up so nothing moves.
+const identify = new Identify(viewport.scene, viewport.camera, canvas);
+let clock = 0;
 
 // Created before PostFX, which owns the fog's colour and distances from here on.
 viewport.scene.fog = new THREE.Fog(0x0a0a0f, 20, 90);
@@ -304,6 +308,7 @@ if (dev.gui) {
   // changes what the world *is* rather than how it looks, and the one most
   // often reached for.
   dev.gui.add(player, 'noclip').name('noclip fly');
+  dev.gui.add({ identify: () => identify.start(clock) }, 'identify').name('identify mesh');
 
   const look = dev.gui.addFolder('look');
   // The same boolean the options menu edits, not a parallel one. Bound with
@@ -1044,7 +1049,10 @@ if (dev.gui) {
   for (const folder of dev.gui.foldersRecursive()) folder.close();
 }
 
-loop.add((dt, elapsed) => {
+loop.add((rawDt, rawElapsed) => {
+  const dt = identify.active ? 0 : rawDt;
+  const elapsed = identify.active ? identify.frozenElapsed : rawElapsed;
+  clock = elapsed;
   player.update(dt);
 
   // A floor under the world, so a fall through a seam is recoverable rather
