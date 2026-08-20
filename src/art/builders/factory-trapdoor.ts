@@ -5,27 +5,10 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { near, weatherTint } from '../weathering';
 
-/**
- * A steel floor hatch in an angle-iron curb.
- *
- * The factory door turned on its back, exactly as `hut-trapdoor` is the hut
- * door's — one plate, stud rows, barrel hinges, and wear where the wooden one
- * has stain. Access pits, service voids, coal drops: the works' holes in the
- * floor.
- *
- * Deliberately plain, all of it. There was a hazard-striped curb variant —
- * alternating yellow warning blocks — and it was cut: alternating yellow is
- * the loudest signal the palette can make, and a floor hatch scattered as
- * dressing must not shout like a focal point. If a specific hatch in content
- * ever marks a genuinely live drop, that is a decision for that hatch, made
- * in zone code where the fiction lives.
- *
- * No voice and no metrics, for the trapdoor's shared reason: portals do not
- * open downward, so this is dressing until a zone teaches it otherwise.
- *
- * Built lying flat, standing on y = 0, face up; the curb is kerb-height and
- * walked over.
- */
+// A steel floor hatch in an angle-iron curb: the factory door on its back — one
+// plate, stud rows, barrel hinges, and wear where the wooden one has stain. No
+// voice and no metrics, because portals do not open downward. Built lying flat on
+// y = 0, face up; the curb is kerb-height and walked over.
 
 export type FactoryTrapdoorOptions = BuildOptions;
 

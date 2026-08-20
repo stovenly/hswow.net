@@ -4,20 +4,11 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { landWash, markVista, vistaMass } from '../vista';
 
-/**
- * A treeline: five overlapped blobs and a ragged skyline.
- *
- * **Not trees.** At a hundred metres a wood is a lumpy dark edge against the
- * sky and nothing else survives — no trunks, no canopy, no gaps between
- * individuals. Building it as a mass rather than as a stand is not a
- * simplification of the real thing, it is what the real thing looks like from
- * here, and it costs a hundred triangles instead of fifteen thousand.
- *
- * The blobs run along a line with their heights and offsets rolled
- * independently, because a treeline's whole read is that its top edge is
- * irregular while its base is level. Subdivision 0 — twenty triangles each —
- * because a blob this small in the frame has no interior to describe.
- */
+// A treeline: five overlapped blobs and a ragged skyline. Not trees — at a
+// hundred metres a wood is a lumpy dark edge against the sky and nothing else
+// survives. Heights and offsets are rolled independently, because a treeline's
+// whole read is that its top edge is irregular while its base is level.
+// Subdivision 0, since a blob this small in the frame has no interior.
 
 /** Canopy in shade. Dark, and close, so the mass stays one mass. */
 const CANOPY = [

@@ -14,47 +14,19 @@ import {
 import { stoneChunk } from '../stone';
 import { WALL_DEPTH } from './stone-wall';
 
-/**
- * A ruined wall: a run of field wall that has come down.
- *
- * **This is what lets a boundary end.** Every run of `stone-wall` in the world
- * finishes in a `stone-wall-column` — a squared pier, deliberate, saying somebody
- * built this far and stopped. That is right for a gateway and wrong for
- * everywhere else, because most old walls do not end, they *fail*: the coping
- * goes, then the top course, then a sheep walks through the gap. A boundary that
- * only ever terminates in tidy piers reads as a set of enclosures rather than as
- * a landscape somebody has been maintaining for two hundred years and losing.
- *
- * It is also the answer to the thing that is otherwise hard here — how a wall
- * meets a rock line. A ruin's tumbled end and a run of boulders are the same
- * kind of object at that point, and the eye stops asking where one stopped and
- * the other began.
- *
- * ## Built from the wall's own masonry, not a copy of it
- *
- * Everything visible here comes out of `art/masonry` — the same face-splitting,
- * the same warp, the same joints, the same stone colours, the same choice
- * between dry-laid and pointed. A ruin built from its own private stonework
- * would diverge from the wall it is supposed to be the end of on the first day
- * either was touched, and the mismatch would be most visible exactly where the
- * two meet.
- *
- * There is **no coping**, and that absence is the whole reason it reads as
- * ruined. A dry wall's coping is what holds the top course down; once it is
- * gone the wall unravels, so a ruin with a neat capped top is a wall somebody
- * built short.
- *
- * ## The profile falls away, and the stones are underneath it
- *
- * The height decays from one end to the other in uneven steps — not a ramp,
- * because a wall does not erode evenly, it loses whole sections at the joints.
- * What came off is lying at the foot on the low side, which is where gravity put
- * it and also where it does the most good: it breaks the line where the wall
- * meets the ground.
- *
- * Built along **+X**, standing on y = 0, centred on its own span, tall end at
- * −X. A placer turns it to run a ruin out of a standing wall.
- */
+// A ruined wall: a run of field wall that has come down — what lets a boundary
+// end without a squared pier saying somebody built this far and stopped.
+//
+// Everything visible comes out of `art/masonry`, the same as the wall it is the
+// end of. There is no coping, and that absence is why it reads as ruined: a dry
+// wall's coping is what holds the top course down, so a ruin with a neat capped
+// top is a wall somebody built short.
+//
+// The height decays from one end to the other in uneven steps rather than a ramp,
+// because a wall loses whole sections at the joints, and what came off is lying at
+// the foot on the low side, where it breaks the line against the ground.
+//
+// Built along +X on y = 0, centred on its own span, tall end at −X.
 export const stoneWallRuin: MeshBuilder = {
   name: 'stone-wall-ruin',
   category: 'structures',
@@ -73,21 +45,11 @@ export const stoneWallRuin: MeshBuilder = {
     const stone = rng.range(0.36, 0.5);
     const amount = rng.range(0.016, 0.026);
 
-    // The profile: **a wall that falls away from one end**, and about a third of
-    // the time picks back up before the other.
-    //
-    // It briefly had four shapes — robbed, breached, stubbed, slumped — on the
-    // argument that a wall does not fail from one end. It does not, and it did
-    // not help: three of the four put the tall stonework in the middle, where it
-    // reads as a lump with rubble either side rather than as the end of
-    // something. A ruin has to say *this is where the wall stops*, and a run that
-    // falls away is the only profile that says it.
-    //
-    // The variety comes from the far end instead. Most of the time it goes on
-    // down to the footings; sometimes a length of it is still standing, so the
-    // piece reads as a gap in a boundary rather than as its termination — which
-    // is the other thing a ruin is for and is worth having without giving up the
-    // shape that works.
+    // The profile: a wall that falls away from one end, and about a third of the
+    // time picks back up before the other. A ruin has to say this is where the wall
+    // stops, and a run that falls away is the only profile that says it; the variety
+    // comes from the far end, where a standing length makes the piece read as a gap
+    // in a boundary rather than as its termination.
     const bays = rng.int(4, 7);
     const heights: number[] = [];
     // How fast it goes. Under 1 it drops away quickly and trails; over 1 it
@@ -117,28 +79,18 @@ export const stoneWallRuin: MeshBuilder = {
       const middle = -span / 2 + (i + 0.5) * bayWidth;
       const height = heights[i];
 
-      // The hearting for this bay: **tapered**, because the face it has to
-      // carry is. `faceAt` narrows with height — that is the wall's batter —
-      // and this was a plain box cut to the depth at half height, so the
-      // bottom course of stones was bedded a few centimetres out in front of
-      // anything and the top course was buried in it. `stone-wall` uses
-      // `tapered` for exactly this reason and this now does the same.
-      //
-      // It spans its bay exactly and takes no jitter, so two bays meet without
-      // daylight between them.
+      // The hearting for this bay, tapered because the face it carries is: `faceAt`
+      // narrows with height, and a plain box cut to the depth at half height beds
+      // the bottom course out in front of anything and buries the top course. It
+      // spans its bay exactly and takes no jitter, so two bays meet without daylight.
       const core = tapered(bayWidth, height, faceAt(0), faceAt(height));
       core.translate(middle, 0, 0);
       parts.push({ geometry: core, color: fill, sway: 0 });
 
-      // Both faces, cut into stones the same way the standing wall is.
-      //
-      // **Cut about the origin and moved into place afterwards.** The panel used
-      // to be stated at the bay's own world x, and the far face is made by
-      // turning the near one a half turn about the *vertical axis through the
-      // origin* — so its stones landed mirrored across the middle of the whole
-      // ruin, on top of a different bay of a different height, and a good number
-      // of them ended up standing in mid-air where no core reached. A skin has to
-      // be cut where it will be turned.
+      // Both faces, cut into stones the same way the standing wall is, and cut about
+      // the origin and moved into place afterwards. The far face is made by turning
+      // the near one a half turn about the vertical axis through the origin, so a
+      // panel stated at the bay's own world x lands mirrored across the whole ruin.
       for (const facing of [1, -1]) {
         const stones: Part[] = [];
         skin(
@@ -158,10 +110,9 @@ export const stoneWallRuin: MeshBuilder = {
         }
       }
 
-      // The broken top: one or two stones sitting half off the course below,
-      // which is what the edge of a collapse actually looks like. Only where
-      // the bay is still tall enough to have a course left to lose, and bedded
-      // down into it rather than balanced on it.
+      // The broken top: one or two stones sitting half off the course below, which is
+      // what the edge of a collapse looks like. Only where the bay still has a course
+      // to lose, and bedded down into it rather than balanced on it.
       if (height > 0.3) {
         for (let k = rng.int(0, 2); k > 0; k--) {
           const size = stone * rng.range(0.5, 0.9);
@@ -187,12 +138,9 @@ export const stoneWallRuin: MeshBuilder = {
     }
 
     // --- what came off it ----------------------------------------------------
-    //
-    // **Lying where the wall is missing**, which now that the profile is not
-    // always a staircase means it has to be worked out rather than assumed: the
-    // stone from a breach is in the breach, not at the +X end where the old
-    // profile always happened to be lowest. Bays are drawn by how much of them
-    // has gone.
+    // Lying where the wall is missing, which has to be worked out rather than
+    // assumed: the stone from a breach is in the breach. Bays are drawn by how much
+    // of them has gone.
     const gone = heights.map((h) => Math.max(0.05, stand - h));
     const total = gone.reduce((sum, n) => sum + n, 0);
     const fallenIn = (): number => {

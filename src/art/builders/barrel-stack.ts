@@ -4,56 +4,11 @@ import { createRng } from '../random';
 import { barrel } from './barrel';
 import { piece, sizeOf, pileUp, type Piece } from '../stack';
 
-/**
- * A stand of barrels: a cellar's worth set out in a yard.
- *
- * `crate-stack`'s argument applied to the other movable good — the object is
- * `barrel`, several times over, and what is new is the arrangement. See
- * `art/stack.ts`.
- *
- * ## Barrels stack upright. That is the whole of it.
- *
- * A cask is coopered to stand on its end: the heads are flat, the staves are
- * bellied, and the only two faces it will sit still on are the two ends. So a
- * stand of them is upright barrels side by side, and a second course is upright
- * barrels on top of the first — end to end, head on head.
- *
- * They do **not** stack on their sides. A barrel on its side is a barrel that
- * has fallen over or is being rolled somewhere; it lies on the ground, on its
- * own, and nothing goes on top of it. The first version laid one across the
- * hollow between two others like a wine rack, which is a thing that exists and
- * needs a rack to exist in — without one it is a cask balanced on two curves,
- * and it also clipped straight through both of them.
- *
- * ## Two arrangements
- *
- * **A row.** Two or three standing in a line against a wall, sometimes with one
- * on top of one of them.
- *
- * **A quad.** Two by two, which is how you actually stand four in a corner, with
- * one or two more on the heads above. This is the one that reads as *stock* — a
- * square block of casks is a quantity, where a line of them is a few barrels.
- *
- * ## Nothing overlaps, and it is measured rather than trusted
- *
- * `barrel` rolls its own girth and its own height, so no two are the same and
- * nothing here can know the size of one until it has built it. Every gap is
- * therefore taken from the two bounding boxes either side of it — half of each,
- * plus a little — and every barrel put on top of another is seated at the
- * measured height of the one under it. Guessing a pitch is what had them growing
- * through each other.
- *
- * **The second course goes on the tallest cask on the ground, and only there.**
- * Not because it looks better but because it is the only choice that cannot
- * clash: a cask stacked on a short one starts below the tops of its neighbours,
- * and since a stack is packed as tightly as the girths allow, "below their tops"
- * and "inside them" are the same thing. Casks vary by a third in height, so this
- * happened often. Seating it on the tallest puts its foot at or above every
- * other top in the group, and the question cannot arise.
- *
- * That is also why there is one on top rather than two. A second would have to
- * sit on the second-tallest, which is exactly the case that clashes.
- */
+// A stand of barrels: upright, side by side, in a row or a two-by-two quad, with
+// one on top of the tallest cask on the ground — the only seat that cannot start
+// below a neighbour's rim. Barrels do not stack on their sides. Every gap is
+// measured off the two bounding boxes either side of it, because `barrel` rolls
+// its own girth and height and nothing here knows a size until it has built one.
 export const barrelStack: MeshBuilder = {
   name: 'barrel-stack',
   category: 'objects',
@@ -63,16 +18,7 @@ export const barrelStack: MeshBuilder = {
     const rng = createRng(seed);
     const placed: Piece[] = [];
 
-    /**
-     * Widest across the plan, which is what two neighbours have to clear.
-     *
-     * The gaps built from this are a good six centimetres rather than the two
-     * they started at. Two casks a couple of centimetres apart are two casks
-     * that read as touching, and at that distance nothing downstream — a
-     * collision hull, a shadow, an eye at three metres — can tell "just clear"
-     * from "just clipping". A finger's width of daylight says on sight that
-     * nobody stacked them into each other.
-     */
+    /** Widest across the plan, which is what two neighbours have to clear. A finger's width of daylight, not two centimetres. */
     const across = (item: Piece): number => {
       const { width, depth } = sizeOf(item);
       return Math.max(width, depth);
@@ -98,10 +44,9 @@ export const barrelStack: MeshBuilder = {
 
     if (quad) {
       // --- two by two, and one or two on the heads -------------------------
-      //
-      // Built in two passes: stand the four, then measure the block. The gap is
-      // set from the widest of the four so no pair of them can touch, since a
-      // grid pitch taken from an average is a grid where the two biggest clip.
+      // Built in two passes: stand the four, then measure the block. The gap is set
+      // from the widest of them, since a grid pitch taken from an average is a grid
+      // where the two biggest clip.
       const corners = [
         [-1, -1],
         [1, -1],
@@ -148,16 +93,9 @@ export const barrelStack: MeshBuilder = {
       for (const item of placed) if (!row.includes(item)) item.mesh.position.x -= x / 2;
     }
 
-    // One that has been knocked over, lying on the ground clear of the rest.
-    // Not part of the stack and never under it — see the header.
-    //
-    // **Cleared against the group as measured, not against a number that stood
-    // for it.** The quad's clearance was taken from its grid pitch, which is the
-    // distance between two corner *centres* and says nothing about how far the
-    // casks on those corners reach — so the loose one was put down half a metre
-    // inside the block and ran straight through two of them. The reach of a
-    // group is the reach of the furthest thing in it, and the only way to know
-    // that is to ask each of them.
+    // One that has been knocked over, lying clear of the rest and never under it.
+    // Cleared against the group as measured: the reach of a group is the reach of
+    // the furthest thing in it, not half the distance between two corner centres.
     if (rng.chance(0.45)) {
       const item = piece(barrel, { seed: rng.int(1, 0x7fffffff), fallen: true });
 
@@ -171,14 +109,10 @@ export const barrelStack: MeshBuilder = {
         reach = Math.max(reach, Math.hypot(Math.abs(at.x) + half, Math.abs(at.z) + half));
       }
 
-      // **A fallen cask is not centred on its own origin.** `barrel` tips it
-      // about the origin and leaves it lying off to one side, by up to half its
-      // own length — so setting `position` puts the *origin* where asked and the
-      // cask somewhere else entirely. Placing it by its origin is what had it
-      // lying inside the block it was supposed to be clear of.
-      //
-      // So: work out where its middle actually is, and offset the placement by
-      // that, turned the same way the cask is.
+      // A fallen cask is not centred on its own origin — `barrel` tips it about the
+      // origin and leaves it lying off to one side by up to half its own length. So
+      // work out where its middle actually is, and offset the placement by that,
+      // turned the same way the cask is.
       const yaw = rng.range(0, Math.PI * 2);
       const midX = (item.box.min.x + item.box.max.x) / 2;
       const midZ = (item.box.min.z + item.box.max.z) / 2;

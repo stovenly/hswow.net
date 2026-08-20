@@ -4,26 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { shade } from '../palette';
 
-/**
- * A chainlink fence panel: two posts, rails, and a diamond mesh between them.
- *
- * **The mesh is the whole design problem.** Real chainlink is a woven lattice
- * of thousands of small links, and modelling it as such would put more
- * triangles in one fence panel than in the entire rest of this gallery. The
- * usual answer is an alpha-cut texture on a quad, and there are no textures
- * here.
- *
- * So it is built as what it *reads* as: two families of thin diagonal wires
- * crossing at right angles. At a coarse enough spacing — 22 cm rather than the
- * 5 cm a real fence uses — the diamond pattern is still unmistakable and the
- * panel costs a couple of hundred triangles. Past a few metres the wires drop
- * below a pixel and the fence becomes a haze, which is exactly what a real one
- * does.
- *
- * The wires are single boxes running corner to corner rather than a woven
- * over-and-under. Weaving would double the part count to model something that
- * is invisible at any distance where you can see the fence at all.
- */
+// A chainlink fence panel: two posts, rails, and two families of thin diagonal
+// wires crossing at right angles. Spaced at 22 cm rather than a real fence's 5,
+// so the diamond still reads at a couple of hundred triangles. Single boxes corner
+// to corner rather than a woven over-and-under.
 export const chainlink: MeshBuilder = {
   name: 'chainlink',
   category: 'structures',
@@ -66,11 +50,8 @@ export const chainlink: MeshBuilder = {
     }
 
     // --- the mesh ------------------------------------------------------------
-    //
-    // Diagonals at 45°, so the two families cross square and the gaps are
-    // diamonds rather than parallelograms. Spacing is measured along the
-    // horizontal, and every wire is clipped to the panel by being built at the
-    // length its own intercept allows.
+    // Diagonals at 45°, so the two families cross square and the gaps are diamonds
+    // rather than parallelograms. Spacing is measured along the horizontal.
     const pitch = rng.range(0.2, 0.26);
     const gauge = rng.range(0.008, 0.011);
     const meshTop = rails[0];
@@ -83,10 +64,9 @@ export const chainlink: MeshBuilder = {
       // Running c from beyond the left edge to beyond the right guarantees the
       // corners are covered without a special case for them.
       for (let c = -half - meshH; c <= half + meshH; c += pitch) {
-        // Clip to the panel. Both ends of the wire are pulled inside the
-        // rectangle, and the wire is built to whatever is left — a wire that
-        // needs no clipping and one that is a stub at a corner take the same
-        // code path.
+        // Clip to the panel: both ends are pulled inside the rectangle and the wire
+        // is built to whatever is left, so a full wire and a corner stub take the
+        // same code path.
         const x0 = Math.max(-half, Math.min(half, c));
         const x1 = Math.max(-half, Math.min(half, c + lean * meshH));
         if (Math.abs(x1 - x0) < 1e-3) continue;

@@ -16,22 +16,10 @@ import {
   type Facing,
 } from '../building';
 
-/**
- * A threshing barn: a long boarded shed with a cart porch on each side.
- *
- * **The two porches face each other and that is not decoration.** The doors
- * between them are wide enough for a loaded wain to drive in, and with both open
- * the draught between them carries the chaff off the grain while it is thrown —
- * the barn *is* the winnowing machine, and the pair of openings is the working
- * part of it. The porch itself is tall enough to take the load before it is
- * pitched off, which is why it stands proud of the wall rather than being a hole
- * in it.
- *
- * The gaps in the boarding are the other half: a barn has to breathe or the crop
- * in it heats. They are missing boards, not holes cut in them.
- *
- * **One design, not a family** — drawn rather than rolled. See `manor`.
- */
+// A threshing barn: a long boarded shed with a cart porch on each side, facing
+// each other, so the draught between the open doors carries the chaff off the
+// grain. The gaps in the boarding are missing boards, not holes cut in them.
+// One design, drawn rather than rolled.
 
 const WIDTH = 12.8;
 const DEPTH = 7.4;
@@ -88,14 +76,9 @@ export const barn: MeshBuilder = {
       });
       parts.push(...porch.parts);
 
-      // The cart doorway builds nothing of its own — see `building.ts`. Its
-      // frame, its head beam and the stone step under it all went with the rest
-      // of the doorways; a door builder puts the whole opening there.
-      //
-      // What is left is the porch's own carpentry above it: a tie beam across
-      // the wall head, two raking struts up to the apex, and an owl hole between
-      // them. A porch this size is a piece of carpentry and a blank triangle
-      // over the opening reads as an unfinished one.
+      // The cart doorway builds nothing of its own — a door builder puts the whole
+      // opening there. What is left is the porch's own carpentry above it: a tie
+      // beam across the wall head, two raking struts to the apex, and an owl hole.
       const face: Facing = side > 0 ? porch.wall.front : porch.wall.back;
       const frame: Part[] = [];
       const gable = ridgeHeight(PORCH_WIDTH, PITCH + 0.06);

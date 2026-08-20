@@ -14,17 +14,11 @@ import {
   type RoofKind,
 } from '../building';
 
-/**
- * A villager's house: one bay of box frame on a stone plinth, under thatch.
- *
- * The house meant to stand in a row with others, so it is deliberately the
- * plainest thing in the family — no porch, no jetty, no cross-wing. What varies
- * between two of them is the infill colour, the roof, and whether there is an
- * outshot on the back, which is what actually varied down a real street.
- *
- * Nothing is built at the doorway — a door builder puts the leaf and its frame
- * there. All this hands over is where it goes, in `userData.doorways`.
- */
+// A villager's house: one bay of box frame on a stone plinth, under thatch, and
+// deliberately the plainest thing in the family — no porch, no jetty, no
+// cross-wing. What varies is the infill colour, the roof, and whether there is an
+// outshot on the back. Nothing is built at the doorway; all this hands over is
+// where it goes, in `userData.doorways`.
 export const hut: MeshBuilder = {
   name: 'hut',
   category: 'structures',
@@ -42,11 +36,9 @@ export const hut: MeshBuilder = {
 
     const width = rng.range(3.8, 4.5);
     const depth = rng.range(3.1, 3.7);
-    // **Taller than it looks like it should be, and thatch is why.** The roof's
-    // underside crosses the wall face the best part of two thirds of a metre
-    // below the wall head, so a two-and-a-bit metre wall leaves no door height
-    // at all — the frame came out through the slope. `Block.head` is the number
-    // that actually matters and everything below is measured against it.
+    // Taller than it looks like it should be, and thatch is why: the roof's
+    // underside crosses the wall face the best part of two thirds of a metre below
+    // the wall head. `Block.head` is the number that matters.
     const eave = rng.range(3.1, 3.4);
     const plinth = rng.range(0.3, 0.46);
     // Steeper under thatch: straw only sheds water if the pitch throws it off
@@ -93,7 +85,6 @@ export const hut: MeshBuilder = {
     parts.push(...front);
 
     // --- the back, and the ends ----------------------------------------------
-    //
     // An outshot on the back rather than an end: this house stands in a row, so
     // anything on a gable would push into next door.
     const outshot = rng.chance(0.4);
@@ -127,17 +118,14 @@ export const hut: MeshBuilder = {
     }
 
     // --- the stack -----------------------------------------------------------
-    //
-    // Outside the gable rather than inside it, which is where a hearth against
-    // an end wall actually puts one — and it is the only thing about this
-    // building visible over the roof of the one in front.
+    // Outside the gable rather than inside it, which is where a hearth against an
+    // end wall puts one — and it is the only thing about this building visible over
+    // the roof of the one in front.
     if (rng.chance(0.75)) {
       const end = rng.chance(0.5) ? 1 : -1;
       const girth = rng.range(0.74, 0.94);
-      // Stood clear of the roof's gable oversail, with the gap behind it filled
-      // as a breast. A stack sitting *in* the oversail is a stack the slope
-      // drives through and out the far side — the slope runs the building's
-      // whole depth and the stack is three quarters of a metre of it.
+      // Stood clear of the roof's gable oversail, with the gap behind filled as a
+      // breast: a stack sitting in the oversail is one the slope drives through.
       const clear = shell.roof.overGable + 0.08;
       parts.push(
         ...chimney(rng, {

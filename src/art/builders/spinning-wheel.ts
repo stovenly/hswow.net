@@ -5,33 +5,11 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * A spinning wheel: drive wheel, treadle, flyer, and usually a distaff.
- *
- * **The one circle in the house.** Every other thing in a hut is made of
- * rectangles — boards, boxes, planks, posts — and the render pipeline's
- * quantization is unkind to fine detail but very kind indeed to a big clean
- * outline. A wheel two feet across, drawn as a ring with light through the
- * spokes, is legible from across a room at three pixels a block when a chest
- * beside it has collapsed into a brown lump.
- *
- * It is also the piece that puts something at *working* height without being
- * another table: the bench sits at about knee height and the wheel rises to a
- * metre, so the mass is low and the interest is high, which is the opposite of
- * everything else in the set.
- *
- * **Built between named points throughout.** A spinning wheel is a machine —
- * the footman reaches from a treadle on the floor to a crank on a turning axle,
- * the drive band runs from the rim to a pulley two feet away, the legs meet a
- * bench that is not level — and every one of those is a join that a rotate-then-
- * translate would miss by a centimetre in a direction nobody can predict. `rod`
- * takes two points, so there is nothing left to get wrong. The bench slope is
- * the reason it matters here more than usual: with the bench tilted, *no* two
- * fixings are at the same height and a hand-written constant is wrong for all
- * of them.
- *
- * Built with the wheel toward +X and the flyer toward -X, standing on y = 0.
- */
+// A spinning wheel: drive wheel, treadle, flyer, and usually a distaff — the one
+// circle in a house made of rectangles, and legible across a room at three pixels
+// a block. Built between named points throughout: the bench is tilted, so no two
+// fixings are at the same height and a hand-written constant is wrong for all of
+// them. Built with the wheel toward +X and the flyer toward −X, on y = 0.
 export const spinningWheel: MeshBuilder = {
   name: 'spinning-wheel',
   category: 'furniture',
@@ -62,12 +40,9 @@ export const spinningWheel: MeshBuilder = {
     parts.push({ geometry: bench, color: timber, sway: 0 });
 
     // --- three legs -----------------------------------------------------------
-    //
-    // Three, not four, and for the reason a milking stool has three: a wheel
-    // that rocks with every press of the treadle is a wheel nobody can spin on.
-    // Each foot is splayed away from the bench's centre, and each leg is its
-    // own thickness — four identical turned legs at mirrored positions is the
-    // furniture trap, and it costs nothing to sidestep.
+    // Three, not four, for the reason a milking stool has three: a wheel that rocks
+    // with every press of the treadle is a wheel nobody can spin on. Each foot is
+    // splayed away from the bench's centre and each leg is its own thickness.
     // x, z, and the direction the foot is thrown out in.
     const legs: Array<[number, number, number, number]> = [
       [length * 0.32, benchW * 0.38, 0.34, 0.94],
@@ -151,9 +126,8 @@ export const spinningWheel: MeshBuilder = {
     }
 
     // --- treadle and footman --------------------------------------------------
-    //
     // The linkage down to the floor. It is what stops the wheel looking like an
-    // ornament: a machine that a person drives has to reach the person's foot.
+    // ornament: a machine a person drives has to reach the person's foot.
     const treadleX = length * rng.range(0.06, 0.16);
     const treadleZ = rng.around(0, 0.025);
     const treadleLength = rng.range(0.2, 0.28);
@@ -241,11 +215,9 @@ export const spinningWheel: MeshBuilder = {
     parts.push({ geometry: whorl, color: turned, sway: 0 });
 
     // --- drive band -----------------------------------------------------------
-    //
-    // Two straight runs, top and bottom, from rim to whorl. A band is a loop,
-    // but the only parts of a loop anybody sees are its two straights — and a
-    // pair of thin lines tying the big circle to the small one is what turns
-    // two separate assemblies into one machine.
+    // Two straight runs, top and bottom, from rim to whorl. A band is a loop, but
+    // the only parts anybody sees are its two straights — and a pair of thin lines
+    // tying the big circle to the small one is what makes it one machine.
     for (const sy of [-1, 1]) {
       parts.push({
         geometry: rod(
@@ -261,10 +233,8 @@ export const spinningWheel: MeshBuilder = {
     }
 
     // --- distaff --------------------------------------------------------------
-    //
-    // The arm carrying the unspun flax, and the only thing that reaches above
-    // the wheel. Roughly half get one, so a pair of wheels in a room are not
-    // the same object twice.
+    // The arm carrying the unspun flax, and the only thing reaching above the wheel.
+    // Roughly half get one, so a pair of wheels in a room are not one object twice.
     if (rng.chance(0.55)) {
       const armX = motherX - rng.range(0.08, 0.13);
       const armFoot = new THREE.Vector3(armX, benchTop(armX) - 0.01, rng.around(0, 0.02));

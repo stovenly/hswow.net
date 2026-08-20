@@ -4,25 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A run of steel handrail: stanchions, two rails, and a kick plate.
- *
- * The piece of industrial furniture that does the most for scale. A gantry, a
- * platform edge or a stair is unreadable as a *height* without something at
- * hand level beside it, and a railing is the only prop in the kit whose entire
- * job is to be exactly one metre off the floor. Standing next to one tells you
- * how big everything else is.
- *
- * **Three heights, and they are all standards.** Top rail at 1.1 m, mid rail at
- * roughly half that, kick plate at the floor. Those numbers are not decoration:
- * they are what industrial railings are actually built to, and getting them
- * right is most of why one reads as a railing rather than as a fence. A rail at
- * 1.4 m is a barrier and a rail at 0.8 m is a bench back.
- *
- * The kick plate is the detail most often left off and the one that says
- * *industrial* loudest — it exists so dropped tools cannot go over the edge,
- * which is a concern nowhere but a works.
- */
+// A run of steel handrail: stanchions, two rails, and a kick plate. Three
+// heights, and they are all standards — top rail at 1.1 m, mid rail at roughly
+// half that, kick plate at the floor. A rail at 1.4 m is a barrier and one at
+// 0.8 m is a bench back. The kick plate is what says industrial loudest.
 export const railing: MeshBuilder = {
   name: 'railing',
   category: 'structures',
@@ -48,10 +33,8 @@ export const railing: MeshBuilder = {
     const iron = shade(PALETTE.IRON, rng.range(0.85, 1.05));
 
     // --- stanchions ----------------------------------------------------------
-    //
-    // Spaced by dividing the run rather than by a fixed pitch, so the end posts
-    // always land exactly on the ends. A fixed pitch leaves a short bay at one
-    // end, which reads as a mistake rather than as a longer railing.
+    // Spaced by dividing the run rather than by a fixed pitch, so the end posts land
+    // exactly on the ends. A fixed pitch leaves a short bay at one end.
     const bays = Math.max(2, Math.round(length / rng.range(1.1, 1.5)));
     for (let i = 0; i <= bays; i++) {
       const x = -length / 2 + (length * i) / bays;
@@ -69,9 +52,8 @@ export const railing: MeshBuilder = {
     }
 
     // --- rails ---------------------------------------------------------------
-    //
-    // Run past the end stanchions on both sides, so the joint is a lap rather
-    // than four faces meeting in one plane.
+    // Run past the end stanchions on both sides, so the joint is a lap rather than
+    // four faces meeting in one plane.
     for (const at of [top - railR, top * rng.range(0.48, 0.56)]) {
       const rail = new THREE.CylinderGeometry(railR, railR, length + postR * 2.4, 8);
       rail.rotateZ(Math.PI / 2);

@@ -4,13 +4,9 @@ import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
 
-/**
- * A sheep: a small dark face and legs, and a loaf of fleece where the body is.
- *
- * The loaf is the body loft ruffled — every vertex pushed in or out — so the
- * fleece is lumpy everywhere and gapped nowhere. Docked tail, ears out level,
- * a topknot of wool between them.
- */
+// A sheep: a small dark face and legs, and a loaf of fleece where the body is.
+// The loaf is the body loft ruffled — every vertex pushed in or out — so the
+// fleece is lumpy everywhere and gapped nowhere.
 const OVINE: Species = {
   length: [0.95, 1.25],
   girth: [0.55, 0.7],

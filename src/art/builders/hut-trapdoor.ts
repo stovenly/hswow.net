@@ -5,22 +5,11 @@ import { createRng } from '../random';
 import { shade } from '../palette';
 import { HUT_STAINS } from './hut-door';
 
-/**
- * A wooden trapdoor: a planked hatch in a timber curb, flat on the ground.
- *
- * The hut door turned on its back, and joinery from the same yard — it draws
- * its stains from `HUT_STAINS`, so a hamlet's hatches match its doors without
- * either builder knowing about the other's placement. Cellars, wells, and
- * lofts reached from below; the door you stand on rather than walk through.
- *
- * No voice and no metrics: portals do not open downward — this is dressing,
- * not a threshold. If a zone ever does lead through a floor, the sound and
- * the arrival arithmetic get designed then, for what a hatch actually does.
- *
- * Built lying flat, standing on y = 0, the leaf's face up. The curb stands a
- * hand's height proud of the ground, which the collider treats as a kerb —
- * well under the step limit, so it is walked over, not around.
- */
+// A wooden trapdoor: a planked hatch in a timber curb, flat on the ground. Draws
+// its stains from `HUT_STAINS`, so a hamlet's hatches match its doors. No voice
+// and no metrics — portals do not open downward, so this is dressing. Built lying
+// flat on y = 0, leaf face up; the curb is well under the step limit, so it is
+// walked over rather than around.
 
 export type HutTrapdoorOptions = BuildOptions;
 
@@ -41,13 +30,10 @@ export function buildHutTrapdoor(options: HutTrapdoorOptions = {}): THREE.Mesh {
   const curbHeight = rng.range(0.09, 0.12);
 
   // --- curb ----------------------------------------------------------------
-  // A raised timber surround, which is what stops a hatch in the ground
-  // reading as a rug. The stiles run half a curb *into* the rails rather than
-  // butting flush against them: butted flush, the two boxes share their
-  // corner vertices exactly, and coincident vertices are how a pile of closed
-  // solids fails the kit's watertight accounting — the same lesson the
-  // lettering's joints learned. Lapped, every end face sits strictly inside
-  // its neighbour and the silhouette is identical.
+  // A raised timber surround, which is what stops a hatch in the ground reading as
+  // a rug. The stiles run half a curb into the rails rather than butting flush:
+  // butted flush the two boxes share their corner vertices exactly. Lapped, every
+  // end face sits strictly inside its neighbour and the silhouette is identical.
   for (const side of [-1, 1]) {
     const rail = new THREE.BoxGeometry(width + curb * 2, curbHeight, curb);
     rail.translate(0, curbHeight / 2, side * (depth / 2 + curb / 2));
@@ -59,9 +45,8 @@ export function buildHutTrapdoor(options: HutTrapdoorOptions = {}): THREE.Mesh {
   }
 
   // --- leaf ----------------------------------------------------------------
-  // Planks spanning the opening, recessed a hair below the curb's top so the
-  // hatch reads as sitting *in* its frame. A dark void underneath, so the
-  // gaps between boards read as depth over a cellar rather than as ground.
+  // Planks spanning the opening, recessed a hair below the curb's top so the hatch
+  // reads as sitting in its frame, over a dark void so the gaps read as depth.
   const leafTop = curbHeight - 0.02;
   const plankThickness = 0.05;
 
@@ -82,9 +67,8 @@ export function buildHutTrapdoor(options: HutTrapdoorOptions = {}): THREE.Mesh {
   }
 
   // --- ironwork ------------------------------------------------------------
-  // Two hinge straps running from one edge across the planks — the hatch is
-  // read from above, so the straps do the job the ledges do on a door: they
-  // say which edge swings. The pintle stubs sit on the curb.
+  // Two hinge straps from one edge across the planks: a hatch is read from above,
+  // so the straps say which edge swings. The pintle stubs sit on the curb.
   const hingeSign = rng.chance(0.5) ? -1 : 1;
   const strapReach = depth * rng.range(0.5, 0.7);
   for (const sx of [-width * 0.3, width * 0.3]) {

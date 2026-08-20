@@ -4,25 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A round stone cistern: standing water, and something to hold it.
- *
- * For the water in the Proving Ground's cell, which until now was a sound
- * coming out of a flagstone. A cistern rather than a spring or a fountain
- * because of what the sound already is: the model was retuned down to about one
- * bubble every two seconds, and **anything that bubbles continuously has
- * something driving it.** A cistern is defined by its gaps — water that arrived
- * a while ago and is going nowhere.
- *
- * Round, and deliberately not another trough. The kit already has a rectangular
- * timber water container, and two props that differ only in material are two
- * props that get used interchangeably and then look wrong somewhere.
- *
- * Built as a lathe from a closed profile — up the outside, across the rim, down
- * the inside, across the floor — which sweeps a real basin with a real wall.
- * Ten segments, so it faces visibly at arm's length and still reads as round
- * from across a room.
- */
+// A round stone cistern: standing water, and something to hold it. Round rather
+// than another trough, so it is not interchangeable with the timber one. Built as
+// a lathe from a closed profile — up the outside, across the rim, down the inside,
+// across the floor — in ten segments.
 export const cistern: MeshBuilder = {
   name: 'cistern',
   category: 'objects',
@@ -39,14 +24,9 @@ export const cistern: MeshBuilder = {
     const floor = rng.range(0.1, 0.15);
     const stone = shade(PALETTE.STONE, rng.range(0.9, 1.08));
 
-    // Base and wall as two solids rather than one lathe.
-    //
-    // The tempting version is a single profile running from the centre of the
-    // floor, up the inside, over the rim and down the outside — but a profile
-    // that touches the axis revolves into a fan of degenerate slivers there,
-    // and the solid comes out unclosed. A lathe is watertight exactly when its
-    // profile is a closed loop that never reaches radius zero, so the floor is
-    // a plain cylinder and the wall is a ring standing on it.
+    // Base and wall as two solids rather than one lathe. A profile that touches the
+    // axis revolves into a fan of degenerate slivers there; a lathe is watertight
+    // exactly when its profile is a closed loop that never reaches radius zero.
     const slab = new THREE.CylinderGeometry(outer * 0.99, outer * 1.02, floor, 10);
     slab.translate(0, floor / 2, 0);
     parts.push({ geometry: slab, color: shade(stone, 0.92), sway: 0 });
@@ -70,16 +50,11 @@ export const cistern: MeshBuilder = {
       sway: 0,
     });
 
-    // Standing water, well down inside. A basin filled to the rim reads as a
-    // solid disc of colour rather than as something with depth in it — the same
-    // mistake the trough's water panel exists to avoid, and worse here because
-    // the walls are taller.
+    // Standing water, well down inside. A basin filled to the rim reads as a solid
+    // disc of colour rather than as something with depth in it.
     const level = floor + (height - floor) * rng.range(0.3, 0.55);
-    // A very flat cylinder rather than a disc. A disc is a surface, and every
-    // edge round its rim belongs to one triangle — which is a hole as far as
-    // any test of the solid is concerned, and invisible right up until
-    // something walks past it and sees the back of nothing. The trough's water
-    // is a thin box for the same reason.
+    // A very flat cylinder rather than a disc: every edge round a disc's rim belongs
+    // to one triangle, which is a hole to any test of the solid.
     const water = new THREE.CylinderGeometry(inner * 0.97, inner * 0.97, 0.02, 10);
     water.translate(0, level, 0);
     parts.push({ geometry: water, color: PALETTE.WATER, sway: 0 });
@@ -116,11 +91,5 @@ export const cistern: MeshBuilder = {
   },
 };
 
-/**
- * How high the water sits above the cistern's base, for placing the sound.
- *
- * The surface is where the bubbles break, and the rolled fill level varies by
- * more than the geometry does — so this is the middle of the range rather than
- * anything exact. Nobody localises a drip to five centimetres.
- */
+/** How high the water sits above the cistern's base, for placing the sound. The middle of the rolled range — nobody localises a drip to five centimetres. */
 export const CISTERN_WATER_HEIGHT = 0.28;

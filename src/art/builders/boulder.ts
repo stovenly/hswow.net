@@ -3,27 +3,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { stoneLump, stoneColour, weathered } from '../stone';
 
-/**
- * A boulder: one weathered mass, taller than the player.
- *
- * **The register the kit was missing.** `rock` runs from 35 cm to 1.1 m, which
- * is something you step over; this runs from 1.6 m to 3.4 m, which is something
- * you walk *round*. Between them was the whole of the size range that a natural
- * boundary is actually built from — big enough to stop you and to break a
- * sightline, small enough to be one object rather than terrain.
- *
- * Three or four of these in a loose run is the rock line. That is the entire
- * intended use, and it is why the shape is deliberately plain: a boulder with a
- * memorable silhouette placed six times in a row stops being scenery and starts
- * being wallpaper, which is the same failure a wood built from two tree shapes
- * has. The variety is meant to come from the seed, the scale and the *bearing*
- * the placer turns it to, not from the geometry being clever.
- *
- * A second smaller mass leans against the first about half the time. It costs
- * eighty triangles and it is most of what makes the object read as geology
- * rather than as a dropped prop — two stones that have come to rest against each
- * other have obviously been there a while.
- */
+// A boulder: one weathered mass from 1.6 m to 3.4 m — something you walk round
+// rather than step over. Deliberately plain, because the variety is meant to come
+// from the seed, the scale and the bearing a placer turns it to. A second smaller
+// mass leans against the first about half the time.
 export const boulder: MeshBuilder = {
   name: 'boulder',
   category: 'nature',

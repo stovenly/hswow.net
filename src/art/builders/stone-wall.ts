@@ -15,33 +15,19 @@ import {
   SKIN,
 } from '../masonry';
 
-/**
- * A field wall: stones bedded on a hearting, two skins, coped.
- *
- * Dry-laid or mortared — rolled per wall, and the difference is what shows in
- * the joints. A dry wall shows its own dark interior; a mortared one shows pale
- * pointing. The stonework is the same either way, because a wall built of
- * whatever came off the field is the same wall whether or not somebody pointed
- * it. How a face is laid out and warped is in `art/masonry`.
- *
- * Each face carries its own skin, cut separately, so the two sides do not match.
- * **The sideways part of the warp fades to a shared seam at each end of the
- * piece**, so two pieces still meet exactly — see `seam`.
- *
- * **It leans in as it rises** — `BATTER` takes a quarter of the thickness off
- * between foot and top. **The biggest stones are at the bottom**, grading finer
- * with height. **The coping is a different thing from the wall**: stones running
- * right through it, lying flat.
- *
- * As `fence`: the pitch is fixed, so a run of any length is a count of sections,
- * and every piece butts flush against the next on the hearting, which spans the
- * piece exactly and takes no jitter. The wall carries no piers;
- * `stone-wall-column` is a separate object for an end, a corner or a gate cheek.
- *
- * `stone-wall-low` is the same wall built to `LOW` instead.
- *
- * Built along **+X**, standing on y = 0, centred on its own span.
- */
+// A field wall: stones bedded on a hearting, two skins, coped. Dry-laid or
+// mortared, rolled per wall — a dry wall shows its own dark interior, a mortared
+// one pale pointing. How a face is laid out and warped is in `art/masonry`.
+//
+// Each face carries its own skin, cut separately, so the two sides do not match;
+// the sideways part of the warp fades to a shared seam at each end of the piece,
+// so two pieces still meet exactly. It leans in as it rises, the biggest stones
+// are at the bottom, and the coping is stones running right through it, flat.
+//
+// As `fence`: the pitch is fixed, so a run of any length is a count of sections,
+// and every piece butts flush against the next on the hearting, which spans the
+// piece exactly and takes no jitter. `stone-wall-column` is a separate object for
+// an end, a corner or a gate cheek. Built along +X on y = 0, centred on its span.
 
 /** Metres of wall in one section. The same for every wall, so runs tile. */
 export const WALL_SECTION = 1.6;
@@ -56,14 +42,9 @@ export const WALL_DEPTH = 0.48;
 const BATTER = 0.26;
 
 /**
- * How far the stonework runs on past where the coping starts.
- *
- * Only just far enough. Bedding a stone pulls its top edge down by a centimetre
- * or so and the warp used to move it another two or three, so the coping had to
- * be set deep enough to cover the worst of that — which buried the top course of
- * the face along with it. The warp is now **held level** where the two meet (see
- * `wander`) and the coping's underside is flattened onto one line, so what is
- * left to cover is the bedding alone.
+ * How far the stonework runs on past where the coping starts — only just far
+ * enough. The warp is held level where the two meet and the coping's underside is
+ * flattened onto one line, so what is left to cover is the bedding alone.
  */
 const UNDER = 0.04;
 
@@ -83,12 +64,9 @@ export const TALL: Build = {
 };
 
 /**
- * Half a wall: something to sit on, or to edge a garden with.
- *
- * The same stones and much the same coping, thinner through and fewer courses
- * high — which is what a low wall is. Scaling the whole thing down would give it
- * stones the size of a fist, and a wall does not get its stones smaller because
- * it got shorter. It gets fewer of them.
+ * Half a wall: something to sit on, or to edge a garden with. The same stones and
+ * much the same coping, thinner through and fewer courses high. A wall does not
+ * get its stones smaller because it got shorter; it gets fewer of them.
  */
 export const LOW: Build = {
   height: [0.6, 0.95],
@@ -106,29 +84,20 @@ export interface StoneWallOptions extends BuildOptions {
   /** How many sections long, 1..4. Rolled from the seed when the caller says nothing. */
   sections?: number;
   /**
-   * Seeds everything that has to **agree across a join** — how tall the wall is,
-   * whether it is pointed, what bed the stone came out of. Defaults to `seed`.
-   *
-   * Without it a run of two pieces steps by up to two thirds of a metre in the
-   * middle of what is meant to be one boundary. The pitch tiling exactly is not
-   * enough on its own.
+   * Seeds everything that has to agree across a join — height, whether it is
+   * pointed, what bed the stone came out of. Defaults to `seed`. Without it a run
+   * of two pieces steps by up to two thirds of a metre in the middle of what is
+   * meant to be one boundary.
    */
   run?: number;
 }
 
 /**
- * A wall does not bend.
- *
- * There was an `angle` here that built the piece flat and then warped it round an
- * arc, so that one builder could produce both straight runs and curved ones. It
- * is gone, and the reason is worth keeping: **a bend cannot make a corner.** One
- * continuous map applied to the whole solid treats the inside of the turn and the
- * outside of it identically, so the inner face ends up outside the run it belongs
- * inside — and spread over a single section, thirty degrees of arc reads as a
- * straight piece somebody leaned on rather than as a change of direction.
- *
- * A corner is two straight legs meeting at a vertex with a quoin in the angle,
- * and it is `stone-wall-corner`.
+ * A wall does not bend. One continuous map applied to the whole solid treats the
+ * inside of a turn and the outside identically, so the inner face ends up outside
+ * the run it belongs inside — and over a single section, thirty degrees of arc
+ * reads as a straight piece somebody leaned on. A corner is two straight legs
+ * meeting at a vertex with a quoin in the angle.
  */
 export function buildWall(
   name: string,
@@ -199,11 +168,9 @@ export function buildWall(
   }
 
   // --- the coping ------------------------------------------------------------
-  //
-  // Right through the wall, lying flat, and bedded down onto one line so it
-  // covers the top of the face without burying it. Varied in width, height and
-  // how far they overhang, and not one of them tilted: a coping set on the slant
-  // reads as a row of tents.
+  // Right through the wall, lying flat, and bedded down onto one line so it covers
+  // the top of the face without burying it. Varied in width, height and overhang,
+  // and not one of them tilted: a coping set on the slant reads as a row of tents.
   const top = depthAt(masonry);
   const copeW = rng.range(0.26, 0.42);
   const move = wander(rng, amount, { ...held, seam: seams[2] }, level);

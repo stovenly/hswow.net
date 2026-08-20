@@ -5,25 +5,10 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { lettering } from '../lettering';
 
-/**
- * A standing sign: two posts, a planked board between them, and words on it.
- *
- * The first object in the kit that actually says something. The gallery's
- * `signPost` deliberately carries fake marks and puts its words in the
- * tooltip; this one carries real lettering out of `art/lettering`, sized so a
- * player reading it from conversational distance — two to four metres — gets
- * it without walking up. The tooltip layer is still there for anything
- * smaller; this is for text that belongs to the *world*.
- *
- * `text` rides in through the options, beyond the standard seed and scale.
- * The seed rolls the carpentry — post height, board proportions, timber
- * shades — and the text never varies with it, because what a sign says is
- * content, not carpentry. Multi-line is fine; the lettering fits itself to
- * the board either way.
- *
- * Built facing +Z, standing on y = 0. No random facing, for the panel's
- * reason: a sign faces where it is put.
- */
+// A standing sign: two posts, a planked board between them, and real lettering
+// from `art/lettering`, sized to be read from two to four metres. `text` rides in
+// through the options; the seed rolls the carpentry and never the words, because
+// what a sign says is content. Built facing +Z on y = 0, with no random facing.
 
 export interface SignboardOptions extends BuildOptions {
   /** What the board says. Placeholder by default; real signs pass their own. */
@@ -86,16 +71,11 @@ export const signboard: MeshBuilder = {
     if (scale !== 1) geometry.scale(scale, scale, scale);
     const mesh = finish(geometry, 'signboard', 0);
 
-    // The words, fitted to the board. Cap height splits the writable area
-    // over the lines and then defers to the width fit, so one long word and
-    // three short lines both come out sitting inside the planks.
-    //
-    // A child mesh rather than a part, and flagged `noCollide`: lettering is
-    // thousands of small triangles in a hand-span of space, and merged into
-    // the prop they would all be swept into the collider's octree — pressing
-    // the capsule against a sign cost whole milliseconds a frame. The
-    // carpentry stays solid; the ink is not made of anything. One extra draw
-    // call per sign, which is what the street lamp already pays for its beam.
+    // The words, fitted to the board: cap height splits the writable area over the
+    // lines and then defers to the width fit. A child mesh rather than a part, and
+    // flagged `noCollide` — merged into the prop, thousands of small triangles in a
+    // hand-span would all be swept into the collider's octree. The carpentry stays
+    // solid; the ink is not made of anything.
     const lines = text.split('\n').length;
     const written = lettering(text, {
       capHeight: (boardH * 0.72) / (1 + (lines - 1) * 1.5),

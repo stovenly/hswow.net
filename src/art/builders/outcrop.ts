@@ -3,39 +3,13 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { stoneColour, weathered, stoneLump, stoneChunk } from '../stone';
 
-/**
- * An outcrop: bedrock breaking through the surface.
- *
- * **This is the piece that marries a rock line into a hillside**, and it does it
- * by being the one stone in the family that is obviously *attached to something*.
- * A boulder sits on the ground and could be moved; an outcrop is the ground,
- * with the soil worn off it. Put a run of boulders along a slope and it reads as
- * a wall somebody built out of round stones. Put two outcrops in the run and the
- * whole line reads as the hill showing through.
- *
- * ## One bedding plane, and everything obeys it
- *
- * The trick is entirely in the shared angle. Rock does not fracture at random —
- * it splits along the planes it was laid down in, so every plate in a real
- * outcrop dips the same way by the same amount, and the eye reads that
- * agreement as structure long before it could say why.
- *
- * So the dip and the strike are rolled **once**, and every slab takes them with
- * only a degree or two of disagreement. Rolling per slab instead gives a heap of
- * tilted boxes, which is what the first version was.
- *
- * Plates rather than lumps: broken rock has straight edges and sharp arrises
- * where weathered rock has none. They are **convex hulls of scattered points,
- * not boxes** — the first version used a jittered box, on the reasoning that a
- * box has flat faces and sharp edges. It does, along with six of them meeting at
- * twelve right angles that no amount of corner jitter takes away, and a row of
- * those stood on end at a shared angle is not bedrock, it is brickwork. See
- * `art/stone.ts`.
- *
- * Built about the origin with the strike along **+X**, so a placer turns it to
- * follow the line it is edging. Buried deep — most of an outcrop is underground,
- * and the part that shows is the part that reads.
- */
+// An outcrop: bedrock breaking through the surface — the one stone in the family
+// that is obviously attached to something, which is what marries a rock line into
+// a hillside. The dip and the strike are rolled once and every slab takes them
+// with a degree or two of disagreement; rolled per slab it is a heap of tilted
+// boxes. Plates are convex hulls of scattered points, not jittered boxes: six
+// faces at twelve right angles read as brickwork whatever is done to the corners.
+// Built about the origin with the strike along +X, buried deep.
 export const outcrop: MeshBuilder = {
   name: 'outcrop',
   category: 'nature',
@@ -65,12 +39,10 @@ export const outcrop: MeshBuilder = {
       const width = reach * rng.range(0.5, 0.95);
       const deep = thick * rng.range(0.8, 1.35);
 
-      // Long in X, thin through Z, and reaching well below zero. The buried
-      // half is what stops a plate looking like a slab standing on the grass.
-      //
-      // `taper` above 1 on purpose: a plate levered up along its bedding is
-      // usually *wider* at the exposed end than where it is still in the ground,
-      // because that is the end frost has been working on.
+      // Long in X, thin through Z, and reaching well below zero: the buried half is
+      // what stops a plate looking like a slab standing on the grass. `taper` above 1
+      // on purpose, because a plate levered up along its bedding is wider at the
+      // exposed end, where frost has been working on it.
       const slab = stoneChunk(rng, {
         width: width / 2,
         height: height * rng.range(0.9, 1.15),
@@ -83,12 +55,9 @@ export const outcrop: MeshBuilder = {
       });
       slab.rotateX(dip + rng.around(0, 0.06));
       slab.rotateY(strike + rng.around(0, 0.09));
-      // **Stepped along the strike by less than a plate's own width, and barely
-      // moved across it.** The across-strike scatter was ±1.6 thicknesses on a
-      // plate one thickness deep, so a five-plate outcrop routinely came apart
-      // into two groups with clear air between them — two objects standing near
-      // each other, which is not what a piece of bedrock is. Plates in one
-      // outcrop are one bed; they may step and they may not separate.
+      // Stepped along the strike by less than a plate's own width, and barely moved
+      // across it: plates in one outcrop are one bed, so they may step and they may
+      // not separate into two groups with clear air between them.
       slab.translate(
         (t - 0.5) * reach * rng.range(0.55, 0.85),
         rng.around(-height * 0.12, height * 0.1),

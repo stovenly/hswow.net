@@ -4,31 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A pressure vessel on saddles: a riveted drum, a manway, and tappings.
- *
- * The big mass a works needs. `machine` is the thing that moves and `pipes` is
- * the thing that connects; this is the thing that just *sits there*, and a
- * factory without one reads as a workshop. It is also the only prop in the
- * industrial kit large enough to block a sightline, which is what turns a shed
- * into a place with rooms in it.
- *
- * Built lying along +X and left that way. **No random facing** — placement is
- * the caller's business, and a prop that spins on its own seed cannot be
- * aimed at anything.
- *
- * Lying down rather than standing, on most of them. A vertical cylinder is a
- * silo and reads agricultural; a horizontal one on saddles is unmistakably
- * pressurised, because the only reason to lie a tank down is that its ends have
- * to be domed and domed ends are what you do to hold pressure.
- *
- * **The bands are what make it read as riveted.** A smooth drum is a barrel at
- * any size. Real vessels are rolled from plate in courses and strapped at every
- * seam, so the surface has a rhythm along its length — the same argument the
- * pipe run's flanges are built on, and it works here for the same reason: a
- * ring costs sixteen triangles and does more than doubling the radial segments
- * would.
- */
+// A pressure vessel on saddles: a riveted drum, a manway, and tappings — the big
+// mass a works needs, and the only industrial prop large enough to block a
+// sightline. Lying down rather than standing on most of them: a vertical cylinder
+// is a silo and reads agricultural, where a horizontal one on saddles is
+// unmistakably pressurised. The bands are what make it read as riveted, since a
+// smooth drum is a barrel at any size. Built lying along +X, with no random facing.
 export const tank: MeshBuilder = {
   name: 'tank',
   category: 'structures',
@@ -53,18 +34,15 @@ export const tank: MeshBuilder = {
     const iron = shade(PALETTE.IRON, rng.range(0.85, 1.05));
 
     // --- the drum ------------------------------------------------------------
-    //
-    // Ten radial segments. Eight reads as an octagonal hopper and twelve costs
-    // half again for a curve the dither cannot resolve anyway.
+    // Ten radial segments: eight reads as an octagonal hopper and twelve costs half
+    // again for a curve the dither cannot resolve.
     const drum = new THREE.CylinderGeometry(radius, radius, length, 10);
     drum.rotateZ(Math.PI / 2);
     drum.translate(0, axis, 0);
     parts.push({
       geometry: drum,
       // Streaked down the flanks on the rusty ones. Evaluated per face at its
-      // centroid, so the staining lands on facet boundaries and comes out
-      // crisp rather than smeared — the same mechanism the cattle's patches
-      // use, and the reason markings need no extra geometry.
+      // centroid, so the staining lands on facet boundaries and comes out crisp.
       color: rusty
         ? (_x, y) => (y < axis ? shade(shell, 0.82) : shell)
         : shell,
@@ -98,10 +76,8 @@ export const tank: MeshBuilder = {
     }
 
     // --- saddles -------------------------------------------------------------
-    //
-    // Two, near the ends but not at them. A vessel supported at its extremities
-    // sags in the middle, so real ones are carried at about a fifth in from
-    // each end — and getting that right is why it looks engineered.
+    // Two, near the ends but not at them: a vessel supported at its extremities sags
+    // in the middle, so real ones are carried at about a fifth in from each end.
     for (const side of [-1, 1]) {
       const x = (side * length) / 2 * rng.range(0.5, 0.66);
 
@@ -121,10 +97,8 @@ export const tank: MeshBuilder = {
     }
 
     // --- the manway ----------------------------------------------------------
-    //
-    // On top, offset along the length. A hatch dead centre reads as decoration;
-    // one placed where a person could actually get at it from a walkway reads
-    // as a way in.
+    // On top, offset along the length: a hatch dead centre reads as decoration, one
+    // placed where a person could reach it from a walkway reads as a way in.
     const manR = radius * rng.range(0.3, 0.5);
     const manX = rng.range(-length * 0.2, length * 0.2);
 
@@ -150,9 +124,8 @@ export const tank: MeshBuilder = {
     }
 
     // --- tappings ------------------------------------------------------------
-    //
-    // A stub or two off the top, so it looks connected to something even when
-    // it is standing alone in a gallery.
+    // A stub or two off the top, so it looks connected to something even when it is
+    // standing alone in a gallery.
     const stubs = rng.int(0, 4);
     for (let i = 0; i < stubs; i++) {
       const x = -length * 0.35 + (length * 0.7 * (i + 0.5)) / stubs;

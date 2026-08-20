@@ -5,21 +5,11 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { markVista } from '../vista';
 
-/**
- * A single tall landmark — the "what is *that*" object.
- *
- * **The whole roster exists so this one can be placed.** A band of generic
- * hills reads as wallpaper; one particular thing standing in the haze reads as
- * a world, and it is the only prop out here whose job is to be looked *at*
- * rather than looked past. Every zone's vista should have at least one.
- *
- * Six-sided rather than round: at this range the difference is a couple of
- * pixels, and the silhouette of a hexagonal prism against sky is straighter and
- * reads as built. Battered — wider at the foot — because a vertical-sided tower
- * at a kilometre looks like a post.
- *
- * Thirty-six triangles, which is the cheapest thing in the family.
- */
+// A single tall landmark — the object whose job is to be looked at rather than
+// looked past. Six-sided rather than round, because the silhouette of a hexagonal
+// prism against sky is straighter and reads as built; battered, wider at the foot,
+// because a vertical-sided tower at a kilometre looks like a post. Thirty-six
+// triangles.
 
 const STONE = [PALETTE.STONE_DARK, PALETTE.STONE] as const;
 

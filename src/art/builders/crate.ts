@@ -4,22 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A wooden crate, bound with iron straps.
- *
- * A bare box is the most obviously untouched primitive in any engine. The
- * straps cost a dozen triangles and are most of what makes it read as a *made*
- * object — the eye looks for edges and joins, and giving it some is nearly all
- * that "detail" means at this polygon count.
- *
- * Sizes come in classes rather than from one continuous range. A uniform
- * spread produces a yard full of crates that are all slightly different and
- * all basically the same; a few distinct sizes with clear gaps between them
- * produce a yard where things have obviously been sorted, which is what a
- * yard looks like. The large ones also carry more binding, because they need
- * it — that coupling is free and it is the sort of thing that reads as sense
- * even when nobody could say why.
- */
+// A wooden crate, bound with iron straps. The straps cost a dozen triangles and
+// are most of what makes it read as a made object. Sizes come in classes with
+// clear gaps rather than from one continuous range, so a yard reads as sorted;
+// the large ones carry more binding, because they need it.
 
 const CLASSES = [
   { name: 'small', weight: 0.3, scale: [0.55, 0.75] as const },

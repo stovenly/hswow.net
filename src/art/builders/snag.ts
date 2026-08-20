@@ -4,37 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A snag: a standing dead trunk, snapped off well above head height.
- *
- * **Tall and cheap, which is a combination the kit did not have.** Height is
- * expensive here because everything tall is a tree, and a tree's cost is nearly
- * all canopy — a birch is three thousand triangles and most of them are leaves.
- * A snag is the trunk without the tree: four to six metres of vertical mass for
- * about eighty triangles, which means it can be used at the density a boundary
- * actually needs.
- *
- * It also says something a live tree cannot. A stand of trees with two dead ones
- * in it is a wood; a stand of trees with none has been planted. That is `stump`'s
- * argument moved up a storey — and the two go together, because a snag is what a
- * stump was before somebody cut it down to one.
- *
- * ## The break is the whole silhouette
- *
- * A trunk with a flat top is a post. A trunk that ends in a ragged crown of
- * splinters is a tree that came apart in a gale, and the difference is three
- * cones. They lean outward and to different heights, because timber tears along
- * the grain and never breaks level.
- *
- * ## And the bark comes off
- *
- * A dead trunk loses its bark in sheets, from the top down, exposing pale wood
- * underneath. Done as a colour function rather than as geometry: `Part.color`
- * is evaluated per face at its centroid, so a patch lands on facet boundaries
- * and reads as a hard-edged sheet rather than as a smudge. It is the one detail
- * that says *dead* from twenty metres, where the broken top is only a
- * silhouette.
- */
+// A snag: a standing dead trunk, snapped off well above head height — four to six
+// metres of vertical mass for about eighty triangles. The break is the whole
+// silhouette: three cones leaning outward to different heights, because timber
+// tears along the grain and never breaks level. The bark comes off in sheets from
+// the top down, done as a colour function, so a patch lands on facet boundaries
+// and reads as a hard-edged sheet.
 export const snag: MeshBuilder = {
   name: 'snag',
   category: 'foliage',

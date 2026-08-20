@@ -4,39 +4,15 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A pile of loose straw, forked into a corner of the yard.
- *
- * The counterpart to `hay-bale` and `hay-rick`, and the register they cannot
- * cover: those two are straw that has been *processed* — squared, corded,
- * stacked, thatched — and read as somebody's work. This is the same material
- * before any of that happened to it, and the whole content of the object is
- * that it is loose. A yard with only baled straw in it looks like a warehouse.
- *
- * ## Loose is a shape, not an absence of one
- *
- * The mistake to avoid is thinking a loose pile is a random pile. It is not:
- * straw forked off a cart lands in a **low, wide, shallow-sided mound** with a
- * broken edge, because the stuff has no weight and slides. Three things carry
- * that:
- *
- * - **It is much wider than it is tall** — a third as high as it is across at
- *   most. A steep pile of straw is a rick, and a rick is a built thing.
- * - **The edge is where the shape lives.** The middle of a pile is a smooth
- *   mass; what says *loose* is the ragged skirt of it, so the outline is broken
- *   by low tongues where the stuff has spread out, and every one of those is
- *   attached to the mound rather than lying near it.
- * - **The surface is full of straw ends.** A mound of this colour with a clean
- *   surface is a sand dune. Wisps standing out of it at every angle are what
- *   makes it read as a heap of stalks — and here, unlike anywhere else in this
- *   family, sticking out is exactly right.
- *
- * ## Not solid
- *
- * You wade into a pile of straw; you are not stopped by it. Its collision volume
- * would have to be the mound, and being blocked by a knee-high heap of loose
- * stalks is the sort of thing that makes a world feel like a set of boxes.
- */
+// A pile of loose straw, forked into a corner of the yard — the same material
+// before it has been squared, corded or stacked.
+//
+// Loose is a shape, not an absence of one. It is much wider than it is tall, a
+// third as high as it is across at most, because a steep pile of straw is a rick.
+// The edge is where the shape lives: the outline is broken by low tongues where
+// the stuff has spread, every one attached to the mound rather than lying near it.
+// And the surface is full of straw ends, or a mound of this colour reads as a sand
+// dune. Not solid — you wade into straw.
 export const strawPile: MeshBuilder = {
   name: 'straw-pile',
   category: 'objects',
@@ -60,10 +36,9 @@ export const strawPile: MeshBuilder = {
     // The mound: low, wide, with slack sides. Stretched one way so it is a heap
     // that was thrown from a direction rather than a dome.
     const stretch = rng.range(1.05, 1.45);
-    // Stated once, so the straw that stands out of the mound can be sited on
-    // its actual surface rather than on a straight-line guess at it — a guess
-    // runs inside the curve, and a stalk rooted inside the curve is a stalk
-    // sealed in the heap. See `dung-heap`, which wore the same mistake.
+    // Stated once, so the straw standing out of the mound can be sited on its actual
+    // surface rather than on a straight-line guess — a guess runs inside the curve,
+    // and a stalk rooted inside the curve is a stalk sealed in the heap.
     const STOPS: readonly (readonly [number, number])[] = [
       [0, 0.5],
       [0.3, 0.42],

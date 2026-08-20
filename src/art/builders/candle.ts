@@ -7,47 +7,22 @@ import { rollActivity, CANDLE } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { flameGlow, rollFlame, FLAME_DECAY } from '../flame';
 
-/**
- * A candle on a dish, sometimes several, sometimes on a stick.
- *
- * The small light. `streetlamp` is the one that lights a street; this is the
- * one that lights a table, and the difference is nearly two orders of magnitude
- * of intensity — a real candle is about one candela, which is where the unit
- * comes from and which three's physically-based lighting takes literally.
- *
- * Like the lamp it returns more than geometry: a `PointLight` at the flame for
- * what it does to a room, and additive glow geometry for the flame you can see.
- * Both are children of the mesh, so a candle is still one thing to place.
- *
- * The tint comes from `art/flame` — warm orange, warm red, or a cold pale blue
- * — and is applied to the glow, to the point light, and to the wax's own upper
- * reaches together. A flame whose light does not match its colour is the single
- * most obvious tell that a light source has been assembled out of parts: the
- * wax immediately below a blue flame has to be lit blue, and that is a vertex
- * colour rather than a second light.
- */
+// A candle on a dish, sometimes several, sometimes on a stick — the small light,
+// about one candela. Returns a `PointLight` at the flame and additive glow
+// geometry as children of the mesh. The tint from `art/flame` is applied to the
+// glow, the light and the wax's own upper reaches together, because the wax below
+// a blue flame has to be lit blue.
 
 /**
- * Intensity at the flame.
- *
- * Not candela any more, because `FLAME_DECAY` is not 2 — the units stop meaning
- * anything the moment the falloff stops being inverse-square, so this is a
- * number tuned by eye against the one that matters, which is how the wax
- * immediately around the wick reads.
- *
- * Lower than it was, and reaching much further, which is the same change made
- * twice: the old value was correct at arm's length and blew out to flat white
- * anywhere nearer.
+ * Intensity at the flame. Not candela: the units stop meaning anything the moment
+ * `FLAME_DECAY` stops being inverse-square, so this is tuned by eye against how
+ * the wax immediately around the wick reads.
  */
 const LIGHT_INTENSITY = 2.15;
 /**
- * Hard cutoff. Past this it contributes nothing and costs nothing.
- *
- * Doubled, along with the intensity — and the intensity had to go up by rather
- * more than two to keep pace. At `FLAME_DECAY` of 1.25 the falloff is d^1.25,
- * so reaching twice as far at the same brightness costs a factor of 2^1.25,
- * about 2.4. Doubling both would have given twice the range at four fifths of
- * the light.
+ * Hard cutoff — past this it contributes nothing and costs nothing. At
+ * `FLAME_DECAY` of 1.25 the falloff is d^1.25, so reaching twice as far at the
+ * same brightness costs a factor of about 2.4.
  */
 const LIGHT_RANGE = 14;
 
@@ -110,10 +85,9 @@ export const candle: MeshBuilder = {
     // why they lean — see below.
     const count = 1 + (rng.chance(0.42) ? 1 : 0) + (rng.chance(0.18) ? 1 : 0);
     const spread = dishRadius * 0.42;
-    // Arranged on a circle rather than in a row, and rotated by a random phase
-    // so two candles are never at the same bearing across instances. One phase
-    // for the dish: rolled per candle it is not a phase at all, just three
-    // independent bearings, and two of them share a spot often enough to see.
+    // Arranged on a circle and rotated by one random phase for the dish, so two
+    // candles are never at the same bearing across instances. Rolled per candle it
+    // is not a phase at all, and two of them share a spot often enough to see.
     const phase = rng.range(0, Math.PI * 2);
 
     for (let i = 0; i < count; i++) {
@@ -150,23 +124,18 @@ export const candle: MeshBuilder = {
         sway: 0,
       });
 
-      // Where the wick actually is: the top of the candle's own axis carried
-      // through the same two rotations the geometry took, in the same order.
-      // Getting a sign wrong here floats the flame beside the candle instead of
-      // on it, and the taller and more leaned the candle the further off it is.
+      // Where the wick actually is: the top of the candle's own axis carried through
+      // the same two rotations the geometry took, in the same order. A sign wrong
+      // here floats the flame beside the candle instead of on it.
       const tipX = ox - Math.sin(leanZ) * Math.cos(leanX) * height;
       const tipY = base + Math.cos(leanZ) * Math.cos(leanX) * height + radius * 2.2;
       const tipZ = oz + Math.sin(leanX) * height;
 
-      // A bright core inside a wide faint halo, both additive and unlit, so
-      // they stay bright regardless of what is lighting the room around them.
-      // The halo is what stops the flame reading as a small orange solid.
-      //
-      // Built at the origin in its own mesh and moved to the wick, rather than
-      // merged into one buffer with the others. `LightActivity` swells a flame
-      // by scaling its mesh, and a scale is about the mesh's origin: three
-      // wicks sharing a buffer would grow about the point between them and
-      // slide off their candles.
+      // A bright core inside a wide faint halo, both additive and unlit, so they
+      // stay bright whatever is lighting the room. Built at the origin in its own
+      // mesh and moved to the wick: `LightActivity` swells a flame by scaling its
+      // mesh, and three wicks sharing a buffer would grow about the point between
+      // them and slide off their candles.
       const one: Part[] = [];
       flameGlow(one, flame, 0, 0, 0, radius * 1.35);
       const shape = assemble(one);
@@ -191,10 +160,8 @@ export const candle: MeshBuilder = {
 
     const mesh = finish(geometry, 'candle', 0);
 
-    // Everything hung on the prop rather than merged into it takes the facing
-    // and the scale by hand. `rotateY` maps (x, z) to (x·cos + z·sin, −x·sin +
-    // z·cos), written out rather than built with a matrix because it is two
-    // lines and a matrix here would be three plus an allocation.
+    // Everything hung on the prop rather than merged into it takes the facing and
+    // the scale by hand. `rotateY` maps (x, z) to (x·cos + z·sin, −x·sin + z·cos).
     const cos = Math.cos(facing);
     const sin = Math.sin(facing);
     const place = (child: THREE.Object3D, x: number, y: number, z: number) => {

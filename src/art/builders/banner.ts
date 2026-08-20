@@ -7,22 +7,10 @@ import { lettering } from '../lettering';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel, skinToCloth } from '../clothMesh';
 
-/**
- * A cloth banner slung between two poles, with words across it.
- *
- * The signboard's loud sibling: where a sign is read from beside it, a banner
- * is read from down the street — strung overhead, big letters, few words. The
- * broadcast register, and the reason the default cap height here is nearly
- * twice the signboard's.
- *
- * The cloth is simulated — CLOTH.md, and this was its first prop. The panel
- * is pinned along the rope and pre-draped at build; the lettering is skinned
- * to the grid, so the words bend *with* the fold they sit on rather than
- * hanging still in front of it. The sway attribute is zero throughout: the
- * wind shader leaves cloth alone, and there is no double displacement.
- *
- * Built facing +Z, standing on y = 0, poles on ±X.
- */
+// A cloth banner slung between two poles, with words across it. The panel is
+// simulated and pinned along the rope, and the lettering is skinned to the grid,
+// so the words bend with the fold they sit on. Sway is zero throughout — the wind
+// shader leaves cloth alone. Built facing +Z on y = 0, poles on ±X.
 
 export interface BannerOptions extends BuildOptions {
   /** What the banner says. Best kept to a few words — it is read at range. */

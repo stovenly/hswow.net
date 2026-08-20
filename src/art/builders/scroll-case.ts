@@ -4,22 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A tube with a fitted cap: what a scroll travels in.
- *
- * The pair to `roller-scroll`, and the reason it is worth a builder of its own
- * is that it is the readable family's only *closed* object. Everything else
- * here shows what it is by showing paper — a spine, a page, a roll. This shows
- * nothing, which is exactly what makes it findable: a smooth capped cylinder
- * lying on a table is unmistakably a container, and a container in a room full
- * of open books is the one thing somebody has bothered to shut.
- *
- * Leather over a former, or cast bronze. Two raised bands and a stepped cap
- * are the whole of it — a tube with no relief on it reads as a pipe, and the
- * kit already has pipes.
- *
- * Lying along **X**, matching the scroll that goes in it.
- */
+// A tube with a fitted cap: what a scroll travels in, and the readable family's
+// only closed object — a container in a room full of open books is the one thing
+// somebody has bothered to shut. Leather over a former, or cast bronze. Two raised
+// bands and a stepped cap, because a tube with no relief reads as a pipe. Lying
+// along X, matching the scroll that goes in it.
 export const scrollCase: MeshBuilder = {
   name: 'scroll-case',
   category: 'objects',

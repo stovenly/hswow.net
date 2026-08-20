@@ -4,43 +4,15 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A sack of grain, standing where it was set down.
- *
- * **One sack.** It was a pile of three to five, arranged along a run with some
- * leaning and some lying — which is a builder deciding how many sacks are here
- * and how they are laid out, and that is placement. Two sacks against a wall, or
- * six across a barn floor, or one on a cart: all of those are things to put
- * there, and none of them can be got out of a builder that always makes a pile.
- * So it makes a sack, and the variety is in the sack.
- *
- * ## What a sack looks like, since the first version did not
- *
- * It was built as a stack of rings with a knot on top, and it came out as a
- * barrel wearing a hat — which is what that construction gives, because a stack
- * of rings *is* a barrel. The profile is the whole object:
- *
- * - **A full sack sits on a flat bottom** and spreads there. It is *widest at
- *   the base*, not a third of the way up. That single fact separates cloth from
- *   a cask: a cask bulges at its waist because its staves are sprung; a sack
- *   bulges at its foot because the grain is lying on the floor of it.
- * - **It narrows all the way up** from there, in a continuous curve, to about
- *   half its width at the shoulder.
- * - **The neck is a pinch, not a lid.** Above the shoulder the empty cloth
- *   gathers to something much thinner than the body, and that abrupt step is the
- *   silhouette everybody recognises. The old neck was two thirds the body's
- *   width — a lid.
- *
- * Turned from a profile rather than stacked from rings, for `barrel`'s reason: a
- * profile that begins and ends on the axis closes itself, where stacked sections
- * bury a pair of coincident end caps at every join.
- *
- * ## The variety is in the shape, not around it
- *
- * How full it is, how tall, how hard the neck is drawn in, and how far the whole
- * thing leans — a sack that has been shoved against something slumps. There is
- * nothing scattered at its foot: a builder makes the object.
- */
+// A sack of grain, standing where it was set down. One sack: a pile is placement.
+//
+// The profile is the whole object. It sits on a flat bottom and is widest at the
+// base, not a third of the way up — a cask bulges at its waist because its staves
+// are sprung, a sack bulges at its foot because the grain is lying on the floor of
+// it. It narrows continuously to about half its width at the shoulder, and above
+// that the empty cloth gathers to a pinch much thinner than the body. Turned from
+// a closed profile rather than stacked from rings, which would bury coincident end
+// caps at every join.
 export const sack: MeshBuilder = {
   name: 'sack',
   category: 'objects',
@@ -95,10 +67,9 @@ export const sack: MeshBuilder = {
     built.push(knot);
     tint.push(shade(cloth, 0.94));
 
-    // **The lean, about the foot.** A sack shoved against something slumps, and
-    // a slumped one is the commoner sight — but it has to pivot on the corner of
-    // its own base or it lifts off the ground. Applied to the whole sack at once
-    // so the tie and the knot go over with the body.
+    // The lean, about the foot: a sack shoved against something slumps, and it has
+    // to pivot on the corner of its own base or it lifts off the ground. Applied to
+    // the whole sack at once, so the tie and the knot go over with the body.
     const lean = rng.range(0, 0.26);
     const facing = rng.range(0, Math.PI * 2);
     for (let i = 0; i < built.length; i++) {

@@ -4,13 +4,8 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A bush: a clump of squashed lumps, sitting low.
- *
- * No trunk, so sway is nearly uniform — a bush bends from the ground rather
- * than pivoting about a stem. Slightly less at the base than the top, enough
- * that it does not slide.
- */
+// A bush: a clump of squashed lumps, sitting low. No trunk, so sway is nearly
+// uniform — slightly less at the base than the top, enough that it does not slide.
 export const bush: MeshBuilder = {
   name: 'bush',
   category: 'foliage',

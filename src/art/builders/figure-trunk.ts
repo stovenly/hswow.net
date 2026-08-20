@@ -5,22 +5,14 @@ import { ease, type BoneBall, type Surface, type Wearer } from './figure-surface
 
 /**
  * The villager's trunk as a surface: crotch (u = 0) to the base of the neck
- * (u = 1), a bearing θ round it, and a point for each. Everything on the
- * body — the skin, every garment layer, every strap and stuck-on thing — is
- * placed by asking this one function, so nothing can disagree with the body
- * about where the body is.
+ * (u = 1), a bearing θ round it, and a point for each. Everything on the body is
+ * placed by asking this one function, so nothing can disagree about where the
+ * body is.
  *
- * One section per height — a superellipse, wider than deep, its corners
- * filled more or less — so the surface is smooth from crotch to neck with no
- * seam a garment could show. The shoulders are the section itself broadening
- * to the acromion and thinning front to back, then the slope of the
- * trapezius up to the neck; the deltoid balls on the arms carry the breadth
- * outside it, and the shoulder ends inside them. Small lobes — pecs, glutes, the groove of the spine —
- * are added on the radius.
- *
- * All lengths are in units of the trunk's height T; the sliders in `Frame`
- * move the mass about per villager. Bearings run from +X toward −Z, so the
- * front is 3π/2 — the same parameter as a vertical `loft`.
+ * One section per height — a superellipse, wider than deep — so the surface is
+ * smooth from crotch to neck with no seam a garment could show. All lengths are
+ * in units of the trunk's height T. Bearings run from +X toward −Z, so the front
+ * is 3π/2, the same parameter as a vertical `loft`.
  */
 
 export const TRUNK_SIDES = 20;

@@ -7,53 +7,22 @@ import { rollActivity, STOVE } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { FLAME_DECAY } from '../flame';
 
-/**
- * A small wood-burning stove: a cast-iron box on legs, with a flue going up.
- *
- * The third fire in the kit and the one that has to work hardest not to be
- * mistaken for the other two. `forge` is a works hearth — a brick mass under a
- * sheet-metal hood, waist-high and a metre and a half across. `fireplace` is
- * masonry set into a wall. This is a **piece of furniture**: it stands clear of
- * everything, you can walk round it, and it is small enough that its whole
- * silhouette fits between a chair and a table without either of them looking
- * wrong.
- *
- * Four things do that work, and all four are the opposite of the forge:
- *
- * - **Legs.** A fire raised off the floor on four short legs cannot be a hearth;
- *   a hearth is a mass sitting on the ground. This is the single strongest tell
- *   and it costs eighty triangles.
- * - **A flat top, and nothing above it.** No hood, no funnel, no taper. The
- *   forge's whole silhouette is a wide-to-narrow transition, so anything with
- *   one reads as a smaller forge. A stove is a box with a lid you could stand a
- *   kettle on.
- * - **A thin flue leaving the top of the box directly.** Not a chimney it stands
- *   under — a pipe it carries.
- * - **Enamel, sometimes.** Cast iron black, cream, deep green or oxblood. A
- *   works has no painted objects in it at all; a painted stove is domestic
- *   before you have looked at its shape.
- *
- * ## The glass is a hole, as usual
- *
- * The door has a glass front, and there is no transparency in this kit — one
- * shared `MeshLambertMaterial`, vertex colours, no alpha. So the glass is not
- * there: what is built is a cast frame around a rectangular gap, with a panel
- * behind it painted the fire's own colour and additive glow in between. The same
- * answer the lantern reached, for the same reason. The eye supplies the glass
- * because the frame implies it, and the fire shows through, which is the only
- * thing that makes it a stove rather than an iron box.
- *
- * Built facing **+Z**, standing on y = 0.
- */
+// A small wood-burning stove: a cast-iron box on legs, with a flue going up. A
+// piece of furniture rather than a hearth, and four things do that work — legs,
+// because a hearth is a mass sitting on the ground; a flat top with nothing above
+// it, since a wide-to-narrow transition reads as a smaller forge; a thin flue
+// leaving the box directly rather than a chimney it stands under; and enamel,
+// sometimes, because a works has no painted objects in it at all.
+//
+// The glass is a hole, as usual: a cast frame around a rectangular gap, a panel
+// behind it painted the fire's own colour, and additive glow between. Built facing
+// +Z, standing on y = 0.
 
 /**
- * Modest. It is a small fire behind a small pane of glass and most of its
- * output goes up the flue as heat — a stove lights the hearthrug and the legs of
- * whoever is sitting nearest, and that is the whole effect worth having.
- *
- * Uses `FLAME_DECAY` rather than the physical exponent for the reason written
- * out in `art/flame`: at inverse-square, a light this close to something you can
- * crouch in front of blows the near field onto one quantization level.
+ * Modest: a small fire behind a small pane, most of whose output goes up the flue.
+ * A stove lights the hearthrug and the legs of whoever is sitting nearest. Uses
+ * `FLAME_DECAY` rather than the physical exponent — at inverse-square, a light
+ * this close to something you can crouch in front of blows out the near field.
  */
 const LIGHT_INTENSITY = 3.4;
 const LIGHT_RANGE = 12;
@@ -100,12 +69,9 @@ export const stove: MeshBuilder = {
     const heat = rng.range(0.35, 1);
 
     // --- legs ----------------------------------------------------------------
-    //
-    // Splayed a little, and each at its own radius. Four identical cylinders at
-    // four mirrored positions would be fine geometrically, but a stove is a
-    // casting and castings are never quite square — and a metre away, the only
-    // thing telling you these are legs rather than a plinth is that you can see
-    // between them.
+    // Splayed a little, and each at its own radius: a stove is a casting and
+    // castings are never quite square. A metre away, the only thing telling you
+    // these are legs rather than a plinth is that you can see between them.
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
         const top = rng.range(0.032, 0.042);
@@ -120,11 +86,9 @@ export const stove: MeshBuilder = {
     }
 
     // --- the body ------------------------------------------------------------
-    //
-    // One box. The legs sink into it rather than meeting its underside, so the
-    // joints are solids overlapping — boxes and cylinders that butt exactly
-    // share edges between four triangles, which is a hole to every test of the
-    // solid and z-fights where it shows.
+    // One box. The legs sink into it rather than meeting its underside, so the joints
+    // are solids overlapping — boxes that butt exactly share edges between four
+    // triangles.
     const body = new THREE.BoxGeometry(bodyW, bodyH, bodyD);
     body.translate(0, bodyY, 0);
     parts.push({ geometry: body, color: enamel, sway: 0 });
@@ -136,25 +100,18 @@ export const stove: MeshBuilder = {
     parts.push({ geometry: lip, color: shade(iron, 0.9), sway: 0 });
 
     // --- the top -------------------------------------------------------------
-    //
-    // Proud of the body on every side and flat. This is the surface a kettle
-    // goes on and it is what makes the thing read as furniture rather than as
-    // masonry — a forge's hearth plate is *inside* a kerb, this one overhangs.
+    // Proud of the body on every side and flat: the surface a kettle goes on, and
+    // what makes the thing read as furniture. A forge's hearth plate is inside a
+    // kerb; this one overhangs.
     const topT = rng.range(0.028, 0.04);
     const topPlate = new THREE.BoxGeometry(bodyW + 0.055, topT, bodyD + 0.05);
     topPlate.translate(0, legH + bodyH - topT * 0.35, 0);
     parts.push({ geometry: topPlate, color: shade(iron, 1.06), sway: 0 });
 
     // A raised rail round three sides of the top, so things do not slide off the
-    // back. Open at the front, which is the side you reach over.
-    //
-    // Each rail is set in from the plate's edge and sunk a little into it, so
-    // no face of a rail ever lands in a face of the plate. It very nearly did:
-    // the back rail was the plate's own width, its back face was in the plate's
-    // back face, and its underside coincided with the plate's top surface for
-    // one particular value of the plate thickness — which the roll duly found on
-    // seed 132, and only there. Two solids meeting exactly is not a rare bug, it
-    // is a bug waiting for the right random number.
+    // back, open at the front. Each rail is set in from the plate's edge and sunk a
+    // little into it, so no face of a rail ever lands in a face of the plate — two
+    // solids meeting exactly is a bug waiting for the right random number.
     const railT = 0.022;
     const topY = legH + bodyH + topT * 0.5;
     const plateW = bodyW + 0.055;
@@ -170,19 +127,15 @@ export const stove: MeshBuilder = {
     }
 
     // --- the door ------------------------------------------------------------
-    //
-    // A frame around a hole, with the firebox behind it. See the header: the
-    // gap is the glass.
+    // A frame around a hole, with the firebox behind it: the gap is the glass.
     const doorW = bodyW * rng.range(0.6, 0.72);
     const doorH = bodyH * rng.range(0.5, 0.62);
     const doorY = bodyY + bodyH * rng.range(0.02, 0.1);
 
-    // What you see through the glass. Painted the fire's colour on the lit
-    // material, which is what makes the wood immediately behind the pane agree
-    // with the light coming out of it — the same argument the candle's wax makes.
-    // Sunk a few millimetres into the body rather than laid flat on its face:
-    // its back would otherwise share a plane with the front of the stove over
-    // the whole area of the door, which is a guaranteed z-fight at every angle.
+    // What you see through the glass, painted the fire's colour on the lit material,
+    // so the wood immediately behind the pane agrees with the light coming out.
+    // Sunk a few millimetres into the body rather than laid flat on its face, whose
+    // plane it would otherwise share over the whole area of the door.
     const inner = new THREE.BoxGeometry(doorW, doorH, 0.016);
     inner.translate(0, doorY, front + 0.005);
     parts.push({ geometry: inner, color: dim(FIREBOX, 0.45 + heat * 0.5), sway: 0 });
@@ -232,11 +185,8 @@ export const stove: MeshBuilder = {
     parts.push({ geometry: vent, color: shade(iron, 1.12), sway: 0 });
 
     // --- the flue ------------------------------------------------------------
-    //
-    // Thin. A stove pipe is about 12 cm across, which next to a forge's flue is
-    // slender enough to read as sheet rolled into a tube rather than as
-    // brickwork — and the contrast between a heavy iron box and a thin pipe is
-    // most of what makes the box look heavy.
+    // Thin. A stove pipe is about 12 cm across, and the contrast between a heavy iron
+    // box and a slender rolled tube is most of what makes the box look heavy.
     const bore = rng.range(0.055, 0.075);
     const collarH = rng.range(0.05, 0.075);
     // Set back from the middle of the top plate. Dead centre would put the pipe
@@ -281,10 +231,8 @@ export const stove: MeshBuilder = {
     }
 
     // --- a hearth plate ------------------------------------------------------
-    //
-    // A sheet on the floor under it, on some. Anything with a fire in it that
-    // stands on boards needs one, and it also gives the stove a footprint —
-    // without it a small object on a big floor looks dropped rather than placed.
+    // A sheet on the floor under it, on some. It also gives the stove a footprint:
+    // a small object on a big floor looks dropped rather than placed.
     if (rng.chance(0.6)) {
       const plate = new THREE.BoxGeometry(
         bodyW + rng.range(0.16, 0.3),
@@ -296,19 +244,12 @@ export const stove: MeshBuilder = {
     }
 
     // --- the fire behind the glass -------------------------------------------
-    //
-    // Flat and wide rather than a standing flame: what you see through a stove
-    // door is mostly a bed of burning wood with the top of the flame cut off by
-    // the frame. A tall tongue here would be sticking out through the casting.
+    // Flat and wide rather than a standing flame: what you see through a stove door
+    // is mostly a bed of burning wood with the top of the flame cut off by the frame.
     const glowZ = front + 0.022;
-    // **A box, not an octahedron.** This was a squashed octahedron, which from
-    // the front is a *diamond* — and what you are looking at is a rectangular
-    // pane of glass with fire behind it, so the lit shape has to be the pane.
-    // A diamond reads as a gem set in the door, which is a different object
-    // entirely and the first thing anyone notices about it.
-    //
-    // Inset from the opening rather than filling it, so a rim of dark iron
-    // still frames the light and the glass has an edge.
+    // A box, not an octahedron: what you are looking at is a rectangular pane with
+    // fire behind it, so the lit shape has to be the pane — a diamond reads as a gem
+    // set in the door. Inset from the opening, so a rim of dark iron still frames it.
     const core = new THREE.BoxGeometry(doorW * 0.78, doorH * 0.6, 0.02);
     core.translate(0, doorY - doorH * 0.1, glowZ);
     glow.push({ geometry: core, color: dim(FIREBOX, 0.55 + heat * 0.45), sway: 0 });
@@ -347,10 +288,8 @@ export const stove: MeshBuilder = {
       LIGHT_RANGE * scale,
       FLAME_DECAY,
     );
-    // Just outside the glass, not inside the box. A stove is a sealed firebox
-    // and the only light that leaves it comes through one small pane — putting
-    // the source behind the casting would light the inside of a box nobody can
-    // see into and leave the floor in front of it dark.
+    // Just outside the glass, not inside the box: a stove is a sealed firebox and the
+    // only light that leaves it comes through one small pane.
     light.position.set(0, doorY * scale, (front + 0.06) * scale);
     light.castShadow = false;
     mesh.add(light);

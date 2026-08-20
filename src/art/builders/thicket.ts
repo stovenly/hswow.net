@@ -4,15 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A thicket: an overgrown shrub, head high and too dense to push through. The
- * soft counterpart to a boulder, and always a big one — the small case is
- * `bush`'s.
- *
- * A stool, three to five stems arching out and back in, and foliage hung in
- * lumps **along** each stem rather than as one crown at its tip, so the leaves
- * cover the wood that carries them and merge with their neighbours.
- */
+// A thicket: an overgrown shrub, head high and too dense to push through, and
+// always a big one — the small case is `bush`'s. A stool, three to five stems
+// arching out and back in, and foliage hung in lumps along each stem rather than
+// as one crown at its tip, so the leaves cover the wood that carries them.
 export const thicket: MeshBuilder = {
   name: 'thicket',
   category: 'foliage',
@@ -43,12 +38,7 @@ export const thicket: MeshBuilder = {
     const start = rng.range(0, Math.PI * 2);
     const UP = new THREE.Vector3(0, 1, 0);
 
-    /**
-     * Where a stem is at a given **height**.
-     *
-     * By height, not by fraction-along: the foliage starts just above the clear
-     * stem and that is a height.
-     */
+    /** Where a stem is at a given height — by height, not by fraction-along, because the foliage starts just above the clear stem and that is a height. */
     const atHeight = (knee: THREE.Vector3, top: THREE.Vector3, y: number): THREE.Vector3 =>
       y <= knee.y
         ? new THREE.Vector3().copy(knee).multiplyScalar(y / Math.max(knee.y, 1e-3))

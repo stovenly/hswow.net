@@ -4,34 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A hay rick: the year's crop stacked, thatched and left standing.
- *
- * **A landmark first and a blocker second.** Three to four metres of pale mass in
- * open ground is visible from anywhere in a small level, which makes it one of
- * the few props here that a player can navigate by — and it says *farm* on sight
- * in a way no amount of fencing does. Everything else on this list works by
- * closing a route; this one works by giving the eye somewhere to go.
- *
- * ## Three details, and the rick is nothing without any of them
- *
- * **The staddle.** A rick stands on a low frame of timbers, off the ground, so
- * that vermin cannot get into it. It is also what stops the object reading as a
- * cone somebody dropped on the grass: there is a shadow gap under the eaves, and
- * a shadow gap is the difference between something built and something placed.
- *
- * **The overhang.** The stack is *widest above its base*, because hay is thrown
- * up and trodden out and the sides bulge as it settles. A rick that tapers all
- * the way from the ground is a haycock, which is a much smaller thing.
- *
- * **The thatch.** The cap is a different colour and a different pitch from the
- * body — it is a separate job, done with different straw, and it is what says
- * this is meant to survive a winter.
- *
- * Turned from a profile rather than stacked from cylinders, for `barrel`'s
- * reason: a profile that begins and ends on the axis closes itself, where
- * stacked sections bury a pair of coincident end caps at every join.
- */
+// A hay rick: the year's crop stacked, thatched and left standing — a landmark
+// first and a blocker second. Three details carry it: a staddle frame holding it
+// off the ground, so there is a shadow gap under the eaves; an overhang, because
+// hay is thrown up and trodden and the sides bulge as it settles; and a thatched
+// cap at a different colour and pitch. Turned from a closed profile rather than
+// stacked from cylinders, which would bury coincident end caps at every join.
 export const hayRick: MeshBuilder = {
   name: 'hay-rick',
   category: 'objects',
@@ -51,9 +29,8 @@ export const hayRick: MeshBuilder = {
     const staddle = rng.range(0.16, 0.28);
 
     // --- the staddle ---------------------------------------------------------
-    //
-    // Sleepers under the stack, laid across. Kept well inside the eaves so they
-    // read as a frame the rick sits on rather than as a plinth it stands in.
+    // Sleepers under the stack, laid across and kept well inside the eaves, so they
+    // read as a frame the rick sits on rather than a plinth it stands in.
     const beams = rng.int(3, 4);
     for (let i = 0; i < beams; i++) {
       const at = ((i + 0.5) / beams - 0.5) * radius * 1.5;
@@ -72,9 +49,8 @@ export const hayRick: MeshBuilder = {
     }
 
     // --- the stack -----------------------------------------------------------
-    //
-    // Bulging outward above the base and drawn back in under the eaves. The
-    // widest point sits about a third of the way up — see the header.
+    // Bulging outward above the base and drawn back in under the eaves, widest
+    // about a third of the way up.
     const foot = staddle;
     const shoulder = radius * rng.range(1.06, 1.16);
     const profile = [
@@ -91,9 +67,8 @@ export const hayRick: MeshBuilder = {
     });
 
     // --- the thatch ----------------------------------------------------------
-    //
-    // Steeper than the body and standing proud of it, so there is an eave for
-    // rain to come off. A cap flush with the sides is a lid.
+    // Steeper than the body and standing proud of it, so there is an eave for rain
+    // to come off. A cap flush with the sides is a lid.
     const eave = radius * rng.range(1.02, 1.12);
     const roof = [
       new THREE.Vector2(0, foot + body - 0.05),
@@ -127,12 +102,6 @@ export const hayRick: MeshBuilder = {
       parts.push({ geometry: pole, color: shade(PALETTE.TIMBER, rng.around(1, 0.07)), sway: 0 });
     }
 
-    // **No loose hay round the foot.** There was a scatter of it, on the
-    // argument that a rick is worked and what is forked off gets trodden about.
-    // It reads as debris rather than as anything: a ring of unattached lumps
-    // lying at a radius, which is the shape of a scatter routine and not the
-    // shape of a farmyard. If a yard wants strewn hay it is a thing to place,
-    // not a thing for the rick to decide it is standing in.
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);

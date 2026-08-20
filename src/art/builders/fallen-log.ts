@@ -4,21 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A fallen log: a trunk lying where it came down.
- *
- * The commonest large thing on a woodland floor and the most useful, because it
- * is the only piece of ground clutter big enough to *stand on* and long enough
- * to break a sightline without blocking it. A wood with none reads as a park.
- *
- * **Elongation is the whole silhouette.** A log and a rock are both a lumpy
- * mass at this polygon count; what separates them at ten metres is that one of
- * them is four times longer than it is wide and lying dead flat. So the length
- * range is wide, the taper is real, and the broken end is squared off rather
- * than rounded — a log with two domed ends is a sausage.
- *
- * Built lying along +X on y = 0, so a caller drops it and turns it.
- */
+// A fallen log: a trunk lying where it came down. Elongation is the whole
+// silhouette — four times longer than it is wide and lying dead flat — with a real
+// taper and a squared broken end, because a log with two domed ends is a sausage.
+// Built lying along +X on y = 0.
 export const fallenLog: MeshBuilder = {
   name: 'fallen-log',
   category: 'nature',

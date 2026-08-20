@@ -4,43 +4,14 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A stationary engine: bed, boiler, flywheel, linkage.
- *
- * **The flywheel is the whole object.** A box with pipes on it is a boiler; what
- * makes something read as *machinery* is a big exposed wheel, because a wheel is
- * the one shape that obviously turns. Everything else here exists to give the
- * wheel something to be bolted to, which is also why it is the only part built
- * from more than a couple of primitives.
- *
- * ## The wheel has to be attached to something
- *
- * It was not. The wheel sat past the end of the bed, and its bearing block stood
- * at the same place — so the block was hanging in mid-air off the end of the
- * machine, and the wheel it carried appeared to be floating beside an engine
- * rather than being driven by one. The fix is a *shaft*: a visible axle running
- * from the hub back into the frame, and bearings standing where there is
- * actually bed underneath them. An axle is also the honest answer, being the
- * part that transmits the power — without one drawn, the wheel has no
- * mechanical relationship to anything.
- *
- * ## Three engines, not one
- *
- * A row of these read as three copies, because the only things varying were
- * dimensions. Layout varies now too: a single drum, twin drums abreast, or a
- * stacked pair — and one flywheel or two. Those are real distinctions between
- * real engines and, unlike a few centimetres of boiler radius, they are visible
- * from across a hall.
- *
- * Built with the wheel on the +X end, the bed centred on the origin and the
- * whole thing standing on y = 0. Roughly two and a half metres long, so it
- * reads as something a person works at rather than something they live in.
- *
- * The audio counterpart is `audio/models/machine.ts`, which is a different file
- * doing a different job — this one never moves. Phase 7 owns the rotation, and
- * the wheel is a separate part in the source precisely so it can be lifted out
- * and spun then.
- */
+// A stationary engine: bed, boiler, flywheel, linkage. The flywheel is the whole
+// object — a wheel is the one shape that obviously turns — and it is carried on a
+// visible shaft running back into the frame, with the bearings standing where
+// there is bed underneath them. Three layouts rather than one set of dimensions:
+// a single drum, twin drums abreast, or a stacked pair, with one flywheel or two.
+//
+// Built with the wheel on the +X end, the bed centred on the origin, standing on
+// y = 0. The wheel is a separate part so it can be lifted out and spun.
 export const machine: MeshBuilder = {
   name: 'machine',
   category: 'structures',
@@ -71,9 +42,8 @@ export const machine: MeshBuilder = {
     }
 
     // --- boiler -------------------------------------------------------------
-    // A cylinder lying along the bed. Its own radius decides how high it sits,
-    // measured rather than guessed, so changing the proportions cannot bury it.
-    // One drum, two abreast, or two stacked.
+    // A cylinder lying along the bed, its height set from its own radius rather
+    // than guessed. One drum, two abreast, or two stacked.
     const layout = rng.chance(0.4) ? 'twin' : rng.chance(0.5) ? 'stacked' : 'single';
     const boilerRadius = rng.range(0.34, 0.46) * (layout === 'single' ? 1 : 0.82);
     const boilerLength = length * rng.range(0.62, 0.74);
@@ -121,10 +91,8 @@ export const machine: MeshBuilder = {
     }
 
     // --- flywheel -----------------------------------------------------------
-    //
-    // Upright, turning about X, and carried on a shaft that runs back into the
-    // frame. One wheel on the +X end, or a matched pair on both ends — a common
-    // arrangement, and it reads as a bigger machine at a glance.
+    // Upright, turning about X, carried on a shaft that runs back into the frame.
+    // One wheel on the +X end, or a matched pair on both.
     const wheelRadius = rng.range(0.52, 0.72);
     const wheelY = bedHeight + wheelRadius * 0.82;
     const spokeCount = rng.chance(0.5) ? 4 : 3;

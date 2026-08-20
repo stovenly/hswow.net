@@ -4,34 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A hay bale: one corded rectangular bale.
- *
- * **One.** It briefly rolled its own stack — a bale, or two, or three piled up —
- * on the reasoning that a single bale is a knee-high box and three of them
- * against a gateway is a wall, so one name would give both registers. That is
- * the builder taking a decision that is not its to take: a stack of bales is
- * three bales put on top of each other, which is a thing a person does when
- * placing them, and a builder that rolls the count cannot be asked for the plain
- * version at all.
- *
- * A corded rectangular bale rather than a round one: a round bale is machinery,
- * and it does not stack. This one does — squarely, at a known height, which is
- * what makes it stackable **by hand**.
- *
- * ## Straw is a texture problem solved with two cords and four wisps
- *
- * A bale is a rectangular block, which is the most obviously untouched primitive
- * there is — `crate` has the same problem and answers it the same way. The cords
- * cost twenty-four triangles and are most of what says *made*, because the eye
- * looks for edges and joins and giving it some is nearly all that detail means at
- * this polygon count. The wisps standing out of the ends are the other half:
- * they break the silhouette, which is the only thing that survives distance.
- *
- * The colour is `GRASS_DRY` lifted, because that is what the kit already calls
- * cut and dried, and a fourth brown in the palette for one prop would be a fourth
- * brown to keep in step with the other three.
- */
+// A hay bale: one corded rectangular bale, and one is all it is — a stack is
+// something a person does when placing them. Rectangular rather than round,
+// because a round bale is machinery and does not stack. The cords and the wisps
+// standing out of the ends are what say made and break the silhouette; a bare
+// block is the most obviously untouched primitive there is.
 export const hayBale: MeshBuilder = {
   name: 'hay-bale',
   category: 'objects',

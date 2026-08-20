@@ -1,17 +1,10 @@
 import { cover } from '../book';
 import { PALETTE, shade } from '../palette';
 
-/**
- * Dark hide over boards, with raised bands across a rounded back.
- *
- * The heavy end of the shelf and the one every other cover is read against: it
- * is the tallest, the thickest, and the only one whose spine is broken into
- * panels. A rank of these is what a library is supposed to look like from
- * across a room, so if this does not read as a book nothing lighter will.
- *
- * Sombre colours only. A leather binding is what a thing was bound in when it
- * was meant to last, and none of those were bright.
- */
+// Dark hide over boards, with raised bands across a rounded back: the heavy end
+// of the shelf and the one every other cover is read against — the tallest, the
+// thickest, and the only one whose spine is broken into panels. Sombre colours
+// only.
 export const leatherBook = cover('leather-book', 'Leather Bound Book', {
   height: [0.23, 0.29],
   proportion: [0.66, 0.72],

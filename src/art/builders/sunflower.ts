@@ -1,13 +1,8 @@
 import { species } from '../flower';
 
-/**
- * Sunflowers: tall, huge-headed, few, and nodding.
- *
- * The `nod` is doing most of the work. A sunflower's head is heavy enough to
- * pull the stem over, and a stand of them all facing straight up reads as
- * something other than a sunflower immediately — they are the one flower whose
- * *posture* is the identifying feature.
- */
+// Sunflowers: tall, huge-headed, few, and nodding. The `nod` does most of the
+// work — a sunflower's head is heavy enough to pull the stem over, and posture is
+// the identifying feature.
 export const sunflower = species(
   'sunflower',
   {

@@ -4,22 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A sloped desk on a post. Standalone, and carries nothing.
- *
- * **There is no `lectern({ book })`.** It is a piece of furniture with a
- * sloping top, and a book is a prop that can be put on one — two entries, two
- * seeds, and a placer who can move either without rebuilding the other. A
- * builder that took its own contents would be a builder that has to be edited
- * every time the family it stages grows a member.
- *
- * The lip at the foot of the slope is the whole of what makes it a lectern
- * rather than a drawing board. Without it the slope is a ramp and anything put
- * on it reads as sliding off; with it, the empty desk still says what it is
- * for, which is the test a piece of furniture has to pass on its own.
- *
- * Built facing +Z — the slope falls toward the reader.
- */
+// A sloped desk on a post, standalone, carrying nothing — a book is a prop that
+// can be put on one, with its own seed. The lip at the foot of the slope is what
+// makes it a lectern rather than a drawing board, and what lets the empty desk
+// still say what it is for. Built facing +Z; the slope falls toward the reader.
 export const lectern: MeshBuilder = {
   name: 'lectern',
   category: 'furniture',
@@ -36,10 +24,9 @@ export const lectern: MeshBuilder = {
     const timber = rng.chance(0.5) ? PALETTE.TIMBER_DARK : shade(PALETTE.TIMBER, 0.88);
 
     // --- the foot -------------------------------------------------------------
-    //
-    // A cross rather than a disc or a box. Two planks lapped over each other is
-    // how a stand that has to take a lean actually gets made, and it is the one
-    // part of this that is visible from across a room at ankle height.
+    // A cross rather than a disc or a box: two planks lapped over each other is how
+    // a stand that has to take a lean gets made, and it is the part visible from
+    // across a room at ankle height.
     const spread = rng.range(0.34, 0.42);
     for (const along of [0, 1]) {
       const arm = new THREE.BoxGeometry(
@@ -64,10 +51,8 @@ export const lectern: MeshBuilder = {
     parts.push({ geometry: collar, color: shade(timber, 0.92), sway: 0 });
 
     // --- the desk -------------------------------------------------------------
-    //
-    // Built flat about its own middle and then tilted as a unit, so the lip
-    // arrives on the low edge wherever the tilt put it — the same reason
-    // `chest` builds its lid in the hinge's frame rather than in the world's.
+    // Built flat about its own middle and tilted as a unit, so the lip arrives on
+    // the low edge wherever the tilt put it.
     const desk: Part[] = [];
     const top = new THREE.BoxGeometry(deskW, 0.028, deskD);
     desk.push({ geometry: top, color: shade(timber, 1.08), sway: 0 });

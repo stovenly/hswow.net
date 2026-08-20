@@ -4,17 +4,10 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { landWash, markVista, vistaMass } from '../vista';
 
-/**
- * A rocky rise — the `rock` recipe, taller and meaner.
- *
- * The one thing in the band that is not green, and that is its whole job. Fog
- * compresses hue long before it compresses value, so a mass that differs from
- * the hills only in shade disappears into them; grey stone against pasture
- * survives to the outer fringe, and it is what a landmark bearing gets when the
- * fiction has not decided what stands there yet.
- *
- * Narrow, steep and heavily displaced. A crag is the shape a hill is not.
- */
+// A rocky rise — the `rock` recipe, taller and meaner, and the one thing in the
+// band that is not green. Fog compresses hue long before value, so a mass
+// differing from the hills only in shade disappears into them where grey stone
+// survives to the outer fringe. Narrow, steep and heavily displaced.
 
 /** Weathered stone, ordered by value so the wash never puts a step in it. */
 const STONE = [shade(PALETTE.STONE_DARK, 0.82), PALETTE.STONE_DARK, PALETTE.STONE] as const;

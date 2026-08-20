@@ -6,36 +6,13 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * A young birch: one whippy stem, a handful of branches, a wisp of crown.
- *
- * Written as its own builder rather than as `birch` with `scale` set, because a
- * scaled tree is a tree seen from further off and a sapling is a different
- * shape. Three differences, and all three are visible at a glance:
- *
- * - **It bends.** A mature birch is a near-vertical pole; a three-metre one is
- *   a wand, and its top wanders visibly off the axis of its foot. The lean here
- *   is four times the adult's as a fraction of height.
- * - **There is no black foot.** The fissured base an old birch carries is the
- *   work of decades. A young one is smooth to the ground, and it is *browner* —
- *   the famous white comes in from the top as the tree ages, so a sapling is a
- *   warm buff that only just reads as pale.
- * - **The crown is a few tufts, not a mass.** Four branches, one twig each. You
- *   can see the whole stem through it, which is the thing that says young.
- *
- * The unequal-segment trick for the bands is `birch`'s and the reasoning is
- * written up there, clustering included. Bands are thinner and sparser here:
- * they are one of the last markings to develop, and a sapling ringed like an
- * adult reads as a mature tree that has been shrunk — the exact mistake this
- * builder exists to avoid.
- *
- * *Sparser than an adult's* was taken too far the first time. At a flat 16% per
- * segment with pale runs of nearly half a metre, a three-metre stem carried one
- * or two marks, and one or two marks is indistinguishable from none: the stem
- * read as a plain brown pole, which is not a young birch, it is a stick. There
- * are five or six now, still finer and further apart than the adult's, and the
- * bottom tenth stays clean because the marks come in from the top downward.
- */
+// A young birch: one whippy stem, a handful of branches, a wisp of crown. Its own
+// builder rather than `birch` scaled, because a sapling is a different shape. It
+// bends — the lean is four times the adult's as a fraction of height. There is no
+// black foot, and the stem is a warm buff, since the white comes in from the top
+// as the tree ages. The crown is four branches with one twig each, so the whole
+// stem shows through. Bands are finer and sparser than the adult's, five or six of
+// them, with the bottom tenth clean.
 
 const TAU = Math.PI * 2;
 
@@ -72,8 +49,7 @@ export const smallBirch: MeshBuilder = {
     const radiusAt = (y: number): number => butt * (1 - 0.4 * (y / height));
 
     // --- the stem ------------------------------------------------------------
-    //
-    // Same three-kinds-of-segment walk as the adult, run gentler: smaller
+    // The same three-kinds-of-segment walk as the adult, run gentler: smaller
     // clusters, thinner scars, and a lower chance of starting one.
     let y = 0;
     // Scars still owed by the current cluster. Unlike the adult this starts at
@@ -102,17 +78,11 @@ export const smallBirch: MeshBuilder = {
       } else {
         length = rng.chance(0.3) ? rng.range(0.3, 0.5) : rng.range(0.11, 0.26);
         color = shade(YOUNG_BARK, rng.range(0.92, 1.06));
-        // Nothing in the bottom tenth: the marks develop downward from the
-        // young wood at the top, so a sapling banded to the ground is a shrunk
-        // adult. Rolled after the run rather than before it, so a failed roll
-        // gives two clean runs back to back and the spacing varies by more than
-        // one draw's worth.
-        //
-        // **The first cluster is forced.** At 58% a run and only half a dozen
-        // runs to a stem, a plain sequence of failures is not rare — sweeping
-        // 1600 seeds turned up saplings with no marks anywhere, and an unmarked
-        // stem is a stick, not a young birch. Above a third of the way up, the
-        // first one stops being optional.
+        // Nothing in the bottom tenth: the marks develop downward from the young
+        // wood at the top, so a sapling banded to the ground is a shrunk adult.
+        // Rolled after the run, so a failed roll gives two clean runs back to back.
+        // The first cluster above a third of the way up is forced — a plain sequence
+        // of failures leaves an unmarked stem, which is a stick, not a young birch.
         const due = scars === 0 && y > height * 0.3;
         cluster = due || (y > height * 0.1 && rng.chance(0.58)) ? (rng.chance(0.25) ? 2 : 1) : 0;
       }
@@ -171,14 +141,10 @@ export const smallBirch: MeshBuilder = {
         tip.y + Math.sin(droop) * twigLength,
         tip.z + Math.sin(swing) * Math.cos(droop) * twigLength,
       );
-      // **Started back down the branch, not at its tip.** Two rods meeting
-      // end-to-end at the same point with the same radius produce identical
-      // rings whenever their directions happen to agree to within the
-      // watertight check's quantum — and four triangles on one edge is read as
-      // a hole. It is a rare roll rather than a constant one: 499 seeds out of
-      // 500 were fine and seed 16 was not, which is exactly the kind of bug
-      // that ships. The twig now sleeves over the branch, slightly fatter, so
-      // there is nothing for the two caps to coincide with.
+      // Started back down the branch, not at its tip. Two rods meeting end to end at
+      // the same point with the same radius produce identical rings whenever their
+      // directions agree closely enough. The twig sleeves over the branch, slightly
+      // fatter, so there is nothing for the two caps to coincide with.
       const joint = tip.clone().lerp(root, 0.12);
       parts.push({
         geometry: rod(joint, end, butt * 0.27, butt * 0.12, 4),

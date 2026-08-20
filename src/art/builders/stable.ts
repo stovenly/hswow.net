@@ -13,24 +13,11 @@ import {
 } from '../building';
 import { shade } from '../palette';
 
-/**
- * A stable: a low boarded range, open along its front, divided into bays.
- *
- * The bays are the building. A stable is not a shed you put horses in, it is a
- * shed with the standings already built into it — a partition between each pair,
- * a post at the head of every partition carrying the plate, and the whole front
- * left open under the eaves so the range airs and can be seen down. That is why
- * the boarding has gaps in it too: a horse in a sealed building is a horse with
- * bad lungs.
- *
- * **No doors, and no room behind one.** This is an exterior building whose
- * inside is the thing you are looking at — everything it has is open to the
- * front, so there is nowhere for a door to lead and no doorway is recorded on
- * it. It had a walled store at one end with a door frame on it, and a door frame
- * in front of nothing is worse than a plain wall.
- *
- * **One design, not a family** — drawn rather than rolled. See `manor`.
- */
+// A stable: a low boarded range, open along its front, divided into bays. The
+// bays are the building — a partition between each pair, a post at the head of
+// every partition carrying the plate, and the front left open under the eaves so
+// the range airs. The boarding has gaps for the same reason. No doors and no
+// doorway is recorded: everything it has is open to the front. One design, drawn.
 
 const WIDTH = 7.2;
 const DEPTH = 5.4;
@@ -111,10 +98,8 @@ export const stable: MeshBuilder = {
     parts.push(...standings);
 
     // --- the loft ------------------------------------------------------------
-    //
-    // A vent in the gable, and nothing else. There was a hoist beam out under the
-    // apex as well, which from anywhere but square-on is a plank sticking out of
-    // the roof for no reason anyone can see.
+    // A vent in the gable, and nothing else: a hoist beam out under the apex is, from
+    // anywhere but square-on, a plank sticking out of the roof for no reason.
     const rise = ridgeHeight(DEPTH, PITCH);
     parts.push(
       ...onFace(

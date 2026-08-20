@@ -6,32 +6,13 @@ import { PALETTE, shade } from '../palette';
 import { weatherTint } from '../weathering';
 import type { DoorMetrics } from '../door';
 
-/**
- * An industrial door in a steel frame.
- *
- * The works' answer to `hut-door`, and deliberately its opposite in every
- * register the two share. A hut door is boards held by ledges — verticals
- * crossed by horizontals, wood carrying iron. This is a plate stiffened by
- * riveted straps: one surface, mechanical fixings, and nothing on it that a
- * chisel made. It speaks with the `iron` voice in `audio/models/door`, which
- * is the one that rings.
- *
- * Where the hut door spends its variety on stain, this one spends it on
- * **wear**. A works door is painted iron losing an argument with weather:
- * most doors are lightly weathered, a third are properly rusted. The wear is
- * `art/weathering`'s shader stage, thresholded against a `Part.wear` field
- * that pools at the bottom and edges of the plate and runs hotter on the
- * fittings than the faces. Three earlier versions painted the speckle into
- * vertex colours instead, and every one read as its own faces; that lesson
- * is that module's header.
- *
- * Some doors carry a small shaded inspection window, high and barred — dark
- * glazing, because there are no transparent materials in the kit and a works
- * window is for glancing, not for light.
- *
- * Built facing **+Z**, standing on y = 0, centred on x, like every door: the
- * portal system derives its arrival markers from that promise.
- */
+// An industrial door in a steel frame: a plate stiffened by riveted straps, the
+// works' answer to `hut-door` and its opposite in every register. It speaks with
+// the `iron` voice in `audio/models/door`. Its variety is spent on wear rather
+// than stain, thresholded against a `Part.wear` field that pools at the bottom and
+// edges. Some carry a small barred inspection window, dark-glazed. Built facing
+// +Z, standing on y = 0, centred on x, as every door is: the portal system derives
+// its arrival markers from that promise.
 
 export type FactoryDoorOptions = BuildOptions;
 

@@ -5,27 +5,11 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * A workbench with a vice bolted to the front edge.
- *
- * The other place a person stands, and the counterpart to `panel`: that one is
- * where a works is *controlled* and this is where things are actually made. It
- * is also the only piece of industrial furniture at hand height, which matters
- * more than it sounds — a room whose contents are all either floor-level or
- * overhead has no register for a person in it.
- *
- * **The vice is the silhouette.** A bench is a slab on legs, which is a table,
- * and there is already a table in the kit. The one small right-angled lump
- * jutting off the front edge is the entire difference, so it is drawn large
- * and proud rather than tucked in.
- *
- * About half of them have one. A workshop where every bench is fitted alike
- * reads as a showroom; the plain ones are assembly benches, and they are also
- * the ones worth putting something else on.
- *
- * Built facing +Z, standing on y = 0. No random facing: a bench is worked at
- * from one side and the caller decides which.
- */
+// A workbench with a vice bolted to the front edge — the only piece of industrial
+// furniture at hand height. The vice is the silhouette: a bench without one is a
+// table, and there is already a table in the kit, so it is drawn large and proud
+// rather than tucked in. About half of them have one; the plain ones are assembly
+// benches. Built facing +Z on y = 0, with no random facing.
 export const workbench: MeshBuilder = {
   name: 'workbench',
   category: 'furniture',
@@ -46,9 +30,8 @@ export const workbench: MeshBuilder = {
     const timber = shade(PALETTE.TIMBER, rng.range(0.82, 1));
 
     // --- the top -------------------------------------------------------------
-    //
-    // Boards rather than one slab, each a shade off its neighbours. A bench top
-    // of one flat colour reads as a painted plane however many polygons it has.
+    // Boards rather than one slab, each a shade off its neighbours: a bench top of
+    // one flat colour reads as a painted plane however many polygons it has.
     const boards = rng.int(3, 5);
     for (let i = 0; i < boards; i++) {
       const board = new THREE.BoxGeometry(length, slab, (depth / boards) * 0.97);
@@ -59,11 +42,9 @@ export const workbench: MeshBuilder = {
     // --- frame ---------------------------------------------------------------
     const legR = rng.range(0.032, 0.045);
     const inset = 0.1;
-    // Into the boards, not flush with their underside. `top - slab` is exactly
-    // where the boards begin, so a leg that tall ends with its cap in the same
-    // plane as the board above it — two coplanar quads that flicker against
-    // each other from underneath. Buried a little way into the slab there is
-    // nothing coincident, and a bench leg does go into its top.
+    // Into the boards, not flush with their underside: `top - slab` is exactly where
+    // the boards begin, so a leg that tall ends with its cap in the same plane as
+    // the board above it. A bench leg does go into its top.
     const legTop = top - slab * 0.4;
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
@@ -91,10 +72,8 @@ export const workbench: MeshBuilder = {
     }
 
     // --- the vice ------------------------------------------------------------
-    //
-    // On the front edge, off to one side — a vice in the middle of a bench is
-    // where nobody puts one, because it has to be worked at standing to one
-    // side of the job.
+    // On the front edge, off to one side: a vice in the middle of a bench is where
+    // nobody puts one, because it has to be worked at standing beside the job.
     if (!rng.chance(0.5)) {
       const geometry = assemble(parts);
       if (scale !== 1) geometry.scale(scale, scale, scale);
@@ -122,16 +101,10 @@ export const workbench: MeshBuilder = {
     screw.translate(vx, top + jaw * 0.5, vz + jaw * 0.55);
     parts.push({ geometry: screw, color: shade(iron, 1.25), sway: 0 });
 
-    // The tommy bar: through the end of the screw and **across** it.
-    //
-    // It was built along X and then turned about Y, which swings it in the
-    // horizontal plane — so at a quarter turn it lay along the screw's own axis
-    // and disappeared into it, and everywhere in between it was skewed. A bar
-    // through a screw can only turn in the plane at right angles to that screw,
-    // and the screw here runs along Z.
-    //
-    // Built between two points rather than by rotating a cylinder, so the ends
-    // are known and the knobs can be put exactly on them.
+    // The tommy bar: through the end of the screw and across it. A bar through a
+    // screw can only turn in the plane at right angles to that screw, and the screw
+    // here runs along Z. Built between two points rather than by rotating a
+    // cylinder, so the ends are known and the knobs go exactly on them.
     const swing = rng.range(0, Math.PI);
     const half = jaw * 0.8;
     const centre = new THREE.Vector3(vx, top + jaw * 0.5, vz + jaw * 1.02);

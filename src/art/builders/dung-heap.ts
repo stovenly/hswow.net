@@ -4,40 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, blend, shade } from '../palette';
 
-/**
- * A dung heap: the muck from the byre, piled up to rot down.
- *
- * **The least glamorous object in the kit and one of the most useful.** Every
- * other farm prop says work is *possible* here — an implement, a store, a
- * boundary. This one says animals are kept here, in that building, and somebody
- * mucks them out. It is the difference between a farmyard and a set dressed to
- * look like one, and it is fifty triangles.
- *
- * ## Why a mound is hard and what makes this one work
- *
- * A heap of anything is the easiest thing in the world to build badly: scatter
- * lumps in a cone and it reads as rubble, gravel, a slag heap or nothing at all.
- * Three things make this one specific.
- *
- * **It is flat-topped and steep-sided.** Muck is forked *up* onto a heap from
- * one side and trodden, so it builds a bank rather than a cone — the profile is
- * closer to a loaf than a pyramid. A conical heap reads as something poured.
- *
- * **It is layered in colour, dark at the bottom.** A heap rots from the inside
- * out, so the old stuff at the foot is nearly black and the fresh on top still
- * carries the straw it came in with. That vertical gradient is the whole read at
- * distance and it costs nothing — `Part.color` takes a function of position.
- *
- * **Straw sticks out of it.** The stuff is half bedding, so the surface is
- * broken by short lengths of it everywhere, which is what stops the mound
- * reading as soil.
- *
- * ## And it is kept, not dumped
- *
- * Boards along the sides to hold it in. A heap somebody retains is a heap
- * somebody intends to spread on a field, which is the whole reason it exists —
- * without them it is a mess rather than a store.
- */
+// A dung heap: the muck from the byre, piled up to rot down. Flat-topped and
+// steep-sided, because muck is forked up from one side and trodden — a cone reads
+// as something poured. Layered dark at the bottom, since a heap rots from the
+// inside out, with straw broken through the surface everywhere. Boards along the
+// sides hold it in: a heap somebody retains is a store rather than a mess.
 export const dungHeap: MeshBuilder = {
   name: 'dung-heap',
   category: 'objects',
@@ -62,16 +33,10 @@ export const dungHeap: MeshBuilder = {
     const weather = (_x: number, y: number, _z: number): number =>
       shade(blend(rotted, fresh, Math.min(1, Math.max(0, y / tall)) ** 0.8), rng.range(0.94, 1.06));
 
-    // The mound: a lathe with a flat top and steep sides, stretched along X so
-    // it is a bank rather than a cone.
-    //
-    // **The profile is stated once and everything reads it.** The lumps and the
-    // straw are sited on the mound's surface, which means they need to know
-    // where that surface is — and they used to *approximate* it with a straight
-    // taper. The approximation ran well inside the real curve, so anything put
-    // at a fraction of it was buried whole: invisible, and (since a sealed lump
-    // shares no surface with the shell around it) detached in every sense that
-    // can be measured.
+    // The mound: a lathe with a flat top and steep sides, stretched along X so it
+    // is a bank rather than a cone. The profile is stated once and everything reads
+    // it — the lumps and the straw are sited on the mound's own surface, and an
+    // approximated taper runs inside the real curve and buries them.
     const STOPS: readonly (readonly [number, number])[] = [
       [0, 0.5],
       [0.45, 0.47],
@@ -99,27 +64,18 @@ export const dungHeap: MeshBuilder = {
     ];
     const mound = new THREE.LatheGeometry(profile, sides);
     mound.scale(stretch, 1, 1);
-    // **Not turned.** It was yawed by a random amount after being stretched
-    // along X — while the boards, the stakes, the lumps and the straw are all
-    // sited against a profile that assumes the stretch is still on X. So on any
-    // seed that turned it far, the retaining boards ended up beside a heap that
-    // had swung out from under them. The prop is placed by hand and turned then;
-    // a builder does not need a bearing of its own, and cannot have one while
-    // anything is positioned against its shape.
+    // Not turned. The boards, the stakes, the lumps and the straw are all sited
+    // against a profile that assumes the stretch is still on X, so a yaw here would
+    // swing the heap out from under its own boards. The prop is placed by hand.
     parts.push({ geometry: mound, color: weather, sway: 0 });
 
-    // Lumps forked onto it, breaking the outline. On the mound's own surface
-    // rather than near it: each sits at a height and is pulled in to the radius
-    // the profile has at that height, so none of them can be adrift.
+    // Lumps forked onto it, breaking the outline. On the mound's own surface rather
+    // than near it: each sits at a height and is pulled in to the radius the profile
+    // has there.
     /**
-     * Which way round the mound a forkful lands.
-     *
-     * **Toward the open ends, never the boarded flanks.** A lump straddling the
-     * surface sticks out by its own radius, and the two long sides of this heap
-     * are precisely where the boards are — so anything sited there comes through
-     * them, which is the retaining board failing at the one thing it is for.
-     * Muck is forked in over the ends anyway; the sides are boarded because they
-     * are the sides you cannot tip over.
+     * Which way round the mound a forkful lands: toward the open ends, never the
+     * boarded flanks. A lump straddling the surface sticks out by its own radius,
+     * and anything sited on a long side comes through the board.
      */
     const openEnd = (): number => (rng.chance(0.5) ? 0 : Math.PI) + rng.around(0, 0.85);
 
@@ -155,32 +111,16 @@ export const dungHeap: MeshBuilder = {
       parts.push({ geometry: wisp, color: shade(straw, rng.range(0.9, 1.1)), sway: 0 });
     }
 
-    // The boards that hold it in, along the two long sides and let into the
-    // ground. Not all round: you have to be able to get at it with a fork.
-    // **Well into the mound's flank, and tall enough to stand out of it.**
-    //
-    // Two goes at this. First they were set a little *past* half the width,
-    // where the mound ends, so board and stakes stood clear of the heap they
-    // retain. Then they were set a hair inside it — which touched, but only over
-    // a centimetre or two at the very foot, and a board plus its two stakes is a
-    // sixth of the object hanging off a graze.
-    //
-    // The board sits back at four tenths of the width, which is deep inside the
-    // heap at ground level, and is tall enough that its top half is out in the
-    // air where the mound has narrowed away from it. Buried where it is holding,
-    // visible where it is not — which is also what the thing looks like.
+    // The boards that hold it in, along the two long sides and let into the ground.
+    // Not all round: you have to be able to get at it with a fork. Set at four
+    // tenths of the width — deep inside the heap at ground level — and tall enough
+    // that the top half stands out in the air where the mound has narrowed away.
     const boardT = 0.06;
     for (const side of [-1, 1]) {
-      // **The board's outer face is past the mound's widest point.** Which is
-      // the entire purpose of a retaining board and was the one thing it did
-      // not do: set inside the heap, the muck simply came through it, so it was
-      // a plank standing in a pile rather than a plank holding one up.
-      //
-      // The mound reaches `wide × 0.5` at the ground and narrows above that, so
-      // the inner face goes at 0.44 — deep enough into the foot to be solidly
-      // part of the object — and the 6 cm of board takes the outer face to
-      // exactly 0.5, where the muck stops. Nothing can spill past it, and above
-      // the foot the heap pulls away and leaves the board standing clear.
+      // The board's outer face is past the mound's widest point, which is the whole
+      // purpose of it. The mound reaches `wide × 0.5` at the ground and narrows
+      // above that, so the inner face goes at 0.44 and the 6 cm of board takes the
+      // outer face to exactly 0.5, where the muck stops.
       const at = side * (wide * 0.44 + boardT / 2);
       const high = tall * rng.range(0.75, 0.95);
       // Longer than the heap, so the muck cannot get round the ends of it
@@ -194,13 +134,9 @@ export const dungHeap: MeshBuilder = {
       plank.translate(slide, high * 0.4, at);
       parts.push({ geometry: plank, color: shade(board, rng.range(0.94, 1.06)), sway: 0 });
 
-      // A stake at each end holding the board up, driven into the ground.
-      //
-      // **Measured off the board, not off the heap.** They were placed at a
-      // fraction of `long` while the board's own length was a separate roll off
-      // the same number — so a board that came out short and a stake that came
-      // out far landed the stake past the end of the thing it is supposed to be
-      // holding, fastened to nothing.
+      // A stake at each end holding the board up, driven into the ground. Measured
+      // off the board, not off the heap, or a short board and a far stake put the
+      // stake past the end of the thing it is holding.
       for (const end of [-1, 1]) {
         const stake = new THREE.BoxGeometry(0.07, high * 1.25, 0.07);
         stake.rotateZ(rng.around(0, 0.05));

@@ -4,24 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * Fallen sticks, lying where they came down.
- *
- * What accumulates under any mature tree, and the cheapest way to say a wood
- * has been standing a while rather than having been placed this morning.
- *
- * **Flat, and that is the whole correction.** It began as a *pile* — a third
- * of the sticks propped up on the rest — and a heap of standing timber is a
- * bonfire, which is a thing somebody made. Windfall lies down. What is left is
- * a scatter with barely any relief in it, which is both what litter looks like
- * and what lets anything else be placed on top without a fight.
- *
- * **Disorder is the silhouette, and it has to be real disorder.** A stump is a
- * cylinder and a log is a longer one; this reads because nothing in it is
- * parallel to anything else. Bearings are fully random and the sticks are
- * allowed to interpenetrate — arranging them tidily produces a bundle of
- * firewood, which belongs somewhere else entirely.
- */
+// Fallen sticks, lying where they came down. Flat: windfall lies down, and a heap
+// of standing timber is a bonfire, which is a thing somebody made. Disorder is the
+// silhouette and it has to be real — bearings are fully random and the sticks are
+// allowed to interpenetrate, because arranging them tidily produces a bundle of
+// firewood.
 export const sticks: MeshBuilder = {
   name: 'sticks',
   category: 'nature',
@@ -35,10 +22,9 @@ export const sticks: MeshBuilder = {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
-    // Fewer, and flatter. A pile built from sixteen sticks a third of which
-    // were propped came out as a *bonfire* — a conical heap of standing timber,
-    // which is a thing somebody made. Windfall lies down: it is a scatter with
-    // a slight mound in it, and almost nothing in it is upright.
+    // Few, and flat. Windfall lies down: a scatter with a slight mound in it, and
+    // almost nothing in it upright — propped sticks make a bonfire, which is a thing
+    // somebody built.
     const count = rng.int(6, 11);
     const spread = rng.range(0.5, 0.95);
     const bark = rng.chance(0.5) ? PALETTE.BARK : PALETTE.BARK_PALE;

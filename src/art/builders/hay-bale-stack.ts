@@ -4,38 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A stack of hay bales, built the way a person builds one.
- *
- * `hay-bale` makes one bale and deliberately does not decide how many there are
- * — stacking is a thing you do when placing them. This is the case where the
- * stack itself is the object: three to eight bales against a wall or across a
- * gateway, which is a two-metre boundary that reads instantly as a farm.
- *
- * ## How a person stacks bales
- *
- * Not at angles, and not in a heap. A stack is:
- *
- * - **Courses**, level and full, laid one on top of the last. Not a pyramid of
- *   individually placed objects, and certainly not a pile: a bale is a squared
- *   block and the whole point of one is that it stacks square.
- * - **Every bale the same way round**, in every course. All of them lie along
- *   the run, ends out, and the stack has one orientation from the ground up.
- *
- *   It briefly turned alternate courses a quarter turn, on the argument that
- *   crossing them stops the joints lining up. That is a real technique and it
- *   was the wrong call here: what it actually produces is a stack whose top half
- *   faces a different way from its bottom half, which reads as two stacks put
- *   in the same place rather than as one anybody built. When in doubt about
- *   orientation the answer is that the parts of an object agree.
- * - **Narrowing as it rises**, by a bale where the top course is short of a full
- *   one. Nobody leaves a half course in the middle.
- *
- * The only things rolled per bale are a centimetre or two of position and a
- * degree or two of yaw. Anything more is a stack somebody dropped.
- *
- * Built along **+X**, standing on y = 0, centred on its own footprint.
- */
+// A stack of hay bales, built the way a person builds one: level full courses,
+// every bale the same way round from the ground up, narrowing as it rises by a
+// bale where the top course is short. The only things rolled per bale are a
+// centimetre or two of position and a degree or two of yaw. Built along +X,
+// standing on y = 0, centred on its own footprint.
 export const hayBaleStack: MeshBuilder = {
   name: 'hay-bale-stack',
   category: 'objects',

@@ -8,17 +8,13 @@ import { BOARD, OUTLINES, carveMask, profileAt, type CarvedMask, type Register, 
 import { buildCityHead, isCityHead, type CityHeadKind, type HouseColours } from './figure-head-city';
 
 /**
- * The villagers' heads: a plain hood, and a carved mask (`art/mask`) worn over
- * it. Three families — a round cut across the grain, a board built from parts,
- * and a board carrying a rack — and permutations of each. The cityfolk's heads
- * are their own, in `figure-head-city.ts`; `buildHead` hands a city kind over.
+ * The villagers' heads: a plain hood, and a carved mask (`art/mask`) worn over it.
+ * Three families — a round cut across the grain, a board built from parts, and a
+ * board carrying a rack. The cityfolk's heads are in `figure-head-city.ts`.
  *
- * Every mask is furnished on the back with its harness: battens, a grip bar and
- * cord anchors. The front carries all the ornament and everything fixed on, so
- * which way it faces is never in doubt.
- *
- * The hood rides `head`, the cowl over the shoulders `neck` and the mask
- * `face`, rack and all. LIFE.md §3.3.
+ * Every mask is furnished on the back with its harness, and the front carries all
+ * the ornament, so which way it faces is never in doubt. The hood rides `head`,
+ * the cowl `neck`, and the mask `face`, rack and all.
  */
 
 /** Any face a figure can be given: a villager's or a cityfolk's. */
@@ -77,10 +73,7 @@ export interface BuiltHead {
 /**
  * The timber a mask is cut from. One is drawn per villager, so the same design
  * turns up in birch and in walnut — four tones from the same log, in the same
- * order of lightness whichever it is, so a design that asks for its darkest
- * gets the darkest of *that* wood.
- *
- * Antler, cord and iron are not wood and do not move with it.
+ * order of lightness whichever it is. Antler, cord and iron do not move with it.
  */
 interface Timber {
   wood: number;
@@ -408,13 +401,12 @@ export function buildHead(
 
   /**
    * A band of flat triangles standing proud, alternately point up and down.
-   * `across` is a tooth's circumradius as a fraction of the board's width; the
-   * count follows from how wide the board is at that height, so they are the
-   * same size on every row and never crowd into one another.
+   * `across` is a tooth's circumradius as a fraction of the board's width, and the
+   * count follows from how wide the board is at that height.
    */
-  // Every tooth sits off the board the same way — all lighter on a dark board,
-  // all darker on a pale one — so the band reads whatever the timber. `away`
-  // is how far the row steps from the board; alternate teeth step further.
+  // Every tooth sits off the board the same way — lighter on a dark board, darker
+  // on a pale one — so the band reads whatever the timber. `away` is how far the
+  // row steps from the board; alternate teeth step further.
   const boardLum = (((board >> 16) & 0xff) * 0.3 + ((board >> 8) & 0xff) * 0.59 + (board & 0xff) * 0.11) / 255;
   const dogtooth = (v: number, away: number, across = 0.1): void => {
     const r = boardW * across;
@@ -560,12 +552,10 @@ export function buildHead(
       dogtooth(0.2, 0.3);
       dogtooth(0.4, 0.18);
       dogtooth(0.6, 0.3);
-      // An elk's rack, built the way one is: a burr at the top corner, one
-      // main beam out of it sweeping up, out and back over the head, and six
-      // points off that beam — brow and bez forward over the face, trez off
-      // the side, then the royal, which is the longest, off the top where the
-      // beam turns back, and two more at the end. Points grow forward and
-      // slightly outward, and every one curls up over its length.
+      // An elk's rack: a burr at the top corner, one main beam sweeping up, out and
+      // back over the head, and six points off it — brow and bez forward over the
+      // face, trez off the side, the royal off the top where the beam turns back,
+      // and two more at the end. Every point curls up over its length.
       const BEAM: readonly [number, number, number][] = [
         [0, 0, 0], [0.26, 0.29, -0.09], [0.48, 0.58, -0.29], [0.6, 0.83, -0.58], [0.63, 1.02, -0.9], [0.56, 1.14, -1.21],
       ];
@@ -630,11 +620,10 @@ export function buildHead(
         on(petal, 0, 0.5, size * 0.05, i % 2 ? shade(BARK_PALE, 1.22) : shade(BARK_PALE, 1.06));
       }
       on(new THREE.IcosahedronGeometry(size * 0.09, 1), 0, 0.5, size * 0.09, shade(HEART, 1.12));
-      // Eight canes rooted along the rim, four a side, with the crown left
-      // clear. Each leaves the rim nearly on its side and turns up as it goes,
-      // so it reaches out and then climbs. Every cane leans further out than
-      // the one inside it and they all straighten by the same factor, so the
-      // order across the fan is kept at every height and no two can cross.
+      // Eight canes rooted along the rim, four a side, with the crown left clear.
+      // Each leaves the rim nearly on its side and turns up as it goes. Every cane
+      // leans further out than the one inside it and they all straighten by the
+      // same factor, so the order across the fan is kept and no two can cross.
       for (let i = 0; i < 8; i++) {
         const t = (i < 4 ? i - 4 : i - 3) / 4;
         const turn = t * 1.16;

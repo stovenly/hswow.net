@@ -4,27 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A control panel: a slate face with levers, gauges and knife switches.
- *
- * The place a person *stands* in a works. Everything else in the industrial kit
- * is machinery, storage or structure; this is the one object built to be
- * operated, and a room with one in it has somebody's job in it.
- *
- * **A flat slab bristling with angled arms.** That is the whole read, and it
- * matters that the levers are at *different* angles — a bank all thrown the
- * same way looks moulded, and half the point of a control panel is that it
- * records a state somebody left it in.
- *
- * The controls sit on a **grid**. Six kinds land in the cells at weighted
- * random — gauges and lamps high where they are read, switchgear low where it
- * is reached — so no two boards are alike while every board is plainly
- * drilled to a marked-out plate rather than grown.
- *
- * Built facing +Z, standing on y = 0 on its own plinth, so it works against a
- * wall and free in the middle of a floor alike. No random facing: this is a
- * thing you walk up to and it should face where it is put.
- */
+// A control panel: a slate face with levers, gauges and knife switches — the one
+// object in the industrial kit built to be operated. The levers are at different
+// angles, because a bank all thrown the same way looks moulded and half the point
+// is that it records a state somebody left. The controls sit on a grid, gauges and
+// lamps high where they are read and switchgear low where it is reached. Built
+// facing +Z on its own plinth; no random facing, since it is walked up to.
 export const panel: MeshBuilder = {
   name: 'panel',
   category: 'structures',
@@ -70,32 +55,19 @@ export const panel: MeshBuilder = {
     }
 
     // --- the controls, on a grid --------------------------------------------
-    //
-    // **Laid out in rows and columns, not scattered.** Gauges were spread along
-    // one line and levers along another, each at its own rolled height, which
-    // gave a face that looked *grown*. Switchgear is drilled and bolted to a
-    // marked-out plate: everything sits on a pitch, and that regularity is most
-    // of what makes a panel read as manufactured rather than as an outcrop.
-    //
-    // The variety comes from *which* control lands in each cell, not from where
-    // the cells are.
+    // Laid out in rows and columns, not scattered: switchgear is drilled and bolted
+    // to a marked-out plate, and that regularity is most of what makes a panel read
+    // as manufactured. The variety comes from which control lands in each cell.
     const columns = rng.int(3, 5);
     const rows = rng.int(2, 3);
     const cellW = (width * 0.84) / columns;
     const cellH = (faceH * 0.78) / rows;
 
     /**
-     * Where a cell's centre is, on the front of the raked face.
-     *
-     * **Taken from the face's own transform.** It was an approximation — the
-     * height used straight and the depth nudged by a linear term in the rake —
-     * and it did not follow the plate: controls near the top and bottom rows
-     * hung off it into open air, which is the sort of thing that is obvious the
-     * moment anyone looks and invisible in the code.
-     *
-     * The face is a box rotated about X by `-rake` and then moved. So a point
-     * on its front surface is that same rotation applied to a local point, and
-     * asking for it directly cannot disagree with where the plate actually is.
+     * Where a cell's centre is, on the front of the raked face. Taken from the
+     * face's own transform: the face is a box rotated about X by `-rake` and then
+     * moved, so a point on its front surface is that rotation applied to a local
+     * point, and asking for it directly cannot disagree with where the plate is.
      */
     const faceMid = plinth + faceH / 2;
     const faceZ = depth * 0.16;

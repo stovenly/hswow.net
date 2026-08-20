@@ -4,16 +4,8 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A leaning timber post, sometimes with a crossbar or an iron ring.
- *
- * The most useful thing in any kit: posts mark boundaries, edges, paths and
- * ruins, and a line of them at slightly different heights and leans says
- * "something was built here and then left" more economically than a building
- * does.
- *
- * The lean is the whole point. A perfectly vertical post reads as new.
- */
+// A leaning timber post, sometimes with a crossbar or an iron ring. The lean is
+// the whole point: a perfectly vertical post reads as new.
 export const post: MeshBuilder = {
   name: 'post',
   category: 'structures',
@@ -45,13 +37,9 @@ export const post: MeshBuilder = {
       parts.push({ geometry: bar, color: PALETTE.TIMBER_DARK, sway: 0 });
     }
 
-    // An iron collar at the head of the post, where timber splits first.
-    //
-    // This replaces a tethering ring that floated off the side at a random
-    // height, attached to nothing and holding nothing. Detail that implies a
-    // use it does not have is worse than no detail: it reads as a mistake,
-    // because it is one. A collar binds the top of a post, which is a thing
-    // posts actually have and which needs nothing else present to make sense.
+    // An iron collar at the head of the post, where timber splits first. A collar
+    // binds the top of a post, which needs nothing else present to make sense —
+    // where a tethering ring holding nothing reads as a mistake, because it is one.
     if (rng.chance(0.45)) {
       const collar = new THREE.BoxGeometry(thickness * 2.5, 0.09, thickness * 2.5);
       collar.translate(0, height - 0.09, 0);

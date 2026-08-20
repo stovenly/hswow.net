@@ -4,32 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A pipe run: a horizontal main on brackets, with flanges, valves and a drop.
- *
- * The single most useful piece of industrial dressing there is. A works reads
- * as a works because things are *routed* through it — a room full of machines
- * with nothing connecting them is a showroom, and one pipe run along a wall
- * fixes that for a handful of cylinders.
- *
- * ## Flanges are the trick
- *
- * A bare cylinder is a stick. What makes a pipe look like a pipe is that it is
- * assembled from sections, and the joints between them are wider than the pipe
- * — so the run has a rhythm along its length instead of being uniform. The
- * flanges cost eight triangles each and do more for the read than doubling the
- * radial segments would.
- *
- * **No stands, and no drop.** The first version put legs under it and hung a
- * branch off it toward the floor. Both were wrong for the same reason: pipes
- * run along walls and ceilings, carried on clamps behind them, and a pipe run
- * on legs is a handrail. It is built about a fixed height and hangs there in an
- * empty room — the honest picture of a run waiting for a wall to be fixed to.
- *
- * Built running along +X, so a caller drops it against a wall and turns it into
- * place. No random facing: placement is the caller's business, and a prop that
- * spins on its own seed cannot be aimed.
- */
+// A pipe run: a horizontal main on brackets, with flanges, valves and a drop. A
+// works reads as a works because things are routed through it. The flanges are the
+// trick — wider than the pipe, so the run has a rhythm along its length instead of
+// being uniform, at eight triangles each. No stands: pipes run along walls on
+// clamps, and a pipe run on legs is a handrail. Built running along +X, with no
+// random facing, because a prop that spins on its own seed cannot be aimed.
 export const pipes: MeshBuilder = {
   name: 'pipes',
   category: 'structures',

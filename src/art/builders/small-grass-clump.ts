@@ -4,21 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A tuft of grass: a handful of tapered blades leaning off vertical.
- *
- * Built from three-sided cones rather than the usual crossed quads, because
- * crossed quads only work with an alpha-cut texture and there are no textures
- * here. A cone squashed flat is three triangles and reads correctly from every
- * angle, which billboards do not.
- *
- * This is the builder that most rewards the wind sway: grass is small enough
- * that nothing else sells motion, and numerous enough that it is everywhere.
- *
- * **The small one of a pair.** `large-grass-clump` covers about ten times the
- * ground from one placement. This is the tuft you scatter to break up an edge
- * or fill a gap; that is the one you lay a field with.
- */
+// A tuft of grass: a handful of tapered blades leaning off vertical. Three-sided
+// cones squashed flat rather than crossed quads, which need an alpha-cut texture.
+// The tuft you scatter to break an edge; `large-grass-clump` is what you lay a
+// field with.
 export const smallGrassClump: MeshBuilder = {
   name: 'small-grass-clump',
   category: 'foliage',
@@ -31,10 +20,9 @@ export const smallGrassClump: MeshBuilder = {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
-    // A clump, not a handful. Sparse blades read as a few weeds; grass only
-    // starts looking like ground cover somewhere past about thirty, where the
-    // blades overlap enough that the eye stops counting them. Three triangles
-    // each makes that affordable.
+    // A clump, not a handful: grass only starts looking like ground cover somewhere
+    // past about thirty blades, where they overlap enough that the eye stops
+    // counting them.
     const blades = rng.int(30, 46);
 
     for (let i = 0; i < blades; i++) {
@@ -58,14 +46,10 @@ export const smallGrassClump: MeshBuilder = {
       parts.push({
         geometry: blade,
         color: rng.chance(0.3) ? PALETTE.GRASS_DRY : PALETTE.GRASS,
-        // Free at the tip, pinned at the root — the classic grass profile. The
-        // exponent keeps the lower half of the blade almost still, which is
-        // what stops a tuft looking like it is sliding across the ground.
-        //
-        // Clamped before the power, not after. Tilting a blade rotates its
-        // base vertices fractionally below y = 0, and a negative base raised
-        // to a fractional exponent is NaN — which would go straight into the
-        // vertex buffer and take the whole mesh with it.
+        // Free at the tip, pinned at the root, with the exponent keeping the lower
+        // half almost still. Clamped before the power, not after: tilting a blade
+        // rotates its base vertices fractionally below y = 0, and a negative base to
+        // a fractional exponent is NaN.
         sway: (_x, y) => Math.max(0, y / height) ** 1.5,
       });
     }

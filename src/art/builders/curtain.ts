@@ -6,13 +6,9 @@ import { PALETTE, shade } from '../palette';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel } from '../clothMesh';
 
-/**
- * A curtain over a doorway: two jambs, a rod, and a drop of sheer cloth.
- *
- * The cloth hangs from the rod and drapes against its own frame — the jambs
- * are its colliders, so a draught moves it without ever pushing it through
- * the wood. Built facing +Z, the opening centred on the origin.
- */
+// A curtain over a doorway: two jambs, a rod, and a drop of sheer cloth. The
+// jambs are the cloth's colliders, so a draught moves it without pushing it
+// through the wood. Built facing +Z, the opening centred on the origin.
 
 export interface CurtainOptions extends BuildOptions {
   /** A `FABRICS` name. */
@@ -45,10 +41,9 @@ export const curtain: BuilderWith<CurtainOptions> = {
 
     const mesh = finish(assemble(parts), 'curtain', 0);
 
-    // The drop fills the opening, pinned along the rod; it clears the floor by
-    // a hand so the hem swings free instead of pooling. Its edges stop shy of
-    // the jambs' keep-zone — authored inside it, the collision and edge
-    // projections fight every substep, which reads as twitching.
+    // The drop fills the opening, pinned along the rod, and clears the floor by a
+    // hand so the hem swings free. Its edges stop shy of the jambs' keep-zone —
+    // authored inside it, the collision and edge projections fight every substep.
     const clothW = width - 0.22 * scale;
     const clothTop = height - 0.06 * scale;
     const clothH = clothTop - 0.12 * scale;

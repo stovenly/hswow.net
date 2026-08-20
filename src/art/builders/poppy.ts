@@ -1,12 +1,7 @@
 import { species } from '../flower';
 
-/**
- * Poppies: mid-height, wide-petalled, cupped, and sparse.
- *
- * Four broad petals rather than a dozen narrow ones, cupped hard. The colour is
- * the point — this is the only saturated red in the kit, and a few of them
- * scattered through a meadow do more for it than any amount of green.
- */
+// Poppies: mid-height, wide-petalled, cupped, and sparse. Four broad petals
+// rather than a dozen narrow ones, cupped hard. The only saturated red in the kit.
 export const poppy = species(
   'poppy',
   {

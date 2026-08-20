@@ -6,33 +6,14 @@ import { PALETTE, shade } from '../palette';
 import type { DoorMaterial } from '../../audio/models/door';
 import type { DoorMetrics } from '../door';
 
-/**
- * A village door in its frame: wooden, always.
- *
- * This was `door`, and it carried the iron look too — which meant the door on
- * a works was a village door painted grey, and the door on a hut competed
- * with it for variants. Split: the industrial leaf lives in `factory-door`,
- * and what is left here is entirely carpentry, with the variety spent where
- * wood actually varies — the stain. Same boards, same ledges, same ironwork;
- * a hamlet's doors differ by what was in the pot that year.
- *
- * Built facing **+Z**, standing on y = 0, centred on x. Portals place it by
- * position and yaw, so every door in the game agrees about which way "out of
- * the doorway" points and the arrival marker in front of it can be derived
- * rather than authored.
- *
- * The leaf is made of separate planks rather than one slab. It costs a handful
- * of boxes and it is the whole reason the thing reads as carpentry — a single
- * flat panel at this polygon count is indistinguishable from a hole with a
- * colour in it. Each plank is a hair proud of its neighbour, the ledges are
- * proud of the planks and the ironwork is proud of the ledges, so nothing
- * shares a plane with anything else. Coincident faces cost nothing to avoid
- * here and z-fight visibly at every distance if you don't.
- *
- * The leaf is inset into the frame and never opens — portals are a click and
- * a fade, not a swing. `audio/models/door` carries the swing instead, as a
- * synthetic gesture, which is why nothing here has a hinge axis.
- */
+// A village door in its frame: wooden, always, with the variety spent on the
+// stain. Built facing +Z, standing on y = 0, centred on x — portals place it by
+// position and yaw, and derive the arrival marker from that promise.
+//
+// The leaf is separate planks rather than one slab, each a hair proud of its
+// neighbour, with the ledges proud of the planks and the ironwork proud of the
+// ledges, so nothing shares a plane. It is inset into the frame and never opens:
+// portals are a click and a fade, and `audio/models/door` carries the swing.
 
 /** The two wooden voices. The iron one belongs to `factory-door`. */
 export type HutDoorMaterial = Extract<DoorMaterial, 'timber' | 'plank'>;
@@ -50,22 +31,14 @@ export interface WoodStain {
 }
 
 /**
- * The stains, by voice.
- *
- * `timber` is the fitted, oiled door of a house — darker, denser finishes on
- * a stone frame. `plank` is rough sawn boards on an outbuilding — paler,
- * weathered finishes on a timber frame. The split matters acoustically as
- * much as visually: the voice a portal plays is chosen by material, and a
- * near-black tarred door with a thin rattly plank knock would read as the
- * wrong sound coming out of the right object.
- *
- * Within a family the stains differ in *hue*, not only value, because the
- * quantizer collapses colours that differ only in brightness — the same rule
- * the palette header teaches. The ironwork darkens or rusts with the wood, so
- * a weathered door is weathered all over rather than wearing new hinges.
+ * The stains, by voice. `timber` is the fitted, oiled door of a house — darker,
+ * denser finishes on a stone frame; `plank` is rough sawn boards on an
+ * outbuilding. The split is acoustic as much as visual: the voice a portal plays
+ * is chosen by material. Within a family the stains differ in hue, not only
+ * value, because the quantizer collapses same-hue brightness steps, and the
+ * ironwork darkens or rusts with the wood.
  */
-// Exported for `hut-trapdoor`, which is joinery from the same yard: a hatch
-// in a hamlet is stained with whatever the doors were.
+// Exported for `hut-trapdoor`, which is joinery from the same yard.
 export const HUT_STAINS: Record<HutDoorMaterial, readonly WoodStain[]> = {
   timber: [
     // Oiled oak. The old default look, kept: it is what a cared-for door is.
@@ -187,10 +160,9 @@ export function buildHutDoor(options: HutDoorOptions = {}): THREE.Mesh {
   const plankCount = rng.int(4, 6);
   const plankWidth = width / plankCount;
   for (let i = 0; i < plankCount; i++) {
-    // Each plank slightly narrower than its share, leaving a shadow gap, and
-    // each at its own thickness so the face is not perfectly flat — and each
-    // at its own few percent of the stain, which is what stops five boards
-    // reading as one board with grooves cut in it.
+    // Each plank slightly narrower than its share, leaving a shadow gap, each at
+    // its own thickness, and each at its own few percent of the stain — which is
+    // what stops five boards reading as one board with grooves cut in it.
     const thickness = leafThickness * rng.range(0.88, 1);
     const plank = new THREE.BoxGeometry(plankWidth * 0.94, height * rng.range(0.985, 1), thickness);
     plank.translate(
@@ -202,9 +174,8 @@ export function buildHutDoor(options: HutDoorOptions = {}): THREE.Mesh {
   }
 
   // --- ledges -------------------------------------------------------------
-  // Horizontal braces holding the planks together. Two or three, and never
-  // evenly spread — a real door has them at the top and bottom where the
-  // racking is, not at thirds.
+  // Horizontal braces holding the planks together. Two or three, and never evenly
+  // spread: a real door has them where the racking is, not at thirds.
   const ledgeHeights = rng.chance(0.4)
     ? [height * 0.16, height * 0.52, height * 0.87]
     : [height * 0.18, height * 0.82];
@@ -216,9 +187,9 @@ export function buildHutDoor(options: HutDoorOptions = {}): THREE.Mesh {
   }
 
   // --- ironwork -----------------------------------------------------------
-  // Hinge straps run from one edge across the ledges. Which edge is the hinge
-  // side is rolled once and reused, so the straps and the handle end up on
-  // opposite sides of the door like they would on a real one.
+  // Hinge straps run from one edge across the ledges. Which edge is the hinge side
+  // is rolled once and reused, so the straps and the handle end up on opposite
+  // sides of the door.
   const hingeSide = rng.chance(0.5) ? -1 : 1;
   const strapDepth = ledgeDepth * 0.5;
   for (const at of [ledgeHeights[0], ledgeHeights[ledgeHeights.length - 1]]) {
@@ -241,14 +212,9 @@ export function buildHutDoor(options: HutDoorOptions = {}): THREE.Mesh {
   const handleX = -hingeSide * width * rng.range(0.3, 0.36);
   const handleY = height * rng.range(0.44, 0.5);
   if (rng.chance(0.5)) {
-    // A knob on a short stem, over a backplate.
-    //
-    // This was a ring hanging from a plate, and a ring is the wrong shape for
-    // this pipeline: a torus at eight segments is a faceted polygon loop, the
-    // hole in the middle is a couple of pixels wide once the render pass has
-    // chunked it, and what survives is a smudge that reads as damage rather
-    // than as a handle. A knob is convex, catches the light on one side, and
-    // is legible at any distance the door is visible from.
+    // A knob on a short stem, over a backplate. A ring is the wrong shape for this
+    // pipeline: a torus at eight segments is a faceted polygon loop and its hole is
+    // a couple of pixels wide once the render pass has chunked it.
     const plate = new THREE.CylinderGeometry(0.062, 0.062, 0.02, 8);
     plate.rotateX(Math.PI / 2);
     plate.translate(handleX, handleY, leafThickness + 0.01);

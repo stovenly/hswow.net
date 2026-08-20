@@ -2,17 +2,10 @@ import type { BuilderWith } from '../types';
 import { buildColumn, type StoneWallColumnOptions } from './stone-wall-square-column';
 import { LOW, TALL } from './stone-wall';
 
-/**
- * A three-sided pier: the sharp turn. A run in one face and out of another
- * bends 60°.
- *
- * Same face width as the others, which makes it the smallest of the three — a
- * triangle's apothem is a third of its face against a square's half. The
- * shallow arris also means its quoins reach furthest along both faces; see
- * `quoinedPolygon`.
- *
- * Standing on y = 0, centred on the origin, face 0 looking along +X.
- */
+// A three-sided pier: the sharp turn — a run in one face and out of another bends
+// 60°. Same face width as the others, so it is the smallest of the three, and its
+// shallow arris means its quoins reach furthest along both faces. Standing on
+// y = 0, centred on the origin, face 0 looking along +X.
 export const stoneWallTriangleColumn: BuilderWith<StoneWallColumnOptions> = {
   name: 'stone-wall-triangle-column',
   category: 'structures',

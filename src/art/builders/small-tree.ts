@@ -5,22 +5,11 @@ import { lumpySphere } from '../blob';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A small tree: one clear stem, a few branches, and a thin canopy.
- *
- * The gap between `bush` and `tree` was the most conspicuous hole in the
- * foliage kit. A bush is a mass with no trunk and a tree is four metres of
- * trunk with a mass on top, so a stand of woodland went from ankle height to
- * overhead with nothing in between — and the thing that actually makes a wood
- * read as a *living* wood rather than a stage set is the middle storey.
- *
- * **What makes it young is the taper, not the height.** A scaled-down tree is a
- * tree seen from further away; a young one is a different shape. Its trunk is
- * nearly parallel rather than buttressed at the foot, its crown starts high up
- * a bare stem, and the canopy is sparse enough to see sky through — which is
- * modelled here as a few small blobs rather than one big one, because a solid
- * lump on a thin stick is a lollipop.
- */
+// A small tree: one clear stem, a few branches, and a thin canopy — the middle
+// storey between `bush` and `tree`. What makes it young is the taper, not the
+// height: a nearly parallel trunk rather than one buttressed at the foot, a crown
+// starting high up a bare stem, and a canopy of a few small blobs, because a solid
+// lump on a thin stick is a lollipop.
 export const smallTree: MeshBuilder = {
   name: 'small-tree',
   category: 'foliage',

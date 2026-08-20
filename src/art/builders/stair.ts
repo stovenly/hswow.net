@@ -4,22 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * An iron stair to a landing: stringers, open treads, and a rail.
- *
- * The kit's first piece of vertical circulation. Everything else in it stands
- * on the floor and is looked at; this is the thing that says a works has an
- * *upstairs* — and once a room has a stair in it, the space above head height
- * stops being empty and becomes somewhere you have not been yet.
- *
- * **The diagonal stripe is the silhouette.** A ladder is two verticals with
- * rungs; a stair is a sloped band of horizontal lines, and the treads showing
- * as separate steps under a single raking stringer is what tells them apart at
- * any distance. Open treads matter — a closed stair is a ramp.
- *
- * Built rising toward -Z, with the bottom step at the origin, so a caller puts
- * it at the foot and turns it.
- */
+// An iron stair to a landing: stringers, open treads, and a rail. The diagonal
+// stripe is the silhouette — treads showing as separate steps under a single
+// raking stringer, where a ladder is two verticals with rungs. Open treads matter:
+// a closed stair is a ramp. Built rising toward −Z with the bottom step at the
+// origin, so a caller puts it at the foot and turns it.
 export const stair: MeshBuilder = {
   name: 'stair',
   category: 'structures',
@@ -79,10 +68,9 @@ export const stair: MeshBuilder = {
     }
 
     // --- handrail ------------------------------------------------------------
-    //
-    // Up one side only. Both sides doubles the part count for a stair you can
-    // only ever walk up the middle of, and a single rail reads as industrial
-    // where a pair reads as a staircase in a house.
+    // Up one side only: both sides doubles the part count for a stair you walk up
+    // the middle of, and a single rail reads as industrial where a pair reads as a
+    // staircase in a house.
     const railSide = rng.chance(0.5) ? 1 : -1;
     const railH = 1.05;
     const posts = 4;
@@ -104,31 +92,17 @@ export const stair: MeshBuilder = {
 
     // --- what the player actually walks on -----------------------------------
     //
-    // **A capsule cannot climb a real staircase.** Driven at one headlessly, the
-    // controller reports `grounded === false` for the entire ascent: the deepest
-    // contact each sub-step is a riser or a nosing, whose normal is nowhere near
-    // vertical, so nothing ever counts as standing. The player is shoved out of
-    // one riser, falls, catches the next, and reaches the top having technically
-    // been airborne the whole way.
+    // A capsule cannot climb a real staircase: the deepest contact each sub-step is
+    // a riser or a nosing, whose normal is nowhere near vertical, so nothing counts
+    // as standing. Air acceleration replaces ground acceleration, step smoothing is
+    // gated on being grounded, and `advanceBob` returns early when airborne — so a
+    // staircase would be silent.
     //
-    // Everything downstream of that breaks, and none of it looks like a
-    // collision bug. Air acceleration replaces ground acceleration, so speed
-    // lurches between 1 and 4 m/s. Step smoothing is gated on being grounded, so
-    // the camera jumps a full tread at a time. `advanceBob` returns early when
-    // airborne, so **a staircase is silent** — no footfalls at all.
-    //
-    // So the geometry you see is not the geometry you stand on. A plane above
-    // every tread has a constant 37° normal, inside the slope limit, and the
-    // climb becomes an ordinary walk up a hill: grounded throughout, ground
-    // acceleration, footsteps, and a camera rising in a straight line because
-    // the surface under it is straight.
-    //
-    // **It rides the leading corners**, which is where a straight plane over a
-    // sawtooth has to sit: the front edge of each tread is the binding
-    // constraint, so the plane touches there and clears the back of that same
-    // tread by about seven tenths of a rise. Thirteen centimetres of daylight
-    // under the boots at the back of each step — in a game with no visible feet
-    // and no player shadow, nobody can see it and everybody can feel it.
+    // So the geometry you see is not the geometry you stand on. A plane above every
+    // tread has a constant 37° normal, inside the slope limit, and the climb becomes
+    // an ordinary walk up a hill. It rides the leading corners, which is where a
+    // straight plane over a sawtooth has to sit: it touches the front edge of each
+    // tread and clears the back of that tread by about seven tenths of a rise.
     const lift = rise * 0.86 + 0.02;
     const thickness = 0.08;
     const ramp = new THREE.BoxGeometry(width * 0.94, thickness, long + 0.7);

@@ -4,42 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A cluster of mushrooms, several to a clump at different ages.
- *
- * Never one. Fungi fruit in groups from the same mycelium, and a single
- * mushroom standing alone looks placed where five of graded sizes look grown.
- *
- * ## Three shapes, and never two in one clump
- *
- * A clump commits to one, because a clump is one organism — two kinds fruiting
- * out of the same patch of earth is the one thing that definitely never
- * happens.
- *
- * - **button** — young and domed, on a short fat stem. What everyone pictures.
- * - **open** — the same mushroom grown on: the cap has flattened right out and
- *   turned up at the rim, and the stem has barely got any longer.
- * - **puffball** — a ball on a short stout stalk. It was stemless, sitting
- *   straight on the earth, and it read as a dropped pebble: with nothing
- *   holding it up there was no reason for the eye to call it a fungus at all.
- *   A visible stalk is what makes a ball a *mushroom*.
- *
- * **All three grow out of the ground.** An earlier version had a bracket kind
- * that grew in shelves off a vertical surface, which is a real fungus and the
- * wrong object: brackets need a trunk to grow on and this builder is placed on
- * open ground, so every instance was a stack of shelves floating in mid-air.
- *
- * ## Stems are short
- *
- * The same version also had a tall thin-stemmed kind at five to eight times the
- * cap radius, which came out as a cocktail umbrella. Mushroom stems are *stout*
- * — roughly one to three cap-radii, thick enough to hold a wet cap up in wind —
- * and getting that ratio wrong reads as wrong instantly even though almost
- * nobody could say what the right number is.
- *
- * Walk-through, like the grass. Small soft things that stop the player are what
- * make a world feel like a floor with obstacles glued to it.
- */
+// A cluster of mushrooms, several to a clump at different ages — never one, since
+// fungi fruit in groups and a single mushroom looks placed where five graded sizes
+// look grown. Three shapes and never two in one clump: button, open, and puffball,
+// which keeps a visible stalk because a ball sitting straight on the earth reads
+// as a dropped pebble. All three grow out of the ground, and stems are stout —
+// one to three cap-radii. Walk-through, like the grass.
 export const mushroom: MeshBuilder = {
   name: 'mushroom',
   category: 'foliage',
@@ -76,10 +46,8 @@ export const mushroom: MeshBuilder = {
       const z = Math.sin(angle) * distance;
 
       if (kind === 'puffball') {
-        // A short fat stalk, flaring up into the ball. Stout and tapered
-        // *outward*, which is the giveaway — every other mushroom here narrows
-        // toward its cap and this one widens into it, so the two never get
-        // confused even at a glance.
+        // A short fat stalk, flaring up into the ball — tapered outward, which is the
+        // giveaway: every other mushroom here narrows toward its cap.
         const stalkH = size * rng.range(0.5, 0.9);
         const stalk = new THREE.CylinderGeometry(size * 0.62, size * 0.4, stalkH, 6);
         stalk.translate(x, stalkH / 2, z);

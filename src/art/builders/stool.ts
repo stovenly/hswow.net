@@ -4,19 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A stool: a seat and three or four legs.
- *
- * Three legs or four is the only structural decision, and it is a real one —
- * three never rocks on an uneven floor, which is why every farmhouse milking
- * stool has three, and four is what a joiner makes for a table to match. So
- * three-legged stools get a round seat and splayed legs, four-legged ones get
- * a squarer seat and straighter legs, and the two read as different objects
- * made by different people rather than as one object with a parameter changed.
- *
- * Legs splay outward. A stool with vertical legs looks like a box on stilts;
- * the splay is what makes it read as furniture, and it is one multiply.
- */
+// A stool: a seat and three or four legs. Three never rocks on an uneven floor,
+// which is why a milking stool has three; four is what a joiner makes to match a
+// table. So three-legged stools get a round seat and splayed legs and four-legged
+// ones a squarer seat and straighter legs. Legs splay outward either way — a stool
+// with vertical legs looks like a box on stilts.
 export const stool: MeshBuilder = {
   name: 'stool',
   category: 'furniture',
@@ -46,18 +38,10 @@ export const stool: MeshBuilder = {
 
     const drop = height - seatThickness;
     /**
-     * Splay angle, from vertical.
-     *
-     * **Legs are wider at the floor than at the seat.** That is the whole
-     * point of splaying them: the footprint has to be bigger than the seat or
-     * the stool tips when you lean. This was inverted — the legs met the seat
-     * wide and drew in toward the floor, which is a shape that reads as
-     * unstable because it is.
-     *
-     * Getting it right means rotating each leg about its **top**, so the joint
-     * with the seat stays where it was put and the foot is what swings out. A
-     * leg rotated about its middle or its foot moves the joint instead, and
-     * then the top either floats off the seat or punches up through it.
+     * Splay angle, from vertical. Legs are wider at the floor than at the seat: the
+     * footprint has to be bigger than the seat or the stool tips when you lean.
+     * Each leg is rotated about its top, so the joint with the seat stays where it
+     * was put and the foot is what swings out.
      */
     const splay = rng.range(0.14, 0.26);
     // Where the legs meet the underside of the seat. Inside the rim, so the

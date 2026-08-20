@@ -15,19 +15,9 @@ import {
   type Walling,
 } from '../building';
 
-/**
- * A house standing on its own out in the country.
- *
- * Built of what the field gave rather than what the carpenter brought: heavy
- * rubble walls to the eave, a roof that comes down over them far enough to keep
- * the weather off the mortar, and one great stack — an isolated house has no
- * neighbour's wall to share a hearth with, so the chimney is the whole
- * silhouette.
- *
- * Lower and squatter than `hut`, which is the difference the eye reads at a
- * distance: a village house stands up because the ones either side hold the
- * street line, and this one hunches.
- */
+// A house standing on its own out in the country: heavy rubble walls to the eave,
+// a roof coming down far over them, and one great stack, since an isolated house
+// has no neighbour's wall to share a hearth with. Lower and squatter than `hut`.
 export const cottage: MeshBuilder = {
   name: 'cottage',
   category: 'structures',
@@ -106,9 +96,7 @@ export const cottage: MeshBuilder = {
     );
 
     // --- the stack, and the store --------------------------------------------
-    //
-    // Both on gable ends, which is where a detached house can put things — the
-    // village house next door cannot, and that is what `hut`'s back outshot is.
+    // Both on gable ends, which is where a detached house can put things.
     const stackEnd = rng.chance(0.5) ? 1 : -1;
     const girth = rng.range(1.05, 1.35);
     // Clear of the gable oversail, breast filling the gap — see `hut`, which had

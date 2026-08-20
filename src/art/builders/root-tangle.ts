@@ -4,37 +4,15 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A root tangle: roots washed clear of the soil along the lip of a bank.
- *
- * **Made for the one line the other boundary props cannot hide.** Where the
- * terrain steps down — a bank, a stream cut, the edge of a shelf — the drop is a
- * smooth ramp with grass on it above and rock below, and the change happens along
- * a clean contour that reads as a seam however it is coloured. Something has to
- * straddle it. A boulder is the wrong shape for that; it sits on one side or the
- * other. This is the right shape, because a root arch has one end above the lip
- * and the other below it, and it is mostly holes.
- *
- * It also earns its place beside `snag` and `deadfall` as the third thing that
- * says a wood is old: exposed roots mean the ground has been washing away from
- * under a tree for years.
- *
- * ## Arches, not a starburst
- *
- * Every root leaves the low mass, rises, and dives back into the ground — the
- * same joint-by-joint march `bramble` uses for its canes, with the height
- * **clamped at the ground** for the same reason. Without that clamp the far half
- * of each root is buried and what shows is a set of stubs.
- *
- * They lean one general way, because roots follow the fall of a bank rather than
- * radiating politely.
- *
- * **Not solid.** `bramble`'s argument exactly: the collision volume of a tangle
- * would have to be the tangle, and anything simpler catches the player on air a
- * foot from the wood — which is worse than walking through. It is knee height
- * and it is there to be looked at. What actually stops a player is the terrain
- * it is draped over.
- */
+// A root tangle: roots washed clear of the soil along the lip of a bank — the one
+// shape that can straddle a terrain step, because a root arch has one end above
+// the lip and the other below it and is mostly holes.
+//
+// Arches, not a starburst: every root leaves the low mass, rises and dives back
+// into the ground, with the height clamped at the ground or the far half of each
+// is buried and what shows is a set of stubs. They lean one general way, because
+// roots follow the fall of a bank. Not solid — the collision volume of a tangle
+// would have to be the tangle, and anything simpler catches the player on air.
 export const rootTangle: MeshBuilder = {
   name: 'root-tangle',
   category: 'nature',
@@ -62,15 +40,10 @@ export const rootTangle: MeshBuilder = {
       parts.push({ geometry: clod, color: shade(soil, rng.range(0.9, 1.1)), sway: 0 });
     }
 
-    // Four to seven, in three joints each, on three-sided stems.
-    //
-    // **Deliberately mean, and this is the one place in the family where the
-    // count was cut on cost alone.** A root is a centimetre or two thick and
-    // the arch is read entirely as a silhouette against the ground behind it,
-    // so every triangle past the outline is spent on something no pixel will
-    // ever see — and this is knee-high scenery that gets placed by the dozen
-    // along a bank. Nine roots in four joints on four-sided stems came to five
-    // hundred triangles, which is a third of a hut for a thing you step over.
+    // Four to seven, in three joints each, on three-sided stems. Deliberately mean:
+    // a root is a centimetre or two thick and the arch is read entirely as a
+    // silhouette, so every triangle past the outline is spent on nothing — and this
+    // is knee-high scenery placed by the dozen along a bank.
     const roots = rng.int(4, 7);
     for (let r = 0; r < roots; r++) {
       const bearing = fall + rng.range(-1.4, 1.4);

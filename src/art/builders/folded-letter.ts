@@ -5,19 +5,10 @@ import { sheet, STOCK, LEAF } from '../paper';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A sheet folded in three, with a seal on it.
- *
- * **The fold is what tells it from a note.** Both are one sheet of paper and
- * both are read the same way; what the player sees is that one was left out and
- * the other was sent. So the folds stand proud as ridges and the seal sits on
- * the middle panel — a red disc a centimetre across, which is the only spot of
- * that colour anywhere in the kit and finds the letter across a room on its own.
- *
- * The writing is on the underside, where a folded letter's writing is. It costs
- * nothing to draw and it means picking one up is the only way to see it, which
- * is the correct relationship between an object and what is written in it.
- */
+// A sheet folded in three, with a seal on it. The fold is what tells it from a
+// note: one was left out, the other was sent. The seal is a red disc a centimetre
+// across, the only spot of that colour in the kit. The writing is on the
+// underside, where a folded letter's writing is.
 export const foldedLetter: MeshBuilder = {
   name: 'folded-letter',
   category: 'objects',

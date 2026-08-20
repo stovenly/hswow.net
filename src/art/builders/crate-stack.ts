@@ -4,36 +4,11 @@ import { createRng } from '../random';
 import { crate } from './crate';
 import { piece, sizeOf, settle, pileUp, type Piece } from '../stack';
 
-/**
- * A stack of crates: goods set down where a lane runs out.
- *
- * **No new geometry at all.** This is `crate`, four or five times, arranged into
- * something the player has to walk round — see `art/stack.ts` for why a second
- * definition of a crate would have been the worst way to get that. A crate is
- * already a good object; what the kit was missing was a *reason for several of
- * them to be in one place*, which is a placement problem wearing a builder's
- * clothes.
- *
- * It earns being a builder rather than four separately placed crates for the
- * same reason `cairn` does: the arrangement *is* the object. A cairn is not five
- * rocks, it is a stack, and stacking is the whole content — same here. Big ones
- * underneath, squared up but not square, one set down beside the pile rather
- * than on it.
- *
- * **Which is also the line.** This makes a pile; it does not decide whether
- * there is a pile, where it goes or which way it faces. If what is wanted is
- * three crates in a particular arrangement, place three crates — `crate` is
- * still there and is the same object this is built out of.
- *
- * ## Big ones at the bottom, and it is measured rather than assumed
- *
- * `crate` rolls its own size class, from a 0.4 m box to a 2.6 m one, so nothing
- * here can know how large a piece is until it has built it. Every crate is
- * therefore built first, sorted by how much room it takes, and laid out from the
- * measurements — which is also what lets the upper course sit exactly on top of
- * the lower one instead of at a guessed pitch that the rare huge roll would
- * break.
- */
+// A stack of crates: `crate`, four or five times, arranged into something the
+// player has to walk round. The arrangement is the object, as it is for a cairn.
+// Every crate is built first, sorted by how much room it takes, and laid out from
+// the measurements — `crate` rolls its own size class from 0.4 m to 2.6 m, so a
+// guessed pitch breaks on the rare huge roll.
 export const crateStack: MeshBuilder = {
   name: 'crate-stack',
   category: 'objects',
@@ -51,13 +26,10 @@ export const crateStack: MeshBuilder = {
     // reason a pile of boxes reads as stacked rather than as heaped.
     built.sort((a, b) => sizeOf(b).width * sizeOf(b).depth - sizeOf(a).width * sizeOf(a).depth);
 
-    // The ground course, laid along X. The footprint is taken as the larger of
-    // width and depth, because `settle` turns each crate about its own axis
-    // afterwards and a box on the diagonal needs the room its diagonal wants.
-    //
-    // Three at most. `crate`'s largest class is 2.6 m across, so four in a line
-    // is nine metres of prop — a fence made of crates rather than a stack, and
-    // well past the spacing radius a placer is working to.
+    // The ground course, laid along X. The footprint is the larger of width and
+    // depth, because `settle` turns each crate about its own axis and a box on the
+    // diagonal needs the room its diagonal wants. Three at most: `crate`'s largest
+    // class is 2.6 m across, and four in a line is a fence made of crates.
     const base = Math.max(2, Math.min(built.length, rng.int(2, 3)));
     const placed: Piece[] = [];
     // Which crates still have a clear top. A crate that has had something set

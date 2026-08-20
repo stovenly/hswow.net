@@ -10,19 +10,12 @@ export interface FencePostOptions extends BuildOptions {
 }
 
 /**
- * One fence post, and nothing else.
- *
- * The other half of `fence`'s contract. A run carries a post at the near end of
- * every section and none at its far end, so something has to supply the last
- * one: stand this at the end and the fence is finished, butt another fence
- * against it instead and the run carries on. Either way there is a post where a
- * post belongs and no post where one does not.
- *
- * Deliberately bare — no crossbar, no collar, no cap. `post` is the leaning
- * marker post that carries all of that, and it is a different object for a
- * different job. This one has to be indistinguishable from the posts in the run
- * beside it, which is why both its geometry and its height band come out of
- * `fence.ts` rather than being written again here.
+ * One fence post, and nothing else — the other half of `fence`'s contract. A run
+ * carries a post at the near end of every section and none at its far end, so
+ * this supplies the last one; butt another fence against it instead and the run
+ * carries on. Deliberately bare: `post` is the leaning marker that carries a
+ * crossbar and a collar. Its geometry and its height band come out of `fence.ts`,
+ * so it is indistinguishable from the posts in the run beside it.
  */
 export const fencePost: BuilderWith<FencePostOptions> = {
   name: 'fence-post',

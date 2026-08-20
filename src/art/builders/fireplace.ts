@@ -6,46 +6,18 @@ import { createRng } from '../random';
 import { rollActivity, HEARTH } from '../activity';
 import { PALETTE, shade } from '../palette';
 
-/**
- * An open hearth in a wall: a surround, a firebox, a mantel and a fire in it.
- *
- * `forge` is the works hearth — a brick box under a great sheet-metal hood,
- * built to be stood at and worked over. This is the domestic one, and the two
- * must not be confused at a glance, so almost every decision here runs the
- * other way: the fire is set *into* the wall rather than standing out from it,
- * the flue is a masonry breast rather than a funnel and a pipe, and the mantel
- * — a shelf at chest height, which a forge has nowhere to put — carries most of
- * the silhouette.
- *
- * **It is the thing that makes a room lived in.** A hut with a bed and a table
- * in it is furnished; a hut with a fire burning in the wall is inhabited, and
- * the difference is almost entirely light. So the fire is never off. What is
- * rolled is `heat` — how far it has burned down — and that one number drives the
- * flames, the light, how much of the wood is glowing and how many embers are
- * lit, because those four always agree with each other.
- *
- * ## Not `rollFlame`
- *
- * The candle, the lantern and everything else at wick scale share `art/flame`,
- * including the cold blue tint that is not chemistry. A hearth deliberately does
- * not. That table's variation is *what is burning* — a conceit that works on one
- * small flame you can lean over and read as strange. A whole fireplace of it
- * would not be a strange candle, it would be a differently-coloured room, and it
- * would drag the tint of every surface in the building with it. Here the
- * variation is temperature instead: how hot the fire is, not what it is made of.
- *
- * Built with its back at **z = 0** and everything projecting toward +Z, floor at
- * y = 0, so a caller sets it flush against a wall with a yaw and a nudge.
- */
+// An open hearth in a wall: a surround, a firebox, a mantel and a fire in it —
+// the domestic hearth, set into the wall where `forge` stands out from it. The
+// fire is never off; what is rolled is `heat`, how far it has burned down, and
+// that one number drives the flames, the light, how much of the wood glows and
+// how many embers are lit. Not `rollFlame`: a whole fireplace of the cold blue
+// tint would drag the colour of every surface in the building with it. Built with
+// its back at z = 0, projecting toward +Z, floor at y = 0.
 
 /** Warm, and low. A banked fire lights the underside of its own lintel. */
 const LIGHT_INTENSITY = 6.5;
 const LIGHT_RANGE = 15;
-/**
- * Soft falloff, as the flames and the forge use. See `art/flame`: an
- * inverse-square light in a hearth you can kneel at puts the whole near field on
- * one quantization level and comes back as a flat white hole in the wall.
- */
+/** Soft falloff, as the flames and the forge use: an inverse-square light in a hearth you can kneel at puts the whole near field on one quantization level. */
 const LIGHT_DECAY = 1.3;
 
 const EMBER = 0xff8a3c;
@@ -54,13 +26,9 @@ const SOOT = 0x22201d;
 
 /**
  * Height of the fire above the fireplace's own origin, for placing a `fire`
- * emitter.
- *
- * The same reasoning as `FORGE_FIRE_HEIGHT` and `BELL_MOUTH_HEIGHT`: a sound
- * comes from the part of the object that makes it, not from the object's
- * origin, and for a thing this tall the difference is the whole width of a room
- * in stereo. The hearth slab is 0.07 and the log pile sits about 0.15 on top of
- * it, on every instance, so a constant is closer than an origin every time.
+ * emitter. A sound comes from the part of the object that makes it: the hearth
+ * slab is 0.07 and the log pile sits about 0.15 on top of it on every instance,
+ * so a constant is closer than the origin every time.
  */
 export const FIREPLACE_FIRE_HEIGHT = 0.24;
 
@@ -80,20 +48,10 @@ export const fireplace: MeshBuilder = {
     const openH = rng.range(0.62, 0.85);
     const lintelH = rng.range(0.14, 0.22);
 
-    // --- where the mantel sits, and why it is worked out here ----------------
-    //
-    // **The mantel has to land on the lintel, and it was floating.** Its centre
-    // was placed 0.04–0.14 above the top of the piers with a height of
-    // 0.07–0.10 rolled independently much further down the file, so its
-    // underside came out anywhere between 0.01 *below* that top and 0.105
-    // *above* it. Most rolls left a shelf hanging in mid-air with daylight
-    // under it, and the two numbers were three dozen lines apart, so nothing
-    // about either one looked wrong on its own.
-    //
-    // Rolled together now, and expressed as an overlap rather than a gap: the
-    // underside is driven a centimetre or three *into* the masonry it rests
-    // on, which is the only formulation that cannot come apart. A shelf that
-    // merely touches is one rounding error from a visible seam.
+    // --- where the mantel sits ----------------------------------------------
+    // Rolled together with its height and expressed as an overlap rather than a
+    // gap: the underside is driven a centimetre or three into the masonry it rests
+    // on, which is the only formulation that cannot come apart.
     const mantelH = rng.range(0.07, 0.1);
     const pierTop = openH + lintelH;
     const mantelY = pierTop + mantelH / 2 - rng.range(0.012, 0.03);
@@ -120,23 +78,17 @@ export const fireplace: MeshBuilder = {
     const slabTop = 0.07;
 
     // --- the hearth slab -----------------------------------------------------
-    //
-    // Out into the room further than the surround, because that is what it is
-    // for: catching what falls out of the fire. It is also the part a chair gets
-    // pulled up to, so it does more for the read of the room than its two
-    // triangles a face deserve.
+    // Out into the room further than the surround, because that is what it is for:
+    // catching what falls out of the fire, and being what a chair is pulled up to.
     const apron = rng.range(0.3, 0.5);
     const slab = new THREE.BoxGeometry(outerW + rng.range(0.2, 0.4), slabTop, outerD + apron);
     slab.translate(0, slabTop / 2, (outerD + apron) / 2);
     parts.push({ geometry: slab, color: shade(PALETTE.STONE_DARK, rng.range(0.9, 1.05)), sway: 0 });
 
     // --- the piers -----------------------------------------------------------
-    //
-    // Coursed rather than solid. One flat mass reads as a painted block whatever
-    // colour it is; four courses at slightly different shades read as masonry,
-    // and shrinking each course a little as it climbs means no two of them share
-    // an edge where they meet — an edge belonging to four triangles is a hole to
-    // every test of the solid.
+    // Coursed rather than solid: one flat mass reads as a painted block whatever
+    // colour it is. Each course shrinks a little as it climbs, so no two share an
+    // edge where they meet.
     const courses = rng.int(3, 5);
     for (const side of [-1, 1]) {
       for (let i = 0; i < courses; i++) {

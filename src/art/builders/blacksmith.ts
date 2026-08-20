@@ -16,21 +16,10 @@ import {
   type Doorway,
 } from '../building';
 
-/**
- * A smithy: a stone shed with one wall mostly missing and a stack over it.
- *
- * Three things follow from the fire and they are the whole building. **Stone
- * and a hard roof** — the one trade in the village that never got thatch,
- * because it kept an open hearth alight all day. **An open working front**
- * under a canopy, because a forge has to be worked in daylight and vented, and
- * because everything that comes out of it is too heavy to carry far. **A stack
- * with real girth**, drawing a hearth rather than a cooking fire.
- *
- * The hearth, the anvil and the trough are `forge`, `anvil` and `trough`, and
- * they are placed in here by hand. This is the shed they stand in.
- *
- * **One design, not a family** — drawn rather than rolled. See `manor`.
- */
+// A smithy: a stone shed with one wall mostly missing and a stack over it. Stone
+// and a hard roof, because it keeps an open hearth alight all day. The forge, the
+// anvil and the trough are their own builders, placed in here by hand. One design,
+// drawn rather than rolled.
 
 const WIDTH = 6.8;
 const DEPTH = 5.6;
@@ -68,12 +57,9 @@ export const blacksmith: MeshBuilder = {
     parts.push(...shell.parts);
 
     // --- the working front ---------------------------------------------------
-    //
-    // A canopy over the ground outside, and a wide window under it. **One way in
-    // and no more**: this had a second opening the height of a doorway beside
-    // the door, which reads as a front entrance to a building that has one.
-    // What a smithy needs at that wall is light and a place to work out of the
-    // rain, and that is what these two are.
+    // A canopy over the ground outside, and a wide window under it. One way in and
+    // no more: what a smithy needs at that wall is light and somewhere to work out
+    // of the rain.
     const front: Part[] = [];
     front.push(
       ...shuttered(rng, { at: BAY_AT, sill: 1.05, width: BAY_WIDTH * 0.5, height: 0.95, look: style }),
@@ -98,10 +84,9 @@ export const blacksmith: MeshBuilder = {
       ),
     );
 
-    // --- the stack, and what lets the rest of the smoke out ------------------
-    //
-    // Clear of the gable oversail with a breast filling the gap: a stack inside
-    // the oversail has the slope driven through it and out the far side.
+    // --- the stack -----------------------------------------------------------
+    // Clear of the gable oversail with a breast filling the gap: a stack inside the
+    // oversail has the slope driven through it and out the far side.
     const clear = shell.roof.overGable + 0.1;
     parts.push(
       ...chimney(rng, {
