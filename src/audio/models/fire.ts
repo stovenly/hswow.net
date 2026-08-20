@@ -6,60 +6,33 @@ import { createGrainBed } from '../dsp/grain';
 import { excite, thump } from '../dsp/impact';
 
 /**
- * Fire.
+ * Fire, as three sounds at very different timescales, mixed roughly
+ * 0.6 / 0.3 / 0.2:
  *
- * Hearth, brazier, torch, forge, bonfire — it recurs in four of the five
- * settings this library has to dress, which is why it goes first.
+ * - **Lapping** — a low roar, bulk convection. Most of the level, none of the
+ *   identity.
+ * - **Hissing** — broadband breath, steam and volatiles leaving the fuel. The
+ *   sense of heat.
+ * - **Crackles** — sharp resonant transients as fuel cells burst. All of the
+ *   identity, almost none of the level.
  *
- * Andy Farnell's decomposition is the one everybody ends up at, because it is
- * the one that works: fire is not a sound, it is **three sounds at very
- * different timescales**, and the whole model is the ratio between them.
+ * Crackles are the one place a high crest factor is correct. Everywhere else
+ * in this library an individually audible event ruins a texture; a fire whose
+ * crackles have been smoothed into the bed is a gas burner. What keeps it from
+ * sounding like a sound effect is their distribution — Poisson gaps, a wide
+ * level range, and a few much larger "spits" with a low thump underneath.
  *
- * - **Lapping** — a low roar, the bulk convection of hot gas. Carries most of
- *   the level and almost none of the identity.
- * - **Hissing** — broadband breath, steam and volatiles leaving the fuel.
- *   Carries the sense of *heat*.
- * - **Crackles** — sharp resonant transients as cells in the fuel burst.
- *   Carries all of the identity and almost none of the level.
- *
- * Mixed roughly 0.6 / 0.3 / 0.2. Get that backwards and you have a campfire
- * that sounds like a fireplace sound effect: too many crackles, too loud, and
- * evenly spaced.
- *
- * ## The one place a high crest factor is correct
- *
- * `dsp/grain.ts` is built around the rule that individually audible events ruin
- * a texture — that is the bubble-wrap lesson, and it holds for leaves, rain and
- * crowds. **Fire is the exception.** Crackles are *supposed* to resolve as
- * separate events; a fire whose crackles have been smoothed into the bed is a
- * gas burner. So this model deliberately measures with a much higher crest
- * factor than its neighbours, and that is not a fault to be tuned out.
- *
- * What keeps it from sounding like a sound effect is not fewer crackles but
- * their *distribution*: Poisson gaps, a wide level range, and a small
- * proportion of much larger ones ("spits") which get a low thump underneath.
- * Most of the crackles in a real fire are near the threshold of hearing.
- *
- * ## Flicker is not a parameter, it is a signal
- *
- * The roar breathes at something like 5–15 Hz. That is above what the frame
- * loop can resolve comfortably and — more to the point — it must not stop when
- * the frame loop hitches, so it runs as an audio-rate signal summed into the
- * lapping gain rather than as a `setTargetAtTime` per frame.
- *
- * The flicker is a dedicated low-sample-rate buffer, normalised to exactly ±1
- * at build time. The obvious alternative, white noise through a steep lowpass,
- * works but leaves the depth control multiplied by the filter's insertion loss
- * — an unknown constant that has to be found by ear and then means nothing.
- * Generating the modulator directly makes `flicker.gain` the depth, in units.
+ * The roar breathes at 5-15 Hz, which is above what the frame loop resolves
+ * and must not stop when the frame loop hitches, so the flicker is an
+ * audio-rate signal summed into the lapping gain. It is a dedicated buffer
+ * normalised to exactly ±1, which makes `flicker.gain` the depth in units;
+ * noise through a lowpass would leave the filter's insertion loss in it.
  */
 
 /**
- * Sample rate of the flicker buffer.
- *
- * 8 kHz, not the ~50 Hz the signal actually needs: `createBuffer` is only
- * required to accept 8000–96000, and browsers do reject rates below that.
- * The resampler handles the rest.
+ * Sample rate of the flicker buffer. 8 kHz, not the ~50 Hz the signal needs:
+ * `createBuffer` is only required to accept 8000-96000 and browsers do reject
+ * less. The resampler handles the rest.
  */
 const FLICKER_RATE = 8000;
 const FLICKER_SECONDS = 12;
@@ -67,12 +40,9 @@ const FLICKER_SECONDS = 12;
 const FLICKER_HZ = 7;
 
 /**
- * Where crackles resonate.
- *
- * Bursting fuel cells are small cavities, so the bands are high and narrow.
- * The lowest is the meat of it — the *tock* of a log — and the highest is the
- * fizz. Weighted toward the middle for the same reason foliage is: the extremes
- * are seasoning.
+ * Where crackles resonate. Bursting fuel cells are small cavities, so the
+ * bands are high and narrow — the lowest is the tock of a log, the highest the
+ * fizz. Weighted toward the middle; the extremes are seasoning.
  */
 const CRACKLE_CHANNELS = [
   { hz: 1500, q: 6, weight: 0.34 },
@@ -88,11 +58,9 @@ const CRACKLE_MIX = 0.2;
 const flickerBuffers = new WeakMap<BaseAudioContext, AudioBuffer>();
 
 /**
- * A smooth random walk in [-1, 1], built once per context.
- *
- * Shared for the same reason the noise buffers are: it is the filtering and the
- * start offset that give a voice its character, not the samples. Two fires in
- * one scene decorrelate through `playNoise`'s random offset and rate detune.
+ * A smooth random walk in [-1, 1], built once per context and shared: it is
+ * the filtering and the start offset that give a voice its character. Two
+ * fires decorrelate through `playNoise`'s random offset and rate detune.
  */
 function flickerBuffer(context: BaseAudioContext): AudioBuffer {
   const cached = flickerBuffers.get(context);
@@ -136,8 +104,8 @@ export interface FireOptions {
    */
   intensity?: number;
   /**
-   * Shifts every band. **Below 1 is bigger**: a bonfire is a lower, slower
-   * sound than a candle, and both are the same three layers.
+   * Shifts every band. Below 1 is bigger: a bonfire is a lower, slower sound
+   * than a candle, and both are the same three layers.
    */
   tone?: number;
   /** Scales the crackle layer alone. Damp wood crackles; charcoal does not. */
@@ -148,14 +116,9 @@ export interface FireOptions {
 
 export interface FireModel extends SoundModel {
   /**
-   * How hard it is burning, 0..1.
-   *
-   * The live control, and it is deliberately not a volume knob. Turning it up
-   * raises the roar, brightens the hiss, and raises the crackle rate with the
-   * *square* of intensity — so a fire being fed changes its spectrum, not just
-   * its level. A parameter that only moves level reads as somebody turning a
-   * knob rather than as something happening, which is precisely what the
-   * audition harness watches spectral centroid to catch.
+   * How hard it is burning, 0..1. Not a volume knob — it raises the roar,
+   * brightens the hiss, and raises the crackle rate with the *square* of
+   * intensity, so a fire being fed changes its spectrum and not just its level.
    */
   setIntensity(value: number): void;
 }
@@ -174,10 +137,9 @@ export function createFire(engine: AudioEngine, options: FireOptions = {}): Fire
 
   // --- Lapping ---------------------------------------------------------
   // Brown noise, because the roar is weight rather than detail, through a
-  // broad low band. Farnell's practical puts this at 30 Hz with a high Q; that
-  // is below the useful range of most playback and reads as nothing at all on
-  // a laptop. The audible lapping lives an octave or two up, and what makes it
-  // *lap* is the modulation below, not the width of the band.
+  // broad low band. An octave or two above Farnell's 30 Hz, which is below the
+  // useful range of a laptop speaker. What makes it *lap* is the modulation
+  // below, not the width of the band.
   const lapFilter = context.createBiquadFilter();
   lapFilter.type = 'bandpass';
   lapFilter.frequency.value = 110 * tone;

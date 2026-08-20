@@ -6,38 +6,23 @@ import { createModalBank } from '../dsp/modal';
 import { excite } from '../dsp/impact';
 
 /**
- * Something hollow or taut, ringing.
- *
- * Chimes, hanging wire, struck tubes, singing bowls, and air moving through
- * pipework or an arrow slit. The synthesis is in `faust/waveguide.dsp` and the
- * reasoning is there; this is the game's side of it — what excites the thing,
- * how often, and what happens when the wasm does not arrive.
- *
- * ## The excitation lives here, and that is the design
+ * Something hollow or taut, ringing: chimes, hanging wire, struck tubes,
+ * singing bowls, air through pipework or an arrow slit. The synthesis is in
+ * `faust/waveguide.dsp`; this is what excites it, how often, and what happens
+ * when the wasm does not arrive.
  *
  * The module takes an audio input and makes no sound on its own. Everything
- * that hits it is scheduled from this file using `dsp/impact` and `dsp/clock`,
- * the same substrate `footsteps` and `door` are built on. A Faust control
- * cannot be scheduled accurately — parameters arrive by message and land on a
- * quantum boundary at best — so putting the strike in the module would mean
- * reimplementing the scheduler badly and losing sample accuracy for it.
+ * that hits it is scheduled from here with `dsp/impact` and `dsp/clock`,
+ * because a Faust control arrives by message and lands on a quantum boundary
+ * at best. That split is the pattern for every module: Faust does the part a
+ * node graph cannot, and the substrate does everything else.
  *
- * The split is worth stating plainly because it is the pattern for every
- * module after this one: **Faust does the part node graphs cannot, and the
- * substrate does everything else.**
- *
- * ## Two implementations, and this fallback is honestly worse
- *
- * The native path is a modal bank on the harmonic series. It gets the pitch
- * and roughly the timbre, and it cannot do the one thing that makes a
- * waveguide worth having: a real one's damping is *inside* the loop, so high
- * partials die faster than low ones and the timbre changes as it rings —
- * bright at the strike, settling to a hum. A bank of fixed resonators has one
- * timbre for its whole life however many modes it has.
- *
- * It also cannot reach the high pitches convincingly, which is the other half
- * of why the module exists. So the fallback is a stand-in for a chime rather
- * than a chime, and `usingFaust` says which one is playing.
+ * The fallback is a modal bank on the harmonic series and is honestly worse.
+ * A real waveguide's damping is inside the loop, so high partials die faster
+ * than low ones and the timbre changes as it rings — bright at the strike,
+ * settling to a hum. Fixed resonators have one timbre for their whole life,
+ * and they cannot reach the high pitches convincingly either. `usingFaust`
+ * says which one is playing.
  */
 
 export interface WaveguideOptions {
@@ -55,26 +40,21 @@ export interface WaveguideOptions {
   /**
    * How it is set going.
    *
-   * - `'chime'` — struck at intervals. Hanging wire, chimes, a bowl knocked
-   *   by something passing. **The default**, because a resonator that is
-   *   struck and then left alone is the shape this synthesis flatters most:
-   *   the whole point is what happens during the ring.
+   * - `'chime'` — struck at intervals. Hanging wire, a bowl knocked by
+   *   something passing. The default: what happens during the ring is the
+   *   whole point of this synthesis.
    * - `'breath'` — a continuous stream of air through it. Pipework, vents,
    *   arrow slits. Quieter, and it never quite stops.
    */
   excite?: 'chime' | 'breath';
   /**
-   * How hard it is driven, 0..1. Strike rate for `'chime'`, air for `'breath'`.
-   *
-   * With `weather` set this is the ceiling rather than the value.
+   * How hard it is driven, 0..1. Strike rate for `'chime'`, air for
+   * `'breath'`. With `weather` set this is the ceiling rather than the value.
    */
   drive?: number;
   /**
-   * Whether the gust field drives it.
-   *
-   * A wind chime is the obvious case and it is the one that most rewards
-   * having a weather system: the chime is silent in still air, hurries when it
-   * gusts, and rings on afterwards. None of that has to be scheduled.
+   * Whether the gust field drives it. A wind chime is silent in still air,
+   * hurries when it gusts, and rings on afterwards, none of it scheduled.
    */
   weather?: boolean;
 }
@@ -131,9 +111,8 @@ export function createWaveguide(
   const weatherDriven = options.weather ?? false;
 
   const output = context.createGain();
-  // The module runs quiet — a waveguide's output is one round trip of whatever
-  // was put in, and the comb at the strike position takes more out again. This
-  // is a working level, not a fudge.
+  // The module runs quiet: its output is one round trip of whatever was put
+  // in, and the comb at the strike position takes more out again.
   output.gain.value = (options.gain ?? 0.5) * 3.2;
 
   const faustBus = context.createGain();
@@ -145,8 +124,8 @@ export function createWaveguide(
 
   // --- the exciter ---------------------------------------------------------
   //
-  // One node that both paths are driven from, so a handover does not change
-  // what is hitting the resonator — only what the resonator is.
+  // One node both paths are driven from, so a handover does not change what is
+  // hitting the resonator — only what the resonator is.
   const exciter = context.createGain();
   exciter.gain.value = 1;
 
@@ -171,9 +150,8 @@ export function createWaveguide(
   // --- the fallback --------------------------------------------------------
   //
   // A harmonic series rather than the inharmonic set the friction body uses:
-  // this is a *tuned* object, and that is the difference. Odd harmonics only
-  // when stopped, at half the frequency, which is what the sign flip in the
-  // module does properly.
+  // this is a *tuned* object. Odd harmonics only when stopped, at half the
+  // frequency, which is what the sign flip in the module does properly.
   const base = closed ? pitch * 0.5 : pitch;
   const ratios = closed ? [1, 3, 5, 7] : [1, 2, 3, 4];
   const bank = createModalBank(
@@ -245,10 +223,9 @@ export function createWaveguide(
       if (!active) return;
       void dt;
 
-      // How hard it is being driven this frame. Weather, when asked for —
-      // squared above the floor, because a chime does not respond in
-      // proportion to the wind, it responds when the wind is enough to move
-      // something and not at all below that.
+      // How hard it is being driven this frame. Squared above the floor,
+      // because a chime responds when the wind is enough to move something and
+      // not at all below that.
       const wind = Math.max(0, audio.weather.strengthAt(at.x, at.z) - WEATHER_FLOOR) / (1 - WEATHER_FLOOR);
       const amount = weatherDriven ? drive * wind ** 2 : drive;
 

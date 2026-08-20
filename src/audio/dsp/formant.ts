@@ -1,52 +1,26 @@
 /**
- * Formants — the shape of the thing making the sound.
+ * Source-filter: a source with a pitch, through parallel bandpasses summed.
+ * The source carries pitch and effort, the filter carries identity — species,
+ * size, and which vowel it is. Three resonances are recognisable, five
+ * convincing. Vocal bandwidths are 60-170 Hz, so these filters do not ring on
+ * their own the way modal ones do.
  *
- * Source-filter, which is the oldest idea in speech synthesis and still the
- * right one: a voice is a **source** with a pitch (vocal folds opening and
- * closing) passed through a **filter** with fixed resonances (the throat, mouth
- * and nose above them). The source carries pitch and effort. The filter carries
- * identity — species, size, and which vowel it is.
- *
- * The two are genuinely independent, and that is what makes this worth having.
- * Change the source and the same creature says the same thing higher or more
- * urgently; change the filter and a different creature says something else at
- * the same pitch. Nothing else in this library separates *who* from *what* so
- * cleanly.
- *
- * ## What a formant is, in nodes
- *
- * A parallel bandpass per resonance, summed. Three is enough to be recognisable,
- * four or five to be convincing. Q comes from the resonance's bandwidth —
- * `Q = hz / bandwidth` — and real vocal-tract bandwidths are 60–170 Hz, so the
- * Qs here are modest by the standards of `modal.ts` and the filters do not ring
- * on their own. They are colouring a source that is already there, not being
- * struck.
- *
- * ## A note on gain
- *
- * There is deliberately **no `sqrt(Q)` compensation** here, unlike `modal.ts`.
- * That correction exists because a bandpass fed *broadband* energy passes an
- * amount proportional to its bandwidth. A voiced source is not broadband — it is
- * a harmonic series, and what matters is the gain at the harmonics near the
- * centre, which Web Audio normalises to 0 dB whatever the Q. So `level` means
- * what it says for the voiced path.
- *
- * The consequence, and it is the right one: a noise component pushed through the
- * same bank comes out quieter than the voiced one at the same nominal level.
- * Breath and rasp *are* quieter than voice. Left alone.
+ * No `sqrt(Q)` compensation here, unlike `modal.ts`: a voiced source is a
+ * harmonic series rather than broadband, and Web Audio normalises a bandpass
+ * to 0 dB at centre whatever the Q. A noise component through the same bank
+ * therefore comes out quieter, which is correct — breath is quieter than voice.
  */
 
 export interface Formant {
   hz: number;
   /**
-   * Sharpness. `hz / bandwidth`, and vocal bandwidths run 60–170 Hz, so this
-   * is usually 5–20. Higher reads as a longer, narrower, more resonant throat.
+   * Sharpness, `hz / bandwidth`. Vocal bandwidths run 60-170 Hz, so usually
+   * 5-20. Higher reads as a longer, narrower, more resonant throat.
    */
   q: number;
   /**
-   * Relative level. Conventionally the first formant is 1 and each one above it
-   * is roughly 6 dB down, because the source spectrum itself falls with
-   * frequency and the upper resonances have less to work with.
+   * Relative level. Conventionally F1 is 1 and each formant above it about
+   * 6 dB down, because the source spectrum itself falls with frequency.
    */
   level: number;
 }
@@ -55,19 +29,13 @@ export interface FormantBank {
   /** Feed the source in here. Voiced, noisy, or both. */
   readonly input: GainNode;
   /**
-   * Moves the resonances.
+   * Moves the resonances, arriving `over` seconds later; zero jumps.
+   * Frequencies glide exponentially, levels linearly.
    *
-   * **Vowels are transitions, not states.** A held formant shape reads as a
-   * synthesiser; a shape that moves across the length of a syllable reads as a
-   * mouth. Frequencies glide exponentially because pitch is perceived
-   * logarithmically, levels linearly because loudness is not.
-   *
-   * The ramp runs from the **previously scheduled** shape, not from wherever
-   * the filter happens to be when this is called. Events are queued ahead of
-   * the audio clock, so "wherever it is now" is a value from the past, and
-   * pinning to it makes a chain of syllables jump backwards between each one.
-   *
-   * @param over Seconds to arrive. Zero jumps.
+   * The ramp runs from the previously *scheduled* shape, not from wherever the
+   * filter is now — events are queued ahead of the clock, so where it is now is
+   * a value from the past, and a chain of syllables would jump backwards
+   * between each one.
    */
   shape(next: readonly Formant[], at: number, over?: number): void;
   dispose(): void;
@@ -102,9 +70,8 @@ export function createFormantBank(
     shape(next, at, over = 0) {
       for (let i = 0; i < built.length; i++) {
         const target = next[i];
-        // A bank asked for a shape with fewer formants than it has keeps the
-        // extras where they are rather than collapsing them to zero — which
-        // would be a click, and a shape with a hole in it.
+        // A shape with fewer formants than the bank has leaves the extras
+        // where they are. Collapsing them to zero would be a click.
         if (!target) continue;
         const { filter, level } = built[i];
 
@@ -117,9 +84,8 @@ export function createFormantBank(
           level.gain.setValueAtTime(pending[i].level, at);
           level.gain.linearRampToValueAtTime(target.level, at + over);
         }
-        // Q is stepped rather than glided. It is a second-order property of the
-        // shape and moving it costs a coefficient recalculation per quantum for
-        // something nobody has ever heard.
+        // Q is stepped rather than glided: a coefficient recalculation per
+        // quantum for a second-order property nobody has heard move.
         filter.Q.setValueAtTime(target.q, at);
 
         pending[i] = { ...target };
@@ -137,18 +103,9 @@ export function createFormantBank(
 }
 
 /**
- * Vowel shapes, from the standard measured formant tables for an adult male
- * tract.
- *
- * Here for crowd walla and for anything that has to sound like it is *saying*
- * something. Animal calls do not use these directly — a dog's tract is a
- * different length and shape — but they are the reference the animal tables
- * below were derived from, and it is worth being able to see the difference.
- *
- * The classic identifier is F1 against F2: F1 tracks how open the mouth is and
- * F2 how far forward the tongue is. /i/ and /u/ have nearly the same F1 and
- * F2s an octave and a half apart, which is why they are impossible to confuse
- * and why a bank with only F1 cannot tell them apart at all.
+ * Vowel shapes from the measured formant tables for an adult male tract. F1
+ * tracks how open the mouth is and F2 how far forward the tongue is, which is
+ * why a bank with only F1 cannot tell /i/ from /u/ at all.
  */
 export const VOWELS: Record<'a' | 'e' | 'i' | 'o' | 'u', readonly Formant[]> = {
   a: [

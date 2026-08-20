@@ -5,32 +5,21 @@ import { createEventClock, poissonGap } from '../dsp/clock';
 import { popBubble, bubbleRadius, bubbleHz } from '../dsp/bubble';
 
 /**
- * Moving water — a brook, a stream, a fountain, a cistern.
- *
- * Two layers, and the split is the same one as everywhere else in this library:
- * a **bed** that carries the level and a **population of events** that carries
- * the identity. What is unusual is what the events are. They are not impacts.
- * See `dsp/bubble.ts`: water's voice is entrained air, and every audible thing
- * about a body of moving water is a distribution of bubble radii.
- *
- * That single fact is what makes the four presets below different from one
- * another, and it is why they need almost no other parameters:
+ * Moving water — a brook, a stream, a fountain, a cistern. A bed carrying the
+ * level and a population of events carrying the identity, and the events are
+ * not impacts: water's voice is entrained air, so every audible thing about it
+ * is a distribution of bubble radii. See `dsp/bubble.ts`.
  *
  * - a **brook** over stones traps a great many very small bubbles — fast,
  *   bright, fizzing
- * - a **stream** with depth in it traps fewer and larger ones — slower, rounder
+ * - a **stream** with depth traps fewer and larger ones — slower, rounder
  * - a **fountain** is a brook's distribution at a much higher rate, because
  *   falling water entrains far more air than flowing water
- * - a **cistern** is almost still: a handful of large bubbles a second, mostly
- *   silence, and the silence is the point
+ * - a **cistern** is almost still: a few large bubbles a second and silence
  *
- * ## The bed is turbulence, not water
- *
- * The continuous hiss under all of this is not the bubbles blurring together —
- * it is broadband noise from turbulent flow, and it needs to be **narrower and
- * lower** than instinct suggests. Wide bright noise under bubbles reads as a
- * tap left running into a metal sink, which is a real sound but not the one
- * anybody wants at the bottom of a valley.
+ * The bed under all of it is turbulence rather than bubbles blurring together,
+ * and it wants to be narrower and lower than instinct suggests. Wide bright
+ * noise under bubbles is a tap running into a metal sink.
  */
 
 export type Flow = 'brook' | 'stream' | 'fountain' | 'cistern';
@@ -80,12 +69,10 @@ const FLOWS: Record<Flow, FlowKind> = {
     bedLevel: 0.34,
     voice: 0.09,
   },
-  // Nearly silent, and it should be. **A cistern is defined by its gaps**, and
-  // the temptation is to make it too busy — at a couple of events a second the
-  // ear stops hearing standing water and starts hearing a spring, because
-  // anything that bubbles *continuously* has something driving it. One fat,
-  // slow, well-separated plop every few seconds into a long tail, with almost
-  // nothing underneath, is the whole preset.
+  // Nearly silent, and it should be: a cistern is defined by its gaps. At a
+  // couple of events a second the ear stops hearing standing water and starts
+  // hearing a spring, because anything bubbling continuously has something
+  // driving it. One fat slow plop every few seconds into a long tail.
   cistern: {
     rate: 0.45,
     radius: [0.003, 0.009],
@@ -103,12 +90,9 @@ export interface WaterOptions {
   /** How hard it is running, 0..1. */
   rate?: number;
   /**
-   * Shifts the bubble distribution and the bed together.
-   *
-   * **Below 1 is bigger water.** Radii scale inversely with it, so the pitches
-   * come down as the volume goes up — which is the relationship the ear uses to
-   * judge the size of a body of water, and the only characterisation control
-   * this model really needs.
+   * Shifts the bubble distribution and the bed together. Below 1 is bigger
+   * water: radii scale inversely, so pitches come down as the volume goes up,
+   * which is the relationship the ear uses to judge the size of a body.
    */
   tone?: number;
 }

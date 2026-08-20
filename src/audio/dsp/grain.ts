@@ -1,31 +1,14 @@
 /**
- * Granular texture — one sound made of hundreds of sounds too small to hear.
+ * Granular texture: a few tens of milliseconds of noise through a narrow band
+ * under a smooth window. One is nothing, three hundred a second is leaves.
  *
- * A grain is a few tens of milliseconds of noise through a narrow band with a
- * smooth window on it. One is nothing. Three hundred a second is leaves, or
- * rain on a canopy, or a crowd too far off to make out.
+ * Three constraints keep grains from popping. Windows stay smooth, because a
+ * corner is a click. Bands stay narrow, because a wide one passes a broadband
+ * burst. And overlap — rate times grain length — stays above about 10, below
+ * which the ear resolves single events and the texture collapses.
  *
- * **The mix is the model.** This is the lesson `foliage.ts` was built around
- * and it generalises to everything granular: loud, short, broadband grains are
- * individually audible, and a few hundred audible pops a second is exactly the
- * sound of crushing bubble wrap. The synthesis is not wrong when that happens —
- * the balance is. Real populations of small events are quiet things heard in
- * enormous numbers.
- *
- * Three constraints keep grains from popping, and all three are load-bearing:
- *
- * - **Smooth windows.** A corner in an envelope is a click. See `envelopes.ts`.
- * - **Narrow bands.** A wide filter passes a broadband burst, which is a *pop*.
- *   Narrow ones pass a breath of tone, which is a rustle.
- * - **Overlap above ten.** Overlap is grains-per-second times grain-length.
- *   Below about 10 the ear resolves individual events and the illusion of a
- *   continuous texture collapses. This is the one that gets violated by
- *   accident, because raising the rate and shortening the grains both feel like
- *   "more detail".
- *
- * Grains are routed into a few fixed filter channels rather than each building
- * its own. A bandpass per grain is hundreds of filter nodes a second and buys
- * nothing that three well-separated bands do not already give.
+ * Grains route into a few fixed filter channels rather than each building its
+ * own, which would be hundreds of filter nodes a second.
  */
 
 import { anyCurve, HANN } from './envelopes';
@@ -118,10 +101,8 @@ export function scheduleGrain(
   source.playbackRate.value = minRate + Math.random() * (maxRate - minRate);
 
   const envelope = context.createGain();
-  // **No `setValueAtTime` before this.** An automation event at the same
-  // instant as the start of a value curve is a spec violation and throws. The
-  // curve begins at zero of its own accord, and the source does not start
-  // until `at` regardless.
+  // No `setValueAtTime` before this: an automation event at the same instant
+  // as the start of a value curve is a spec violation and throws.
   envelope.gain.setValueCurveAtTime(anyCurve(options.pool ?? HANN), at, duration);
 
   source.connect(envelope).connect(target);
