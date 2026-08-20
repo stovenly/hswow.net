@@ -718,7 +718,12 @@ export class Creature {
       // Where it stands is part of who it is: two villagers built from the
       // same seed still get their own note, rate and hello.
       const spot = Math.abs(this.home.x * 73.1 + this.home.y * 41.7);
-      const voice = createVoice(world.audio, { tone: this.spec.tone, gain: 1.0, seed: this.spec.seed + spot });
+      const voice = createVoice(world.audio, {
+        tone: this.spec.tone,
+        gain: 1.0,
+        seed: this.spec.seed + spot,
+        lect: this.spec.lect,
+      });
       this.voice = voice;
       this.shot = voice;
       _at.set(this.mesh.position.x, this.mesh.position.y + this.spec.headHeight, this.mesh.position.z);

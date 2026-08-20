@@ -92,11 +92,29 @@ function hash(seed: number, n: number): number {
 }
 
 /**
+ * How a people's throat differs from the plain one. Presets and writers, never
+ * DSP branches: the same tube, told different numbers.
+ *
+ * The countryside is darker and looser — more air always moving, a quick tip
+ * for the tap, lossier walls. The city is brighter and more forward, with a
+ * jaw so slow it barely opens, which is what makes the delivery clipped.
+ */
+const BODIES = {
+  country: { breathScale: 1.33, wallDamp: 0.68, tipTau: 0.006, jawTau: 0.03 },
+  city: { breathScale: 1, wallDamp: 0.5, tipTau: 0.008, jawTau: 0.038 },
+} as const;
+
+export type BodyKind = keyof typeof BODIES;
+
+/**
  * A villager's throat, sized in centimetres so it is the same voice whatever
  * the device's sample rate. `lengthCm` is the tract; around 15 is a small
  * person, 18 a large one.
  */
-export function villagerBody(sampleRate: number, lengthCm: number, seed: number): BodyPreset {
+export function villagerBody(
+  sampleRate: number, lengthCm: number, seed: number, kind: BodyKind = 'country',
+): BodyPreset {
+  const folk = BODIES[kind];
   const perSection = C / (sampleRate * OVERSAMPLE);
   const sections = Math.max(24, Math.round(lengthCm / perSection));
   // A nose is about three quarters of the mouth's length and joins it in the
@@ -120,10 +138,10 @@ export function villagerBody(sampleRate: number, lengthCm: number, seed: number)
 
   const tau = new Float32Array([
     0.026, // velum — soft and slow
-    0.030, // jaw — the heaviest thing in the mouth
+    folk.jawTau, // jaw — the heaviest thing in the mouth
     0.022, // bodyPos
     0.009, // bodyDia — how long a k spends in the band where it hisses
-    0.008, // tip — the quickest
+    folk.tipTau, // tip — the quickest
     0.016, // lips
   ]);
 
@@ -140,7 +158,7 @@ export function villagerBody(sampleRate: number, lengthCm: number, seed: number)
     glottalReflect: 0.75,
     lipReflect: -0.85,
     wallLoss: 0.999,
-    wallDamp: 0.6,
+    wallDamp: folk.wallDamp,
     bodyFrom: 0.26,
     bodyTo: 0.82,
     bodySpread: 0.26,
@@ -156,7 +174,7 @@ export function villagerBody(sampleRate: number, lengthCm: number, seed: number)
     tremor: hash(seed, 24) < 0.25 ? 0.006 + hash(seed, 25) * 0.008 : 0,
     tremorHz: 4.5 + hash(seed, 26) * 2.5,
     modulateHz: 24,
-    breathFloor: 0.012 + hash(seed, 27) * 0.02,
+    breathFloor: (0.012 + hash(seed, 27) * 0.02) * folk.breathScale,
     air: 5.5 + hash(seed, 28) * 3,
     turbulence: 0.25,
     // Low on purpose: a tube on resonance swings several times its source, and
