@@ -297,7 +297,7 @@ export const PEOPLE: Record<'country' | 'city', People> = {
         fur: house.fur,
         house: { dark: house.dark, mid: house.mid, pale: house.pale, contrast, metal, fur: house.fur },
         hem: (r) => garment.hem(r),
-        base: (_rng, m, p) => dressCity(m, p, garment),
+        base: (r, m, p) => dressCity(r, m, p, garment),
       };
     },
     // Always sleeved, sometimes in the second cloth below the elbow, and often gloved.

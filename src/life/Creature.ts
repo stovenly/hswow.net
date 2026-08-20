@@ -541,6 +541,15 @@ export class Creature {
     }
     this.last.copy(pose);
 
+    // The shoulder followers ride at half of whatever the upper arms ended up
+    // turned by, so draped cloth fades arm → half → trunk (`dressedSkinOf`).
+    if (spec.kind === 'biped') {
+      pose.rotationOf('armLu', _rot);
+      pose.turn('armLs', _rot.x / 2, _rot.y / 2, _rot.z / 2);
+      pose.rotationOf('armRu', _rot);
+      pose.turn('armRs', _rot.x / 2, _rot.y / 2, _rot.z / 2);
+    }
+
     // Hanging things hang. Whatever the head and neck have ended up doing,
     // the cords and panels on the front of it are undone by that much, so a
     // villager looking up does not swing its own fringe into its face.

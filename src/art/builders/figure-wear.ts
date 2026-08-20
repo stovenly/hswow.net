@@ -320,7 +320,7 @@ export const SHOULDERS: readonly Wear<Body>[] = [
         }
         return loft(stations, 6, { start: true, end: true });
       };
-      const skin = dressedSkinOf(m);
+      const skin = dressedSkinOf(m, m.layers.proudAt('waist') + r * 2);
       return [
         { geometry: run(0, 1, r, 8), color: m.accent, skin },
         { geometry: run(0.3, 0.38, r * 1.32, 1), color: m.leather, skin },

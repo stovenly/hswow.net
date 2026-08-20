@@ -31,7 +31,10 @@ import { COAT_PROUD, PEOPLE } from './figure-people';
  * Rigged, facing +Z, feet on y = 0. Bones:
  *
  *   root ─ hips ─ torso ─ chest ─ neck ─ head ─ face
- *               │        ├ clavL ─ armLu ─ armLl     (and R)
+ *               │        ├ clavL ┬ armLu ─ armLl     (and R)
+ *               │                └ armLs — the shoulder follower, driven at
+ *               │                  half of armLu so draped cloth can fade
+ *               │                  arm → half → trunk (`dressedSkinOf`)
  *               └ legLu ─ legLl ─ legLf              (and R)
  */
 
@@ -142,7 +145,7 @@ export const figure: BuilderWith<LifeOptions> = {
       const joint = new THREE.Vector3(side * jointX, a.y - T * 0.09, a.z);
       const elbow = new THREE.Vector3(joint.x + side * out, joint.y - Math.sqrt(upperLen * upperLen - out * out), joint.z + T * 0.01);
       const wrist = elbow.clone().add(new THREE.Vector3(side * T * 0.015, -Math.cos(0.22) * foreLen, Math.sin(0.22) * foreLen));
-      deltoids.push({ x: joint.x, y: joint.y, z: joint.z, r: deltoidR, bone: `${tag}u` });
+      deltoids.push({ x: joint.x, y: joint.y, z: joint.z, r: deltoidR, bone: `${tag}u`, half: `${tag}s` });
 
       // The deltoid is a ball on the pivot, its top just under the shoulder cap.
       const upper: [number, number][] = [
@@ -176,6 +179,9 @@ export const figure: BuilderWith<LifeOptions> = {
       parts.push(...people.limbs.arm(makeLimb(elbow, wrist, fore, 0.88, `${tag}l`, side, armR), sleeves, o));
 
       bones.push({ name: `${tag}u`, parent: side > 0 ? 'clavL' : 'clavR', at: joint.toArray() as [number, number, number] });
+      // The shoulder follower: the same pivot, turned half as far as the arm
+      // by the animator, for the fade of anything draped over the deltoid.
+      bones.push({ name: `${tag}s`, parent: side > 0 ? 'clavL' : 'clavR', at: joint.toArray() as [number, number, number] });
       bones.push({ name: `${tag}l`, parent: `${tag}u`, at: elbow.toArray() as [number, number, number] });
     }
 
