@@ -15,10 +15,11 @@
 
 import type { AudioEngine } from '../AudioEngine';
 import {
-  babbleScore, chatterScore, greetScore, lectOf, pick, score, type Score, type Tune,
+  babbleScore, chatterScore, greetScore, pick, score, type Score, type Tune,
 } from '../speech';
 import type { Unit, Utterance, Voice, VoiceOptions } from './types';
 import { villagerBody } from './body';
+import { whoIs } from './character';
 import { identity, write } from './writer';
 import { addThroat, dropThroat } from './tuning';
 import processorUrl from './processor.js?url';
@@ -118,9 +119,11 @@ function mute(engine: AudioEngine): Voice {
 function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
   const context = engine.context;
   const seed = options.seed ?? 1;
-  const lect = lectOf(options.lect);
-  const me = identity(seed, options.tone ?? 1, options.pitch ?? 250, lect);
-  const body = villagerBody(context.sampleRate, me.lengthCm, seed, options.lect ?? 'country');
+  // A named character brings its own people with it, so the words follow the
+  // voice rather than the other way round.
+  const { lect, who, tunes } = whoIs(seed, options.lect, options.character);
+  const me = identity(who, options.tone ?? 1, options.pitch ?? 250, lect);
+  const body = villagerBody(context.sampleRate, me.lengthCm, seed, who);
 
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
@@ -185,7 +188,7 @@ function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
       const salt = ++turn;
       let n = 0;
       const random = (): number => hash(seed, salt * 100 + n++);
-      const tune: Tune = pick(lect.tunes, random);
+      const tune: Tune = pick(tunes, random);
       const count = 4 + Math.floor(random() * 5);
       return perform(babbleScore(count, tune, random, lect), at);
     },

@@ -8,6 +8,8 @@
  * business, one layer up.
  */
 
+import type { Character } from './character';
+
 /** Speed of sound in a warm wet throat, cm/s. */
 const C = 35000;
 
@@ -92,40 +94,27 @@ function hash(seed: number, n: number): number {
 }
 
 /**
- * How a people's throat differs from the plain one. Presets and writers, never
- * DSP branches: the same tube, told different numbers.
- *
- * The countryside is darker and looser — more air always moving, a quick tip
- * for the tap, lossier walls. The city is brighter and more forward, with a
- * jaw so slow it barely opens, which is what makes the delivery clipped.
- */
-const BODIES = {
-  country: { breathScale: 1.33, wallDamp: 0.68, tipTau: 0.006, jawTau: 0.03 },
-  city: { breathScale: 1, wallDamp: 0.5, tipTau: 0.008, jawTau: 0.038 },
-} as const;
-
-export type BodyKind = keyof typeof BODIES;
-
-/**
  * A villager's throat, sized in centimetres so it is the same voice whatever
  * the device's sample rate. `lengthCm` is the tract; around 15 is a small
  * person, 18 a large one.
  */
 export function villagerBody(
-  sampleRate: number, lengthCm: number, seed: number, kind: BodyKind = 'country',
+  sampleRate: number, lengthCm: number, seed: number, who: Character,
 ): BodyPreset {
-  const folk = BODIES[kind];
   const perSection = C / (sampleRate * OVERSAMPLE);
   const sections = Math.max(24, Math.round(lengthCm / perSection));
-  // A nose is about three quarters of the mouth's length and joins it in the
-  // upper pharynx.
-  const noseSections = Math.max(12, Math.round(lengthCm * 0.72 / perSection));
-  const noseAt = Math.min(sections - 4, Math.max(3, Math.round(sections * 0.4)));
+  // A nose is about three quarters of the mouth's length.
+  const noseSections = Math.max(12, Math.round(lengthCm * 0.72 * who.nose / perSection));
+  const noseAt = Math.min(sections - 4, Math.max(3, Math.round(sections * who.noseJoin)));
 
+  // Pharynx, then a step, then the mouth. A high larynx brings both steps
+  // forward, which is a short pharynx under a long front cavity.
+  const step = 0.36 - 0.26 * who.larynx;
+  const middle = (who.throat + who.mouth) / 2;
   const restShape = new Float32Array(sections);
   for (let i = 0; i < sections; i++) {
     const p = i / (sections - 1);
-    restShape[i] = p < 0.16 ? 0.6 : p < 0.28 ? 1.1 : 1.5;
+    restShape[i] = p < step ? who.throat : p < step + 0.12 ? middle : who.mouth;
   }
 
   // Wide at the back of the nose, tapering to the nostrils. Section 0 is the
@@ -136,14 +125,12 @@ export function villagerBody(
     noseShape[i] = Math.min(1.9, d < 1 ? 0.4 + 1.6 * d : 0.5 + 1.5 * (2 - d));
   }
 
-  const tau = new Float32Array([
-    0.026, // velum — soft and slow
-    folk.jawTau, // jaw — the heaviest thing in the mouth
-    0.022, // bodyPos
-    0.009, // bodyDia — how long a k spends in the band where it hisses
-    folk.tipTau, // tip — the quickest
-    0.016, // lips
-  ]);
+  // velum, jaw, bodyPos, bodyDia, tip, lips. `bodyDia` is how long a k spends
+  // in the band where it hisses.
+  const tau = Float32Array.from(
+    [0.026, who.jawTau, 0.022, 0.009, who.tipTau, 0.016],
+    (t) => t * who.reach,
+  );
 
   return {
     sampleRate,
@@ -154,29 +141,30 @@ export function villagerBody(
     restShape,
     noseShape,
     // The round trip is `glottal × lip × wallLoss^2N` and it sets the formant
-    // bandwidths — about 190 Hz here, on the wide side, tunable live.
-    glottalReflect: 0.75,
+    // bandwidths. It must stay clear of unity at every draw of `couple`/`ring`.
+    glottalReflect: who.couple,
     lipReflect: -0.85,
-    wallLoss: 0.999,
-    wallDamp: folk.wallDamp,
+    wallLoss: who.ring,
+    wallDamp: who.damp,
     bodyFrom: 0.26,
     bodyTo: 0.82,
-    bodySpread: 0.26,
-    tipAt: 0.8,
+    bodySpread: who.hump,
+    tipAt: who.tipAt,
     tipSpread: 0.09,
-    lipSections: 2,
+    lipSections: Math.min(4, Math.floor(who.horn)),
     tau,
-    jitter: 0.006 + hash(seed, 21) * 0.007,
-    shimmer: 0.03 + hash(seed, 22) * 0.025,
+    jitter: 0.0095 * who.rough,
+    shimmer: 0.042 * who.rough,
     // Never quite still: the ones drawn with the least of this were the ones
     // heard as a machine.
     drift: 0.015 + hash(seed, 23) * 0.012,
-    tremor: hash(seed, 24) < 0.25 ? 0.006 + hash(seed, 25) * 0.008 : 0,
-    tremorHz: 4.5 + hash(seed, 26) * 2.5,
+    // A waver, and a slower one the frailer the voice.
+    tremor: 0.02 * who.old,
+    tremorHz: 6.6 - 2.4 * who.old,
     modulateHz: 24,
-    breathFloor: (0.012 + hash(seed, 27) * 0.02) * folk.breathScale,
+    breathFloor: (0.012 + hash(seed, 27) * 0.02) * who.airy,
     air: 5.5 + hash(seed, 28) * 3,
-    turbulence: 0.25,
+    turbulence: who.hiss,
     // Low on purpose: a tube on resonance swings several times its source, and
     // the model must stay clear of unity so nothing shapes it. Loudness is the
     // emitter's job.

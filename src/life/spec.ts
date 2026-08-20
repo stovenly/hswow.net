@@ -54,6 +54,8 @@ export interface LifeSpec {
   face?: string;
   /** Which people's language this one speaks. Absent is the countryside. */
   lect?: LectName;
+  /** A named voice from `audio/voice/character`. Absent is a draw off the seed. */
+  character?: string;
   /** How far this physique's contact gestures reach; absent means 1. */
   gestures?: GestureFit;
 }
