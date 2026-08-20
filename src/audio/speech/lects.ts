@@ -103,8 +103,29 @@ const country: Lect = {
   velum: 0.14,
   wordLength: [1, 3],
   pauseScale: 1.3,
-  greetings: [],
-  chatter: [],
+  /**
+   * Twenty-six hellos and fourteen runs of talk. Every consonant and vowel in
+   * the inventory above turns up in at least two of them: a phoneme nobody
+   * says is a phoneme nobody can judge.
+   */
+  greetings: [
+    'ɓàːlo', 'mboɾǒ', 'ǀaːme, ǀaːme', 'hɤ̀wa',
+    'ndaːʔ?', 'ɠoɾə̀', 'wuːlɐ', 'ǃoǃo',
+    'dʱaːnɯ', 'ɫaʔɐ̌', 'ŋgumǎ', 'jaːwo',
+    'ʘuːmə', 'ɗegeɾà', 'bʱoːʔa', 'nɐɰǒ?',
+    'mɔːlə̀', 'ɾaɓaɾa', 'hùːjo', 'ǀəmǀəm',
+    'gʱaːɾe', 'wɔ̀ndo', 'ɓɤːɾə̌?', 'laːnǀo',
+    'sɑ̀ːŋo', 'ɦabudɐ',
+  ],
+  chatter: [
+    'wàːlo ɓoɾə, mɐɰuːna.', 'ǀəme ǀəme, hɑːjo lɐ.',
+    'ndoɾu bʱaːle, sɔ̀ŋgə wo.', 'ɠɤːma, ɠɤːma nɐʔo.',
+    'ɦuːbe laɾə̀, ʘomo ndaʔ.', 'dʱɐlo weɾa, ɫaːgu mə.',
+    'ǃaŋo ɓuɾe, jɑːmə̀ wo.', 'gʱoːnə ɾawa, ɰɯːlɔ.',
+    'mbaɾe hɤ̀lo, ɗumə̌ na.', 'sɐːwo ɫəŋo, ɓaɾaɓaɾa.',
+    'ʘɤme nduːʔ, ɦoɾə̀ la.', 'ŋguːla waɾə, ǀome jɐʔ.',
+    'bʱɔːnə ɾɑːgo, ɗeme wu.', 'ɰaɾo huːjə, ǃomə̀ ndɐ.',
+  ],
 };
 
 /**
@@ -138,8 +159,24 @@ const city: Lect = {
   velum: 0.28,
   wordLength: [2, 4],
   pauseScale: 0.8,
-  greetings: [],
-  chatter: [],
+  greetings: [
+    'ʀéxtsʉ!', 'tʰɪ́ʃka!', 'pfœ́rti', 'tsǽʀdi!',
+    'kʼɛ́stʃɔ?', 'ʙǘmjɛn!', 'çîrtʰæ', 'ʒøkʼí!',
+    'tɕɪ́ʔʀe', 'pʰɔ́rzɛ!', 'xǽltʼi', 'ɸǿdzɪ?',
+    'ʀɛ́nχa!', 'tʲîːskɛ', 'zǿpfa', 'ɲɛ́ʀgʉ!',
+    'ʃɔ́rβi', 'kʰǽntsɔ!', 'βɪ́ʎɛr?', 'tʃø̂lki',
+    'qɔ́ʃjɛ!', 'béʀtʃi', 'sʲɛ́ʀpa!', 'ɵ́ʃtʰɪn',
+    'mʉ́ʔtsɛ?', 'ʒæ̂kʼʀɔ!',
+  ],
+  chatter: [
+    'pʰɔ́rzɛ tɕímbɛ, kʰɔ́ntsɔ!', 'tʰɪ́ʃka ʀɛ́nti, ʒøgí βɛʀ.',
+    'çœ́rtʰɛ ʙǘmɛn, tɕɪ̂nʀɔ pfɛ!', 'kʼɛ́stʃɔ xǽʃta, sʲɛ́ʀpi tsi.',
+    'qɔ́rʃɛ ɲǿʃtɛ, ɸø̂dzi!', 'ʃɔ́rβi tʲíːstʼɛ, mʉ́rtsɛ ʀa.',
+    'béʀtʃi qɔ́χʃɛ, ɵ́ʃtʰɪn dzø!', 'βɪ́ʎɛr tʃǿlki, kʰæ̂ntsɔ ʒɛ!',
+    'zǿpfa ʀéxti, tsǽʀdi nø.', 'ɲǿʃtɛ pʰɪ́kʀʉ, ʙɔ́ʀtsa xɛ!',
+    'tɕǽmpʰi sʲɔ́ʀβɛ, ʎɛ̂tsɪ kʉ.', 'xʉ́rtʃa kʼœ́pfɛ, ʀɪ́nzɔ tʰa!',
+    'dzɛ́ʀkʰi ɵ́mβɔ, tʃɪ́ʎa pfe.', 'kʰǽstɛ ʙǿʀki, ʒɔ̂ntsʉ ʀi!',
+  ],
 };
 
 export const LECTS: Record<LectName, Lect> = { country, city };
