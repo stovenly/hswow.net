@@ -30,10 +30,9 @@ import type { PortalEnd, PortalDefinition } from '../world/Portal';
  * **Nothing in here follows the camera, and that is the point.** A `follow` box
  * is ambient weather — it is carried by the player and covers everything — so in
  * a room built to compare ten systems side by side it is snow falling through
- * all ten of them at once, permanently, with no way to turn it off. It stood
- * here for exactly one build. The wrap and the never-runs-out claims belong to
- * P7, where weather is declared on a zone and the whole zone is the subject;
- * every station here is a box that stays where it is put.
+ * all ten of them at once, permanently, with no way to turn it off. The wrap
+ * and the never-runs-out claims belong where weather is declared on a zone and
+ * the whole zone is the subject; every station here is a box that stays put.
  *
  * Flat ground and a grid, like the galleries, and silent. What is being looked
  * at is the air.
@@ -50,10 +49,9 @@ const FLOOR = 120;
  * §3's arithmetic is the whole reason: a 3 cm flake is under one chunky pixel
  * past ten metres, and the clamp that stops it flickering costs alpha by the
  * square of the distance. The pipeline then quantizes, so a particle under one
- * level of alpha is not faint — it is *not drawn*. The first version
- * of this room stood ten stations thirteen metres apart with the door
- * twenty-four metres off the end, and five of the ten were mathematically
- * incapable of appearing. It read as a feature that did not work.
+ * level of alpha is not faint — it is *not drawn*. Ten stations thirteen
+ * metres apart with the door twenty-four metres off the end leaves five of the
+ * ten mathematically incapable of appearing.
  *
  * So: two short rows either side of the walk in, everything inside about thirty
  * metres of the arrival, and the weather boxes sitting *on* the path rather

@@ -43,25 +43,22 @@ import { hoist } from '../art/builders/hoist';
 import { lantern } from '../art/builders/lantern';
 
 /**
- * The geometry of the two hub interiors, in its own chunk.
- *
- * Split from `zones.ts` under ZONE-LOADING.md Phase D. The dimensions and the
- * machine placements stay over there, because the portals and the factory
- * soundscape are built from them at boot — see `PIPE_RUN` and the rule it
- * belongs to, which this file is the other half of.
+ * The geometry of the two hub interiors, in its own chunk. The dimensions and
+ * the machine placements stay in `zones.ts`, because the portals and the
+ * factory soundscape are built from them at boot — see `PIPE_RUN`.
  */
 
 /**
  * A small timber room: floor, four walls, ceiling, and somebody's things in it.
  *
- * Furnished rather than empty because an empty sealed box proves the zone
+ * Furnished rather than empty, because an empty sealed box proves the zone
  * system works and proves nothing about whether it is worth having. A bed
  * against one wall, a table with chairs pulled up to it and a figure standing
  * by are what make walking through the door land as arriving somewhere.
  *
- * Everything is placed by hand here. There are a dozen objects and a Phase 6
- * editor or a JSON file would be doing exactly this from data — the point is
- * that the placement is the only thing that would move.
+ * Everything is placed by hand. An editor or a JSON file would be doing exactly
+ * this from data — the point is that the placement is the only thing that would
+ * move.
  */
 export function buildVillagerHut(): THREE.Group {
   const root = new THREE.Group();
@@ -74,16 +71,14 @@ export function buildVillagerHut(): THREE.Group {
 
   // --- a room somebody lives in --------------------------------------------
   //
-  // Rearranged around the fireplace, because a hearth is not furniture — it is
-  // the thing a room is *organised by*. Everything here now answers to it: the
-  // seating faces it, the bed is out of its draught, the work that needs light
-  // is under the windows, and the storage is in the dead corner behind the
-  // door. Before this the pieces were spaced to be looked at individually,
-  // which is what a gallery is for.
+  // Arranged around the fireplace, because a hearth is not furniture — it is the
+  // thing a room is *organised by*. The seating faces it, the bed is out of its
+  // draught, the work that needs light is under the windows, and the storage is
+  // in the dead corner behind the door.
   //
   // The door is in the north wall at x = 0, so the strip in front of it is kept
-  // clear — the world check verifies you can walk forward off the arrival
-  // marker, and it is also simply how a room works.
+  // clear: you have to be able to walk forward off the arrival marker, and it is
+  // also simply how a room works.
 
   // The hearth, central on the west wall and facing into the room. Built with
   // its back at z = 0 projecting +Z, so a quarter turn puts it against −X.
@@ -138,7 +133,7 @@ export function buildVillagerHut(): THREE.Group {
   // And the broom leaning beside them.
   place(root, broom.build({ seed: 8890 }), -2.3, 0, -halfD + 0.45, 0.25);
 
-  // Somebody home. Static — Phase 7 is where figures start moving — but a room
+  // Somebody home. Static, but a room
   // with a person standing in it reads completely differently from one without,
   // and this is the fixture the animation work will be judged against. Stood at
   // the table rather than in open floor, which is where a person actually is.
@@ -148,11 +143,10 @@ export function buildVillagerHut(): THREE.Group {
   // real room: the space nobody walks through and nobody sits in.
   const crateA = crate.build({ seed: 61 });
   place(root, crateA, halfW - 0.9, 0, -halfD + 1.0, 0.4);
-  // **The second crate is gone.** It rolls very nearly a metre across, and
-  // there is nowhere left in a ten-by-eight room with a hearth, a stove, a
-  // dresser and two windows in it that a metre-wide box can stand without
-  // fouling something — it was inside the dresser in one position and standing
-  // in the daylight from the south window in the next. One crate is enough.
+  // One crate, not two. A crate rolls very nearly a metre across, and there is
+  // nowhere left in a ten-by-eight room with a hearth, a stove, a dresser and
+  // two windows in it that a second metre-wide box can stand without fouling
+  // something.
   place(root, barrel.build({ seed: 67 }), halfW - 0.7, 0, -0.2, 0.2);
 
   // --- light you can see ---------------------------------------------------
@@ -162,11 +156,10 @@ export function buildVillagerHut(): THREE.Group {
   // the reason: four small sources, each standing on something, so the light in
   // here is *coming from* things rather than being a property of the air.
   //
-  // Four rather than a dozen. Each carries a `PointLight`, and every one of
-  // those is another iteration in the shader for every lit fragment in the
-  // room. Four is enough to give the space a direction and a couple of pools of
-  // warmth; a candle on every surface would cost real frames for a difference
-  // that reads as "the lights are on".
+  // Four rather than a dozen. Each carries a `PointLight`, and every one is
+  // another iteration in the shader for every lit fragment in the room. Four
+  // gives the space a direction and a couple of pools of warmth; a candle on
+  // every surface costs real frames to read as "the lights are on".
   //
   // Stood on measured surfaces rather than at guessed heights — see `topOf`.
   place(root, candle.build({ seed: 7101 }), 0.75, topOf(board), 0.65, 0.6);
@@ -183,12 +176,10 @@ export function buildVillagerHut(): THREE.Group {
 }
 
 /**
- * Inside the factory: a large stone hall with engines in it.
- *
- * The machinery is the point of the room. An empty industrial shell is just a
- * bigger version of the other interior, and the two are supposed to prove that
- * crossing a threshold puts you somewhere *different* — so this one has a line
- * of engines down it, a working aisle, and enough clutter to look used.
+ * Inside the factory: a large stone hall with engines in it. The machinery is
+ * the point of the room — an empty industrial shell is a bigger version of the
+ * other interior, and the two are supposed to prove that crossing a threshold
+ * puts you somewhere *different*.
  */
 export function buildFactory(): THREE.Group {
   const root = new THREE.Group();
@@ -203,19 +194,18 @@ export function buildFactory(): THREE.Group {
 
   // Laid out in three lanes across the width: engines west, an open aisle up
   // the middle where the door lets you in, and storage east. The door is in the
-  // north wall at x = 0, so the strip around z = -4 is kept clear — the check
-  // verifies the arrival marker itself is not inside anything, and separately
-  // that you can walk forward off it, which is what this lane is for.
+  // north wall at x = 0, so the strip around z = -4 is kept clear — you have to
+  // be able to walk forward off the arrival marker.
   const engineX = ENGINE_X;
 
   // --- the plant -----------------------------------------------------------
   //
   // A row of engines along the west wall, turned to face the aisle. Different
-  // seeds, so they read as the same kind of machine rather than as three
-  // copies of one.
+  // seeds, so they read as the same kind of machine rather than as three copies
+  // of one.
   //
-  // Positions from `ENGINE_Z`, shared with `FACTORY_SOUND`. Typing them twice
-  // is how an engine ends up standing a metre from its own noise.
+  // Positions from `ENGINE_Z`, shared with `FACTORY_SOUND`. Typing them twice is
+  // how an engine ends up standing a metre from its own noise.
   ENGINE_Z.forEach((z, index) => {
     place(root, machine.build({ seed: 3301 + index }), engineX, 0, z, Math.PI / 2);
   });
@@ -232,12 +222,10 @@ export function buildFactory(): THREE.Group {
 
   // --- pipework, on the walls ---------------------------------------------
   //
-  // Along the walls and not across the ceiling. Pipes overhead were standing in
-  // for the timber joists that were removed, and they were the wrong shape for
-  // the job — a pipe run is a *service*, something that goes from one machine
-  // to another at working height, and hanging four of them across a roof reads
-  // as decoration. The roof is carried by trusses below, which is what actually
-  // carries a roof.
+  // Along the walls and not across the ceiling. A pipe run is a *service*,
+  // something that goes from one machine to another at working height, and
+  // hanging four of them across a roof reads as decoration. The roof is carried
+  // by the trusses below.
   //
   // `pipes` builds its main at a fixed 2 m along +X, so a wall run is a
   // rotation and a nudge and nothing else.
@@ -267,15 +255,13 @@ export function buildFactory(): THREE.Group {
   // --- roof trusses --------------------------------------------------------
   //
   // Steel, and built here rather than by `buildInterior`, whose `beams` are
-  // timber joists — right for a dwelling, wrong for a works, and the reason
-  // they were turned off. But turning them off left the ceiling as one
-  // unbroken plane fifteen metres across, and an unbroken plane lit from a
-  // single direction is a flat field of one colour whatever that colour is.
-  // Pipes alone are too thin to break it.
+  // timber joists — right for a dwelling, wrong for a works. But without them
+  // the ceiling is one unbroken plane fifteen metres across, and an unbroken
+  // plane lit from a single direction is a flat field of one colour whatever
+  // that colour is. Pipes alone are too thin to break it.
   //
-  // A truss is a top chord, a bottom chord and a zigzag of webs between them.
-  // That is three cheap boxes and a loop, and it is unmistakably industrial in
-  // a way a single beam is not — the diagonals are the whole read.
+  // A truss is a top chord, a bottom chord and a zigzag of webs between them:
+  // three cheap boxes and a loop, and the diagonals are the whole read.
   const truss = new THREE.MeshLambertMaterial({
     color: shade(PALETTE.IRON, 0.92),
     flatShading: true,
@@ -319,9 +305,9 @@ export function buildFactory(): THREE.Group {
   // --- keeping people out of the plant -------------------------------------
   //
   // A railing between the aisle and the engine row, and a fenced-off corner at
-  // the south end. Both are the cheapest way to say that this is a place with
-  // rules in it: a machine you can walk straight into is scenery, and one
-  // behind a rail is equipment.
+  // the south end. The cheapest way to say this is a place with rules in it: a
+  // machine you can walk straight into is scenery, one behind a rail is
+  // equipment.
   place(root, railing.build({ seed: 9301 }), engineX + 1.9, 0, 1, Math.PI / 2);
   place(root, chainlink.build({ seed: 9302 }), 2.4, 0, halfD - 0.7, 0);
 
@@ -331,33 +317,28 @@ export function buildFactory(): THREE.Group {
 
   // --- the gantry ----------------------------------------------------------
   //
-  // Straddling the aisle rather than standing over the plant, because the
-  // point of a hoist is the empty floor underneath it: something gets lifted
-  // *off* a machine and set down where there is room to work on it, and the
-  // engine pulled out at an angle a couple of metres away is that job. Turned
-  // to run along the hall so the beam does not block the walk down it.
+  // Straddling the aisle rather than standing over the plant, because the point
+  // of a hoist is the empty floor underneath it: something gets lifted *off* a
+  // machine and set down where there is room to work on it. Turned to run along
+  // the hall so the beam does not block the walk down it.
   //
   // **This is the object the creak comes from.** The friction emitter in the
-  // factory soundscape sits at the trolley, and it was placed here first — a
-  // rope groaning out of clear air in the middle of a room reads as a bug.
+  // factory soundscape sits at the trolley — a rope groaning out of clear air
+  // in the middle of a room reads as a bug.
   place(root, hoist.build({ seed: 8110 }), GANTRY_AT[0], 0, GANTRY_AT[2], Math.PI / 2);
 
   // --- lit for work --------------------------------------------------------
   //
-  // Aimed at things, not scattered. `floodlight` builds pointing +Z and takes
-  // no facing of its own, so the yaw here is the whole aim — which is the only
-  // reason it is possible to say "this one lights the engine row" and be right.
+  // Aimed at things, not scattered. `floodlight` builds pointing +Z and takes no
+  // facing of its own, so the yaw here is the whole aim.
   //
-  // Aimed *across* the hall rather than down it, for a second reason: the beam
-  // is visible geometry, and a beam pointing away from you is a bright disc
-  // while a beam crossing your view is a shaft. The shaft is the entire value
-  // of drawing the cone.
+  // Aimed *across* the hall rather than down it: the beam is visible geometry,
+  // and a beam pointing away from you is a bright disc while a beam crossing
+  // your view is a shaft. The shaft is the entire value of drawing the cone.
   //
-  // Three, and not one per machine. Each carries a `SpotLight`, which is the
-  // most expensive light in the API — a cone test and a penumbra falloff for
-  // every lit fragment, on top of a shadow map when shadows are on.
-  //
-  // Onto the engine row from across the aisle, facing -X.
+  // Three, and not one per machine. Each carries a `SpotLight`, the most
+  // expensive light in the API — a cone test and a penumbra falloff for every
+  // lit fragment, on top of a shadow map when shadows are on.
   place(root, floodlight.build({ seed: 5501 }), -0.6, 0, -2.4, -Math.PI / 2);
   place(root, floodlight.build({ seed: 5502 }), -0.6, 0, 4.4, -Math.PI / 2);
   // And onto the tank from the aisle, facing +X.
@@ -367,13 +348,11 @@ export function buildFactory(): THREE.Group {
 }
 
 /**
- * The height of the top of a placed prop, in its parent's space.
- *
- * Measured off the geometry rather than looked up. Every builder rolls its own
- * dimensions from its seed — a table is between 0.68 and 0.78 m tall — so the
- * only way to stand something *on* one and be right about it is to ask the mesh
- * that was actually built. A constant here would be correct for one seed and
- * put a candle through the boards or hovering above them for every other.
+ * The height of the top of a placed prop, in its parent's space. Measured off
+ * the geometry rather than looked up: every builder rolls its own dimensions
+ * from its seed — a table is between 0.68 and 0.78 m tall — so a constant here
+ * would be correct for one seed and put a candle through the boards for every
+ * other.
  */
 function topOf(mesh: THREE.Mesh): number {
   mesh.geometry.computeBoundingBox();

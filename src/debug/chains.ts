@@ -41,31 +41,20 @@ import { workbench } from '../art/builders/workbench';
  *
  * **These exist to be walked away from.** Zone eviction keys residency to the
  * portal graph, so the only way to observe it is to stand somewhere more than
- * two doors from where you started — and until now the world had no such place.
- * Every interior hung directly off the Proving Ground, which meant the whole
- * world was within one hop of the hub and nothing was ever a candidate for
- * being dropped.
- *
- * Three deep is the shortest chain that proves the policy rather than merely
- * exercising it. At two deep the far room is two hops from the hub, which is
- * inside the grace band; at three the hub itself falls out of the resident set,
- * which is the case worth being sure about — the hub is the zone the player
- * always comes back to, so it is the one whose rebuild has to be correct.
- *
- * ## They are also fixtures, and are dressed accordingly
+ * two doors from where you started. Three deep is the shortest chain that
+ * proves the policy rather than merely exercising it: at two deep the far room
+ * is inside the grace band, and at three the hub itself falls out of the
+ * resident set — which is the case worth being sure about, because the hub is
+ * the zone the player always comes back to.
  *
  * Each room differs from its parent in *proportion* rather than in contents,
  * because proportion is what the eye reads first and what a zone system is
- * actually claiming to change. A long corridor, a tall shaft, a low store and a
- * shallow workroom are four obviously different spaces built from one
- * `buildInterior` call each — which is also the honest demonstration that the
- * interior kit is not a box factory.
+ * claiming to change. A long corridor, a tall shaft, a low store and a shallow
+ * workroom are four obviously different spaces from one `buildInterior` call
+ * each.
  *
- * Props are enough to make each room read as a place and no more. These are
- * test fixtures; the finished world's rooms are content, and content is
- * authored against the fiction rather than against a residency check.
- *
- * **The names are placeholders**, like every other name in the test world.
+ * Props are enough to make each room read as a place and no more. **The names
+ * are placeholders**, like every other name in the test world.
  */
 
 export const ZONE_FACTORY_2 = 'factory-2';
@@ -74,21 +63,18 @@ export const ZONE_HUT_ROOM = 'hut-room';
 export const ZONE_HUT_ROOM_2 = 'hut-room-2';
 
 /**
- * How far a portal door stands out from the wall it is set into.
- *
- * Duplicated from `zones.ts` rather than imported, because importing it would
- * make this module depend on the one that imports *it* — and a cycle between
- * two zone files is a boot-order bug waiting for someone to reorder an import.
- * One number, and the world check measures the result rather than trusting it.
+ * How far a portal door stands out from the wall it is set into. Duplicated
+ * from `zones.ts` rather than imported, because importing it would make this
+ * module depend on the one that imports *it*, and a cycle between two zone
+ * files is a boot-order bug waiting for someone to reorder an import.
  */
 const DOOR_PROUD = 0.07;
 
 /**
  * The rooms, as half-extents the door placement can be written against.
- *
- * Declared up here rather than inside each builder because a portal end needs
- * the wall position and the builder needs the same number — typing it twice is
- * how a door ends up floating a hand's width inside a wall.
+ * Declared up here because a portal end needs the wall position and the builder
+ * needs the same number — typing it twice is how a door ends up floating a
+ * hand's width inside a wall.
  */
 const FACTORY_2 = { width: 7, depth: 22, height: 4 };
 const FACTORY_3 = { width: 8.5, depth: 8.5, height: 9 };
@@ -96,11 +82,9 @@ const HUT_ROOM = { width: 5.5, depth: 6, height: 2.5 };
 const HUT_ROOM_2 = { width: 9, depth: 5, height: 3 };
 
 /**
- * A works, one flight down and colder.
- *
- * Same palette family as the hall it opens off, deliberately: these are meant
- * to read as further into the *same* building, so the thing that changes is the
- * shape of the space and not the material it is made of.
+ * A works, one flight down and colder. Same palette family as the hall it opens
+ * off, deliberately: these read as further into the *same* building, so what
+ * changes is the shape of the space and not the material it is made of.
  */
 const WORKS_ENVIRONMENT = {
   ...INDOOR_ENVIRONMENT,
@@ -208,11 +192,10 @@ export function chainZones(): ZoneDefinition[] {
 
 /**
  * The doors that chain them, and the two that hang the chains off the world.
- *
- * The parent ends — in The Factory and in the Villager Hut — are placed against
- * walls that were already clear, which took some doing in the hut: it is a
- * ten-by-eight room with a hearth, a stove, two windows and a bed in it, and
- * the only wall with two metres of floor in front of it is the east one.
+ * The parent ends are placed against walls that were already clear, which took
+ * some doing in the hut: it is a ten-by-eight room with a hearth, a stove, two
+ * windows and a bed in it, and the only wall with two metres of floor in front
+ * of it is the east one.
  */
 export function chainPortals(factoryId: string, hutId: string): PortalDefinition[] {
   const f2 = FACTORY_2.depth / 2;
@@ -301,11 +284,10 @@ export function chainPortals(factoryId: string, hutId: string): PortalDefinition
 /**
  * A long service corridor: plant down one side, a walkway down the other.
  *
- * The hall it opens off is fifteen metres wide and eleven deep — nearly square,
- * and read at a glance. This is seven by twenty-two, which cannot be read at a
- * glance at all: you see the near bay, the fog, and something at the far end.
- * The only way to find out what is down there is to walk it, and that is the
- * entire difference a proportion makes.
+ * The hall it opens off is nearly square and read at a glance. This is seven by
+ * twenty-two, which cannot be read at a glance at all — you see the near bay,
+ * the fog, and something at the far end, and the only way to find out what is
+ * down there is to walk it.
  */
 function buildFactory2(): THREE.Group {
   const root = new THREE.Group();
@@ -349,9 +331,8 @@ function buildFactory2(): THREE.Group {
   // --- services, on the walls ----------------------------------------------
   //
   // `pipes` builds its main along +X, so a run down a side wall is a quarter
-  // turn. Four of them end to end are what makes the corridor read as carrying
-  // something from one end of the building to the other, which is what a
-  // corridor in a works is *for*.
+  // turn. Four end to end are what makes the corridor read as carrying
+  // something from one end of the building to the other.
   [-8, -3, 2, 7].forEach((z, index) => {
     const run = pipes.build({ seed: 9420 + index });
     run.position.set(-halfW + 0.34, 0, z);
@@ -366,10 +347,10 @@ function buildFactory2(): THREE.Group {
 
   // --- ribs across the ceiling ---------------------------------------------
   //
-  // The hall gets full trusses; this gets plain ribs, because at four metres a
-  // truss with a half-metre depth eats an eighth of the headroom and reads as
-  // a low ceiling rather than a structured one. Same job — break a long
-  // unbroken plane — at a fraction of the geometry.
+  // Plain ribs rather than the hall's full trusses: at four metres a truss with
+  // a half-metre depth eats an eighth of the headroom and reads as a low
+  // ceiling rather than a structured one. Same job — break a long unbroken
+  // plane — at a fraction of the geometry.
   const rib = new THREE.MeshLambertMaterial({
     color: shade(PALETTE.IRON, 0.9),
     flatShading: true,
@@ -387,7 +368,7 @@ function buildFactory2(): THREE.Group {
   // --- lit in pools, not evenly --------------------------------------------
   //
   // Three lamps down twenty-two metres, aimed across the walkway rather than
-  // along it. Evenly lighting a corridor removes the only thing a corridor has
+  // along it. Lighting a corridor evenly removes the only thing a corridor has
   // going for it: you should be able to see that there is more of it than you
   // can currently see.
   place(root, floodlight.build({ seed: 5510 }), 0.9, 0, -8, -Math.PI / 2);
@@ -400,11 +381,10 @@ function buildFactory2(): THREE.Group {
 /**
  * A tall shaft with a hoist in it. Eight and a half square, nine metres up.
  *
- * The one room in the world whose interesting axis is vertical. Everything else
- * ever built here has been a floor plan with a lid on it at head height plus
- * two metres, and a space you have to look *up* in is a different experience of
- * the same engine — it is also the only room where the ceiling material is
- * something the player will actually study.
+ * The one room in the world whose interesting axis is vertical — everything
+ * else is a floor plan with a lid on it at head height plus two metres. It is
+ * also the only room where the ceiling material is something the player will
+ * actually study.
  */
 function buildFactory3(): THREE.Group {
   const root = new THREE.Group();
@@ -442,8 +422,8 @@ function buildFactory3(): THREE.Group {
   // --- the top of the shaft ------------------------------------------------
   //
   // A gallery of steel ringing the room at four metres: two runs of plate on
-  // the side walls, high enough to be clearly out of reach. It costs four boxes
-  // and it is what turns a tall box into a building with an upstairs.
+  // the side walls, high enough to be clearly out of reach. Four boxes, and it
+  // is what turns a tall box into a building with an upstairs.
   const steel = new THREE.MeshLambertMaterial({
     color: shade(PALETTE.IRON, 0.86),
     flatShading: true,
@@ -471,12 +451,9 @@ function buildFactory3(): THREE.Group {
 }
 
 /**
- * The store off the hut: low, small and full.
- *
- * Two and a half metres to the ceiling, which is a hand's breadth over head
- * height and immediately obvious the moment you step in. Rooms in this world
- * have all been generous so far; this one is the demonstration that they do not
- * have to be, and cramped is a feeling the engine has never once produced.
+ * The store off the hut: low, small and full. Two and a half metres to the
+ * ceiling, a hand's breadth over head height and immediately obvious the moment
+ * you step in. Cramped is a feeling the engine has never once produced.
  */
 function buildHutRoom(): THREE.Group {
   const root = new THREE.Group();
@@ -489,10 +466,8 @@ function buildHutRoom(): THREE.Group {
 
   // Doors in the north wall (in from the hut) and the east wall (on to the
   // workroom), so the clear floor is an L and everything stands on the two
-  // walls that are left.
-  //
-  // Stores are stacked against walls, and the density is the point: this is the
-  // fullest room in the world by floor area, which is what a store is.
+  // walls that are left. Stores are stacked against walls, and the density is
+  // the point: this is the fullest room in the world by floor area.
   place(root, dresser.build({ seed: 4420 }), -halfW + 0.4, 0, -1.4, Math.PI / 2);
   place(root, chest.build({ seed: 4421 }), -halfW + 0.55, 0, 0.6, Math.PI / 2);
   const stack = crate.build({ seed: 4422 });
@@ -516,11 +491,10 @@ function buildHutRoom(): THREE.Group {
 /**
  * The workroom at the end of the chain: wide, shallow and full of daylight.
  *
- * Nine by five, which is almost exactly the reverse of the store you reach it
- * through — you step out of a cramped dark box into a room you can see the
- * whole of at once. Putting the two next to each other in a chain is the
- * cheapest possible demonstration that proportion is doing the work, because
- * the palette, the floor and the lighting model are identical.
+ * Nine by five, almost exactly the reverse of the store you reach it through —
+ * you step out of a cramped dark box into a room you can see the whole of at
+ * once. The palette, the floor and the lighting model are identical, so the
+ * proportion is doing all of the work.
  */
 function buildHutRoom2(): THREE.Group {
   const root = new THREE.Group();
@@ -539,13 +513,13 @@ function buildHutRoom2(): THREE.Group {
   place(root, windowBuilder.build({ seed: 4441 }), 0.1, 0, halfD - 0.1, Math.PI);
   place(root, windowBuilder.build({ seed: 4442 }), 3.1, 0, halfD - 0.1, Math.PI);
 
+  // Work in the east half, under the windows and facing them.
+  //
   // **The middle of the room is a corridor, and nothing stands in it.** The door
   // is in the north wall at x = 0 and the room is only five metres deep, so the
   // lane from the arrival marker to the far wall is most of the floor's short
-  // axis — the first layout put the work table squarely across it and the world
-  // check caught the player boxed in a metre from the door they had just used.
-  // The room is nine metres wide precisely so that everything can stand *beside*
-  // that lane, which is the whole argument for a shallow room.
+  // axis. The room is nine metres wide precisely so everything can stand
+  // *beside* that lane, which is the whole argument for a shallow room.
 
   // Work in the east half, under the windows and facing them.
   const board = table.build({ seed: 4451 });
@@ -574,11 +548,9 @@ function buildHutRoom2(): THREE.Group {
 // ---------------------------------------------------------------------------
 
 /**
- * The height of the top of a placed prop, in its parent's space.
- *
- * Same helper as `zones.ts`, and duplicated for the same reason `DOOR_PROUD`
- * is: every builder rolls its own dimensions from its seed, so standing a
- * lantern *on* a crate means asking the crate that was actually built.
+ * The height of the top of a placed prop, in its parent's space. Every builder
+ * rolls its own dimensions from its seed, so standing a lantern *on* a crate
+ * means asking the crate that was actually built.
  */
 function topOf(mesh: THREE.Mesh): number {
   mesh.geometry.computeBoundingBox();

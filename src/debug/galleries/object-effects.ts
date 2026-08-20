@@ -80,9 +80,8 @@ const VOLUME_PAD = 1.5;
  * these faces decide nothing about what is affected — the box only anchors
  * the horror effects (breathe's swell centre, headshake's height mask, the
  * pivots) and carries the spec. Measured rather than authored because a wrong
- * anchor still reads wrong, and hand-authored extents were how this room got
- * its first bug: `crate` has a radius of 1.2 and was given a half-extent of
- * 0.6. A builder knows its own size and nothing else reliably does.
+ * anchor still reads wrong, and a builder knows its own size where a
+ * hand-authored extent is one edit away from not matching.
  */
 function volumeFor(mesh: THREE.Object3D): { size: THREE.Vector3; offset: THREE.Vector3 } {
   mesh.updateMatrixWorld(true);

@@ -92,20 +92,14 @@ import { dog } from '../art/builders/dog';
  * standing in one place instead of in a row.
  *
  * A bounded outdoor bowl: hills around the edge that turn you back, a valley
- * floor with a settlement in it, a ridge to climb, and a plateau to look down
- * from. Everything is placed against the heightfield rather than at y = 0,
- * which is the whole reason this exists — the Proving Ground is deliberately
- * flat, so nothing there has ever exercised walking on a slope, dropping a prop
- * onto uneven ground, or ground cover changing under your feet.
+ * floor with a settlement in it, a ridge to climb, a plateau to look down from.
+ * Everything is placed against the heightfield rather than at y = 0, which is
+ * the whole reason this exists — a gallery asks whether a row of props hangs
+ * together, and this asks whether the kit makes a place.
  *
- * A gallery asks whether a row of props hangs together; this asks whether the
- * kit makes a place. Every countryside builder that belongs outdoors is here at
- * its own density, in the ground it belongs in, with three of the houses open.
- *
- * **The clear ground is deliberate.** The green and the lanes are kept free of
- * anything solid, because this is the level NPCs get tested in and they will
- * need somewhere to walk that is not an obstacle course. Ground cover is a
- * different question — see `KEEP_CLEAR_SOFT`.
+ * The green and the lanes are kept clear of anything solid: this is the level
+ * creatures get tested in and they need somewhere to walk that is not an
+ * obstacle course. Ground cover is a different question — see `KEEP_CLEAR_SOFT`.
  */
 
 export const ZONE_COUNTRYSIDE = 'countryside-exterior';
@@ -116,24 +110,17 @@ export const ZONE_WORKSHOP = 'countryside-workshop';
 export const ZONE_STORE = 'countryside-store';
 
 /**
- * Metres across.
- *
- * A quarter of what it was. The first version was 384 m — which is a
- * *landscape*, and the settlement sat in it as a handful of buildings a long
- * walk apart with a wall of mountains on the horizon. A village is a place
- * where the next house is a few paces away and you can see the whole of it at
- * once, so everything here is scaled to that: the map, the hills, and above all
- * the gaps between the buildings.
+ * Metres across. A village is a place where the next house is a few paces away
+ * and you can see the whole of it at once, so everything here is scaled to
+ * that: the map, the hills, and above all the gaps between the buildings.
  */
 const SIZE = 96;
 const HALF = SIZE / 2;
 
 /**
- * The shape of the place.
- *
- * Read in order: the bowl first, then the things standing in it. The rim is
- * last because it has to win at the edges — a hill placed near the boundary
- * would otherwise flatten the wall out and open a way out of the map.
+ * The shape of the place. Read in order: the bowl first, then the things
+ * standing in it. The rim is last because it has to win at the edges — a hill
+ * placed near the boundary would flatten the wall out and open a way out.
  */
 const LANDFORMS: Landform[] = [
   // A shallow dish, so the ground reads as a valley floor rather than a table.
@@ -144,46 +131,31 @@ const LANDFORMS: Landform[] = [
   { kind: 'hill', at: [20, 8], radius: 10, height: 3.5, falloff: 1.4 },
   { kind: 'hill', at: [8, 20], radius: 11, height: 3, falloff: 1.5 },
 
-  // **The whole settlement stands on one level shelf.**
+  // The whole settlement stands on one level shelf. Buildings are rigid and
+  // ground is not: a hut on a one-in-twenty slope buries one corner and floats
+  // the opposite one, and fences and troughs are no different.
   //
-  // Buildings are rigid and ground is not: a hut placed on a one-in-twenty
-  // slope buries one corner and floats the opposite one, and no amount of
-  // fiddling with its position fixes that because the problem is the ground.
-  // Fences and troughs are no different — a paddock rail follows the post it is
-  // nailed to, not the hillside underneath.
-  //
-  // So the shelf is centred between the green and the paddock and made wide
-  // enough to hold both, rather than levelling the houses and leaving the
-  // animals on a slope beside them. Eased back into the valley over nine
-  // metres, so it reads as a terrace rather than a disc somebody stamped out.
-  //
-  // The check measures the fall across each building's footprint and fails if
-  // any of them is standing on a slope worth noticing.
+  // Centred between the green and the paddock and wide enough to hold both,
+  // eased back into the valley over nine metres so it reads as a terrace rather
+  // than a disc somebody stamped out.
   { kind: 'terrace', at: [-6, 1], radius: 26, height: -3, blend: 9 },
 
-  // A second, small shelf under the gateway.
+  // A second, small shelf under the gateway. The arch is as rigid as a house —
+  // two stone piers a couple of metres apart — and the outer slope of the shelf
+  // above would bury one and lift the other.
   //
-  // The arch is as rigid as a house — two stone piers a couple of metres apart
-  // — and it was standing on the outer slope of the shelf above, with one pier
-  // buried and the other in the air by more than a metre. Found by widening the
-  // level-ground check from huts to everything rigid, which is the sort of
-  // thing that is invisible until you walk up to it.
-  //
-  // Applied after the big shelf, so it wins locally; the lane between the two
+  // Applied after the big shelf so it wins locally; the lane between the two
   // falls about three metres over twenty, which is a gentle walk down.
   { kind: 'terrace', at: [0, 34], radius: 6, height: -0.4, blend: 7 },
 
-  // The wall of hills.
-  //
-  // A smootherstep's steepest gradient is 1.875 × height / inset. The wall is
-  // kept *short and steep* rather than tall and long — 14 m of rise over 13 m
-  // reads as a bank at the end of a field, where the first attempt at 58 m
-  // looked like the rim of a crater. Making it steeper rather than taller is
-  // also what buys back the slope the grid resolution smears away.
+  // The wall of hills. A smootherstep's steepest gradient is
+  // 1.875 × height / inset, and the wall is kept short and steep rather than
+  // tall and long: 14 m of rise over 13 m reads as a bank at the end of a
+  // field, where 58 m looks like the rim of a crater. Steeper rather than
+  // taller is also what buys back the slope the grid resolution smears away.
   //
   // Landforms *sum*, so nothing above may reach into this band or it lifts the
-  // foot of the wall and flattens it into a ramp. Everything is kept inside
-  // ±32 m for that reason, and the check walks 240 spokes to prove it.
+  // foot of the wall into a ramp. Everything is kept inside ±32 m for that.
   { kind: 'rim', inset: 13, height: 14 },
 ];
 
@@ -202,13 +174,9 @@ const PATCHES: GroundPatch[] = [
   // And out the other side, to the fields.
   { kind: 'path', through: [[4, 2], [14, -2], [24, -2]], width: 2.4, material: 'dirt' },
 
-  // **Cobble is the street, not a plaza.**
-  //
-  // This was one 26 m disc of cobble with the houses standing on it, which is
-  // not a village — it is a car park. Streets are narrow, they run *between*
+  // Cobble is the street, not a plaza. Streets are narrow, they run *between*
   // buildings, and the paving exists because that is where people walk. Four
-  // lanes crossing at the green pave the junction for free where they overlap,
-  // which is exactly how a village square comes to be paved in the first place.
+  // lanes crossing at the green pave the junction for free where they overlap.
   { kind: 'path', through: [[-9, 13], [0, 8], [9, 1]], width: 2.2, material: 'cobble' },
   { kind: 'path', through: [[-2, 17], [0, 8], [1, -2]], width: 2.2, material: 'cobble' },
   { kind: 'path', through: [[7, 15], [0, 8], [-7, 0]], width: 2.2, material: 'cobble' },
@@ -223,30 +191,23 @@ const PATCHES: GroundPatch[] = [
 
 const terrain = new Terrain({
   size: SIZE,
-  // Three metres, not four. The rim's steep band is only a dozen metres wide,
+  // Three metres, not four. The rim's steep band is only a dozen metres wide
   // and a coarse grid smears it: the player collides with the *triangles*, not
   // with the underlying function, so a wall that is mathematically 59° comes
-  // out as a 48° ramp once it has been cut into four-metre quads — climbable,
-  // and the check caught exactly that. On a map this size the finer grid costs
-  // two thousand triangles.
+  // out as a climbable 48° ramp once cut into four-metre quads.
   resolution: 3,
   landforms: LANDFORMS,
   patches: PATCHES,
-  // Fine where people walk, coarse where they only look.
+  // Fine where people walk, coarse where they only look. The streets are 2.2 m
+  // wide, barely one quad at the base grid, so their edges would run along
+  // whatever the grid happened to do. Quartering the cells over the settlement
+  // puts three quads across a street, with a half-step ring so the change in
+  // density is not itself a visible line.
   //
-  // The streets are 2.2 m wide, which at the three-metre base grid is barely
-  // one quad — so their edges ran along whatever the grid happened to do and
-  // the square read as a heap of triangles rather than as paving. Quartering
-  // the cells over the settlement puts three quads across a street, with a
-  // half-step ring around it so the change in density is not itself a line you
-  // can see. The hills keep the base grid and cost nothing.
-  //
-  // **Every ring is kept inside flat ground.** The terrace above is level out
-  // to 26 m, so these stop short of that — a boundary out at 34 m crossed the
-  // rim at 61°, and a change of facet size on a slope that steep draws a hard
-  // shading line that looks exactly like a crack in the mesh. The gate's ring
-  // sits inside its own small shelf for the same reason. The check measures
-  // the ground under each ring and fails if any of it is steep.
+  // **Every ring is kept inside flat ground.** A change of facet size on a
+  // steep slope draws a hard shading line that looks like a crack in the mesh,
+  // so these stop short of the terrace's edge and the gate's ring sits inside
+  // its own small shelf.
   detail: [
     { at: [-6, 1], radius: 26, level: 2 },
     { at: [-6, 1], radius: 20, level: 4 },
@@ -263,16 +224,9 @@ export const COUNTRYSIDE_GATE = new THREE.Vector3(0, 0, 34);
 /**
  * The things in this zone that make a noise, and where they stand.
  *
- * **Placement runs object → sound.** The smithy, the bell and the dog were
- * given coordinates before any of them existed as objects, chosen to get a
- * model audible in the absence of anything to look at — the bell was ringing
- * from six and a half metres above a rooftop, and the forge fire was burning
- * in open ground behind a house. That reads as a fault rather than as a place,
- * and the note against it always said the coordinates constrained nothing.
- *
- * So these are the positions of the *things*, and the emitters below are
- * derived from them. Change one of these and the sound follows it, which is
- * the whole point of naming them.
+ * **Placement runs object → sound.** These are the positions of the *things*,
+ * and the emitters below are derived from them, so changing one of these moves
+ * the sound with it.
  *
  * The heights are the anchors the builders export — a hearth's coal bed, an
  * anvil's face, a bell's mouth — because the sound of a bell comes from its
@@ -280,11 +234,9 @@ export const COUNTRYSIDE_GATE = new THREE.Vector3(0, 0, 34);
  */
 const SMITHY = { forge: [14.2, 5.6], anvil: [13, 3.8] } as const;
 /**
- * Outside the ring of houses on the north lane, not on the green.
- *
- * A bell wants to be heard from everywhere and the green is the one place here
- * that is deliberately kept clear — so it stands at the edge of it where the
- * lane comes in, which is also where a village bell would be.
+ * Outside the ring of houses on the north lane, not on the green. A bell wants
+ * to be heard from everywhere and the green is the one place here deliberately
+ * kept clear, so it stands at the edge of it where the lane comes in.
  */
 const BELL_AT = [-5.4, 19.2] as const;
 /** Between two houses on the west side. A yard dog, not a wandering one. */
@@ -301,24 +253,18 @@ function anchor(at: readonly [number, number], lift: number): [number, number, n
 }
 
 /**
- * What this place sounds like.
- *
- * Left as it was apart from the hedge, which now has one under it: a zone that
- * grows four hundred props and a new soundscape at once is a zone where neither
- * can be judged.
- *
- * Three rules held to here, and they are the ones worth reusing:
+ * What this place sounds like. Three rules, and they are the ones worth
+ * reusing:
  *
  * - **Local sounds have short reach.** Wind in a tree is something you notice
  *   when you are under it. Given a generous `maxDistance` every tree in the
- *   valley is audible from every point in it, which does not read as a lot of
- *   trees — it reads as one undifferentiated hiss laid over the whole zone.
+ *   valley is audible from every point in it, which reads as one hiss laid
+ *   over the whole zone rather than as a lot of trees.
  * - **Sparse beats dense.** Four foliage emitters spread across the bowl place
- *   the settlement in a landscape. Fourteen would place it inside a waterfall,
- *   and would cost fourteen voices to do it.
- * - **Nothing sits in the middle of the green.** The open ground was left clear
- *   for the Phase 7 actors, and it should stay acoustically clear too, so that
- *   when something does move through it there is room to hear it.
+ *   the settlement in a landscape; fourteen place it inside a waterfall, and
+ *   cost fourteen voices to do it.
+ * - **Nothing sits in the middle of the green.** The open ground is left clear
+ *   for creatures, and should stay acoustically clear too.
  */
 const COUNTRYSIDE_SOUND: SoundscapeSpec = {
   // A touch softer and darker than the default. Open ground with hills around
@@ -406,29 +352,22 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
       rolloff: 1.5,
       reverb: 0.35,
     },
-    // The gate, on its hinges. An iron door in a stone arch, complaining when
-    // the wind gets under it — `'weather'` motion, so it is silent in still
-    // air and that is most of the time.
+    // The gate on its hinges: an iron door in a stone arch, complaining when
+    // the wind gets under it — `'weather'` motion, so it is silent in still air
+    // and that is most of the time. Sited on the gate itself, derived from
+    // `COUNTRYSIDE_GATE` like the arch and the portal door.
     //
-    // Sited on the gate because the gate is standing there: the arch and the
-    // portal's door are both built from `COUNTRYSIDE_GATE`, so this is the
-    // third thing derived from the same number rather than a fourth set of
-    // coordinates that happen to agree with them today.
-    //
-    // Carried a long way for how quiet it is. A gate you can hear from inside
-    // the settlement is a settlement with a way out of it, and this is the
-    // only sound here that comes from its edge.
+    // Carried a long way for how quiet it is: a gate you can hear from inside
+    // the settlement is a settlement with a way out of it, and this is the only
+    // sound here that comes from its edge.
     {
       model: 'friction',
       id: 'gate',
       at: [COUNTRYSIDE_GATE.x + 0.9, 1.7, COUNTRYSIDE_GATE.z],
-      // **Low and dull, and both were arrived at the hard way.** Pitched at
-      // 320 and then at 240 this was a whistle rather than a gate: the model
-      // has a narrow low-speed regime where a high partial dominates, and a
-      // weather-driven source crosses it on every gust. The model now gates
-      // itself below that, and 150 keeps the whole range clear of it — which
-      // is also the right register. A village gate is a heavy iron thing in a
-      // stone arch, and heavy iron things groan.
+      // Low and dull. The model has a narrow low-speed regime where a high
+      // partial dominates and a weather-driven source crosses it on every gust;
+      // 150 keeps the whole range clear of it, and it is the right register
+      // anyway. A village gate is a heavy iron thing, and heavy iron groans.
       options: {
         motion: 'weather',
         speed: 0.22,
@@ -460,11 +399,10 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
     },
   ],
   scatter: [
-    // **The sound that makes the place inhabited.** Everything above is a
-    // place; this is somebody in it. Carried much further than anything else
-    // here on purpose — a hammer on an anvil is the one village sound that
-    // genuinely crosses a valley, and hearing it from the ridge before you can
-    // see where it comes from is the whole point of having it.
+    // The sound that makes the place inhabited. Everything above is a place;
+    // this is somebody in it. Carried much further than anything else here on
+    // purpose — a hammer on an anvil is the one village sound that genuinely
+    // crosses a valley.
     {
       sound: 'hammer',
       id: 'smith',
@@ -545,15 +483,10 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
       reverb: 0.35,
     },
     // A dog in a yard between two houses on the west side. Rare, and carries a
-    // long way — a bark crossing a valley is the sound that says the place is
-    // lived in.
-    //
-    // **It used to roam the whole settlement**, on the argument that a source
-    // which never repeats its position does more work than the bark itself.
-    // That is true and it was standing on nothing: eleven metres of wander has
-    // no object it could belong to, and the rule is that a sound comes from a
-    // thing. So there is a dog now, and it moves about its own patch — which
-    // still varies the position, and can be walked up to.
+    // long way — a bark crossing a valley says the place is lived in. It moves
+    // about its own patch rather than roaming the settlement, because a sound
+    // comes from a thing and eleven metres of wander has no object it could
+    // belong to.
     {
       sound: 'animal',
       id: 'dog',
@@ -568,13 +501,10 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
       rolloff: 1.15,
       reverb: 0.55,
     },
-    // A bell, rarely. The longest reach and the longest tail of anything in the
-    // zone — it is the sound that tells you the valley has edges, because you
-    // hear it come back off them.
-    //
-    // A single fixed point with no spread: a bell is a mass hung from a frame
-    // and does not move, and wandering it by even a metre would undo the one
-    // thing it is here to establish.
+    // A bell, rarely. The longest reach and the longest tail of anything here —
+    // it is the sound that tells you the valley has edges, because you hear it
+    // come back off them. A single fixed point with no spread: a bell is a mass
+    // hung from a frame and does not move.
     {
       sound: 'bell',
       id: 'bell',
@@ -637,8 +567,7 @@ function place(
 
 /**
  * Stands something on the ground and tips it over, for things that lean. The
- * tilt is about the foot, so the origin stays on the terrain where the world
- * check expects to find it.
+ * tilt is about the foot, so the origin stays on the terrain.
  */
 function lean(
   parent: THREE.Object3D,
@@ -656,10 +585,9 @@ function lean(
 type Point = readonly [number, number];
 
 /**
- * Which way a line runs, for laying a boundary along it.
- *
- * `fence` and `stone-wall` are both built along +X and turned about Y by
- * `place`, so a direction of (ux, uz) is a yaw of `atan2(-uz, ux)`.
+ * Which way a line runs, for laying a boundary along it. `fence` and
+ * `stone-wall` are both built along +X and turned about Y by `place`, so a
+ * direction of (ux, uz) is a yaw of `atan2(-uz, ux)`.
  */
 function along(from: Point, to: Point): { ux: number; uz: number; length: number; yaw: number } {
   const dx = to[0] - from[0];
@@ -672,10 +600,9 @@ function along(from: Point, to: Point): { ux: number; uz: number; length: number
  * Lays a builder that tiles along a line, in pieces, and reports where it
  * actually ended.
  *
- * **This is the whole point of the fixed pitch.** An arbitrary length becomes a
- * count of sections: round the line to the nearest one, then take up to four at
- * a time until they run out. Nothing here has to build a piece to find out how
- * wide it came out, and nothing here knows what a fence looks like.
+ * The fixed pitch is what makes this possible: an arbitrary length becomes a
+ * count of sections, so nothing here has to build a piece to find out how wide
+ * it came out and nothing here knows what a fence looks like.
  *
  * The end is *returned* rather than assumed, because rounding to whole sections
  * moves it — a ten-metre line at a 1.4 m pitch is seven sections and stops 20 cm
@@ -706,10 +633,9 @@ function laid(
 /**
  * A fence along a line, optionally finished with the post it is missing.
  *
- * `cap` is the contract made visible. A run ends in two rails pointing at
- * nothing until something supplies the post at its far end — either a
- * `fence-post`, or the first post of the next run, which is why a corner passes
- * `false` and lets the run turning out of it do the job.
+ * `cap` is the contract made visible: a run ends in two rails pointing at
+ * nothing until something supplies the post at its far end, which is why a
+ * corner passes `false` and lets the run turning out of it do the job.
  */
 function fenceRun(root: THREE.Group, seed: number, from: Point, to: Point, cap = true): Point {
   const end = laid(
@@ -759,8 +685,8 @@ function wallRun(root: THREE.Group, seed: number, from: Point, to: Point): Point
 
 /**
  * What a sign says, and what a banner says. Both take text beyond the standard
- * seed and scale, which `MeshBuilder` does not know about, so the options have
- * to carry their own type at the call site.
+ * seed and scale, which `MeshBuilder` does not know about, so the options carry
+ * their own type at the call site.
  */
 function sign(seed: number, text: string): SignboardOptions {
   return { seed, text };
@@ -772,11 +698,9 @@ function strung(seed: number, text: string): BannerOptions {
 
 /**
  * Scatters a builder over an area, skipping anything too steep or too close to
- * where people are.
- *
- * Seeded, so the field is identical every load — and rejected candidates still
- * consume their draws, so adding an exclusion does not reshuffle everything
- * that was already placed.
+ * where people are. Seeded, so the field is identical every load — and rejected
+ * candidates still consume their draws, so adding an exclusion does not
+ * reshuffle everything already placed.
  */
 function scatter(
   parent: THREE.Object3D,
@@ -832,16 +756,13 @@ function scatter(
 }
 
 /**
- * Where the houses stand.
+ * Where the houses stand: a ring about ten metres out from the green, seven to
+ * nine metres apart, so with a hut four metres across the gaps between them are
+ * three or four metres, which is a street.
  *
- * A ring about ten metres out from the green, seven to nine metres apart — so
- * with a hut four metres across the gaps between them are three or four metres,
- * which is a street. The first version had six houses spread over forty metres
- * and read as a hamlet somebody had abandoned.
- *
- * The cobble lanes above run to these coordinates, so moving a house means
- * moving its street. That coupling is deliberate: a path to nowhere is more
- * obviously wrong than a house standing on grass.
+ * The cobble lanes run to these coordinates, so moving a house means moving its
+ * street. That coupling is deliberate: a path to nowhere is more obviously
+ * wrong than a house standing on grass.
  *
  * `interior` marks the three you can go into — three sides of the ring, so
  * walking between the doors crosses the whole settlement.
@@ -880,11 +801,10 @@ function houseYaw(house: House): number {
 }
 
 /**
- * Where the portal door in a house's doorway stands, in world space.
- *
- * Measured off a built hut rather than computed: the doorway's offset is rolled
- * from the seed, so arithmetic here would have to replay the builder's draws.
- * The mesh is thrown away — `buildSettlement` builds its own from that seed.
+ * Where the portal door in a house's doorway stands, in world space. Measured
+ * off a built hut rather than computed: the doorway's offset is rolled from the
+ * seed, so arithmetic here would have to replay the builder's draws. The mesh
+ * is thrown away — `buildSettlement` builds its own from that seed.
  */
 function houseDoorEnd(house: House): PortalEnd {
   const mesh = hut.build({ seed: house.seed });
@@ -920,8 +840,7 @@ export const HOUSE_DOORS: ReadonlyMap<string, PortalEnd> = new Map(
 );
 
 /**
- * The ground you land on stepping out of a house. The world check sweeps a
- * capsule two metres forward off every arrival, so nothing may stand here.
+ * The ground you land on stepping out of a house. Nothing may stand here.
  * Derived, so moving a house cannot leave a barrel in its doorway.
  */
 const DOOR_APPROACHES: readonly (readonly [number, number, number])[] = [
@@ -934,9 +853,8 @@ const DOOR_APPROACHES: readonly (readonly [number, number, number])[] = [
 
 /**
  * The green, the streets and the gate approach, kept clear of anything solid.
- *
- * This is the ground NPCs will walk on in Phase 7, so it is deliberately empty
- * — a village square full of shrubs is a pathfinding problem, not scenery.
+ * This is the ground creatures walk on, so it is deliberately empty — a village
+ * square full of shrubs is a pathfinding problem, not scenery.
  */
 const KEEP_CLEAR: readonly (readonly [number, number, number])[] = [
   [0, 8, 17],
@@ -949,12 +867,11 @@ const KEEP_CLEAR: readonly (readonly [number, number, number])[] = [
 ];
 
 /**
- * Where ground cover may not grow — much smaller than `KEEP_CLEAR`.
- *
- * A daisy is not in the collider at all, so the seventeen-metre circle above
- * bought nothing and cost the settlement its grass: bare ground with a fringe
- * beginning where the houses ended, which reads as a mown lawn. Ground cover
- * keeps off the green, the buildings and the arrivals, and nothing else.
+ * Where ground cover may not grow — much smaller than `KEEP_CLEAR`. A daisy is
+ * not in the collider at all, so a wide exclusion buys nothing and costs the
+ * settlement its grass: bare ground with a fringe beginning where the houses
+ * end reads as a mown lawn. Ground cover keeps off the green, the buildings
+ * and the arrivals, and nothing else.
  */
 const KEEP_CLEAR_SOFT: readonly (readonly [number, number, number])[] = [
   [GREEN[0], GREEN[1], 7],
@@ -966,11 +883,9 @@ const KEEP_CLEAR_SOFT: readonly (readonly [number, number, number])[] = [
 function buildCountryside(): THREE.Group {
   const root = new THREE.Group();
   root.name = 'CountrysideExterior';
-  // **Collidable.** The ground is the one mesh in a zone that absolutely must
-  // be — everything else you can walk through and merely look silly, but a
-  // terrain nobody marked solid is a zone you fall out of the moment you
-  // arrive. It went in unmarked the first time, and the arrival check caught
-  // it by finding no floor under the gate.
+  // Collidable. The ground is the one mesh in a zone that absolutely must be —
+  // everything else you can walk through and merely look silly, but a terrain
+  // nobody marked solid is a zone you fall out of the moment you arrive.
   root.add(markCollidable(terrain.build()));
 
   buildSettlement(root);
@@ -1016,9 +931,8 @@ function buildSettlement(root: THREE.Group): void {
   //
   // Where the settlement stops and the fields start. Stone rather than timber
   // because the two say different things about a line: a fence keeps animals
-  // where they are put, and a wall says the ground on either side of it belongs
-  // to different people. A pier at each end, which is the only place the wall
-  // has one.
+  // where they are put, and a wall says the ground either side belongs to
+  // different people. A pier at each end, the only place the wall has one.
   wallRun(root, 6100, [-13.2, 11.4], [-18, 11.4]);
 
   // The hedge. The line is what makes it one rather than four bushes.
@@ -1077,11 +991,8 @@ function buildSettlement(root: THREE.Group): void {
   //
   // Fenced on the two sides that face open country — the house behind it is the
   // other two. The corner carries one post and not two: the west run leaves its
-  // last one off, and the north run, which starts there, supplies it. Only the
-  // far end of the north run is capped.
-  //
-  // Both runs stay on the level shelf: the terrace falls away past z = 20, and
-  // a rail follows its posts rather than the ground under them.
+  // last one off and the north run supplies it. Both runs stay on the level
+  // shelf, because a rail follows its posts rather than the ground under them.
   const gardenCorner = fenceRun(root, 5701, [-5.4, 16.8], [-5.4, 19.6], false);
   fenceRun(root, 5705, gardenCorner, [-1, 19.6]);
   place(root, sunflower.build({ seed: 5711 }), -3.2, 19.3, 0.4, false);
@@ -1107,14 +1018,10 @@ function buildSettlement(root: THREE.Group): void {
 
   // --- the things that make the noise --------------------------------------
   //
-  // Four sounds in this zone had nothing standing under them, which is the one
-  // thing a soundscape is not allowed to do. See the anchors above: these are
-  // placed from the same numbers the emitters are derived from, so neither can
-  // move without the other.
-  //
-  // The forge faces the green so its hood and the glow under it are read from
-  // the village side rather than from the hillside behind, and the anvil is
-  // turned across it — a smith stands between the two.
+  // Placed from the same numbers the emitters are derived from, so neither can
+  // move without the other. The forge faces the green so its hood and the glow
+  // under it are read from the village side, and the anvil is turned across it
+  // — a smith stands between the two.
   place(root, forge.build({ seed: 5901 }), SMITHY.forge[0], SMITHY.forge[1], Math.PI);
   place(root, anvil.build({ seed: 5902 }), SMITHY.anvil[0], SMITHY.anvil[1], 0.6);
   place(root, signboard.build(sign(5903, 'SMITHY')), 12.4, 7.8, -1.5);
@@ -1142,7 +1049,6 @@ function buildCountry(root: THREE.Group): void {
   //
   // Four species and their saplings. The saplings matter more than the extra
   // species does: a wood where every trunk is the same height was planted.
-  //
   // Oak on the valley floor, where the soil is.
   scatter(root, oak, {
     seed: 5001,

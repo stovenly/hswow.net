@@ -20,28 +20,21 @@ import { chainZones, chainPortals } from './chains';
 
 /**
  * The test world: the hub, and the two antechambers everything else hangs off.
- *
- * This is the Phase 5 fixture, in the same spirit as the movement gym and the
- * prop gallery — not content, but a place where the system can be exercised.
+ * Not content — a place where the system can be exercised.
  *
  * **The hub says two things.** Turn around for the kit: three prop halls, with
  * the galleries and showcases inside them. Look forward for the world: the Demo
- * Showcase, with every finished place behind it. The demos used to stand loose
- * in the hub's own field — a hut a few paces off spawn, the village gate beside
- * it, the factory door beside that — which was right at two and stopped being
- * right at four. See `demos.ts`.
+ * Showcase, with every finished place behind it.
  *
- * Two interiors rather than one because a single portal cannot show whether
+ * Two interiors rather than one, because a single portal cannot show whether
  * zone state is being reset or merely swapped: with two you can go in one door,
- * come out, go in the other, and any leak between them shows up as the wrong
- * room. They are deliberately unalike in every axis the zone system controls —
- * size, light, fog, floor material, acoustics — because the claim of a zone is
- * that crossing into it changes the place, and two rooms that differ only in
- * dimensions prove nothing.
+ * come out, go in the other, and any leak shows up as the wrong room. They are
+ * deliberately unalike in every axis the zone system controls — size, light,
+ * fog, floor material, acoustics — because the claim of a zone is that crossing
+ * into it changes the place.
  *
- * **The names are placeholders.** They are what a door's tooltip shows, so
- * they are the most player-facing strings in the game so far, and naming is
- * not mine to do. One string each, here, whenever the fiction wants them.
+ * **The names are placeholders.** They are what a door's tooltip shows, so they
+ * are the most player-facing strings in the game so far.
  */
 
 export const ZONE_EXTERIOR = 'exterior';
@@ -50,44 +43,29 @@ export const ZONE_FACTORY = 'factory';
 export { ZONE_COUNTRYSIDE } from './countryside';
 
 /**
- * The door to the Demo Showcase, directly ahead of spawn.
- *
- * Spawn is `(0, 0.1, 10)` looking down -Z, so a door at z = 6 sits in front of
- * you the moment the game boots — which is the whole argument for where it is.
- * A portal you have to walk thirty seconds to reach is a portal that gets
- * tested once; one you are looking at on boot gets used every time anything
- * behind it changes. It stands where the village gate used to, in the middle of
- * the three doors it replaced, clear of the measured cubes at z = 0 and well
- * clear of the movement gym west of x = -4.
+ * The door to the Demo Showcase, directly ahead of spawn. A portal you have to
+ * walk thirty seconds to reach is a portal that gets tested once; one you are
+ * looking at on boot gets used every time anything behind it changes. Clear of
+ * the measured cubes at z = 0 and of the movement gym west of x = -4.
  */
 const DEMO_DOOR_AT = new THREE.Vector3(10, 0, 6);
 /** Faces +Z, back toward spawn, so it is square-on the moment you look at it. */
 const DEMO_YAW = 0;
 
 /**
- * How far a portal door stands out from the wall it is set into.
- *
- * Small, but not zero. The interior shells are sealed boxes; a door mesh
- * exactly coplanar with one would z-fight along every edge at every distance.
+ * How far a portal door stands out from the wall it is set into. Small, but not
+ * zero: the interior shells are sealed boxes, and a door mesh exactly coplanar
+ * with one would z-fight along every edge at every distance.
  */
 const DOOR_PROUD = 0.07;
 
 /**
- * The rank of prop hall doors, directly behind spawn.
+ * The rank of prop hall doors, directly behind spawn. Yaw π faces -Z, back
+ * toward spawn, so the rank is square-on when you turn.
  *
- * This rank used to carry one door per gallery, and the galleries now hang off
- * the prop halls instead — see `props.ts` for why. Three doors where four
- * stood, in the same spots: the hub's job is unchanged, it is just no longer
- * the place that grows when the kit does.
- *
- * Yaw π faces -Z, back toward spawn, so the rank is square-on when you turn.
- *
- * **Everything in the gym has to stay south of the arrival markers**, which
- * sit a stride in front of these doors at z ≈ 20.9. The rank was moved out to
- * z = 22 because the first two doors opened straight onto the old strafe wall
- * and the check caught it as "boxed in 0.5 m from the door" — walkable on
- * arrival and walled a stride later. The parkour courses that replaced that
- * wall stop at z = 18 for the same reason.
+ * **Everything in the gym has to stay south of the arrival markers**, which sit
+ * a stride in front of these doors at z ≈ 20.9. A door that is walkable on
+ * arrival and walled a stride later is a door nobody can use.
  */
 const PROP_RANK = new THREE.Vector3(-10, 0, 22);
 const PROP_SPACING = 5;
@@ -98,19 +76,16 @@ const PROP_YAW = Math.PI;
  * Exported for `interiors.build.ts`, which holds the builder half of that
  * sharing now that the geometry loads on demand.
  */
-// Roomy rather than snug. The first version was 6.4 x 5.2 and read as a
-// cupboard the moment there was furniture in it — at eye height a room needs
-// enough floor that you can walk *around* something, not just past it.
+// Roomy rather than snug: at eye height a room needs enough floor that you can
+// walk *around* something, not just past it.
 export const HUT_ROOM_SHELL = { width: 10, depth: 8, height: 3.4 };
 export const FACTORY = { width: 15, depth: 11, height: 5.6 };
 
 /**
  * Where the plant in the factory hall actually stands.
  *
- * Same rule as the wet corner above: **placement runs object → sound.** These
- * are read by `buildFactory` and by `FACTORY_SOUND`, so an engine cannot be
- * moved without its noise following it, which is exactly what went wrong the
- * first time an emitter was given coordinates of its own.
+ * **Placement runs object → sound.** These are read by `buildFactory` and by
+ * `FACTORY_SOUND`, so an engine cannot be moved without its noise following it.
  */
 export const ENGINE_X = -5.4;
 export const ENGINE_Z = [-2.4, 1.1, 4.4] as const;
@@ -120,7 +95,6 @@ export const STRIPPED_AT: readonly [number, number, number] = [1.5, 0.9, 1.9];
 export const GANTRY_AT: readonly [number, number, number] = [-1.8, 2.6, 2.4];
 /**
  * The pipe run on the east wall, and roughly the height of its main.
- *
  * `FACTORY.width / 2 − 0.34` — written out because this is read before
  * `buildFactory` declares its local `halfW`, and the two must not drift.
  */
@@ -129,41 +103,29 @@ export const PIPE_RUN: readonly [number, number, number] = [15 / 2 - 0.34, 1.5, 
 /**
  * The factory hall.
  *
- * A works is not a village and the rules are different. Out in the open,
- * sparse beats dense and everything has a short reach; in a sealed stone box
- * fifteen metres across there is nowhere to walk *away* to, so the danger is
- * the opposite one — four continuous sources at once is a wall of noise with
- * no shape, and the room stops having a near end and a far end.
+ * A works is not a village and the rules are different. Outdoors, sparse beats
+ * dense and everything has a short reach; in a sealed stone box fifteen metres
+ * across there is nowhere to walk *away* to, so the danger is the opposite one
+ * — four continuous sources at once is a wall of noise with no shape, and the
+ * room stops having a near end and a far end.
  *
- * So: two engines and not four. The row is three machines long and the ear
- * cannot separate three of the same model in one room anyway — it hears "an
- * engine room", which is the read that is wanted, and two sources deliver it
- * for half the voices. They are pitched a fifth apart and run at different
- * speeds, because two identical machines beat against each other into a
- * chorus and stop being two objects.
+ * So two engines and not four. The ear cannot separate three of the same model
+ * in one room anyway — it hears "an engine room", which is the read that is
+ * wanted. They are pitched a fifth apart and run at different speeds, because
+ * two identical machines beat into a chorus and stop being two objects.
  *
- * The gantry is what makes it a *working* room rather than a running one. It
- * moves in bursts with long silences between, and a silence in an industrial
- * space is worth more than another drone in it.
+ * The gantry is what makes it a *working* room rather than a running one: it
+ * moves in bursts, and a silence in an industrial space is worth more than
+ * another drone in it.
  *
- * ## Everything here is quieter than it looks
- *
- * The first pass used gains borrowed from the proving ground's mill, and in
- * here it was far too loud. Three things stack up in a sealed room and none of
- * them is the gain:
- *
- * - **There is nowhere to be far away.** The hall is 15 × 11, so the listener
- *   is within about eight metres of everything in it at all times. Distance
- *   attenuation, which does most of the mixing outdoors, does almost nothing.
- * - **`refDistance` was set as though it would.** At 2.5 m the sources were at
- *   full level across most of the floor. Pulled in, so crossing the room is
- *   actually a change.
- * - **The room adds the sound back.** A `hall` tail returns most of what is
- *   sent to it, so a continuous source at reverb 0.9 is heard roughly twice —
- *   once dry and once as a room that never stops ringing. Fine for a hammer
- *   with silence after it; wrong for an engine that never stops. Sends are
- *   well down here for exactly that reason, and the intermittent sources keep
- *   theirs.
+ * **Everything here is quieter than it looks**, and three things stack up in a
+ * sealed room. There is nowhere to be far away — the hall is 15 × 11, so the
+ * listener is within about eight metres of everything and distance attenuation
+ * does almost nothing. `refDistance` is pulled in to match, so crossing the
+ * room is actually a change. And the room adds the sound back: a `hall` tail
+ * returns most of what is sent to it, so a continuous source at reverb 0.9 is
+ * heard roughly twice. Sends are well down here; the intermittent sources keep
+ * theirs.
  */
 const FACTORY_SOUND: SoundscapeSpec = {
   emitters: [
@@ -191,20 +153,17 @@ const FACTORY_SOUND: SoundscapeSpec = {
       rolloff: 1.7,
       reverb: 0.35,
     },
-    // **The chain hoist.** The genuine friction case: a load on a chain over a
-    // drum, hauled in bursts. Iron, so the body rings much longer and brighter
-    // than the tree in the proving ground does — same model, and nobody would
-    // mistake one for the other, which is the argument for modelling it rather
-    // than crossfading two recordings.
+    // The chain hoist: a load on a chain over a drum, hauled in bursts. Iron, so
+    // the body rings much longer and brighter than the tree in the proving
+    // ground — same model, and nobody would mistake one for the other.
     {
       model: 'friction',
       id: 'gantry',
       at: GANTRY_AT,
-      // **Duller and slower than the first pass, and both matter.** `bright`
-      // at 0.75 put most of the energy into the three upper modes, where the
-      // contact noise lives — measured across octave bands it came out flat,
-      // which is the definition of hiss. And 0.34 sits past the Stribeck dip
-      // in the model's rub regime, so it never reached the creak at all.
+      // Dull and slow. High `bright` puts most of the energy into the upper
+      // modes where the contact noise lives, which measures flat across octave
+      // bands and is the definition of hiss; and a low speed sits past the
+      // Stribeck dip in the rub regime, never reaching the creak at all.
       options: {
         motion: 'cycle',
         speed: 0.26,
@@ -228,12 +187,9 @@ const FACTORY_SOUND: SoundscapeSpec = {
     // Air in the pipework on the east wall — a stopped tube with a draught
     // through it, which is a thing a works has a great deal of.
     //
-    // **Deliberately tiny reach.** This room was already too loud once, and
-    // the fix for that was not only lower gains but shorter distances: a fifth
-    // continuous source that filled the hall would undo it. At 9 m this exists
-    // when you are beside the wall and nowhere else, which is what a draught
-    // in a pipe actually does — and it rewards walking the room rather than
-    // adding to its floor.
+    // Deliberately tiny reach. A fifth continuous source filling the hall would
+    // undo everything above. At 9 m this exists when you are beside the wall and
+    // nowhere else, which is what a draught in a pipe actually does.
     {
       model: 'waveguide',
       id: 'pipe-air',
@@ -280,10 +236,8 @@ export interface TestWorld {
 }
 
 /**
- * Where the door to the nth prop hall stands in the hub.
- *
- * Shared by the portal definition and the arch built around it, so the two
- * cannot drift apart — the same trick the village gate uses.
+ * Where the door to the nth prop hall stands in the hub. Shared by the portal
+ * definition and the arch built around it, so the two cannot drift apart.
  */
 function propHub(index: number, material: 'timber' | 'iron'): PortalEnd {
   return {
@@ -306,7 +260,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       name: 'Outside',
       environment: {
         ...OUTDOOR_ENVIRONMENT,
-        // The shared outdoor default bounces the old dark floor colour. This
+        // The shared outdoor default bounces a dark floor colour. This
         // zone's floor is now pale, and a pale floor throwing dark warm light
         // back up leaves every fixture's underside reading as dirt. Local to
         // the proving ground — the village floor did not change.
@@ -323,18 +277,14 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         // The hut that used to stand here went into the Demo Showcase with the
         // door that was set into it — see `demos.ts`.
 
-        // The sink and the cistern stood in the cell, which is gone with the
-        // rest of the acoustics fixture. They were there for one reason —
-        // "every sound needs an object", and the water you could hear had to
-        // be coming out of something — so with the water gone there is nothing
-        // for them to be the object of.
+        // The sink and the cistern are gone with the acoustics fixture they
+        // stood in. Every sound needs an object, and with the water gone there
+        // is nothing for them to be the object of.
 
         // No frames around the village gate or the prop hall rank. An archway
         // reads as a threshold you walk *through*, and neither of these is —
-        // both are doors you use and are teleported by. Ringing every one of
-        // them in masonry made the Proving Ground look like a folly garden and
-        // said nothing true about what they do. The portal system builds the
-        // door meshes themselves; that is the whole fixture.
+        // both are doors you use and are teleported by. The portal system
+        // builds the door meshes themselves; that is the whole fixture.
         return root;
       },
     },
@@ -384,28 +334,21 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         fogNear: 12,
         fogFar: 48,
         ambientSky: 0x7c8794,
-        // **This is what the ceiling is lit by, and almost nothing else.**
-        //
-        // A hemisphere light is sampled by the surface normal, and a ceiling
+        // This is what the ceiling is lit by, and almost nothing else. A
+        // hemisphere light is sampled by the surface normal, and a ceiling
         // points straight down — so it takes the *ground* lobe and none of the
-        // sky one. Both directional lights are above it and contribute nothing
-        // at all. At 0x3a3f44 the roof was being lit by a dark slate colour and
-        // no amount of adjusting the material could rescue it: the albedo was
-        // being multiplied by nearly zero.
-        //
-        // Lifted well up, and warm rather than blue, because what is actually
-        // bouncing up here is light off a lit floor.
+        // sky one, and both directional lights are above it and contribute
+        // nothing. Lifted well up and warm rather than blue, because what is
+        // actually bouncing up here is light off a lit floor.
         ambientGround: 0x8a8378,
         ambientIntensity: 2.2,
         sunIntensity: 0.9,
         fillIntensity: 0.85,
         fillColor: 0x93a3b5,
-        // A four-second stone tail on your own boots turned every step into a
-        // gunshot in a cathedral, so this was cut hard — and cut too far. With
-        // almost no send the steps went completely dry, which put them right
-        // back at the listener's head, just quieter: reverb is most of what
-        // tells you a sound is happening in a *room* rather than in your ears.
-        // Enough to place them in the hall, not enough to ring it.
+        // Enough to place your own steps in the hall, not enough to ring it. A
+        // four-second stone tail on your own boots is a gunshot in a cathedral;
+        // with almost no send they go dry, which puts them back at the
+        // listener's head, just quieter.
         footstepReverb: 0.34,
         soundscape: FACTORY_SOUND,
       },
@@ -488,7 +431,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   // The Vista Showcase, which is everything past the edge of both — see
   // `VistaShowcase.ts` and VISTA.md.
   zones.push(vistaShowcaseZone());
-  // The Music Showcase and its annex — Phase 6c's stage. Its hall door is in
+  // The Music Showcase and its annex. Its hall door is in
   // `propPortals` with the other showcases; the portal here joins the pair,
   // because the border retune the stage exists to prove has to be walked.
   zones.push(musicStageZone());

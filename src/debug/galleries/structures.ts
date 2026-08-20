@@ -89,61 +89,45 @@ import { workbench } from '../../art/builders/workbench';
  * The setting galleries: one room per palette the kit has to dress.
  *
  * Split by setting rather than by kind, which is the one place in this scheme
- * where setting earns its keep. A hut and a mill are both buildings and they
- * are not remotely the same problem — the question about a hut is whether it
- * sits in a village, and the question about a mill is whether it sits in a
- * works. Standing them together answers neither.
+ * where setting earns its keep. A hut and a mill are both buildings and not
+ * remotely the same problem — the question about a hut is whether it sits in a
+ * village and the question about a mill is whether it sits in a works, and
+ * standing them together answers neither.
  *
- * **A set is not a category.** There was briefly a Prop Gallery holding the
- * crates, furniture, water and workshop pieces, on the reasoning that a barrel
- * and a bed are the same *kind* of thing. They are, and it was the wrong
- * split: every one of them exists to dress a village, and a barrel judged
+ * **A set is not a category.** A barrel and a bed are the same *kind* of thing
+ * and it is the wrong split: both exist to dress a village, and a barrel judged
  * beside a stool tells you nothing a barrel judged beside a hut does not tell
  * you better. What a room like this has to answer is "does this all belong in
- * the same place", so the things that go in one place go in one room.
+ * the same place".
  *
- * The village is two rooms now, on the same reasoning taken one step further:
- * the palette is broken down by subzone category, and interior and exterior
- * dressing are different categories because they are different *places* — a
- * dresser is judged against the room it furnishes and a streetlamp against the
- * lane it stands in, and neither judgement is helped by the other standing in
- * it. The line runs where the wall does. The lamps split with it: `lantern`
- * hangs by a door and `candle` stands on a table, so one is exterior and one
- * is interior even though they were built as a pair.
+ * The village is two rooms, on the same reasoning taken further: interior and
+ * exterior dressing are different categories because they are different
+ * *places*. A dresser is judged against the room it furnishes and a streetlamp
+ * against the lane it stands in. The line runs where the wall does, and the
+ * lamps split with it — `lantern` hangs by a door and `candle` stands on a
+ * table.
  *
- * ## And the exterior is three rooms, because two of them are systems
+ * The exterior is three rooms, because two of them are systems.
  *
- * The exterior grew past the point where one look down a rank could take it in,
- * and it did not grow evenly — it grew two clumps with a rule inside each.
- *
- * **The stone wall is a system, not a prop.** Six pieces that all share one
- * pitch, one batter, one set of stones and one seam behaviour, which only tile
- * because of that. What has to be checked about them is whether a straight
- * piece, a curve, a pier and a ruin still look like the same wall — and that is
- * a comparison you make by standing them in a line, not by hunting for them
- * among the streetlamps. `stone-wall-ruin` and `stone-wall-archway` are named
- * for the family rather than for themselves, because that is what they are: an
- * end and an opening *of the wall*.
+ * **The stone wall is a system, not a prop**: six pieces that share one pitch,
+ * one batter, one set of stones and one seam behaviour, which only tile because
+ * of that. What has to be checked is whether a straight piece, a curve, a pier
+ * and a ruin still look like the same wall, and that is a comparison you make
+ * by standing them in a line.
  *
  * **The farm is a place, not a kind.** A rick, a plough and a skep have nothing
- * in common as objects and everything in common as a statement, and the
- * question about them is whether they add up to somewhere that grows things —
- * which is the same question the village room asks, about a different place.
+ * in common as objects and everything in common as a statement.
  *
- * **The buildings are a system too**, and they left for the same reason the
- * wall did: eight of them share one plinth, one set of walls and one set of
- * roofs, and whether they still agree is a question you answer by standing them
- * in a line — not by finding the hut among the streetlamps.
+ * **The buildings are a system too**: eight of them share one plinth, one set
+ * of walls and one set of roofs, and whether they still agree is a question you
+ * answer by standing them in a line.
  *
  * What is left in the village room is what dresses a lane: the light, the
- * water, the goods and the fences.
+ * water, the goods and the fences. `figure` is in none of them — it stands with
+ * the animals in the Life gallery.
  *
- * `figure` is in none of them — it stands with the animals in the Life gallery,
- * with the rest of what moves under its own power.
- *
- * The factory room was thin — one machine, and a room with one row in it is a
- * corridor. What it needed was not more *machines* but the things around them:
- * a works reads as a works because material is routed through it and people are
+ * The factory room needed not more *machines* but the things around them: a
+ * works reads as a works because material is routed through it and people are
  * fenced off from it, so the pipe run, the railing and the chainlink do more
  * for the setting than a second engine would.
  */
@@ -185,23 +169,21 @@ const VILLAGE_EXTERIOR_BUILDERS = [
 ];
 
 /**
- * The stone wall, as a family.
- *
- * Ordered so that every piece stands next to the one it has to agree with: the
- * two heights of the straight run, then the two of the curve, then the piers
- * that finish them, then the two ways a run can end in something other than a
- * pier. If any two of these disagree about what stone looks like, that is
- * visible from where you arrive.
+ * The stone wall, as a family. Ordered so every piece stands next to the one it
+ * has to agree with: the two heights of the straight run, then the two of the
+ * curve, then the piers that finish them, then the two ways a run can end in
+ * something other than a pier. If any two disagree about what stone looks like,
+ * that is visible from where you arrive.
  */
 const STONE_WALL_BUILDERS = [
   stoneWall,
   stoneWallLow,
   // The piers, by how hard a turn they make: three faces bend a run sixty
   // degrees, four ninety, five thirty-six or seventy-two. They are the whole of
-  // how this wall changes direction — see `stone-wall-square-column`. Read in
-  // that order, and each beside its own low version, so the one thing that has
-  // to be true of all six is checkable at a glance: **every face is the same
-  // width**, because that is what lets a run meet any of them.
+  // how this wall changes direction. Read in that order, each beside its own low
+  // version, so the one thing that has to be true of all six is checkable at a
+  // glance: **every face is the same width**, which is what lets a run meet any
+  // of them.
   stoneWallTriangleColumn,
   stoneWallTriangleColumnLow,
   stoneWallSquareColumn,
@@ -217,14 +199,14 @@ const STONE_WALL_BUILDERS = [
  *
  * Tallest first, as the foliage rooms are, and then read across in three
  * registers — the things that are **stacked**, the things that are **heaped**,
- * and the things that are **held**. That last one is the register the kit was
- * shortest of: everything outdoors was furniture, structure or a mass, and a
- * place with nothing at hand scale in it reads as a model of itself.
+ * and the things that are **held**. That last is the register the kit was
+ * shortest of: a place with nothing at hand scale in it reads as a model of
+ * itself.
  *
  * The two straw piles stand together on purpose. `hay-bale-stack` is the stuff
  * squared, corded and stacked; `straw-pile` is the same material before any of
- * that happened to it, and the pair of them is the difference between a yard
- * that is worked and a warehouse.
+ * that happened to it, and the pair is the difference between a yard that is
+ * worked and a warehouse.
  */
 const FARM_BUILDERS = [
   // Landmarks.
@@ -278,9 +260,7 @@ const VILLAGE_INTERIOR_BUILDERS = [
  * A room of its own because a building is not judged the way a barrel is. What
  * has to be true of these is that they agree — the same plinth, the same
  * carpentry, the same four roofs — while still saying who paid for each of
- * them, and that comparison only works standing them in a line. It is the
- * argument the stone wall room already makes, applied to the other family in
- * the kit that shares a construction rather than a setting.
+ * them, and that comparison only works standing them in a line.
  *
  * Ordered up the money: the two houses a villager lives in, the three buildings
  * a trade works out of, then the two the parish and the manor put up. `church`
@@ -288,20 +268,16 @@ const VILLAGE_INTERIOR_BUILDERS = [
  * door reads better ending on the landmark than starting on it.
  *
  * **Only the first two rows are rows.** A hut and a cottage get placed by the
- * dozen and are rolled from a seed, so eight of each is how you see whether the
- * spread is even. The other six are placed once in a settlement and are drawn
- * rather than rolled — they declare `variants: 1` and their row is one building,
- * because eight identical churches is not a comparison, it is a car park.
+ * dozen and are rolled from a seed, so eight of each shows whether the spread
+ * is even. The other six are placed once in a settlement and declare
+ * `variants: 1`, because eight identical churches is not a comparison.
  */
 const VILLAGE_BUILDING_BUILDERS = [hut, cottage, market, blacksmith, stable, barn, manor, church];
 
 /**
- * Eight metres between instances rather than a grid tile.
- *
- * Only two rows in this room are more than one deep — `hut` and `cottage`, the
- * two that are rolled from a seed rather than drawn. Everything else declares
- * `variants: 1`, so its row is one building and the spacing does not reach it.
- * Eight is what those two houses need to stand apart.
+ * Eight metres between instances rather than a grid tile. Only `hut` and
+ * `cottage` are more than one deep; everything else declares `variants: 1`, so
+ * its row is one building and the spacing does not reach it.
  */
 const BUILDING_SPACING = 8;
 

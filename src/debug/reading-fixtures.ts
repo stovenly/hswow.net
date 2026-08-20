@@ -15,9 +15,8 @@ import { registerNotes, type Note } from '../content/notes';
  * is what a loader hands over when a note exists and nobody has written it yet,
  * which will happen the first day the editor is used.
  *
- * A title long enough to overflow the tooltip is deliberately *not* here.
- * `check:world` now refuses one, which is a better answer than a station
- * demonstrating what it looks like when it happens.
+ * A title long enough to overflow the tooltip is deliberately *not* here. A
+ * title that does not fit is a fault to refuse, not one to demonstrate.
  */
 
 const SENTENCES = [
@@ -35,7 +34,7 @@ const SENTENCES = [
  * Repetition is the point *here* and only here: this fixture is a length, and
  * a length is all it is measuring. Nothing about how a page reads should be
  * judged off it — the same six sentences coming round every paragraph makes it
- * useless for that, and it was briefly used for it.
+ * useless for that.
  */
 function filler(paragraphs: number, sentences: number): string {
   const out: string[] = [];
