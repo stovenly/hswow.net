@@ -7,39 +7,19 @@ import { excite } from '../dsp/impact';
 import { popBubble, bubbleRadius } from '../dsp/bubble';
 
 /**
- * Rain.
+ * Rain. A hiss bed — every drop too far away to resolve — carrying nearly all
+ * the level, and patter on top carrying almost none of it and all of the
+ * identity. Backwards, it is bubble wrap with a hat on.
  *
- * Two layers and a decision about what it is falling *on*.
+ * Rain has no sound of its own. Water falling through air is silent; what you
+ * hear is the surface it lands on, and the same weather over a canopy, a slate
+ * roof, a dirt track and a pond makes four sounds with nothing in common —
+ * dense mid rustle, bright sharp tick, dull thud, bubbles. So `surface` is not
+ * a tone control on the model, it *is* the model, and the rest is a scheduler.
  *
- * - A **hiss bed**: the aggregate of every drop too far away to resolve. This
- *   carries nearly all the level, and on its own it is a waterfall.
- * - **Patter**: the drops close enough to hear individually, as short filtered
- *   transients. Almost none of the level, all of the identity.
- *
- * The relationship is exactly the one `foliage.ts` was built around, and the
- * failure mode is the same: loud, broadband, individually audible drops are
- * bubble wrap with a hat on. Rain is a very large number of very quiet events.
- *
- * ## Rain has no sound of its own
- *
- * This is the thing worth getting right. Water falling through air is silent —
- * what you hear is **the surface it lands on**, and that surface is doing all
- * the characterisation. The same weather over a leaf canopy, a slate roof, a
- * dirt track and a pond makes four sounds with almost nothing in common:
- * leaves are a dense mid rustle, stone is a bright sharp tick, earth is a dull
- * thud with no ring, water is bubbles.
- *
- * So `surface` is not a tone control on top of a rain model. It *is* the rain
- * model. Everything else here is a scheduler.
- *
- * ## Why water is different in kind
- *
- * Rain on stone or leaves is an impact — broadband excitation into a
- * resonance, exactly like a footstep. Rain on water is not an impact at all: it
- * is air being entrained, and every drop rings at a pitch set by the size of
- * the bubble it traps. That is a completely different generator, so `'water'`
- * gets `dsp/bubble.ts` rather than `dsp/impact.ts`. It is the one place in this
- * model where the physics changes rather than the numbers.
+ * Rain on stone or leaves is an impact, exactly like a footstep. Rain on water
+ * is air being entrained, every drop ringing at the size of the bubble it
+ * traps, so `'water'` uses `dsp/bubble.ts` rather than `dsp/impact.ts`.
  */
 
 export type RainSurface = 'canopy' | 'stone' | 'earth' | 'water';
@@ -136,20 +116,15 @@ export interface RainOptions {
 
 export interface RainModel extends SoundModel {
   /**
-   * How hard it is raining, 0..1.
-   *
-   * Moves rate, level and brightness together. Rate goes as the square, for the
-   * same reason foliage's does — heavier rain is not proportionally more drops,
-   * it is far more.
+   * How hard it is raining, 0..1. Moves rate, level and brightness together;
+   * rate goes as the square, because heavier rain is not proportionally more
+   * drops, it is far more.
    */
   setIntensity(value: number): void;
   /**
-   * What it is falling on.
-   *
-   * Changes the bands rather than rebuilding anything, so it can be switched
-   * live — walking from a lane onto cobbles under the same sky. The bubble path
-   * is decided at construction, though: `'water'` cannot be switched into,
-   * because it is a different generator.
+   * What it is falling on. Changes the bands rather than rebuilding, so it can
+   * switch live — a lane onto cobbles under the same sky. `'water'` cannot be
+   * switched into: the bubble path is decided at construction.
    */
   setSurface(surface: RainSurface): void;
 }

@@ -1,33 +1,17 @@
 /**
- * Excitation — the thing that happens *to* an object, as opposed to the object.
+ * Excitation — what happens *to* an object, as opposed to the object. A very
+ * short window of noise, broadband enough to wake every mode.
  *
- * Modal banks, waveguides and resonant bodies all need feeding, and what they
- * want is a short burst of broadband energy: an impulse. A mathematically
- * perfect impulse is a click with infinite bandwidth and no character, so what
- * is actually used everywhere is a very short window of noise, which is
- * broadband enough to wake every mode and has a length and a spectrum of its
- * own that carry information.
- *
- * **The length of the excitation is the softness of the contact.** A steel ball
- * on stone is a couple of milliseconds; a boot on stone is five or six, because
- * the sole deforms and spreads the contact out; a boot on mud is fifty. Same
- * resonator, wildly different event. This is usually a more powerful control
- * than anything in the resonator itself, and it is the one most often left at
- * a constant.
- *
- * Extracted from the `excite` closure in `footsteps.ts` and the click path in
- * `door.ts`.
+ * Its length is the softness of the contact: a couple of milliseconds for
+ * steel on stone, five or six for a boot, fifty for a boot in mud. Same
+ * resonator, wildly different event.
  */
 
 import { strike } from './envelopes';
 
 /**
- * Fires one burst of noise into a target at a scheduled time.
- *
- * @param at Audio-clock time. Must be in the future; this schedules, it does
- *   not play.
- * @param duration Contact time in seconds. See the note above — this is the
- *   hardness control.
+ * Fires one burst of noise into a target. `at` is audio-clock time and must be
+ * in the future; `duration` is the contact time in seconds.
  */
 export function excite(
   context: BaseAudioContext,
@@ -37,17 +21,9 @@ export function excite(
   level: number,
   duration: number,
   /**
-   * Rise time in seconds. **This is the hardness control, and leaving it at a
-   * constant is how everything ends up sounding like the same tap.**
-   *
-   * A millisecond is a strike: steel, stone, a resonator being rung. Thirty is
-   * not a strike at all — it is a foot decelerating into snow or moss, where
-   * nothing arrives suddenly because nothing stops suddenly. Between the two
-   * the ear hears a completely different *event*, not a differently coloured
-   * one, and no filtering downstream can convert one into the other.
-   *
-   * Defaults to the old behaviour: as fast as the duration allows, capped at
-   * 1.2 ms, which is right for anything being genuinely struck.
+   * Rise time in seconds. A millisecond is a strike; thirty is a foot
+   * decelerating into snow, and no filtering downstream converts one into the
+   * other. Defaults to as fast as the duration allows, capped at 1.2 ms.
    */
   attack?: number,
 ): void {
@@ -63,37 +39,23 @@ export function excite(
 
   source.connect(envelope).connect(target);
 
-  // **The noise has to outlast the envelope, not match it.** `strike` ends in a
-  // `setTargetAtTime` whose time constant is about half the duration, so a
-  // window of `duration` cuts a long excitation while it is still a tenth up —
-  // which for a modal bank driven in excitation mode is most of its ring. Two
-  // and a half times over is four time constants, and by then it is silent.
+  // The noise outlasts the envelope rather than matching it: `strike` ends in
+  // a `setTargetAtTime` whose constant is about half the duration, so two and
+  // a half times over is four constants and by then it is silent.
   const window = rise + duration * 2.5 + 0.05;
-  // A random offset into the buffer, so a hundred impacts are a hundred
-  // different noises rather than the same click a hundred times. Without this
-  // repeated strikes phase together and start to sound sampled.
+  // A random offset into the buffer, so repeated strikes do not phase together
+  // and start to sound sampled.
   source.start(at, Math.random() * Math.max(noise.duration - window, 0), window);
   source.stop(at + window + 0.01);
 }
 
 /**
- * A material compressing under load, rather than being struck.
+ * A material compressing under load rather than being struck. The foot keeps
+ * going after contact and the sound is the material packing over a tenth of a
+ * second, so the envelope swells to a peak instead of decaying.
  *
- * The third gesture, and the one every impact model leaves out. An impact is
- * energy arriving and leaving — fast in, exponential out. Snow, moss, deep
- * earth, sand and mud do not do that: the foot keeps going after contact, and
- * the sound is the material *packing* over a tenth of a second. It swells
- * rather than decays, and it has no strike in it at all.
- *
- * Two things make it read as compression rather than as a long soft noise:
- *
- * - **The envelope rises.** A percussive envelope on this sounds like a muffled
- *   hit; a rise-and-fall sounds like weight going into something.
- * - **The band climbs.** As a granular material packs, the voids close and the
- *   noise it makes shifts up. That climb is snow's squeak — literally, crystals
- *   shearing against each other — and at a lower ratio it is the squish of moss
- *   and the suck of mud. Zero climb sounds like a filter sweep somebody forgot
- *   to set.
+ * The band climbs as the voids close, which is snow's squeak — crystals
+ * shearing — and at a lower ratio moss's squish and mud's suck.
  */
 export function crush(
   context: BaseAudioContext,
@@ -112,38 +74,22 @@ export function crush(
     /**
      * Whether the band is a window or a ceiling. Defaults to a window.
      *
-     * **A swept bandpass is a whoosh, whatever envelope you put on it**, and no
-     * amount of shaping turns one into a splash. A splash is *broadband* — it
-     * starts with everything in it and loses the top first, because that is
-     * where the energy dissipates fastest. That is a lowpass falling, not a
-     * window moving, and the two are not interchangeable however similar the
-     * numbers look.
-     *
      * Granular packing genuinely is a window: the voids are a size, and they
-     * close. Liquid displacement is not.
+     * close. Liquid displacement is a lowpass falling — it starts with
+     * everything in it and loses the top first — and a swept bandpass is a
+     * whoosh whatever envelope is put on it.
      */
     band?: 'window' | 'ceiling';
     /**
      * Where the peak sits, as a fraction of the duration. Defaults to 0.45.
-     *
-     * **This is the difference between a swell and a burst**, and it is what
-     * separates a foot sinking into snow from a foot going into water. Packing
-     * builds while the load goes on, so it peaks near the middle; a liquid is
-     * displaced almost at once and then takes a long time to fall back, so it
-     * peaks in the first tenth and the rest is tail.
+     * Packing builds while the load goes on and peaks near the middle; a
+     * liquid is displaced almost at once and peaks in the first tenth.
      */
     rise?: number;
     /**
-     * How irregular the flow is, 0..1. Defaults to smooth.
-     *
-     * **A smooth envelope over a smooth sweep is the sound of a synthesiser**,
-     * and it is why filtered noise so reliably reads as static or as cloth. Real
-     * flow does not decay evenly: it surges and catches, and both the level and
-     * the spectrum wander while it does. A handful of irregular waypoints on
-     * each is the difference between a filter sweep and something moving.
-     *
-     * Wanted most by anything thick — mud, a bog, a leg dragging through water.
-     * Left at zero for granular packing, which really is smooth.
+     * How irregular the flow is, 0..1. Defaults to smooth. A handful of
+     * waypoints wander both the level and the spectrum, which is what anything
+     * thick wants; granular packing really is smooth and stays at zero.
      */
     rough?: number;
   },
@@ -209,15 +155,9 @@ export function crush(
 }
 
 /**
- * A tonal thump: a sine falling in pitch, felt more than heard.
- *
- * The weight of a thing. Modal banks carry material and excitation carries
- * contact, but neither carries *mass* — for that you need energy below where
- * the resonators live, and a short falling sine is how impacts are described
- * everywhere from foley practice to automotive door engineering.
- *
- * Extracted from `door.ts`, where it is what makes an iron door feel heavy
- * rather than merely sound bright.
+ * A tonal thump: a sine falling in pitch, felt more than heard. Modal banks
+ * carry material and excitation carries contact, but neither carries mass —
+ * for that you need energy below where the resonators live.
  */
 export function thump(
   context: BaseAudioContext,
@@ -228,10 +168,8 @@ export function thump(
   to: number,
   decay: number,
   /**
-   * Rise time. Longer than it looks like it should be, on purpose.
-   *
-   * Down at 60–150 Hz a single cycle lasts 7–17 ms, so a 2 ms attack is a
-   * meaningful fraction of one and reads as a click on the front of the
+   * Rise time. At 60-150 Hz one cycle lasts 7-17 ms, so 2 ms is a meaningful
+   * fraction of one and anything shorter is a click on the front of the
    * weight. Heavier things want more.
    */
   attack = 0.002,

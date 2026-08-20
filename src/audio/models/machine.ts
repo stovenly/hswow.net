@@ -5,22 +5,19 @@ import { createEventClock, periodicGap } from '../dsp/clock';
 import { strike } from '../dsp/envelopes';
 
 /**
- * Something turning.
+ * Something turning. Four parts, and all four are needed:
  *
- * Four parts, and all four are needed:
- *
- * - A **fundamental with a detuned harmonic stack** through a lowpass. Detuned
- *   because a real machine's harmonics are never exact multiples — the beating
- *   between them is what stops it sounding like a synthesiser patch.
- * - **Amplitude modulation at the rotation rate**, because a rotating thing
- *   presents a different face to you every revolution.
- * - **Filtered noise** for bearing hiss, which is most of what tells you the
- *   thing is mechanical and worn rather than electronic.
+ * - A **fundamental with a detuned harmonic stack** through a lowpass. Real
+ *   harmonics are never exact multiples, and the beating between them is what
+ *   stops it sounding like a synthesiser patch.
+ * - **Amplitude modulation at the rotation rate** — a rotating thing presents
+ *   a different face every revolution.
+ * - **Filtered noise** for bearing hiss, which is most of what says mechanical
+ *   and worn rather than electronic.
  * - **A per-revolution impulse** through a resonant bandpass: the clank. One
- *   loose part, once per turn. This is the detail that fixes the rotation rate
- *   in the listener's head — without it, speed is ambiguous.
+ *   loose part, once per turn. Without it the speed is ambiguous.
  *
- * `rpm` is a live parameter, so machines can labour, spin up and stall.
+ * `rpm` is live, so machines can labour, spin up and stall.
  */
 
 const HARMONICS = [1, 2, 3.02, 4.05, 5.97];
@@ -50,16 +47,12 @@ export interface MachineModel extends SoundModel {
 export type PhaseName = 'steady' | 'labouring' | 'surging' | 'stalling' | 'idling';
 
 /**
- * What the machine does, and for how long.
+ * What the machine does, and for how long. A machine at one constant speed is
+ * a drone and the ear files it away within seconds; what keeps it present is
+ * that it is evidently doing something.
  *
- * A machine at one constant speed is a drone, and the ear files a drone away
- * within seconds and stops hearing it. What keeps it present is that it is
- * evidently *doing* something — taking on load, freeing up, catching, easing
- * off — and none of that needs to be visible to be felt.
- *
- * `speed` multiplies the base rpm; `wear` and `clank` scale their layers, so a
- * labouring machine is not merely slower but rougher and more percussive,
- * which is what load actually sounds like.
+ * `speed` multiplies the base rpm, `wear` and `clank` scale their layers, so a
+ * labouring machine is rougher and more percussive as well as slower.
  */
 const PHASES: Record<PhaseName, {
   speed: number;
@@ -143,9 +136,8 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
   let baseRpm = options.rpm ?? 52;
   let rpm = baseRpm;
   let active = true;
-  // 0.15 rather than the clock's default: this is what the hand-rolled loop
-  // used, and a clank is percussive enough that the window length is audible
-  // as latency if it grows.
+  // A short window rather than the clock's default: a clank is percussive
+  // enough that the lookahead is audible as latency if it grows.
   const clankClock = createEventClock(context, 0.15);
   const clankGap = periodicGap(1, 0.06);
 
@@ -174,11 +166,9 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
   };
 
   /**
-   * Pushes the current speed into every layer that depends on it.
-   *
-   * Everything glides. A machine changing speed instantly is a machine that
-   * has been edited, and the ear catches it at once — inertia is most of what
-   * makes something read as heavy.
+   * Pushes the current speed into every layer that depends on it. Everything
+   * glides — a machine changing speed instantly reads as edited, and inertia
+   * is most of what makes something heavy.
    */
   const applyRate = (glide = 0.9): void => {
     const now = context.currentTime;
@@ -247,11 +237,10 @@ export function createMachine(engine: AudioEngine, options: MachineOptions = {})
       }
 
       // --- the clank ------------------------------------------------------
-      // One per revolution, with slight jitter — a perfectly periodic clank is
-      // a metronome, and the ear latches onto metronomes and stops believing
-      // them. `'oneGap'` because a clank is individually audible: resuming
-      // immediately after a hitch would fire one the instant the machine comes
-      // back, which reads as a glitch rather than as the shaft coming round.
+      // One per revolution with slight jitter, because a perfectly periodic
+      // clank is a metronome. `'oneGap'` because a clank is individually
+      // audible: resuming immediately after a hitch would fire one the instant
+      // the machine comes back.
       clankGap.rate = 60 / Math.max(rpm, 3);
       clankClock.pump(scheduleClank, clankGap, 'oneGap');
     },

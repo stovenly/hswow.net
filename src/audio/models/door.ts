@@ -4,42 +4,13 @@ import { strike } from '../dsp/envelopes';
 import { thump } from '../dsp/impact';
 
 /**
- * The sound of going somewhere else.
+ * The sound of going somewhere else. Played when a portal is used, over a fade
+ * of about six tenths of a second, so it has to be recognisable inside the
+ * first hundred milliseconds. Door-shaped, not a simulation of a door.
  *
- * Played when a portal is used. Its job is to tell the player they have changed
- * places, over a fade that takes about six tenths of a second — so it has to be
- * **recognisable inside the first hundred milliseconds** and finished before the
- * fade is. Door-shaped, because the thing you pressed was a door. Not a
- * simulation of one.
- *
- * That distinction matters, and getting it wrong cost two rewrites. The first
- * version was a stick-slip friction creak: a scheduled train of impulses whose
- * rate followed a synthetic swing trajectory, with a bank of resonators derived
- * from Farnell's measured wooden-door formants. The physics was right and the
- * sound was wrong, for reasons worth keeping:
- *
- * - **Creaking was never the brief.** A door that groans is a *character* —
- *   it says neglected, heavy, old. Nothing here has asked for that yet, and a
- *   transition cue that editorialises is worse than one that does not.
- * - **The Q values were invented.** Farnell's six frequencies came across
- *   correctly and their Q was derived from a decay time as `π · f · decay`,
- *   giving 59 to 176. His are `1, 1, 2, 2, 3, 3` — written as `rq`, the
- *   *reciprocal*, which is a bandwidth. Read as Q they are two orders out.
- *   Web Audio's bandpass has a constant 0 dB peak, so a Q of 200 passes a slice
- *   a few hertz wide and almost no energy; the iron door's modes all clamped at
- *   the ceiling and it came out a six-tone drone.
- * - **It was pitched below the speakers.** Three of six formants sat at 62.5,
- *   125 and 250 Hz. Built-in laptop speakers give up below about 300.
- *
- * ## What it is now
- *
- * A **thunk**: transient, body, tail. One of them, when you press the key —
- * nothing plays on arrival. This is how door slams are described
- * everywhere from foley practice to automotive acoustics, where a "premium"
- * door is deliberately engineered as a high click around 5–10 kHz over a body
- * resonance at 100–400 Hz. It is also the same shape as `footsteps.ts` — an
- * impact plus a modal ring — which is the one model in this project already
- * known to sound like the material it claims to be.
+ * A thunk: transient, body, tail. One of them, when you press the key — a
+ * high click around 5-10 kHz over a body resonance at 100-400 Hz, which is how
+ * door slams are described from foley practice to automotive acoustics.
  *
  * ```
  *  noise ─► click envelope ─► bandpass (hardware)  ─┐
@@ -47,26 +18,15 @@ import { thump } from '../dsp/impact';
  *  sine  ─► thump envelope ────────────────────────ˈ         └─► send
  * ```
  *
- * **The ring-down is in the envelope, not in the filter Q.** A resonator sharp
- * enough to ring for 150 ms at 200 Hz needs a Q above 120, which is a sine wave
- * with a rumour of noise in it. Driving a *moderate* resonator with a decaying
- * excitation gives the same perceived decay while keeping the band wide enough
- * to have a timbre. Q stays between about 5 and 12 throughout, and the gain
- * compensation is `sqrt(Q)` — the previous code had `1/sqrt(Q)`, which is
- * backwards for a constant-peak bandpass and made the sharpest modes quietest.
+ * The ring-down is in the envelope, not in the filter Q: Q stays between about
+ * 5 and 12 and gain compensation is `sqrt(Q)`. See `dsp/modal.ts`.
  *
- * Everything is scheduled at fire time on the audio clock. **The sound outlives
- * the zone that made it** — you press E, the world is torn down and rebuilt
- * somewhere else, and this has to carry across the cut, so nothing about it may
- * depend on a frame loop or on any object a zone owns.
- *
- * **It has to outlive the listener's position too**, which is the half that was
- * missing. This was spatialised at the door, and then the listener teleported
- * tens of metres away from a panner that stayed where it was — 27 dB of it
- * gone, mid-gesture, taking the reverb tail with it because the send is after
- * the panner. So it is routed like `footsteps`: a first-person gesture goes to
- * the bus, not into the world. You have to be looking at a door to use one, so
- * there was never a direction here worth rendering.
+ * Everything is scheduled at fire time on the audio clock, because the sound
+ * outlives the zone that made it — you press E and the world is torn down and
+ * rebuilt somewhere else. It outlives the listener's position too, so it is
+ * routed to the bus rather than spatialised: a panner left at the door loses
+ * 27 dB and the reverb tail with it. You have to be looking at a door to use
+ * one, so there is no direction here worth rendering.
  */
 
 interface Mode {
@@ -129,15 +89,13 @@ export const DOOR_SPECS = { timber: TIMBER, iron: IRON, plank: PLANK } as const;
 export type DoorMaterial = keyof typeof DOOR_SPECS;
 
 /**
- * How long a gesture lasts, for a spec. Used by the check and by the cleanup.
+ * How long a gesture lasts, for a spec: the longest thing in it plus the gap
+ * the click sits in.
  *
- * The longest thing in it, plus the gap the click sits in.
- *
- * **Not required to finish inside the fade.** The fade is 0.58 s and iron rings
- * for 1.1, so most of its tail lands in the room you have arrived in — which is
- * the point of a threshold, and only became audible once the panner went. What
- * must be over by then is the *gesture*: the click and the leaf are done inside
- * 0.1 s on every material, and what crosses is decay.
+ * Not required to finish inside the fade. The fade is 0.58 s and iron rings for
+ * 1.1, so most of its tail lands in the room you have arrived in, which is the
+ * point of a threshold. What must be over is the gesture — click and leaf are
+ * done inside 0.1 s on every material.
  */
 export function doorDuration(spec: DoorSpec): number {
   const longest = Math.max(spec.thump.decay, ...spec.modes.map((m) => m.decay));
@@ -160,12 +118,9 @@ export class DoorAudio {
   }
 
   /**
-   * Fires the cue. One gesture, on interact — nothing plays on arrival.
-   *
-   * There was a second, heavier version for the far side, so a door shut behind
-   * you as you stepped through. It was cut: two sounds for one action reads as
-   * two events, and the fade is short enough that the second landed while the
-   * first was still ringing. One press, one sound.
+   * Fires the cue. One gesture, on interact — nothing plays on arrival, and
+   * there is no second sound for the far side: two sounds for one action reads
+   * as two events.
    *
    * The latch comes first and the body follows, because that is the order your
    * hand does it in — the handle turns, then the leaf moves.
@@ -180,10 +135,8 @@ export class DoorAudio {
     const output = this.buildOutput(spec, nodes);
 
     // The resonators are built per fire rather than kept, unlike `footsteps`.
-    // A door sound has to outlive the zone that made it — you press E, the
-    // world is torn down and rebuilt somewhere else, and this carries across
-    // the cut — so it owns everything it needs and throws it all away on a
-    // timer rather than hanging off anything a zone can dispose.
+    // This sound has to outlive the zone that made it, so it owns everything
+    // it needs and throws it away on a timer.
     const hardware = createModalBank(
       context,
       // The latch as a single mode. Its `decay` is the click's duration; `q`
@@ -246,13 +199,8 @@ export class DoorAudio {
   }
 
   /**
-   * A decaying burst of noise into one resonator input.
-   *
-   * **The ring-down is in this envelope, not in the filter's Q.** See the
-   * header: a resonator sharp enough to ring for 150 ms at 200 Hz needs a Q
-   * above 120, which is a sine wave with a rumour of noise in it. Driving a
-   * moderate resonator with a decaying excitation gives the same perceived
-   * decay while leaving the band wide enough to have a timbre.
+   * A decaying burst of noise into one resonator input. The ring-down is in
+   * this envelope rather than the filter's Q — see the header.
    */
   private excite(
     target: AudioNode,

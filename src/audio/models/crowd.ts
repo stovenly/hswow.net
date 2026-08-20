@@ -4,40 +4,20 @@ import { createEventClock, type EventClock } from '../dsp/clock';
 import { createFormantBank, VOWELS, type Formant, type FormantBank } from '../dsp/formant';
 
 /**
- * Walla — a crowd, heard as a crowd.
+ * Walla — several voices talking at once, and not one of them saying anything.
+ * Intelligibility is the failure mode: the instant a word comes through, the
+ * listener stops hearing a room and starts hearing the word. So there are no
+ * consonants here, only pitch, a formant shape moving at syllable rate, and a
+ * rhythm of phrases and pauses.
  *
- * Several voices talking at once, and **not one of them saying anything.** That
- * is not a shortcut, it is the requirement. The film industry has recorded walla
- * for a century by putting people in a room and asking them to speak nonsense,
- * because the instant a listener can make out a word they stop hearing a room
- * full of people and start listening to that word. Intelligibility is the
- * failure mode.
+ * The pauses do the work. Each voice runs five or six syllables and then stops
+ * for a second or three; overlapping phrase lengths are what produce the ebb
+ * and swell of a room. Six voices is plenty and twelve is worse.
  *
- * So there are no consonants here at all — consonants are what carry meaning,
- * and they are also what makes synthesised speech sound like synthesised speech.
- * What is left is the part that actually reads as *people*: pitch, a formant
- * shape moving at syllable rate, and a rhythm of phrases and pauses.
- *
- * ## The pauses do the work
- *
- * A continuous murmur is a drone. What makes this a crowd is that **each voice
- * stops** — a run of five or six syllables, then a second or three of nothing
- * while somebody else is talking. Overlapping phrase structures at incommensurate
- * lengths is what produces the ebb and swell that people recognise as a room
- * with a conversation happening in it, and no amount of timbre work substitutes
- * for it.
- *
- * It also means a crowd this size is quiet most of the time, per voice, which is
- * why six voices is plenty and twelve is worse rather than better.
- *
- * ## Always distant
- *
- * There is a shared lowpass on the bus and it is not optional. Close-up walla is
- * an uncanny valley: near enough to expect words, not near enough to have them.
- * Every use of this model should be through a wall, across a square, or up a
- * flight of stairs — and the emitter that carries it should have a short
- * `refDistance` and a lot of reverb, so that it is heard as a space with people
- * in it rather than as people.
+ * The lowpass on the bus is not optional — close-up walla is near enough to
+ * expect words and not near enough to have them. Use this through a wall or
+ * across a square, on an emitter with a short `refDistance` and a lot of
+ * reverb.
  */
 
 interface Voice {
@@ -62,11 +42,9 @@ export interface CrowdOptions {
   /** How many talkers. Six is a tavern; three is a corner of one. */
   voices?: number;
   /**
-   * How much of the time each voice is talking, 0..1.
-   *
-   * Low is a lull with the occasional remark, high is an argument. Above about
-   * 0.8 the pauses stop overlapping into silence and it collapses into a drone
-   * — see the note above.
+   * How much of the time each voice is talking, 0..1. Low is a lull with the
+   * occasional remark, high is an argument. Above about 0.8 the pauses stop
+   * overlapping into silence and it collapses into a drone.
    */
   density?: number;
   /** Centre pitch in Hz. Below ~110 is a room of men, above ~190 of women. */

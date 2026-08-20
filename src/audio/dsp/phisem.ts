@@ -1,29 +1,14 @@
 /**
- * PhISEM — many small things colliding.
+ * PhISEM — Cook's *Physically Informed Stochastic Event Modeling*. A maraca, a
+ * handful of gravel, a chain on a floor and a boot in dry leaves are one
+ * system: small objects colliding at Poisson intervals, with the total energy
+ * decaying exponentially after whatever set them off, through one shared
+ * resonance for the material.
  *
- * Perry Cook's *Physically Informed Stochastic Event Modeling*. The insight is
- * that a maraca, a handful of gravel, a chain dropped on a floor and a boot in
- * dry leaves are all the same system: a population of small objects whose
- * collisions happen at random moments, and whose total energy decays
- * exponentially after whatever set them off. You do not need to simulate the
- * particles. You need collisions at Poisson intervals, an exponential energy
- * envelope over them, and one shared resonance for the material — and that is
- * genuinely enough to be convincing.
- *
- * It is also almost free, which is why it turns up everywhere: gravel and
- * leaves underfoot, rockfall, a portcullis chain, coins, rain on a canopy.
- *
- * ## Why this schedules rather than runs
- *
- * Cook's original runs per sample: decay the system energy, roll against the
- * object count, inject into the resonator on a hit. Web Audio cannot do
- * per-sample logic without a worklet — but the *output* of that loop is a
- * Poisson train of impulses whose amplitudes follow an exponential, and a train
- * of impulses is something the audio clock can place exactly. So the whole
- * burst is scheduled up front. The result is identical and it costs nothing on
- * the audio thread.
- *
- * Extracted from the `scatter` method in `footsteps.ts`.
+ * Cook's loop runs per sample, which Web Audio cannot do without a worklet.
+ * Its output is a Poisson train of impulses under an exponential, and a train
+ * of impulses is something the audio clock can place exactly, so the whole
+ * burst is scheduled up front for nothing on the audio thread.
  */
 
 import { strike } from './envelopes';
@@ -41,66 +26,37 @@ export interface Particles {
   q: number;
   level: number;
   /**
-   * How many distinct sizes of thing are in the pile. Defaults to one.
-   *
-   * **One resonance means every stone is the same stone.** Cook's model shares
-   * a single resonator across the whole population, which is right for a maraca
-   * — the beans really are identical — and audibly wrong for gravel, where the
-   * pieces range from sand to knuckle-sized. Over a short scuff nobody notices;
-   * over a long scatter it reads as a loop, because it is one.
-   *
-   * A handful of voices spread around `hz`, one picked per collision, is enough
-   * to break that up completely, and it costs a few filters built once.
+   * How many distinct sizes of thing are in the pile. Defaults to one, which
+   * means every stone is the same stone — right for a maraca, where the beans
+   * really are identical, and a loop over any long scatter of gravel.
    */
   voices?: number;
   /**
-   * How far apart those sizes are, as a fraction either way. 0.7 spans from
-   * about six-tenths of `hz` to about one and seven-tenths of it.
+   * How far apart those sizes are, as a fraction either way. 0.7 spans about
+   * 0.6 to 1.7 times `hz`.
    *
-   * **Wide spread makes the ear count objects instead of hearing a material,
-   * and how wide is too wide depends entirely on density.** Grains sharing one
-   * resonance fuse into a texture; grains at clearly different pitches
-   * segregate into separate little things. Sparse and spread is a handful of
-   * distinguishable stones, which is right for rubble. *Dense* and spread is a
-   * shimmer of pitched blips — marbles, or rain — and it is wrong for every
-   * material that is supposed to be one substance.
-   *
-   * Above roughly two hundred collisions a second, keep this under 0.2 or
-   * leave it alone entirely. `check:audio` enforces it.
+   * Grains sharing one resonance fuse into a material; grains at clearly
+   * different pitches segregate into separate little things. Above roughly two
+   * hundred collisions a second keep this under 0.2, or a substance turns into
+   * a shimmer of pitched blips.
    */
   spread?: number;
   /**
-   * How long one collision rings, in seconds. Defaults to 12 ms.
-   *
-   * **This is the dry/wet control and it is easy to miss.** A piece that stops
-   * dead is dry — a leaf, a grain of sand, a chip of slate. A piece that rings
-   * on for twenty or thirty milliseconds through a resonant filter is a
-   * *droplet*, and a burst of them is unmistakably water however the rest of
-   * the material is set up. Leaves and gravel both acquired a wet quality from
-   * nothing but this.
+   * How long one collision rings, in seconds. Defaults to 12 ms, and it is the
+   * dry/wet control: a piece that stops dead is a leaf or a chip of slate, and
+   * one that rings on for twenty or thirty milliseconds is a droplet.
    */
   grain?: number;
   /**
    * How much a collision shortens as the burst runs down, 0..1. Defaults to 1.
-   *
-   * **A stone bouncing loses height, so its later contacts are briefer as well
-   * as quieter** — that is what stops a long scatter reading as a thin run of
-   * identical little rings. A *wet* lump does not bounce. It arrives, spreads
-   * and stays, and shortening its contacts as the burst decays is precisely how
-   * a spatter of mud comes out sounding like dry sand.
+   * A stone bouncing loses height, so its later contacts are briefer as well as
+   * quieter. A wet lump does not bounce — it arrives, spreads and stays.
    */
   bounce?: number;
   /**
-   * How sharply one collision starts, in seconds. Defaults to 0.8 ms.
-   *
-   * **Cook's model assumes the pieces are hard**, because his were: beans in a
-   * gourd, coins, gravel. A hard piece arrives instantly and the click is the
-   * point. A snow crystal shearing past another, or a dry leaf folding under a
-   * boot, does not — and a burst of instant clicks reads unmistakably as **ball
-   * bearings**, whatever the pitch and the count are set to.
-   *
-   * A few milliseconds is enough to turn the same burst from a rattle of small
-   * hard things into a texture, and it is the only control here that does.
+   * How sharply one collision starts, in seconds. Defaults to 0.8 ms, which
+   * assumes the pieces are hard. A burst of instant clicks reads as ball
+   * bearings whatever the pitch and count; a few milliseconds is a texture.
    */
   attack?: number;
 }
@@ -112,11 +68,9 @@ export interface ParticleBed {
 }
 
 /**
- * The material the particles are made of: the resonances they excite.
- *
- * Built once and kept. A handful of gravel does not acquire new resonances each
- * time it is disturbed, and rebuilding filters per event is both slower and
- * less true.
+ * The material the particles are made of: the resonances they excite. Built
+ * once and kept — a handful of gravel does not acquire new resonances each
+ * time it is disturbed.
  */
 export function createParticleBed(
   context: BaseAudioContext,
@@ -152,10 +106,8 @@ export function createParticleBed(
 }
 
 /**
- * Schedules one burst of collisions into a bed.
- *
- * @param at Audio-clock time for the first possible collision.
- * @param force Scales the whole burst.
+ * Schedules one burst of collisions into a bed. `at` is the audio time of the
+ * first possible collision; `force` scales the whole burst.
  */
 export function scatterParticles(
   context: BaseAudioContext,
@@ -189,15 +141,9 @@ export function scatterParticles(
 
     const envelope = context.createGain();
     const when = at + t;
-    // Varied per collision, like the pitch and the level — a fixed ring-down
-    // makes every piece the same weight — but around the material's own figure
-    // rather than around a constant. See `grain`.
-    //
-    // **And it shortens as the burst runs down.** A stone bouncing loses height
-    // every time, so its later contacts are not merely quieter, they are
-    // *briefer*; holding the contact time constant while the level falls leaves
-    // the tail as a thin sequence of identical little rings, which is what a
-    // long scatter sounds like when it is wrong.
+    // Varied per collision around the material's own figure, and shortening as
+    // the burst runs down: a stone's later contacts are briefer, not merely
+    // quieter, and a constant leaves the tail a thin run of identical rings.
     const bounce = particles.bounce ?? 1;
     const grain = (particles.grain ?? 0.012) * (1 - bounce * 0.5 * (1 - energy));
     const rise = Math.min(particles.attack ?? 0.0008, grain * 0.6);

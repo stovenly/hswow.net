@@ -5,46 +5,25 @@ import { createEventClock, poissonGap } from '../dsp/clock';
 import { createGrainBed, scheduleGrain } from '../dsp/grain';
 
 /**
- * Leaves.
+ * Leaves. A continuous band-limited hush carrying almost all the level, and
+ * grains on top carrying almost none — they give the hush a shimmer, not
+ * events to be heard. Backwards, that is the sound of crushing bubble wrap.
  *
- * Two layers, and the balance between them is the whole model:
+ * Hann windows, because a corner in an envelope is a click. Narrow bands,
+ * because a wide filter passes a broadband burst. And long grains: overlap is
+ * rate times length, and below about 10 the ear resolves single events. This
+ * sits around 25.
  *
- * - A **continuous band-limited hush** — the sound of air moving through a
- *   mass of foliage — which carries almost all of the level.
- * - **Grains** on top, one per leaf, which carry almost none of it. They exist
- *   to give the hush a grain and a shimmer, not to be heard as events.
- *
- * Getting that balance backwards is what makes granular foliage sound like
- * bubble wrap. Loud, short, broadband grains are individually audible, and a
- * few hundred audible pops a second is exactly the sound of crushing plastic
- * packaging — the synthesis is not wrong, the mix is. Real leaves are quiet
- * things heard in enormous numbers.
- *
- * Three details keep them from popping:
- *
- * - **Hann windows.** Linear attack and decay meet at a corner, and a corner
- *   in an envelope is a click however short the ramp is. A raised cosine has
- *   no corners anywhere.
- * - **Narrow bands.** A wide filter passes a broadband burst, which is a
- *   *pop*. Narrow ones pass a breath of tone, which is a rustle.
- * - **Long grains.** Overlap is grains-per-second times grain-length. Below
- *   about 10 the ear resolves individual events; this sits around 25.
- *
- * Grain rate is driven by the same gust signal as the wind model, so the tree
- * moves when the wind does. Grains are scheduled against
- * `AudioContext.currentTime` over a lookahead window — the "two clocks"
- * pattern — because the audio clock is sample-accurate and the frame clock is
- * not.
+ * Grain rate follows the same gust signal as the wind model, scheduled against
+ * `AudioContext.currentTime` over a lookahead.
  */
 
 /**
- * Grains are routed into a few fixed filter channels rather than each building
- * its own — a bandpass per grain is hundreds of filter nodes a second per tree
- * and buys nothing three well-separated bands do not already give.
+ * Grains route into a few fixed filter channels rather than each building its
+ * own — a bandpass per grain is hundreds of filter nodes a second per tree.
  *
  * The Q values are high for a noise source, deliberately. Weighted toward the
- * middle, with very little up top: the highest band is where the crinkle
- * lives, and a canopy is mostly a mid-range sound.
+ * middle with very little up top: a canopy is mostly a mid-range sound.
  */
 const CHANNELS = [
   { hz: 1150, q: 2.6, weight: 0.4 },
@@ -66,11 +45,9 @@ export interface FoliageOptions {
 
 export interface FoliageModel extends SoundModel {
   /**
-   * Scales how much of the level the grains carry, against the hush beneath.
-   *
-   * The one control worth having live. Grain-heavy is bubble wrap, hush-heavy
-   * is a waterfall, and where the line sits between them is a judgement that
-   * cannot be made from a constant in a file.
+   * Scales how much of the level the grains carry against the hush beneath.
+   * The one control worth having live — grain-heavy is bubble wrap, hush-heavy
+   * is a waterfall.
    */
   setArticulation(value: number): void;
 }

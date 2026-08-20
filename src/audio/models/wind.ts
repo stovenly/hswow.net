@@ -3,19 +3,15 @@ import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
 
 /**
- * Wind, as three layers.
+ * Wind, as three layers. Wind has no sound of its own — what you hear is air
+ * dragged past edges, and the size of the edge sets the pitch. Brown noise
+ * through a lowpass for the body of moving air, pink through a mid bandpass
+ * for the rush past large surfaces, white through a narrow high bandpass for
+ * the whistle round small ones.
  *
- * Wind has no sound of its own — what you hear is air dragged past edges, and
- * the size of the edge sets the pitch. So: brown noise through a lowpass for
- * the body of moving air, pink through a mid bandpass for the rush past large
- * surfaces, white through a narrow high bandpass for the whistle round small
- * ones.
- *
- * The whistle is where the realism lives. Its centre frequency and its Q both
+ * The whistle is where the realism lives: its centre frequency and its Q both
  * rise with wind speed, because faster air past the same edge sheds vortices
- * faster and more coherently. Wind that only gets *louder* in a gust sounds
- * like someone turning a knob; wind that gets louder and higher and more
- * focused sounds like weather.
+ * faster and more coherently. Wind that only gets louder is a knob turning.
  */
 
 const RUMBLE_HZ = 220;
@@ -24,11 +20,9 @@ const RUSH_Q = 1.4;
 const WHISTLE_MIN_HZ = 1300;
 const WHISTLE_MAX_HZ = 2900;
 /**
- * Q range for the whistle.
- *
- * Kept low. A high-Q bandpass on white noise is a *ringing* narrow band, and
- * past about Q 12 it stops sounding like air over an edge and starts sounding
- * like feedback — which is most of where "harsh" comes from in a wind model.
+ * Q range for the whistle. Kept low: past about Q 12 a bandpass on white noise
+ * stops sounding like air over an edge and starts sounding like feedback,
+ * which is most of where harshness comes from in a wind model.
  */
 const WHISTLE_MIN_Q = 4;
 const WHISTLE_MAX_Q = 9;
@@ -39,12 +33,9 @@ export interface WindOptions {
   /** Scales the whistle layer, which is the one that gets shrill indoors. */
   whistle?: number;
   /**
-   * Lowpass over the whole model, in Hz.
-   *
-   * Real wind reaching your ear has already been filtered by everything it
-   * travelled past, and by your own head and outer ear. Synthesised wind has
-   * not, so it arrives with a top end nothing in nature would deliver — bright,
-   * flat and fatiguing. This is the single most effective softness control.
+   * Lowpass over the whole model, in Hz. Real wind has already been filtered by
+   * everything it travelled past and by your own head; synthesised wind has
+   * not, so it arrives bright, flat and fatiguing. The best softness control.
    */
   tone?: number;
 }
@@ -131,11 +122,8 @@ export function createWind(engine: AudioEngine, options: WindOptions = {}): Wind
       // is what keeps the whole thing soft: weight low, not bright.
       //
       // Its floor is deliberately low. A rumble that never drops below about
-      // half is a *drone* — a constant present thing the ear stops hearing as
-      // weather and starts hearing as a hum under the game. Letting it fall
-      // most of the way to nothing in a lull is what turns level into breath,
-      // and it is the difference between wind that ebbs and wind that merely
-      // gets slightly louder.
+      // half is a drone the ear stops hearing as weather. Letting it fall most
+      // of the way to nothing in a lull is what turns level into breath.
       rumbleGain.gain.setTargetAtTime(0.1 + strength * 0.85, now, glide);
       rushGain.gain.setTargetAtTime(0.03 + strength * strength * 0.5, now, glide);
       whistleGain.gain.setTargetAtTime(strength ** 3 * 0.2 * whistleScale, now, glide);

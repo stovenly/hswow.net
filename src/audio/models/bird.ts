@@ -2,20 +2,13 @@ import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 
 /**
- * A small bird, calling now and then.
+ * A small bird, calling now and then. Two or three short notes, each a sine
+ * sweeping in pitch with a softer partial above it — the syrinx is efficient
+ * enough that there is no noise in this model at all.
  *
- * A call is two or three short notes, each a sine sweeping in pitch with a
- * softer partial above it. Birdsong is almost pure tone — the syrinx is a very
- * efficient resonator — so unlike everything else in this engine there is no
- * noise in it at all.
- *
- * What makes it read as an animal rather than a beep is the *timing*. Calls
- * come in bursts with long, irregular silences between them, notes inside a
- * burst are fast and unevenly spaced, and each note bends in pitch rather than
- * holding. A regular chirp on a timer is instantly a machine.
- *
- * It also falls quiet in strong wind, which real birds do, and which quietly
- * ties it to the same weather everything else is listening to.
+ * The timing is what reads as an animal: bursts with long irregular silences,
+ * notes unevenly spaced inside a burst, every note bending rather than held.
+ * Falls quiet in strong wind, as real birds do.
  */
 
 export interface BirdOptions {
@@ -41,14 +34,9 @@ export function createBird(engine: AudioEngine, options: BirdOptions = {}): Soun
   output.gain.value = options.gain ?? 0.16;
 
   /**
-   * A lowpass, standing in for distance.
-   *
-   * Level alone does not make something sound far away — it makes it sound
-   * like a quiet thing that is close, which is a different and much less
-   * interesting impression. Air absorbs high frequencies far faster than low
-   * ones, so distance is heard as *dullness* first and quietness second. A
-   * bird calling from the crown of a tree has already lost most of its top
-   * end by the time it reaches the ground.
+   * A lowpass standing in for distance. Air absorbs high frequencies far
+   * faster than low, so distance is heard as dullness first and quietness
+   * second; level alone reads as a quiet thing that is close.
    */
   const distance = context.createBiquadFilter();
   distance.type = 'lowpass';
@@ -93,13 +81,9 @@ export function createBird(engine: AudioEngine, options: BirdOptions = {}): Soun
   };
 
   /**
-   * Call shapes.
-   *
-   * A bird with one phrase is a car alarm. Real calls come in recognisable
-   * kinds — a rising query, a falling complaint, a rattled trill, a single
-   * held whistle — and it is having *several* that makes something sound
-   * alive, far more than the detail of any one of them. Weighted, because a
-   * bird has habits: mostly the ordinary phrase, occasionally the odd one.
+   * Call shapes, weighted — a rising query, a falling complaint, a rattled
+   * trill, a held whistle. A bird with one phrase is a car alarm, and having
+   * several matters more than the detail of any one.
    */
   const SHAPES = [
     { name: 'rising', weight: 0.26 },
@@ -204,10 +188,8 @@ export function createBird(engine: AudioEngine, options: BirdOptions = {}): Soun
       if (audio.weather.strengthAt(at.x, at.z) < shySpeed) {
         const end = scheduleCall(nextCall);
         // Bouts. A third of the time the bird answers itself a beat later;
-        // otherwise it goes quiet for a while. Calls spread evenly by a single
-        // exponential wait are still too regular — real ones cluster, and the
-        // clustering is what makes the long silences read as silence rather
-        // than as a gap between events.
+        // otherwise it goes quiet for a while. A single exponential wait
+        // spreads calls too evenly — real ones cluster.
         nextCall =
           end +
           (Math.random() < 0.34

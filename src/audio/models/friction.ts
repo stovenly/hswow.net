@@ -6,41 +6,26 @@ import { createModalBank } from '../dsp/modal';
 import { excite } from '../dsp/impact';
 
 /**
- * Two surfaces dragging over one another.
+ * Two surfaces dragging over one another: a rope on a windlass, a cart axle, a
+ * portcullis chain, a hinge, a tree on its own limbs. The same event at
+ * different rates — held by static friction, released, caught again, a few
+ * times a second at one end and several hundred at the other.
  *
- * A rope on a windlass, a cart axle, a portcullis chain, a hinge, a tree
- * leaning on its own limbs. All the same event at different rates: held by
- * static friction, released, caught again, a few times a second at one end of
- * the range and several hundred at the other. Groan, creak, squeal, rub.
+ * The synthesis is in `faust/friction.dsp`, because the model is a per-sample
+ * feedback loop a node graph cannot express. This file is what it is attached
+ * to, what makes it move, and what happens when the wasm does not arrive.
  *
- * The synthesis is in `faust/friction.dsp` and the reasoning is all there,
- * because the interesting part is a per-sample feedback loop that a node graph
- * cannot express. This file is the game's side of it: what it is attached to,
- * what makes it move, and what happens when the wasm does not arrive.
- *
- * ## Two implementations, and the difference is honest
- *
- * The Faust loop is the real model. The fallback below is a different thing
- * that happens to sound similar, and pretending otherwise would be how a
- * degraded path silently becomes the one everybody hears.
- *
- * Stick-slip *is* a train of slip events, so a train of scheduled impacts into
- * a modal bank gets the character of a creak honestly and cheaply — the same
- * substrate `footsteps` and `door` are built on. What it cannot do is the top
- * of the range: past a hundred or so slips a second the events stop being
- * individually audible and fuse into a sung tone whose pitch is set by the
- * slip rate rather than by the body, and reaching that by scheduling events
- * would mean scheduling them faster than the lookahead window is long. So the
- * fallback creaks and rubs but never squeals, and `usingFaust` says which one
- * you are hearing rather than leaving it to be guessed at from the mix.
+ * The fallback is a different thing that happens to sound similar: a train of
+ * scheduled slip events into a modal bank. It cannot do the top of the range —
+ * past a hundred slips a second the events fuse into a sung tone whose pitch
+ * is the slip rate, and scheduling that fast outruns the lookahead. So it
+ * creaks and rubs but never squeals, and `usingFaust` says which is playing.
  */
 
 export interface FrictionOptions {
   /**
-   * How hard the surfaces are pressed together, 0..1.
-   *
-   * Loudness and raspiness at once, which is right: a loaded rope squeals and
-   * a slack one does not, and they are not two settings of a volume control.
+   * How hard the surfaces are pressed together, 0..1. Loudness and raspiness
+   * at once: a loaded rope squeals and a slack one does not.
    */
   force?: number;
   /** The resonating body's first mode in Hz. What is creaking, not how fast. */
@@ -57,13 +42,11 @@ export interface FrictionOptions {
   /**
    * What keeps it going.
    *
-   * - `'cycle'` — turns for a while, rests, turns again. A windlass being
-   *   worked, a cart passing, a gate. **The default**, because almost nothing
-   *   in a world this size slides continuously, and a friction sound that
-   *   never stops is a drone with a texture rather than an event.
+   * - `'cycle'` — turns for a while, rests, turns again. A windlass, a cart, a
+   *   gate. The default: almost nothing in a world this size slides
+   *   continuously, and friction that never stops is a drone with a texture.
    * - `'weather'` — driven by gust strength, with a threshold. A tree taking
-   *   its own weight, a rope against a mast, a sign on its bracket. Silent in
-   *   still air, which is most of the time, and that is the point.
+   *   its own weight, a rope against a mast. Silent in still air.
    * - `'steady'` — never stops. A line shaft, a millwheel.
    */
   motion?: 'cycle' | 'weather' | 'steady';
@@ -76,22 +59,15 @@ export interface FrictionModel extends SoundModel {
   /** Whether the per-sample loop is running, or the event-based stand-in. */
   readonly usingFaust: boolean;
   /**
-   * Resolves once the Faust tier has either arrived or failed.
-   *
-   * For the audition harness, which would otherwise finish its render before
-   * the wasm landed and measure the fallback under the real model's name.
-   * Nothing in the game waits on this — the whole design is that it does not
-   * have to.
+   * Resolves once the Faust tier has either arrived or failed. For the audition
+   * harness, which would otherwise measure the fallback under the real model's
+   * name. Nothing in the game waits on it.
    */
   readonly ready: Promise<void>;
   /**
-   * The compiled loop, or `null` if the fallback is carrying it.
-   *
-   * For the generated tuning panel, which builds itself from the node's own
-   * declared control ranges. Deliberately the whole node rather than a
-   * `tune(key, value)` — a panel needs the ranges and the current values as
-   * much as it needs the setter, and three accessors that always travel
-   * together are one object.
+   * The compiled loop, or `null` if the fallback is carrying it. The whole node
+   * rather than a setter, because the generated tuning panel builds itself from
+   * its declared control ranges and current values.
    */
   readonly loop: FaustNode | null;
   /** Current sliding speed, for the debug readout and for driving a visual. */
@@ -99,11 +75,10 @@ export interface FrictionModel extends SoundModel {
 }
 
 /**
- * Fetches the compiled loop, or resolves `null` if it cannot be had.
- *
- * Kept as a function rather than a top-level import so the browser-only half
- * of the Faust tier stays out of every static import graph that touches
- * `Soundscape` — see the note at the call site.
+ * Fetches the compiled loop, or resolves `null` if it cannot be had. A function
+ * rather than a top-level import, so the browser-only half of the Faust tier
+ * stays out of every static import graph that touches `Soundscape` — see the
+ * note at the call site.
  */
 async function loadFrictionNode(context: BaseAudioContext): Promise<FaustNode | null> {
   try {
@@ -121,12 +96,9 @@ async function loadFrictionNode(context: BaseAudioContext): Promise<FaustNode | 
 /** Above this the tree, gate or rope starts to take load and complain. */
 const WEATHER_THRESHOLD = 0.42;
 /**
- * Seconds over which `speed` glides toward its target.
- *
- * Enough to keep a step from clicking, and no more. It was four times this,
- * which was safe and which flattened the stroke shape the motion cycle exists
- * to produce — a 0.35 s time constant against a 0.6 s pull leaves a smear
- * where the heave was.
+ * Seconds over which `speed` glides toward its target. Enough to keep a step
+ * from clicking and no more: a long constant against a 0.6 s pull leaves a
+ * smear where the heave was.
  */
 const GLIDE = 0.08;
 /** Crossfade when the Faust node arrives mid-life. */
@@ -148,10 +120,10 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.5;
 
-  // Both paths are built into their own bus and one of them is faded up. The
-  // fallback runs from the first frame because the wasm takes a network round
-  // trip to arrive and a hinge that is silent for the first second of a zone
-  // is worse than a hinge that changes its mind about how it is synthesised.
+  // Both paths are built into their own bus and one is faded up. The fallback
+  // runs from the first frame because the wasm takes a network round trip, and
+  // a hinge silent for the first second of a zone is worse than one that
+  // changes its mind about how it is synthesised.
   const nativeBus = context.createGain();
   nativeBus.gain.value = 1;
   nativeBus.connect(output);
@@ -162,22 +134,17 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
 
   // --- the fallback: slip events into a body ------------------------------
   //
-  // The same four-mode inharmonic series the Faust body uses, so the two
-  // paths at least agree about what is creaking. `'excitation'` ringing
-  // because these decays are long enough that filter Q would take the timbre
-  // with it — see `dsp/modal.ts`.
+  // The same four-mode inharmonic series the Faust body uses, so the two paths
+  // agree about what is creaking. `'excitation'` ringing, because these decays
+  // are long enough that filter Q would take the timbre with it.
   const bodyIn = context.createGain();
   bodyIn.connect(nativeBus);
   //
-  // **Q is stated rather than derived, and that is the whole fix.** The first
-  // version took the bank's `'excitation'` defaults, which land between 4 and
-  // 14 — wide enough that a 2.5 ms noise burst goes through nearly unchanged.
-  // Thirty of those a second is not a creak, it is static, and it measured as
-  // static too: energy spread evenly across every band with no peak anywhere.
-  //
-  // Around 30 is the useful window. Sharp enough that a slip arrives with a
-  // pitch attached, wide enough to keep the grain of the contact in it, and
-  // well under the point where a bandpass stops having a timbre at all.
+  // Q is stated rather than derived from the bank's `'excitation'` defaults,
+  // which land between 4 and 14 — wide enough that a 2.5 ms noise burst goes
+  // through nearly unchanged, which is static rather than a creak. Around 30
+  // is the window: sharp enough that a slip arrives with a pitch attached,
+  // wide enough to keep the grain of the contact.
   const q = 22 + bright * 22;
   const bank = createModalBank(
     context,
@@ -191,15 +158,12 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
     { ring: 'excitation' },
   );
 
-  // The rub underneath: contact noise that exists whenever anything is moving
-  // at all. Without it the fallback is a string of discrete creaks with
-  // silence between them, and silence between the creaks is what makes a
-  // procedural creak sound like a sound effect being triggered.
+  // The rub underneath: contact noise whenever anything is moving at all.
+  // Without it the fallback is discrete creaks with silence between them, and
+  // that silence is what makes a procedural creak sound triggered.
   //
-  // Narrow, and much quieter than it was. A bandpass at Q 0.8 is barely a
-  // filter — it passed most of the pink noise it was given, and a broadband
-  // hiss under everything was doing more to make the model sound like an
-  // untuned television than the slips were.
+  // Narrow and quiet. A bandpass at Q 0.8 is barely a filter, and a broadband
+  // hiss under everything reads as an untuned television.
   const rub = context.createBufferSource();
   rub.buffer = noise.pink;
   rub.loop = true;
@@ -217,11 +181,10 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
 
   // --- motion state -------------------------------------------------------
   //
-  // Declared before the loader below, which reads `speed` from inside its
-  // callback. It resolves long after this function has returned, so the order
-  // is not load-bearing — but a closure reaching backwards past its own
-  // declaration is exactly the shape that stops being fine the moment someone
-  // makes the load synchronous.
+  // Declared before the loader below, whose callback reads `speed`. That
+  // resolves long after this function returns, so the order is not
+  // load-bearing — but a closure reaching backwards past its own declaration
+  // stops being fine the moment someone makes the load synchronous.
   let speed = 0;
   let target = motion === 'steady' ? topSpeed : 0;
   let liveForce = force;
@@ -240,21 +203,16 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
   let faust: FaustNode | null = null;
   let disposed = false;
 
-  // **Imported dynamically, and not only for the bundle's sake.** The Faust
-  // glue reaches the compiled wasm and the worklet source through Vite's `?url`
-  // imports, which only Vite can resolve — and `Zone.ts` pulls `Soundscape` in
-  // for `SILENCE`, so a static import from here would drag the whole browser-
-  // only tier into `check:world`'s node bundle and stop it building.
+  // Imported dynamically, and not only for the bundle's sake. The Faust glue
+  // reaches its wasm and worklet source through Vite's `?url` imports, which
+  // only Vite resolves — and `Zone.ts` pulls `Soundscape` in for `SILENCE`, so
+  // a static import here would drag the whole browser-only tier into the node
+  // bundle. `AudioEngine` imports the reverb statically because nothing in
+  // that graph reaches it; models are what a zone declares, so they are
+  // reached. `--external:../faust/*` holds esbuild to the same boundary — the
+  // dynamic import alone stops it running, not bundling.
   //
-  // `AudioEngine` gets away with importing the reverb statically because
-  // nothing in the check graph reaches *it*. A model is not so lucky: models
-  // are what a zone declares, so they are exactly the part of the audio system
-  // the world check does see. Hence the boundary here rather than there, and
-  // `--external:../faust/*` on `check:world` to hold esbuild to it — the
-  // dynamic import alone does not stop it bundling, it only stops it running.
-  //
-  // The side benefit is real: a zone with no friction in it never fetches the
-  // module at all.
+  // A zone with no friction in it never fetches the module at all.
   const ready = loadFrictionNode(context).then((node) => {
     if (!node) return;
     if (disposed) {
@@ -280,21 +238,15 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
   /**
    * Bursts of work, and strokes within a burst.
    *
-   * The first version had only the outer layer — turning for a few seconds,
-   * then resting — and it was wrong in a way that the parameters could not
-   * fix. Constant speed puts the contact at one fixed point on the friction
-   * curve, so the loop settles into one timbre and holds it, and a rough
-   * timbre held for four seconds is a buzz. It read, accurately, as static.
+   * Constant speed puts the contact at one fixed point on the friction curve,
+   * so the loop settles into one timbre and holds it — which is a buzz.
+   * Nothing hauls a chain at a constant speed: it is pulled in strokes, and
+   * each stroke sweeps the speed up and back down, walking the contact across
+   * the curve through the sticking region, through the Stribeck dip, out into
+   * the rub and back. That sweep is the creak.
    *
-   * Nothing hauls a chain at a constant speed. It is pulled in strokes: heave,
-   * release, take up the slack, heave again. Each stroke sweeps the speed from
-   * nothing up and back down, which walks the contact right across the curve —
-   * through the sticking region, through the Stribeck dip, out into the rub
-   * and back — and that sweep *is* the creak. It also moves the level, so the
-   * source has a rhythm rather than a duration.
-   *
-   * `max(0, sin)` rather than a full sine: the working half of a stroke is the
-   * pull, and the return is somebody's hands moving, which makes no sound.
+   * `max(0, sin)` rather than a full sine: the working half is the pull, and
+   * the return is somebody's hands moving, which makes no sound.
    */
   function cycle(dt: number): void {
     remaining -= dt;
@@ -360,10 +312,9 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
       } else if (motion === 'cycle') {
         cycle(dt);
       } else if (motion === 'weather') {
-        // Threshold, then a steep curve above it. A tree under load does not
-        // groan proportionally to the wind — it does nothing at all until the
-        // limb moves, and then it complains. Linear here gives a permanent
-        // quiet creak, which is a drone.
+        // Threshold, then a steep curve above it. A tree under load does
+        // nothing at all until the limb moves, and then it complains. Linear
+        // here gives a permanent quiet creak, which is a drone.
         const over = Math.max(0, audio.weather.strengthAt(at.x, at.z) - WEATHER_THRESHOLD);
         target = Math.min(1, (over / (1 - WEATHER_THRESHOLD)) ** 1.6) * topSpeed;
       }
@@ -377,8 +328,7 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
       // --- the fallback's share -------------------------------------------
       //
       // Skipped entirely once the loop is running: the events would be audible
-      // through the crossfade for as long as it lasts, and after that they are
-      // scheduling work for a bus at zero gain.
+      // through the crossfade, and after it they are work for a silent bus.
       if (faust) return;
 
       const now = context.currentTime;
@@ -392,13 +342,10 @@ export function createFriction(engine: AudioEngine, options: FrictionOptions = {
       // heard as its own layer is hiss.
       rubLevel.gain.setTargetAtTime(0.022 * liveForce * speed ** 0.7, now, 0.12);
 
-      // **Slips you could count.** This was `3 + speed * 90`, which at a
-      // working speed is better than thirty noise bursts a second — far too
-      // fast for any of them to be an event, so they fused into the hiss the
-      // rub was already supplying. A creak is a handful of slips a second at a
-      // groan and a few dozen at a squeal, and the top of that range is where
-      // scheduled events stop working at all, which is precisely the boundary
-      // the Faust loop exists to cross.
+      // Slips you could count. A creak is a handful of slips a second at a
+      // groan and a few dozen at a squeal; much faster and none of them is an
+      // event any more, they fuse into the hiss the rub already supplies. The
+      // top of that range is the boundary the Faust loop exists to cross.
       slipGap.rate = 2 + speed * 26;
       const level = liveForce * 0.5 * (0.3 + 0.7 / (1 + speed * 6));
       clock.pump(
