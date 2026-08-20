@@ -4,20 +4,9 @@ import type { Input } from '../engine/Input';
 import type { Collider } from './Collider';
 import type { SurfaceName } from '../audio/models/footsteps';
 
-/**
- * First-person movement.
- *
- * The player is a capsule. Acceleration is Quake-shaped — accelerate toward the
- * wish direction only up to the wish speed, with separate ground and air rates
- * — because that model is what makes an FPS feel crisp rather than slippery,
- * and it gives air control without giving flight.
- *
- * Integration runs on a fixed sub-step. Collision resolution is not
- * frame-rate-independent in any honest sense: a big step lets the capsule reach
- * further into geometry before it is pushed out, and the recovery differs. A
- * fixed sub-step means a phone at 30 fps and a desktop at 144 resolve the same
- * way.
- */
+// First-person movement. The player is a capsule, accelerated Quake-style
+// toward the wish direction up to the wish speed. Integration runs on a fixed
+// sub-step, so every frame rate resolves collisions the same way.
 
 const SUB_STEP = 1 / 120;
 /** Enough for the loop's 0.1 s delta clamp, with headroom. */
@@ -27,74 +16,33 @@ const RESOLVE_PASSES = 4;
 /** Downward probe increments for the step-up landing sweep. */
 const STEP_DROP_SAMPLES = 6;
 
-/**
- * How much quicker the debug camera is than walking.
- *
- * Fast enough to cross the vista band without it being a chore, slow enough to
- * park next to a prop. Sprint multiplies it again.
- */
+/** How much quicker the debug camera is than walking. Sprint multiplies it again. */
 const NOCLIP_SCALE = 4;
 
-/**
- * How far a step-up may climb past the last walkable ground, in step heights.
- *
- * Sized off the tallest ledge that is meant to be surmountable rather than
- * chosen: the 0.5 m kerb in the gym is above `stepHeight` and climbs anyway
- * because the capsule's shoulder carries it, so the budget has to cover that
- * whole rise with a little room. Everything past it is a bank, and a bank gets
- * about half a metre of scramble before the ground wins.
- */
+/** How far a step-up may climb past the last walkable ground, in step heights. */
 const STEP_CLIMB_BUDGET = 1.5;
 
-/**
- * Ceiling on how far the camera may trail the feet, in metres.
- *
- * The steady state on a staircase is a few centimetres and this never fires
- * there. It exists for the case nobody planned: a very long flight taken at a
- * sprint, where the lag would otherwise keep growing and the view would sink
- * toward the treads.
- */
+/** Ceiling on how far the camera may trail the feet, in metres. */
 const MAX_STEP_LAG = 0.22;
 
-/**
- * How soon after landing a jump counts as a continuation rather than a new
- * push-off, in seconds.
- *
- * Chaining hops is one continuous contact with the ground: the foot arrives,
- * loads and leaves. The landing already made that sound, so a take-off scuff
- * a few milliseconds later reads as a stutter rather than as effort. Past this
- * the player has been standing there and pushing off is its own event.
- */
+/** How soon after landing a jump counts as a continued hop rather than a fresh push-off, in seconds. */
 const HOP_CONTINUATION = 0.28;
 
 /** Which axis a field-of-view figure is measured along. See `fovScaling`. */
 export type FovScaling = 'horizontal' | 'vertical';
 
 /**
- * One footfall, and which way it was going.
- *
- * **The direction comes from input, not from velocity**, and the two genuinely
- * differ. Sliding sideways down a slope while pressing forward is still forward
- * walking: your feet do what you are asking them to, whatever the ground is
- * doing to you afterwards. This is the same reasoning that keeps `wishX/wishZ`
- * on the near side of the slope projection in `applyWish`.
- *
- * A landing is the opposite case and reads velocity instead — in the air you
- * have limited authority over where your body goes, so the shear at touchdown
- * is set by where you are actually travelling. Both rules are right for their
- * own event, and they are stated together because this is exactly the kind of
- * inconsistency that gets tidied into agreement later and quietly breaks one.
+ * One footfall, and which way it was going. The direction comes from input and
+ * not from velocity: sliding sideways down a slope while pressing forward is
+ * still forward walking. A landing is the opposite case and reads velocity.
  */
 export interface Footfall {
   /** Metres per second. */
   speed: number;
   /**
-   * Where the player is asking to go, in their own frame — +1 is to their
-   * right, +1 is straight ahead. Unit length while a direction is held.
-   *
-   * **Latched.** Input can drop to zero while the player is still decelerating,
-   * and a step that fires during that should keep the gait it was travelling
-   * with rather than snapping to forward on the last footfall of every stop.
+   * Where the player is asking to go, in their own frame; +1 is to their right,
+   * +1 is straight ahead. Latched, so a step firing while they decelerate keeps
+   * the gait it was travelling with.
    */
   right: number;
   forward: number;
@@ -110,68 +58,25 @@ export interface PlayerTuning {
 
   walkSpeed: number;
   sprintScale: number;
-  /**
-   * Eye height while crouched, as a fraction of the standing one.
-   *
-   * The camera moves and the capsule does not. That is a deliberate
-   * simplification and worth stating plainly: a shorter capsule would let the
-   * player crouch under things, which needs a headroom test before standing up
-   * again or they stand up inside geometry. Nothing in this world is low enough
-   * to crawl under yet, so crouch is a *viewpoint* — it lowers the eye to look
-   * at something properly — and the collision volume is unchanged.
-   */
+  /** Eye height while crouched, as a fraction of the standing one. */
   crouchScale: number;
-  /**
-   * Capsule height while crouched, as a fraction of the standing one.
-   *
-   * The collider really does shrink now. That is what makes crouching a
-   * *movement* rather than a camera effect — you can get under a beam — and it
-   * brings an obligation with it: something has to stop the player standing up
-   * inside whatever they crouched under. See `headroom`.
-   */
+  /** Capsule height while crouched, as a fraction of the standing one. `headroom` is what stops you standing up inside geometry. */
   crouchHeight: number;
-  /**
-   * How fast the crouch eases in and out, in fractions per second.
-   *
-   * High. The ease exists only so the camera does not *teleport* between two
-   * heights — a couple of frames of travel is enough to read as movement, and
-   * anything slower feels like the controller is thinking about it. Crouching
-   * is an input, not an animation.
-   */
+  /** How fast the crouch eases in and out, in fractions per second. High: it exists only so the camera does not teleport. */
   crouchSpeed: number;
   /** Movement speed while crouched, as a multiple of the walk. */
   crouchDrag: number;
   /**
-   * How fast the camera catches up after a step, in fractions per second.
-   *
-   * **Low enough that consecutive steps overlap**, which is the whole
-   * difference between a smoothed staircase and a smooth one. A tread is about
-   * 0.19 m and a walking pace puts one under you every quarter of a second; at
-   * 16 the camera had finished the whole rise inside a fifteenth of a second
-   * and then waited, so every step was a distinct 19 cm lurch with a pause
-   * after it — technically smoothed, and still a staircase.
-   *
-   * Slower, each rise is still being paid off when the next one lands, and they
-   * sum into one continuous climb. The cost is standing lag: the camera sits
-   * about five centimetres below the feet while climbing and settles the moment
-   * you stop. That is the trade, and it is worth it — the alternative is
-   * accurate eye height and a judder at four hertz.
+   * How fast the camera catches up after a step, in fractions per second. Low
+   * enough that consecutive steps overlap and sum into one continuous climb;
+   * the cost is a few centimetres of standing lag while climbing.
    */
   stepSmoothing: number;
   groundAccel: number;
   /**
-   * Steering authority while airborne.
-   *
-   * Deliberately generous — about half the ground figure, where a cautious
-   * controller uses a fifth of it. A jump you cannot adjust once you have left
-   * the ground is a jump you have to line up perfectly *before* taking it, and
-   * a game about moving over things becomes a game about standing still and
-   * aiming.
-   *
-   * **This is only safe because `maxAirSpeed` exists.** Quake air acceleration
-   * has no upper bound, so raising this without a speed cap would not have made
-   * the player more agile, it would have made air-strafing accumulate faster.
-   * With the magnitude capped, this buys steering and nothing else.
+   * Steering authority while airborne, about half the ground figure. Only safe
+   * because `maxAirSpeed` caps the magnitude — Quake air acceleration has no
+   * upper bound of its own, so this would otherwise compound.
    */
   airAccel: number;
   friction: number;
@@ -181,15 +86,7 @@ export interface PlayerTuning {
   /** Well above 9.81. Real gravity reads as floating in a first-person game. */
   gravity: number;
   jumpSpeed: number;
-  /**
-   * Grace period after walking off a ledge during which a jump still works.
-   *
-   * Generous on purpose. Players press jump *as* they reach an edge, not a
-   * frame before it, and the honest version of that — no grace at all — reads
-   * as the game dropping inputs rather than as the player being late. A fifth
-   * of a second is long enough to cover a normal mistime and short enough that
-   * jumping from thin air never looks like it.
-   */
+  /** Grace period after walking off a ledge during which a jump still works, in seconds. */
   coyoteTime: number;
   /** How early a jump press can land before touchdown and still be honoured. */
   jumpBuffer: number;
@@ -203,100 +100,39 @@ export interface PlayerTuning {
 
   lookSensitivity: number;
   invertY: boolean;
-  /**
-   * Reverses horizontal look.
-   *
-   * Rare, and worth having anyway: a player who inverts one axis on a flight
-   * stick often inverts both, and the alternative to an option is that the
-   * game is unplayable for them.
-   */
   invertX: boolean;
 
-  /**
-   * Global scale over the head bob, 0..1.
-   *
-   * Separate from the three amplitudes rather than folded into them, and for
-   * the same reason `windUniforms.swayAmount` is separate from the per-species
-   * flex weights: turning the effect off must not destroy the tuning. A player
-   * who switches head bob off and back on gets the bob that was dialled in,
-   * not the defaults, and the debug sliders keep working underneath.
-   */
+  /** Global scale over the head bob, 0..1. Separate from the three amplitudes, so switching it off does not destroy their tuning. */
   bobScale: number;
   bobAmount: number;
   bobSway: number;
   bobRoll: number;
   /** Footfalls per second at walking pace. Two footfalls to a bob cycle. */
   bobStepsPerSecond: number;
-  /**
-   * How far into a stride the gait sits while standing still, 0..1.
-   *
-   * Moving off from a standstill should step almost at once. Starting a stride
-   * from zero means a stride's worth of silent walking before the first
-   * footfall, which reads as the sound being broken rather than as gait.
-   */
+  /** How far into a stride the gait sits while standing still, 0..1, so moving off from a standstill steps almost at once. */
   firstStepFraction: number;
   /**
    * How much faster the legs turn over when moving faster, as an exponent on
-   * the speed ratio.
-   *
-   * 1 would make cadence proportional to speed, which is wrong and reads as a
-   * cartoon scramble: going 75% faster does not mean taking steps 75% faster.
-   * People cover ground mostly by lengthening their stride, and cadence rises
-   * roughly with the square root of speed, hence 0.5. Set it to 0 for a fixed
-   * cadence regardless of pace.
+   * the speed ratio. Cadence rises with about the square root of speed, hence
+   * 0.5; 0 is a fixed cadence whatever the pace.
    */
   bobSpeedInfluence: number;
 
   /**
    * Ceiling on horizontal speed while airborne, as a multiple of sprint speed.
-   *
-   * **This exists because Quake acceleration has no upper bound in the air.**
-   * The rule is "add up to the shortfall between your speed *along the wish
-   * direction* and the wish speed" — and if you point the wish direction
-   * sideways to where you are already going, that dot product stays near zero,
-   * so the shortfall stays near full and you keep getting acceleration you have
-   * no business getting. It adds at right angles to your motion, so the total
-   * speed grows by Pythagoras, and with no air friction to bleed it off, every
-   * hop compounds the last. That is air-strafing, and it is why holding jump
-   * while steering at an angle ran away to absurd speeds.
-   *
-   * Capping the *magnitude* rather than the acceleration keeps what is good
-   * about air control — you can still steer freely mid-jump — and removes only
-   * the speed gain. A little over 1 leaves a small reward for chaining jumps
-   * well without letting it snowball.
+   * Quake air acceleration has no upper bound, so without this air-strafing
+   * compounds every hop. Capping the magnitude leaves the steering untouched.
    */
   maxAirSpeed: number;
 
   fov: number;
   /**
-   * Which axis `fov` is measured along.
-   *
-   * The two behave differently only when the window is not 16:9, and the
-   * difference is what happens to the *other* axis as the shape changes:
-   *
-   * - `vertical` fixes the vertical angle, so a wider window shows more to
-   *   the sides. This is Hor+, it is what most PC games do, and it is what
-   *   three.js does natively — `PerspectiveCamera.fov` is a vertical angle.
-   * - `horizontal` fixes the horizontal angle, so a wider window loses height
-   *   instead. This is Vert−, and it is what a player usually means when they
-   *   type a number into an FOV box, because the numbers everyone quotes
-   *   (90, 103) are horizontal ones.
-   *
-   * Both are honest and neither is a hack; which one is wanted depends on
-   * whether the player is thinking about the number or about the window.
+   * Which axis `fov` is measured along. `vertical` fixes the vertical angle, so
+   * a wider window shows more to the sides — three's own convention.
+   * `horizontal` fixes the horizontal angle and loses height instead.
    */
   fovScaling: FovScaling;
-  /**
-   * How much wider the view goes while sprinting, in degrees **on top of**
-   * `fov`.
-   *
-   * A boost rather than a second absolute angle. Held absolutely, the two have
-   * to be kept in step by whoever moves either — a field-of-view slider that
-   * set one and forgot the other would silently turn the sprint zoom into a
-   * zoom *out*, and nothing in the code would look wrong. As a delta the
-   * relationship cannot come apart: the effect is this many degrees wherever
-   * the player puts their field of view, and 0 is no effect at all.
-   */
+  /** How much wider the view goes while sprinting, in degrees on top of `fov`. A delta, so the two cannot come apart. */
   sprintFovBoost: number;
   /** Camera dip on landing, per m/s of impact speed. */
   landDip: number;
@@ -305,14 +141,8 @@ export interface PlayerTuning {
 export const DEFAULT_TUNING: PlayerTuning = {
   radius: 0.32,
   height: 1.8,
-  // Well below the top of the capsule, and deliberately.
-  //
-  // 1.62 is where a person's eyes actually are on a 1.8 m body, and it looked
-  // wrong: at that height you are above most of the art kit, the ground is a
-  // long way down, and everything reads as smaller than it is. Dropping the
-  // camera without dropping the capsule keeps collision honest — you still
-  // occupy a person's volume — while putting the view somewhere the world can
-  // be looked *at* rather than over.
+  // Below where a person's eyes actually sit. At 1.62 you are above most of the
+  // art kit and everything reads as smaller than it is; the capsule is unchanged.
   eyeHeight: 1.35,
 
   walkSpeed: 4.2,
@@ -351,12 +181,8 @@ export const DEFAULT_TUNING: PlayerTuning = {
   maxAirSpeed: 1.12,
 
   fov: 80,
-  // Vertical, which is also what this was implicitly before the option
-  // existed — `PerspectiveCamera.fov` is a vertical angle and the code set it
-  // straight. So 80 keeps meaning exactly what it meant while it was being
-  // tuned, and the option changes the framing only for somebody who asks it
-  // to. Read as horizontal it would be 50.5° vertical on a 16:9 screen, which
-  // is a considerably tighter game than the one that was dialled in.
+  // Vertical, which is what `PerspectiveCamera.fov` is, so 80 keeps meaning what
+  // it meant while it was being tuned.
   fovScaling: 'vertical',
   sprintFovBoost: 8,
   landDip: 0.02,
@@ -380,8 +206,7 @@ const _look = { x: 0, y: 0 };
 
 /**
  * A moving thing the player is stopped by — a creature. An upright cylinder,
- * because the static collider indexes triangles once per zone and cannot hold
- * anything that walks; `LifeActivity` refreshes these every frame.
+ * refreshed every frame: the static collider indexes triangles once per zone.
  */
 export interface Obstacle {
   x: number;
@@ -398,32 +223,18 @@ export class Controller {
   /** Replaced, not appended, by whatever owns the moving things. */
   obstacles: readonly Obstacle[] = [];
 
-  /** Fires on each footfall. Phase 3 listens. */
+  /** Fires on each footfall. */
   onFootstep: ((step: Footfall) => void) | null = null;
   /**
-   * Fires on touchdown, with the vertical impact speed and the horizontal
-   * speed it arrived carrying, both in m/s.
-   *
-   * **Two numbers, because a landing is two events.** Vertical is what gets
-   * arrested and it sets the weight. Horizontal carries on, and it is the shear
-   * — the skid, the gravel thrown forward, the difference between dropping onto
-   * a spot and sliding into it. Total speed would merge them and get both
-   * wrong: a fast shallow skim would read as heavier than a long drop.
+   * Fires on touchdown with the vertical impact speed and the horizontal speed
+   * it arrived carrying, both in m/s. Two numbers: vertical is what gets
+   * arrested and sets the weight, horizontal carries on and is the shear.
    */
   onLand: ((impact: number, horizontal: number) => void) | null = null;
-  /**
-   * Fires on a jump that is a fresh push-off rather than a continued hop, with
-   * the horizontal speed it was taken at.
-   *
-   * Suppressed within `HOP_CONTINUATION` of landing — see that constant.
-   */
+  /** Fires on a jump that is a fresh push-off, with the horizontal speed it was taken at. See `HOP_CONTINUATION`. */
   onJump: ((speed: number) => void) | null = null;
 
-  /**
-   * Public so systems that need the player's *view* can read it — the
-   * interaction ray is cast down the camera axis, not the body's facing, and
-   * those differ by the head bob and the pitch.
-   */
+  /** Public so systems that need the player's *view* can read it: the camera axis and the body's facing differ by the bob and the pitch. */
   readonly camera: THREE.PerspectiveCamera;
   private readonly input: Input;
   private readonly collider: Collider;
@@ -433,63 +244,31 @@ export class Controller {
   private pitch = 0;
 
   /**
-   * Fly, and pass through everything.
-   *
-   * A debug camera rather than a movement mode: gravity, friction, the slope
-   * limit, step-up and the collider are all skipped wholesale, so nothing here
-   * can be reached by ordinary play and nothing in the ordinary path has to
-   * test for it. Forward is wherever you are looking, pitch included; jump and
-   * crouch are up and down; sprint is fast.
-   *
-   * The one thing it deliberately leaves alone is the capsule's size, so what
-   * you fly *through* is still exactly the volume you would occupy standing
-   * there.
+   * Fly, and pass through everything. A debug camera rather than a movement
+   * mode: gravity, friction, the slope limit, step-up and the collider are all
+   * skipped. The capsule keeps its size, so what you fly through is the volume
+   * you would occupy standing there.
    */
   noclip = false;
-  /** Whether the sprint widening is currently engaged. Latched, with
-   * hysteresis — see `applyCamera`. */
+  /** Whether the sprint widening is engaged. Latched, with hysteresis. */
   private zoomedOut = false;
   /**
-   * The field of view **in the axis the player authored it in**, damped.
-   *
-   * Held separately from `camera.fov`, which is always vertical. Damping the
-   * camera's value directly would mean the sprint widening was smoothed in a
-   * different unit depending on the scaling option, and — worse — that a
-   * window resize under horizontal scaling would be *eased* into rather than
-   * simply being the correct angle for the new shape.
+   * The field of view in the axis the player authored it in, damped. Held apart
+   * from `camera.fov`, which is always vertical.
    */
   private authoredFov = DEFAULT_TUNING.fov;
-  /**
-   * How far into the crouch the camera is, 0..1.
-   *
-   * Eased rather than switched. A camera that jumps between two heights on a
-   * key press reads as a teleport, and the whole value of crouching is that you
-   * watch the world get taller.
-   */
+  /** How far into the crouch the camera is, 0..1. Eased rather than switched. */
   private crouch = 0;
   /**
-   * How far the camera is still lagging behind the feet after a step up.
-   *
-   * Climbing a stair is a sequence of instantaneous vertical jumps: the
-   * collider finds the next tread, the capsule is placed on it, and the camera
-   * — which is pinned to the feet — snaps up with it. At a 0.19 m rise and four
-   * steps a second that is a visible judder, and it reads as the controller
-   * struggling rather than as the player climbing.
-   *
-   * The fix is not to move the feet more smoothly, which would break collision;
-   * it is to let the *camera* arrive late. Each upward step is subtracted from
-   * the camera's height here and paid back over the next fraction of a second,
-   * so the body climbs in steps and the view rises in one continuous glide.
+   * How far the camera is still lagging behind the feet after a step up. Each
+   * upward step is subtracted here and paid back over the next fraction of a
+   * second, so the body climbs in steps and the view rises in one glide.
    */
   private stepLag = 0;
   /**
-   * How short the capsule currently is, 0..1, matching `crouch`.
-   *
-   * Held separately from the input because the two can disagree: releasing the
-   * key under a low beam has to leave the body crouched until there is room to
-   * rise. The camera follows this rather than the key for the same reason —
-   * the view has to agree with the collision volume or you are looking out of
-   * the top of a ceiling.
+   * How short the capsule currently is, 0..1, matching `crouch`. Held apart
+   * from the input, because releasing the key under a low beam has to leave the
+   * body crouched until there is room to rise.
    */
   private stance = 0;
   /** Feet height last frame, for spotting those steps. */
@@ -497,27 +276,18 @@ export class Controller {
 
   /** Surface the player is standing on. Straight up whenever airborne. */
   private readonly groundNormal = new THREE.Vector3(0, 1, 0);
-  /**
-   * What the last thing that held the player up was made of. See
-   * `groundSurface`.
-   */
+  /** What the last thing that held the player up was made of. See `groundSurface`. */
   private ground: SurfaceName | null = null;
   /** Horizontal unit direction the player is asking to go, world space. */
   private wishX = 0;
   private wishZ = 0;
-  /**
-   * The same wish in the player's *own* frame, latched at its last non-zero
-   * value. See `Footfall`.
-   */
+  /** The same wish in the player's own frame, latched at its last non-zero value. */
   private headingRight = 0;
   private headingForward = 1;
   private grounded = false;
   /** Set for the one sub-step a jump is launched on, so it isn't snapped back. */
   private jumped = false;
-  /**
-   * Height accumulated by step-ups since the player last stood on ground the
-   * slope limit allows. See `STEP_CLIMB_BUDGET`.
-   */
+  /** Height accumulated by step-ups since the player last stood on ground the slope limit allows. */
   private stepClimb = 0;
   private timeOffGround = 0;
   /** Seconds standing since the last touchdown. Gates the take-off sound. */
@@ -535,14 +305,8 @@ export class Controller {
     // The controller drives rotation directly; three's default order would let
     // pitch tilt the horizon.
     this.camera.rotation.order = 'YXZ';
-    // **Seeded, not damped into.**
-    //
-    // `Viewport` constructs the camera at whatever fov it likes — 70 — and the
-    // tuning here wants 74, so without this the first second of play is a slow
-    // zoom from one to the other. That is bad enough on its own, and worse
-    // because those are the frames boot work is stuttering through: `damp` fed
-    // erratic deltas moves in lurches, and the whole thing reads as the camera
-    // wobbling in and out as the page loads.
+    // Seeded rather than damped into: `Viewport` builds the camera at its own
+    // fov, and easing from it would be a slow zoom across the boot frames.
     this.authoredFov = this.tuning.fov;
     this.applyProjection();
     this.teleport(new THREE.Vector3(0, 2, 6), 0);
@@ -562,11 +326,8 @@ export class Controller {
     // Whatever they were standing on is in another zone. Left set, the first
     // footfall after a doorway would be the last plank on the other side of it.
     this.ground = null;
-    // The capsule has just been rebuilt at full height. `applyStance` only acts
-    // when the crouch has moved, so without this a player who arrives mid-crouch
-    // would keep a standing collision volume until they stood up and ducked
-    // again — and the camera, which follows `stance`, would be at the wrong
-    // height for it the whole time.
+    // The capsule has just been rebuilt at full height, and `applyStance` only
+    // acts when the crouch has moved.
     this.stance = 0;
     this.crouch = 0;
     this.stepLag = 0;
@@ -574,19 +335,9 @@ export class Controller {
   }
 
   /**
-   * Changes the field of view **at once**, rather than easing into it.
-   *
-   * The damp in `applyCamera` exists for the sprint zoom, where the whole
-   * effect is the widening — and it is exactly wrong for a settings slider,
-   * where every drag of the handle would chase a target it never reaches and
-   * the picture would lag a fraction of a second behind the number. Setting
-   * the camera here puts it already at the target, so the damp has nothing
-   * left to do and the next frame is drawn at the new angle.
-   *
-   * All three together, because whether the boost is currently applied depends
-   * on whether the player is sprinting, and only this class knows — and
-   * because changing the scaling without the angle would be read against the
-   * wrong axis for a frame.
+   * Changes the field of view at once rather than easing into it. The damp in
+   * `applyCamera` is for the sprint zoom and would make a settings slider lag.
+   * All three together, because whether the boost applies depends on sprinting.
    */
   setFieldOfView(fov: number, sprintBoost: number, scaling: FovScaling): void {
     this.tuning.fov = fov;
@@ -597,25 +348,16 @@ export class Controller {
   }
 
   /**
-   * Writes the camera's *vertical* angle from the authored one.
-   *
-   * The conversion is the only place the scaling option means anything, and it
-   * has to happen here rather than once when the option changes, because it
-   * depends on the aspect ratio — which moves whenever the window does. Run
-   * every frame from `applyCamera`, it costs a `tan` and an `atan` and it can
-   * never be stale.
-   *
-   * Guarded on an actual change: `updateProjectionMatrix` is not free, and the
-   * value is identical on the vast majority of frames.
+   * Writes the camera's vertical angle from the authored one. Every frame,
+   * because the conversion depends on the aspect ratio; guarded on an actual
+   * change, because `updateProjectionMatrix` is not free.
    */
   private applyProjection(): void {
     const authored = this.authoredFov;
     const vertical =
       this.tuning.fovScaling === 'vertical'
         ? authored
-        : // Half-angles, because the tangent relationship holds on the half
-          // and not on the whole: the aspect ratio is width over height of the
-          // image plane, and each half-angle subtends half of one of those.
+        : // Half-angles: the tangent relationship holds on the half, not the whole.
           THREE.MathUtils.radToDeg(
             2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(authored) / 2) / this.camera.aspect),
           );
@@ -626,27 +368,15 @@ export class Controller {
     }
   }
 
-  /** Feet position — what autosave persists in Phase 9. Shared scratch; copy it. */
+  /** Feet position. Shared scratch; copy it. */
   get position(): THREE.Vector3 {
     return _position.copy(this.capsule.start).setY(this.capsule.start.y - this.tuning.radius);
   }
 
   /**
-   * What the player is standing on, or null when it is the ground itself.
-   *
-   * **Taken from the collision that stopped them**, not looked up afterwards.
-   * The thing holding you up is the thing you were last pushed out of, so this
-   * is exact at the instant of landing, on the shoulder of a tank, on a
-   * handrail fifty millimetres across — every case where a query about the
-   * geometry near your feet has to guess.
-   *
-   * Null means the triangle had no material: bare ground, a terrain face, an
-   * interior floor. The zone answers for those, because painted ground and a
-   * room's floor are its business — see `ZoneManager.surfaceAt`.
-   *
-   * Held rather than recomputed, so it survives the frames in the air between
-   * a take-off and a landing. It is rewritten by every contact that counts as
-   * standing, which is several times a frame while walking.
+   * What the player is standing on, or null when the triangle had no material —
+   * bare ground, a terrain face, an interior floor, which the zone answers for.
+   * Taken from the collision that stopped them, and held across frames in the air.
    */
   get groundSurface(): SurfaceName | null {
     return this.ground;
@@ -744,13 +474,9 @@ export class Controller {
   }
 
   /**
-   * One sub-step of the debug camera.
-   *
-   * Velocity is *set* rather than accelerated toward — a fly camera that
-   * carries momentum overshoots everything you try to stop beside, and the
-   * whole point of this is getting a look at something. It is still written to
-   * `velocity` rather than kept locally so that switching noclip off mid-air
-   * hands the ordinary path a sensible starting speed instead of a stale one.
+   * One sub-step of the debug camera. Velocity is set rather than accelerated
+   * toward, so nothing overshoots; still written to `velocity`, so leaving
+   * noclip mid-air hands the ordinary path a sensible starting speed.
    */
   private fly(dt: number): void {
     const t = this.tuning;
@@ -815,18 +541,15 @@ export class Controller {
     // Velocity is not — a wall zeroes it, and then nothing looks obstructed.
     this.wishX = _wish.x;
     this.wishZ = _wish.z;
-    // The same thing in the player's own frame, and no transformation is
-    // needed: `moveX` and `moveZ` already *are* right and forward. Latched
-    // here, inside the guard, so releasing the keys mid-stride leaves the last
-    // real direction standing rather than zeroing it.
+    // The same thing in the player's own frame — `moveX` and `moveZ` already are
+    // right and forward. Latched inside the guard, so releasing the keys
+    // mid-stride leaves the last real direction standing.
     this.headingRight = moveX / magnitude;
     this.headingForward = moveZ / magnitude;
 
     if (this.grounded) {
-      // Steer along the surface rather than into it. Walking up a slope is
-      // then just walking: the wish direction tilts with the ground, so the
-      // acceleration that carries you forward carries you up as well, and
-      // gravity never has to be fought with a horizontal push.
+      // Steer along the surface rather than into it, so walking up a slope is
+      // just walking and gravity is never fought with a horizontal push.
       _wish.projectOnPlane(this.groundNormal);
       const flattened = _wish.length();
       if (flattened < 1e-4) return;
@@ -839,9 +562,7 @@ export class Controller {
       t.walkSpeed *
       Math.min(magnitude, 1) *
       (this.input.sprint ? t.sprintScale : 1) *
-      // Crouching slows you down, and does so smoothly with the camera rather
-      // than as a step — otherwise the speed changes a beat before the view
-      // does and the two read as unrelated.
+      // Crouching slows you smoothly with the camera rather than as a step.
       (1 - this.stance * (1 - t.crouchDrag));
 
     // Quake acceleration: only ever adds up to the shortfall between current
@@ -855,13 +576,7 @@ export class Controller {
     this.velocity.addScaledVector(_wish, Math.min(accel * wishSpeed * dt, shortfall));
   }
 
-  /**
-   * Bounds horizontal speed in the air. See `maxAirSpeed`.
-   *
-   * Horizontal only — scaling the vertical component too would turn the cap
-   * into a parachute, slowing every fall the moment a player happened to be
-   * moving quickly sideways.
-   */
+  /** Bounds horizontal speed in the air. Horizontal only: scaling the vertical component too would make it a parachute. */
   private capAirSpeed(): void {
     if (this.grounded) return;
     const t = this.tuning;
@@ -906,16 +621,13 @@ export class Controller {
     this.resolve();
     this.resolveObstacles();
 
-    // Moving along a surface rather than into it means there is nothing to
-    // penetrate, so contact is lost the moment the ground stops being flat —
-    // walking up a ramp, over the lip of one, down a stair. Feel for ground
-    // within a step's reach and settle back onto it. Only an actual jump is
-    // exempt; anything else that leaves the floor should be pulled back to it.
+    // Moving along a surface never penetrates it, so contact is lost the moment
+    // the ground stops being flat. Feel within a step's reach and settle back
+    // onto it; only an actual jump is exempt.
     if (wasGrounded && !this.grounded && !this.jumped) this.snapToGround();
 
-    // Ledge climbing, when the player is asking to go somewhere and isn't.
-    // Not gated on being grounded: catching a lip on the way down is the same
-    // manoeuvre, and `tryStepUp` refuses anything that isn't a real ledge.
+    // Ledge climbing, when the player is asking to go somewhere and isn't. Not
+    // gated on being grounded: catching a lip on the way down is the same move.
     if (t.stepHeight <= 0 || (this.wishX === 0 && this.wishZ === 0)) return;
     if (this.velocity.y > 0.1) return; // rising: mid-jump, leave it alone
 
@@ -944,12 +656,9 @@ export class Controller {
       // Standing is only possible on a surface flatter than the slope limit.
       const walkable = contact.normal.y > slopeCos;
 
-      // **A bank you cannot stand on is resolved as a wall.** Along its own
-      // normal, a too-steep face lifts the capsule as it depenetrates *and*
-      // turns horizontal speed into up-slope speed — so walking into one
-      // ratchets you up it and sprinting into one climbs it outright. Flattened,
-      // it stops you and leaves gravity alone, which is what a slope should do.
-      // Ceilings keep their normal: theirs points down, and it should.
+      // A bank you cannot stand on is resolved as a wall: along its own normal a
+      // too-steep face lifts the capsule as it depenetrates and turns horizontal
+      // speed into up-slope speed. Ceilings keep their normal, which points down.
       _slide.copy(contact.normal);
       if (!walkable && contact.normal.y > 0) {
         const flat = Math.hypot(contact.normal.x, contact.normal.z);
@@ -1006,16 +715,9 @@ export class Controller {
   }
 
   /**
-   * Whether there is room to stand up.
-   *
-   * Tests the capsule at *full* height at the player's current feet. Cheap —
-   * one overlap query — and only meaningful while crouched, so it short-circuits
-   * the rest of the time.
-   *
-   * Without this, releasing the key under a beam would push the capsule's head
-   * into solid geometry and the collider would resolve it by shoving the player
-   * sideways out of the gap they had deliberately squeezed into, which reads as
-   * the world rejecting them.
+   * Whether there is room to stand up: the capsule at full height at the
+   * current feet. Without it, releasing the key under a beam would shove the
+   * player sideways out of the gap they had squeezed into.
    */
   private headroom(): boolean {
     if (this.stance < 0.01) return true;
@@ -1027,14 +729,7 @@ export class Controller {
     return !this.collider.overlaps(_probe);
   }
 
-  /**
-   * Resizes the capsule to match the current crouch.
-   *
-   * **The feet stay put and the head moves**, which is the only version that
-   * behaves: shrinking about the middle would lift the feet off the floor on
-   * the way down and drive them through it on the way up, and either one is a
-   * frame of the player falling or being ejected.
-   */
+  /** Resizes the capsule to match the current crouch. The feet stay put and the head moves. */
   private applyStance(): void {
     if (Math.abs(this.crouch - this.stance) < 0.001) return;
     this.stance = this.crouch;
@@ -1050,10 +745,9 @@ export class Controller {
   }
 
   /**
-   * Feels downward for a walkable surface within one step height and settles
-   * onto it. Deliberately penetrates before resolving, because `resolve` is
-   * what reports the surface normal, and a probe that stops just short of
-   * contact reports nothing at all.
+   * Feels downward for a walkable surface within one step height and settles on
+   * it. Deliberately penetrates first, because `resolve` is what reports the
+   * surface normal and a probe stopping short reports nothing.
    */
   private snapToGround(): void {
     const t = this.tuning;
@@ -1070,10 +764,8 @@ export class Controller {
       if (contact.normal.y <= slopeCos) return;
 
       // Settle at the last height that was clear rather than dropping in and
-      // depenetrating. Pushing out along the surface normal moves you *down
-      // the slope* as well as up out of it, and a nudge backwards every
-      // sub-step is a treadmill — it is what stops a 45° ramp being climbable
-      // while a 20° one is fine.
+      // depenetrating: pushing out along the normal moves you down the slope as
+      // well as out of it, and a nudge back every sub-step is a treadmill.
       _probe.translate(_push.set(0, increment, 0));
       this.capsule.copy(_probe);
       this.grounded = true;
@@ -1085,20 +777,14 @@ export class Controller {
   }
 
   /**
-   * Ledge climbing.
-   *
-   * Rather than special-casing the geometry, the move is retried from a
-   * position raised by `stepHeight`; if that path is clear, the capsule is
-   * dropped back onto whatever it finds. A kerb or a stair tread is climbed;
-   * a wall is not, because the raised path is blocked too; a gap is not,
-   * because nothing is found on the way down.
+   * Ledge climbing: the move is retried from a position raised by `stepHeight`,
+   * and if that path is clear the capsule is dropped back onto what it finds.
+   * A wall is blocked up there too; a gap finds nothing on the way down.
    */
   private tryStepUp(dt: number): boolean {
     const t = this.tuning;
-    // One sub-step's worth of walking, no more. Reaching further would clear
-    // the tread the player is climbing onto and land the probe inside the
-    // riser above it, so a staircase would read as a wall. A stair is climbed
-    // over several sub-steps, a fraction at a time, the way it is walked.
+    // One sub-step's worth of walking, no more. Reaching further would clear the
+    // tread and land the probe inside the riser above it.
     const reach = Math.max(t.walkSpeed * dt, 0.02);
 
     _probeStart.set(
@@ -1118,31 +804,16 @@ export class Controller {
 
     for (let i = 0; i < STEP_DROP_SAMPLES; i++) {
       _probe.translate(_drop);
-      // Asked as a contact rather than an overlap, only so the tread can say
-      // what it is made of. A step up onto a stair is where a footfall is most
-      // likely to land, and inheriting the material of the floor below it is
-      // the whole failure this is here to avoid.
+      // Asked as a contact rather than an overlap, only so the tread can say what
+      // it is made of — a step up is where a footfall is most likely to land.
       const contact = this.collider.intersectCapsule(_probe);
       if (contact) {
         // Back off to the last clear height and stand there.
         _probe.translate(_push.set(0, increment, 0));
 
-        // **A step-up may only carry you so far past real ground.**
-        //
-        // Climbing is a ratchet by design: a kerb is not cleared in one move,
-        // it is ridden up its own front edge a few centimetres per sub-step
-        // until the capsule's shoulder tops it. That is what makes stairs and
-        // kerbs work, so it cannot be forbidden — but unbounded it defeats the
-        // slope limit outright. The raised probe clears any bank shallower than
-        // about 80°, so holding forward ratchets up a hillside at full walking
-        // speed, and the flat normal reported below keeps `grounded` true so
-        // `snapToGround` never gets to apply the limit either.
-        //
-        // The difference is that a ledge *ends*. Climb a kerb and you are stood
-        // on genuinely walkable ground a moment later, which resets this; climb
-        // a bank and there is only more bank. So the budget is the total rise a
-        // step-up may accumulate since the last time the player stood on
-        // something the slope limit allows. A staircase resets on every tread.
+        // A step-up may only carry you so far past real ground. Climbing is a
+        // ratchet by design and unbounded it defeats the slope limit: a ledge
+        // ends and resets this, a bank only goes on.
         const gain = _probe.start.y - this.capsule.start.y;
         if (gain > 0 && this.stepClimb + gain > t.stepHeight * STEP_CLIMB_BUDGET) return false;
         this.stepClimb += Math.max(gain, 0);
@@ -1161,21 +832,9 @@ export class Controller {
   // --- camera -------------------------------------------------------------
 
   /**
-   * Advances the gait by **distance covered**, not by time.
-   *
-   * A time-driven cadence gets the sprint right and everything else wrong:
-   * edging forward at walking pace still steps at walking rate, and tapping a
-   * key fires a footfall for a few centimetres of movement. Distance fixes
-   * both — a step happens when a stride's worth of ground has gone past, so
-   * creeping steps rarely and a tap steps not at all.
-   *
-   * Cadence still has to rise sub-linearly with speed, or a sprint scrambles.
-   * That falls out for free by making stride length grow with speed too:
-   *
-   *     stride ∝ speed^(1 − influence)   ⟹   cadence = speed/stride ∝ speed^influence
-   *
-   * which is also roughly what people do — most of going faster is a longer
-   * stride, not a quicker one.
+   * Advances the gait by distance covered, not by time: creeping steps rarely
+   * and a tap steps not at all. Stride length grows with speed as well, so
+   * cadence rises as speed^influence rather than proportionally.
    */
   private advanceBob(dt: number): void {
     const t = this.tuning;
@@ -1214,13 +873,8 @@ export class Controller {
   private applyCamera(dt: number): void {
     const t = this.tuning;
 
-    // Eased toward whatever the key is doing — unless standing up would put
-    // the player's head through something, in which case they stay down.
-    //
-    // Held, not toggled: `crouching` is a live read of the key state, so
-    // releasing it always stands you up the moment there is room.
-    // Crouch is the descend key while flying, and there is no floor to be
-    // short of — so the stance is left standing rather than following it.
+    // Eased toward whatever the key is doing, unless standing up would put the
+    // head through something. Never while flying: crouch is the descend key there.
     const wanted = !this.noclip && (this.input.crouching || !this.headroom()) ? 1 : 0;
     this.crouch += (wanted - this.crouch) * Math.min(dt * t.crouchSpeed, 1);
     this.applyStance();
@@ -1230,31 +884,18 @@ export class Controller {
     // on every frame.
     _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     // Scales with how fast you are actually going, not with input, so the bob
-    // settles as you decelerate instead of cutting out. Capped at walking
-    // pace: sprinting already quickens the cadence, and letting it deepen the
-    // sway as well stacks two effects into a lurch.
-    //
-    // `bobScale` rides on the same term, so switching the bob off scales all
-    // three components at once and leaves the gait itself alone — footfalls are
-    // driven by distance covered in `advanceBob` and keep firing exactly as
-    // before, which is what stops "no head bob" also meaning "no footsteps".
+    // settles as you decelerate. Capped at walking pace, since sprinting already
+    // quickens the cadence. `bobScale` rides the same term, so switching the bob
+    // off leaves the gait and the footfalls it drives alone.
     const intensity = Math.min(this.speed / t.walkSpeed, 1) * t.bobScale;
 
     this.dip = Math.max(this.dip - this.dip * Math.min(dt * 9, 1), 0);
 
     const feetY = this.capsule.start.y - t.radius;
 
-    // A step is a move of less than a step height, while grounded, **in either
-    // direction**. Bounding it matters: a teleport or a fall arrival also moves
-    // the feet, and smoothing those would leave the camera drifting through the
-    // floor for half a second after every portal.
-    //
-    // Going *down* used to be excluded, and that was simply a gap. A descent is
-    // the same sequence of instantaneous vertical jumps as a climb — see
-    // `snapToGround`, which feels its way down a tread at a time — so leaving it
-    // unsmoothed meant a staircase was comfortable in one direction and a
-    // hammer in the other. The formula needs no sign of its own: a negative lag
-    // puts the camera *above* the feet and pays back exactly the same way.
+    // A step is a move of less than a step height, while grounded, in either
+    // direction. Bounding it keeps a teleport or a fall arrival out. A negative
+    // lag puts the camera above the feet and pays back the same way.
     if (this.lastFeetY !== null && this.grounded) {
       const climbed = feetY - this.lastFeetY;
       if (Math.abs(climbed) > 0.001 && Math.abs(climbed) < t.stepHeight * 1.2) {
@@ -1262,12 +903,8 @@ export class Controller {
       }
     }
     this.lastFeetY = feetY;
-    // Paid back exponentially. Fast enough that the camera is never far from
-    // where the body is — which matters, because the lag is a lie about where
-    // your eyes are and a long one would be felt as floating.
-    // Clamped, so a long flight taken quickly cannot accumulate a lag nobody
-    // asked for — the steady state is a few centimetres and this only catches
-    // the pathological case.
+    // Paid back exponentially, and clamped so a long flight taken quickly cannot
+    // accumulate a lag nobody asked for.
     this.stepLag = THREE.MathUtils.clamp(
       this.stepLag - this.stepLag * Math.min(dt * t.stepSmoothing, 1),
       -MAX_STEP_LAG,
@@ -1288,10 +925,8 @@ export class Controller {
 
     this.camera.rotation.set(this.pitch, this.yaw, Math.sin(cycle) * t.bobRoll * intensity);
 
-    // Hysteresis on the speed gate. A single threshold makes the FOV flap
-    // between the two values whenever you happen to be moving at about that
-    // speed with sprint held — which is a zoom oscillating at frame rate, and
-    // reads as the camera wobbling in and out.
+    // Hysteresis on the speed gate: a single threshold makes the FOV flap at
+    // frame rate whenever you hover around it with sprint held.
     if (this.zoomedOut) {
       if (!this.input.sprint || this.speed < 0.4) this.zoomedOut = false;
     } else if (this.input.sprint && this.speed > 1.2) {

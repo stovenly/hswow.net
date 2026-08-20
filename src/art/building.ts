@@ -4,57 +4,10 @@ import { prism, type Cell } from './masonry';
 import type { Rng } from './random';
 import { PALETTE, shade, blend } from './palette';
 
-/**
- * Buildings: the walls, roofs and openings the eight of them share.
- *
- * A hut, a barn and a church are one construction at three sizes and three
- * levels of expense, and the worst thing they could do is disagree about what a
- * wall is. So the vocabulary lives here and the builders compose it — the same
- * arrangement `masonry.ts` has with the stone wall family.
- *
- * ## A building is rectangular gabled blocks and lean-tos
- *
- * Not a simplification for the game's sake: it is how these were built. A manor
- * is a range with a cross-wing, a church is a nave with a narrower chancel, a
- * tower and a porch, a barn is a shed with two cart porches. Every one of those
- * parts is a box with a pitched roof on it, so `block` makes one and the
- * builders stack them.
- *
- * ## Openings are laid on, not cut out
- *
- * No hole is ever cut. A window is a leaded light laid on the wall — at this
- * palette indistinguishable from an opening, and it costs no constructive solid
- * geometry.
- *
- * **A doorway is nothing at all.** Not a dark panel, not a frame, not a step: a
- * door builder supplies the leaf and everything round it, so anything the
- * building puts there is something that has to be covered up or fought with. All
- * a building owes a doorway is the entry in `userData.doorways` saying where it
- * is.
- *
- * **A wall is a solid box, so everything laid on it stands in front of it.**
- * This is the mistake that made every window paneless: the glass and the dark
- * behind it were authored at negative z, *inside* the wall slab, where the
- * wall's own front face hides them completely. Nothing can be recessed into a
- * solid; depth is made by stacking layers outward, with the frame proudest and
- * the opening least proud, so the opening reads as set back inside its frame.
- *
- * **And no two layers may share a plane.** Two faces at the same depth are two
- * faces the depth buffer cannot separate, and the result flickers at every
- * distance. Every layer below therefore starts inside the wall and comes out,
- * and each stands clear of the next. The depths are named constants for that
- * reason — they are a ladder, not a set of guesses.
- *
- * ## Orientation, stated once
- *
- * Everything that goes on a wall is authored in one canonical frame — **facing
- * +Z, centred on x = 0, with the wall's outer surface at z = 0 and the piece
- * standing proud toward +z** — and `onFace` turns it onto whichever wall it
- * belongs to. `rotateY(yaw)` takes +Z to `(sin yaw, 0, cos yaw)`, so a face's
- * yaw *is* the bearing of its outward normal: 0 is +Z, π/2 is +X, π is −Z,
- * −π/2 is −X. That is the only place a wall rotation happens, which is the
- * point of having it.
- */
+// Buildings: the walls, roofs and openings the eight builders share. A building
+// is rectangular gabled blocks and lean-tos; openings are laid on, never cut, and
+// no two layers share a plane. Everything that goes on a wall is authored facing
+// +Z, centred on x = 0, wall surface at z = 0, and `onFace` turns it onto a wall.
 
 /** How a wall is built up: a timber frame with daub in it, stone, or boarding. */
 export type Walling = 'frame' | 'stone' | 'board';
@@ -75,23 +28,11 @@ export interface Look {
   stone: number;
   stoneDark: number;
   roof: number;
-  /**
-   * How far apart the studs are, where the building wants to say.
-   *
-   * Close studding — a stud every half metre, timber standing nearly as wide as
-   * the panel between — was a display of how much oak the owner could afford to
-   * nail to the outside of his house. Left off, the wall rolls its own.
-   */
+  /** How far apart the studs are, where the building wants to say. Left off, the wall rolls its own. */
   studs?: number;
 }
 
-/**
- * Limewash, ochre or grey clay.
- *
- * The three infills that actually turn up, and the whole of what separates a
- * Kentish panel from an Alsatian one at this distance — the carpentry behind
- * them is the same either way.
- */
+/** Limewash, ochre or grey clay: the three infills that turn up at this distance. */
 function daub(rng: Rng): number {
   const draw = rng();
   if (draw < 0.45) return shade(0xc9c2ae, rng.around(1, 0.05));
@@ -101,8 +42,7 @@ function daub(rng: Rng): number {
 
 function roofColour(rng: Rng, kind: RoofKind): number {
   switch (kind) {
-    // Straw goes grey from the ridge down and keeps its gold where the sun gets
-    // it. Half way between, so a rick beside it is the fresher of the two.
+    // Straw goes grey from the ridge down and keeps its gold where the sun gets it.
     case 'thatch':
       return shade(
         blend(PALETTE.GRASS_DRY, PALETTE.CLOTH, rng.range(0.3, 0.62)),
@@ -151,13 +91,7 @@ export function hardRoof(rng: Rng): RoofKind {
 /** The dark of an unlit opening. Not black — see `PALETTE.INK` for why. */
 export const RECESS = 0x14161a;
 
-/**
- * The outside of a leaded light.
- *
- * **Pale, and that is the whole of why a window reads as a window.** From
- * outside, glass shows the sky, not the room — a dark panel in a wall is a hole,
- * and only something lighter than the wall around it says there is glass in it.
- */
+/** The outside of a leaded light. Pale: from outside glass shows the sky, and only something lighter than the wall says there is glass in it. */
 export const GLASS = 0x93a0a6;
 
 /** How far a squared corner stone reaches along each face it turns. */
@@ -213,12 +147,10 @@ export function proud(face: Facing, by: number, span = face.span): Facing {
 }
 
 /**
- * Turns pieces authored in the canonical face frame onto a wall.
- *
- * `rotateY(yaw)` takes the frame's +Z — the direction everything stands proud
- * in — to the wall's outward normal, and the translate then pushes the lot out
- * to where that wall's surface is. Rotate first: the other order would turn
- * each piece about the block's middle instead of its own.
+ * Turns pieces authored in the canonical face frame onto a wall. `rotateY(yaw)`
+ * takes the frame's +Z — the direction everything stands proud in — to the
+ * wall's outward normal; the translate then pushes them out to its surface.
+ * Rotate first, or each piece turns about the block's middle instead of its own.
  */
 export function onFace(parts: Part[], face: Facing): Part[] {
   const nx = Math.sin(face.yaw);
@@ -239,13 +171,7 @@ export function facePoint(face: Facing, at: number): { x: number; z: number } {
 
 // --- doorways ---------------------------------------------------------------
 
-/**
- * Where a door goes, in the building's own space.
- *
- * Recorded rather than recomputed by whoever places the door: an opening's
- * position depends on the whole run of numbers above it, and arithmetic done
- * outside the builder would drift the moment any of them changed.
- */
+/** Where a door goes, in the building's own space. Recorded rather than recomputed, because the position depends on the whole run of numbers above it. */
 export interface Doorway {
   x: number;
   z: number;
@@ -273,13 +199,7 @@ export function doorways(mesh: THREE.Mesh): Doorway[] {
   return (mesh.userData.doorways as Doorway[] | undefined) ?? [];
 }
 
-/**
- * Where a door leaf stands in front of a doorway, `by` clear of the wall.
- *
- * Out along the doorway's own normal rather than along +Z. A church's west door
- * is in a wall facing nothing like the front, and arithmetic that assumed
- * otherwise would put it inside the building.
- */
+/** Where a door leaf stands in front of a doorway, `by` clear of the wall. Out along the doorway's own normal, not along +Z. */
 export function doorwayFront(way: Doorway, by: number): { x: number; z: number } {
   return { x: way.x + Math.sin(way.yaw) * by, z: way.z + Math.cos(way.yaw) * by };
 }
@@ -287,29 +207,13 @@ export function doorwayFront(way: Doorway, by: number): { x: number; z: number }
 // --- walls ------------------------------------------------------------------
 
 /**
- * The depth ladder, out from the wall's own surface at z = 0.
- *
- * **Every number here is different from every other number here, and that is the
- * whole point of the list.** Two box faces on one plane is a z-fight, and it does
- * not matter whether the two boxes belong to the same part of the building — a
- * course band and a corner stone, a jamb and the sill under it, a shutter and the
- * ledge nailed across it. So each layer gets a back and a front of its own, and
- * anything new must take a pair not already in this list.
- *
- * Openings sit **in front of** the skin rather than behind it: the skin is drawn
- * across the whole face — a course of stone does not know a window is coming —
- * so anything set behind it is a window with masonry laid over the glass. Depth
- * is read from the dressings standing proud of the light, not from the light
- * standing back from the wall.
+ * The depth ladder, out from the wall's own surface at z = 0. Every number here
+ * differs from every other: two box faces on one plane is a z-fight, so each
+ * layer takes a back and a front of its own and anything new takes a fresh pair.
+ * Openings sit in front of the skin, which is drawn across the whole face.
  */
 const CORNER_AT = 0.07;
-/**
- * A corner post stands prouder than a quoin.
- *
- * They meet on the manor, where a stone ground storey carries a framed upper
- * one: at the same depth the post's foot and the topmost quoin had one outer
- * plane between them, and that corner flickered.
- */
+/** A corner post stands prouder than a quoin. They meet on the manor, where a stone ground storey carries a framed upper one. */
 const POST_AT = 0.09;
 const SKIN_BACK = -0.03;
 /** How proud the wall's own uprights — studs, boards, courses — stand. */
@@ -334,13 +238,7 @@ const SHUTTER_AT = 0.245;
 const LEDGE_BACK = 0.23;
 const LEDGE_AT = 0.275;
 
-/**
- * How far below the ground anything standing on it reaches.
- *
- * A threshold, a jamb foot and the plinth all had their underside on y = 0, and
- * three coplanar faces on the ground plane is what made every base trim flicker
- * against every doorway.
- */
+/** How far below the ground anything standing on it reaches, so no base trim shares the ground plane with another. */
 const FOOT = -0.07;
 
 /** A slab spanning a depth range, rather than one given a middle and a thickness. */
@@ -352,22 +250,10 @@ function layer(w: number, h: number, back: number, front: number, x: number, y: 
 const POST = 0.26;
 
 /**
- * Timber frame: a heavy perimeter, one or two mid posts, and big panels.
- *
- * **Few members and thick ones.** This was a rank of thin studs at half-metre
- * centres — close studding, which is a real thing and reads at this scale as a
- * picket fence glued to a wall. What a framed wall actually shows from across a
- * street is a bold rectangle of sill, plate and corner posts, divided into two
- * or three big panels by a stout mid post, with one horizontal rail across each
- * panel and a raking brace in the end ones. That is six or eight pieces of oak,
- * not twenty, and every one of them is wide enough to read as a beam.
- *
- * The corner posts are not here — `block` puts one at each corner, once, for the
- * same reason it does the quoins: two walls each raising their own post at the
- * corner they share is two posts in the same place.
- *
- * Uprights and horizontals sit at **different depths**, so a rail crossing a
- * stud is two solids meeting rather than two coplanar faces flickering.
+ * Timber frame: a heavy perimeter, one or two mid posts and big panels — six or
+ * eight pieces of oak, each wide enough to read as a beam, not twenty thin studs.
+ * The corner posts are `block`'s, once per corner. Uprights and horizontals sit
+ * at different depths, so a rail crossing a stud is two solids meeting.
  */
 function framing(rng: Rng, look: Look, span: number, low: number, high: number): Part[] {
   const parts: Part[] = [];
@@ -415,10 +301,9 @@ function framing(rng: Rng, look: Look, span: number, low: number, high: number):
       continue;
     }
     for (const side of ends) {
-      // **A corner brace cuts across the corner**, foot on the post and head on
-      // the plate. Its axis foot-to-head is `(−side, 1)/√2`, and `rotateZ(θ)`
-      // takes +Y to `(−sin θ, cos θ)`, so θ = +side·π/4. A little long at both
-      // ends so it dies into the plate rather than stopping on its face.
+      // A corner brace cuts across the corner, foot on the post and head on the
+      // plate. Its axis foot-to-head is `(−side, 1)/√2`, and `rotateZ(θ)` takes
+      // +Y to `(−sin θ, cos θ)`, so θ = +side·π/4. Long at both ends, to die in.
       const reach = Math.min(panel * 0.8, storey * 0.4);
       if (reach < 0.35) continue;
       const brace = layer(0.22, reach * Math.SQRT2 + 0.14, SKIN_BACK, SKIN_AT, 0, 0);
@@ -431,31 +316,19 @@ function framing(rng: Rng, look: Look, span: number, low: number, high: number):
   return parts;
 }
 
-/**
- * How many courses a stone wall of this height is laid in.
- *
- * Not rolled: the face blocks and the corner quoins are built separately and
- * have to land on the same beds, so the count has to be something both can work
- * out from the same two numbers.
- */
+/** How many courses a stone wall of this height is laid in. Not rolled: the face blocks and the corner quoins have to land on the same beds. */
 function courses(low: number, high: number): number {
   return Math.min(13, Math.max(2, Math.round((high - low) / 0.44)));
 }
 
 /**
- * Stone: a field of coursed blocks, running under the quoins at each end.
- *
- * Blocks, not bands. A course drawn as one long slab is a stripe, and a wall of
- * stripes reads as a painted texture however many of them there are — what says
- * masonry is the **vertical** joint, which only exists if the course is cut into
- * stones. So each course is walked across in blocks of random length with a
- * joint's gap between them, and every course starts at a different point so the
- * joints never line up from one to the next.
+ * Stone: a field of coursed blocks, running under the quoins at each end. Blocks
+ * and not bands — what says masonry is the vertical joint, so each course is cut
+ * into stones and every course starts at a different point.
  */
 function coursing(rng: Rng, look: Look, span: number, low: number, high: number): Part[] {
   const parts: Part[] = [];
-  // Under the quoins rather than up to them: a block ending exactly on a quoin's
-  // inner face put the two on one plane all the way up every corner.
+  // Under the quoins rather than up to them, so no block face lands on a quoin's.
   const field = span - (QUOIN * 0.58 - 0.09) * 2;
   if (field < 0.4) return parts;
 
@@ -484,15 +357,9 @@ function coursing(rng: Rng, look: Look, span: number, low: number, high: number)
 }
 
 /**
- * The squared corner stones, alternating which face they run along.
- *
- * Built once per corner in the block's own space rather than twice per face —
- * two skins each laying their own corner stone put two stones in the same cubic
- * foot, and the pair flickered against each other the whole height of the wall.
- *
- * **Shorter than the course they sit in.** At exactly the course height their
- * beds were the same two planes as the field's, which is the same fight one step
- * along; a quoin that stands a little inside its own course has neither.
+ * The squared corner stones, alternating which face they run along. Built once
+ * per corner in the block's own space rather than twice per face, and a little
+ * shorter than the course they sit in, so no pair of beds shares a plane.
  */
 function quoins(
   rng: Rng,
@@ -565,13 +432,7 @@ function boarding(rng: Rng, look: Look, span: number, low: number, high: number)
   return parts;
 }
 
-/**
- * A post standing in each corner, proud on both walls that meet there.
- *
- * The frame's answer to the quoin, and there for the same reason. It runs a
- * little past the skin at both ends, so its own end faces are inside the plinth
- * below and the roof above rather than on their faces.
- */
+/** A post standing in each corner, proud on both walls that meet there — the frame's answer to the quoin. It runs a little past the skin at both ends. */
 function cornerPosts(
   look: Look,
   x: number,
@@ -615,25 +476,12 @@ export function ridgeHeight(span: number, pitch: number): number {
   return (span / 2) * Math.tan(pitch);
 }
 
-/**
- * How thick the covering is.
- *
- * Not rolled, because the loft under it has to be built to fit *beneath* this
- * exact number — a gable leaf sized against a different thickness from the one
- * the slope came out at is a triangle poking through its own roof.
- */
+/** How thick the covering is. Not rolled, because the loft under it is built to fit beneath this exact number. */
 export function roofThickness(kind: RoofKind): number {
   return kind === 'thatch' ? 0.34 : 0.085;
 }
 
-/**
- * The most an eave may hang below the wall head it springs from.
- *
- * The overhang is stated horizontally, and the drop is that times the pitch —
- * so on a steep thatched roof a 90 cm oversail put the eave a metre and a half
- * below the wall plate, which is under head height and straight through the
- * door frame. Deep eaves are a real thing and this is what bounds them.
- */
+/** The most an eave may hang below the wall head it springs from. The overhang is stated horizontally and the drop is that times the pitch. */
 const MAX_EAVE_DROP = 0.5;
 
 export interface RoofOptions {
@@ -657,15 +505,10 @@ export interface RoofOptions {
 }
 
 /**
- * A pitched roof of two slopes.
- *
- * Each slope is a slab whose **top surface** lies on the rafter plane. That
- * plane passes through the wall head at the wall face and carries on out and
- * *down* past it, so the eave hangs below the wall head — that drop and the
- * shadow under it are what stop a roof reading as a lid.
- *
- * Built with the ridge along X and turned a quarter afterwards if it runs the
- * other way, so there is one construction here rather than two.
+ * A pitched roof of two slopes. Each slope's top surface lies on the rafter
+ * plane, which passes through the wall head at the wall face and carries on out
+ * and down past it, so the eave hangs below the head. Built with the ridge along
+ * X and turned a quarter afterwards if it runs the other way.
  */
 export function roof(rng: Rng, o: RoofOptions): Part[] {
   const parts: Part[] = [];
@@ -680,8 +523,7 @@ export function roof(rng: Rng, o: RoofOptions): Part[] {
   /**
    * The middle of one slope's rafter plane, lifted `by` along that plane's
    * normal. After `rotateX(side·pitch)` the slab's +Y points to
-   * `(0, cos p, side·sin p)`, so a lift moves it that way — negative to drop
-   * the slab under the plane, positive to sit a batten on top of it.
+   * `(0, cos p, side·sin p)`, so a lift moves it that way.
    */
   const seat = (side: number, by: number): [number, number] => [
     o.eave + (grad * (half - o.overEave)) / 2 + by * Math.cos(o.pitch),
@@ -696,10 +538,8 @@ export function roof(rng: Rng, o: RoofOptions): Part[] {
     parts.push({ geometry: slope, color: shade(o.look.roof, rng.around(1, 0.05)) });
 
     if (o.look.roofKind === 'thatch') {
-      // Thatch has no edge — the butts are dressed round into a roll. One
-      // cylinder along the eave is the difference between straw and a plank.
-      // A little longer than the slope it lies on. At the same length its end
-      // caps were the same two planes as the slabs' and fought at both verges.
+      // Thatch has no edge — the butts are dressed round into a roll. A little
+      // longer than the slope it lies on, so no end cap shares the slab's plane.
       const roll = new THREE.CylinderGeometry(thick * 0.58, thick * 0.58, length + 0.06, 7);
       roll.rotateZ(Math.PI / 2);
       roll.translate(0, o.eave - o.overEave * grad - thick * 0.22, side * reach);
@@ -725,9 +565,8 @@ export function roof(rng: Rng, o: RoofOptions): Part[] {
 
       const [gy, gz] = seat(side, -thick / 2 - 0.09);
       for (const end of [-1, 1]) {
-        // Straddling the slab's edge rather than sitting flush inside it: at
-        // `length/2 − 0.03` with a width of 0.06 its outer face landed exactly
-        // on the slab's end face, and the two fought down the whole verge.
+        // Straddling the slab's edge rather than sitting flush inside it, so its
+        // outer face is not on the slab's own end face.
         const barge = slab(0.09, 0.2, slopeLength, end * (length / 2 + 0.015), 0, 0);
         barge.rotateX(side * o.pitch);
         barge.translate(0, gy, gz);
@@ -743,13 +582,9 @@ export function roof(rng: Rng, o: RoofOptions): Part[] {
     parts.push({ geometry: roll, color: shade(o.look.roof, 0.85) });
   } else {
     // A course of ridge capping: a three-sided prism laid apex up over the join.
-    //
-    // `rotateZ(π/2)` lays the cylinder's axis along X and leaves its section in
-    // the YZ plane with a vertex at +Z and the opposite flat side facing −Z.
-    // `rotateX(−π/2)` then turns that section a quarter: the flat side comes to
-    // face −Y and the vertex points up. **A sixth of a turn was what this had,
-    // which left the prism lying on a corner across the ridge and flickering
-    // against both slopes down its whole length.**
+    // `rotateZ(π/2)` lays the cylinder's axis along X with its section in YZ and
+    // a vertex at +Z; `rotateX(−π/2)` then brings the flat side to −Y and the
+    // vertex up.
     const r = 0.16;
     const cap = new THREE.CylinderGeometry(r, r, length + 0.06, 3);
     cap.rotateZ(Math.PI / 2);
@@ -766,20 +601,10 @@ export function roof(rng: Rng, o: RoofOptions): Part[] {
 }
 
 /**
- * The wall above the eave at a gable end.
- *
- * **Built to the roof's underside, not to the rafter plane.** The obvious
- * triangle — base on the wall head, apex on the ridge — has its two sloping
- * faces exactly where the slabs' top surfaces are, so the gable and the whole
- * roof occupy the same two planes and flicker against each other everywhere.
- * Dropping the apex by the covering's vertical thickness puts the leaf under
- * the roof, which is where a gable wall actually stops; the base narrows to
- * suit, and the slope's own overhang covers what that leaves at the eaves.
- *
- * `solid` fills the whole loft with one prism — cheapest, and nothing can be
- * seen into it. A block open at the eaves takes `gables` instead and gets a leaf
- * at each end only, so you can look up into the roof, which is what an
- * open-fronted stable or a cart porch actually shows you.
+ * The wall above the eave at a gable end, built to the roof's underside rather
+ * than to the rafter plane: the apex drops by the covering's vertical thickness,
+ * so the leaf sits under the roof instead of in its planes. `solid` fills the
+ * loft with one prism; `gables` leaves a leaf at each end and an open roof.
  */
 export type Loft = 'solid' | 'gables' | 'none';
 
@@ -803,10 +628,8 @@ export function gables(rng: Rng, o: RoofOptions, kind: Loft): Part[] {
   const thickness = kind === 'solid' ? o.run : rng.range(0.22, 0.3);
   for (const end of kind === 'solid' ? [0] : [-1, 1]) {
     const leaf = prism(profile, thickness);
-    // A quarter turn takes the extrusion to +X, which stands the leaf across a
-    // ridge running along X; a half turn leaves it on Z, for a ridge running
-    // that way. The triangle is symmetric about the profile's x, so the
-    // mirroring either turn causes costs nothing.
+    // A quarter turn takes the extrusion to +X, standing the leaf across a ridge
+    // running along X; a half turn leaves it on Z, for a ridge running that way.
     leaf.rotateY(o.ridge === 'z' ? Math.PI : Math.PI / 2);
     const along = end * (o.run / 2 - thickness / 2);
     if (o.ridge === 'z') leaf.translate(0, 0, along);
@@ -833,11 +656,7 @@ export interface BlockOptions {
   depth: number;
   /** Where the walls start. An upper storey says the floor it stands on. */
   base?: number;
-  /**
-   * How much stone footing is drawn below `base`. Defaults to all of it, which
-   * is what a ground storey wants; an upper storey passes 0 and stands on the
-   * jetty instead.
-   */
+  /** How much stone footing is drawn below `base`. Defaults to all of it; an upper storey passes 0 and stands on the jetty. */
   plinth?: number;
   /** The wall head. */
   eave: number;
@@ -849,13 +668,9 @@ export interface BlockOptions {
   /** Yaws of walls left out — an open porch front, a stable's eaves side. */
   open?: readonly number[];
   /**
-   * Yaws of walls built hard against another block of the same building.
-   *
-   * The wall itself stays — something has to close the box — but it gets no skin
-   * and neither of its corners gets a quoin or a post, because the block on the
-   * other side is drawing all of that on the very same planes. Two ranges of an
-   * L-plan house meeting at a right angle is exactly this, and without it every
-   * course on the shared walls is laid twice.
+   * Yaws of walls built hard against another block. The wall stays — something
+   * has to close the box — but it gets no skin and neither corner gets a quoin
+   * or post, because the block opposite draws all of that on the same planes.
    */
   joins?: readonly number[];
   /** Skip the roof, for a wing another block's roof already covers. */
@@ -871,28 +686,20 @@ export interface Block {
   /** How far the ridge stands above the ground. */
   crown: number;
   /**
-   * The highest an opening's head may reach on this block's walls.
-   *
-   * **Not the eave.** The rafter plane crosses the wall face below the wall head
-   * by the covering's vertical thickness, and lower again out at the depth a
-   * lintel or an arch actually stands — so a door or a window sized against the
-   * eave comes out through the slope. Deep thatch eats the best part of a metre
-   * of wall this way, which is why a thatched building needs a taller wall than
-   * it looks like it should. Measure openings against this.
+   * The highest an opening's head may reach on this block's walls. Not the eave:
+   * the rafter plane crosses the wall face below the head, and lower again out
+   * at the depth a lintel stands, so a door sized against the eave comes out
+   * through the slope. Measure openings against this.
    */
   head: number;
   roof: RoofOptions;
 }
 
 /**
- * A plinth, four walls, a loft and a roof: one wing of a building.
- *
- * Walls are four separate slabs rather than one hollow shell so a face can be
- * left out — and because a slab is still a closed box, looking into an open
- * porch shows the inside of the walls around it rather than through them. The
- * two pairs stop against each other rather than crossing: the ±X walls run the
- * full depth and the ±Z walls stop at their inner faces, so the corner is a butt
- * joint and no two surfaces share a plane.
+ * A plinth, four walls, a loft and a roof: one wing of a building. Four separate
+ * slabs rather than a hollow shell, so a face can be left out and an open porch
+ * shows the inside of its walls. The ±X walls run the full depth and the ±Z walls
+ * stop at their inner faces, so the corner is a butt joint sharing no plane.
  */
 export function block(rng: Rng, o: BlockOptions): Block {
   const parts: Part[] = [];
@@ -918,29 +725,14 @@ export function block(rng: Rng, o: BlockOptions): Block {
   const sameWay = (a: number, b: number): boolean =>
     Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.01;
 
-  /**
-   * Where the skin has to stop, which is **below the wall head**.
-   *
-   * The rafter plane meets the wall face at the head and carries on down past
-   * it, so the roof's *underside* crosses the face lower than that — by the
-   * covering's vertical thickness, and lower again out at the skin's own proud
-   * depth. A course band or a board run all the way to the head therefore comes
-   * out through the slope, which is what put siding above the roof on every
-   * thatched building in the kit. The wall body itself still runs to the head;
-   * it is buried in the slab, and only the proud skin was showing.
-   */
-  /**
-   * A storey standing on another one runs a little *into* it.
-   *
-   * Its wall's underside and the lower storey's skin both stopped on the floor
-   * level between them, two faces on one plane the whole way round the building.
-   * Six centimetres of overlap and the join is buried instead.
-   */
-  // Always into whatever is underneath, plinth or lower storey alike: the wall's
-  // underside and the plinth's top were the same plane the whole way round.
+  // Both run a little into whatever is underneath, plinth or lower storey alike,
+  // so neither underside lands on the same plane as what it stands on.
   const bodyLow = base - 0.06;
   const skinLow = base - 0.03;
 
+  // The skin stops below the wall head: the roof's underside crosses the wall
+  // face lower than the head, by the covering's vertical thickness and lower
+  // again at the skin's own proud depth. The body still runs to the head.
   const skinTop = o.roofless
     ? o.eave
     : Math.max(
@@ -957,10 +749,9 @@ export function block(rng: Rng, o: BlockOptions): Block {
 
   for (const face of [wall.front, wall.back, wall.right, wall.left]) {
     if (absent(face.yaw)) continue;
-    // The ±X walls run the full depth and the ±Z walls stop at their inner
-    // faces, so the corner is a butt joint. **The skin still runs the whole
-    // face**: the corner is solid either way, so a course band or a board that
-    // stops where the *body* stops leaves a bare strip at every corner.
+    // The ±X walls run the full depth and the ±Z walls stop at their inner faces,
+    // so the corner is a butt joint. The skin still runs the whole face, or a
+    // course band leaves a bare strip at every corner.
     const short = Math.abs(Math.cos(face.yaw)) > 0.5;
     parts.push(
       ...onFace(
@@ -976,10 +767,8 @@ export function block(rng: Rng, o: BlockOptions): Block {
     );
   }
 
-  // The corners, once each, in the block's own space.
-  // Every corner whose two walls are both real and both this block's own. To the
-  // skin's top, not the wall head: a quoin or a corner post is as proud as the
-  // rest of the skin and goes through the slope for the same reason.
+  // The corners, once each, in the block's own space, and only where both walls
+  // are real and this block's own. To the skin's top, not the wall head.
   const corners: [number, number][] = [];
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
@@ -1016,9 +805,8 @@ export function block(rng: Rng, o: BlockOptions): Block {
     parts.push(...roof(rng, plan));
   }
 
-  // Measured at the lintel's own depth rather than the dressings' — the head of
-  // a doorway is deliberately the shallowest part of its frame, so that it is
-  // the one that has to duck lowest.
+  // Measured at the lintel's own depth rather than the dressings': the head of a
+  // doorway is the shallowest part of its frame, and has to duck lowest.
   const head = o.roofless
     ? o.eave
     : Math.max(
@@ -1031,10 +819,9 @@ export function block(rng: Rng, o: BlockOptions): Block {
 
 // --- openings ---------------------------------------------------------------
 //
-// All of these are authored in the face frame and handed to `onFace`. The
-// depths they sit at are deliberate and stacked: the reveal is the deepest, the
-// glass sits in front of it, the cames in front of that, and every dressing
-// stands proud of the wall. No two of them share a plane.
+// All authored in the face frame and handed to `onFace`. The reveal is deepest,
+// the glass in front of it, the cames in front of that, the dressings proud of
+// everything. No two of them share a plane.
 
 export interface OpeningOptions {
   /** Where along the face, from its middle. */
@@ -1046,12 +833,7 @@ export interface OpeningOptions {
   look: Look;
 }
 
-/**
- * The dark of an opening — a hole, a shop front, a cart doorway.
- *
- * Reaches a little below its own sill line so its underside is inside the stone
- * sill rather than on top of it.
- */
+/** The dark of an opening. Reaches a little below its own sill line, so its underside is inside the stone sill rather than on top of it. */
 export function opening(at: number, sill: number, width: number, height: number): Part {
   return {
     geometry: layer(width, height + 0.08, OPENING_BACK, OPENING_AT, at, sill + height / 2),
@@ -1059,12 +841,7 @@ export function opening(at: number, sill: number, width: number, height: number)
   };
 }
 
-/**
- * A leaded light: pale glass, and the cames holding it in.
- *
- * In front of the dark and behind the dressings, so a rebate of shadow shows
- * round it and the frame stands proud of it.
- */
+/** A leaded light: pale glass, and the cames holding it in. In front of the dark and behind the dressings. */
 export function glazing(
   at: number,
   sill: number,
@@ -1094,26 +871,10 @@ export function glazing(
 }
 
 /**
- * A ring of voussoirs over an opening: a real arch.
- *
- * **Each stone is a wedge, cut on its own two radial joints.** It was a box,
- * turned to point along its radius — and a box is the one shape a voussoir
- * cannot be: its sides are parallel, so where the ring curves they run into
- * their neighbours, and since every one of them shared a front plane each
- * overlap was two faces fighting. Staggering how far they stood out hid that
- * and was not a fix; it made a ragged ring out of a flush one.
- *
- * A voussoir is the quadrilateral between two radii and two arcs, so that is
- * what is built: four corners, extruded through the ring's depth by `prism`.
- * Adjacent stones then share a radial plane and are pulled a joint's width back
- * off it, so they touch nowhere at all and the joint between them is the mortar
- * rather than an artefact.
- *
- * Wound anticlockwise — inner then outer at the first radius, back along the
- * second — because that is what `prism` needs to face its sides outward.
- *
- * The count is forced **odd**, so one stone sits square on the crown. That stone
- * is the keystone, and an arch without one reads as a hole with a border.
+ * A ring of voussoirs over an opening. Each stone is the quadrilateral between
+ * two radii and two arcs, extruded through the ring's depth by `prism` and
+ * pulled a joint's width back off each shared radial plane. Wound anticlockwise,
+ * as `prism` needs. The count is forced odd, so one stone crowns it as keystone.
  */
 function arch(rng: Rng, look: Look, at: number, springing: number, radius: number): Part[] {
   const parts: Part[] = [];
@@ -1144,12 +905,8 @@ function arch(rng: Rng, look: Look, at: number, springing: number, radius: numbe
 
 /**
  * The upper half of a disc standing in the wall plane — the dark inside a round
- * head, so an arch is a hole and not a lid.
- *
- * A cylinder's points are `(r sin t, +-h/2, r cos t)`, and `rotateX(pi/2)` takes
- * them to `(r sin t, -r cos t, +-h/2)` — the disc into the wall plane with its
- * thickness through the wall. The top half is therefore where `cos t <= 0`,
- * which is the half turn starting at pi/2.
+ * head. `rotateX(π/2)` takes a cylinder's `(r sin t, ±h/2, r cos t)` to
+ * `(r sin t, −r cos t, ±h/2)`, so the top half is the half turn from π/2.
  */
 function halfDisc(radius: number, x: number, y: number): THREE.BufferGeometry {
   const disc = new THREE.CylinderGeometry(
@@ -1167,14 +924,7 @@ function halfDisc(radius: number, x: number, y: number): THREE.BufferGeometry {
   return disc;
 }
 
-/**
- * The dressings round an opening: two jambs, a head and a sill.
- *
- * Three depths, not one. The jamb's top used to end on the head's underside and
- * its foot on the sill's — same plane, same depth, both fighting — so the head
- * and the sill now stand progressively prouder and the jamb dies into each of
- * them instead of meeting it.
- */
+/** The dressings round an opening: two jambs, a head and a sill, at three depths, so a jamb dies into the head and the sill rather than meeting them. */
 function dressing(o: OpeningOptions, stone = false): Part[] {
   const dress = stone || o.look.walling === 'stone' ? o.look.stoneDark : o.look.timberDark;
   const parts: Part[] = [];
@@ -1195,13 +945,7 @@ function dressing(o: OpeningOptions, stone = false): Part[] {
   return parts;
 }
 
-/**
- * An opening boarded over — a shop shut, a bay closed up for the winter.
- *
- * Stands exactly where the dark of an opening would, so any frame built round it
- * still reads. The difference is that you are looking at the back of a shutter
- * rather than into a room the building has not got.
- */
+/** An opening boarded over. Stands exactly where the dark of an opening would, so any frame built round it still reads. */
 export function boarded(
   rng: Rng,
   at: number,
@@ -1222,8 +966,7 @@ export function boarded(
     });
   }
   // The ledges the boards are nailed to, which is what says shutter and not wall.
-  // Narrower than the boards they cross, so their ends are not on the same
-  // planes as the panel's sides.
+  // Narrower than the boards they cross, so their ends miss the panel's sides.
   for (const t of [0.22, 0.78]) {
     parts.push({
       geometry: layer(width - 0.09, 0.13, GLASS_BACK, GLASS_AT, at, sill + t * height),
@@ -1248,8 +991,7 @@ export function shuttered(rng: Rng, o: OpeningOptions): Part[] {
         geometry: layer(leaf, o.height * 0.96, SHUTTER_BACK, SHUTTER_AT, x, o.sill + o.height / 2),
         color: shade(o.look.timber, rng.around(1, 0.07)),
       });
-      // **Narrower than the leaf.** At the same width its ends were on the
-      // leaf's own side planes and fought down both edges of every shutter.
+      // Narrower than the leaf, so its ends are not on the leaf's own side planes.
       parts.push({
         geometry: layer(leaf - 0.06, 0.08, LEDGE_BACK, LEDGE_AT, x, o.sill + o.height * 0.74),
         color: o.look.timberDark,
@@ -1269,12 +1011,7 @@ export function casement(rng: Rng, o: OpeningOptions): Part[] {
   return parts;
 }
 
-/**
- * Stone dressings and mullions between the lights: the manor's windows.
- *
- * The mullion runs the height of the opening and stands between the jambs' depth
- * and the head's, so it crosses neither on a shared plane.
- */
+/** Stone dressings and mullions between the lights: the manor's windows. The mullion stands between the jambs' depth and the head's. */
 export function mullioned(rng: Rng, o: OpeningOptions & { lights?: number }): Part[] {
   const parts: Part[] = [];
   const lights = o.lights ?? 2;
@@ -1355,13 +1092,9 @@ export interface ChimneyOptions {
   top: number;
   girth: number;
   /**
-   * The gap back to the wall it belongs to, filled solid up to `top`.
-   *
-   * A stack has to stand clear of the roof's own oversail or the slope drives
-   * straight through it and out the other side, and clear of the oversail is
-   * clear of the wall as well. The breast is what a chimney has instead of that
-   * gap; `span` reaches back from the stack along `−yaw`, where `yaw` is the
-   * outward normal of the wall it stands against.
+   * The gap back to the wall it belongs to, filled solid up to `top`. A stack
+   * has to stand clear of the roof's oversail; `span` reaches back from the
+   * stack along `−yaw`, where `yaw` is the wall's outward normal.
    */
   breast?: { span: number; top: number; yaw: number };
   look: Look;
@@ -1394,8 +1127,7 @@ export function chimney(rng: Rng, o: ChimneyOptions): Part[] {
   for (let i = 0; i < stages; i++) {
     const h = (o.top - o.foot) / stages;
     const g = o.girth * (1 - i * 0.1);
-    // The lowest stage goes below the ground, so its underside is not on the
-    // same plane as the plinth's.
+    // The lowest stage goes below the ground, clear of the plinth's underside.
     const bottom = i === 0 ? FOOT - 0.04 : y;
     parts.push({
       geometry: slab(g, y + h - bottom, g * 0.84, o.x, (bottom + y + h) / 2, o.z),
@@ -1445,11 +1177,10 @@ export interface LeanToOptions {
 }
 
 /**
- * A mono-pitch outshot against a wall — a store, a byre, a working canopy.
- *
- * In the face frame, so `onFace` puts it on whichever wall it leans against.
- * The roof's outer edge is the low one, which is what `rotateX(+φ)` gives: it
- * takes the slab's +Y to `(0, cos φ, sin φ)`, tilted toward the outside.
+ * A mono-pitch outshot against a wall — a store, a byre, a working canopy. In
+ * the face frame, so `onFace` puts it on whichever wall it leans against.
+ * `rotateX(+φ)` takes the slab's +Y to `(0, cos φ, sin φ)`, tilting the roof's
+ * outer edge down.
  */
 export function leanTo(rng: Rng, o: LeanToOptions): Part[] {
   const parts: Part[] = [];
@@ -1472,9 +1203,8 @@ export function leanTo(rng: Rng, o: LeanToOptions): Part[] {
       for (let i = 0; i < 3; i++) {
         const z0 = (i / 3) * o.out;
         const z1 = ((i + 1) / 3) * o.out;
-        // Measured at the step's **outer** edge, not its middle. Taking the
-        // middle left the inner corner of every step standing above the rake,
-        // so the end walls poked up through their own roof.
+        // Measured at the step's outer edge, not its middle, or the inner corner
+        // of every step stands above the rake.
         const h = o.high - (drop * z1) / o.out - 0.05;
         parts.push({
           geometry: slab(t, h, z1 - z0, o.at + side * (half - t / 2), h / 2, (z0 + z1) / 2),
@@ -1514,12 +1244,8 @@ export function leanTo(rng: Rng, o: LeanToOptions): Part[] {
 
 /**
  * A pilaster buttress: two stages, the upper set back, with a weathering on each.
- *
- * **The weathering sheds away from the wall, not toward it.** In the face frame
- * +Z is out, so the slope's high side is at the building and its low side is at
- * the outer edge — which is `rotateX(+θ)`, taking +Y to `(0, cos θ, sin θ)`.
- * It was written `−θ`, which tipped every set-off on the church back into the
- * wall it was supposed to be draining.
+ * The weathering sheds away from the wall — in the face frame +Z is out, so the
+ * slope's low side is at the outer edge, which is `rotateX(+θ)`.
  */
 export function buttress(
   rng: Rng,
@@ -1547,13 +1273,7 @@ export function buttress(
   return parts;
 }
 
-/**
- * The bressummer and joist ends under a jettied storey.
- *
- * A jetty is the whole argument of a town house — it is what the upper floor
- * being wider than the lower one *looks* like from underneath, and without it
- * the overhang reads as a modelling mistake.
- */
+/** The bressummer and joist ends under a jettied storey — what the upper floor being wider than the lower one looks like from underneath. */
 export function jetty(
   rng: Rng,
   o: { at: number; span: number; y: number; out: number; look: Look },
