@@ -733,10 +733,9 @@ export class Creature {
     this.said = this.voice.babble(kind, world.audio.context.currentTime + 0.05);
     if (flags.debug) {
       this.label ??= new VoiceLabel(this.mesh, this.spec.headHeight + 0.55);
-      // Which model is actually making the sound. Worth the room on the card:
-      // a throat and the old node graph answer to entirely different files,
-      // and tuning one while listening to the other is a day of nothing.
-      const model = voiceState(world.audio.context) === 'ready' ? 'throat' : 'NODE GRAPH';
+      // Says which lect it is speaking, and says MUTE where a throat failed to
+      // build — otherwise a silent villager reads as one with nothing to say.
+      const model = voiceState(world.audio.context) === 'ready' ? (this.spec.lect ?? 'country') : 'MUTE';
       this.label.show(`${this.voiceId} ${model}`, this.said.text);
     }
     return this.said;

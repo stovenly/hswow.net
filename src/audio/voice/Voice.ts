@@ -8,28 +8,21 @@
  * keeps `Utterance.units` on the main thread so the head and mouth have
  * something to move to.
  *
- * `createVoice` has the same shape as the node-graph voice it replaces and
- * falls back to it if the worklet module did not load — a villager with no
- * voice at all is a worse outcome than an older one.
+ * There is no second voice behind this one. If the worklet does not register,
+ * `createVoice` hands back a stub that says nothing at all: a creature that
+ * cannot speak must not take the world down with it.
  */
 
 import type { AudioEngine } from '../AudioEngine';
 import { greetScore, score, type Score, type Tune } from '../speech';
-import {
-  createVoice as createNodeVoice,
-  type Unit,
-  type Utterance,
-  type Voice,
-  type VoiceOptions,
-} from '../oneshots/voice';
+import type { Unit, Utterance, Voice, VoiceOptions } from './types';
 import { babbleScore } from '../speech';
 import { villagerBody } from './body';
 import { identity, write } from './writer';
 import { addThroat, dropThroat } from './tuning';
-import { flags } from '../../debug/flags';
 import processorUrl from './processor.js?url';
 
-export type { Unit, Utterance, Voice, VoiceOptions };
+export type { Unit, Utterance, Voice, VoiceOptions } from './types';
 
 /**
  * One module load per context, shared. `addModule` is idempotent but not free
@@ -41,21 +34,20 @@ const state = new WeakMap<BaseAudioContext, 'ready' | 'failed'>();
 /**
  * Says so, across the top of the screen, when the throat does not load.
  *
- * The fallback is right for a player — a villager with an older voice beats a
- * mute one — and it is exactly wrong for whoever is working on the throat: a
- * one-line syntax error in `processor.js` reads as "the change did nothing",
- * over and over, because `?url` hands the file to `addModule` unparsed and
- * neither `tsc` nor the bundler ever looks inside it. So the failure is loud
- * and it stays on screen.
+ * With nothing behind it a failed `addModule` means the whole world is mute,
+ * and it is silent about it: `?url` hands the file to `addModule` unparsed, so
+ * neither `tsc` nor the bundler ever looks inside `processor.js` and a one-line
+ * syntax error reads as "the change did nothing". So the failure is loud and it
+ * stays on screen.
  */
 function shout(error: unknown): void {
-  if (!flags.debug || typeof document === 'undefined') return;
+  if (typeof document === 'undefined') return;
   const bar = document.createElement('div');
   bar.style.cssText =
     'position:fixed;inset:0 0 auto 0;z-index:9999;background:#8b1a10;color:#fff;' +
     'font:600 13px/1.5 system-ui,sans-serif;padding:10px 14px;white-space:pre-wrap';
   bar.textContent =
-    `voice worklet failed to load — every villager is on the OLD node-graph voice.\n${String(error)}`;
+    `voice worklet failed to load — NOBODY IN THE WORLD CAN SPEAK.\n${String(error)}`;
   document.body.appendChild(bar);
 }
 
@@ -71,7 +63,7 @@ export function registerVoice(context: BaseAudioContext): Promise<boolean> {
       })
       .catch((error: unknown) => {
         state.set(context, 'failed');
-        console.warn('voice: worklet did not load — falling back to the node graph', error);
+        console.error('voice: worklet did not load — nobody can speak', error);
         shout(error);
         return false;
       });
@@ -81,12 +73,11 @@ export function registerVoice(context: BaseAudioContext): Promise<boolean> {
 }
 
 /**
- * Whether a voice built now would be the throat or the old model.
+ * Whether a voice built now would be able to speak.
  *
- * `'waiting'` means neither yet — and a caller that builds anyway gets the old
- * model **and keeps it**, because a creature holds its voice for life. Better
- * to stay quiet for the millisecond the module takes than to be the one
- * villager in the world still on the node graph.
+ * `'waiting'` means the module has not landed yet — and a caller that builds
+ * anyway gets a mute stub **and keeps it**, because a creature holds its voice
+ * for life. Better to stay quiet for the millisecond the module takes.
  */
 export function voiceState(context: BaseAudioContext): 'ready' | 'failed' | 'waiting' {
   return state.get(context) ?? 'waiting';
@@ -97,13 +88,30 @@ function hash(seed: number, n: number): number {
   return x - Math.floor(x);
 }
 
-/** A villager's voice. The throat if it is there, the old model if it is not. */
+/** A villager's voice: the throat, or a stub that says nothing. */
 export function createVoice(engine: AudioEngine, options: VoiceOptions = {}): Voice {
   if (voiceState(engine.context) !== 'ready') {
-    console.warn('voice: built before the throat was ready — this one is on the old model');
-    return createNodeVoice(engine, options);
+    console.warn('voice: built before the throat was ready — this one is mute for life');
+    return mute(engine);
   }
   return createThroat(engine, options);
+}
+
+/** No throat. It takes up the same shape and makes no sound. */
+function mute(engine: AudioEngine): Voice {
+  const output = engine.context.createGain();
+  output.gain.value = 0;
+  const nothing = (text: string, at: number): Utterance => ({ text, at, end: at, units: [] });
+  return {
+    output,
+    syllables: [],
+    speaking: null,
+    say: (text, at) => nothing(text, at),
+    babble: (_kind, at) => nothing('', at),
+    hush() {},
+    fire: () => 0,
+    dispose: () => output.disconnect(),
+  };
 }
 
 function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {

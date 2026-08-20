@@ -1,4 +1,5 @@
 import type { BuildOptions } from '../art/types';
+import type { LectName } from '../audio/voice/types';
 
 /**
  * How far a physique's contact gestures reach. Poses are rotational and
@@ -51,6 +52,8 @@ export interface LifeSpec {
   legs?: { thigh: number; shin: number; ankle: number };
   /** What a figure has on the front of its head, for the animator. */
   face?: string;
+  /** Which people's language this one speaks. Absent is the countryside. */
+  lect?: LectName;
   /** How far this physique's contact gestures reach; absent means 1. */
   gestures?: GestureFit;
 }
