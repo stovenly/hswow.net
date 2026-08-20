@@ -1,16 +1,12 @@
 import { FABRICS, type Fabric } from './fabrics';
 
 /**
- * Position-based cloth: Verlet integration plus constraint projection.
- *
- * The one thing in the game that earns per-frame simulated state on the CPU —
- * CLOTH.md §1 is the argument. A leaf module of plain arrays and arithmetic,
- * no renderer types, so it can be stepped headless.
- *
- * The promise the whole design bends toward: **simulated cloth does not pass
- * through the body it hangs on.** Collision is a position projection run last
- * every substep, so penetration is not discouraged, it is undone; margins and
- * a displacement cap close the particles-out-vs-triangles-out gap (§5).
+ * Position-based cloth: Verlet integration plus constraint projection. A leaf
+ * module of plain arrays and arithmetic, no renderer types, so it can be stepped
+ * headless. Simulated cloth does not pass through the body it hangs on —
+ * collision is a position projection run last every substep, so penetration is
+ * undone rather than discouraged, and margins plus a displacement cap close the
+ * particles-out-vs-triangles-out gap.
  */
 
 export type ClothCollider =
@@ -75,13 +71,10 @@ const STICK_SPEED = 0.18;
 const DENSITY = 0.45;
 
 /**
- * The margin rule (§5), as the exact chord bound rather than a flat fraction:
- * an edge whose endpoints both clear a collider of radius `r` by
- * `√(r² + (s/2)²) − r` cannot sag through it, whatever the spacing `s`. A
- * flat plane needs no sag margin at all — a chord between two points above it
- * never dips below them. The flat 0.6·s version inflated slender colliders
- * into keep-zones overlapping the cloth's own rest pose, and the collision
- * and edge projections fought every substep — which read as twitching.
+ * The margin rule, as the exact chord bound rather than a flat fraction: an edge
+ * whose endpoints both clear a collider of radius `r` by `√(r² + (s/2)²) − r`
+ * cannot sag through it, whatever the spacing `s`. A flat plane needs no sag
+ * margin at all — a chord between two points above it never dips below them.
  */
 function chordMargin(radius: number, spacing: number): number {
   const half = spacing / 2;
@@ -379,16 +372,13 @@ export class ClothSim {
   }
 
   /**
-   * Wind, per triangle, because wind loads area. The projection onto the
-   * normal is what makes cloth behave unlike a tree: square to the wind
-   * catches everything, edge-on nothing, so a flag seeks alignment and
-   * flutters about it — the flutter emerging from the dynamics.
+   * Wind, per triangle, because wind loads area. The projection onto the normal
+   * is what makes cloth behave unlike a tree: square to the wind catches
+   * everything, edge-on nothing, so a flag seeks alignment and flutters about it.
    *
    * Applied as a clamped velocity relaxation toward the wind rather than an
-   * explicit force: a blend can approach the wind's own speed and never
-   * overshoot it, so drag cannot pump energy into a flap the way an explicit
-   * force computed from last step's velocity does. That pumping was visible —
-   * it read as twitching.
+   * explicit force: a blend can approach the wind's own speed and never overshoot
+   * it, so drag cannot pump energy into a flap.
    */
   private applyWind(windX: number, windY: number, windZ: number, dt: number): void {
     const { positions, prev } = this;
@@ -563,12 +553,10 @@ export class ClothSim {
         y += ny * push;
         z += nz * push;
 
-        // Friction. Kinetic: the normal part of the implied velocity is
-        // removed and the tangential part kept scaled. Static: below the
-        // stick speed the tangential *displacement* is undone too, not just
-        // its velocity — constraint projection otherwise ratchets a draped
-        // sheet over its bar like a conveyor, with no particle ever sliding
-        // fast enough for velocity friction to notice.
+        // Friction. Kinetic: the normal part of the implied velocity is removed
+        // and the tangential part kept scaled. Static: below the stick speed the
+        // tangential displacement is undone too, not just its velocity —
+        // constraint projection otherwise ratchets a draped sheet over its bar.
         const vx = x - prev[i * 3];
         const vy = y - prev[i * 3 + 1];
         const vz = z - prev[i * 3 + 2];

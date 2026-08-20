@@ -9,79 +9,27 @@ import { applyHorror, applyHorrorDisplacement } from './horror';
 import type { Weather } from '../audio/weather';
 
 /**
- * The world moving on its own.
- *
- * A still world reads as a diorama however good it looks, and a small amount
- * of constant unforced motion buys more presence per unit of effort than
- * almost anything else available. This is that motion.
- *
- * Three things had to be true, and they are the three the design is built
- * around:
- *
- * 1. **The breeze travels.** Not every tree at once — a gust arrives somewhere
- *    and moves through, so you can watch it cross a valley. See
- *    `Weather.lagAt`: the field is sampled at a phase offset by how far
- *    downwind a point stands, which makes it a front rather than a switch.
- * 2. **What you see is what you hear.** The shader and the audio evaluate the
- *    *same* `Weather.fieldAt`, so the gust that bends a tree is the gust that
- *    quickens its rustle. Uncoupled they are two ambiences sharing a room.
- * 3. **Not everything bends.** A mushroom is rigid, a sunflower nods, reeds
- *    thrash. See `art/flex.ts`, which is applied to the sway weights when a
- *    builder finishes rather than being a uniform here — a uniform would mean
- *    a material per species, and one shared material is what keeps a prop to a
- *    single draw call.
- *
- * ## How the field reaches the GPU exactly
- *
- * The obvious approach is to reimplement the gust noise in GLSL. It is also
- * the one that quietly breaks the second requirement: the field is built from
- * an integer hash and cosine interpolation, and a GLSL reimplementation would
- * differ in the last bits — enough that over a minute the picture and the
- * sound drift out of step, which is worse than never having coupled them,
- * because the failure is invisible in code and only shows up as a vague sense
- * that something is off.
- *
- * So the CPU stays the single source of truth and ships the answer. The field
- * depends on exactly one scalar, so a **one-dimensional lookup texture** holds
- * it over the window of phases the visible world can ask for, rebuilt each
- * frame from `Weather.fieldAt`. Agreement is then by construction rather than
- * by care.
- *
- * Eight bits is plenty: a strength quantised to 1/255 is far finer than any
- * displacement it drives, and a byte texture filters linearly everywhere
- * without an extension.
+ * The world moving on its own. A gust travels: the field is sampled at a phase
+ * offset by how far downwind a point stands, which makes it a front rather than
+ * a switch. The CPU owns the field and ships the answer in a one-dimensional
+ * byte lookup texture, rebuilt each frame from `Weather.fieldAt` — so the gust
+ * that bends a tree is the gust that quickens its rustle, by construction. What
+ * bends by how much is `art/flex.ts`, applied to the sway weights when a builder
+ * finishes; a uniform would mean a material per species.
  */
 
 /** Texels across the lookup window. 256 over ~25 s is a sample every 100 ms. */
 const FIELD_SIZE = 256;
 
-/**
- * Half-width of the sampled window, in metres along the wind.
- *
- * The window has to cover every point the visible world might ask about,
- * upwind and down. Comfortably past the largest zone — Arkstin's bowl is 96 m
- * across — and the cost of being generous is only resolution, which there is
- * plenty of.
- */
+/** Half-width of the sampled window, in metres along the wind. Comfortably past the largest zone; the cost of being generous is only resolution. */
 const WORLD_REACH = 140;
 
 /**
- * How far a vertex leans downwind at full strength, **as a fraction of its own
- * height above the ground**.
- *
- * The fraction is the important word, and getting it wrong the first time made
- * every small plant ridiculous. The authored sway weight is normalised to each
- * plant's *own* height — a daisy's petal and a tree's top twig both carry
- * weight 1 — so a displacement measured in metres moves them the same absolute
- * distance. At 0.34 m that is a hand's width, which on a 6 m tree is a breath
- * and on a 25 cm daisy is longer than the whole flower. Every short thing was
- * flailing like a windsock while the trees barely stirred.
- *
- * Scaling by height is also simply what a cantilever does: tip deflection goes
- * with length, so a tall thing moves further in metres and about the same in
- * proportion — which is exactly how a field of mixed planting reads.
- *
- * Object-space height is used, so a builder's `scale` carries through for free.
+ * How far a vertex leans downwind at full strength, as a fraction of its own
+ * height above the ground. The authored sway weight is normalised to each
+ * plant's own height, so a displacement measured in metres would move a daisy
+ * and an oak the same absolute distance. Object-space height, so a builder's
+ * `scale` carries through for free.
  */
 const BEND = 0.16;
 /** The same, across the wind. Smaller, faster, and never quite zero. */
@@ -90,18 +38,12 @@ const FLUTTER = 0.05;
 export interface WindUniforms {
   gustField: { value: THREE.DataTexture };
   /**
-   * The running integral of the same field, in strength-seconds.
-   *
-   * What an *unanchored* thing needs. A plant is a spring, so it answers the
-   * wind now; a snowflake keeps everything the wind has already given it, which
-   * is the integral over its own age — see PARTICLES.md §4. Two taps and a
-   * subtract, from the table beside the one the plants read, so the gust that
-   * carries the snow is the gust bending the trees by construction.
-   *
-   * Float, and that is not caution: a running sum quantised to a byte comes out
-   * of a short-lived particle as a staircase of two or three discrete drifts.
-   * Sampled `NearestFilter` and interpolated by hand in the shader, because
-   * linear filtering of a float texture is an extension and this is not.
+   * The running integral of the same field, in strength-seconds — what an
+   * unanchored thing needs: a plant answers the wind now, a snowflake keeps
+   * everything the wind has already given it. Float, because a running sum
+   * quantised to a byte comes out as a staircase of two or three drifts; sampled
+   * `NearestFilter` and interpolated by hand, since linear filtering of a float
+   * texture is an extension.
    */
   gustIntegral: { value: THREE.DataTexture };
   windDir: { value: THREE.Vector2 };
@@ -171,18 +113,11 @@ export function setZoneWind(factor: number): void {
 }
 
 /**
- * The depth material the shadow map is drawn with, displaced to match.
- *
- * **A vertex shader that moves geometry has to move it twice.** Three.js draws
- * the shadow pass with its own `MeshDepthMaterial`, which knows nothing about
- * a patch applied to the surface material — so a swaying plant casts a
- * perfectly still shadow of where it is not. Standing in a field that reads as
- * an undisplaced copy of every plant, welded to the ground, in whatever colour
- * a shadow quantises to over that floor.
- *
- * `RGBADepthPacking` because that is what the renderer expects from a
- * `customDepthMaterial` on a non-cube light, and getting it wrong silently
- * produces shadows at the wrong depth rather than an error.
+ * The depth material the shadow map is drawn with, displaced to match. A vertex
+ * shader that moves geometry has to move it twice: three draws the shadow pass
+ * with its own `MeshDepthMaterial`, so an unpatched plant casts a perfectly
+ * still shadow of where it is not. `RGBADepthPacking` is what the renderer
+ * expects from a `customDepthMaterial` on a non-cube light.
  */
 export const SWAY_DEPTH_MATERIAL = new THREE.MeshDepthMaterial({
   depthPacking: THREE.RGBADepthPacking,
@@ -190,21 +125,14 @@ export const SWAY_DEPTH_MATERIAL = new THREE.MeshDepthMaterial({
 
 let patched = false;
 
-/**
- * Patches the one shared art material to displace vertices.
- *
- * Idempotent, and called once at boot. Everything built by the art kit picks
- * this up; nothing else does, which is why the Proving Ground's ad-hoc test
- * geometry stands still and its trees do not.
- */
+/** Patches the one shared art material to displace vertices. Idempotent, and called once at boot; only what the art kit builds picks it up. */
 export function patchArtMaterial(): void {
   if (patched) return;
   patched = true;
 
-  // Both, and with the same code. The surface material decides what you see;
-  // the depth material decides what the sun sees, and they have to agree.
-  // `MeshDepthMaterial`'s vertex shader carries the same two include points,
-  // so one patch serves both.
+  // Both, and with the same code: the surface material decides what you see, the
+  // depth material what the sun sees. `MeshDepthMaterial`'s vertex shader carries
+  // the same two include points, so one patch serves both.
   const patch = (shader: { vertexShader: string; uniforms: Record<string, unknown> }): void => {
     Object.assign(shader.uniforms, windUniforms);
 
@@ -266,11 +194,10 @@ export function patchArtMaterial(): void {
             float lean = 0.62 + 0.38 * sin(swayTime * 1.1 + offset);
             float flutter = sin(swayTime * 3.7 + offset * 2.3);
 
-            // Height is a factor, and it has to be. The sway weight is
-            // relative to each plant's own height, so without this a daisy and
-            // an oak move the same number of metres -- see BEND. Object-space
-            // Y, taken before anything is displaced, which is the vertex's
-            // height above its own base because every builder stands on y = 0.
+            // Height is a factor, and it has to be: the sway weight is relative
+            // to each plant's own height, so without this a daisy and an oak
+            // move the same number of metres -- see BEND. Object-space Y, taken
+            // before anything is displaced.
             //
             // (No backticks anywhere in this shader source: it is a template
             // literal, and one would end it mid-GLSL.)
@@ -301,11 +228,10 @@ export function patchArtMaterial(): void {
   // surface is. Mask 0: the lean material carries only the base finish, and
   // anything that declared one takes `ART_FINISHED_MATERIAL` below.
   applyFinish(ART_MATERIAL, 0);
-  // And the glitch stage wraps after even that: it corrupts the *lit result*,
-  // finish and all, which is what makes it read as the signal going bad
-  // rather than the material changing. The depth material takes the
-  // displacement half too — shadows re-render every frame, and a convulsing
-  // object with a calm shadow is the sway bug over again. See `art/glitch.ts`.
+  // And the glitch stage wraps after even that: it corrupts the lit result,
+  // finish and all, which is what makes it read as the signal going bad rather
+  // than the material changing. The depth material takes the displacement half
+  // too, since shadows re-render every frame.
   applyGlitch(ART_MATERIAL);
   applyGlitchDisplacement(SWAY_DEPTH_MATERIAL);
   // Horror wraps outermost, and lands *before* glitch in the compiled shader:
@@ -314,14 +240,13 @@ export function patchArtMaterial(): void {
   applyHorror(ART_MATERIAL);
   applyHorrorDisplacement(SWAY_DEPTH_MATERIAL);
 
-  // The finished twin: the same chain, with every finish chunk rather than
-  // none. Built here rather than on demand so both programs exist before any
-  // zone compiles, and so a room never decides anything about materials.
+  // The finished twin: the same chain, with every finish chunk rather than none.
+  // Built here so both programs exist before any zone compiles, and so a room
+  // never decides anything about materials.
   //
-  // **The cache key is set after the chain, and has to be.** Each stage sets
-  // its own constant key and the last one wins, so without this the two
-  // materials would ask three for the same program and one of them would get
-  // the other's.
+  // The cache key is set after the chain, and has to be: each stage sets its own
+  // constant key and the last one wins, so otherwise the two materials would ask
+  // three for the same program.
   applySway(ART_FINISHED_MATERIAL);
   applyWear(ART_FINISHED_MATERIAL);
   applyDetail(ART_FINISHED_MATERIAL);
@@ -329,16 +254,10 @@ export function patchArtMaterial(): void {
   applyGlitch(ART_FINISHED_MATERIAL);
   applyHorror(ART_FINISHED_MATERIAL);
 
-  // The air, outermost of all and on both. It is the last thing that happens to
-  // a fragment for the same reason fog always was — everything else is what the
-  // surface is, and this is what is between you and it. See `engine/fog.ts`.
-  //
-  // **There is no third material any more.** Scenery used to have one, purely
-  // so out-of-bounds geometry could haze on a different curve; now the air is
-  // the same air everywhere and there is nothing left for it to say. Back to
-  // two programs, which is what MATERIAL-SYSTEM.md R5 asked for.
-  // Ground cover and weather do the same for themselves, where they are
-  // declared — importing them here would close a cycle, since both read the
+  // The air, outermost of all and on both. It is the last thing that happens to a
+  // fragment: everything else is what the surface is, and this is what is between
+  // you and it. Ground cover and weather do the same for themselves where they
+  // are declared — importing them here would close a cycle, since both read the
   // wind out of this module.
   applyAerialFog(ART_MATERIAL);
   applyAerialFog(ART_FINISHED_MATERIAL);
@@ -351,19 +270,9 @@ export function patchArtMaterial(): void {
 }
 
 /**
- * Puts a mesh in one of the two art materials: lean, or finished.
- *
- * **The decision is the mask being nonzero, and there is nothing else to it.**
- * This went through two earlier shapes. A material per prop was a program per
- * finish, and a room full of them waited at the door on a dozen compiles. A
- * material per room's union was one compile per door, which fixed that but put
- * a probe, a cache, a deferral and a second pass over the graph in the way of
- * it. Both were answers to a question that turned out not to need asking: the
- * kit had one wide program before any of it, and that shipped.
- *
- * The mask is still stamped, and still means what a prop declared. Nothing
- * reads it at runtime now — it is what the revert path in MATERIAL-SYSTEM.md
- * R5 would need, and what the debug readouts show.
+ * Puts a mesh in one of the two art materials: lean, or finished. The decision is
+ * the mask being nonzero, and there is nothing else to it. The mask is still
+ * stamped and still means what a prop declared; nothing reads it at runtime.
  */
 export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
   mesh.material = mask === 0 ? ART_MATERIAL : ART_FINISHED_MATERIAL;
@@ -375,47 +284,31 @@ let swayPatch: ((shader: { vertexShader: string; uniforms: Record<string, unknow
   null;
 
 /**
- * Makes one more material displace vertices the same way the kit does.
- *
- * **Anything that draws the scene has to agree about where the scene is**, and
- * three things do. The surface material is the obvious one; the depth material
- * is what the sun sees, or the shadow stays where the plant was. The third is
- * the one that actually caused the visible bug: `RenderPixelatedPass` sets
- * `scene.overrideMaterial` to a `MeshNormalMaterial` and re-renders everything
- * to build the normal buffer its edge detector reads — so the outline was
- * being traced around undisplaced geometry, and every swaying plant carried a
- * motionless wireframe of its own former shape.
- *
- * Exported because that material belongs to a three.js pass and is reached
- * from the render pipeline, not from here.
- *
- * Safe to apply to a material that draws non-kit geometry. A shader attribute
- * the geometry does not supply reads as zero, so the terrain and the floor
- * get a sway weight of zero and are left alone.
+ * Makes one more material displace vertices the same way the kit does. Anything
+ * that draws the scene has to agree about where the scene is: the surface
+ * material, the depth material the sun sees, and the `MeshNormalMaterial` the
+ * edge detector's normal buffer is built with — an outline traced around
+ * undisplaced geometry is a motionless wireframe of a plant's former shape.
+ * Safe on non-kit geometry: a missing attribute reads as zero, so the terrain
+ * and the floor get a sway weight of zero.
  */
 export function applySway(material: THREE.Material): void {
   if (!swayPatch) return;
   material.onBeforeCompile = swayPatch;
 
-  // **What a missing attribute reads as, stated rather than assumed.** As an
-  // override material this draws the terrain, the floor and the sky dome too,
-  // and none of them carries a sway weight. When a geometry does not supply an
-  // attribute the shader declares, WebGL falls back to a *generic* value that
-  // persists across draw calls — so without this the weight would be whatever
-  // the last mesh happened to leave in that slot, and the ground would ripple
-  // occasionally and unreproducibly. Zero means rigid.
-  //
-  // `defaultAttributeValues` is read by the renderer on every material and
-  // typed on only some of them.
+  // What a missing attribute reads as, stated rather than assumed. When a
+  // geometry does not supply an attribute the shader declares, WebGL falls back
+  // to a generic value that persists across draw calls — so without this the
+  // weight would be whatever the last mesh left in that slot, and the ground
+  // would ripple occasionally and unreproducibly. Zero means rigid.
   (material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
     ...(material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues,
     [FIELD_ATTRIBUTE]: [0, 0, 0],
   };
 
-  // Three.js caches compiled programs by a key that knows nothing about an
+  // Three caches compiled programs by a key that knows nothing about an
   // `onBeforeCompile`, so two materials differing only in their patch can be
-  // handed each other's program. The normal material is the live risk: it is
-  // an ordinary `MeshNormalMaterial` that another pass could also be using.
+  // handed each other's program.
   material.customProgramCacheKey = () => 'sway';
   material.needsUpdate = true;
 }
@@ -424,14 +317,10 @@ const texels = field.image.data as Uint8Array;
 const sums = integral.image.data as unknown as Float32Array;
 
 /**
- * How often the lookup window is rebuilt, in seconds.
- *
- * Twelve times a second. At the authored gust rate a frame advances the window
- * by **0.14 of a texel** — so sixty rebuilds a second produce the same 256
- * bytes seven times over, and the picture at twelve is identical. The uniforms
- * below still move every frame: `swayTime` is the clock the finish and glitch
- * stages read, and a stuttering clock would be visible where a stale table is
- * not.
+ * How often the lookup window is rebuilt, in seconds. At the authored gust rate
+ * a frame advances the window by 0.14 of a texel, so twelve times a second is
+ * the same picture. The uniforms below still move every frame: `swayTime` is the
+ * clock the finish and glitch stages read.
  */
 const WIND_INTERVAL = 1 / 12;
 
@@ -439,11 +328,9 @@ const WIND_INTERVAL = 1 / 12;
 let windRebuilt = -Infinity;
 
 /**
- * Refills the lookup window and advances the clock. Once a frame.
- *
- * The whole texture is rebuilt rather than scrolled. It is 256 evaluations of
- * a handful of hashes — far cheaper than the bookkeeping a ring buffer would
- * need, and it cannot drift out of alignment with the phase it claims to hold.
+ * Refills the lookup window and advances the clock, once a frame. The whole
+ * texture is rebuilt rather than scrolled: 256 evaluations of a handful of
+ * hashes, and it cannot drift out of alignment with the phase it claims to hold.
  */
 export function updateWind(weather: Weather, elapsed: number): void {
   const { windDirection, frontSpeed, gustRate } = weather.settings;
@@ -456,10 +343,8 @@ export function updateWind(weather: Weather, elapsed: number): void {
   windUniforms.windLagScale.value = lagScale;
   windUniforms.windHalfSpan.value = halfSpan;
   windUniforms.swayTime.value = elapsed;
-  // Seconds of age into a step along the window. The window is a span of
-  // gust-time and age is a span of seconds, so the rate is the whole of the
-  // conversion — and a rate of zero would be a still world with an integral
-  // that never advances, which is exactly the right answer for one.
+  // Seconds of age into a step along the window. A rate of zero is a still world
+  // with an integral that never advances, which is exactly right for one.
   windUniforms.windAgeScale.value = gustRate / (2 * halfSpan || 1);
 
   if (elapsed - windRebuilt < WIND_INTERVAL) return;
@@ -474,22 +359,18 @@ export function updateWind(weather: Weather, elapsed: number): void {
   const now = weather.phase;
   for (let i = 0; i < FIELD_SIZE; i++) {
     const u = i / (FIELD_SIZE - 1);
-    // Inverse of the shader's `u = 0.5 - lag / (2·halfSpan)`, which gives
-    // `lag = (0.5 − u)·2·halfSpan` and therefore this. Worth deriving rather
-    // than eyeballing: the two are trivially easy to get the wrong way round,
-    // and inverted they still produce a perfectly plausible travelling gust —
-    // one moving *upwind*, which nobody would catch by looking.
-    //
-    // So u = 0 is the far downwind edge and holds an older gust, and u = 1 is
-    // upwind and holds one that has not arrived yet. The field is a pure
-    // function of phase, so the future is exactly as computable as the past.
+    // Inverse of the shader's u = 0.5 - lag / (2*halfSpan). Worth deriving rather
+    // than eyeballing: the two are easy to get the wrong way round, and inverted
+    // they still produce a plausible travelling gust — one moving upwind. So
+    // u = 0 is the far downwind edge and holds an older gust, and u = 1 is upwind
+    // and holds one that has not arrived yet.
     const phase = now + (u - 0.5) * 2 * halfSpan;
     const strength = weather.fieldAt(phase);
     texels[i] = Math.round(strength * 255);
-    // Trapezoid, accumulated from the downwind edge — so the table holds the
-    // integral *up to* each phase and a particle's drift is the difference
-    // between two of them. The zero point slides with the window every frame,
-    // which is harmless: nothing ever compares two frames' tables.
+    // Trapezoid, accumulated from the downwind edge, so the table holds the
+    // integral up to each phase and a particle's drift is the difference between
+    // two of them. The zero point slides with the window, harmlessly: nothing
+    // ever compares two frames' tables.
     if (i > 0) sum += ((previous + strength) / 2) * step;
     previous = strength;
     sums[i] = sum;

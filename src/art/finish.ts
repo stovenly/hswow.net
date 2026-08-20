@@ -31,12 +31,7 @@ export const FINISH_ATTRIBUTE = 'aFinish';
 export const GRAIN_ATTRIBUTE = 'aGrain';
 /** glint, star. */
 export const GLINT_ATTRIBUTE = 'aGlint';
-/**
- * A random 0..1 per triangle, the same on all three of its vertices. Baked in
- * `assemble`, where the geometry is un-indexed. Gives the sweep a per-face
- * phase without reading it off derivatives, which are wrong on any pixel quad
- * straddling two triangles.
- */
+/** A random 0..1 per triangle, the same on all three of its vertices. Baked in `assemble`, where the geometry is un-indexed. */
 export const FACE_ATTRIBUTE = 'aFace';
 
 /** Glint cells per metre. */
@@ -67,28 +62,13 @@ export interface Finish {
   /** An occasional star sparkle, 0..1 — drawn as its own quad by `art/sparkle`. */
   star?: number;
   /**
-   * An optical model that is not a parameter — labradorite's domains, a
-   * starfield behind a black mirror. See `art/recipes/`, which explains at
-   * length why these are an index rather than ten more lanes.
-   *
-   * A *look*, not a field: `cathedral` and `rosewindow` are one field's shader
-   * and two rows of a table. R6.
-   *
-   * Composes with everything above: the recipe is added to the finish, not
-   * substituted for it, so `pearl` still wants its iridescence and star.
+   * An optical model that is not a parameter — see `art/recipes/`. Added to the
+   * finish rather than substituted for it, so `pearl` keeps its iridescence.
    */
   recipe?: VariantName;
 }
 
-/**
- * Named finishes.
- *
- * The base set is named for the *material* now rather than for the term it was
- * isolating — `bronze` and not `polished`, `platinum` and not `brushed` — which
- * is what the recipe looks have always done and what a palette a prop picks
- * from should read like. `quartz` is the plain dielectric the old `marble` was;
- * `marble` is the translucent one, which is what marble actually is.
- */
+/** Named finishes, named for the material rather than for the term they isolate. */
 export const FINISHES = {
   gilt: { metallic: 1, roughness: 0.25, glint: 0, star: 0.9 },
   bronze: { metallic: 0.9, roughness: 0.15 },
@@ -103,45 +83,31 @@ export const FINISHES = {
 
   // --- the recipe looks ----------------------------------------------------
   //
-  // Each is an ordinary finish with a look on top — the base is what the
-  // surface does between flashes, and it matters: a recipe standing on nothing
-  // reads as an effect laid over a material rather than as a material.
-  //
-  // **Nine fields, twenty-five rows.** The rows differing only in their `recipe`
-  // are the point of R6: same shader, same program, different table entry. The
-  // ones that also move the base lobe do so because the lobe is a genuinely
-  // different surface — a moonstone passes light and a labradorite does not.
+  // Each is an ordinary finish with a look on top: the base is what the surface
+  // does between flashes. Rows differing only in `recipe` share one program.
 
-  // schiller. Feldspar: a glassy dielectric, dark and fairly smooth. The flood
-  // is bright enough on its own that a metallic base would only wash it out.
+  // Feldspar: a glassy dielectric, dark and fairly smooth.
   labradorite: { metallic: 0.25, roughness: 0.18, recipe: 'labradorite' },
   spectrolite: { metallic: 0.2, roughness: 0.14, recipe: 'spectrolite' },
-  // Moonstone is translucent where labradorite is not, and that is most of why
-  // the sheen sits *in* it rather than on it.
+  // Moonstone is translucent where labradorite is not, so the sheen sits in it.
   moonsheen: { metallic: 0.1, roughness: 0.22, translucency: 0.35, recipe: 'moonsheen' },
   // Copper platelets, so the base leans metallic and rougher.
   sunstone: { metallic: 0.45, roughness: 0.24, recipe: 'sunstone' },
 
-  // quickmetal. Low roughness on purpose: blur the environment and there is
-  // nothing left to watch crawl, which is the whole recipe.
+  // Low roughness on purpose: blur the environment and there is nothing left to crawl.
   quicksilver: { metallic: 1, roughness: 0.045, recipe: 'quicksilver' },
   nightsilver: { metallic: 1, roughness: 0.045, recipe: 'nightsilver' },
   slowbrass: { metallic: 1, roughness: 0.09, recipe: 'slowbrass' },
   stillglass: { metallic: 1, roughness: 0.03, recipe: 'stillglass' },
 
-  // tenebrescent. Sodalite is translucent, and it matters here more than
-  // anywhere: the edges of a piece pass light, so they stay pale while the
-  // faces darken — which doubles the inversion the recipe is about.
+  // Sodalite is translucent — the edges pass light and stay pale while the faces darken.
   violetbloom: { metallic: 0, roughness: 0.42, translucency: 0.45, recipe: 'violetbloom' },
   emberstone: { metallic: 0, roughness: 0.42, translucency: 0.45, recipe: 'emberstone' },
   // Bronze rather than stone, so it is the one that is not translucent.
   verdigrist: { metallic: 0.25, roughness: 0.55, translucency: 0.2, recipe: 'verdigrist' },
 
-  // nacreous. A pearl is a smooth translucent dielectric with a *low* film on
-  // it. The iridescence was at 0.95 and that was the whole problem: it is the
-  // orient and the growth lines that make nacre, and the film is a wash over
-  // them. The star lane rides the same quad sparkles gilt uses; nacreous sites
-  // draw the thin sliver sprite instead of the four-armed star.
+  // A pearl is a smooth translucent dielectric with a low film on it: the orient
+  // and the growth lines make nacre, and the film is a wash over them.
   nacreous: {
     metallic: 0.2,
     roughness: 0.12,
@@ -165,9 +131,8 @@ export const FINISHES = {
   ivyglass: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'ivyglass' },
   lapispane: { metallic: 0.5, roughness: 0.2, iridescence: 1, recipe: 'lapispane' },
 
-  // The scene class. The base lobe barely reaches the surface — every one of
-  // these zeroes its knobs and replaces the environment outright — but a smooth
-  // metal is the honest description of a window with nothing in front of it.
+  // The scene class. The base lobe barely reaches the surface — each of these
+  // replaces the environment outright — but a smooth metal is the honest base.
   voidstone: { metallic: 1, roughness: 0.04, recipe: 'voidstone' },
   overcast: { metallic: 1, roughness: 0.04, recipe: 'overcast' },
   lakestill: { metallic: 1, roughness: 0.04, recipe: 'lakestill' },
@@ -183,11 +148,9 @@ export type FinishName = keyof typeof FINISHES;
 export type Grain = readonly [number, number, number];
 
 /**
- * Bits for the gated shader chunks. A geometry's mask is the union of its
- * parts' masks (`assemble` stamps it on `userData.finishMask`) and the
- * material compiled for it carries only the chunks the mask names. The base
- * specular lobe and sheen stay unconditional — nearly everything polished
- * uses them and they are small.
+ * Bits for the gated shader chunks. A geometry's mask is the union of its parts'
+ * (`assemble` stamps `userData.finishMask`), and the material compiled for it
+ * carries only the chunks the mask names. The base lobe and sheen are always in.
  */
 export const FINISH_FEATURE: Record<FinishFeatureName, number> = {
   glint: 1 << 0,
@@ -196,14 +159,7 @@ export const FINISH_FEATURE: Record<FinishFeatureName, number> = {
   anisotropy: 1 << 3,
 };
 
-/**
- * Field bits sit above the feature bits, in registry order.
- *
- * One bit per *field*, not per look — six colorways of stained glass are one
- * shader block and so one bit. That is why thirty-five looks did not cost this
- * mask thirty-five bits, and why R5's two standing programs still cover
- * everything.
- */
+/** Field bits sit above the feature bits, in registry order. One bit per field, not per look. */
 const RECIPE_SHIFT = 4;
 
 export function recipeMaskBit(name: RecipeName): number {
@@ -267,9 +223,7 @@ export function resolveFinish(finish: FinishName | Finish, grain?: Grain): Finis
       clamp(f.translucency ?? 0),
     ],
     glint: [clamp(f.glint ?? 0), clamp(f.star ?? 0)],
-    // Not clamped and not scaled: every other number here is a 0..1 knob and
-    // this is a name written as an integer. Putting it through `clamp` would
-    // typecheck and quietly turn look 10 into look 1.
+    // An index, not a knob: never clamped and never scaled, or look 10 quietly becomes look 1.
     recipe: f.recipe === undefined ? 0 : VARIANT_INDEX[f.recipe],
     mask,
   };
@@ -287,13 +241,9 @@ export const finishUniforms = {
 };
 
 /**
- * Adds the finish stage to a material already carrying the sway, wear and
- * detail patches. Surface material only.
- *
- * Reads `finishWorn`, `vWearPos` and `vDetailView` from those earlier patches.
- *
- * `mask` picks which gated chunks compile. `FINISH_MASK_ALL` produces the
- * un-split shader byte for byte; anything smaller is a leaner program.
+ * Adds the finish stage to a material already carrying the sway, wear and detail
+ * patches. Surface material only; reads `finishWorn`, `vWearPos`, `vDetailView`.
+ * `mask` picks which gated chunks compile.
  */
 export function applyFinish(material: THREE.Material, mask: number): void {
   const glint = (mask & FINISH_FEATURE.glint) !== 0;
@@ -325,33 +275,15 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         /** Toward the camera, in object space. See below for why it is here. */
         varying vec3 vRecipeView;
         /**
-         * The *smooth* normal, where the geometry has one.
-         *
-         * The material is flat shaded, so the fragment normal comes from screen
-         * derivatives and is constant across a triangle. That is the art
-         * direction and it stays — but it is also why every recipe keyed on
-         * dot(N, H) came back as triangle-shaped patches, which is the
-         * "pixelated, low quality" complaint in one sentence.
-         *
-         * This is the *attribute* normal instead, interpolated. On a lathe or a
-         * subdivided polyhedron three writes true vertex normals, so this is
-         * smooth and a recipe driven by it flows across the surface. On a box it
-         * is the face normal, identical to the flat one — so a flat-sided prop
-         * behaves exactly as it does today and nothing has to know which it got.
-         *
-         * The shading stays faceted; only the material's own structure is
-         * smooth. That is the split the look wants: a stone with something
-         * happening inside it, lit in facets.
+         * The *smooth* normal, where the geometry has one. The material is flat
+         * shaded, so the fragment normal is constant across a triangle and a
+         * recipe keyed on it comes back as triangle-shaped patches. On a box
+         * this is the face normal, so a flat-sided prop is unchanged.
          */
         varying vec3 vRecipeNormal;
         /**
-         * A second object axis, carried into view space.
-         *
-         * The grain axis is one direction and one direction is not a frame. A
-         * star sapphire's fibres are fixed *in the crystal*, so drawing them
-         * needs a basis anchored to the object rather than to the surface — and
-         * with two axes through the normal matrix there is one, for three
-         * floats.
+         * A second object axis, carried into view space. One direction is not a
+         * frame, and a star sapphire's fibres are fixed in the crystal.
          */
         varying vec3 vRecipeSide;
         varying vec3 vRecipeUp;
@@ -386,18 +318,11 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         vObjectPhase = fract(sin(dot(modelMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
         vRecipe = ${RECIPE_ATTRIBUTE};
         {
-          // **The view direction in the space the speck field is hashed in.**
-          // Recipes offset their samples along the eye ray in proportion to
-          // depth, and that offset has to be applied where the fields live,
-          // which is object space.
-          //
-          // There is no inverse model matrix to be had — three supplies the
-          // normal matrix and nothing that goes the other way — but for the
-          // rigid, uniformly-scaled placements this kit makes, the normal
-          // matrix *is* a rotation with a scale on it, so its transpose carries
-          // a direction back. In GLSL a vector times a matrix is the
-          // transpose of that matrix times the vector, and the normalize
-          // afterwards absorbs the scale.
+          // The view direction in object space, where the speck fields are
+          // hashed. There is no inverse model matrix, but for the rigid,
+          // uniformly scaled placements this kit makes the normal matrix is a
+          // rotation with a scale, so v times normalMatrix, which GLSL reads as
+          // the transpose times v, carries a direction back.
           vec3 toEye = normalize(-(modelViewMatrix * vec4(position, 1.0)).xyz);
           vRecipeView = normalize(toEye * normalMatrix);
           vRecipeSide = normalMatrix * vec3(1.0, 0.0, 0.0);
@@ -432,16 +357,14 @@ export function applyFinish(material: THREE.Material, mask: number): void {
       )
       .replace(
         // The lighting hook. The lights loop folds the shadow factor into
-        // directLight.color before calling RE_Direct, so every lobe below is
-        // shadowed for free.
+        // directLight.color before RE_Direct, so every lobe below is shadowed.
         '#include <lights_lambert_pars_fragment>',
         /* glsl */ `#include <lights_lambert_pars_fragment>
         ${NOISE_GLSL}
         ${SKY_GLSL}
 
-        // Written in main once the colour chain has run; read by the lobes.
-        // All zero everywhere a vertex declared no finish, which is nearly
-        // everywhere, and the whole stage is gated on the first of them.
+        // Written in main once the colour chain has run; read by the lobes. Zero
+        // wherever a vertex declared no finish, and the stage is gated on it.
         float finishStrength = 0.0;
         float finishRough = 1.0;
         float finishSheen = 0.0;
@@ -457,30 +380,21 @@ export function applyFinish(material: THREE.Material, mask: number): void {
 
         // --- what the recipes reach into ---------------------------
         //
-        // Four globals, all defaulting to what frost and the base stage
-        // already do, so a recipe that does not set one gets today's answer.
-        // Named rather than passed because the speck field is called from two
-        // places and threading four more arguments through both would be four
-        // more chances to pass the wrong one.
+        // Globals defaulting to what the base stage already does, so a recipe
+        // that sets none gets today's answer. Named rather than passed, because
+        // the speck field is called from two places.
 
         /** Metres a grain slides per unit of depth. Zero welds it to the surface. */
         float finishSpeckParallax = 0.0;
         /** 1 twinkles and drifts (frost); 0 is a solid holding still specks in it. */
         float finishSpeckLively = 1.0;
-        /**
-         * How far a grain's own facet leans off the surface, and how close the
-         * half vector has to come before it answers. Frost's grains sit near
-         * enough aligned with the surface that they fire in a tight band along
-         * the highlight.
-         */
+        /** How far a grain's own facet leans off the surface, and how close the half vector must come. */
         float finishSpeckSpread = 0.08;
         float finishSpeckGate = 0.972;
         /** How much film a recipe wants laid on. Pointillist kills whole cells. */
         float recipeFilmMix = 1.0;
-        // The four below are a row of uRecipeKnobs, read once the recipe byte
-        // is known. What each one is for, and why almost every stone wants far
-        // less of it than the plain finish gives, is written up on RecipeKnobs
-        // in art/recipes/types.ts. These initialisers are row 0 — no recipe.
+        // A row of uRecipeKnobs, read once the recipe byte is known. These
+        // initialisers are row 0 — no recipe. See RecipeKnobs in recipes/types.ts.
         float recipeGloss = ${PLAIN_KNOBS.gloss.toFixed(2)};
         float recipeRim = ${PLAIN_KNOBS.rim.toFixed(2)};
         float recipeSunGlare = ${PLAIN_KNOBS.sunGlare.toFixed(2)};
@@ -491,20 +405,10 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         bool finishRecipeAny = false;
 
         /**
-         * The normal distribution, stretched along the grain when asked.
-         *
-         * Isotropic is the same GGX it always was — the anisotropic form
-         * reduces to it exactly at anisotropy zero, so the branch is for the
-         * arithmetic and not for the answer.
-         *
-         * **The lobe has a floor, and flat shading is why.** A facet on a
-         * prop in this kit turns ten or twenty degrees from its neighbour, and
-         * a lobe narrower than that falls between facets: the highlight is not
-         * dim, it is *absent*, and then present for one frame when a facet
-         * happens to swing through the mirror angle. A metal ball came back
-         * looking like painted clay for exactly this reason. Smooth finishes
-         * still read as smooth, because what makes them read is the
-         * environment term below, which keeps its true roughness.
+         * The normal distribution, stretched along the grain when asked. The
+         * lobe has a floor: a facet turns ten or twenty degrees from its
+         * neighbour, and a lobe narrower than that falls between facets, so the
+         * highlight is absent rather than dim.
          */
 ${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rather than the global one. */
         float finishDAxis(vec3 N, vec3 H, vec3 T, vec3 B) {
@@ -535,17 +439,10 @@ ${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rath
         }`}
 
         /**
-         * Smith height-correlated visibility — how much of the micro-surface
-         * shadows itself.
-         *
-         * **This is what stops cloth looking like cling film.** A constant
-         * stood here at first, and a constant is exactly right head-on and
-         * badly wrong at a grazing angle, where Fresnel is climbing to white
-         * and nothing is left to hold it down: every hem and every edge in the
-         * world came back with a hard pale line drawn along it. The honest
-         * term costs two square roots and is *identical* to that constant at
-         * normal incidence — at dotNL = dotNV = 1 it evaluates to 0.25 — so
-         * nothing that was tuned head-on moved, and only the blow-out went.
+         * Smith height-correlated visibility. A constant is right head-on and
+         * wrong at a grazing angle, where Fresnel climbs to white and every edge
+         * comes back with a pale line drawn along it. It evaluates to 0.25 at
+         * dotNL = dotNV = 1, so nothing tuned head-on moved.
          */
         float finishV(float dotNL, float dotNV) {
           float lobe = max(finishRough, 0.16);
@@ -556,19 +453,10 @@ ${aniso ? /* glsl */ `        /** The anisotropic form, about a frame given rath
         }
 
         /**
-         * A view-space direction, brought into the object's own space.
-         *
-         * Recipes want to reason in the frame of the *thing* — a lamella has an
-         * orientation in the crystal, a flake of copper has one in the glass —
-         * and the lights arrive in view space. Two object axes carried through
-         * the normal matrix give the third by cross product, and for the rigid,
-         * uniformly-scaled placements this kit makes that basis is exact.
-         *
-         * The point of doing it at all: object-space vectors vary *continuously*
-         * per fragment, where the flat-shaded normal does not. An effect built
-         * on these flows across facets instead of being cut into triangles by
-         * them, and it exists over the whole object rather than only where a
-         * highlight is.
+         * A view-space direction brought into the object's own space. Recipes
+         * reason in the frame of the thing; two object axes through the normal
+         * matrix give the third by cross product. Object-space vectors vary
+         * continuously per fragment where the flat-shaded normal does not.
          */
         vec3 recipeToObject(vec3 v) {
           vec3 ax = normalize(vRecipeSide);
@@ -589,30 +477,16 @@ ${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
         }
 
         /**
-         * One depth of the speck field.
-         *
-         * Depth is 0 at the surface and rises going into the material:
-         * deeper grains are dimmer, softer edged and a little smaller, which is
-         * what a crystal seen *through* frost looks like against one sitting on
-         * top of it. Their grid is offset by a fraction of a cell rather than
-         * by a whole one, so the layers land near each other and clump instead
-         * of reading as three separate fields laid over one another.
-         *
-         * (No backticks in this shader source: it is a template literal.)
+         * One depth of the speck field. No backticks anywhere below: this shader
+         * source is a template literal. Depth is 0 at the surface and rises going
+         * into the material: deeper grains are dimmer, softer edged and a little
+         * smaller. The layers are offset by a fraction of a cell, so they clump.
          */
         vec3 finishSpeckLayer(float dotNH, float gate, float depth, float density) {
-          // A grain in the cell: small, hard-edged, and a different size in
-          // every cell. Filling the cell gives squares, smoothing it gives
-          // blobs, and one size everywhere gives a field of discs.
-          // **Parallax, and it is what puts a grain *under* the surface.**
-          // Offsetting the sample along the eye ray in proportion to depth is
-          // exactly where the ray at that depth actually is, so the grains
-          // slide against the surface as the camera orbits — and that sliding
-          // is the entire cue that says "in" rather than "on". Zero for frost,
-          // whose grains are weather sitting on top and must not slide.
-          //
-          // In metres before the density scale, because the offset is a
-          // distance into the material and the density is cells per metre.
+          // Parallax, and it is what puts a grain under the surface. Offsetting
+          // the sample along the eye ray in proportion to depth is where the ray
+          // at that depth actually is, so grains slide as the camera orbits.
+          // In metres, before the density scale. Zero for frost, which sits on top.
           vec3 under = vWearPos - vRecipeView * (finishSpeckParallax * depth);
           vec3 p = under * density + vec3(0.37, 0.61, 0.19) * depth;
           vec3 cell = floor(p);
@@ -625,43 +499,24 @@ ${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
           float speck = 1.0 - smoothstep(radius * (0.6 - depth * 0.2), radius, away);
           if (speck <= 0.0) return vec3(0.0);
 
-          // **The animation layer.** Each grain breathes on its own phase and
-          // rate, and a slow wave crosses the surface deciding which part of
-          // the field is up at all — so the frost glides rather than sitting
-          // still. A clock, not a history: nothing is accumulated per frame.
+          // Each grain breathes on its own phase and rate, with a slow wave
+          // deciding which part of the field is up. A clock, not a history.
           float twinkle = 0.06 + 0.94 * (0.5 + 0.5 * sin(
             swayTime * (4.5 + alt.z * 6.0) + seed.x * 6.2831853));
-          // **A wave that goes round the object rather than through it.** A
-          // plane wave sweeps one way and the whole surface breathes with it;
-          // measured as an *angle* about the object's axis it travels round
-          // instead, and rising with height it climbs as it goes, so the field
-          // turns rather than pulses. The noise term breaks the wavefront up so
-          // it reads as weather over the surface and not as a rotating bar.
-          // **Several crests on the object at once, or it breathes as one.**
-          // At about a wavelength across the whole orb every grain peaks
-          // together and the surface flashes; at a few wavelengths some regions
-          // are coming up while others are going down, which is the thing that
-          // reads as weather crossing it. The noise is weighted heavily for the
-          // same reason — it is what keeps the crests from being a clean spiral.
-          // The wide noise term kills long-range order: on a surface much
-          // bigger than the orb the linear terms alone draw diagonal stripes.
+          // A wave measured as an angle about the object's axis travels round it
+          // rather than through it, and rising with height it climbs as it goes.
+          // Several crests at once, or the surface breathes as one; the noise
+          // term breaks the wavefront up and kills long-range order.
           float swirl = atan(vWearPos.z, vWearPos.x) * 3.5 + vWearPos.y * 11.0
             + wearNoise(vWearPos * 1.3) * 14.0;
           float glide = 0.22 + 0.78 * (0.5 + 0.5 * sin(
             swirl + wearNoise(vWearPos * 4.5) * 7.5 - swayTime * 2.2));
-          // **A solid's inclusions do not twinkle.** Frost is weather and every
-          // grain of it is on its own clock; a fleck sealed in glass is not
-          // going anywhere, and the only thing that changes is whether the
-          // light is currently reaching it. Faded to one rather than branched
-          // around, so there is one code path and no second speck field.
+          // A solid's inclusions do not twinkle: only whether light reaches them
+          // changes. Faded to one rather than branched around.
           speck *= mix(1.0, twinkle * glide, finishSpeckLively);
 
-          // **The gate is the sun's share, and it is not all of it.** A frosted
-          // surface is rough in every direction at once, so its grains catch
-          // whatever light is going and scatter it everywhere — they are not
-          // only visible where they happen to line up with the sun. Gated, this
-          // is the hard pop along the highlight; ungated, it is the field that
-          // covers the whole object.
+          // The gate is the sun's share and not all of it: a frosted surface is
+          // rough in every direction, so its grains catch whatever light is going.
           float jitter = alt.y * 2.0 - 1.0;
           float lit = smoothstep(finishSpeckGate, 1.0, dotNH + jitter * finishSpeckSpread);
           // Skewed toward the rose end, which is where ice shows most of its
@@ -678,17 +533,9 @@ ${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
 
         /**
          * The field, at a grain size that holds up wherever it is seen from.
-         *
-         * Fixed in world size, a grain falls under one chunky pixel a few
-         * metres out: the field stops being sampleable, turns to boiling noise,
-         * and then vanishes. So it coarsens with distance instead — in octaves,
-         * crossfading between two, which is what trilinear filtering does
-         * between mip levels and for the same reason. A grain stays about a
-         * pixel and a half whatever the range, and the frost reads as frost
-         * across the room instead of only up close.
-         *
-         * Capped at three octaves: past that the grains would be bigger than
-         * the props carrying them.
+         * Fixed in world size a grain falls under one chunky pixel a few metres
+         * out, so it coarsens in octaves, crossfading between two the way
+         * trilinear filtering does. Capped at three.
          */
         vec3 finishSparkle(float dotNH, float gate) {
           float base = ${(1 / GLINT_DENSITY).toFixed(5)};
@@ -704,15 +551,9 @@ ${glint ? /* glsl */ `        vec3 finishGrainTint(float h, float depth) {
         }` : ''}
 
 ${film ? /* glsl */ `        /**
-         * Thin film, as a hue walk rather than a spectral integral.
-         *
-         * Quantization is per channel, so it keeps differences in hue and
-         * collapses differences in brightness — and this is entirely hue.
-         *
-         * **The film varies in thickness across the surface.** View angle alone
-         * is radially symmetric on a sphere, so it draws concentric rings of
-         * repeating colour. A real film is not laid to an even depth, and that
-         * unevenness is most of what an oil slick or a shell looks like.
+         * Thin film, as a hue walk rather than a spectral integral: quantization
+         * is per channel, and this is entirely hue. The thickness varies across
+         * the surface — view angle alone draws concentric rings on a sphere.
          */
         vec3 finishFilm(float dotNV, float thickness) {
           float phase = (1.0 - dotNV) * 2.4 * thickness;
@@ -746,12 +587,8 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
           float dotNV = saturate(dot(geometryNormal, geometryViewDir));
           vec3 F = F_Schlick(finishF0, 1.0, dotVH);
 
-          // **Sheen replaces this lobe rather than standing on top of it.**
-          // Cloth scatters in its fibres; it does not also carry a dielectric
-          // mirror. Velvet asks for all of the sheen and therefore none of
-          // this, which is the difference between fabric and a wrapped
-          // surface — and silk keeps most of its lobe, stretched, which is
-          // the difference between silk and velvet.
+          // Sheen replaces this lobe rather than standing on top of it: cloth
+          // scatters in its fibres and does not also carry a dielectric mirror.
           float lobe = 1.0 - finishSheen;
 
           float distribution = finishD(geometryNormal, halfDir);
@@ -760,14 +597,9 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
             * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * recipeGloss * uFinishSpecular);
 ${glint ? /* glsl */ `
           if (finishGlint > 0.0) {
-            // Pushed most of the way to white and hard: a grain is a fraction
-            // of a chunky pixel, so what makes it read is how bright it is,
-            // not how big. Tinted by F alone it stays the colour of the
-            // surface and disappears into it.
-            // Less white and less hot than it was. Both were washing the grain
-            // colour out: whitening dilutes it, and a grain driven hard enough
-            // to clip has no hue left at all — every channel pinned at 1 is the
-            // same colour whatever it started as.
+            // Pushed most of the way to white and hard: a grain is a fraction of
+            // a chunky pixel, so brightness is what makes it read. Not all the
+            // way — a grain driven to clip has no hue left at all.
             vec3 spark = mix(F, vec3(1.0), 0.35) * 2.1;
             reflectedLight.directSpecular +=
               directLight.color * spark * (finishSparkle(dotNH, 1.0) * finishGlint * dotNL * uFinishSpecular);
@@ -775,8 +607,7 @@ ${glint ? /* glsl */ `
 ` : ''}
 
           // Velvet: bright where the surface turns away from the eye. Tinted by
-          // the cloth's own colour, because this is fibre scatter rather than a
-          // reflection off anything.
+          // the cloth's own colour, because this is fibre scatter.
           if (finishSheen > 0.0) {
             float rim = pow(1.0 - dotNV, 3.0);
             reflectedLight.directSpecular +=
@@ -784,18 +615,15 @@ ${glint ? /* glsl */ `
           }
 ${trans ? /* glsl */ `
           if (finishTrans > 0.0) {
-            // Wrap: the terminator softens instead of cutting at ninety
-            // degrees. Added as the *difference* over Lambert, so the term is
-            // purely additive and vanishes exactly at translucency zero.
+            // Wrap: the terminator softens instead of cutting at ninety degrees.
+            // Added as the difference over Lambert, so it vanishes at zero.
             float wrapped = saturate(
               (dot(geometryNormal, directLight.direction) + finishTrans) / (1.0 + finishTrans)
             );
             reflectedLight.directDiffuse +=
               directLight.color * BRDF_Lambert(material.diffuseColor) * max(wrapped - dotNL, 0.0);
-            // And what comes through from behind. Note the shadow factor is
-            // already in directLight.color, so a thick closed solid shadows its
-            // own back — this reads on thin geometry and edges, which is where
-            // light actually gets through.
+            // And what comes through from behind. The shadow factor is already in
+            // directLight.color, so this reads on thin geometry and edges.
             float through = pow(saturate(dot(geometryViewDir, -directLight.direction)), 3.0);
             reflectedLight.directDiffuse +=
               directLight.color * material.diffuseColor * (through * finishTrans * 0.35);
@@ -837,11 +665,9 @@ ${trans ? /* glsl */ `
           finishTrans = vFinishExtra.y * finishStrength;
           finishGlint = vFinishExtra.z * finishStrength;
 ${aniso ? /* glsl */ `
-          // The tangent falls out of the axis and the *facet* normal, which is
-          // what lets one axis per part serve a whole turned or folded surface.
-          // Where the axis stands along the normal there is no grain direction
-          // to speak of — the pole of a lathe — so it fades out rather than
-          // snapping to whatever the cross product rounded to.
+          // The tangent falls out of the axis and the facet normal, so one axis
+          // per part serves a whole turned surface. Where the axis stands along
+          // the normal there is no grain direction, so it fades out.
           vec3 across = cross(vGrainAxis, normal);
           float spread = length(across);
           finishAniso *= smoothstep(0.0, 0.2, spread);
@@ -852,11 +678,9 @@ ${aniso ? /* glsl */ `
 ` : ''}${anyRecipe ? /* glsl */ `
           finishRecipeAny = uRecipeOn > 0.5 && vRecipe > 0.5;
           {
-            // The look's response, read rather than branched to. Row 0 holds
-            // the plain values, so a fragment with no recipe on it and the
-            // whole table with the dev toggle off both land on today's answers
-            // without a comparison per look. Clamped because an array index
-            // off the end is undefined, and the byte arrives as an attribute.
+            // Read rather than branched to: row 0 holds the plain values, so no
+            // recipe and the dev toggle off both land there. Clamped because the
+            // byte arrives as an attribute.
             int row = finishRecipeAny ? clamp(int(vRecipe + 0.5), 0, ${RECIPE_KNOB_ROWS - 1}) : 0;
             vec4 knobs = uRecipeKnobs[row];
             recipeGloss = knobs.x;
@@ -867,9 +691,8 @@ ${aniso ? /* glsl */ `
             // numbers whose meaning is its field's business. R6.
             recipeVar = uRecipeVar[row];
           }
-          // Every recipe here samples the environment off the smooth normal.
-          // The diffuse stays faceted, so the props still read low-poly; what
-          // goes is the reflection landing as one hard triangle per face.
+          // Every recipe samples the environment off the smooth normal. The
+          // diffuse stays faceted, so the props still read low-poly.
           recipeSmoothEnv = finishRecipeAny;
           ${slot('body', 10)}
 ` : ''}${film ? /* glsl */ `
@@ -905,20 +728,10 @@ ${aniso ? /* glsl */ `
             finishEnv = mix(finishSky, mix(uHorizon, uZenith, 0.4),
               smoothstep(0.15, 0.85, finishRough));
           }
-          // **A tinted metal cannot reflect only the sky and come back right.**
-          // Gold has almost no blue in it and the sky has almost nothing else,
-          // so a gilded ball outdoors renders olive-green — which is what a
-          // gold mirror in an empty blue room would genuinely do, and nothing
-          // like gilding, because real gilding stands in a landscape that
-          // bounces its own light back at it. With one analytic sky and no
-          // probes, pulling the environment toward its own brightness is the
-          // stand-in for that bounce.
-          //
-          // Keyed to how much the surface *colours* what it reflects, not to
-          // how metallic it is: chrome is a metal too, and chrome reflecting a
-          // grey sky would be the same mistake in the other direction. Gold
-          // neutralises most of the way, chrome almost not at all, and no
-          // dielectric is touched.
+          // A tinted metal reflecting only the sky comes back wrong: gold has
+          // almost no blue and the sky little else, so gilding renders olive.
+          // Pulling the environment toward its own brightness stands in for the
+          // bounce a landscape gives. Keyed to tint depth, not to metalness.
           float envLuma = dot(finishEnv, vec3(0.2126, 0.7152, 0.0722));
           finishEnv = mix(finishEnv, vec3(envLuma), saturate(finishTintDepth) * 0.8);
 
@@ -929,16 +742,13 @@ ${aniso ? /* glsl */ `
           // toward F0 by however much rim the recipe asked for.
           vec3 f90 = mix(finishF0, max(vec3(1.0 - finishRough), finishF0), recipeRim);
           vec3 envF = finishF0 + (f90 - finishF0) * pow(1.0 - finishNV, 5.0);
-          // Scaled by the same (1 − sheen) the direct lobe is: a velvet that
-          // reflected the sky off its surface would be a velvet-coloured
-          // mirror, which is the plastic look arriving by the other door.
+          // Scaled by the same (1 − sheen) the direct lobe is: a velvet
+          // reflecting the sky would be a velvet-coloured mirror.
           reflectedLight.indirectSpecular +=
             finishEnv * envF * ((1.0 - finishSheen) * recipeEnvGain * uFinishEnv);
 ${glint ? /* glsl */ `
-          // Frost's ambient half: the same grains catching the sky, so the
-          // whole object is frosted rather than only its lit side. Against the
-          // ambient's brightness, not its colour, or every grain comes back
-          // sky-blue whatever tint it drew.
+          // Frost's ambient half: the same grains catching the sky. Against the
+          // ambient's brightness, not its colour, or every grain reads sky-blue.
           if (finishGlint > 0.0 && finishSpeckLively > 0.0) {
             reflectedLight.indirectSpecular += mix(finishEnv, vec3(envLuma), 0.8)
               * finishSparkle(0.0, 0.0) * (finishGlint * 1.5 * uFinishEnv);
@@ -964,8 +774,8 @@ ${glint ? /* glsl */ `
       );
   };
 
-  // The lesson every patch here records: a missing attribute reads as whatever
-  // the last draw left in the slot. Zero means matte.
+  // A missing attribute reads as whatever the last draw left in the slot. Zero
+  // means matte.
   (material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
     ...(material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues,
     [FINISH_ATTRIBUTE]: [0, 0, 0, 0],

@@ -45,19 +45,13 @@ const _up = new THREE.Vector3();
 const _world = new THREE.Vector3(0, 1, 0);
 
 /**
- * A range of columns of a loft, for building one surface out of several
- * pieces that meet exactly.
- *
- * **This is how a colour boundary gets a clean edge.** Colour is per face and
- * a builder cannot tint half a triangle — so a garment's hem or a panel's side
- * cannot be a threshold inside a colour function. A loft quad is two triangles
- * whose centroids sit at a third and two thirds of the ring gap, so any
- * threshold between two rings takes one triangle of each quad and leaves the
- * other: a saw. The fix is not more rings, it is to stop asking. A hem is a
- * *ring* of the loft and a panel's side is a *column* of it, so each coloured
- * region is built as its own geometry over the same stations — sharing exact
- * vertex positions along the seam, and reading as one surface with a straight
- * line drawn on it.
+ * A range of columns of a loft, for building one surface out of several pieces
+ * that meet exactly. This is how a colour boundary gets a clean edge: colour is
+ * per face and a builder cannot tint half a triangle, so a threshold inside a
+ * colour function takes one triangle of each quad and leaves the other — a saw.
+ * A hem is a ring of the loft and a panel's side is a column, so each coloured
+ * region is its own geometry over the same stations, sharing exact vertex
+ * positions along the seam.
  */
 export interface Columns {
   /** First column, inclusive. */

@@ -6,43 +6,15 @@ import { finishGlow, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from './glow';
 import { PALETTE } from './palette';
 
 /**
- * Lettering built from geometry, so the world can carry text.
+ * Lettering built from geometry, so the world can carry text. A single-stroke
+ * vector font, authored here as polylines on a small grid and rendered as merged
+ * boxes — no textures, no downloaded assets, one geometry with vertex colours.
  *
- * For a long time this project said "there are no fonts here", and the reason
- * was real: the render pipeline chunks to two-CSS-pixel blocks, quantizes and
- * dithers, and anything *written on a surface* — texture-scale writing — comes
- * out as noise. But that argument is about feature size, not about text. A
- * letter whose stroke covers two or three chunky pixels on screen survives the
- * pipeline the way a fence post does, and the edge-outline pass draws it the
- * way it draws everything else. Signs, banners and tutorial text are built at
- * that scale; fine print stays where it always was, in the tooltip layer.
- *
- * So: a single-stroke vector font, authored here as polylines on a small grid
- * and rendered as merged boxes. It follows every rule the kit lives by — no
- * textures, no downloaded assets, everything generated at boot, one geometry
- * with vertex colours. A "font file" would be the largest asset in a game that
- * has none; this is a page of coordinates.
- *
- * ## What a style is
- *
- * Weight, slant, depth and size are transforms of one glyph set, which is how
- * a page of coordinates gets to act like a type family. A second *face* — a
- * genuinely different alphabet — is a second table, whenever one is wanted.
- *
- * ## How big is readable
- *
- * A stroke needs about two chunky pixels on screen. At the default look
- * (pixelSize 2, FOV 70°, a ~700 px viewport) that works out near
- * `stroke ≥ distance / 100`, and at the default weight the usable rule of
- * thumb is **cap height ≈ reading distance / 16** — see `readableCapHeight`.
- * Text meant to be read from three metres wants ~20 cm capitals; across a
- * clearing, half a metre. Smaller than that is *deliberately* below the
- * pipeline's floor and reads as marks, which is sometimes the point.
- *
- * Caps only. Lowercase is folded up rather than drawn, because a good
- * lowercase needs curves this grid cannot give it, and a bad one is worse
- * than none. Anything the font cannot say draws as an empty frame rather
- * than vanishing — a missing glyph should be seen and reported.
+ * A stroke needs about two chunky pixels on screen, which at the default look
+ * works out as cap height ≈ reading distance / 16; see `readableCapHeight`.
+ * Weight, slant, depth and size are transforms of one glyph set. Caps only: a
+ * good lowercase needs curves this grid cannot give it. Anything the font cannot
+ * say draws as an empty frame rather than vanishing.
  */
 
 export interface LetteringStyle {
@@ -53,12 +25,9 @@ export interface LetteringStyle {
   /** Horizontal shear, as run over rise. 0 upright; ~0.2 reads as italic. */
   slant?: number;
   /**
-   * Relief depth as a fraction of the stroke width.
-   *
-   * Shallow (~0.2) reads as paint on the surface behind it; around 1 as
-   * raised slab lettering; deeper for letters that stand free in the air with
-   * no board at all. Never zero — flat geometry has no back faces, and the
-   * kit's watertight rule applies to letters too.
+   * Relief depth as a fraction of the stroke width. Shallow (~0.2) reads as paint
+   * on the surface behind it, around 1 as raised slab lettering, deeper for
+   * letters standing free in the air. Never zero: flat geometry has no back faces.
    */
   depth?: number;
   /** Baseline-to-baseline spacing, in cap heights. Default 1.5. */
@@ -87,8 +56,7 @@ export interface Lettering {
 /**
  * Cap height ≈ distance / 16: the smallest capital comfortably readable from
  * `distance` metres at the default weight, through the default render look.
- * Derived, not tuned: two chunky pixels of stroke at 70° FOV on a ~700 px
- * viewport. A conservative figure — bigger viewports read further.
+ * Derived from two chunky pixels of stroke at 70° FOV on a ~700 px viewport.
  */
 export function readableCapHeight(distance: number): number {
   return distance / 16;
@@ -107,11 +75,7 @@ interface Glyph {
   readonly strokes: readonly (readonly number[])[];
 }
 
-/**
- * The glyph set. Hand-authored, and angular on purpose — every curve is an
- * octagonal cut, which is what a chisel or a sign-writer's flat brush would
- * do, and what the flat-shaded kit already looks like.
- */
+/** The glyph set. Angular on purpose — every curve is an octagonal cut, which is what a chisel or a sign-writer's flat brush would do. */
 const GLYPHS: Record<string, Glyph> = {
   A: { w: 4, strokes: [[0, 0, 2, 6, 4, 0], [0.7, 2, 3.3, 2]] },
   B: {
@@ -207,11 +171,7 @@ const GLYPHS: Record<string, Glyph> = {
   },
 };
 
-/**
- * What an unknown character draws as: an empty frame, the classic tofu.
- * Deliberately visible — a glyph this font cannot say should be seen on the
- * sign and added to the table, not silently swallowed.
- */
+/** What an unknown character draws as: an empty frame. Deliberately visible, so a glyph this font cannot say is added to the table rather than swallowed. */
 const TOFU: Glyph = { w: 4, strokes: [[0, 0, 4, 0, 4, 6, 0, 6, 0, 0]] };
 
 interface PlacedGlyph {
@@ -235,15 +195,10 @@ function layout(
   const lines = text.toUpperCase().split('\n');
   const leading = lineHeightCaps * CAP;
 
-  // Measure each line first, so centring knows the widths.
-  //
-  // A glyph's cell is its skeleton width **plus one stroke**, because ink
-  // spreads half a stroke either side of the centreline. This is what makes
-  // the bold cuts set wider, and it is not a nicety: advances measured
-  // skeleton-to-skeleton keep a fixed gap between skeletons while the ink
-  // fattens into it, so by a weight of 0.24 neighbouring letters were
-  // touching and black was one connected smear. Sized off the ink, the gap
-  // between letters is the same at every weight.
+  // Measure each line first, so centring knows the widths. A glyph's cell is its
+  // skeleton width plus one stroke, because ink spreads half a stroke either side
+  // of the centreline — measured skeleton-to-skeleton the gap stays fixed while
+  // the ink fattens into it, and by a weight of 0.24 the letters touch.
   const rows = lines.map((line) => {
     const glyphs: { glyph: Glyph | null; advance: number }[] = [];
     for (const ch of line) {
@@ -281,22 +236,11 @@ function layout(
 
 /**
  * Builds the text as one merged geometry of closed solids: a box per polyline
- * segment, cut to exact length, and an octagonal knuckle at every vertex.
- *
- * The knuckle is the whole corner story. The first version extended each box
- * past its endpoint to cover the wedge that opens at a bend, and at every
- * corner the two extended ends poked past each other's silhouette — a pair of
- * triangles sticking out of each elbow, everywhere. A disc at the vertex
- * covers the same wedge from *any* meeting angle without overshooting either
- * stroke, rounds the corner, and caps the terminals to match: a round-joined
- * stroke, which is what a brush or a router would leave anyway.
- *
- * Two details are for the kit's watertight check, whose edge accounting
- * merges vertices that quantize together. Knuckles are deduplicated by
- * position, because glyph strokes share endpoints ('B' alone has three
- * meeting at two points) and two coincident discs would double every edge.
- * And the octagon is phased 22.5° off the axes, so its vertices cannot land
- * on the corner vertices of the axis-aligned strokes that meet it.
+ * segment, cut to exact length, and an octagonal knuckle at every vertex. The
+ * knuckle covers the wedge that opens at a bend from any meeting angle without
+ * overshooting either stroke, and caps the terminals to match. Knuckles are
+ * deduplicated by position, because glyph strokes share endpoints; the octagon
+ * is phased 22.5° off the axes, so its vertices miss the strokes' own corners.
  */
 export function lettering(text: string, style: LetteringStyle = {}): Lettering {
   const {
@@ -385,17 +329,11 @@ export function lettering(text: string, style: LetteringStyle = {}): Lettering {
 }
 
 /**
- * Lettering as a finished kit mesh, for text that stands on its own — a
- * floating tutorial line, a word hung in the air of a zone. Rigid, on the
- * shared art material, one draw call, like any other prop.
- *
- * Flagged `noCollide`, always. Lettering is thousands of small triangles in
- * a hand-span of space, and letting a caller's `markCollidable` sweep them
- * into the octree makes walking into a word cost whole milliseconds a frame
- * — the street lamp's light beam has the same opt-out for the same reason.
- * Text you can lean on is not a thing this module sells; an object that
- * carries text keeps its own solid geometry for the collider and hangs the
- * lettering off it as a mesh like this one.
+ * Lettering as a finished kit mesh, for text that stands on its own — a floating
+ * tutorial line, a word hung in the air. Rigid, on the shared art material, one
+ * draw call. Flagged `noCollide` always: lettering is thousands of small
+ * triangles in a hand-span of space, and sweeping them into the octree makes
+ * walking into a word cost whole milliseconds a frame.
  */
 export function letteringMesh(
   text: string,
@@ -411,32 +349,17 @@ export function letteringMesh(
 export interface LetteringGlowStyle extends LetteringStyle {
   /** Draw as light over the world rather than as a bright surface in it. Off by default. */
   additive?: boolean;
-  /**
-   * How far past full brightness the colour is pushed. Default 1.
-   *
-   * Bloom's halo is made of the light above the top of the picture, and a hex
-   * tops out at exactly 1 — so at an intensity of 1 there is nothing to spread.
-   */
+  /** How far past full brightness the colour is pushed. Default 1. Bloom's halo is made of the light above the top of the picture, and a hex tops out at exactly 1. */
   intensity?: number;
   /**
-   * A light thrown by the word itself, in the text's own colour. Off by
-   * default — a caption used in a corridor must not add a light to every zone
-   * it appears in.
-   *
-   * Uses `FLAME_DECAY` rather than the physical exponent, for the reason given
-   * there: inverse-square at arm's length blows out to a flat blob under this
-   * pipeline.
+   * A light thrown by the word itself, in the text's own colour. Off by default,
+   * so a caption used in a corridor does not add a light to every zone it appears
+   * in. Uses `FLAME_DECAY` rather than the physical exponent.
    */
   light?: { intensity?: number; range?: number };
 }
 
-/**
- * Lettering that emits: a line of text as a light rather than as paint. The
- * counterpart to `letteringMesh`, and the same object but for the material.
- *
- * `color` has no default. A glowing word is not ink and there is no one colour
- * it should be.
- */
+/** Lettering that emits: a line of text as a light rather than as paint. `color` has no default — a glowing word is not ink. */
 export function letteringGlow(
   text: string,
   color: number,

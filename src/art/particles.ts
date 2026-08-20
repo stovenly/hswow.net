@@ -5,45 +5,24 @@ import { applyAerialFog } from '../engine/fog';
 import { createRng } from './random';
 
 /**
- * Snow, rain, smoke, sparks — everything the air is doing. PARTICLES.md.
- *
- * **A particle's position is a closed-form function of its index and the
- * clock.** There is no per-frame update, no state buffer, no integration: the
- * CPU writes the time — and it does not even do that, because the wind block
- * already carries it — and the vertex shader works out where every particle is.
- *
- * That is the whole design, and everything else follows from it. A zone
- * crossing has nothing to reset. A pause is free. A frame hitch cannot blow the
- * field apart by integrating a giant `dt`. Two machines at the same clock draw
- * the same frame. What it costs is collision, accumulation and events: snow does
- * not settle, and nothing here can be *fired* — see PARTICLES.md §1 and §10,
- * which record exactly what a burst would take for the day something asks.
- *
- * Four motions cover the ten systems below, and adding one means deriving a new
- * closed form rather than calling into a different physics.
- *
- * The lighting is not hand-rolled. This is a patched `MeshLambertMaterial`,
- * exactly as `ART_MATERIAL` is, so particles take the scene's real lights, its
- * fog and its palette for free — and an ember drifting past a forge is lit by
- * the forge. The emissive variant is the additive `MeshBasicMaterial` the glow
- * kit uses, on `GLOW_LAYER` as well, which puts sparks through bloom's emitters
- * pass with no code in `Bloom.ts`.
+ * Snow, rain, smoke, sparks — everything the air is doing. A particle's position
+ * is a closed-form function of its index and the clock: no per-frame update, no
+ * state buffer, no integration, so a zone crossing has nothing to reset and a
+ * frame hitch cannot blow the field apart. What it costs is collision,
+ * accumulation and events — nothing here can be fired. Four motions cover every
+ * system. The lit variant is a patched `MeshLambertMaterial`, so particles take
+ * the scene's lights, fog and palette; the emissive one is additive and on
+ * `GLOW_LAYER`, which puts sparks through bloom with no code in `Bloom.ts`.
  */
 
 /** Which closed form a system moves by. See the table in PARTICLES.md §1. */
 export type ParticleMotion = 'fall' | 'ballistic' | 'rise' | 'tumble';
 
 /**
- * Where a system's particles live.
- *
- * - `follow` is a box carried by the camera and wrapped into — ambient weather,
- *   with no position of its own, so a few thousand particles follow the player
- *   forever and the box never has to be told they moved.
- * - `field` is the same box standing still where the mesh does. Weather over
- *   one part of a room rather than over the player, which is what lets a
- *   showcase put snow and rain side by side and walk between them.
- * - `emitter` is the mesh's own position with a spread, which is what a prop's
- *   plume is.
+ * Where a system's particles live. `follow` is a box carried by the camera and
+ * wrapped into — ambient weather, with no position of its own. `field` is the
+ * same box standing still where the mesh does. `emitter` is the mesh's own
+ * position with a spread, which is what a prop's plume is.
  */
 export type ParticleVolume =
   | { kind: 'follow'; size: THREE.Vector3 }
@@ -55,12 +34,9 @@ export interface ParticleSpec {
   /** How many, before the density scale in `RenderSettings`. */
   count: number;
   /**
-   * A camera-facing billboard, or real geometry drawn per instance.
-   *
-   * There is no separate `streak`. A streak is a shutter time rather than a
-   * shape — the quad stretches along its own screen-projected velocity by
-   * `speed × shutter` — so rain streaks because it is fast and snow does not,
-   * from one formula with nothing switched off. See PARTICLES.md §3.
+   * A camera-facing billboard, or real geometry drawn per instance. There is no
+   * separate streak: a streak is a shutter time rather than a shape, so the quad
+   * stretches along its screen-projected velocity by `speed × shutter`.
    */
   shape: 'billboard' | THREE.BufferGeometry;
   motion: ParticleMotion;
@@ -87,34 +63,24 @@ export interface ParticleSpec {
   /** Radians per second about a per-instance axis. `tumble` and solids. */
   spin?: number;
   /**
-   * Whether the precipitation switch removes this one.
-   *
-   * True for weather, false for a fire's sparks. There is no still version of
-   * falling snow — snow that holds still is snow hanging in the air — so the
-   * accessibility option is an honest removal rather than a freeze, and what it
-   * removes is the thing that fills the frame. See PARTICLES.md §8.
+   * Whether the precipitation switch removes this one. True for weather, false
+   * for a fire's sparks. There is no still version of falling snow, so the
+   * option is an honest removal rather than a freeze.
    */
   weather?: boolean;
 }
 
 /**
- * Metres per second of air at full gust strength.
- *
- * The gust field is a normalised 0..1 strength shared with the audio, so it
- * cannot carry a speed of its own; this is the one number that turns it into
- * one. Tuned against snow at 0.8 drag looking like it is being blown rather
- * than nudged.
+ * Metres per second of air at full gust strength. The gust field is a normalised
+ * 0..1 strength shared with the audio and carries no speed of its own; this is
+ * the one number that turns it into one.
  */
 const WIND_CARRY = 5;
 
 /** Texels in the gust tables. Must match `FIELD_SIZE` in `sway.ts`. */
 const FIELD_SIZE = 256;
 
-/**
- * How far a `follow` box is lifted above the camera, as a fraction of its own
- * height. Snow is mostly overhead; a box centred on the eye spends half of
- * itself underground.
- */
+/** How far a `follow` box is lifted above the camera, as a fraction of its own height. Snow is mostly overhead. */
 const FOLLOW_LIFT = 0.3;
 
 /** The billboard, shared by every system that draws one. Four vertices. */
@@ -147,12 +113,10 @@ export const particleUniforms = {
 
 /**
  * The shared vertex code: where a particle is, and how big it is on screen.
- *
- * Written in **world space**, which is why it replaces `project_vertex` as well
- * as `begin_vertex` — a camera-carried box is defined against `cameraPosition`,
- * and running that through the model matrix a second time would put the snow
- * wherever the mesh happened to be parented. The model matrix is read for what
- * it is worth (an emitter's origin, a field box's centre) and applied once.
+ * Written in world space, which is why it replaces project_vertex as well as
+ * begin_vertex — a camera-carried box is defined against cameraPosition, and
+ * running that through the model matrix again would put the snow wherever the
+ * mesh happened to be parented.
  */
 const PARTICLE_COMMON = /* glsl */ `
 attribute vec3 iOrigin;
@@ -206,11 +170,9 @@ vec3 spinAbout(vec3 p, vec3 axis, float angle) {
 `;
 
 /**
- * The motion itself, replacing `begin_vertex`.
- *
- * Everything a particle is is worked out here and written into `transformed`
- * as a world position, plus a colour and an alpha into a varying. The fragment
- * side does the depth test and the soft fade and nothing else.
+ * The motion itself, replacing begin_vertex. Everything a particle is is worked
+ * out here and written into transformed as a world position, plus a colour and
+ * an alpha into a varying. The fragment side does the depth test and the fade.
  */
 const PARTICLE_VERTEX = /* glsl */ `
   // Declared here because this replaces <begin_vertex>, which is where three
@@ -246,9 +208,8 @@ const PARTICLE_VERTEX = /* glsl */ `
   }
 
   // --- the wind, integrated over that age ----------------------------------
-  // Sampled where the particle is *now* rather than along its path: over a
-  // flake's few metres of drift, against a front crossing the world at nine
-  // metres a second, that is a fraction of a texel. PARTICLES.md §4.
+  // Sampled where the particle is now rather than along its path: over a flake's
+  // few metres of drift that is a fraction of a texel.
   vec2 at = volume > 0.5 ? centre.xz + iOrigin.xz : home.xz;
   float lag = dot(at, windDir) * windLagScale;
   float uNow = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
@@ -325,11 +286,10 @@ const PARTICLE_VERTEX = /* glsl */ `
     if (iSpin != 0.0) local = spinAbout(local, iDir, iSpin * t);
     transformed = pos + local;
   } else {
-    // **Nothing is drawn under one chunky pixel.** A 0.39-pixel primitive
-    // rasterises to one pixel or to none depending where its centre lands,
-    // which changes every frame — a snowfield past ten metres is otherwise
-    // static in the television sense. Clamped to a pixel and dimmed by the
-    // square of the clamping, so the energy is preserved. PARTICLES.md §3.
+    // Nothing is drawn under one chunky pixel. A 0.39-pixel primitive rasterises
+    // to one pixel or to none depending where its centre lands, which changes
+    // every frame. Clamped to a pixel and dimmed by the square of the clamping,
+    // so the energy is preserved.
     float wanted = size / dist * uPixelsPerRadian;
     float drawn = max(wanted, 1.0);
     float ratio = wanted / drawn;
@@ -337,20 +297,17 @@ const PARTICLE_VERTEX = /* glsl */ `
     float halfW = 0.5 * dist * drawn / max(uPixelsPerRadian, 1.0) * live;
 
     // Rows of the view matrix, which are the camera's world axes. Written out
-    // rather than as mat3(viewMatrix), which is a GLSL ES 3.00 constructor and
-    // this shader is otherwise 1.00-compatible like the rest of the kit.
+    // rather than as mat3(viewMatrix), a GLSL ES 3.00 constructor this shader
+    // avoids like the rest of the kit.
     vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
     vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
     vec3 back = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
     vec3 velView = vec3(dot(right, vel), dot(up, vel), dot(back, vel));
 
-    // **A streak is the travel you can see, not the travel there is.** The
-    // length comes off the velocity's *on-screen* component, which is the only
-    // part a shutter integrates into a smear — so it shortens as the motion
-    // turns along the view and reaches zero looking straight up a fall, where
-    // the drop becomes the dot it should be. Stretched by the world speed
-    // instead, a drop falling at the camera keeps its full length while its
-    // direction degenerates, and rain read as sticks lying on their sides.
+    // A streak is the travel you can see, not the travel there is: the length
+    // comes off the velocity's on-screen component, which is the only part a
+    // shutter integrates into a smear. It reaches zero looking straight up a
+    // fall, where the drop becomes the dot it should be.
     float speedOnScreen = length(velView.xy);
     vec2 along = vec2(0.0, 1.0);
     if (speedOnScreen > 0.0001) along = velView.xy / speedOnScreen;
@@ -364,15 +321,11 @@ const PARTICLE_VERTEX = /* glsl */ `
 `;
 
 /**
- * The fragment side: the depth test, done by hand, and the fade that is the
- * same subtraction.
- *
- * The ping-pong targets carry a depth renderbuffer nothing fills, so hardware
- * depth testing cannot be used here — the test samples the scene's depth
- * texture and discards. Which brings the free part: **the depth difference the
- * test just computed is the one a soft particle needs.** One subtract and a
- * smoothstep removes the hard straight line a billboard draws where it
- * intersects the ground, which is the main visual tell of the technique.
+ * The fragment side: the depth test, done by hand, and the fade that is the same
+ * subtraction. The ping-pong targets carry a depth renderbuffer nothing fills,
+ * so the test samples the scene's depth texture and discards — and the depth
+ * difference it computes is the one a soft particle needs, which removes the
+ * hard line a billboard draws where it intersects the ground.
  */
 const PARTICLE_FRAGMENT = /* glsl */ `
 uniform sampler2D tDepth;
@@ -430,25 +383,13 @@ function patchParticles(shader: {
 /**
  * The lit material. Flat-shaded, exactly as the art kit is.
  *
- * **`depthTest` and `depthWrite` are both off, and neither is an oversight** —
- * the same setting `WATER_MATERIAL` carries, for the same reason and then one
- * more. The ping-pong targets an effect draws into have a depth renderbuffer
- * that nothing in this pipeline fills meaningfully, so there is nothing there
- * to test against; the shader does its own test against the scene's depth
- * texture instead, which is the only buffer that knows where the world is.
- *
- * It shipped with `depthTest: true` on the reasoning that the target's depth is
- * cleared to the far plane and so the test would always pass. That was wrong,
- * and invisibly so: **the blit that opens the pass is a full-screen quad, and a
- * `ShaderMaterial` writes depth by default** — so it stamped the near plane
- * across every pixel of the target a moment before the particles were drawn
- * against it, and every fragment of every system failed. The draw calls, the
- * instance counts and the shader were all perfectly correct, and the room was
- * empty.
- *
- * Off, nothing about occlusion is lost: the shader's own test runs in bloom's
- * emitters pass too — `tDepth` is still bound and that target is at the same
- * resolution — so a spark behind a wall still does not bloom through it.
+ * `depthTest` and `depthWrite` are both off, and neither is an oversight: the
+ * ping-pong targets an effect draws into have a depth renderbuffer nothing in
+ * this pipeline fills meaningfully, so there is nothing to test against and the
+ * shader tests against the scene's depth texture instead. Nothing about
+ * occlusion is lost — that test runs in bloom's emitters pass too, where
+ * `tDepth` is bound at the same resolution, so a spark behind a wall does not
+ * bloom through it.
  */
 export const PARTICLE_MATERIAL = new THREE.MeshLambertMaterial({
   flatShading: true,
@@ -486,12 +427,9 @@ let drawOn = true;
 let drawDensity = 1;
 
 /**
- * The player's switch and the preset's density.
- *
- * Density is a *prefix* of the instance buffer, which is an even sample because
- * every instance's position was rolled independently — the same trick the
- * groundcover uses, with none of the shuffling, since there is no spatial order
- * to preserve here in the first place.
+ * The player's switch and the preset's density. Density is a prefix of the
+ * instance buffer, which is an even sample because every instance's position was
+ * rolled independently.
  */
 export function setParticleDraw(on: boolean, density: number, scale: number): void {
   drawOn = on;
@@ -513,17 +451,11 @@ function refreshDraw(mesh: THREE.Mesh): void {
 }
 
 /**
- * What the sub-pixel clamp leaves of a particle's alpha, on the CPU.
- *
- * The mirror of the four lines in the vertex shader above, kept beside them so
- * the two cannot drift far apart. It exists because the clamp is the reason a
- * particle can be perfectly placed, perfectly lit, and *invisible*: alpha falls
- * with the square of the distance once a thing is under a pixel wide, and the
- * pipeline quantizes to sixteen levels — so anything under 1/16 is not dim, it
- * is not drawn.
- *
- * `check:world` uses it to assert that a showcase actually shows something. The
- * first version of that room did not, and nothing else in the suite noticed.
+ * What the sub-pixel clamp leaves of a particle's alpha, on the CPU. The mirror
+ * of the four lines in the vertex shader above, kept beside them. It exists
+ * because the clamp is why a particle can be perfectly placed, perfectly lit and
+ * invisible: alpha falls with the square of the distance once a thing is under a
+ * pixel wide, and the pipeline quantizes — so anything under 1/16 is not drawn.
  */
 export function drawnAlpha(size: number, distance: number, opacity: number): number {
   const wanted = (size / Math.max(distance, 0.01)) * particleUniforms.uPixelsPerRadian.value;
@@ -531,20 +463,13 @@ export function drawnAlpha(size: number, distance: number, opacity: number): num
   return ratio * ratio * opacity;
 }
 
-/**
- * The dimmest thing the pipeline can draw is one over `RenderSettings.levels`,
- * and that is a setting rather than a constant — so this is pinned at the
- * coarsest value the look has run at. A particle that clears it is drawn
- * whatever the quantizer is set to; the reverse does not hold.
- */
+/** The dimmest thing the pipeline can draw is one over `RenderSettings.levels`. Pinned at the coarsest value the look has run at. */
 export const QUANTIZE_FLOOR = 1 / 16;
 
 /**
- * Per frame: what one chunky pixel is worth, and where the camera clips.
- *
- * Four uniforms, called beside `updateCover` for the same reason it is — the
- * sub-pixel clamp is measured in art pixels, and the art pixel changes with the
- * window and with the pixel-size setting.
+ * Per frame: what one chunky pixel is worth, and where the camera clips. Called
+ * beside `updateCover` for the same reason — the sub-pixel clamp is measured in
+ * art pixels, and the art pixel changes with the window and the pixel size.
  */
 export function updateParticles(camera: THREE.PerspectiveCamera, artHeight: number): void {
   // Chunky pixels per radian at the centre of the frame. `projectionMatrix[5]`
@@ -559,18 +484,10 @@ export function updateParticles(camera: THREE.PerspectiveCamera, artHeight: numb
 /**
  * One instanced mesh, one draw call, deterministic from the seed.
  *
- * The per-instance data is **baked rather than hashed off `gl_InstanceID`**,
- * even though hashing is free and would let every system of the same shape
- * share one geometry. Sharing is the trap: `Zone.dispose` walks the graph
- * freeing geometry, and a shared buffer freed by one zone is missing from the
- * next. Materials are already an exception there, and one exception is a rule
- * with a footnote while two is a rule nobody trusts.
- *
- * **The rule was stated here and then broken three lines below it**, and in
- * `art/cover.ts` and `art/sparkle.ts` as well: all three handed a module-level
- * base geometry's index and vertex attributes straight to a per-zone instanced
- * geometry. Everything above was true the whole time; nothing was cloning. They
- * clone now, and the cost is a few vertices a system.
+ * The per-instance data is baked rather than hashed off `gl_InstanceID`, even
+ * though hashing is free and would let systems of the same shape share one
+ * geometry. Sharing is the trap: `Zone.dispose` walks the graph freeing
+ * geometry, and a shared buffer freed by one zone is missing from the next.
  */
 export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   const rng = createRng(seed);
@@ -579,10 +496,9 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   const base = solid ? (spec.shape as THREE.BufferGeometry) : BILLBOARD;
 
   const geometry = new THREE.InstancedBufferGeometry();
-  // Cloned rather than referenced — the trap the note above names, which this
-  // function was falling into: `base` is a module-level billboard or a shape off
-  // the spec, shared by every system of that kind, and disposing one zone's
-  // geometry deletes the GPU buffers behind all of them.
+  // Cloned rather than referenced: `base` is a module-level billboard or a shape
+  // off the spec, shared by every system of that kind, and disposing one zone's
+  // geometry would delete the GPU buffers behind all of them.
   const index = base.getIndex();
   if (index) geometry.setIndex(index.clone());
   for (const attr of ['position', 'normal', 'uv']) {
@@ -692,10 +608,9 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   // hole in anything else's outline, and no shadow. See `src/layers.ts`.
   mesh.layers.set(PARTICLE_LAYER);
   if (spec.emissive) mesh.layers.enable(GLOW_LAYER);
-  // Three computes the bounding sphere from the base quad at the origin and
-  // knows nothing about where the instances are, so it would drop the entire
-  // system the moment that origin left the frustum — a snowfield that vanishes
-  // when you look away from an arbitrary point in the world.
+  // Three computes the bounding sphere from the base quad at the origin and knows
+  // nothing about where the instances are, so it would drop the whole system the
+  // moment that origin left the frustum.
   mesh.frustumCulled = false;
   // A builder returns one object and the caller marks the whole thing solid;
   // without this the player walks into the smoke and stops. It is also what

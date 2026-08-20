@@ -2,21 +2,17 @@ import * as THREE from 'three';
 import { EFFECT_MASK_LAYER } from '../layers';
 
 /**
- * Object identity for the effect systems (HORROR-SHADERS.md §3).
+ * Object identity for the effect systems. An attached glitch or horror volume
+ * belongs to a thing, not to a place, and a spatial test cannot tell the thing
+ * from the floor it stands on: the two are a centimetre apart, and the screen
+ * passes reconstruct position from a depth buffer whose error at grazing range is
+ * several times that. So membership for attached volumes is by identity — every
+ * marked object gets an id, baked into its geometry as a vertex attribute and
+ * drawn into a chunky screen mask, and its volume carries the same id.
+ * Free-standing volumes keep the spatial test: corrupting the floor is their
+ * point.
  *
- * An *attached* glitch or horror volume belongs to a thing, not to a place —
- * but volumes are spatial, and a spatial test cannot tell the thing from the
- * floor it stands on: the two are a centimetre apart, and the screen passes
- * reconstruct position from a depth buffer whose error at grazing range is
- * several times that. So membership for attached volumes is by *identity*
- * instead: every marked object gets an id, baked into its geometry as a vertex
- * attribute and drawn into a chunky screen mask, and its volume carries the
- * same id. The volume's box then only anchors and parameterises the effects;
- * its faces stop mattering. Free-standing volumes keep the spatial test —
- * corrupting the floor is their point.
- *
- * This is a leaf module on purpose: both art patches and both engine
- * activities need these names, and anything heavier here would cycle.
+ * A leaf module, because both art patches and both engine activities need it.
  */
 
 /**

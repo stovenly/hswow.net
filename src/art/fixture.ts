@@ -8,15 +8,11 @@ import type { Finish, FinishName, Grain } from './finish';
 import { glassMesh, type Glass, type GlassName } from './glass';
 
 /**
- * Gallery fixtures for the finish stage (SHADERS-AND-MATERIALS.md, M0–M2): a
- * faceted orb on a plinth, a slab, and a cloth drape. Built only as far as
- * judging a finish needs — the facets are the point, because a flat-shaded
- * highlight is caught and released a facet at a time.
- *
- * Fixtures rather than props, and the difference is the shape: nothing in the
- * world is a sphere, which is exactly why a sphere is the thing to tune
- * against — it presents every angle at once, so one look answers what a whole
- * walk around a prop would.
+ * Gallery fixtures for the finish stage: a faceted orb on a plinth, a slab, and a
+ * cloth drape. Built only as far as judging a finish needs — the facets are the
+ * point, because a flat-shaded highlight is caught and released a facet at a
+ * time. Nothing in the world is a sphere, which is exactly why a sphere is the
+ * thing to tune against: it presents every angle at once.
  */
 
 /** An orb of the given finish on a plain stone plinth. */
@@ -37,13 +33,10 @@ export function finishOrb(name: string, color: number, coat: FinishName | Finish
       plinth.rotateY(rng.around(0, 0.4));
       parts.push({ geometry: plinth, color: PALETTE.STONE_DARK, sway: 0 });
 
-      // **Subdivided twice, and the count is doing real work.** At eighty
-      // faces the facets are twenty degrees apart, which is wider than any
-      // specular lobe worth having — so a highlight lands between facets and
-      // the metal reads as painted clay with a lumpy silhouette. Three hundred
-      // and twenty faces is where a reflection becomes a gradient instead of a
-      // patchwork. Still flat-shaded, still faceted up close; a fixture is
-      // where a finish is judged, and it should not be fighting its own shape.
+      // Subdivided twice, and the count is doing real work: at eighty faces the
+      // facets are twenty degrees apart, wider than any specular lobe worth
+      // having, so a highlight lands between them and the metal reads as painted
+      // clay. Three hundred and twenty is where a reflection becomes a gradient.
       const radius = rng.range(0.26, 0.36);
       const orb = new THREE.IcosahedronGeometry(radius, 2);
       orb.rotateY(rng() * Math.PI);
@@ -58,18 +51,12 @@ export function finishOrb(name: string, color: number, coat: FinishName | Finish
 }
 
 /**
- * A cloth panel hung in a timber frame.
- *
- * Cloth wants folds, not a sphere: the anisotropic stretch and the sheen rim
- * are both about a surface turning, and a drape turns in one direction over and
- * over. The folds are a sine on a subdivided box — a pure function of position,
- * so both faces move together and the solid stays closed, which a sheet of
- * quads would not.
- *
- * Hung taut rather than swaying. The sway shader scales displacement by height
- * above the origin, so a cloth fixed at its *top* would move most where it is
- * nailed down; grain stability under sway is by construction anyway, since the
- * axis rides the normal matrix and sway never touches it.
+ * A cloth panel hung in a timber frame. Cloth wants folds, not a sphere: the
+ * anisotropic stretch and the sheen rim are both about a surface turning, and a
+ * drape turns in one direction over and over. The folds are a sine on a
+ * subdivided box — a pure function of position, so both faces move together and
+ * the solid stays closed. Hung taut, because the sway shader scales displacement
+ * by height above the origin.
  */
 export function finishDrape(
   name: string,
@@ -95,11 +82,10 @@ export function finishDrape(
         leg.translate((side * span) / 2, stand / 2, 0);
         parts.push({ geometry: leg, color: PALETTE.TIMBER_DARK, sway: 0 });
       }
-      // **Not flush with the posts, in any of the three dimensions.** A rail
-      // exactly as wide as the posts' outer faces shares their corner vertices
-      // exactly, and two closed boxes sharing a vertex make an edge that
-      // belongs to four faces — which is a watertightness failure and looks
-      // completely correct. Overhanging is both sounder and what a rail does.
+      // Not flush with the posts, in any of the three dimensions. A rail exactly
+      // as wide as the posts' outer faces shares their corner vertices exactly,
+      // and two closed boxes sharing a vertex make an edge belonging to four
+      // faces. Overhanging is both sounder and what a rail does.
       const rail = new THREE.BoxGeometry(span + post * 1.7, post * 0.85, post * 1.25);
       rail.translate(0, stand - post * 0.55, 0);
       parts.push({ geometry: rail, color: PALETTE.TIMBER_DARK, sway: 0 });
@@ -139,12 +125,9 @@ export function finishDrape(
 
 /**
  * A standing column, for reading a finish across large flat faces rather than
- * across facets.
- *
- * Everything varies with the seed: the shaft profile, how many drums it is
- * stacked from, the ornament between them, the capital and the finial. The
- * whole column takes one rotation, not one per piece — square drums turned
- * independently do not line up and the column reads as broken.
+ * across facets. Everything varies with the seed: the shaft profile, the drums,
+ * the ornament, the capital, the finial. The whole column takes one rotation, not
+ * one per piece — square drums turned independently do not line up.
  */
 export function finishColumn(name: string, color: number, coat: FinishName | Finish): MeshBuilder {
   return {
@@ -299,17 +282,11 @@ export function finishColumn(name: string, color: number, coat: FinishName | Fin
 }
 
 /**
- * A cut gem on a plinth — the transmissive fixture (Track B / M3).
- *
- * **Faceted on purpose, and the facets are the whole demonstration.** The
- * refracted image is computed per fragment from that fragment's normal, so a
- * hard facet boundary makes the world behind the gem *jump* across it — which
- * is what a cut stone does and what separates crystal from a bubble of glass.
- * `toNonIndexed` then `computeVertexNormals` is what makes them hard: on
- * un-indexed geometry that assigns each triangle its own face normal.
- *
- * A crown over a pavilion, eight facets round, which is the classic silhouette
- * at the fewest triangles that still reads as cut.
+ * A cut gem on a plinth — the transmissive fixture. Faceted on purpose, and the
+ * facets are the whole demonstration: the refracted image is computed per
+ * fragment from that fragment's normal, so a hard facet boundary makes the world
+ * behind the gem jump across it. `toNonIndexed` then `computeVertexNormals` is
+ * what makes them hard. A crown over a pavilion, eight facets round.
  */
 export function glassGem(name: string, kind: GlassName | Glass): MeshBuilder {
   return {
@@ -336,11 +313,10 @@ export function glassGem(name: string, kind: GlassName | Glass): MeshBuilder {
       const pavilionDepth = girdle * rng.range(1.2, 1.6);
       const table = girdle * rng.range(0.5, 0.62);
 
-      // **Open-ended, and the hull carries no interior face anywhere.** The
-      // glass pass does not depth test — it composites in draw order — so a
-      // cap left inside the stone would simply paint over the outside of it.
-      // A convex hull of front faces alone cannot overlap itself, which is what
-      // makes the whole material safe without a depth buffer.
+      // Open-ended, and the hull carries no interior face anywhere. The glass pass
+      // does not depth test — it composites in draw order — so a cap left inside
+      // the stone would simply paint over the outside of it. A convex hull of
+      // front faces alone cannot overlap itself.
       const crown = new THREE.CylinderGeometry(
         table,
         girdle,
@@ -383,12 +359,9 @@ export function glassGem(name: string, kind: GlassName | Glass): MeshBuilder {
 }
 
 /**
- * A bubble, floating just clear of its plinth.
- *
- * The same material at the thin-film limit: an index barely above air, almost
- * nothing to absorb, and all of its colour in the fresnel rim. Smooth-normalled
- * rather than faceted — a bubble has no facets, and leaving the sphere's own
- * normals alone is how it says so.
+ * A bubble, floating just clear of its plinth: the same material at the thin-film
+ * limit, with almost nothing to absorb and all of its colour in the fresnel rim.
+ * Smooth-normalled rather than faceted — a bubble has no facets.
  */
 export function glassBubble(name: string, kind: GlassName | Glass): MeshBuilder {
   return {
@@ -422,11 +395,10 @@ export function glassBubble(name: string, kind: GlassName | Glass): MeshBuilder 
 }
 
 /**
- * An upright slab in a timber frame — glass with the dispersion turned off.
- *
- * The flat counterpart to the gem: one normal over the whole sheet, so the
- * image behind shifts as a body instead of breaking facet to facet. The thing
- * to look at when asking whether the refraction offset is honest.
+ * An upright slab in a timber frame — glass with the dispersion turned off. One
+ * normal over the whole sheet, so the image behind shifts as a body instead of
+ * breaking facet to facet. What to look at when asking whether the refraction
+ * offset is honest.
  */
 export function glassPane(name: string, kind: GlassName | Glass): MeshBuilder {
   return {

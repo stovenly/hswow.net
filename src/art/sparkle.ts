@@ -7,19 +7,12 @@ import { PARTICLE_LAYER, GLOW_LAYER } from '../layers';
 
 /**
  * Star sparkles as camera-facing quads, lifted off the surface that made them.
- *
- * The finish stage can only shade a material's own pixels, so a glint drawn
- * there is cropped at the silhouette and rotated by the face it sits on. These
- * are geometry instead: `assemble` scatters sites over star-carrying
- * triangles, `buildZoneSparkles` merges every prop's sites into one instanced
- * draw per zone, and the shader flashes a few at a time — whole, upright,
- * facing the eye.
- *
- * Drawn in the particle pass, which already owns the problem this needs
- * solved: a hand depth test against the scene's depth texture. Here the test
- * runs once, at the quad's centre, so a star shows in its entirety or not at
- * all — an occluder whose edge crosses the centre swallows it rather than
- * cropping it.
+ * The finish stage can only shade a material's own pixels, so a glint drawn there
+ * is cropped at the silhouette and rotated by the face it sits on. These are
+ * geometry instead: `assemble` scatters sites over star-carrying triangles and
+ * `buildZoneSparkles` merges every prop's into one instanced draw per zone.
+ * Drawn in the particle pass, whose hand depth test runs once at the quad's
+ * centre — so a star shows whole or not at all.
  */
 
 /** Sites per square metre of star-carrying surface. */
@@ -244,14 +237,11 @@ void main() {
 `;
 
 /**
- * Additive and unlit, like every glow; its own depth test, like every
- * particle. The uniforms are the particle pass's own objects, shared by
- * reference, so the depth texture and the pixel scale arrive without a line of
- * per-frame code here.
- *
- * Built on first use, not at import: this module sits on the cycle
- * `particles → sway → assemble → sparkle`, so at import time the shared
- * uniform objects may not exist yet.
+ * Additive and unlit, like every glow; its own depth test, like every particle.
+ * The uniforms are the particle pass's own objects, shared by reference, so the
+ * depth texture and the pixel scale arrive without per-frame code here. Built on
+ * first use rather than at import: this module sits on the cycle
+ * `particles → sway → assemble → sparkle`.
  */
 let sparkleMaterial: THREE.ShaderMaterial | null = null;
 
@@ -276,18 +266,11 @@ function material(): THREE.ShaderMaterial {
 }
 
 /**
- * The quad every star is drawn on. Four vertices, and **each zone gets its own
- * copy of them.**
- *
- * It was one shared `PlaneGeometry` whose index and position attribute were
- * handed straight to every zone's instanced geometry, which is free and wrong.
- * `Zone.dispose` calls `dispose()` on the sparkle geometry; three.js answers
- * that by deleting the GPU buffer behind *every attribute it holds* — and two
- * of those were the shared quad's. So releasing one zone tore the buffers out
- * from under the sparkles of every other zone still standing, and they had to
- * be uploaded again the next time one of them drew.
- *
- * Six indices and twelve floats a zone is not a cost worth sharing to avoid.
+ * The quad every star is drawn on, and each zone gets its own copy of its four
+ * vertices. `Zone.dispose` calls `dispose()` on the sparkle geometry, and three
+ * answers by deleting the GPU buffer behind every attribute it holds — so a
+ * shared quad would be torn out from under every other zone's sparkles. Six
+ * indices and twelve floats a zone is not a cost worth sharing to avoid.
  */
 const QUAD = new THREE.PlaneGeometry(1, 1);
 

@@ -2,51 +2,21 @@ import * as THREE from 'three';
 import { FIELD_ATTRIBUTE } from './fields';
 
 /**
- * Detail fading: a mipmap for geometry that has no texture to mip.
+ * Detail fading: a mipmap for geometry that has no texture to mip. Vertex colour
+ * has no pre-filtered levels, so a fine dark seam on a floorboard is sampled once
+ * per chunky pixel or not at all, and which is which re-decides itself every
+ * frame as the camera turns. That is moiré, and multisampling only moves the
+ * threshold rather than crossing it.
  *
- * A texture gets pre-filtered levels, so when it minifies the GPU samples a
- * version where the high frequency has already been *removed*. Vertex colour
- * has no such thing — the colour is per-vertex data, there is no level
- * structure, and a fine dark seam on a floorboard is sampled once per chunky
- * pixel or not at all. Most pixels miss it, a few catch it whole, and which is
- * which re-decides itself every frame as the camera turns. That is moiré, and
- * no number of coverage samples fixes it: the frequency is below Nyquist and
- * multisampling only moves the threshold (ANTIALIASING.md).
+ * So each part says how big its detail is (`Part.detail`, in metres) and what it
+ * looks like from far enough away (`Part.detailTint`), and the shader crossfades
+ * between them. Per part, because a floor carries a 9 mm seam and a 290 mm board
+ * on the same surface and they stop being resolvable at wildly different ranges.
  *
- * So each part says how big its detail is and what it looks like from far
- * enough away that you cannot tell it apart from its surroundings, and the
- * shader crossfades between the two:
- *
- * - **`Part.detail`** — the size of the feature this part *is*, in metres. A
- *   9 mm seam says 0.009. Zero, the default, means never fade.
- * - **`Part.detailTint`** — what it fades toward. Its surroundings, usually:
- *   the seam between two boards fades into the boards.
- *
- * The two are per part, which is the point. A floor carries a 9 mm seam and a
- * 290 mm board on the same surface, and they stop being resolvable at wildly
- * different ranges — the seam dissolves while the board-to-board variation is
- * still perfectly clear. One global fade distance could not tell them apart.
- *
- * ## Why `fwidth` and not view distance
- *
- * The obvious trigger is distance, and it is wrong in exactly the case that
- * matters. **A floor is not viewed head-on.** At a shallow angle one chunky
- * pixel covers far more surface than its distance suggests, which is why the
- * shimmer is worst toward the far wall rather than in a ring around you — so a
- * distance fade would under-fade precisely where it is needed.
- *
- * `fwidth` of the view-space position is how many metres of surface one chunky
- * pixel actually covers, there, at that angle. It is the same quantity the GPU
- * uses to choose a mipmap level, it costs one instruction, and it is spatial
- * only — no history, so it stays inside SHADERS-AND-MATERIALS.md's ground rule 3.
- *
- * The fade runs from one pixel per feature to `DETAIL_SPAN` pixels per feature,
- * a couple of octaves, the way trilinear filtering blends between two levels
- * rather than snapping.
- *
- * Costs: two attributes per vertex, as weathering pays; one `fwidth`, one
- * `smoothstep` and one `mix` per fragment behind an early-out that skips every
- * part which declared nothing. Which, today, is nearly all of them.
+ * The trigger is `fwidth` of the view-space position rather than distance: a
+ * floor is not viewed head-on, and at a shallow angle one chunky pixel covers far
+ * more surface than its distance suggests. It is the same quantity the GPU uses
+ * to choose a mip level, it costs one instruction, and it carries no history.
  */
 
 /** The feature size itself rides `FIELD_ATTRIBUTE.z` — see `art/fields`. */
@@ -54,12 +24,10 @@ import { FIELD_ATTRIBUTE } from './fields';
 export const DETAIL_TINT_ATTRIBUTE = 'detailTint';
 
 /**
- * The two dials, in pixels per feature.
- *
- * `uDetailStart` is where a feature begins to dissolve — 1 is "as soon as it is
- * narrower than a pixel", which is exactly when it stops being sampleable.
- * `uDetailSpan` is how many times wider the pixel has to get before the feature
- * is gone entirely. Both are pure uniforms, so both are free to move.
+ * The two dials, in pixels per feature. `uDetailStart` is where a feature begins
+ * to dissolve — 1 is as soon as it is narrower than a pixel, which is exactly
+ * when it stops being sampleable. `uDetailSpan` is how many times wider the pixel
+ * has to get before it is gone entirely.
  */
 export const detailUniforms = {
   uDetailStart: { value: 1 },
@@ -67,11 +35,10 @@ export const detailUniforms = {
 };
 
 /**
- * Adds the detail-fade stage to a material that already carries the sway and
- * wear patches. Wrapping rather than replacing, for the reason `applyWear`
- * gives: `onBeforeCompile` is a single slot and sway got there first.
- *
- * Surface material only. The depth and edge passes read geometry, not colour.
+ * Adds the detail-fade stage to a material that already carries the sway and wear
+ * patches. Wrapping rather than replacing: `onBeforeCompile` is a single slot and
+ * sway got there first. Surface material only — the depth and edge passes read
+ * geometry, not colour.
  */
 export function applyDetail(material: THREE.Material): void {
   const prior = material.onBeforeCompile;
@@ -115,16 +82,11 @@ export function applyDetail(material: THREE.Material): void {
         `,
       )
       .replace(
-        // **Anchored after `<color_fragment>`, not on it.** The wear stage has
-        // already replaced that chunk by the time this runs, and replacing it
-        // again would land this code *above* the wear block — so a rusted patch
-        // would survive at full contrast into the distance while the surface
-        // under it dissolved, which is the sparkle this exists to remove. Rust
-        // painted on a surface is part of that surface and goes with it.
-        //
-        // `<alphamap_fragment>` is the next chunk after `<color_fragment>` in
-        // three's fragment order, and is the first thing past the wear patch.
-        // The art check asserts it is still there to land on.
+        // Anchored after <color_fragment>, not on it. The wear stage has already
+        // replaced that chunk, and replacing it again would land this code above
+        // the wear block — so a rusted patch would survive at full contrast into
+        // the distance while the surface under it dissolved. <alphamap_fragment>
+        // is the next chunk in three's fragment order, past the wear patch.
         '#include <alphamap_fragment>',
         /* glsl */ `
         if (vDetail > 0.0) {

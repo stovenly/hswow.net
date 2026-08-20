@@ -50,13 +50,10 @@ function meshFrom(request: CoverRequest): THREE.Mesh {
 }
 
 /**
- * The worker's own global, stated rather than inherited.
- *
- * The project compiles against the DOM lib, where `self` is a `Window` and
- * `postMessage` takes an origin. Adding the WebWorker lib to reach the real
- * type would put `onmessage` and a second `postMessage` on every file in the
- * game; two lines of shape here are cheaper and are only wrong in this file if
- * this file stops being a worker.
+ * The worker's own global, stated rather than inherited. The project compiles
+ * against the DOM lib, where `self` is a `Window` and `postMessage` takes an
+ * origin; adding the WebWorker lib to reach the real type would put `onmessage`
+ * and a second `postMessage` on every file in the game.
  */
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<CoverRequest>) => void) | null;

@@ -22,85 +22,15 @@ import { collectSparkleSites } from './sparkle';
 import { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
 
 /**
- * Turning a pile of primitives into one mesh.
+ * Turning a pile of primitives into one mesh: everything the art kit builds ends
+ * up as a single geometry with vertex colours on one shared material, so a prop
+ * is one draw call and one patch point. Colour becomes geometry, and recolouring
+ * means rebuilding — cheap, because building is deterministic from a seed.
  *
- * Everything the art kit builds ends up as a **single geometry with vertex
- * colours and a single shared material**. Three reasons, and they compound:
- *
- * - One draw call per prop instead of one per part. A tree is six or seven
- *   primitives; drawn separately that is six or seven calls for something the
- *   player reads as one object.
- * - Phase 7's wind sway patches exactly one material. Separate materials per
- *   colour would mean patching each of them and keeping their uniforms in
- *   step.
- * - Merged geometry can be merged *again*, so Phase 5 can collapse a stand of
- *   trees into one buffer if it needs to.
- *
- * The cost is that colour becomes geometry: recolouring means rebuilding.
- * Since building is deterministic from a seed, that is cheap.
- *
- * ## The attribute ledger
- *
- * Every input below is set on **every** geometry, zeroed where unused, because
- * `mergeGeometries` requires all its inputs to carry the same attribute set and
- * returns null rather than saying which one broke it. So a lane added here is
- * paid for by the whole kit, and the count is worth keeping in one place:
- *
- * | attribute | size | bytes | what |
- * |---|---|---|---|
- * | `position`, `normal` | vec3 ×2 | 24 | geometry |
- * | `color` | vec3 | 12 | the surface's own colour |
- * | `aField` | vec3 | 12 | sway weight, wear, detail size — one lane each |
- * | `wearTint` | vec3 | 12 | weathering (`art/weathering`) |
- * | `detailTint` | vec3 | 12 | detail fade (`art/detail`) |
- * | `aFinish`, `aGrain`, `aGlint`, `aFace` | u8 vec4 ×2 + u8 vec2 + u8 | 11 | finish (`art/finish`) |
- * | `aRecipe` | u8 | 1 | which optical model (`art/recipes`) |
- *
- * Eleven attributes of the sixteen WebGL guarantees, and 84 bytes a vertex —
- * with `aEffect` (`art/effectId`) twelve, and a rigged creature's `skinIndex`
- * and `skinWeight` make fourteen. Two spare, and that is the whole margin.
- * The finish lanes are normalized bytes rather than floats for exactly this
- * reason: as floats they would have been the largest entry in the table
- * instead of the smallest, for nine numbers that are all 0..1 knobs.
- *
- * `aRecipe` is the same argument taken one step further. Ten more optical
- * models wanting a lane each would have been two more vec4s and ~21 MB across
- * the resident world; as an index into a table of recipes they are one byte
- * between them, and the eleventh costs nothing per vertex at all. It is the
- * one lane here that is *not* normalized — an index is an exact integer, not a
- * fraction of anything. See `art/recipes/`.
- *
- * ## Collision is a decision that has to be made here
- *
- * The merge is one-way. Once these parts are one buffer, nothing downstream can
- * tell the rivets from the door they are driven into, and `markCollidable` can
- * only take the prop whole or leave it whole. So which parts are *made of
- * something* has to be said while they are still separate — the same argument
- * that puts sway weights and the wear field in `Part` rather than inferring them
- * afterwards from position.
- *
- * **The rule: a prop's collidable geometry should resemble only the part of it
- * that can actually be collided with or stepped on.** A tree's branches and
- * trunk, not its leaves. A door's leaf and frame, not its rivets, straps,
- * hinges, handle or window bars. Embellishment and accessory detail are there to
- * be looked at, and nothing that is only there to be looked at belongs in the
- * collision index.
- *
- * It is not fussiness. The collider indexes raw triangles and its cost rises
- * faster than linearly with how *densely* they are packed, so a hand-span of
- * small detail hurts far more than the same triangle count spread across a wall
- * — pressing the capsule against a signboard once cost whole milliseconds a
- * frame for the sake of its lettering. And the feel argument points the same
- * way: catching on a handle or a leaf reads as the world being made of invisible
- * boxes.
- *
- * Until per-part collision exists (see `COLLISION-FIX.md`), a builder says this
- * one of two ways: `MeshBuilder.solid = false` for something soft the whole way
- * through, or — for decoration inside an otherwise solid prop — by keeping that
- * decoration in its own child mesh flagged `userData.noCollide`, which is what
- * `signboard` and `banner` do with their lettering. The default is solid, so a
- * builder that says nothing behaves as it always has; that is a reason to decide
- * on purpose rather than a reason not to decide.
+ * Every input carries every attribute, zeroed where unused, because
+ * `mergeGeometries` needs one attribute set and returns null rather than saying
+ * which input broke it. The lane ledger and the rule about which parts are
+ * collidable are in `src/art/CLAUDE.md`.
  */
 
 export { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
@@ -112,17 +42,10 @@ export const ART_MATERIAL = new THREE.MeshLambertMaterial({
 });
 
 /**
- * The same material with every finish chunk in it.
- *
- * **Two programs, and that is the whole set.** A prop that declares any finish
- * takes this one; everything else takes the lean one above; and both are built
- * by `patchArtMaterial` before a zone is ever shown. There is no third, no
- * per-mask cache and nothing computed per room — which is the shape the kit had
- * before any of this, and which shipped. MATERIAL-SYSTEM.md R5.
- *
- * What it costs is a wider program on props that do not need all of it. What it
- * buys is that no door ever waits on a compile it could not have done earlier,
- * and that the answer to "which program is this mesh on" is one of two.
+ * The same material with every finish chunk in it. Two programs, and that is the
+ * whole set: a prop declaring any finish takes this one, everything else takes
+ * the lean one above, and both are built before a zone is ever shown. What it
+ * buys is that no door waits on a compile it could have done earlier.
  */
 export const ART_FINISHED_MATERIAL = new THREE.MeshLambertMaterial({
   vertexColors: true,
@@ -132,43 +55,32 @@ export const ART_FINISHED_MATERIAL = new THREE.MeshLambertMaterial({
 export interface Part {
   geometry: THREE.BufferGeometry;
   /**
-   * sRGB hex, or a function of position for patterned surfaces.
-   *
-   * A function is evaluated **once per face**, at its centroid, and the result
-   * given to all three of its vertices — so patches land on facet boundaries
-   * and come out crisp rather than smeared across triangles. That is what
-   * makes markings possible without geometry: the spots on a cow are two
-   * colours in one mesh, not a second mesh stuck on top of the first.
+   * sRGB hex, or a function of position for patterned surfaces. A function is
+   * evaluated once per face, at its centroid, and given to all three of its
+   * vertices — so patches land on facet boundaries and come out crisp rather
+   * than smeared across triangles.
    */
   color: number | ((x: number, y: number, z: number) => number);
   /**
-   * How much this part moves in the wind, 0..1.
-   *
-   * A number applies to the whole part; a function is evaluated per vertex in
-   * the part's own local space, which is how a trunk gets to be rigid at the
-   * base and loose at the top. Weights are baked here, at build time, because
-   * doing it afterwards would mean inferring which vertices belong to which
-   * part from position alone — and by then they have all been merged.
+   * How much this part moves in the wind, 0..1. A number applies to the whole
+   * part; a function is evaluated per vertex in the part's own local space, so a
+   * trunk can be rigid at the base and loose at the top. Baked at build time,
+   * because afterwards the parts have all been merged.
    */
   sway?: number | ((x: number, y: number, z: number) => number);
   /**
-   * How weathered this part is, 0..1 — the same shapes as `sway`, for the
-   * same reason. The fine speckle is generated per pixel by the wear stage in
-   * `art/weathering`; this is only the *field* it is thresholded against, so
-   * it needs just enough vertices to bend smoothly, not to draw patches.
+   * How weathered this part is, 0..1 — the same shapes as `sway`. The fine
+   * speckle is generated per pixel by `art/weathering`; this is only the field
+   * it is thresholded against, so it needs just enough vertices to bend smoothly.
    */
   wear?: number | ((x: number, y: number, z: number) => number);
   /** What colour the part weathers toward — rust, moss, patina. sRGB hex. */
   wearTint?: number;
   /**
-   * The size of the feature this part *is*, in metres — a 9 mm seam says
-   * 0.009. Once a pixel covers more than this, the part dissolves into
-   * `detailTint` rather than being sampled by a pixel too coarse to see it.
-   * Omitted, it never fades, which is what nearly everything wants.
-   *
-   * See `art/detail.ts`. Per part rather than per prop because one surface
-   * carries features of very different sizes, and they stop being resolvable
-   * at very different ranges.
+   * The size of the feature this part is, in metres — a 9 mm seam says 0.009.
+   * Once a pixel covers more than this, the part dissolves into `detailTint`.
+   * Omitted, it never fades. Per part rather than per prop, because one surface
+   * carries features of very different sizes.
    */
   detail?: number;
   /** What the feature dissolves into — its surroundings. sRGB hex. */
@@ -180,9 +92,9 @@ export interface Part {
   finish?: FinishName | Finish;
   /**
    * Which way the grain runs, for an anisotropic finish. Object space, and an
-   * *axis* rather than a direction — it is crossed with each facet's own normal
-   * to get that facet's tangent, so one axis serves a whole turned or folded
-   * surface. Defaults to up, which is what a lathe spins about.
+   * axis rather than a direction: it is crossed with each facet's own normal to
+   * get that facet's tangent, so one axis serves a whole turned surface.
+   * Defaults to up, which is what a lathe spins about.
    */
   grain?: Grain;
   /**
@@ -192,16 +104,12 @@ export interface Part {
   bone?: string;
   /**
    * Blended binding instead of `bone`: per vertex, up to four (bone, weight)
-   * pairs, from the vertex's position in the creature's space. For a surface
-   * that runs across a joint — a trunk — and must curve there rather than
-   * break. Weights are normalised; missing bones throw.
+   * pairs from the vertex's position in the creature's space, for a surface that
+   * runs across a joint and must curve rather than break. Weights are
+   * normalised; missing bones throw.
    */
   skin?: (x: number, y: number, z: number) => ReadonlyArray<readonly [string, number]>;
-  /**
-   * What this part is, for the debug picker (`debug/Identify.ts`), which
-   * reports it by name from a click in the world. Unnamed parts are reported
-   * by their index.
-   */
+  /** What this part is, for the debug picker. Unnamed parts are reported by their index. */
   name?: string;
 }
 
@@ -216,11 +124,10 @@ export interface PartRange {
 }
 
 /**
- * @param bones Bone names, in skeleton order. When given, every vertex is bound
- *   to its part's `bone` — rigidly, one bone at weight one, which is the hinge
- *   look a limb wants — or blended by the part's `skin`, for a surface that
- *   must curve over a joint. The geometry can then be finished as a
- *   `SkinnedMesh`.
+ * @param bones Bone names, in skeleton order. Every vertex is bound to its part's
+ *   `bone` — rigidly, one bone at weight one, which is the hinge look a limb
+ *   wants — or blended by the part's `skin`, for a surface that must curve over
+ *   a joint. The geometry can then be finished as a `SkinnedMesh`.
  */
 export function assemble(parts: Part[], bones?: readonly string[]): THREE.BufferGeometry {
   // The union of the parts' finish chunks, stamped on the merged geometry so
@@ -228,18 +135,14 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
   let finishMask = 0;
   const prepared = parts.map((part) => {
     // Everything is un-indexed first. `mergeGeometries` refuses to mix indexed
-    // and non-indexed inputs and returns null rather than saying so, and
-    // three's own primitives are a mix: boxes, cylinders and tori carry an
-    // index, icosahedra and cones do not. Un-indexing also suits flat shading,
-    // which wants per-face vertices anyway.
+    // and non-indexed inputs and returns null rather than saying so, and three's
+    // own primitives are a mix. Un-indexing also suits flat shading.
     const source = part.geometry;
     const geometry = source.index === null ? source : source.toNonIndexed();
     if (geometry !== source) source.dispose();
 
-    // No textures exist in this project, so UVs are dead weight — and worse,
-    // they are a hazard: `mergeGeometries` needs every input to carry the same
-    // attributes, so one part that has lost its UVs somewhere upstream would
-    // fail the merge for the whole prop.
+    // No textures exist in this project, so UVs are dead weight — and a hazard:
+    // one part that lost its UVs upstream would fail the merge for the whole prop.
     geometry.deleteAttribute('uv');
 
     const position = geometry.getAttribute('position');
@@ -248,10 +151,9 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
     const colors = new Float32Array(count * 3);
     const color = new THREE.Color();
     if (typeof part.color === 'function') {
-      // Per face, from its centroid. Sampling per vertex instead would let the
-      // three corners of one triangle disagree, and the interpolation between
-      // them turns a hard-edged patch into a gradient — which is the one thing
-      // a flat-shaded look must not have.
+      // Per face, from its centroid. Per vertex, the three corners of one triangle
+      // could disagree, and interpolating between them turns a hard-edged patch
+      // into a gradient.
       for (let i = 0; i < count; i += 3) {
         const x = (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3;
         const y = (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3;
@@ -267,10 +169,8 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    // The three fields, one lane each. Sway and wear are per-vertex fields
-    // baked at build time; detail is a constant per part. Attributes exist on
-    // every part — zeroed where unused — because a merge requires every input
-    // to carry the same attribute set.
+    // The three fields, one lane each: sway and wear per vertex, detail constant
+    // per part. Zeroed where unused, because a merge needs one attribute set.
     const fields = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       const x = position.getX(i);
@@ -299,8 +199,7 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
     geometry.setAttribute(DETAIL_TINT_ATTRIBUTE, new THREE.BufferAttribute(detailTints, 3));
 
     // The finish, packed to a byte a lane — every parameter is a 0..1 knob, so
-    // 1/255 is finer than any of them can use, and the whole kit carries the
-    // attributes whether it glints or not. All zero is matte.
+    // 1/255 is finer than any of them can use. All zero is matte.
     const finishLanes = new Uint8Array(count * 4);
     const grainLanes = new Uint8Array(count * 4);
     const glintLanes = new Uint8Array(count * 2);
@@ -321,10 +220,9 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
     geometry.setAttribute(FINISH_ATTRIBUTE, new THREE.BufferAttribute(finishLanes, 4, true));
     geometry.setAttribute(GRAIN_ATTRIBUTE, new THREE.BufferAttribute(grainLanes, 4, true));
     geometry.setAttribute(GLINT_ATTRIBUTE, new THREE.BufferAttribute(glintLanes, 2, true));
-    // **Not normalized**, unlike every lane above it: the shader compares this
-    // against whole numbers, and a recipe index scaled to 0..1 and multiplied
-    // back up is a rounding decision nobody asked for. Constant across a
-    // triangle by construction, since a finish is declared per part.
+    // Not normalized, unlike every lane above it: the shader compares this against
+    // whole numbers, and an index scaled to 0..1 and multiplied back up is a
+    // rounding decision nobody asked for. Constant across a triangle.
     geometry.setAttribute(RECIPE_ATTRIBUTE, new THREE.BufferAttribute(recipeLanes, 1, false));
 
     // One random draw per triangle, the same on all three of its vertices.
@@ -395,31 +293,21 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
 }
 
 /**
- * Finishes a merged geometry into a mesh.
- *
- * Also where the species' stiffness is applied: the per-vertex weights say
- * where a thing bends, `FLEX` says whether it bends at all, and multiplying
- * them here keeps the whole kit on one material and therefore one draw call.
- * See `art/sway.ts` for the table and the reasoning.
- *
- * `swayPhase` is stamped here rather than derived in the shader, and is now
- * carried for anything that wants a stable per-instance number — the sway
- * shader itself ended up not needing it, because a travelling front already
- * gives every instance a different phase from where it stands, which is both
- * cheaper and more correct than a random offset.
+ * Finishes a merged geometry into a mesh, and where the species' stiffness is
+ * applied: the per-vertex weights say where a thing bends, `FLEX` says whether it
+ * bends at all, and multiplying them here keeps the kit on one material and so
+ * one draw call. `swayPhase` is stamped for anything wanting a stable
+ * per-instance number.
  */
 export function finish(
   geometry: THREE.BufferGeometry,
   name: string,
   phase: number,
   /**
-   * What it sounds like underfoot, for the few props that **roll** their own
-   * material rather than having one.
-   *
-   * Every prop's material is declared once in `art/underfoot.ts`, keyed by the
-   * name above, and that is where to put it. This is for the case a table
-   * cannot express: a trough is stone or timber depending on its own seed, so
-   * only the build knows.
+   * What it sounds like underfoot, for the few props that roll their own material
+   * rather than having one. Every prop's material is declared by name in
+   * `art/underfoot.ts`; this is for the case a table cannot express — a trough is
+   * stone or timber depending on its own seed.
    */
   underfoot?: SurfaceName,
 ): THREE.Mesh {
@@ -438,8 +326,8 @@ export function finishMesh<T extends THREE.Mesh>(
 ): T {
   const geometry = mesh.geometry;
   // Baked into the attribute rather than passed as a uniform: a uniform would
-  // need a material per species, and the whole kit sharing one material is
-  // what keeps a prop to a single draw call.
+  // need a material per species, and the whole kit sharing one material is what
+  // keeps a prop to a single draw call.
   const flex = FLEX[name] ?? 0;
   const fields = geometry.getAttribute(FIELD_ATTRIBUTE);
   if (fields && flex !== 1) {
@@ -448,39 +336,31 @@ export function finishMesh<T extends THREE.Mesh>(
     fields.needsUpdate = true;
   }
 
-  // The lean material, and a note of what this prop's parts declared. The room
-  // it ends up in decides which variant it actually draws with, once it knows
-  // what else is standing in it. See `dressArtMesh`.
+  // The lean material, and a note of what this prop's parts declared.
   dressArtMesh(mesh, (geometry.userData.finishMask as number | undefined) ?? 0);
   mesh.name = name;
   mesh.userData.swayPhase = phase;
-  // Stamped here rather than looked up in the zone manager, because by the time
-  // the manager walks a built zone all it has is a scene graph — the builder is
-  // long gone, and the name on the mesh is the only thing left that says what
-  // this is. `ZoneManager.prepare` reads it; see `art/clutter.ts`.
+  // Stamped here rather than looked up in the zone manager: by the time the
+  // manager walks a built zone the builder is long gone, and the name on the mesh
+  // is the only thing left that says what this is.
   if (CLUTTER.has(name)) mesh.userData.clutter = true;
-  // What standing on it sounds like, declared by name in `art/underfoot.ts` —
-  // which explains at length why it is not read off the colours. The collider
-  // carries this onto every triangle, so what holds the player up is what they
-  // hear.
+  // What standing on it sounds like, declared by name in `art/underfoot.ts`. The
+  // collider carries it onto every triangle, so what holds the player up is what
+  // they hear.
   const material = underfoot ?? MATERIALS[name];
   if (material) mesh.userData.underfoot = material;
-  // So the sun sees what the camera sees. Without it the shadow map is drawn
-  // from undisplaced geometry and every swaying plant casts a still shadow of
-  // where it is not — see `SWAY_DEPTH_MATERIAL`. Set on everything rather than
-  // only on things that bend: it is one shared material, a rigid prop's
-  // displacement is zero, and the alternative is a rule that has to be
-  // remembered every time a species is added to `FLEX`.
+  // So the sun sees what the camera sees: without it the shadow map is drawn from
+  // undisplaced geometry and every swaying plant casts a still shadow of where it
+  // is not. Set on everything rather than only on things that bend — a rigid
+  // prop's displacement is zero, and a rule would have to be remembered.
   mesh.customDepthMaterial = SWAY_DEPTH_MATERIAL;
   return mesh;
 }
 
 /**
- * A smooth 0→1 ramp between two heights, for sway weights.
- *
- * Smoothstep rather than linear, because a linear weight puts the sharpest
- * change in bend right where the ramp starts, and a visible crease across a
- * trunk is worse than no sway at all.
+ * A smooth 0→1 ramp between two heights, for sway weights. Smoothstep rather
+ * than linear: a linear weight puts the sharpest change in bend right where the
+ * ramp starts, and a visible crease across a trunk is worse than no sway at all.
  */
 export function heightRamp(base: number, top: number, curve = 1.6) {
   return (_x: number, y: number): number => {
@@ -490,13 +370,10 @@ export function heightRamp(base: number, top: number, curve = 1.6) {
 }
 
 /**
- * Clamps to 0..1, and maps NaN to 0.
- *
- * Written as comparisons rather than `Math.min(1, Math.max(0, v))` because
- * that form passes NaN straight through — every comparison against NaN is
- * false, so it survives both clamps untouched. A NaN in a vertex attribute is
- * not a slightly wrong number, it is a mesh that fails to draw, and the cause
- * is a long way from the symptom.
+ * Clamps to 0..1, and maps NaN to 0. Written as comparisons rather than
+ * `Math.min(1, Math.max(0, v))`, which passes NaN straight through — every
+ * comparison against NaN is false. A NaN in a vertex attribute is not a slightly
+ * wrong number, it is a mesh that fails to draw.
  */
 function clamp01(value: number): number {
   return value > 0 ? (value < 1 ? value : 1) : 0;

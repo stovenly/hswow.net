@@ -25,20 +25,11 @@ export interface Rng {
 }
 
 export function createRng(seed: number): Rng {
-  // **The incoming seed is avalanched before use.**
-  //
-  // Mulberry32 advances its state by a fixed constant each call, so two
-  // streams started from seeds a fixed distance apart stay a fixed distance
-  // apart, and their nth outputs are related. Callers overwhelmingly pass
-  // sequences — 1, 2, 3…, or a base plus a stride — which is exactly the case
-  // that breaks.
-  //
-  // It broke here. The prop gallery drew eight figures from `1000 + i * 7919`
-  // and their nth draws agreed far more often than chance allows: a feature
-  // set to appear on 62% of figures showed up on two of the eight, twice
-  // running, and looked like a bug in the feature rather than in the seeding.
-  // One round of avalanche mixing scatters neighbouring seeds across the whole
-  // state space and costs three multiplies, once, per builder.
+  // The incoming seed is avalanched before use. Mulberry32 advances its state by a
+  // fixed constant each call, so two streams started from seeds a fixed distance
+  // apart stay a fixed distance apart and their nth outputs are related — and
+  // callers overwhelmingly pass sequences. One round of avalanche mixing scatters
+  // neighbouring seeds across the state space, for three multiplies per builder.
   let a = (seed >>> 0) || 0x9e3779b9;
   a = Math.imul(a ^ (a >>> 16), 0x45d9f3b);
   a = Math.imul(a ^ (a >>> 16), 0x45d9f3b);

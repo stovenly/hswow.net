@@ -6,59 +6,24 @@ import { volumeMembership } from './glsl/volume';
 import type { GlitchEffectName, GlitchSpec } from '../engine/Glitch';
 
 /**
- * The in-scene half of the glitch stage: corruption on the shared art
- * material. GLITCH-SHADERS.md.
- *
+ * The in-scene half of the glitch stage: corruption on the shared art material.
  * One material serves the whole kit, so per-object corruption cannot be a
- * per-mesh uniform — it is a world-space test instead, exactly as a screen
- * pixel asks whether it stands in a fog volume. Every vertex asks the same
- * eight-slot uniform store the screen pass reads, and what falls inside a
- * volume misbehaves: the vertex stage shivers, shears and shatters the
- * geometry, the fragment stage rots the palette, flashes facets, erodes faces
- * and finally replaces the surface with static.
+ * per-mesh uniform — it is a world-space test against the same eight-slot store
+ * the screen pass reads. The displacement is applied three times, and has to be:
+ * the surface material, the shadow depth material, and the edge pass's normal
+ * override all have to agree about where the scene is.
  *
- * **The displacement is applied three times, and has to be.** The surface
- * material decides what you see; the depth material decides what the sun sees
- * (shadow maps re-render every frame — see PostFX.render), and the normal
- * override material is what the edge detector outlines. Sway learned this
- * lesson first and this patch walks the same road: `applyGlitch` for the
- * surface, `applyGlitchDisplacement` for the other two. The normal override
- * draws non-kit geometry too, which the colour pass leaves alone — harmless in
- * practice, because floors and terrain are vertex-sparse and their corners
- * stand outside any volume anyone would place.
- *
- * Everything is a pure function of the clock. No accumulated state, nothing
- * to invalidate on a zone crossing, and the depth pass hashes the same slots
- * the colour pass does, so a shattered face casts the shadow of where it went.
- *
- * **Attached volumes are gated by identity, free-standing ones by space.** An
- * attached volume (owner id folded into `uGlitchCentre.w`, see
- * art/effectId.ts) corrupts exactly the vertices and pixels carrying its id —
- * whole object, full strength, floor immune at any distance. A free-standing
- * volume keeps the spatial test, and for it the underside is a cut rather
- * than a fade: below `centre.y - size.y` it simply stops, so one sited on a
- * surface covers what stands there without corrupting what it stands on.
- *
- * Per-face effects lean on the kit being non-indexed: three consecutive
- * vertices are one triangle, so gl_VertexID / 3 is a stable face id in every
- * pass. If kit geometry is ever re-indexed or instanced, shatter, erode and
- * facet-flash quietly stop being per-face — this is the assumption site.
+ * Everything is a pure function of the clock, so there is no accumulated state
+ * and nothing to invalidate on a zone crossing. Attached volumes are gated by
+ * owner id and free-standing ones by space, and for those the underside is a cut
+ * rather than a fade. Per-face effects rely on kit geometry being non-indexed,
+ * so `gl_VertexID / 3` is a stable face id — this is the assumption site.
  */
 
-/**
- * Sixteen rather than fog's eight: the showcase walks a rank of sixty-odd
- * stations and packs the nearest of them, and at eight the next row over kept
- * winking out mid-comparison. The loop in every shader breaks at the live
- * count, so the raise costs uniform space and nothing per frame.
- */
+/** Sixteen rather than fog's eight: the showcase walks a rank of sixty-odd stations and packs the nearest. The shader loop breaks at the live count. */
 export const MAX_GLITCHES = 16;
 
-/**
- * Where each effect wakes up on the master dial — the ladder itself, as data.
- * The shader chunks interpolate these, and the showcase reads them to place a
- * row's strength steps inside the effect's own active range; one table, so
- * the rooms and the shaders cannot drift apart.
- */
+/** Where each effect wakes up on the master dial. The shader chunks interpolate these and the showcase reads them, so rooms and shaders cannot drift apart. */
 export const GLITCH_ONSETS: Record<GlitchEffectName, number> = {
   stutter: 0.05,
   split: 0.1,
@@ -109,11 +74,9 @@ export const glitchUniforms = {
 };
 
 /**
- * Attaches a glitch to an object, the way `markCollidable` marks a solid.
- *
- * The tag is collected by `GlitchActivity` when the zone is prepared, and the
- * volume's centre follows the object's world matrix every frame — so when
- * anything starts moving, its corruption moves with it, with no API change.
+ * Attaches a glitch to an object, the way `markCollidable` marks a solid. The tag
+ * is collected by `GlitchActivity` when the zone is prepared, and the volume's
+ * centre follows the object's world matrix every frame.
  */
 export function markGlitched<T extends THREE.Object3D>(object: T, spec: GlitchSpec): T {
   object.userData.glitch = spec;
@@ -162,10 +125,9 @@ function vertexDecls(varyings: boolean): string {
 }
 
 /**
- * The vertex chunk, anchored after the skinning include on purpose: nothing
- * skins today, but the day figures animate, corruption computed here follows
- * the posed position rather than the bind pose — and anchored earlier, limbs
- * would slide out of their own glitch volumes. Free now, rework later.
+ * The vertex chunk, anchored after the skinning include on purpose: nothing skins
+ * today, but corruption computed here follows the posed position rather than the
+ * bind pose, and anchored earlier a limb would slide out of its own volume.
  */
 function vertexChunk(varyings: boolean): string {
   return /* glsl */ `
@@ -261,17 +223,14 @@ ${HASH}
 `;
 
 /**
- * Erode, the one effect that removes a fragment rather than grading it.
- *
- * Split out because a driver disables early depth rejection for any shader that
- * *can* discard, whether or not it ever does — so left in the source
- * unconditionally this costs every opaque pixel in the game its early-Z, in
- * every zone, for an effect almost none of them use. See `setGlitchErode`.
+ * Erode, the one effect that removes a fragment rather than grading it. Split out
+ * because a driver disables early depth rejection for any shader that can
+ * discard, whether or not it ever does — so left in the source unconditionally
+ * this costs every opaque pixel in the game its early-Z. See `setGlitchErode`.
  */
 const ERODE = /* glsl */ `
-    // Erode: faces vanish on a hash schedule and holes open through the
-    // object. Surface only — the eroded face still casts and outlines, which
-    // is the known depth/normal gap, accepted for now.
+    // Erode: faces vanish on a hash schedule and holes open through the object.
+    // Surface only — the eroded face still casts and outlines.
     float aErode = smoothstep(${on('erode')}, 1.0, gAmt) * gParams.y;
     if (aErode > 0.001
       && glitchHash(vec2(vGlitchFace * 137.0, floor(gT * 5.0) + gSeed * 31.0)) < aErode * 0.65) {
@@ -376,16 +335,10 @@ export function glitchVariant(): string {
 }
 
 /**
- * Whether the zone being drawn has any glitch volume in it at all.
- *
- * Off — which is every ordinary zone — the erode discard is not in the source,
- * and every opaque pixel in the game gets its early depth rejection back,
- * shadow taps included. On, the discard returns and early-Z goes with it, which
- * is the price of the effect and is paid only where it is used.
- *
- * The trade is a program variant: entering a glitched zone for the first time
- * in a session compiles the art materials again. `PostFX.prewarm` compiles both
- * up front so that never lands on a door.
+ * Whether the zone being drawn has any glitch volume in it at all. Off, the erode
+ * discard is not in the source and every opaque pixel gets its early depth
+ * rejection back. The trade is a program variant, which `PostFX.prewarm`
+ * compiles up front so it never lands on a door.
  */
 export function setGlitchErode(on: boolean): void {
   if (on === eroding) return;

@@ -11,59 +11,32 @@ import { ledger } from './builders/ledger';
 import { pamphlet } from './builders/pamphlet';
 
 /**
- * A case of shelves, filled, half emptied, or bare.
- *
- * **A bare bookshelf is not a plain object, it is a missing one** — which is
- * why it arrives full. The dresser's crockery was cut on the argument that a
- * prop should not stage a scene, and that argument is right about a dresser and
- * wrong here: a dresser with nothing on it is a piece of furniture, and a
- * bookcase with nothing in it is a bookcase somebody has moved out of.
- *
- * But *full* cannot be the only answer, because the books it stocks itself with
- * are the builder's and a placer may want their own on it — a shelf that has to
- * be argued with is a shelf that gets used once. Hence `fill`: take the case
- * with its own books, take it with room left on it, or take the carcass and put
- * whatever you like there.
+ * A case of shelves, filled, half emptied, or bare. It arrives full: a bookcase
+ * with nothing in it is a bookcase somebody has moved out of. `fill` is how a
+ * placer takes the carcass instead and puts their own books on it.
  *
  * The shelves are stocked from the cover profiles themselves rather than from a
- * table of dimensions kept here, which is the reason `Cover` rides on the
- * builder — one library, one set of numbers, and a cover that changes shape
- * changes shape on the shelf too.
+ * table of dimensions kept here, which is why `Cover` rides on the builder — one
+ * library, one set of numbers.
  *
- * **Two meshes, and that is the important part.** A filled case is upward of a
- * hundred books and several thousand triangles packed into a couple of square
- * metres, which is precisely the arrangement `assemble.ts` warns about: the
- * collider's cost rises faster than linearly with how densely triangles are
- * packed, and pressing the player's capsule into a wall of spines would cost
- * whole milliseconds a frame. The carcass is what you collide with; the books
- * are a child mesh flagged `noCollide`, drawn and never indexed.
+ * Two meshes: the carcass is what you collide with, and the books are a child
+ * mesh flagged `noCollide`. A filled case is upward of a hundred books packed
+ * into a couple of square metres, and the collider's cost rises faster than
+ * linearly with how densely triangles are packed.
  *
  * Built facing +Z, standing against a wall behind it.
  */
 
 /**
- * How much of the case has books on it.
- *
- * **A builder each, not an option on one.** It was an option, and an option is
- * invisible: a gallery rank only ever calls `build({ seed })`, so a room built
- * to show the kit showed nothing but full cases and there was no way to see
- * that the other two existed at all. The same argument the covers are split on,
- * arriving from the other direction — the catalogue is a list of builders, so
- * anything that is not a builder is not in the catalogue.
- *
- * Never the seed's decision either way. A case that arrived full or empty
- * depending on a number nobody chose could not be put in a room on purpose,
- * which is the same argument that keeps a chest's lid shut.
+ * How much of the case has books on it. A builder each, not an option on one: a
+ * gallery rank only ever calls `build({ seed })`, so an option is invisible and a
+ * room built to show the kit would show nothing but full cases. Never the seed's
+ * decision either way — a case that arrived full or empty depending on a number
+ * nobody chose could not be put in a room on purpose.
  */
 export type ShelfFill = 'full' | 'part' | 'empty';
 
-/**
- * What it stocks, and how often.
- *
- * Repeated entries are the weighting. The plain board book appears three times
- * because a shelf is mostly ordinary books — see its own header, which is the
- * argument for why the interesting covers need the dull one around them.
- */
+/** What it stocks, and how often. Repeated entries are the weighting: a shelf is mostly ordinary books. */
 const STOCK: readonly CoverBuilder[] = [
   boardBook,
   boardBook,
@@ -80,23 +53,19 @@ const SETBACK = 0.012;
 /** How far past that a book may be pushed, so the spines are not a ruled line. */
 const SHUFFLE = 0.016;
 /**
- * Room kept between the deepest book and the back of the case.
- *
- * Covers the backing panel, the bulge of a rounded spine and a little air. A
- * case is only 30 cm deep and a folio is 27 cm wide, so this is the difference
- * between *a shallow case does not stock folios* and *a folio stands out
- * through the back of it*.
+ * Room kept between the deepest book and the back of the case: the backing panel,
+ * the bulge of a rounded spine and a little air. A case is only 30 cm deep and a
+ * folio is 27 cm wide, so this is the difference between a shallow case not
+ * stocking folios and a folio standing out through the back of it.
  */
 const BACKROOM = 0.035;
 
 /**
- * One case at one fullness.
- *
- * **The carcass is the same case whichever fullness asked for it.** Every roll
- * that decides the joinery is drawn before anything is put on a shelf, and the
- * per-shelf fullness is rolled whether or not it is used — so `bookshelf` and
- * `bookshelf-bare` at seed 7 are the same bookcase with and without books in
- * it, and a placer can swap one for the other without the furniture moving.
+ * One case at one fullness. The carcass is the same case whichever fullness asked
+ * for it: every roll that decides the joinery is drawn before anything is put on
+ * a shelf, and the per-shelf fullness is rolled whether or not it is used — so a
+ * placer can swap `bookshelf` for `bookshelf-bare` at one seed and the furniture
+ * does not move.
  */
 export function shelfCase(name: string, fill: ShelfFill): MeshBuilder {
   return {
@@ -117,11 +86,10 @@ function buildCase(name: string, fill: ShelfFill, { seed = 1, scale = 1 }: Build
     const plinth = rng.range(0.05, 0.08);
     const timber = rng.chance(0.5) ? PALETTE.TIMBER_DARK : shade(PALETTE.TIMBER, 0.86);
 
-    // **The shelves are sized before the case is.** Each gap is rolled first
-    // and the height is what they add up to, rather than a height being rolled
-    // and divided — divided, every case comes out with the same regular ladder
-    // of shelves, and a real one has a deep gap at the bottom for the tall
-    // books and shallower ones above.
+    // The shelves are sized before the case is. Each gap is rolled first and the
+    // height is what they add up to: divided instead, every case comes out with
+    // the same regular ladder, where a real one has a deep gap at the bottom for
+    // the tall books and shallower ones above.
     const levels = rng.int(4, 5);
     const gaps: number[] = [];
     for (let i = 0; i < levels; i++) {
@@ -190,18 +158,14 @@ function buildCase(name: string, fill: ShelfFill, { seed = 1, scale = 1 }: Build
 }
 
 /**
- * How much of one shelf is used, on a partly emptied case.
- *
- * Not a uniform fraction. A case somebody has been taking books off has *some*
- * shelves untouched and some nearly bare, because a person empties a shelf at a
- * time — an even three-quarters everywhere reads as a setting rather than as
- * something that happened.
+ * How much of one shelf is used, on a partly emptied case. Not a uniform
+ * fraction: a person empties a shelf at a time, so some are untouched and some
+ * nearly bare. An even three-quarters everywhere reads as a setting rather than
+ * as something that happened.
  */
 function partial(roll: number): number {
-  // **Never a full shelf**, however the roll lands. A builder called
-  // *part-filled* that sometimes builds a full case is a builder that lies
-  // about itself, and a placer picking it off a list has no way to know that
-  // the one they got was the exception.
+  // Never a full shelf, however the roll lands. A builder called part-filled that
+  // sometimes builds a full case is a builder that lies about itself.
   if (roll < 0.24) return 0.88;
   if (roll < 0.44) return 0;
   return 0.26 + roll * 0.45;
@@ -215,27 +179,16 @@ interface Run {
 }
 
 /**
- * Fills one shelf.
+ * Fills one shelf, as runs of like books rather than a stream of dice rolls.
  *
- * **A shelf is runs of like books, not a stream of dice rolls.** The first
- * version picked a cover per book and stood it where the last one ended, which
- * is random and reads as random: a 15 cm pamphlet between two 35 cm folios,
- * three bindings alternating, no two neighbours agreeing about anything. Nobody
- * shelves like that, and the thing that gives it away is not any single book —
- * it is that no two of them are related.
+ * Like goes with like: books arrive in runs of one cover, one height and often
+ * one colour, two to six of them. A run of matched spines is the most legible
+ * thing on a bookcase and cannot come out of a per-book roll, because the whole
+ * point of it is that the books agree.
  *
- * So two rules, and they are the two a person actually follows.
- *
- * **Like goes with like.** Books arrive in runs: one cover, one height, and
- * often one colour, two to six of them — which is a set, and a set is what a
- * shelf mostly is. A run of matched spines is the single most legible thing on
- * a bookcase and it cannot come out of a per-book roll, because the whole point
- * of it is that the books agree.
- *
- * **Tall to short.** The runs are then ordered by height along the shelf, one
- * way or the other. Not exactly — the sort key carries noise, so the gradient
- * is there without the shelf looking as though it had been ruled — but enough
- * that the eye reads an arrangement instead of a scatter.
+ * Tall to short: the runs are then ordered by height along the shelf, one way or
+ * the other. The sort key carries noise, so the gradient is there without the
+ * shelf looking as though it had been ruled.
  */
 function stock(
   parts: Part[],
@@ -336,13 +289,10 @@ function stock(
     const tipped = i === placed.length - 1 ? lean : 0;
     const back = rng.range(0, SHUFFLE);
     for (const part of book.parts) {
-      // About its own base, which is where a book actually pivots when it goes
-      // over — the geometry is authored standing on the origin, so the rotation
-      // needs no pivot arithmetic at all.
-      //
-      // Negative, and that sign is the whole of it: a positive turn about Z
-      // takes the head of the book to *−x*, which is into the row it is
-      // standing at the end of. A book can only fall into the space.
+      // About its own base, which is where a book pivots when it goes over — the
+      // geometry is authored standing on the origin, so no pivot arithmetic is
+      // needed. Negative, and that sign is the whole of it: a positive turn about
+      // Z takes the head of the book to −x, into the row it stands at the end of.
       if (tipped !== 0) part.geometry.rotateZ(-tipped);
       // Lined up by the spine face rather than by the middle, so a fat rounded
       // back and a flat one present the same plane — and then pushed back a
@@ -353,9 +303,6 @@ function stock(
     }
   }
 
-  // **Nothing lies flat.** There was a pile of books on its side in the leftover
-  // space at the end of a run, on the argument that it is what a real shelf does
-  // with a gap too small to stand another book up in. It is, and it is not this
-  // builder's decision to make: a stack is a thing a placer puts somewhere,
-  // which is why there is no stack builder either. The gap stays a gap.
+  // Nothing lies flat. A pile of books on its side is a thing a placer puts
+  // somewhere, which is why there is no stack builder either. The gap stays a gap.
 }

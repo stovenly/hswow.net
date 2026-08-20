@@ -6,30 +6,19 @@ import { volumeMembership } from './glsl/volume';
 import type { HorrorEffectName, HorrorSpec } from '../engine/Horror';
 
 /**
- * The in-scene half of the horror stage (HORROR-SHADERS.md): organic dread on
- * the shared art material, `art/glitch.ts`'s twin. Same architecture — a
- * world-space volume test against a shared uniform store, displacement applied
- * to the surface, shadow-depth and outline-normal materials alike, everything
- * a pure function of the clock. The effects are the difference: where glitch
- * is electronic, these are bodily — the mesh breathes, trembles, leans and
- * drains rather than tearing.
+ * The in-scene half of the horror stage: organic dread on the shared art
+ * material, `art/glitch.ts`'s twin. Same architecture — a world-space volume test
+ * against a shared uniform store, displacement applied to the surface, the shadow
+ * depth material and the outline normal material alike, everything a pure
+ * function of the clock. The effects are the difference: the mesh breathes,
+ * trembles, leans and drains rather than tearing.
  *
- * ## Displacement here is a pure function of object-space position
- *
- * Kit geometry is non-indexed and flat-shaded, so `computeVertexNormals` gives
- * every triangle its own face normal and the three vertices of a corner exist
- * three times over. Displace along `normal` and each triangle translates
- * rigidly in its own direction: neighbours diverge, and every shared edge
- * opens into a hole straight through the object. That is what an early
- * `breathe` did to a barrel — the staves floated apart and the low-poly
- * construction became the effect.
- *
- * Keyed on *position* instead, coincident vertices are bit-identical and so
- * receive identical displacement, and the surface never opens. Hence the
- * radial swell in `breathe` and the position-hashed jitter in `tremor`, rather
- * than the obvious normal-and-face-id versions of each. The rule is worth
- * keeping: **nothing in this file may displace along `normal` or key on a face
- * id.** Glitch is free to — `shatter` separating faces is the point there.
+ * Nothing in this file may displace along `normal` or key on a face id. Kit
+ * geometry is non-indexed and flat-shaded, so displacing along `normal`
+ * translates each triangle rigidly in its own direction and every shared edge
+ * opens into a hole straight through the object. Keyed on position, coincident
+ * vertices are bit-identical and receive identical displacement. Glitch is free
+ * to — `shatter` separating faces is the point there.
  */
 
 /** Sixteen, matching glitch: the showcase walks a rank past eight. */
@@ -61,8 +50,8 @@ function vec4Array(length: number): THREE.Vector4[] {
 }
 
 /**
- * The shared store, written once per frame by `HorrorActivity` and read by
- * every art program and the screen pass. Lane packing, mirrored in
+ * The shared store, written once per frame by `HorrorActivity` and read by every
+ * art program and the screen pass. Lane packing, mirrored in
  * `HorrorActivity.update`:
  *
  * - `uHorrorCentre`   xyz centre, w shape (0 sphere, 1 box)
@@ -73,21 +62,14 @@ function vec4Array(length: number): THREE.Vector4[] {
  * - `uHorrorParams`   seed, strength × fit envelope, tempo, owner id
  *
  * Two strengths on purpose: the steady one drives the effects that must not
- * blink (a corpse-grey figure stays corpse-grey), the fit one drives the
- * motion effects, which arrive as fits between stillness.
+ * blink, the fit one drives the motion effects, which arrive as fits between
+ * stillness.
  *
- * ## Attached volumes are gated by identity, free-standing ones by space
- *
- * An attached volume (owner id in `uHorrorParams.w`, see art/effectId.ts)
- * affects exactly the vertices carrying its id, whole object at full strength,
- * and its faces only anchor the effects — no spatial test can tell an
- * object's base from the floor a centimetre under it, so every attempt left
- * either the feet uncovered or the floor corrupted. A free-standing
- * volume keeps the spatial test: its claim is that a *place* is wrong. For
- * those, the underside is a cut rather than a fade — below `centre.y - size.y`
- * the volume simply stops, with no vertical falloff between base and centre —
- * so one sited on a surface can cover what stands there without grading what
- * it stands on.
+ * An attached volume affects exactly the vertices carrying its owner id, whole
+ * object at full strength, because no spatial test can tell an object's base from
+ * the floor a centimetre under it. A free-standing volume keeps the spatial test,
+ * and for it the underside is a cut rather than a fade — so one sited on a
+ * surface covers what stands there without grading what it stands on.
  */
 export const horrorUniforms = {
   uHorrorCount: { value: 0 },
@@ -151,10 +133,10 @@ function vertexDecls(varyings: boolean): string {
 }
 
 /**
- * The vertex chunk, anchored after the skinning include for glitch's reason:
- * the day figures animate, dread follows the posed position for free. Wrapped
- * after the glitch patch, so this lands before glitch's chunk in the shader —
- * the body goes wrong first, then the signal of it corrupts on top.
+ * The vertex chunk, anchored after the skinning include for glitch's reason: the
+ * day figures animate, dread follows the posed position for free. Wrapped after
+ * the glitch patch, so this lands before glitch's chunk in the shader — the body
+ * goes wrong first, then the signal of it corrupts on top.
  */
 function vertexChunk(varyings: boolean): string {
   return /* glsl */ `

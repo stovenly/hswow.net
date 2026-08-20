@@ -5,18 +5,13 @@ import { blend, shade } from './palette';
 import { FIELD_ATTRIBUTE, FIELD_SWAY } from './assemble';
 
 /**
- * The vista family's grammar — VISTA.md.
- *
- * Out-of-bounds scenery is one mass function and a set of profiles, not a set
- * of unrelated builders. `vistaMass` is that function: the `rock` recipe —
- * weld, displace along normals, squash, all from a seed — at hillside scale.
- * What separates a hill from a crag from a forest mass is the numbers passed
- * in and the colour function laid over the result.
- *
- * Everything here is judged at 100+ metres through heavy fog on a 960×540
- * buffer, where the silhouette is the whole prop and interior detail is a
- * rounding error. So: big triangles, value contrast over hue, and patches of
- * colour instead of patches of geometry.
+ * The vista family's grammar. Out-of-bounds scenery is one mass function and a
+ * set of profiles rather than a set of unrelated builders: `vistaMass` is the
+ * `rock` recipe — weld, displace along normals, squash — at hillside scale, and
+ * what separates a hill from a crag from a forest mass is the numbers passed in
+ * and the colour function laid over the result. Judged at 100+ metres through
+ * heavy fog, so: big triangles, value contrast over hue, and patches of colour
+ * instead of patches of geometry.
  */
 
 /**
@@ -26,17 +21,11 @@ import { FIELD_ATTRIBUTE, FIELD_SWAY } from './assemble';
 export const VISTA_TRIANGLES = 300;
 
 /**
- * States that a mesh is scenery.
- *
- * Four claims at once, and every one of them is something the band would
- * otherwise inherit from a system that knows nothing about it: it is out of the
- * collider, it is out of the sun's shadow box in both directions, it does not
- * move in the wind, and `ZoneManager.prepare` reads the tag rather than
- * guessing from the shadow box's current size.
- *
- * Sway is zeroed here rather than left to the builders because amplitude is
- * authored in metres at prop scale — on a hillside, or on an ordinary prop
- * scaled up to stand in for one, the same weights read as an earthquake.
+ * States that a mesh is scenery: out of the collider, out of the sun's shadow box
+ * in both directions, no wind, and `ZoneManager.prepare` reads the tag rather
+ * than guessing from the shadow box's current size. Sway is zeroed here rather
+ * than left to the builders, because amplitude is authored in metres at prop
+ * scale and on a hillside the same weights read as an earthquake.
  */
 export function markVista<T extends THREE.Object3D>(object: T): T {
   object.userData.vista = true;
@@ -70,11 +59,10 @@ export interface MassOptions {
 }
 
 /**
- * A displaced solid — the shared shape every vista builder is cut from.
- *
- * Welded before displacement for `rock`'s reason: an icosahedron is
- * non-indexed, so a corner shared by five faces exists five times over, and
- * displacing the copies independently pulls the solid to pieces.
+ * A displaced solid — the shared shape every vista builder is cut from. Welded
+ * before displacement for `rock`'s reason: an icosahedron is non-indexed, so a
+ * corner shared by five faces exists five times over, and displacing the copies
+ * independently pulls the solid to pieces.
  */
 export function vistaMass(rng: Rng, options: MassOptions): THREE.BufferGeometry {
   const { radius, detail = 1, rough = 0.24, squash = 0.6, stretch = 1, bury = 0.4 } = options;
@@ -111,24 +99,13 @@ export interface WashOptions {
 }
 
 /**
- * A continuous wash of colour across land — no patches, no edges.
- *
- * **This replaced a version that indexed into the palette**, and the difference
- * is the whole point. Picking `palette[floor(t × n)]` turns a smooth field into
- * n hard-edged bands, and since `assemble` evaluates colour per face those
- * bands are drawn along facet boundaries — so a nine-metre grid came out as a
- * quilt of ragged, strongly contrasting blobs. Blending between neighbours
- * instead means adjacent facets differ by a fraction of a step and the eye
- * reads land rather than pattern.
- *
- * Three sines at unrelated bearings and incommensurate wavelengths, so nothing
- * repeats and nothing lines up with the grid. Their sum bunches toward the
- * middle of the palette, which is right — most ground is the ordinary colour and
- * the ends are excursions.
- *
- * The palette this is given should be *close*. Fog compresses hue long before
- * it compresses value, so a wide palette does not read as variety at distance,
- * it reads as a mistake.
+ * A continuous wash of colour across land — no patches, no edges. Indexing into a
+ * palette turns a smooth field into hard-edged bands, and since `assemble`
+ * evaluates colour per face those bands are drawn along facet boundaries;
+ * blending between neighbours instead means adjacent facets differ by a fraction
+ * of a step. Three sines at unrelated bearings and incommensurate wavelengths,
+ * bunching toward the middle of the palette. The palette should be close — fog
+ * compresses hue long before it compresses value.
  */
 export function landWash(
   seed: number,
