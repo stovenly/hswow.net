@@ -52,16 +52,51 @@ translate that follows it. `CylinderGeometry`'s axis is +Y; `throughStone` faces
 Do **not** answer an orientation bug by adding a check under `tools/`. Fix the
 builder and move on.
 
-## Comments are short
+## Default to no comment
 
-**A line or three.** State what the code does and, where it is not obvious, the
-one constraint that decides it. Then stop.
+**Write zero comments unless the comment passes the test below.** The code says
+what it does. A comment exists only to carry something the code cannot: a
+constraint that is not visible at the call site, a unit, an axis, or the reason
+a simpler version is wrong.
 
-Do not write: tuning history, what a previous version did wrong, rejected
-alternatives, before-and-after narration, or an essay justifying a number. If a
-bug is worth remembering it goes in a commit message, not in a block comment
-above the fix. Multi-paragraph headers with `##` sections are for a module that
-genuinely needs one — not for every builder.
+Before writing a comment, ask: *does a reader with this file open already know
+this?* If yes, do not write it.
+
+**Banned outright. Do not write these, ever:**
+
+- **Narration.** Restating the line under it. `// build the roof` over
+  `buildRoof()`. `/** Ring-down time in seconds. */` over `decay: number`.
+- **History.** What a previous version did, what was tried, what was wrong, what
+  was fixed. No "used to", "originally", "the first version", "was corrected",
+  "turned out to". If a bug is worth remembering it goes in the commit message,
+  not in a block comment above the fix.
+- **Justification essays.** Paragraphs defending a number, a proportion or a
+  material choice. Measurements from finished work. Comparisons to rejected
+  alternatives.
+- **Lore.** What the object is in the world, where it grows, who uses it, what it
+  evokes. That is not code documentation.
+- **`##` sections inside a comment.** If a comment needs headings it is a
+  document; put it in the area's `CLAUDE.md` or delete it.
+- **Pointers to moving targets.** "see SPEC.md §4", "per MATERIAL-SYSTEM.md".
+  Name the constraint instead, so the comment stands alone.
+
+**Keep, and keep short:**
+
+- **Orientation.** Required by the orientation rule — one line saying what a
+  rotation maps to what: `// rotateY(θ) takes +Z to the outward normal`.
+- **Units and ranges** where the name cannot carry them: `// metres`,
+  `// 0..1, gamma-encoded`.
+- **Contracts across files.** A uniform name a shader also spells, a field two
+  modules must agree on, an ordering another module depends on.
+- **Genuine gotchas.** The reason the obvious version breaks, in one sentence.
+
+**Size.** One line. Two if the constraint genuinely needs it. A file header,
+where a file needs one at all, is one sentence saying what the file is —
+`// Chimney: stack, cap, and the smoke emitter mount.` A comment reaching a
+fourth line is wrong; cut it or move it to the area's `CLAUDE.md`.
+
+**When editing existing code, delete comments that break these rules** in the
+region you are already touching. Do not preserve them out of politeness.
 
 ## No checks. None.
 
