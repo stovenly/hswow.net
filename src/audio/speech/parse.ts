@@ -208,7 +208,9 @@ const PAUSES: Record<string, number> = { ',': 0.26, ';': 0.32, ':': 0.3, '.': 0.
  */
 export function score(raw: string): Score {
   // Decomposed, so an accent is a mark after its vowel and not another letter.
-  const text = raw.normalize('NFD');
+  // `ü` is the exception: decomposing it would leave a u with a mark on it,
+  // and it is a vowel of its own with a row of its own.
+  const text = raw.normalize('NFD').replace(/ü/g, 'ü');
   const syllables: Syllable[] = [];
   const re = /[\p{L}\p{M}\p{Sk}0-9']+|[^\p{L}\p{M}\p{Sk}0-9'\s]+|\s+/gu;
   let m: RegExpExecArray | null;
