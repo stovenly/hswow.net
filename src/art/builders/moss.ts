@@ -5,34 +5,11 @@ import { createRng } from '../random';
 import { shade } from '../palette';
 import * as THREE from 'three';
 
-/**
- * Moss: a cushion, a carpet, or a fruiting patch.
- *
- * The small green thing that goes at the foot of everything else — against a
- * log, in the lee of a rock, on the north side of a trunk. On its own it is
- * nearly nothing; scattered where damp collects it is most of what makes a
- * forest floor read as continuous rather than as objects standing on a plane.
- *
- * **Wider than it is tall, by a lot.** That ratio is the silhouette, whichever
- * form it takes. Moss at even half its width in height is a bush, and a bush is
- * already in the kit.
- *
- * ## Three forms, one per patch
- *
- * A single squashed dome was too little to be worth a row of eight — every
- * instance was the same green pillow at a different size. The three below are
- * genuinely different things that all happen to be moss, and a patch commits to
- * one of them:
- *
- * - **cushion** — a few tight hummocks crowded together. The classic.
- * - **carpet** — a broad low sheet with barely any relief, for spreading over
- *   ground and up the side of things.
- * - **fruiting** — a carpet with a haze of thin sporophyte stalks standing off
- *   it, which is what moss does in spring and is the one form with any
- *   vertical detail at all.
- *
- * Never mixed, because they are different species and a patch is one organism.
- */
+// Moss: a cushion, a carpet, or a fruiting patch — the small green thing that
+// goes at the foot of everything else. Wider than it is tall by a lot, whichever
+// form it takes; at even half its width in height it is a bush. A patch commits
+// to one form, because a patch is one organism: tight hummocks, a broad low sheet,
+// or a carpet with a haze of sporophyte stalks standing off it.
 export const moss: MeshBuilder = {
   name: 'moss',
   category: 'foliage',

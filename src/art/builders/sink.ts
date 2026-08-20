@@ -4,23 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A utility sink: a deep steel basin on legs, with a swan-neck tap.
- *
- * The industrial counterpart to `cistern`. They are deliberately unalike in
- * every axis — the cistern is round, stone, low and full of standing water; this
- * is square, steel, waist high and usually empty. Two props that differ only in
- * material get used interchangeably and then look wrong in one of the two
- * places, which is the failure the trough and the cistern were already at risk
- * of.
- *
- * Built as five slabs rather than by cutting a box, the way the trough is:
- * there is no constructive solid geometry here and none is needed, because a
- * container *is* walls.
- *
- * The splashback is the detail that makes it read as plumbed in rather than as
- * a tub on a frame — it is the part that says there is a wall behind it.
- */
+// A utility sink: a deep steel basin on legs, with a swan-neck tap — square,
+// steel, waist high and usually empty, where `cistern` is round, stone, low and
+// full. Built as five slabs rather than by cutting a box, because a container is
+// walls. The splashback is what says plumbed in rather than a tub on a frame.
 export const sink: MeshBuilder = {
   name: 'sink',
   category: 'objects',
@@ -142,11 +129,10 @@ export const sink: MeshBuilder = {
     spout.translate(0, rim + riseH - spoutH / 2, tapZ + reach);
     parts.push({ geometry: spout, color: shade(iron, 1.05), sway: 0 });
 
-    // Handles on their own pillars, either side of the spout — not on the spout
-    // itself, which is where they were and which is wrong. A tap body carries
-    // water; the valves that let it through are separate fittings beside it,
-    // and a handle growing out of the middle of a swan neck has nothing to
-    // turn. Two of them, because a sink with one is a standpipe.
+    // Handles on their own pillars either side of the spout, not on the spout
+    // itself: a tap body carries water, and the valves that let it through are
+    // separate fittings beside it. Two of them, because a sink with one is a
+    // standpipe.
     const handles = rng.chance(0.75) ? 2 : 1;
     const apart = rng.range(0.1, 0.16);
     // Forward of the splashback, standing on the rim. Set flush against the

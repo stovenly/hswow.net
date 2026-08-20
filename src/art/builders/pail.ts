@@ -4,36 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A milking pail: a coopered bucket with a swing handle, standing out in the
- * yard.
- *
- * The smallest thing on the farm list. It earns its row because it is the only
- * object in the kit at **hand scale** that belongs outdoors — everything else out
- * here is furniture, structure or a mass, and a place with nothing small in it
- * reads as a model of itself. A pail left by a gate is somebody's afternoon.
- *
- * ## Two things make it a pail and not a barrel
- *
- * **It tapers hard**, wider at the rim than at the base — about four to three.
- * A barrel bulges at the waist and closes at both ends; a bucket is a truncated
- * cone and nothing else, because it has to nest with the next one and be tipped
- * out with one hand. Get that wrong and it is a small cask.
- *
- * **It is open**, and the inside has to be visible. So it is turned from a
- * profile that runs up the outside, over the rim and back down the inside to a
- * floor — one closed solid with a hollow in it, rather than a cone with a dark
- * disc laid on top. The hollow costs a handful of triangles and is the entire
- * difference between a container and a shape.
- *
- * ## The handle swings
- *
- * A bail on two ears, and it is drawn hanging **to one side** rather than
- * standing upright over the middle. A bail that stands straight up is being
- * held; one lying over on the rim is a pail somebody put down, which is what
- * this is. It is also the only part of the object with a silhouette above the
- * rim, so the angle it lies at is most of what the eye gets.
- */
+// A milking pail: a coopered bucket with a swing handle, standing out in the
+// yard. Two things make it a pail and not a barrel. It tapers hard, about four to
+// three, because a bucket is a truncated cone that has to nest and be tipped with
+// one hand. And it is open: turned from a profile running up the outside, over the
+// rim and back down the inside to a floor, so it is one closed solid with a hollow
+// in it. The bail is drawn hanging to one side, which is a pail somebody put down.
 export const pail: MeshBuilder = {
   name: 'pail',
   category: 'objects',
@@ -64,10 +40,9 @@ export const pail: MeshBuilder = {
     ];
     parts.push({
       geometry: new THREE.LatheGeometry(profile, sides),
-      // Shadowed timber down the inside, which is what sells the hollow at a
-      // glance: evaluated per face at its centroid, so the change lands on the
-      // rim. Timber and not metal — the staves are the same wood inside and out,
-      // and a bucket that reads as a steel pail is the wrong object.
+      // Shadowed timber down the inside, which sells the hollow at a glance:
+      // evaluated per face at its centroid, so the change lands on the rim. Timber
+      // and not metal — the staves are the same wood inside and out.
       color: (x, y, z) =>
         y < tall * 0.98 && Math.hypot(x, z) < rim - wall * 0.5
           ? shade(timber, 0.42)
@@ -75,10 +50,9 @@ export const pail: MeshBuilder = {
       sway: 0,
     });
 
-    // **It has milk in it**, which is most of what stops the inside reading as a
-    // dark metal cup: a flat disc a little below the rim, in `WATER` rather than
-    // in anything the staves are made of. It is the one horizontal surface on the
-    // object and it catches the light differently from everything round it.
+    // It has milk in it, which is what stops the inside reading as a dark metal cup:
+    // a flat disc a little below the rim, in `WATER`. It is the one horizontal
+    // surface on the object.
     const level = tall * rng.range(0.62, 0.78);
     const surface = new THREE.CylinderGeometry(
       foot + (rim - foot) * (level / tall) - wall * 0.6,
@@ -98,10 +72,8 @@ export const pail: MeshBuilder = {
     }
 
     // --- the bail ------------------------------------------------------------
-    //
-    // Two ears at the rim on opposite sides, and a handle hung between them,
-    // lying over to one side. Every point of it is derived from the ear
-    // positions, so the handle cannot end up anywhere but on them.
+    // Two ears at the rim on opposite sides, and a handle hung between them, lying
+    // over to one side. Every point of it is derived from the ear positions.
     const bearing = rng.range(0, Math.PI * 2);
     const ears: THREE.Vector3[] = [];
     for (const side of [-1, 1]) {
@@ -121,17 +93,11 @@ export const pail: MeshBuilder = {
     const axis = new THREE.Vector3().subVectors(ears[1], ears[0]).normalize();
     const swing = new THREE.Vector3(0, 1, 0).applyAxisAngle(axis, fallen);
 
-    // **A round bail, not two rods meeting at a point.** It was a pair of
-    // straight legs, on the argument that a curve is invisible at this size. It
-    // is not: the bail is the only part of a pail that stands above the rim, so
-    // it is the whole of the object's silhouette from anywhere above it — and a
-    // triangle standing on a bucket reads as a coat hanger. A half torus of
-    // twelve segments costs about forty triangles and is the shape.
-    //
-    // Built in the XY plane, spanning ±`bail` in x with the arc bulging toward
-    // +y, then set on a basis whose **x is the line between the ears**, whose
-    // **y is the direction it has fallen**, and whose z closes the frame — so
-    // the two ends land on the two ears whatever angle it is lying at.
+    // A round bail, not two rods meeting at a point: the bail is the whole of the
+    // object's silhouette from above, and a triangle standing on a bucket reads as a
+    // coat hanger. Built in the XY plane spanning ±`bail` with the arc bulging
+    // toward +y, then set on a basis whose x is the line between the ears and whose
+    // y is the direction it has fallen, so the ends land on the ears at any angle.
     const across = new THREE.Vector3().subVectors(ears[1], ears[0]);
     const bail = across.length() / 2;
     const ex = across.clone().normalize();

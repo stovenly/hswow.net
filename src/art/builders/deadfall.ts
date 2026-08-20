@@ -4,32 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A deadfall: a tree blown over, with its root plate torn up on end.
- *
- * **The best natural blocker in the kit, and it is the root plate that does it.**
- * A fallen trunk lying on the ground is a metre of obstacle you step over; the
- * disc of earth and roots that comes up with it stands two or three metres in the
- * air, is four metres across, and is completely opaque. Two of these at an angle
- * to each other close a route as thoroughly as a wall and read as nothing but
- * weather.
- *
- * It is also the only thing on this list that is a small piece of *story*.
- * Boulders have always been there; a deadfall happened. The player does not have
- * to think about it for it to work — the difference between a place things have
- * happened to and a place things were placed in is made of details like this one.
- *
- * ## The plate faces the way the tree came from
- *
- * A tree levers up its own roots as it goes over, so the plate is a disc roughly
- * square to the trunk, standing on the hinge where it tore. Built with the plate
- * at the origin and the trunk running out along **+X**, so a placer turns the
- * whole thing to point the fall down whatever bearing the wind was.
- *
- * The trunk is not level. It sits high where it leaves the butt and comes down
- * to the ground at its far end, which is the shape a fallen tree actually holds —
- * and it is why you can see *under* one, which a log lying flat never gives you.
- */
+// A deadfall: a tree blown over, with its root plate torn up on end. The plate is
+// what does the blocking — two or three metres in the air and four across. Built
+// with the plate at the origin and the trunk running out along +X, so a placer
+// turns the whole thing to point the fall down the wind's bearing. The trunk sits
+// high at the butt and comes down to the ground at its far end, so you can see
+// under it.
 export const deadfall: MeshBuilder = {
   name: 'deadfall',
   category: 'nature',
@@ -50,25 +30,14 @@ export const deadfall: MeshBuilder = {
     // little past is normal and dead upright looks arrested.
     const tip = rng.range(-0.28, -0.06);
 
-    /**
-     * Where the middle of the plate is, and therefore where the trunk leaves it.
-     *
-     * **One number, used by both.** This was two — the plate was centred on one
-     * draw and the trunk started from another, a fifth of the plate's radius out
-     * in front of it — so the butt of the tree stood clear of the disc it is
-     * supposed to have torn out of the ground, at a different height. A fallen
-     * tree and its own root plate are one object; nothing about them is allowed
-     * to be rolled twice.
-     */
+    /** Where the middle of the plate is, and therefore where the trunk leaves it. One number, used by both: a fallen tree and its root plate are one object. */
     const hinge = plate * rng.range(0.72, 0.88);
     // Thick enough to swallow the end of the trunk — see `into` below.
     const thick = rng.range(0.45, 0.7);
 
     // --- the plate -----------------------------------------------------------
-    //
     // A thick disc of earth, standing on edge with its face square to the trunk.
-    // Eight sides: the outline is ragged by the roots hanging off it, so paying
-    // for a round rim buys nothing.
+    // Eight sides: the outline is ragged by the roots hanging off it.
     const disc = new THREE.CylinderGeometry(plate, plate * rng.range(0.85, 1), thick, 8);
     disc.rotateZ(Math.PI / 2);
     disc.scale(1, 1, rng.range(0.8, 1));
@@ -99,25 +68,11 @@ export const deadfall: MeshBuilder = {
     parts.push({ geometry: crater, color: shade(soil, 0.92), sway: 0 });
 
     // --- the trunk -----------------------------------------------------------
-    //
-    // High at the butt, down to the ground at the tip, hinged about the middle
-    // of the plate so the two are joined by construction rather than by two
-    // draws happening to agree.
-    //
-    // **The butt stops inside the plate**, which is the whole point of a root
-    // plate: the tree did not come off it, it is still attached to it.
-    //
-    // It reached a whole `thick + butt` behind the middle of the disc, on the
-    // reasoning that more overlap is safer. It is not — the disc is only `thick`
-    // deep, so anything past half of that comes out of the *back* of it, and
-    // what showed was the sawn end of the trunk hanging out below the plate.
-    //
-    // The trunk runs very nearly along the plate's own normal (its slope down to
-    // the ground and the plate's tip past vertical are both small, and they
-    // partly cancel), so the distance the butt travels through the disc is
-    // `into · cos(drop + tip)` — near enough `into`. A third of the thickness
-    // leaves it buried with half as much again to spare at either extreme of
-    // both rolls.
+    // High at the butt, down to the ground at the tip, hinged about the middle of
+    // the plate so the two are joined by construction. The butt stops inside the
+    // plate — the tree did not come off it. The disc is only `thick` deep, so
+    // anything past half of that comes out of the back; a third of the thickness
+    // leaves the butt buried with half as much again to spare at either extreme.
     const rest = butt * 1.1;
     const drop = Math.atan2(hinge - rest, length);
     const into = thick * 0.33;

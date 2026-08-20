@@ -14,25 +14,13 @@ import {
   type Point,
 } from '../masonry';
 
-/**
- * A standing stone archway: two piers and a lintel.
- *
- * Somewhere for a door to be that is not a building. A portal door standing
- * alone in a field reads as a mistake; the same door under an arch reads as a
- * threshold, which is what it is.
- *
- * Built from the same masonry as `stone-wall` and `stone-wall-column` — quoined
- * piers with rubble panels between, out of `art/masonry`. It has to be: a
- * village gate that did not match the wall running up to it would be the kit
- * contradicting itself at its own front door.
- *
- * The crown is dressed work: corbels out of the jambs to carry the lintel, the
- * lintel stepped back underneath, and a course oversailing both faces. Quoins
- * and crown are chosen stone; everything between them came off the field.
- *
- * Built facing **+Z** with its opening centred on the origin, matching the door
- * builder, so a portal can place both from the same position and yaw.
- */
+// A standing stone archway: two piers and a lintel — somewhere for a door to be
+// that is not a building. Built from the same masonry as `stone-wall` and
+// `stone-wall-column`, because a village gate that did not match the wall running
+// up to it would be the kit contradicting itself. The crown is dressed work:
+// corbels out of the jambs, the lintel stepped back underneath, and a course
+// oversailing both faces. Built facing +Z with its opening centred on the origin,
+// matching the door builder, so a portal places both from one position and yaw.
 export const stoneWallArchway: MeshBuilder = {
   name: 'stone-wall-archway',
   category: 'structures',
@@ -76,9 +64,8 @@ export const stoneWallArchway: MeshBuilder = {
     }
 
     // --- the crown -----------------------------------------------------------
-    //
-    // All of it dressed, so none of it is brown. Rubble is whatever came off the
-    // field; the stones that carry the opening were chosen out of one bed.
+    // All of it dressed, so none of it is brown: rubble is whatever came off the
+    // field, and the stones carrying the opening were chosen out of one bed.
     const dressed = stoneColours(rng, 0);
     const crownPoint = { ...point, chamfer: 0.04 };
 
@@ -103,12 +90,10 @@ export const stoneWallArchway: MeshBuilder = {
       });
     }
 
-    // The lintel, as a flat arch of wedge stones rather than one slab.
-    //
-    // A slab across an opening this wide is not a thing anybody could lift, and
-    // it does not read as one either — it reads as a plank laid on two posts. So
-    // the joints radiate from a centre below the opening, which is how a mason
-    // carries a flat head, and the stone in the middle of them is a keystone.
+    // The lintel, as a flat arch of wedge stones rather than one slab: a slab across
+    // an opening this wide is not a thing anybody could lift, and it reads as a plank
+    // laid on two posts. The joints radiate from a centre below the opening, which is
+    // how a mason carries a flat head, and the middle stone is a keystone.
     const lintelH = rng.range(0.34, 0.46);
     const reach = (opening + pier * 2.5) / 2;
     const voussoirs = rng.pick([7, 9, 11]);
@@ -155,21 +140,11 @@ export const stoneWallArchway: MeshBuilder = {
     const dripZ = depth * rng.range(1.16, 1.26);
     const keyHalf = back(1 / voussoirs);
 
-    // What the crown is bedded on, set back inside every stone in it. The
-    // voussoirs and the course above are each a joint's width off their
-    // neighbours, so with nothing behind them the head of the arch is a comb.
-    // Starts above the springing and stops short of the top of the course above,
-    // so nothing of it shows past either.
-    //
-    // **Pulled in at the ends, because the stones in front of it are.**
-    // `throughStone` beds every stone — `masonry.bed` pulls its outline in by
-    // half a joint and wears the corners back by the chamfer — so the outermost
-    // voussoir and the last stone of the course above both stop a couple of
-    // centimetres short of `reach`. This is a raw prism and did not, so it stood
-    // proud of them at each end of the arch and read as a grey core sticking out
-    // of the top layer of stonework. It has to be inset by at least what bedding
-    // takes off, and there is no cost to taking off a little more: nothing can
-    // see the backing except through a joint.
+    // What the crown is bedded on, set back inside every stone in it: the voussoirs
+    // and the course above are each a joint's width off their neighbours, so with
+    // nothing behind them the head of the arch is a comb. Inset by at least what
+    // bedding takes off — `throughStone` pulls each outline in by half a joint and
+    // wears the corners back — or the backing stands proud at each end of the arch.
     const hide = point.joint / 2 + point.chamfer * reach * 0.1 + 0.03;
     const pull = (x: number): number => x - Math.sign(x) * Math.min(hide, Math.abs(x));
 

@@ -6,42 +6,19 @@ import { createRng } from '../random';
 import { rollActivity, STREETLAMP } from '../activity';
 import { PALETTE, shade } from '../palette';
 
-/**
- * An iron street lamp: a footed mast, a bracket, and a lantern hanging off it.
- *
- * **The first builder that returns something other than geometry.** Everything
- * else in the kit merges down to one mesh with one shared material; this one
- * hangs two more objects off that mesh, because the two things a lamp is for
- * are neither of them geometry:
- *
- * - a `PointLight` at the flame, which is the light that lands on the ground
- *   and on whatever walks past, and
- * - the flame itself, drawn with the additive `GLOW_MATERIAL`, which is the
- *   light you can *see*.
- *
- * Both are children of the returned mesh, so a lamp is still one object to
- * place, rotate and throw away.
- *
- * **It was a spot light, and it should not have been.** A cone aimed at the
- * pavement is a modern shielded street light — a reflector housing that throws
- * everything downward. This lantern is a box with a lid on it and openings on
- * all four sides, so the light leaves it sideways as readily as down, and a
- * beam falling out of the underside gave the game away immediately. A point
- * light is both simpler and the honest description of the shape.
- *
- * Built with the lantern hanging toward **+X** before its random facing is
- * applied, and standing on y = 0.
- */
+// An iron street lamp: a footed mast, a bracket, and a lantern hanging off it.
+// Returns more than geometry — a `PointLight` at the flame for the light that
+// lands, and the flame itself in additive `GLOW_MATERIAL` for the light you can
+// see — both children of the mesh, so a lamp is still one object to place. A point
+// light rather than a spot: this lantern is a box with openings on all four sides,
+// so the light leaves it sideways as readily as down. Built with the lantern
+// hanging toward +X before its random facing, standing on y = 0.
 
 /**
- * Intensity at the flame, in candela.
- *
- * Three has been physically-based since r155, so this is not a 0..1 dial: with
- * `decay` 2 the irradiance at distance d is intensity/d². The lantern sits
- * about 2.6 m up, so this lands a little over 3 at the player's feet — roughly
- * the exterior sun's 2.2, which is what it takes to read as a lamp in daylight.
- * Under a night sky it will be far too much; that is a number to move once
- * there is a night sky to judge it against.
+ * Intensity at the flame, in candela. With `decay` 2 the irradiance at distance d
+ * is intensity/d², and the lantern sits about 2.6 m up, so this lands a little
+ * over 3 at the player's feet — roughly the exterior sun's 2.2, which is what it
+ * takes to read as a lamp in daylight.
  */
 const LIGHT_INTENSITY = 22;
 /** Hard cutoff. Past this the lamp contributes nothing and costs nothing. */
@@ -69,15 +46,12 @@ export const streetlamp: MeshBuilder = {
     const iron = rng.chance(0.35) ? PALETTE.RUST : PALETTE.IRON;
     const stone = rng.chance(0.5) ? PALETTE.STONE : PALETTE.STONE_DARK;
 
-    // Parts overlap each other by a centimetre or two throughout, never abut
-    // exactly. Two boxes sharing a face put four triangles on every edge of it,
-    // and the art check counts an edge as sound only when exactly two meet —
-    // so a perfectly flush joint reads to it as a hole.
+    // Parts overlap each other by a centimetre or two throughout and never abut
+    // exactly: two boxes sharing a face put four triangles on every edge of it.
 
     // --- footing -------------------------------------------------------------
-    // A lamp needs to be set in something. Standing a mast straight in the mud
-    // reads as a stake; a plinth reads as street furniture, which is the whole
-    // difference between this and `post`.
+    // A lamp needs to be set in something. A mast straight in the mud reads as a
+    // stake; a plinth reads as street furniture.
     const plinthW = mast * 6.2;
     const plinth = new THREE.BoxGeometry(plinthW, 0.15, plinthW);
     plinth.translate(0, 0.075, 0);
@@ -88,9 +62,8 @@ export const streetlamp: MeshBuilder = {
     parts.push({ geometry: collar, color: shade(iron, 1.05), sway: 0 });
 
     // --- mast ----------------------------------------------------------------
-    // Stacked and tapering rather than one long box. The joints are what give
-    // the flat shading something to catch on a shape that is otherwise four
-    // unbroken faces three metres tall.
+    // Stacked and tapering rather than one long box: the joints give the flat shading
+    // something to catch on four unbroken faces three metres tall.
     const foot = 0.24;
     const segments = rng.int(3, 4);
     const segH = (height - foot) / segments;
@@ -111,9 +84,7 @@ export const streetlamp: MeshBuilder = {
     parts.push({ geometry: arm, color: shade(iron, 0.94), sway: 0 });
 
     // A strut from the mast up to the arm. Without it the lantern hangs off a
-    // cantilever with nothing carrying its weight, and the eye notices — an
-    // arm that could not hold what is on the end of it looks wrong long before
-    // anyone works out why.
+    // cantilever with nothing carrying its weight, and the eye notices.
     const ax = mast * 0.5;
     const ay = armY - rng.range(0.36, 0.5);
     const bx = reach * 0.72;
@@ -163,10 +134,9 @@ export const streetlamp: MeshBuilder = {
     hood.translate(hx, lidY - hoodH / 2 + 0.01, 0);
     parts.push({ geometry: hood, color: shade(iron, 1.02), sway: 0 });
 
-    // Four corner posts and nothing between them. The sides are left open
-    // deliberately: glass would have to be a lit surface, which in a dark zone
-    // means a dark lantern, and the flame inside has to be visible from every
-    // direction for the lamp to look like it is the thing doing the lighting.
+    // Four corner posts and nothing between them: glass would have to be a lit
+    // surface, which in a dark zone means a dark lantern, and the flame has to be
+    // visible from every direction for the lamp to look like it is doing the lighting.
     const postW = mast * 0.75;
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
@@ -189,10 +159,8 @@ export const streetlamp: MeshBuilder = {
     for (const along of [0, 1]) {
       for (const side of [-1, 1]) {
         const lengthwise = along === 0;
-        // The pair running the other way is cut short and overlapped into the
-        // first pair rather than meeting it flush — a shared face would put
-        // four triangles on every edge of it, which the art check reads as a
-        // hole rather than as a joint.
+        // The pair running the other way is cut short and overlapped into the first
+        // pair rather than meeting it flush.
         const bar = new THREE.BoxGeometry(
           lengthwise ? span : railW,
           0.06,

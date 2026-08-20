@@ -4,21 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A ladder: two rails and the rungs between them.
- *
- * **That is the entire object.** It has been built twice already with brackets
- * standing it off a wall, a hoop cage over the climb, and straps tying the
- * hoops together — and each time the ladder itself disappeared into its own
- * ironmongery. A ladder is one of the simplest things there is, and the only
- * way to get one wrong is to add to it.
- *
- * The rungs are the silhouette and there is nothing here competing with them.
- *
- * Built climbing +Y with the rungs facing +Z, standing on y = 0. Where it
- * leans, what it leans against and whether anything holds it there are all the
- * caller's business.
- */
+// A ladder: two rails and the rungs between them, and that is the entire object —
+// the only way to get one wrong is to add to it. Built climbing +Y with the rungs
+// facing +Z, standing on y = 0. Where it leans and what holds it there are the
+// caller's business.
 export const ladder: MeshBuilder = {
   name: 'ladder',
   category: 'structures',

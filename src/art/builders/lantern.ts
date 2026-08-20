@@ -7,51 +7,19 @@ import { rollActivity, LANTERN } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { flameGlow, rollFlame, FLAME_DECAY } from '../flame';
 
-/**
- * A carried lantern: a flame in a box, with a ring to lift it by.
- *
- * The third light in the kit and the one that sits between the other two.
- * `streetlamp` is fixed to a mast and lights a street; `candle` sits on a table
- * and marks a place on it; this is the one somebody picks up and takes with
- * them, so it is brighter than a candle, dimmer than a lamp, and — unlike
- * either — built to be looked at from every side at close range.
- *
- * Same flame table as the candle, so a shelf of lights in a room agrees with
- * itself: warm orange, warm red, or the cold blue that is not chemistry.
- *
- * ## The glass is the whole problem
- *
- * A lantern is defined by a pane you can see the flame through, and there is no
- * transparency in this kit — one shared `MeshLambertMaterial`, vertex colours,
- * no alpha. Modelling the panes as solid surfaces would hide the flame, which
- * removes the only thing that makes it a lantern.
- *
- * So the panes are simply *not there*. What is built is the frame around them:
- * a base, four corner posts, a lid, and horizontal rails top and bottom. The
- * flame shows through the gaps, which is exactly what it does in a real one,
- * and the eye supplies the glass because the frame implies it. The same
- * decision the streetlamp's lantern arrived at, for the same reason and
- * independently — which is a fair sign it is the right one.
- */
+// A carried lantern: a flame in a box, with a ring to lift it by — brighter than
+// a candle, dimmer than a street lamp, and built to be looked at from every side.
+// Same flame table as the candle. The panes are simply not there: what is built
+// is the frame around them, and the flame shows through the gaps while the eye
+// supplies the glass, because there is no transparency in this kit.
 
 /**
- * Intensity at the flame.
- *
- * About twice a candle. A lantern is a bigger wick behind glass that is
- * reflecting some of it back out, and it is the thing you would actually carry
- * down a passage — it has to reach far enough to be worth carrying.
- *
- * Uses `FLAME_DECAY` rather than the physical exponent 2, for the reason
- * written out in `art/flame`: an inverse-square point light at hand distance
- * blows out to a flat white blob under this render pipeline.
+ * Intensity at the flame, about twice a candle: a lantern is a bigger wick behind
+ * glass reflecting some of it back out, and it is the thing you would carry down
+ * a passage. Uses `FLAME_DECAY` rather than the physical exponent.
  */
 const LIGHT_INTENSITY = 5;
-/**
- * Hard cutoff. Past this it contributes nothing and costs nothing.
- *
- * Doubled with the intensity. See the candle for why the intensity had to rise
- * by 2.4 rather than 2 to buy twice the reach.
- */
+/** Hard cutoff — past this it contributes nothing and costs nothing. See the candle for why the intensity rises by 2.4 rather than 2 to buy twice the reach. */
 const LIGHT_RANGE = 18;
 
 export const lantern: MeshBuilder = {
@@ -104,10 +72,8 @@ export const lantern: MeshBuilder = {
       }
     }
 
-    // Rails at the foot and shoulder of the cage, run at slightly different
-    // lengths on the two axes so that no two boxes share an exact edge — a
-    // shared edge belongs to four faces instead of two, which z-fights where it
-    // shows and reads as a hole to any test of the solid.
+    // Rails at the foot and shoulder of the cage, run at slightly different lengths
+    // on the two axes so no two boxes share an exact edge.
     for (const at of [bodyBase + bodyH * 0.06, bodyBase + bodyH * 0.94]) {
       for (const along of [0, 1]) {
         const lengthwise = along === 0;
@@ -127,10 +93,8 @@ export const lantern: MeshBuilder = {
     }
 
     // --- the lid -------------------------------------------------------------
-    //
-    // A shallow pyramid with the top cut off, and a vent above it. Hot air has
-    // to leave a lantern somewhere, and a sealed lid reads as a box with a lamp
-    // painted on it.
+    // A shallow pyramid with the top cut off, and a vent above it: hot air has to
+    // leave a lantern somewhere, and a sealed lid reads as a box with a lamp on it.
     const lidBase = bodyBase + bodyH;
     const lidH = cage * 0.7;
     const lid = new THREE.CylinderGeometry(cage * 0.5, cage * 1.55, lidH, 4);
@@ -154,10 +118,8 @@ export const lantern: MeshBuilder = {
     parts.push({ geometry: ring, color: shade(metal, 1.05), sway: 0 });
 
     // --- the flame -----------------------------------------------------------
-    //
-    // Low in the cage, where a wick actually sits, rather than in the middle of
-    // it. A flame floating at the centre of a box is the reliable tell that the
-    // light was placed by bisecting the geometry.
+    // Low in the cage, where a wick actually sits. A flame at the centre of a box
+    // is the reliable tell that the light was placed by bisecting the geometry.
     const wick = bodyBase + bodyH * rng.range(0.24, 0.34);
 
     // A little dish of oil or a stub of tallow under it, so the flame has

@@ -5,30 +5,13 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * Herbs and onions hung up to dry, on a pole across the wall.
- *
- * **The overhead register.** A hut furnished only with things that stand on the
- * floor has a band of empty wall from head height up, and the eye reads that
- * emptiness as a room nobody uses — the ceiling of a real cottage is where the
- * food is, because it is the driest air in the house and out of reach of the
- * dog. This is the piece that fills it, and it is the only thing in the set
- * whose geometry starts above waist height and hangs *down*.
- *
- * Two kinds hang from the pole and they are chosen to differ in outline, not in
- * colour: a herb bunch is a narrow inverted cone that frays at the bottom, an
- * onion rope is a straight line of hard round lumps. At three pixels a block
- * those are still two different things, where two kinds of leafy bundle would
- * be one thing twice.
- *
- * Sway weights run the other way round from a plant's: a hanging bunch is
- * pinned at the *top* and free at the bottom, so the ramp is inverted. Nothing
- * will actually move until `hanging-herbs` gains an entry in `FLEX` — a name
- * that is not in that table is rigid by default, deliberately — but the weights
- * are authored now, because inferring them after the merge is impossible.
- *
- * Built against a wall at z = 0, hanging into +Z.
- */
+// Herbs and onions hung up to dry on a pole across the wall — the overhead
+// register, and the only thing in the set whose geometry starts above waist height
+// and hangs down. The two kinds differ in outline rather than colour: a herb bunch
+// is a narrow inverted cone that frays, an onion rope a straight line of hard
+// round lumps. Sway weights are inverted, since a hanging bunch is pinned at the
+// top; nothing moves until the name has an entry in `FLEX`. Built against a wall
+// at z = 0, hanging into +Z.
 export const hangingHerbs: MeshBuilder = {
   name: 'hanging-herbs',
   category: 'objects',
@@ -68,12 +51,7 @@ export const hangingHerbs: MeshBuilder = {
       parts.push({ geometry: plate, color: shade(poleColor, 0.8), sway: 0 });
     }
 
-    /**
-     * Weight for something hanging from the pole: nothing at the tie, full at
-     * the free end. Smoothstepped, because a linear ramp puts its sharpest
-     * change of bend right at the top and a crease across a bunch of herbs is
-     * worse than a bunch that does not move.
-     */
+    /** Weight for something hanging from the pole: nothing at the tie, full at the free end. Smoothstepped, or the sharpest change of bend is a crease at the top. */
     const hangSway = (drop: number, amount: number) =>
       (_x: number, y: number): number => {
         const t = Math.max(0, Math.min(1, (railY - y) / Math.max(drop, 1e-6)));
@@ -81,28 +59,17 @@ export const hangingHerbs: MeshBuilder = {
       };
 
     // --- what is hanging on it ------------------------------------------------
-    // Four at most. This is loose clutter and it has a clutter's triangle
-    // budget — a fifth bunch of six stems each carrying two leaf clumps is what
-    // pushed the worst-case build over a thousand triangles, and a fifth bunch
-    // is not worth a thousand triangles.
+    // Four at most: this is loose clutter and it has a clutter's triangle budget.
     const count = rng.int(2, 4);
     // Spaced by slot with a jitter inside it, so bunches never land on top of
     // one another but never march either.
     const usable = span * 0.82;
     for (let i = 0; i < count; i++) {
       const x = -usable / 2 + ((i + 0.5) / count) * usable + rng.around(0, usable / (count * 3));
-      // **The tie has to straddle the rail, not hang below it.**
-      //
-      // This was `railY - 0.02..0.05`, against a tie only 3–4.5 cm tall — so
-      // the top of the tie landed anywhere from just under the pole to three
-      // centimetres clear of it, and a bunch whose knot misses the rail is a
-      // bunch hanging in mid-air. Two independent rolls again deciding between
-      // them whether two things touch, which is the same fault the fireplace
-      // mantel had.
-      //
-      // Sitting the tie's *centre* on the rail is the formulation that cannot
-      // come apart: a cloth tie is wrapped round a pole, so the pole should be
-      // inside it. The jitter is small and vertical only.
+      // The tie has to straddle the rail, not hang below it. Sitting the tie's
+      // centre on the rail is the formulation that cannot come apart — a cloth tie
+      // is wrapped round a pole, so the pole should be inside it. The jitter is
+      // small and vertical only.
       const tieY = railY + rng.around(0, 0.006);
       const tieZ = standOff + rng.around(0, 0.004);
 

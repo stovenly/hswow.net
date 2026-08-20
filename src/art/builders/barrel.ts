@@ -4,23 +4,15 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A barrel: bellied staves with iron hoops, sometimes lying on its side.
- *
- * The belly is what separates a barrel from a cylinder, and it is three
- * stacked sections rather than one — a straight tube with hoops on it reads as
- * a can. Coopered barrels bulge because the staves are bent, and that bulge is
- * the whole silhouette.
- */
+// A barrel: bellied staves with iron hoops, sometimes lying on its side. The
+// belly is three stacked sections, because a straight tube with hoops on it
+// reads as a can.
 
 export interface BarrelOptions extends BuildOptions {
   /**
-   * Whether it has been knocked over. Rolled from the seed when unsaid.
-   *
-   * Stated by anything that needs to know which way up it is before it has one
-   * — `barrel-stack` has to, because barrels stack upright and a lying one
-   * cannot be built on. The roll still happens either way, so asking does not
-   * reshuffle the coopering.
+   * Whether it has been knocked over. Rolled from the seed when unsaid, and stated
+   * by anything that needs to know which way up it is before it has one. The roll
+   * still happens either way, so asking does not reshuffle the coopering.
    */
   fallen?: boolean;
 }
@@ -41,14 +33,9 @@ export const barrel: BuilderWith<BarrelOptions> = {
     const rolled = rng.chance(0.25);
     const fallen = asked ?? rolled;
 
-    // Turned on a lathe, from a profile — which is how a barrel is actually
-    // made, and gives one continuous bellied surface.
-    //
-    // Stacking three cylinders instead produced the right silhouette and a
-    // wrong solid: each cylinder brings its own end caps, so the joins were
-    // buried pairs of coincident faces inside the object. Invisible, wasteful,
-    // and enough to fail the watertightness check, which was right to complain.
-    // A profile beginning and ending on the axis closes itself.
+    // Turned on a lathe from a profile, which is how a barrel is made and gives one
+    // continuous bellied surface. Stacked cylinders each bring their own end caps,
+    // so every join is a buried pair of coincident faces.
     const profile = [
       new THREE.Vector2(0, 0),
       new THREE.Vector2(end, 0),

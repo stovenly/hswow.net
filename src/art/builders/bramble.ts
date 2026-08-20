@@ -4,41 +4,17 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A bramble thicket: long canes arching over into a tangle.
- *
- * What grows on every woodland margin and neglected hedge bank, and the one
- * plant in the kit that is genuinely *hostile* — which makes it the natural way
- * to close off the edge of a place without building a wall.
- *
- * **The arching canes breaking the outline are the silhouette.** A bush is a
- * rounded mass with a clean edge; a bramble is a low mass with half a dozen
- * whips looping out of it and diving back to the ground. Take those away and it
- * is a bush with thorns nobody can see.
- *
- * ## What was wrong with the first version
- *
- * Three things, all of which made it read as debris rather than as a plant:
- *
- * - **The canes went underground.** Pitch was rolled past vertical without the
- *   height being clamped, so the far half of every whip was buried and what
- *   showed was a set of stubs. Each joint now stops at the ground.
- * - **The leaves floated.** They were scattered at random offsets from the
- *   joint rather than attached to the cane, so a third of them hung in clear
- *   air. They sit on the cane now, in threes, which is what a bramble has.
- * - **There were too many canes and they all started at the middle**, giving a
- *   starburst. Real ones come up from a stool a few centimetres across and lean
- *   the same general way.
- */
+// A bramble thicket: a low mass with half a dozen canes looping out of it and
+// diving back to the ground, which is the silhouette. Every joint stops at the
+// ground, the leaves sit on the cane in threes, and the canes come up from a stool
+// a few centimetres across leaning the same general way.
 export const bramble: MeshBuilder = {
   name: 'bramble',
   category: 'foliage',
   radius: 1.3,
-  // Walked through, in spite of being the one plant here that would really
-  // stop you. A thicket is a *tangle*, and its collision volume would have to
-  // be the tangle rather than a box round it — anything simpler catches the
-  // player on air a foot from the canes, which is worse than walking through.
-  // Blocking a route is a job for geometry that is actually solid.
+  // Walked through, in spite of being the one plant here that would really stop
+  // you: a tangle's collision volume would have to be the tangle, and anything
+  // simpler catches the player on air a foot from the canes.
   solid: false,
 
   build({ seed = 1, scale = 1 } = {}) {

@@ -6,49 +6,31 @@ import { shade } from '../palette';
 import { hearting, pointing, polygonPlan, quoinedPolygon, stoneColours, upright } from '../masonry';
 import { LOW, TALL, WALL_DEPTH, type Build } from './stone-wall';
 
-/**
- * A stone pier: the end of a wall, the corner of one, or the cheek of a gate.
- *
- * **Piers are how this wall turns corners** — there is no curved section and no
- * mitred corner piece. Three faces bend a run 60°, four 90°, five 36°, 72° or
- * 108°, which between them follows more or less any line using pieces that
- * already tile.
- *
- * Every face is the same width in all three shapes, so a run meets any pier
- * alike; what changes is the pier's overall size. Quoined by `art/masonry`,
- * which is what stops the skins poking through each other at the arrises.
- *
- * Standing on y = 0, centred on the origin.
- */
+// A stone pier: the end of a wall, the corner of one, or the cheek of a gate.
+// Piers are how this wall turns corners — three faces bend a run 60°, four 90°,
+// five 36°, 72° or 108°. Every face is the same width in all three shapes, so a
+// run meets any pier alike; what changes is the pier's overall size. Quoined by
+// `art/masonry`, which is what stops the skins poking through at the arrises.
+// Standing on y = 0, centred on the origin.
 
 /**
- * How far beyond the end of a wall run a column has to stand.
- *
- * Half the widest pier there is, measured at the **cap** rather than the shaft —
- * the cap oversails, and a reach taken off the shaft alone sets the pier seven
- * centimetres too far in and drives the cap through the wall's own face.
+ * How far beyond the end of a wall run a column has to stand: half the widest pier
+ * there is, measured at the cap rather than the shaft. The cap oversails, and a
+ * reach taken off the shaft alone drives it through the wall's own face.
  */
 export const COLUMN_REACH = WALL_DEPTH * 1.56 * 0.61;
 
 export interface StoneWallColumnOptions extends BuildOptions {
-  /**
-   * Overall height. Rolled clear above its wall's own band when the caller says
-   * nothing, so a pier is never overtopped by the wall it is meant to end —
-   * which reads as a lump in the run rather than its terminus. A placer that
-   * knows its run's height should say so and match it.
-   */
+  /** Overall height. Rolled clear above its wall's own band when the caller says nothing, so a pier is never overtopped by the wall it is meant to end. */
   height?: number;
   /** Which way face 0 looks, in radians. Turns the whole pier. */
   phase?: number;
 }
 
 /**
- * How much wider than the square's a shape's faces are cut.
- *
- * A triangle's apothem is only a third of its face, so at the square's face
- * width it comes out visibly the smallest pier of the set. Widened, its faces
- * are broader and the pier reads at a comparable size; the pentagon is already
- * the largest and needs nothing.
+ * How much wider than the square's a shape's faces are cut. A triangle's apothem
+ * is only a third of its face, so at the square's face width it comes out visibly
+ * the smallest pier of the set; the pentagon is already the largest.
  */
 const FACE_SCALE: Record<number, number> = { 3: 1.5, 4: 1, 5: 1 };
 
@@ -111,12 +93,9 @@ export const stoneWallSquareColumn: BuilderWith<StoneWallColumnOptions> = {
 };
 
 /**
- * The low wall's square pier.
- *
- * A gate cheek on a garden wall, or the end of one. Same masonry and same
- * quoined arrises, standing clear above the low wall's own band rather than the
- * tall one's — a pier scaled for a two-metre boundary looming over a wall you
- * can sit on is a gatepost with nothing to hold up.
+ * The low wall's square pier: a gate cheek on a garden wall, or the end of one.
+ * Same masonry and quoined arrises, standing clear above the low wall's own band
+ * rather than the tall one's.
  */
 export const stoneWallSquareColumnLow: BuilderWith<StoneWallColumnOptions> = {
   name: 'stone-wall-square-column-low',

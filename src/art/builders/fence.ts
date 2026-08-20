@@ -4,36 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng, type Rng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A run of post-and-rail fence, built to be joined to another one.
- *
- * ## Two rules make an arbitrary length possible
- *
- * **The pitch is fixed.** A section is `FENCE_SECTION` long whatever the seed
- * rolls, so a placer laying a boundary counts sections instead of building a
- * piece to find out how wide it came out. The seed decides the carpentry, not
- * the measurements.
- *
- * **The last post is missing.** A piece carries a post at the near end of every
- * section and none at its far end, and the last bay's rails run out to where
- * that post *would* stand. Whatever comes next supplies it: another fence
- * extends the run, a `fence-post` finishes it. There is no arrangement of the
- * two that leaves a doubled post or a rail ending in mid-air.
- *
- * **Every bay is railed.** A gap in a boundary is something you place, by
- * leaving a piece out of a run.
- *
- * ## Where the rails sit
- *
- * On one face, always the same one. Each rail takes its endpoints from the two
- * posts it is nailed to, *at its own height*, so it follows their lean and their
- * sideways tilt and still lies flat against both. The wonk lives in the posts,
- * which is where a fence's wonk comes from.
- *
- * **No random facing.** A fence faces where it is put — the seed has no business
- * deciding which way a boundary runs. Built along **+X**, standing on y = 0,
- * centred on its own span.
- */
+// A run of post-and-rail fence, built to be joined to another. The pitch is fixed
+// at `FENCE_SECTION` whatever the seed rolls, and the last post is missing — the
+// rails run out to where it would stand, and whatever comes next supplies it. Every
+// bay is railed; a gap is something a placer leaves out of a run. Each rail takes
+// its endpoints from the two posts it is nailed to, at its own height, so it
+// follows their lean. Built along +X on y = 0, centred on its own span.
 
 /** Metres between posts. The same for every fence, so runs tile. */
 export const FENCE_SECTION = 1.4;
@@ -47,33 +23,16 @@ export const FENCE_POST = 0.12;
 /** Rail thickness through the run. Exported for the check that reads it. */
 export const RAIL_DEPTH = 0.05;
 const RAIL_HEIGHT = 0.075;
-/**
- * How far a rail's centre stands off its post's.
- *
- * Ten millimetres inside the post face rather than flush against it: two
- * coplanar faces z-fight, and a rail let slightly into its post is what a
- * nailed one looks like once the timber has taken a few winters.
- */
+/** How far a rail's centre stands off its post's: ten millimetres inside the post face rather than flush, because two coplanar faces z-fight. */
 const RAIL_FACE = FENCE_POST / 2 + RAIL_DEPTH / 2 - 0.01;
 
 export interface FenceOptions extends BuildOptions {
-  /**
-   * How many sections long, 1..4.
-   *
-   * Rolled from the seed when the caller says nothing, which is what a gallery
-   * wants. A placer building a run to a length says so instead — and the roll
-   * still happens, so stating it does not reshuffle the carpentry.
-   */
+  /** How many sections long, 1..4. Rolled from the seed when the caller says nothing; the roll still happens, so stating it does not reshuffle the carpentry. */
   sections?: number;
   /**
-   * Seeds the carpentry that has to **agree across a join** — how tall the posts
-   * are, how many rails, what timber they were cut from. Defaults to `seed`, so
-   * a fence standing on its own is unchanged; a placer laying a run passes one
-   * number for the whole of it.
-   *
-   * Without it a run of two pieces is two different fences butted together:
-   * three rails meeting two on the same post, with the tops a hand's breadth
-   * apart. The pitch tiling exactly is not enough on its own.
+   * Seeds the carpentry that has to agree across a join — post height, rail count,
+   * timber. Defaults to `seed`, so a fence standing on its own is unchanged.
+   * Without it a run of two pieces is three rails meeting two on the same post.
    */
   run?: number;
 }
@@ -85,11 +44,7 @@ export interface PostShape {
   readonly height: number;
   /** Lean along the run — where most of a fence's wonk lives. */
   readonly lean: number;
-  /**
-   * Lean across it. Kept to about a degree and a half: the rails follow it, so
-   * it costs nothing in consistency, but a run that wanders far off its own
-   * line stops reading as a boundary somebody set out.
-   */
+  /** Lean across it, kept to about a degree and a half: the rails follow it, but a run that wanders far off its own line stops reading as a boundary. */
   readonly tilt: number;
   /** Turned in its socket. Small: a square post far off square meets its rails on a corner. */
   readonly twist: number;
@@ -101,12 +56,9 @@ export function fenceHeight(rng: Rng): number {
 }
 
 /**
- * A post at (x, z), leaning its own way — unless it stands on a join.
- *
- * A post at a join is set `plumb`, and it has to be: the piece before it aimed
- * its last rails at that spot before knowing which post would turn up, and a
- * leaning one lands a couple of centimetres off a rail that is only let into it
- * by one. The draws are made either way, so a run keeps its seed.
+ * A post at (x, z), leaning its own way — unless it stands on a join, where it is
+ * set `plumb`: the piece before it aimed its last rails at that spot before
+ * knowing which post would turn up. The draws are made either way.
  */
 export function rollPost(
   rng: Rng,

@@ -4,19 +4,10 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { landWash, markVista, vistaMass } from '../vista';
 
-/**
- * Three or four separate tree lumps — the step between a tree and a wood.
- *
- * `vista-forest` is a continuous mass whose blobs overlap into one silhouette;
- * this is the same grammar with the blobs pulled apart, so the gaps between
- * them are the read. That gap is the whole difference: a wood is an edge, a
- * copse is a countable number of things, and the eye tells them apart at any
- * range because it is counting rather than measuring.
- *
- * It is also what stands between band 1's real trees and the treeline behind
- * them — put one where the two would otherwise meet and neither has to explain
- * itself.
- */
+// Three or four separate tree lumps — the step between a tree and a wood.
+// `vista-forest` is a continuous mass whose blobs overlap into one silhouette;
+// this is the same grammar with the blobs pulled apart, and the gaps are the read:
+// a wood is an edge, a copse is a countable number of things.
 
 /** Canopy in shade, close together so the clumps read as one species. */
 const CANOPY = [

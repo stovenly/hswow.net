@@ -4,41 +4,14 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A pitchfork: a long shaft, a socket, and two or three long tines.
- *
- * ## It is built lying along +X, and that is the point
- *
- * Nearly everything in the kit stands on y = 0 because nearly everything in the
- * kit stands on the ground. A hand tool does not: it leans against a wall, lies
- * on a cart, is stuck in a heap, or is carried. There is no one resting position
- * to build it in, and choosing one would make it wrong everywhere else.
- *
- * So it is built **along +X with its butt at the origin**, in the air, and the
- * placer turns it to whatever it is doing. That is the same contract `fence` and
- * `stone-wall` have — built along an axis, placed by somebody who knows what
- * they want — applied to a thing that is held rather than laid.
- *
- * ## What separates it from a rake at a glance
- *
- * Both are a stick with prongs. The difference is entirely in the prongs and it
- * has to be visible in silhouette:
- *
- * - **A fork has two or three tines, and they are long** — a third of the shaft
- *   — because they are for lifting a mass of straw off the ground.
- * - **They curve**, in the plane of the fork, so the load stays on them.
- * - **They point along the shaft**, continuing its line rather than crossing it.
- *
- * A rake's teeth are short, many, and square to the handle. Neither reads as the
- * other from any distance if those hold.
- *
- * ## The socket is what makes it a made object
- *
- * A shaft that runs straight into the tines is two shapes touching. The iron
- * ferrule where the head is driven onto the wood is the join, and at this size it
- * is the only detail worth spending triangles on — the same argument the crate's
- * straps make.
- */
+// A pitchfork: a long shaft, a socket, and two or three long tines. Built along
+// +X with its butt at the origin, in the air, because a hand tool has no one
+// resting position — the placer turns it to whatever it is doing.
+//
+// What separates it from a rake has to be visible in silhouette: two or three
+// tines, long — a third of the shaft — curved in the plane of the fork, and
+// pointing along the shaft rather than square to it. The iron ferrule where the
+// head is driven onto the wood is the join, and the only detail worth triangles.
 export const pitchfork: MeshBuilder = {
   name: 'pitchfork',
   category: 'objects',

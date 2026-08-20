@@ -4,37 +4,15 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A bell in a timber frame.
- *
- * The bell one-shot has been ringing over Arkstin from six and a half metres up
- * with nothing there at all. This is the thing making the noise.
- *
- * **It comes with its own frame rather than expecting a tower.** A bell is not
- * a prop that stands on the ground — it is a mass hung from something, and
- * modelled on its own it reads as a hat. A tower is a *structure*, and the
- * village structure kit does not exist yet; a two-post frame is the smallest
- * honest answer, it stands anywhere, and a tower later can drop the frame and
- * keep the bell. Placement runs object → sound, so where this ends up is what
- * decides where the ringing comes from, not the other way round.
- *
- * ## The profile is a closed loop, and it has to be
- *
- * The bell is a lathe. The obvious profile is the outside curve alone, which
- * gives a surface with no thickness — and the art material is single-sided, so
- * a bell built that way is invisible from underneath, which is the one angle
- * you look at a hanging bell from. The profile below runs *down the outside,
- * across the lip, and back up the inside*, closing on itself, so the lathe
- * sweeps a solid with a real wall and a real mouth.
- */
+// A bell in a timber frame, which is the smallest honest thing to hang it from.
+// The lathe profile is a closed loop — down the outside, across the lip and back
+// up the inside — because the art material is single-sided, and an open profile
+// leaves the bell invisible from underneath, which is the angle it is seen from.
 
 /**
- * Half-profile of the bell, as radius against height above the mouth.
- *
- * Ten segments of revolution, which is few enough to face the surface visibly
- * and enough that the mouth still reads as round. The waist above the lip is
- * what makes it a bell rather than a cone — a straight taper is a hat, and no
- * amount of colour fixes it.
+ * Half-profile of the bell, as radius against height above the mouth. Ten segments
+ * of revolution — few enough to face the surface visibly, enough that the mouth
+ * still reads as round. The waist above the lip is what makes it a bell.
  */
 const PROFILE: readonly (readonly [number, number])[] = [
   // Outside, mouth upwards.
@@ -57,11 +35,9 @@ const PROFILE: readonly (readonly [number, number])[] = [
   [0.222, 0.05],
   [0.258, 0],
   // And across the lip, back to where it started. `LatheGeometry` connects
-  // consecutive points and stops — it does not close a loop for you, so
-  // without this repeat the mouth is a ring of unshared edges and the solid is
-  // not watertight. Nothing in the profile touches the axis, so the result is
-  // a torus topologically: closed, with the hole up the middle that a bell
-  // actually has.
+  // consecutive points and does not close a loop, so without this repeat the mouth
+  // is a ring of unshared edges. Nothing in the profile touches the axis, so the
+  // result is a torus: closed, with the hole up the middle a bell actually has.
   [0.3, 0],
 ];
 
@@ -117,10 +93,9 @@ export const bell: MeshBuilder = {
     shell.translate(0, hangs, 0);
 
     const bronze = shade(PALETTE.BRONZE, rng.range(0.9, 1.1));
-    // Patina takes the top, where rain sits and never quite dries, and the
-    // bright metal is kept low where the clapper and the weather work on it.
-    // Painted as a function of height on one mesh rather than as two parts,
-    // which would need a seam exactly where the colour is meant to be vague.
+    // Patina takes the top, where rain sits and never quite dries, and bright metal
+    // stays low where the clapper and the weather work. Painted as a function of
+    // height on one mesh; two parts would need a seam where the colour is vague.
     const waterline = hangs + bellHeight * rng.range(0.42, 0.62);
     parts.push({
       geometry: shell,
@@ -148,11 +123,5 @@ export const bell: MeshBuilder = {
   },
 };
 
-/**
- * How high the bell's mouth hangs above the frame's base, for placing the ring.
- *
- * The sound of a bell comes from the mouth, not from the crown and not from the
- * middle of the frame. Roughly the middle of the rolled range, which is within
- * a few centimetres on any instance.
- */
+/** How high the bell's mouth hangs above the frame's base, for placing the ring. A bell sounds from its mouth, not its crown. */
 export const BELL_MOUTH_HEIGHT = 0.72;

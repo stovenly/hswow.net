@@ -4,47 +4,16 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A swing plough, left standing at the end of a furrow.
- *
- * **The one object that says a field is worked rather than merely grassy.** A
- * crop patch is a colour on the ground and reads as one; the implement that made
- * it is a thing with a shape, and leaving it at the headland says the work is
- * ongoing and somebody will be back.
- *
- * ## It is a frame, and it is built as one
- *
- * The first attempt laid out six pieces at six independently rolled positions
- * and angles and hoped they would meet. They did not — the beam floated over the
- * stilts, the stay crossed both without touching either, and the share hung off
- * the front — because *nothing in it was derived from anything else*. A plough
- * is a rigid frame: every member is a line between two joints, and the joints
- * are the object.
- *
- * So this names its four joints first —
- *
- * - **`sole`**, on the ground at the back of the share, where the iron rides;
- * - **`throat`**, low and forward, where the beam meets the head;
- * - **`hitch`**, high and forward at the end of the beam;
- * - **`hands`**, high and back, where the stilts finish;
- *
- * — and then draws each member *between* two of them with a helper that takes
- * two points and returns a piece of timber joining them, overlapping each end so
- * the joints are lapped rather than butted. Nothing can be adrift, because
- * nothing has a position of its own.
- *
- * ## What has to read at thirty metres
- *
- * Three lines: the **beam** running forward and up, the **stilts** angling back
- * and up in a clear V, and the **share** at the bottom catching the light. So
- * the beam is long and unbroken, the stilts are the only other long member, and
- * the share is the one part in bright metal rather than timber.
- *
- * **It leans.** A plough parked on its own falls onto one stilt and the share
- * comes out of the ground — it is not a tripod. That list is most of what stops
- * it reading as a diagram, and it is applied to the whole frame at the end so
- * the frame stays a frame.
- */
+// A swing plough, left standing at the end of a furrow. A plough is a rigid
+// frame, so this names its four joints first — `sole` on the ground at the back
+// of the share, `throat` low and forward, `hitch` high and forward, `hands` high
+// and back — and draws each member between two of them, overlapping each end so
+// the joints are lapped rather than butted. Nothing has a position of its own.
+//
+// Three lines have to read at thirty metres: the beam running forward and up, the
+// stilts in a clear V, and the share in bright metal at the bottom. It leans,
+// because a plough parked on its own falls onto one stilt; the list is applied to
+// the whole frame at the end, so the frame stays a frame.
 
 type Joint = readonly [number, number, number];
 
@@ -63,12 +32,10 @@ export const plough: MeshBuilder = {
     const bright = shade(PALETTE.IRON_PALE, rng.range(1, 1.12));
 
     // --- the joints ----------------------------------------------------------
-    //
-    // Proportioned off one length, so a big plough is a big plough all over
-    // rather than a long beam with a small frame hung on it. The three that
-    // matter to the silhouette are the beam's rise (shallow — a plough beam is
-    // nearly level, and pitching it up turned the object into a see-saw), the
-    // stilts' reach back, and how far the head stands in front of the throat.
+    // Proportioned off one length, so a big plough is a big plough all over. The
+    // three that matter to the silhouette are the beam's rise (shallow — a plough
+    // beam is nearly level), the stilts' reach back, and how far the head stands in
+    // front of the throat.
     const size = rng.range(0.92, 1.1);
     const sole: Joint = [0, 0.05, 0];
     const throat: Joint = [0.24 * size, 0.34 * size, 0];
@@ -86,12 +53,9 @@ export const plough: MeshBuilder = {
 
     const UP = new THREE.Vector3(0, 1, 0);
     /**
-     * A member between two joints.
-     *
-     * Built along its own length and turned onto the line, with `lap` added at
-     * each end so it runs *into* whatever it meets rather than stopping at the
-     * surface. A frame whose members merely touch shows daylight at every joint
-     * the moment anything is rotated.
+     * A member between two joints: built along its own length and turned onto the
+     * line, with `lap` added at each end so it runs into whatever it meets. A frame
+     * whose members merely touch shows daylight at every joint once anything turns.
      */
     const member = (
       from: Joint,
@@ -119,7 +83,6 @@ export const plough: MeshBuilder = {
     };
 
     // --- the frame -----------------------------------------------------------
-    //
     // The head, from the sole up to the throat: the short stout piece everything
     // else is fastened to.
     member(sole, throat, 0.09, 0.09, frame, 0.04);
@@ -152,10 +115,9 @@ export const plough: MeshBuilder = {
     }
 
     // --- the iron ------------------------------------------------------------
-    //
-    // The sole: a flat bar lying along the ground under the head, running from
-    // behind the stilts' foot forward to the share. Long, because the sole is
-    // what the whole implement rides on and a short one makes it look tipped.
+    // The sole: a flat bar lying along the ground under the head, from behind the
+    // stilts' foot forward to the share. Long, because the sole is what the whole
+    // implement rides on and a short one makes it look tipped.
     const soleLong = 0.7 * size;
     const soleBar = new THREE.BoxGeometry(soleLong, 0.05, 0.11);
     soleBar.translate(sole[0] + soleLong * 0.28, sole[1] - 0.01, 0);
@@ -171,10 +133,10 @@ export const plough: MeshBuilder = {
     share.translate(nose + point * 0.4, sole[1], 0);
     add(share, bright);
 
-    // The mouldboard: the plate that turns the furrow over. It stands **on the
-    // sole and against the head**, sloping up and back — a long shallow twist,
-    // not a paddle. Both of its lower edges have something to be against, which
-    // is what makes it read as fixed rather than propped.
+    // The mouldboard: the plate that turns the furrow over. It stands on the sole
+    // and against the head, sloping up and back in a long shallow twist — both of
+    // its lower edges have something to be against, which is what makes it read as
+    // fixed rather than propped.
     const boardLong = 0.52 * size;
     const boardH = 0.3 * size;
     const board = new THREE.BoxGeometry(boardLong, boardH, 0.035);
@@ -200,11 +162,6 @@ export const plough: MeshBuilder = {
       parts.push({ geometry, color: tint[i], sway: 0 });
     });
 
-    // **Nothing under it.** There were two ridges of turned earth beneath the
-    // share, on the reasoning that a plough left in a field is left in the
-    // furrow it stopped in. That is dressing a scene: it decides the ground this
-    // object is standing on, in a world where the ground is placed by hand. If a
-    // field wants a furrow, the field gets one.
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);

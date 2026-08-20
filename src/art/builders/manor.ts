@@ -14,20 +14,10 @@ import {
   type Doorway,
 } from '../building';
 
-/**
- * The lord's house: a hall range with a cross-wing, and a porch on the front.
- *
- * Three things say money and they are all here. **Stone below, timber above** —
- * a wall a mason built rather than a carpenter. **A jetty**, which is the upper
- * floor standing out over the lower on the ends of its own joists, and which
- * exists to be seen. **Close studding**, oak nailed up the whole wall at half a
- * metre where a villager gets one stud a metre and a half.
- *
- * **One design, not a family.** A village has one manor, so this is drawn: the
- * numbers below are chosen and the seed is ignored. What the generator is still
- * doing is the shade of an individual stone and the like — nothing that changes
- * the building.
- */
+// The lord's house: a hall range with a cross-wing and a porch on the front.
+// Stone below and timber above, a jetty, and close studding at half a metre where
+// a villager gets one stud a metre and a half. One design, not a family — the
+// numbers are chosen and the seed is ignored, beyond the shade of a stone.
 
 const WIDTH = 12.5;
 const DEPTH = 6.2;
@@ -44,40 +34,22 @@ const JETTY = 0.5;
 const HALL_Z = (DEPTH - WING_DEPTH) / 2;
 const WING_X = WIDTH / 2 - WING_WIDTH / 2;
 /**
- * The hall range runs up to the wing and stops.
- *
- * It used to be the full width of the house, so its right-hand quarter stood
- * *inside* the cross-wing — which put the hall's right wall on exactly the same
- * plane as the wing's, and the right-hand quarter of the hall's back wall on
- * exactly the same plane as the wing's back. Every course of stone on both was
- * being laid twice, by two blocks that could not see each other.
- *
- * Two ranges of an L-plan house abut; they do not overlap. The hall's own right
- * wall is the one they share, and it is declared a `join` so the wing draws the
- * stonework there alone.
+ * The hall range runs up to the wing and stops. Two ranges of an L-plan house
+ * abut; they do not overlap, or every course of stone on the shared wall is laid
+ * twice by two blocks that cannot see each other. The hall's own right wall is
+ * declared a `join`, so the wing draws the stonework there alone.
  */
 const HALL_WIDTH = WIDTH - WING_WIDTH;
 const HALL_X = -WING_WIDTH / 2;
 /**
- * Hard to the right of the hall's own front, so the whole of the rest of it is
- * a clear run for windows.
- *
- * The porch used to stand in the middle of that run with its roof and its
- * jambs through the first-floor window above it. A porch is two and a half
- * metres to the ridge and the chamber window starts under four — they cannot
- * share a bay, so the porch takes the end bay and the windows take the rest.
+ * Hard to the right of the hall's own front, so the rest of it is a clear run for
+ * windows. A porch is two and a half metres to the ridge and the chamber window
+ * starts under four, so they cannot share a bay.
  */
 const PORCH_X = -0.6;
 const PORCH_WIDTH = 2.2;
 const PORCH_DEPTH = 1.7;
-/**
- * Where the windows sit on each floor.
- *
- * Both were a hand too high. The ground storey's heads ran up under the jetty's
- * bressummer with a finger's width to spare, and the first floor's ran into the
- * frame's own top plate — a window wants a clear course of wall above it or the
- * wall reads as having been squeezed round it.
- */
+/** Where the windows sit on each floor. A window wants a clear course of wall above it, or the wall reads as having been squeezed round it. */
 const GROUND_SILL = 0.95;
 const FIRST_SILL = GROUND + 0.6;
 
@@ -144,9 +116,8 @@ export const manor: MeshBuilder = {
     );
 
     // --- the cross-wing ------------------------------------------------------
-    //
-    // Ridge along Z, so its gable faces the front. That gable end is the whole
-    // point of a cross-wing: it turns a long low range into a house with a front.
+    // Ridge along Z, so its gable faces the front. That gable end is the whole point
+    // of a cross-wing: it turns a long low range into a house with a front.
     const wingLow = block(rng, {
       x: WING_X,
       width: WING_WIDTH,
@@ -181,9 +152,8 @@ export const manor: MeshBuilder = {
     );
 
     // --- the porch -----------------------------------------------------------
-    //
-    // In the angle between hall and wing, which is where a door goes when the
-    // wing has taken one end of the front.
+    // In the angle between hall and wing, which is where a door goes when the wing
+    // has taken one end of the front.
     const porch = block(rng, {
       x: PORCH_X,
       z: HALL_Z + DEPTH / 2 + PORCH_DEPTH / 2 - 0.3,
@@ -200,13 +170,9 @@ export const manor: MeshBuilder = {
     parts.push(...porch.parts);
 
     // --- the lights ----------------------------------------------------------
-    //
-    // Wide on the ground where the hall is and narrower above it, which is what
-    // a hall and the chambers over it actually give you.
-    //
-    // Two bays on each floor, in the run the porch leaves clear, and lined up
-    // one above the other — a hall range reads as one building because its
-    // openings stack, not because the two storeys match in anything else.
+    // Wide on the ground where the hall is and narrower above it. Two bays on each
+    // floor, in the run the porch leaves clear, lined up one above the other — a
+    // hall range reads as one building because its openings stack.
     for (const at of [-2.6, -0.6]) {
       parts.push(
         ...onFace(
@@ -236,10 +202,9 @@ export const manor: MeshBuilder = {
       ),
     );
 
-    // The hall's own gable end. **One either side of the stack**, not one in the
-    // middle of it — the breast is the width of a window and the window was
-    // inside it. `at` runs along Z on this face and the stack sits on the
-    // block's own centre line, so the pair straddle `at = 0`.
+    // The hall's own gable end: one either side of the stack, not one in the middle
+    // of it, since the breast is the width of a window. `at` runs along Z on this
+    // face and the stack sits on the block's centre line, so the pair straddle 0.
     for (const at of [-1.7, 1.7]) {
       for (const [sill, style] of [
         [GROUND_SILL, lower],
@@ -283,11 +248,8 @@ export const manor: MeshBuilder = {
     }
 
     // --- the stacks ----------------------------------------------------------
-    //
-    // Two, because a manor has a hearth in the hall and another in the chamber
-    // wing. Both stand clear of their roof's own oversail with a breast filling
-    // the gap: a stack inside the oversail has the slope driven through it and
-    // out the far side.
+    // Two, because a manor has a hearth in the hall and another in the chamber wing.
+    // Both stand clear of their roof's oversail with a breast filling the gap.
     const hallClear = hallHigh.roof.overGable + 0.1;
     parts.push(
       ...chimney(rng, {

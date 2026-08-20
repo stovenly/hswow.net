@@ -6,14 +6,10 @@ import { PALETTE, shade } from '../palette';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel } from '../clothMesh';
 
-/**
- * A tall banner hanging from a bracket arm on a post.
- *
- * The vertical sibling of the strung banner: one post, one arm, and a long
- * drop of simulated cloth pinned along its top edge. Canvas by default, so it
- * hangs heavy and answers a gust as one surface. Built with the arm reaching
- * +X, standing on y = 0.
- */
+// A tall banner hanging from a bracket arm on a post: one post, one arm, and a
+// long drop of simulated cloth pinned along its top edge. Canvas by default, so it
+// hangs heavy and answers a gust as one surface. Built with the arm reaching +X,
+// standing on y = 0.
 
 export interface HangingBannerOptions extends BuildOptions {
   /** A `FABRICS` name. */

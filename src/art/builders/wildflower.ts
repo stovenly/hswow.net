@@ -2,35 +2,12 @@ import * as THREE from 'three';
 import type { Part } from '../assemble';
 import { species, type HeadContext } from '../flower';
 
-/**
- * Wildflowers: whatever is in the field, at whatever height.
- *
- * Not a species — a *mixture*, and that is the whole idea. Every other flower
- * in the kit is internally consistent, which is right for a stand of one thing
- * and wrong for rough ground, where the point is that nothing matches.
- *
- * ## The mixture has to be inside the patch
- *
- * Two attempts got this wrong in the same direction, each less badly than the
- * last. The first varied only the *colour*, so a patch was a dozen identical
- * daisies in assorted tints — and the eye reads outline long before it reads
- * hue, so that reads as one plant somebody has been dyeing. The second varied
- * the whole shape but rolled it **once per clump**, so each patch was a dozen
- * identical buttercups, or a dozen identical campions. Better between patches,
- * and no better within one.
- *
- * A meadow is not a patch of one thing next to a patch of another. It is
- * buttercup and speedwell and campion *interleaved*, and the only version of
- * this builder worth having puts them in the same clump. So the form is rolled
- * **per flower**: this is the one builder in the kit where two blooms on the
- * same square foot of ground are different plants.
- *
- * That breaks the shared plan's assumption — one head shape per species — which
- * is exactly what the head hook exists for.
- *
- * The one builder to reach for when dressing ground rather than making a
- * feature of a flower.
- */
+// Wildflowers: whatever is in the field, at whatever height — not a species but a
+// mixture, and the mixture has to be inside the patch. The form is rolled per
+// flower rather than per clump, so this is the one builder in the kit where two
+// blooms on the same square foot of ground are different plants. That breaks the
+// shared plan's one-head-shape-per-species assumption, which is what the head hook
+// exists for.
 
 interface Form {
   petals: number;
@@ -49,12 +26,10 @@ interface Form {
 }
 
 /**
- * The forms.
- *
- * Loosely a buttercup, an ox-eye, a scabious, a campion, a speedwell and
- * something long-petalled and drooping. None is named, and deliberately — the
- * moment one is called a buttercup it has to *be* a buttercup, and this
- * builder's whole job is to be what you scatter when you have not decided.
+ * The forms: loosely a buttercup, an ox-eye, a scabious, a campion, a speedwell
+ * and something long-petalled and drooping. None is named, deliberately — the
+ * moment one is called a buttercup it has to be one, and this builder's job is to
+ * be what you scatter when you have not decided.
  */
 const FORMS: readonly Form[] = [
   {
@@ -126,12 +101,9 @@ const FORMS: readonly Form[] = [
 ];
 
 /**
- * One head, of whichever form this particular flower turned out to be.
- *
- * Deliberately the same construction the shared plan uses for a single-species
- * flower — a disc and a ring of flattened cones — because the point here is not
- * a different *kind* of head, it is that the numbers change from bloom to
- * bloom instead of from patch to patch.
+ * One head, of whichever form this particular flower turned out to be —
+ * deliberately the same construction the shared plan uses, because the point is
+ * not a different kind of head but that the numbers change from bloom to bloom.
  */
 function wildflowerHead({ axis, rng }: HeadContext): Part[] {
   const parts: Part[] = [];
@@ -159,9 +131,8 @@ function wildflowerHead({ axis, rng }: HeadContext): Part[] {
   for (let p = 0; p < form.petals; p++) {
     const bearing = (p / form.petals) * Math.PI * 2 + rng.range(-0.12, 0.12);
     // Every petal a slightly different size. Partly because real ones are, and
-    // partly for a mechanical reason: petals built to identical dimensions and
-    // merged into one clump occasionally land exactly on top of each other, and
-    // two coincident faces z-fight against each other forever.
+    // partly because petals built to identical dimensions occasionally land exactly
+    // on top of each other, and two coincident faces z-fight forever.
     const grown = petalLength * rng.range(0.88, 1.12);
     const petal = new THREE.ConeGeometry(grown * form.width * rng.range(0.9, 1.1), grown, 3);
     // Built pointing +Y and laid over to point outward, so the wide end is at

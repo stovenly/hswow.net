@@ -5,47 +5,19 @@ import { finishGlow } from '../glow';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A halogen floodlight on a bracket, with a visible beam.
- *
- * The fourth light in the kit, and the only one that is *aimed*. A candle and a
- * lantern mark a place; a street lamp fills the space under itself; this one
- * throws a hard cone at something, and everything about it follows from that.
- *
- * ## A cone, and this time it is right
- *
- * The street lamp used to be a `SpotLight` and it was wrong — a cone aimed at
- * the pavement is a modern shielded reflector, and a mediaeval lantern is a box
- * with openings on all four sides that spills light sideways as readily as
- * down. That argument is recorded in `streetlamp.ts` and it is worth restating
- * here, because this fixture is the exact case it was excluding: a floodlight
- * *is* a reflector housing, its whole purpose is to send light one way, and a
- * point light in it would throw the beam out of the back of the wall it is
- * bolted to.
- *
- * So: a `SpotLight` for what it does, and additive cone geometry for the shaft
- * you can see. The shaft's colour ramps to black along its length, and
- * `GLOW_MATERIAL` is additive — black adds nothing — so the fade needs no alpha
- * channel and creates no sorting problem with anything it passes through.
- *
- * Built aiming toward **+Z and downward**, standing on y = 0 on its own short
- * mast, so it works on a gallery floor and on a wall bracket alike.
- *
- * **No random facing.** Every other prop in the kit may spin on its own seed
- * because nothing depends on which way it ended up. This one is *aimed*: the
- * whole point of it is what the beam lands on, and a fixture that chooses its
- * own bearing cannot be pointed at anything. The caller's `rotation.y` is the
- * only thing that decides where it looks.
- */
+// A halogen floodlight on a bracket, with a visible beam — the only aimed light
+// in the kit. A `SpotLight` for what it does and additive cone geometry for the
+// shaft you can see, whose colour ramps to black along its length; `GLOW_MATERIAL`
+// is additive, so the fade needs no alpha and creates no sorting problem.
+//
+// Built aiming toward +Z and downward, standing on y = 0 on its own short mast.
+// No random facing: the whole point is what the beam lands on, so the caller's
+// `rotation.y` is the only thing that decides where it looks.
 
 /**
- * Intensity, in candela.
- *
- * Physical decay here, unlike the candle and the lantern: those had to abandon
- * inverse-square because at hand distance it blows out to a flat white blob,
- * and nothing gets its eye within a hand's width of a floodlight. Far enough
- * away for d² to behave, and the hard falloff is part of what makes it read as
- * a modern fitting rather than as a flame.
+ * Intensity, in candela. Physical decay here, unlike the candle and the lantern:
+ * nothing gets its eye within a hand's width of a floodlight, and the hard falloff
+ * is part of what makes it read as a modern fitting rather than a flame.
  */
 const LIGHT_INTENSITY = 60;
 const LIGHT_RANGE = 22;
@@ -137,12 +109,9 @@ export const floodlight: MeshBuilder = {
     aim(shaft);
     glow.push({
       geometry: shaft,
-      // Faded along the beam. Bright at the lens, nothing at the far end —
-      // which is the only way a visible shaft reads as air lit by a lamp
-      // instead of as a solid cone of plastic.
-      //
-      // Measured from the fixture in world space after the aim, so the ramp
-      // follows the beam whatever angle it was tilted to.
+      // Faded along the beam, bright at the lens and nothing at the far end, which
+      // is the only way a visible shaft reads as air lit by a lamp. Measured from
+      // the fixture in world space after the aim, so the ramp follows the beam.
       color: (x, y, z) => {
         const along = Math.hypot(x, y - mast, z) / throwLength;
         return dim(LIGHT_COLOR, 0.3 * Math.max(0, 1 - along) ** 1.6);

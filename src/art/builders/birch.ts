@@ -6,83 +6,23 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * Birch: a white pole with a thin, drooping crown near the top of it.
- *
- * The kit had one tree and every wood built from it was the same wood. Two
- * species is the smallest number that makes a treeline read as a *place* rather
- * than as a repeated asset, and birch is the obvious first one to add because
- * it is the only common tree you can identify from a distance at which you
- * cannot see a single leaf.
- *
- * **Three things carry it, in this order.**
- *
- * 1. *The trunk is white and most of the tree is trunk.* The render pipeline
- *    chunks to three-pixel blocks and quantizes; a pale vertical bar against
- *    dark foliage survives that intact when nothing about a leaf does. The
- *    trunk therefore runs to full height and is bare for the lower half.
- * 2. *It is narrow.* Crown spread is about half the height, where the broad
- *    deciduous next door is nearly as wide as it is tall. Silhouette is the
- *    only channel with any bandwidth left after quantization, and two trees
- *    that differ only in colour are one tree.
- * 3. *The outer twigs hang.* Birch branches climb and their fine ends fall back
- *    down, which is what gives the crown its ragged, weeping top edge. Leave
- *    that out and you have a poplar. Each branch now ends in one or two of
- *    those falling twigs rather than always one, because the crown has to be
- *    **open enough to see sky through**: a birch is the lightest-crowned tree
- *    in the wood, and the way to draw that is many small hanging masses, never
- *    a few big ones.
- *
- * ## Why the bands are geometry rather than a colour ramp
- *
- * The dark lenticel bands are made by **cutting the trunk into segments of
- * unequal length** — long pale ones, short dark ones — instead of colouring a
- * tall cylinder with a function of height. `Part.color` is sampled once per
- * face at its centroid, so on a cylinder with one row of faces up its side the
- * smallest band that can exist is the whole segment. Getting thin bands out of
- * that would mean subdividing the sides, which `rod` cannot do and which would
- * spend four times the triangles to draw a stripe that the chunking is going to
- * flatten to two pixels anyway. Varying the *cut* costs nothing: the segments
- * had to exist regardless.
- *
- * There are roughly three times as many cuts as there were. The first version
- * banded at a flat 30% per segment with every pale run half a metre or more,
- * which gives about three marks up a seven-metre trunk and a spacing regular
- * enough to read as a pattern. Real banding clusters: two or three scars within
- * a hand's width, then a long clean stretch, then nothing for a metre. That is
- * a two-state walk rather than a per-segment coin flip, and it is what the
- * loop below runs — the cluster size is rolled *after* a clean run so that a
- * failed roll gives two clean runs back to back and the gaps vary by more than
- * one draw's worth.
- *
- * Each segment is `rod`ded between two spine points and overrun into the next,
- * because two cylinders meeting at coplanar caps of equal radius put four
- * triangles on the same edge and the watertight check calls that a hole. The
- * overrun used to be a flat percentage of the segment, which was safe at half a
- * metre and is under three millimetres on a four-centimetre scar — so it now
- * has an absolute floor too. More stripes means more joints, and every joint is
- * a chance to open the trunk up.
- */
+// Birch: a white pole with a thin, drooping crown near the top of it. The trunk
+// runs to full height and is bare for the lower half; the crown spreads about half
+// the height; the outer twigs hang. The dark bands are cuts in the trunk rather
+// than a colour ramp, because `Part.color` is sampled once per face and a band
+// cannot be finer than a segment. Each segment overruns into the next, with an
+// absolute floor on the overrun as well as a proportional one.
 
 const TAU = Math.PI * 2;
 
 /**
- * Birch bark's own colours, kept local rather than added to `PALETTE`.
- *
- * Nothing else in the kit is this pale and nothing else wants to be — the
- * palette's job is to hold materials that recur, and "the specific white of one
- * species of tree" is a fact about this builder. `BIRCH_WHITE` is warm rather
- * than neutral so it separates from `STONE_PALE`, which it would otherwise sit
- * almost exactly on top of after quantization.
+ * Birch bark's own colours, kept local rather than added to `PALETTE`: the
+ * specific white of one species is a fact about this builder. Warm rather than
+ * neutral, so it separates from `STONE_PALE` after quantization.
  */
 const BIRCH_WHITE = 0xd7d2c3;
 const BIRCH_BAND = 0x3a352d;
-/**
- * The fissured black foot an old birch develops. Absent on `small-birch`.
- *
- * Used sparingly, and it was not before. See `foot` below — this colour over a
- * long enough stretch of trunk stops reading as bark at all.
- */
+/** The fissured black foot an old birch develops. Absent on `small-birch`, and used sparingly — over a long stretch it stops reading as bark at all. */
 const BIRCH_FOOT = 0x4b463d;
 
 export const birch: MeshBuilder = {
@@ -102,24 +42,13 @@ export const birch: MeshBuilder = {
     // self-prunes to well above head height, and it is the single measurement
     // that most affects whether the trunk reads at distance.
     const crownBase = height * rng.range(0.5, 0.6);
-    // How far up the black rough bark climbs — **a fixed short distance, not a
-    // fraction of the height.**
-    //
-    // It was `height * 0.06..0.13`, which on a tall roll is a metre and a half
-    // of unbroken dark at the bottom of a trunk whose entire job is the
-    // banding, and at that size it reads as a modelling error rather than as
-    // rough bark. A real birch does blacken at the very base, but by a few tens
-    // of centimetres, and it does it raggedly. Scaling it with the tree was the
-    // mistake: the foot of a birch is where the bark has been rubbed and
-    // cracked by things standing at ground level, and the ground is the same
-    // height whatever the tree is.
+    // A fixed short distance, not a fraction of the height: the foot of a birch is
+    // where the bark has been rubbed and cracked by things standing at ground
+    // level, and the ground is the same height whatever the tree is.
     const foot = rng.range(0.14, 0.38);
 
-    // The lean, as a closed form rather than an accumulated drift, so that a
-    // branch attached at any height can be put on the trunk by evaluating it
-    // rather than by remembering where the trunk got to. Accumulating was the
-    // first version and the branches sat a few centimetres off the bark near
-    // the top, which is exactly the failure `rod` exists to stop.
+    // The lean as a closed form rather than an accumulated drift, so a branch
+    // attached at any height is put on the trunk by evaluating it.
     const bendAt = rng.range(0, TAU);
     const bend = rng.range(0.08, 0.3);
     const spine = (y: number): THREE.Vector3 => {
@@ -141,24 +70,11 @@ export const birch: MeshBuilder = {
 
     // --- the trunk -----------------------------------------------------------
     //
-    // **The banding is painted per face, not cut per segment.** The previous
-    // version built a short rod for every mark and coloured each one whole,
-    // which can only ever produce a *ring*: the mark went the entire way round
-    // the trunk because the segment did. Forty of those up a pole is a zebra,
-    // and no amount of varying their spacing or their darkness fixes it,
-    // because the fault is the shape of the mark rather than its placement.
-    //
-    // Real birch lenticels are **streaks**. Each one is a short horizontal dash
-    // that wraps part of the way round and stops; a few run right round, and
-    // those are the minority. Getting that needs marks narrower than the trunk
-    // is round, which a whole-segment colour cannot express.
-    //
-    // It can be expressed, and the old header said otherwise — it claimed the
-    // smallest possible band on a rod is the whole segment. That is simply
-    // untrue: `assemble` evaluates `Part.color` **once per triangle**, at its
-    // centroid, so every face around the circumference can take its own colour.
-    // The trunk is therefore back to a few long segments, and the marks are a
-    // function of where a face sits.
+    // The banding is painted per face, not cut per segment. `assemble` evaluates
+    // `Part.color` once per triangle at its centroid, so every face around the
+    // circumference takes its own colour — which is what lets a lenticel be a short
+    // horizontal dash that wraps part of the way round and stops, rather than a
+    // ring going the whole way because the segment did.
     const streaks: { y: number; phi: number; half: number; tone: number }[] = [];
     {
       let at = foot;
@@ -169,14 +85,9 @@ export const birch: MeshBuilder = {
         const up = at / height;
         const rate = 0.8 - 0.3 * up;
         if (rng.chance(rate)) {
-          // How far round it goes, and this distribution is the whole point.
-          // Mostly a partial dash; sometimes broad; occasionally a true ring.
-          // Weighted toward the long arc rather than the short dash. Measured
-          // at the first attempt this ran 80% short, and that reads as flecks
-          // rather than as banding — the mark has to travel far enough round
-          // to be seen as a *ring with a break in it*, which is what a birch
-          // actually has. Roughly a third short, half long, a fifth closing
-          // right round.
+          // How far round it goes: roughly a third short, half long, a fifth closing
+          // right round. Weighted toward the long arc, because a mark has to travel
+          // far enough to read as a ring with a break in it rather than as a fleck.
           const roll = rng();
           const half =
             roll < 0.32
@@ -202,13 +113,7 @@ export const birch: MeshBuilder = {
     /** Half-height of a mark. Thin — a lenticel is a dash, not a belt. */
     const STREAK_H = 0.026;
 
-    /**
-     * Bark colour at a point on the trunk.
-     *
-     * Angle is measured about the spine at that height rather than about the
-     * world axis, so the marks stay put as the trunk leans away rather than
-     * sliding round it.
-     */
+    /** Bark colour at a point on the trunk. Angle is measured about the spine at that height rather than the world axis, so marks stay put as the trunk leans. */
     const bark = (x: number, y: number, z: number): number => {
       if (y < foot) {
         // The foot. Ragged rather than a slab: dark in patches, with pale
@@ -232,24 +137,11 @@ export const birch: MeshBuilder = {
       return shade(BIRCH_WHITE, 0.94 + Math.sin(y * 31 + x * 17) * 0.06);
     };
 
-    // **One cylinder with a real grid on it, not a stack of rods.**
-    //
-    // Painting per face only helps if the faces are small enough to paint on.
-    // Built as rods the trunk had six sides and 36 cm segments, so the smallest
-    // paintable area was a sixty-degree quad a third of a metre tall — and a
-    // "streak" came out as one enormous triangle pair down the side of the
-    // tree. The mark cannot be finer than the mesh, and the mesh was coarse in
-    // both directions at once.
-    //
-    // So: one closed cylinder, subdivided around *and* up, then bent and
-    // tapered by moving its vertices. That gives rows about nine centimetres
-    // tall and faces about twenty-six degrees wide, which is fine enough for a
-    // band to read as a band and for it to stop part of the way round.
-    //
-    // A vertical stack of separate rods could not have done this at any
-    // subdivision, because each rod needs its own cap rings and an overrun into
-    // the next; eighty of them is eighty pairs of caps buried in the trunk.
-    // One cylinder has two.
+    // One closed cylinder with a real grid on it, subdivided around and up, then
+    // bent and tapered by moving its vertices — rows about nine centimetres tall and
+    // faces about twenty-six degrees wide. A mark cannot be finer than the mesh, and
+    // a stack of rods is coarse in both directions and buries cap rings at every
+    // joint; one cylinder has two.
     const RADIAL = 14;
     const rows = Math.max(24, Math.round(height / 0.09));
     const trunk = new THREE.CylinderGeometry(1, 1, height, RADIAL, rows, false);
@@ -269,14 +161,10 @@ export const birch: MeshBuilder = {
     parts.push({ geometry: trunk, color: bark, sway: heightRamp(0, height, 2.4) });
 
     // --- branches and the crown ---------------------------------------------
-    //
-    // The whole crown is drawn *lighter* than it was: more branches, each
-    // carrying one or two thin falling twigs instead of always one, and every
-    // leaf clump about a fifth smaller. The old crown had the right shape and
-    // was too solid — the sag and the taper were there but the masses hanging
-    // off the twigs met each other, and a birch you cannot see sky through is
-    // just a narrow tree. Subdividing the same volume of leaf into more, smaller
-    // pieces buys the gaps back without changing the outline.
+    // Many branches, each carrying one or two thin falling twigs, and small leaf
+    // clumps: a birch you cannot see sky through is just a narrow tree, and
+    // subdividing the same volume of leaf buys the gaps back without changing the
+    // outline.
     const branches = rng.int(8, 11);
     const lean = rng.range(0, TAU);
     const leaf = rng.chance(0.3) ? PALETTE.LEAF_DRY : PALETTE.LEAF;
@@ -290,11 +178,8 @@ export const birch: MeshBuilder = {
       // fourth branch on the same side and the crown comes out with flat faces
       // in it; an irrational step never repeats.
       const bearing = lean + i * 2.399963 + rng.around(0, 0.45);
-      // Shorter toward the top, which is what tapers the crown instead of
-      // leaving it a cylinder — and the falloff is steeper than linear now, so
-      // the last third of the crown is genuinely fine rather than merely
-      // shorter. A birch does not end in a point so much as thin out of
-      // existence.
+      // Shorter toward the top, falling off steeper than linear, so the last third
+      // of the crown is genuinely fine. A birch thins out of existence.
       const reach = (0.45 + 0.85 * (1 - t) ** 1.2) * rng.range(0.85, 1.12);
       // Steeply up. The droop happens further out, at the twig.
       const rise = rng.range(0.85, 1.2);
@@ -310,21 +195,16 @@ export const birch: MeshBuilder = {
         sway: heightRamp(0, height, 1.5),
       });
 
-      // The twigs, and the whole reason this is a birch: out further and
-      // *falling*. Everything hanging off them inherits the sag. Half the
-      // branches fork into two, which is what a birch actually does and is also
-      // the cheapest airiness there is — two thin hanging lines with a gap
-      // between them, instead of one thicker one.
+      // The twigs, and the whole reason this is a birch: out further and falling.
+      // Half the branches fork into two, which is the cheapest airiness there is.
       const twigs = rng.chance(0.55) ? 2 : 1;
       for (let w = 0; w < twigs; w++) {
         // The second twig is thrown well off the branch's bearing so a pair
         // reads as a fork rather than as one twig drawn twice.
         const aside = w === 0 ? 0 : rng.chance(0.5) ? 0.8 : -0.8;
         const swing = bearing + rng.around(aside, 0.35);
-        // Steeper than it was. The drooping tip is most of what says "birch"
-        // at the distance the render pipeline leaves you with, and at the old
-        // shallow angles half the twigs were near enough level to read as a
-        // hazel's.
+        // Steep. The drooping tip is most of what says birch at the distance the
+        // pipeline leaves you with; near-level twigs read as a hazel's.
         const droop = rng.range(-0.85, -0.35);
         const twigLength = reach * rng.range(0.6, 0.95);
         const end = new THREE.Vector3(
@@ -332,20 +212,11 @@ export const birch: MeshBuilder = {
           tip.y + Math.sin(droop) * twigLength,
           tip.z + Math.sin(swing) * Math.cos(droop) * twigLength,
         );
-        // Started back down the branch rather than at its tip, and a shade
-        // fatter, so the twig sleeves over the branch instead of butting onto
-        // it. Two rods meeting end to end at the same radius put identical
-        // rings in the same place whenever their directions agree closely
-        // enough, and four triangles on one edge fails the watertight check. It
-        // showed up on `small-birch` seed 16 and on nothing in the first four
-        // seeds tried — which is why the sweep runs to fifteen hundred.
-        //
-        // **The two twigs of a pair must not share a joint either**, for
-        // exactly the same reason: same point, same radius, and any seed that
-        // happens to line their directions up opens a hole. Each gets its own
-        // depth down the branch and its own radius, and both radii still clear
-        // the branch's radius where they sit on it (0.170 at a tenth back,
-        // 0.172 at a fifth), or the sleeve would be inside out.
+        // Started back down the branch and a shade fatter, so the twig sleeves over
+        // it rather than butting on: two rods meeting end to end at the same radius
+        // put identical rings in the same place whenever their directions agree. The
+        // two twigs of a pair must not share a joint either, so each gets its own
+        // depth and radius, both still clearing the branch where they sit.
         const back = w === 0 ? 0.1 : 0.2;
         const joint = tip.clone().lerp(root, back);
         parts.push({

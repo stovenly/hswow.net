@@ -5,18 +5,8 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A rock: one icosahedron with its vertices shoved about.
- *
- * Displacing the vertices of a regular solid is the whole trick. An
- * undisplaced icosahedron is unmistakably a die; the same shape with each
- * vertex pushed a random distance along its own normal is unmistakably a rock,
- * and it costs one loop.
- *
- * Sunk slightly below the origin so it sits *in* the ground rather than on it.
- * Rocks resting exactly on a plane look like they were dropped there, which
- * they were.
- */
+// A rock: one icosahedron with its vertices shoved about along their own normals.
+// Sunk slightly below the origin, so it sits in the ground rather than on it.
 export const rock: MeshBuilder = {
   name: 'rock',
   category: 'nature',
@@ -30,19 +20,12 @@ export const rock: MeshBuilder = {
     // too few to displace into anything but a lump.
     const raw = new THREE.IcosahedronGeometry(size, size > 0.7 ? 1 : 0);
 
-    // **Welded before displacement, and this is the whole builder.**
-    //
-    // `IcosahedronGeometry` is non-indexed: every triangle carries its own
-    // three vertices, so a corner shared by five faces exists five times over
-    // at identical coordinates. Displacing those copies independently pulls
-    // them apart and the solid comes to pieces — a cloud of loose triangles.
-    //
-    // `mergeVertices` welds them, but only if they match in *every* attribute,
-    // and a flat-shaded polyhedron is built so that they never do: each face
-    // gives its corners that face's own normal, and the UV seam gives them
-    // different texture coordinates too. Both have to go before the weld will
-    // take. Neither is a loss — normals are recomputed below, and there is not
-    // a texture anywhere in this project.
+    // Welded before displacement, and this is the whole builder.
+    // `IcosahedronGeometry` is non-indexed, so a corner shared by five faces exists
+    // five times over at identical coordinates and displacing the copies pulls the
+    // solid to pieces. `mergeVertices` only welds vertices matching in every
+    // attribute, and a flat-shaded polyhedron gives each face's corners its own
+    // normal — so the normals and the UVs go first.
     raw.deleteAttribute('normal');
     raw.deleteAttribute('uv');
     const geometry = mergeVertices(raw);

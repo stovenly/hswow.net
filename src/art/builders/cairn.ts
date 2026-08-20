@@ -5,18 +5,9 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng, type Rng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A cairn: stones stacked by hand, each smaller than the one beneath.
- *
- * Someone built this. That is the entire content of the object, and it is why
- * a cairn is worth having in a kit that already has rocks — a rock is
- * geology, a stack of rocks is evidence. Placed at a junction or a summit it
- * does more narrative work than a signpost, without saying anything.
- *
- * Each stone is welded before displacement for the same reason the rock
- * builder is: `IcosahedronGeometry` is non-indexed, and moving unwelded copies
- * of a shared corner pulls the surface apart.
- */
+// A cairn: stones stacked by hand, each smaller than the one beneath. Each stone
+// is welded before displacement, or the shared corners of the non-indexed
+// icosahedron pull the surface apart.
 function stone(rng: Rng, radius: number): THREE.BufferGeometry {
   const raw = new THREE.IcosahedronGeometry(radius, 0);
   raw.deleteAttribute('normal');

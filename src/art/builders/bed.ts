@@ -4,23 +4,9 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A bed: a frame, something to lie on, and a covering.
- *
- * The bedding is the point. A bare frame with a slab on it is a workbench, and
- * what makes a bed read as a bed — as somewhere a person sleeps — is that the
- * top of it is soft and uneven. So the mattress is displaced along its length
- * rather than left flat, the blanket is a separate shell that stops short of
- * the head, and a pillow bunches up at one end.
- *
- * Which end the head is at is rolled once and every other feature keyed off it,
- * so the pillow, the turned-down blanket and the taller board always agree
- * about which way the bed faces. Getting that wrong produces a bed with a
- * pillow at the foot, which is the sort of thing nobody can name but everybody
- * notices.
- *
- * Built lying along **Z**, head toward -Z after the roll is applied.
- */
+// A bed: a frame, a mattress displaced along its length, a blanket stopping short
+// of the head, and a pillow bunched at one end. Which end the head is at is rolled
+// once and every other feature keyed off it. Built lying along Z, head toward −Z.
 export const bed: MeshBuilder = {
   name: 'bed',
   category: 'furniture',
@@ -83,9 +69,8 @@ export const bed: MeshBuilder = {
     }
 
     // --- mattress ------------------------------------------------------------
-    // Segmented along its length and each segment at its own height, so the
-    // top surface sags and rises the way a straw tick does. One box here reads
-    // as a shelf no matter what colour it is.
+    // Segmented along its length, each segment at its own height, so the top sags
+    // and rises the way a straw tick does. One box reads as a shelf.
     const mattressTop = frameHeight + rng.range(0.14, 0.2);
     const segments = 6;
     const segmentLength = (length - 0.1) / segments;
@@ -95,13 +80,9 @@ export const bed: MeshBuilder = {
       const along = head < 0 ? i / (segments - 1) : 1 - i / (segments - 1);
       const loft = 1 - 0.22 * Math.sin(along * Math.PI) * rng.range(0.4, 1);
       const height = (mattressTop - frameHeight * 0.72) * loft;
-      // Overlapped by a few percent rather than butted end to end.
-      //
-      // Exactly abutting segments share their corner vertices, and the
-      // watertightness check welds before counting — so those edges come out
-      // belonging to four triangles instead of two and the whole mesh reads as
-      // unclosed. Interpenetrating boxes each stay closed in their own right,
-      // and at this overlap nothing is visible either way.
+      // Overlapped by a few percent rather than butted end to end: exactly abutting
+      // segments share their corner vertices, and those edges come out belonging to
+      // four triangles instead of two.
       const slab = new THREE.BoxGeometry(
         width - railThickness * 1.4,
         height,

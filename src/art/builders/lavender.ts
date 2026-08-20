@@ -2,23 +2,11 @@ import * as THREE from 'three';
 import type { Part } from '../assemble';
 import { species, type HeadContext } from '../flower';
 
-/**
- * Lavender: a mound of narrow spikes, each a stack of whorls.
- *
- * A garden and dooryard plant rather than a wild one, which is the point — it
- * is the first flower in the kit that says *somebody planted this*, and a
- * cottage with a lavender bed outside it reads as tended in a way no amount of
- * fence and path can manage.
- *
- * **A narrow bottlebrush on a long bare stalk.** The gap matters as much as the
- * head: two thirds of every spike is naked stem, so a clump reads as a hedge of
- * vertical lines with colour only at the top. Flowering all the way down would
- * make it a foxglove.
- *
- * The whorls are the second half of it — the head is not continuous, it is
- * rings of tiny flowers with visible gaps between them, and that stacking is
- * what separates lavender from every other spike at close range.
- */
+// Lavender: a mound of narrow spikes, each a stack of whorls — the first flower
+// in the kit that says somebody planted this. Two thirds of every spike is naked
+// stem, so a clump reads as vertical lines with colour only at the top; flowering
+// all the way down would make it a foxglove. The head is rings of tiny flowers
+// with visible gaps between them.
 function lavenderSpike({ axis, height, rng }: HeadContext): Part[] {
   const parts: Part[] = [];
   // Flowers only over the top third.
@@ -29,14 +17,9 @@ function lavenderSpike({ axis, height, rng }: HeadContext): Part[] {
   for (let i = 0; i < whorls; i++) {
     const t = from + ((1 - from) * (i + 0.4)) / whorls;
     const at = axis(t);
-    // Tapered, but only near the top.
-    //
-    // It fell away linearly from the first whorl, which gives a cone — and a
-    // lavender spike is not a cone, it is a near-parallel bottlebrush that
-    // gathers to a point in its last few rings. The exponent is what does that:
-    // the ramp stays close to 1 over the lower two thirds and only bites at the
-    // tip. Held to a fifth, because the taper is a *finish* on the shape rather
-    // than the shape itself.
+    // Tapered, but only near the top: a lavender spike is a near-parallel
+    // bottlebrush that gathers to a point in its last few rings, not a cone. The
+    // exponent keeps the ramp close to 1 over the lower two thirds.
     const u = (t - from) / (1 - from);
     const size = height * 0.028 * (1 - u ** 2.6 * 0.42);
 

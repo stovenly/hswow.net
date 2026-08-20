@@ -4,26 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A fern: arched fronds, each one a rib hung with paired leaflets.
- *
- * The plant that makes a wood look like a wood rather than trees on a lawn.
- * Grass covers open ground; this covers *shaded* ground, and the two are almost
- * never in the same place.
- *
- * **A frond is not a blade, and the first version built it as one.** A tapered
- * cone bent over is a leaf — a single continuous shape with a smooth outline —
- * and a fern read as a clump of oversized grass because of it. What actually
- * identifies a fern is that its outline is *serrated*: a bare midrib with rows
- * of small leaflets stepping off it at right angles, so the silhouette has
- * teeth all the way along. That has to be geometry. There are no textures here
- * and no alpha, so a feathered edge is either modelled or absent.
- *
- * Cost is the reason it was avoided and the reason it is affordable now: the
- * ribs are four short segments each, and a leaflet is a three-sided cone
- * flattened to a fin. Seven fronds comes to a few hundred triangles, which is
- * less than the bramble and about the same as a single flower clump.
- */
+// A fern: arched fronds, each a bare midrib with rows of small leaflets stepping
+// off it at right angles. The serrated outline is what identifies it, and it has
+// to be geometry — there are no textures and no alpha here. Four short segments to
+// a rib, and a leaflet is a three-sided cone flattened to a fin.
 export const fern: MeshBuilder = {
   name: 'fern',
   category: 'foliage',
@@ -36,18 +20,10 @@ export const fern: MeshBuilder = {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
-    // **Wider on both counts.** A rank of these came out as one plant at one
-    // size: six to nine fronds is a two-thirds spread at best, and 0.42–0.72
-    // means the largest is under twice the smallest — neither is enough to
-    // read as variety when eight of them stand side by side.
-    //
-    // A real stand of ferns is mostly *young* plants with a few big ones over
-    // them, so the size roll is skewed rather than flat: squaring a uniform
-    // draw puts twice as many at the small end, which is what a colony looks
-    // like. The frond count then follows the size, because a small fern is not
-    // a big fern shrunk — it is a big fern with fewer fronds on it, and letting
-    // the two vary independently is what produced dense little pincushions and
-    // sparse giants in the same row.
+    // A real stand of ferns is mostly young plants with a few big ones over them,
+    // so the size roll is skewed rather than flat — squaring a uniform draw puts
+    // twice as many at the small end. The frond count follows the size: a small
+    // fern is a big fern with fewer fronds, not a big fern shrunk.
     const vigour = rng() ** 2;
     const reach = 0.3 + vigour * 0.62;
     const fronds = Math.max(3, Math.round(4 + vigour * 8 + rng.around(0, 1.2)));

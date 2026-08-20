@@ -4,24 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * An anvil on a stump.
- *
- * Built because the hammer scatter field in Arkstin had nothing standing under
- * it — a blow every thirteen seconds out of an empty yard, which reads as a
- * fault rather than as a smith.
- *
- * **The stump is part of the anvil, not scenery beside it.** An anvil is
- * roughly knee-high on its own and belongs at knuckle height, so a real one is
- * always mounted; modelled without its block it lies on the ground looking like
- * a discarded tool. Mounting it also puts the face at about 0.75 m, which is
- * where the sound should come from — and the emitter is placed off this mesh,
- * so the block is what makes the height correct rather than guessed.
- *
- * The silhouette is four numbers: a wide foot, a waist pinched well in, a face
- * longer than it is anything else, and a horn. Miss the waist and it is a
- * doorstop.
- */
+// An anvil on its stump. Mounted rather than bare: an anvil is knee-high on its
+// own and belongs at knuckle height, and the block is what puts the face at about
+// 0.75 m, which is where the sound emitter is placed from. The silhouette is a
+// wide foot, a waist pinched well in, a long face and a horn.
 export const anvil: MeshBuilder = {
   name: 'anvil',
   category: 'objects',
@@ -37,10 +23,8 @@ export const anvil: MeshBuilder = {
     const faceWidth = rng.range(0.12, 0.16);
     const iron = shade(PALETTE.IRON, rng.range(0.88, 1.06));
 
-    // Slightly wider at the foot than the top, and only eight-sided: this is a
-    // sawn log, and a log that has been stood on end for twenty years spreads
-    // and splits. Six segments read as a hexagonal post, twelve as a lathe
-    // turning — eight is the count that reads as timber.
+    // Slightly wider at the foot than the top, and eight-sided: six reads as a
+    // hexagonal post, twelve as a lathe turning, and eight as sawn timber.
     const stump = new THREE.CylinderGeometry(stumpRadius, stumpRadius * 1.12, stumpHeight, 8);
     stump.translate(0, stumpHeight / 2, 0);
     parts.push({ geometry: stump, color: PALETTE.TIMBER_DARK, sway: 0 });
@@ -95,11 +79,5 @@ export const anvil: MeshBuilder = {
   },
 };
 
-/**
- * How high above the anvil's base the face sits, for placing the strike sound.
- *
- * A range rather than a number, because the stump and the courses above it are
- * both rolled — so this is the middle of it, which is within a few centimetres
- * of any instance and close enough for something you hear rather than see.
- */
+/** How high above the anvil's base the face sits, for placing the strike sound. The middle of the rolled range. */
 export const ANVIL_FACE_HEIGHT = 0.78;

@@ -4,26 +4,12 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A louvred vent: a housing, a hood, and a stack of angled blades.
- *
- * **It has no base, and should not.** The first version stood on a short duct so
- * it would hold itself up in a gallery, which is not a thing a vent does — they
- * are set into walls, and a floor-mounted one reads as a radiator. It is built
- * about a fixed height instead and simply hangs there in an empty room, which
- * is the honest picture of a fitting waiting for a wall.
- *
- * **The blades have to overlap, and the overlap has to be visible.** A louvre
- * whose slats sit edge to edge in one plane is a grille, and reads as a flat
- * panel with lines drawn on it. Real ones step *back* as they go up so rain
- * cannot drive through, which means each blade throws a shadow onto the one
- * below and the whole face has depth in it. That stagger is two extra numbers
- * and it is the difference between a vent and a decal.
- *
- * The blades are boxes rather than a single subdivided surface because the gaps
- * between them are the point: something built as one mesh would need holes cut
- * in it, and there is no constructive solid geometry here.
- */
+// A louvred vent: a housing, a hood, and a stack of angled blades. No base: vents
+// are set into walls, and a floor-mounted one reads as a radiator, so it is built
+// about a fixed height and hangs there. The blades step back as they go up, so
+// each throws a shadow onto the one below and the face has depth — a louvre whose
+// slats sit edge to edge in one plane is a grille. Boxes rather than one
+// subdivided surface, because the gaps between them are the point.
 export const vent: MeshBuilder = {
   name: 'vent',
   category: 'structures',
@@ -49,9 +35,8 @@ export const vent: MeshBuilder = {
     const top = base + faceH;
 
     // --- the housing ---------------------------------------------------------
-    //
-    // Four sides of frame, and no back or front — the blades fill the front and
-    // the back is open because that is where the air comes from.
+    // Four sides of frame, and no back or front: the blades fill the front, and the
+    // back is open because that is where the air comes from.
     for (const side of [-1, 1]) {
       const jamb = new THREE.BoxGeometry(frame, faceH, depth);
       jamb.translate((side * (width - frame)) / 2, base + faceH / 2, 0);
@@ -66,9 +51,8 @@ export const vent: MeshBuilder = {
     }
 
     // --- the hood ------------------------------------------------------------
-    //
-    // A weather lip proud of the head. Small, and it is what stops the top of
-    // the housing reading as a cut edge.
+    // A weather lip proud of the head, and what stops the top of the housing reading
+    // as a cut edge.
     const hood = new THREE.BoxGeometry(width * 1.14, frame * 0.8, depth * 1.5);
     hood.rotateX(-0.14);
     hood.translate(0, top + frame * 0.4, depth * 0.2);

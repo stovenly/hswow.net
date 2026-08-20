@@ -4,17 +4,10 @@ import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
 
-/**
- * Cattle. Long and boxy, short in the leg, head carried low.
- *
- * A little under a real cow — about 1.4 m nose to tail rather than two
- * metres. At full size it dwarfed the village and the villagers beside it.
- *
- * The profile is a rectangle with a sagging belly and a high tail-head, on a
- * six-sided loft so the spine reads as a ridge and the belly as a slab. Black
- * and white, because a brown cow and a brown horse at forty metres are the
- * same animal.
- */
+// Cattle: long and boxy, short in the leg, head carried low, about 1.4 m nose to
+// tail rather than a real cow's two. A rectangle with a sagging belly and a high
+// tail-head on a six-sided loft. Black and white, because a brown cow and a brown
+// horse at forty metres are the same animal.
 const BOVINE: Species = {
   length: [1.3, 1.56],
   girth: [0.58, 0.72],

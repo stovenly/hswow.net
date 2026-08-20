@@ -2,17 +2,10 @@ import type { BuilderWith } from '../types';
 import { buildColumn, type StoneWallColumnOptions } from './stone-wall-square-column';
 import { LOW, TALL } from './stone-wall';
 
-/**
- * A five-sided pier: the gentle turn, and the one with choices. A run bends
- * 36°, 72° or 108° depending which pair of faces it uses, which covers the
- * shallow bends a field boundary is mostly made of.
- *
- * Same face width as the others, so it is the largest of the three — a
- * pentagon's apothem is two thirds of its face. Reads as nearly round at any
- * distance, which suits a bend.
- *
- * Standing on y = 0, centred on the origin, face 0 looking along +X.
- */
+// A five-sided pier: the gentle turn, and the one with choices — a run bends 36°,
+// 72° or 108° depending which pair of faces it uses. Same face width as the
+// others, so it is the largest of the three, and it reads as nearly round at any
+// distance. Standing on y = 0, centred on the origin, face 0 looking along +X.
 export const stoneWallPentagonColumn: BuilderWith<StoneWallColumnOptions> = {
   name: 'stone-wall-pentagon-column',
   category: 'structures',

@@ -4,37 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A chest of drawers: a plain carcass on a plinth, four to six drawers, knobs.
- *
- * **This was a Welsh dresser and that was overbuilt.** The first version had a
- * base cupboard, an upper stage of open shelves stepped back from it, and
- * crockery standing on the shelves — on the argument that empty shelves read as
- * flat-pack and that the plates were the second half of the silhouette. Every
- * word of that is true of a *kitchen* dresser, and a kitchen dresser is not
- * what a hut needed. What was wanted is the thing you put clothes in.
- *
- * So: no upper stage, no shelves, no crockery. A box with drawer fronts on it.
- *
- * The restraint is the point rather than a saving. The room already has a
- * fireplace, a stove, a spinning wheel, a chest, a washtub and a rack of herbs
- * in it, and if every one of them is the most elaborate version of itself then
- * nothing reads as *background* — a room needs plain things in it for the
- * interesting ones to be interesting against.
- *
- * ## What carries it at three-pixel blocks
- *
- * The horizontal lines between the drawers, and very little else. So the fronts
- * are boards standing **proud** of the carcass rather than recesses cut into it
- * — there is no constructive solid geometry here and none is wanted, and a
- * board on the outside is what a drawer front actually is. The shadow line
- * under each proud edge is what survives the quantizer.
- *
- * Knobs are the one indulgence and they earn it by breaking the outline: a
- * front face with nothing on it reads as a painted panel at any distance.
- *
- * Built with its back at z = 0, projecting toward +Z, standing on y = 0.
- */
+// A chest of drawers: a plain carcass on a plinth, four to six drawers, knobs.
+// The horizontal lines between the drawers are what carries it at three-pixel
+// blocks, so the fronts are boards standing proud of the carcass rather than
+// recesses cut into it — the shadow line under each proud edge is what survives
+// the quantizer. Built with its back at z = 0, projecting toward +Z, on y = 0.
 export const dresser: MeshBuilder = {
   name: 'dresser',
   category: 'furniture',
@@ -58,11 +32,9 @@ export const dresser: MeshBuilder = {
     const topT = rng.range(0.03, 0.045);
 
     // --- plinth, carcass, top -------------------------------------------------
-    //
-    // Each overlaps its neighbour rather than meeting on a plane. Two boxes
-    // sharing a face share its corners, and a shared corner makes edges
-    // belonging to four triangles instead of two — the mesh stops being closed
-    // even though nothing about it looks wrong.
+    // Each overlaps its neighbour rather than meeting on a plane: two boxes sharing
+    // a face share its corners, and a shared corner makes edges belonging to four
+    // triangles instead of two.
     const plinth = new THREE.BoxGeometry(width * 0.96, plinthH, depth * 0.94);
     plinth.translate(0, plinthH / 2, depth / 2);
     parts.push({ geometry: plinth, color: shade(trim, 0.86), sway: 0 });
@@ -81,10 +53,8 @@ export const dresser: MeshBuilder = {
     parts.push({ geometry: top, color: shade(trim, rng.range(0.95, 1.08)), sway: 0 });
 
     // --- the drawers ----------------------------------------------------------
-    //
-    // Graded: the bottom drawer is deepest and they shallow toward the top,
-    // which is how a real chest is made — heavy things low down — and is what
-    // stops the front reading as a set of equal stripes.
+    // Graded, deepest at the bottom: how a real chest is made, and what stops the
+    // front reading as a set of equal stripes.
     const rows = rng.int(4, 6);
     const faceZ = depth + rng.range(0.012, 0.02);
     const inset = rng.range(0.02, 0.035);

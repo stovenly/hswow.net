@@ -3,20 +3,10 @@ import { PALETTE, shade } from '../palette';
 import type { MeshBuilder } from '../types';
 import type { VariantName } from '../recipes';
 
-/**
- * One orb and one column per recipe look.
- *
- * **One file, not fifty.** Each of these was its own two-line module — twelve
- * files for six recipes, and twenty-five looks under the same rule would be
- * fifty. That is the bloat this whole refactor exists to prevent, reproduced on
- * the gallery side: a look is a table row in the shader and it should be a
- * table row here too.
- *
- * The body colour is the one thing that genuinely varies per look and cannot
- * come from the recipe, because the recipe is what happens *to* a surface and
- * this is the surface. Most of them share their field's, and the ones that do
- * not say why.
- */
+// One orb and one column per recipe look, in one file rather than fifty: a look
+// is a table row in the shader and it is a table row here too. The body colour is
+// the one thing that genuinely varies per look and cannot come from the recipe,
+// because the recipe is what happens to a surface and this is the surface.
 
 interface Fixture {
   readonly variant: VariantName;
@@ -42,22 +32,17 @@ const FIXTURES: readonly Fixture[] = [
   { variant: 'slowbrass', color: shade(PALETTE.GOLD, 0.82) },
   { variant: 'stillglass', color: shade(PALETTE.CHROME, 0.74) },
 
-  // tenebrescent, and **this is where the grey was coming from**. The burn
-  // *multiplies* the prop's diffuse, so wherever the ramp is pale the body's own
-  // colour is what you see — and two of these three were standing on
-  // `STONE_PALE`, which is grey. Verdigrist never looked grey for exactly one
-  // reason: its body is `PATINA`, a green stone. So all three now stand on a
-  // muted stone in their own hue, at PATINA's value, and the pale face is a
-  // pale *colour* rather than an absence of one.
+  // tenebrescent. The burn multiplies the prop's diffuse, so wherever the ramp is
+  // pale the body's own colour is what you see: all three stand on a muted stone in
+  // their own hue, so the pale face is a pale colour rather than an absence of one.
   { variant: 'violetbloom', color: 0x6a5878 },
   { variant: 'emberstone', color: 0x7a5238 },
   { variant: 'verdigrist', color: PALETTE.PATINA },
 
-  // nacreous, over a pale body and a dark one. **The body is the whole
-  // difference between these two** — the wash is laid over whatever colour the
-  // prop is, so the same field reads as a pearl on cream and as a black pearl on
-  // near-black. Not `INK`, which is a warm brown-black; this is a cool one, so
-  // the green in the sheen has something to be green against.
+  // nacreous, over a pale body and a dark one — the body is the whole difference
+  // between these two, since the wash is laid over whatever colour the prop is. A
+  // cool black rather than `INK`, so the green in the sheen has something to be
+  // green against.
   { variant: 'nacreous', color: shade(PALETTE.WOOL, 1.22) },
   { variant: 'lunacreous', color: 0x1d1f26 },
 
@@ -88,13 +73,10 @@ for (const { variant, color } of FIXTURES) {
 }
 
 /**
- * A look's orb and column.
- *
- * Two fixtures, and the first gallery settled which two: an orb presents every
- * angle at once, which is what makes it the thing to tune a lobe against, and a
- * column is where a finish is read across large flat faces. Half of what is in
- * this wing is view-dependent across a surface rather than across an angle, so
- * both are needed.
+ * A look's orb and column. An orb presents every angle at once, which is what
+ * makes it the thing to tune a lobe against, and a column is where a finish is
+ * read across large flat faces. Half of this wing is view-dependent across a
+ * surface rather than across an angle, so both are needed.
  */
 export function variantOrb(variant: VariantName): MeshBuilder {
   const found = ORBS.get(variant);

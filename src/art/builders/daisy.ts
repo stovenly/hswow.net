@@ -1,12 +1,8 @@
 import { species } from '../flower';
 
-/**
- * Daisies: low, small-headed, many, and open flat.
- *
- * The commonest thing in any patch of rough grass, and the one most likely to
- * be seen from directly above — which is why the petals barely cup. A daisy
- * that curls its petals up is a marguerite and looks wrong on a lawn.
- */
+// Daisies: low, small-headed, many, and open flat. Most likely to be seen from
+// directly above, which is why the petals barely cup — a daisy that curls its
+// petals up is a marguerite.
 export const daisy = species(
   'daisy',
   {

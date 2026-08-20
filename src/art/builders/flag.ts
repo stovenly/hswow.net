@@ -6,14 +6,9 @@ import { PALETTE, shade } from '../palette';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel } from '../clothMesh';
 
-/**
- * A flag on a pole.
- *
- * The liveliest of the hanging props: sheer fabric pinned along its hoist, so
- * it streams in wind, seeks alignment and flutters about it — the flutter
- * emerging from the dynamics rather than from an authored sine. Built with
- * the fly reaching +X, standing on y = 0.
- */
+// A flag on a pole: sheer fabric pinned along its hoist, so it streams in wind,
+// seeks alignment and flutters about it — the flutter emerging from the dynamics
+// rather than from an authored sine. Built with the fly reaching +X, on y = 0.
 
 export interface FlagOptions extends BuildOptions {
   /** A `FABRICS` name. */

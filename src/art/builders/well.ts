@@ -5,41 +5,14 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { pointing, stoneColours, throughStone, patch } from '../masonry';
 
-/**
- * A town well: a coped drum, two posts, a roof over it and a crank to wind the
- * bucket up.
- *
- * `cistern` is a tank — a thing water is kept *in*, standing against a wall.
- * This is the other half of the idea and the more useful one: the place a
- * village goes. It is the one piece of the exterior kit that is a **destination**
- * rather than dressing, which is worth having for the same reason the bell is —
- * a settlement reads as inhabited when its objects imply people using them, and
- * nothing implies that like a thing you have to walk to and work.
- *
- * ## Round, and it costs almost nothing to be
- *
- * Ten sides on the drum. A well is the only masonry in the kit that is curved,
- * and squaring it off would be the cheapest possible saving and the most
- * obviously wrong — a square well head reads as a planter. The stones are laid
- * as courses of `throughStone`, the same primitive the wall's coping uses, each
- * course turned a little on the one below so the joints break.
- *
- * ## The roof is what makes it a *town* well
- *
- * A hole in the ground with a wall round it is a well. A hole with a roof over
- * it is a well somebody maintains, which is a statement about the place rather
- * than about the hole. Two posts, a pair of rafters, a ridge and boards over —
- * deliberately crude joinery, because a village does not employ a carpenter to
- * roof a well.
- *
- * ## And the crank has to be usable
- *
- * The winch is the detail the eye goes to, so it is the one part built properly:
- * a barrel between the posts, a rope wound onto it, a handle cranked out to one
- * side at a height a person could actually reach, and a bucket hanging on the
- * rope. The handle is offset from the axle by a real throw and turned to a real
- * angle — a crank drawn in line with its own axle is a stick.
- */
+// A town well: a coped drum, two posts, a roof over it and a crank to wind the
+// bucket up — the one piece of the exterior kit that is a destination rather than
+// dressing. Ten sides on the drum, because a square well head reads as a planter;
+// the stones are courses of `throughStone`, each course turned a little on the one
+// below so the joints break. The roof is deliberately crude joinery. The winch is
+// the detail the eye goes to, so the handle is offset from the axle by a real
+// throw and turned to a real angle — a crank drawn in line with its axle is a
+// stick.
 export const well: MeshBuilder = {
   name: 'well',
   category: 'structures',
@@ -63,10 +36,9 @@ export const well: MeshBuilder = {
     const iron = shade(PALETTE.IRON, rng.range(0.9, 1.1));
 
     // --- the drum ------------------------------------------------------------
-    //
-    // Courses of through stones round a ring, each course turned so the joints
-    // of one land in the middle of the stones below it. That break is the whole
-    // difference between coursed masonry and a stack of identical rings.
+    // Courses of through stones round a ring, each course turned so the joints of
+    // one land in the middle of the stones below it. That break is the difference
+    // between coursed masonry and a stack of identical rings.
     const courses = rng.int(3, 4);
     const courseH = stand / courses;
     for (let c = 0; c < courses; c++) {
@@ -74,13 +46,10 @@ export const well: MeshBuilder = {
       const low = c * courseH;
       for (let i = 0; i < sides; i++) {
         const angle = twist + (i / sides) * Math.PI * 2;
-        // Each stone is a wedge of the ring, cut in the plane of the wall and
-        // then stood up and swung round to its bearing.
-        //
-        // Wider than its share of the ring: the flat is the *chord*, not the
-        // arc, and `throughStone` then beds in half a joint and chamfers the
-        // corners on top of that. Overlapping neighbours are invisible; daylight
-        // between them is not.
+        // Each stone is a wedge of the ring, cut in the plane of the wall and then
+        // stood up and swung round to its bearing. Wider than its share of the ring:
+        // the flat is the chord, not the arc, and `throughStone` beds in half a joint
+        // and chamfers the corners on top of that.
         const chord = 2 * outer * Math.sin(Math.PI / sides);
         const across = chord * 1.1 + point.joint;
         const stone = throughStone(
@@ -162,10 +131,8 @@ export const well: MeshBuilder = {
     }
 
     // --- the winch -----------------------------------------------------------
-    //
-    // The barrel runs through both posts, and further through the near one to
-    // carry the crank. Asymmetric because only one end has a crank on it — even
-    // ends leave a stub of bare axle attached to nothing.
+    // The barrel runs through both posts and further through the near one to carry
+    // the crank. Asymmetric, because only one end has a crank on it.
     const axleY = top + postH * rng.range(0.62, 0.72);
     const crankSide = rng.chance(0.5) ? 1 : -1;
     const stub = 0.02;
@@ -208,11 +175,9 @@ export const well: MeshBuilder = {
       parts.push({ geometry: hoop, color: iron, sway: 0 });
     }
 
-    // **The crank.** An elbow out of the axle, a throw across, and a grip on the
-    // end of that — three pieces, because a handle drawn in line with its own
-    // axle is a stick and does not read as something you could turn.
-    // Sat on the spigot, which is the bit of barrel that comes through the near
-    // post — so the crank is on the end of the axle rather than floating past it.
+    // The crank: an elbow out of the axle, a throw across, and a grip on the end of
+    // that — three pieces, because a handle drawn in line with its own axle is a
+    // stick. Sat on the spigot, the bit of barrel that comes through the near post.
     const throwOut = rng.range(0.17, 0.23);
     const clock = rng.range(0, Math.PI * 2);
     const elbowX = crankSide * (nearEnd - 0.035);
@@ -224,11 +189,9 @@ export const well: MeshBuilder = {
     elbow.translate(elbowX, axleY, 0);
     parts.push({ geometry: elbow, color: iron, sway: 0 });
 
-    // **The grip goes on the end the elbow actually reaches.** `rotateX(θ)` takes
-    // (0, r, 0) to (0, r·cos θ, **+**r·sin θ) — the z is positive — and this was
-    // written with a minus, so the handle sat on the opposite side of the axle
-    // from the arm that is supposed to be carrying it. Every crank on every well
-    // was in two pieces pointing opposite ways.
+    // The grip goes on the end the elbow actually reaches: `rotateX(θ)` takes
+    // (0, r, 0) to (0, r·cos θ, +r·sin θ), so the z is positive — with a minus the
+    // handle sits on the opposite side of the axle from the arm carrying it.
     const gripY = axleY + Math.cos(clock) * throwOut;
     const gripZ = Math.sin(clock) * throwOut;
     const grip = new THREE.CylinderGeometry(0.032, 0.032, 0.19, 6);
@@ -237,11 +200,8 @@ export const well: MeshBuilder = {
     parts.push({ geometry: grip, color: timber, sway: 0 });
 
     // --- the roof ------------------------------------------------------------
-    //
-    // A ridge on the posts and boards down each slope. Crude on purpose: a
-    // village roofs a well itself.
-    // Let into the tops of the posts rather than laid on the line they would
-    // reach if they started at `top` — they start 6 cm below it.
+    // A ridge on the posts and boards down each slope, crude on purpose: a village
+    // roofs a well itself. Let into the tops of the posts, 6 cm below `top`.
     const ridgeY = top + postH - 0.1;
     const eave = outer * rng.range(1.15, 1.35);
     const pitch = rng.range(0.42, 0.56);
@@ -270,12 +230,6 @@ export const well: MeshBuilder = {
       parts.push({ geometry: barge, color: frame, sway: 0 });
     }
 
-    // **Nothing else.** There was a pier standing off in the grass beside it,
-    // on the reasoning that a well reads as built into something rather than
-    // dropped on a lawn. That is dressing a scene, which is not a builder's job
-    // here — the world is hand placed, and a column nobody asked for standing at
-    // a random bearing is a prop the person placing this can neither move nor be
-    // rid of. If a well wants a wall beside it, somebody puts one there.
 
     const geometry = assemble(parts);
     if (scale !== 1) geometry.scale(scale, scale, scale);

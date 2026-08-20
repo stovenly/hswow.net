@@ -5,23 +5,11 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { markVista } from '../vista';
 
-/**
- * A cluster of far roofs, a chimney, and one lit window.
- *
- * Five or six boxes with pyramid caps. No doors, no timbers, no windows except
- * the one — at this range a village is a scatter of pale walls under dark roofs
- * and that is genuinely all of it.
- *
- * **The lit window is the whole prop.** Everything else here says "buildings";
- * one warm face says *somebody is in*, and it is the only thing in the entire
- * band that implies a person. It is a single plane two triangles large, painted
- * with the lamp colour — which on a lit material comes out as pale cream rather
- * than as light, and pale cream on a dark wall at 120 m is exactly what a lit
- * window looks like.
- *
- * Roofs are pyramids rather than ridges. A hip and a gable are the same four
- * pixels out here, and a cone with four sides costs eight triangles.
- */
+// A cluster of far roofs, a chimney, and one lit window. Five or six boxes with
+// pyramid caps and no other openings: at this range a village is a scatter of pale
+// walls under dark roofs. The lit window is the whole prop — one warm face is the
+// only thing in the band that implies a person — and it is two triangles painted
+// with the lamp colour, which on a lit material comes out as pale cream.
 
 /** Rendered walls, limewashed. Pale, so the roofs read as dark against them. */
 const WALLS = [PALETTE.STONE_PALE, PALETTE.STONE, PALETTE.TIMBER_PALE] as const;

@@ -5,20 +5,11 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { markVista } from '../vista';
 
-/**
- * A drystone wall wandering off over a distant slope.
- *
- * **The cheapest thing in the band that says the land is used.** Hills say
- * geography; a wall says somebody divided this up and keeps sheep. Four slabs
- * end to end, each turned a few degrees off the last, so the run bends the way
- * a field boundary does — following ground nobody can see any more.
- *
- * Low and long. At a hundred metres two metres of height is about a degree, so
- * this is very nearly a line — which is correct, and why it is worth so little
- * geometry. Sunk a third of its height, because a wall on distant ground should
- * disappear into every dip rather than ride over them: the builder cannot know
- * what it is standing on, so it is built to be partly buried wherever it lands.
- */
+// A drystone wall wandering off over a distant slope — the cheapest thing in the
+// band that says the land is used. Four slabs end to end, each turned a few
+// degrees off the last, so the run bends the way a field boundary does. Low and
+// long, and sunk a third of its height, because the builder cannot know what it is
+// standing on and a distant wall should disappear into every dip.
 
 const DRYSTONE = [PALETTE.STONE_DARK, PALETTE.STONE] as const;
 

@@ -4,30 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A storage chest: boarded body, iron straps, a hasp, and a lid that may be
- * standing open.
- *
- * **Open or shut is the seed's biggest decision.** A closed chest is a box, and
- * the kit already has boxes — a crate is a box. A chest with its lid thrown
- * back is a shape nothing else in the room makes: a flat plane leaning away
- * from a solid one, with a dark gap between them. So a third of them are open
- * far enough to see into, and those get folded cloth inside, because an open
- * chest that is empty is a prop rather than a possession.
- *
- * The lid is built in the hinge's own frame — its local origin sits on the
- * hinge pin at the top of the back board, y upward and z forward — and then
- * rotated and moved into place as a unit. Building it in world coordinates and
- * working out where each strap ends up after the swing is the same class of
- * mistake `rod` exists to stop: the transform gets written twice, once for the
- * part and once for its trimmings, and the two disagree.
- *
- * Domed lids are stepped boards rather than a turned curve. Through the render
- * pipeline a three-step ziggurat and a true arc are the same handful of pixels,
- * and the steps cost twelve triangles each.
- *
- * Built facing +Z, hinged along its -Z edge.
- */
+// A storage chest: boarded body, iron straps, a hasp, and a lid that may be
+// standing open. A third are open far enough to see into, and those get folded
+// cloth inside. The lid is built in the hinge's own frame — origin on the hinge
+// pin at the top of the back board, y up and z forward — and rotated into place as
+// a unit. Domed lids are stepped boards. Built facing +Z, hinged along its −Z edge.
 export const chest: MeshBuilder = {
   name: 'chest',
   category: 'furniture',
@@ -49,24 +30,13 @@ export const chest: MeshBuilder = {
     const rust = rng.chance(0.35);
     const banding = rust ? PALETTE.RUST : iron;
 
-    // How far the lid is thrown back, in radians about the hinge.
-    //
-    // Three states rather than a continuous roll. A chest an eighth open is not
-    // a distinct object from a closed one — it is a closed one with a defect —
-    // whereas a lid at a right angle or leaning back against a wall is a
-    // different silhouette entirely, and that is the point of rolling it at all.
+    // How far the lid is thrown back, in radians about the hinge. Three states
+    // rather than a continuous roll: a chest an eighth open is a closed one with a
+    // defect, where a lid at a right angle is a different silhouette.
     const roll = rng();
-    // **Always shut.** Direction, and not a judgement call.
-    //
-    // The lid used to roll open on better than half of them, with folded cloth
-    // inside the ones that opened far enough to see into — on the argument that
-    // a closed chest is just a box and the kit already has boxes. That argument
-    // is wrong here for a simple reason: a chest with its lid up is a *scene*,
-    // and a prop that stages a scene stops being placeable. You cannot put
-    // twenty of them in a village.
-    //
-    // `roll` is still drawn so the seed stream is unchanged and every other
-    // rolled dimension keeps its value.
+    // Always shut. A chest with its lid up is a scene, and a prop that stages a
+    // scene stops being placeable — you cannot put twenty of them in a village.
+    // `roll` is still drawn, so the seed stream is unchanged.
     void roll;
     const open = 0;
 
@@ -74,11 +44,9 @@ export const chest: MeshBuilder = {
     const bodyTop = bodyBase + bodyHeight;
 
     // --- feet -----------------------------------------------------------------
-    //
     // Corner blocks, each its own size. Four identical blocks at four mirrored
-    // positions is the classic furniture trap: nothing overlaps, but the moment
-    // one of them is nudged onto another's plane the weld makes edges nobody
-    // wrote. Jittering removes the possibility rather than avoiding it.
+    // positions is the furniture trap: nudge one onto another's plane and the weld
+    // makes edges nobody wrote. Jittering removes the possibility.
     const runners = rng.chance(0.35);
     if (runners) {
       // Two runners front and back instead — a chest meant to be dragged.
@@ -187,9 +155,8 @@ export const chest: MeshBuilder = {
     }
 
     // --- the lid --------------------------------------------------------------
-    //
-    // Authored about the hinge: y is height above the pin, z is distance
-    // forward from it. Nothing below knows or cares how far the lid is open.
+    // Authored about the hinge: y is height above the pin, z is distance forward
+    // from it. Nothing below knows how far the lid is open.
     const hingeY = bodyTop - 0.012;
     const hingeZ = -depth / 2 + 0.025;
     const lidReach = depth - 0.025 + 0.02;

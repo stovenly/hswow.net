@@ -5,23 +5,12 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * A hopper on a trestle: a steel funnel on raked legs, with a chute out of it.
- *
- * Holds coal, ore or sand above whatever is being fed, and empties by gravity.
- * The reason to have one is that it is *top-heavy* — a wide mass carried high
- * on thin legs, which is a silhouette nothing else in the kit makes and a hard
- * contrast against `tank`, whose whole shape is a long horizontal cylinder
- * sitting low.
- *
- * **The inverted funnel is the read.** A square box on legs is a water tower or
- * a shed; what says hopper is that the sides slope inward to a small opening,
- * so it visibly narrows toward the point where the contents leave it.
- *
- * Built as a lathe from a closed profile that never touches the axis, which is
- * the only way a solid of revolution comes out watertight — a profile reaching
- * radius zero revolves into a fan of degenerate slivers at the pole.
- */
+// A hopper on a trestle: a steel funnel on raked legs, with a chute out of it.
+// Top-heavy, which is a silhouette nothing else in the kit makes and a hard
+// contrast against `tank`. The sides slope inward to a small opening, so it
+// visibly narrows toward where the contents leave. Built as a lathe from a closed
+// profile that never touches the axis — a profile reaching radius zero revolves
+// into a fan of degenerate slivers at the pole.
 export const hopper: MeshBuilder = {
   name: 'hopper',
   category: 'structures',
@@ -46,10 +35,9 @@ export const hopper: MeshBuilder = {
     const rusty = rng.chance(0.45);
 
     // --- the body ------------------------------------------------------------
-    //
     // Up the outside, across the rim, down the inside, across the throat, and
-    // closed. Six sides of revolution, so it reads as the folded sheet it would
-    // actually be rather than as a turned cone.
+    // closed. Six sides of revolution, so it reads as folded sheet rather than as a
+    // turned cone.
     const y0 = stand;
     const y1 = stand + taper;
     const y2 = y1 + collar;
@@ -73,23 +61,17 @@ export const hopper: MeshBuilder = {
       sway: 0,
     });
 
-    // A stiffening band round the rim, which is what a sheet-steel hopper needs
-    // to keep its mouth from folding and what reads as *sheet* rather than cast.
-    // **Same facet phase as the body.** The lathe below is six-sided starting
-    // at zero; this was turned a further thirtieth of a turn, so the hexagonal
-    // rim sat with its corners over the body's flats — a lid off a different
-    // bucket. Six-sided cylinders and six-segment lathes only agree if neither
-    // is rotated.
+    // A stiffening band round the rim, which is what a sheet-steel hopper needs to
+    // keep its mouth from folding. Same facet phase as the body: six-sided cylinders
+    // and six-segment lathes only agree if neither is rotated.
     const band = new THREE.CylinderGeometry(mouth * 1.06, mouth * 1.06, wall * 2.4, 6);
     band.translate(0, y2 - wall, 0);
     parts.push({ geometry: band, color: shade(iron, 1.05), sway: 0 });
 
     // --- the chute -----------------------------------------------------------
-    // **Wider than the throat, not narrower.** At 0.92 of it the chute's wall
-    // ran up inside the hopper's own wall thickness — two surfaces a couple of
-    // millimetres apart, which is a coincident face for every practical purpose
-    // and reads as a hole to any test of the solid. A spout collar clamped
-    // *round* the outlet is both correct and unambiguous.
+    // Wider than the throat, not narrower. Inside it, the chute's wall runs up
+    // within the hopper's own wall thickness — a coincident face for every practical
+    // purpose. A spout collar clamped round the outlet is unambiguous.
     const chute = new THREE.CylinderGeometry(throat * 1.28, throat * 1.28, stand * 0.45, 6);
     chute.translate(0, y0 - stand * 0.18, 0);
     parts.push({ geometry: chute, color: shade(iron, 0.95), sway: 0 });
@@ -102,20 +84,11 @@ export const hopper: MeshBuilder = {
     parts.push({ geometry: gate, color: shade(PALETTE.RUST, 1.08), sway: 0 });
 
     // --- the trestle ---------------------------------------------------------
-    //
-    // Raked outward at the foot. Vertical legs under a wide mass look like they
-    // are about to fold; splayed ones read as bracing a load.
-    // **Legs that reach the hopper.**
-    //
-    // They did not. They were vertical posts of a fixed height standing on a
-    // circle of their own, and the hopper above them narrows to a throat — so
-    // the tops of the legs finished out at the mouth's radius while the body at
-    // that height was a fifth of it. Four posts under a funnel, touching
-    // nothing.
-    //
-    // The fix is to name the point each leg is carrying: the underside of the
-    // rim, where a hopper is actually slung from. Each leg runs from its own
-    // foot on the ground to that point, and `rod` spans them exactly.
+    // Raked outward at the foot: vertical legs under a wide mass look like they are
+    // about to fold. Each leg runs from its own foot on the ground to the underside
+    // of the rim, where a hopper is actually slung from, and `rod` spans them
+    // exactly — legs of a fixed height finish out at the mouth's radius while the
+    // body at that height is a fifth of it.
     const legs = 4;
     const spread = mouth * 1.05;
     const carry = y1 + collar * 0.25;

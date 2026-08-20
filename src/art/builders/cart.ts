@@ -4,35 +4,11 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A handcart, parked nose-down on its shafts.
- *
- * **The only blocker here that is obviously somebody's.** A boulder is geology, a
- * hedge is time, a log pile is work that happened at some point — a cart is a
- * thing a person put down and is coming back for. Stood across the end of a lane
- * it closes it while saying the place is inhabited, which is a great deal of
- * value for something that also happens to be two metres of solid obstacle.
- *
- * ## Tipped, and the angle is solved rather than chosen
- *
- * A two-wheeled cart with nobody in the shafts falls forward until the shaft
- * ends hit the ground. That is its resting position and it is most of the
- * silhouette — a cart sitting level looks like it is being held, which is
- * exactly wrong for a prop whose whole statement is that it has been left.
- *
- * So the tilt is not a number in the file. The body rotates about the axle, and
- * the angle is whatever brings the shaft tips to y = 0: solved from the shaft's
- * length and the wheel's radius, so a seed that rolls a bigger wheel or a longer
- * shaft still parks the cart on the ground instead of in it or above it.
- *
- * ## Wheels
- *
- * Ten-sided rims. A cartwheel is seen face-on more than anything else in the kit
- * — it is a disc standing in a vertical plane at eye height — and at six sides it
- * reads as a hexagon, which is the one shape a wheel must not be. The spokes are
- * five flat bars rather than turned rods: at this size the difference is
- * invisible and the bars are a third of the triangles.
- */
+// A handcart, parked nose-down on its shafts. The tilt is solved rather than
+// chosen: the body rotates about the axle by whatever angle brings the shaft tips
+// to y = 0, so a bigger wheel or a longer shaft still parks it on the ground.
+// Ten-sided rims, because a cartwheel is seen face-on and at six sides it reads
+// as a hexagon.
 export const cart: MeshBuilder = {
   name: 'cart',
   category: 'objects',
@@ -88,58 +64,35 @@ export const cart: MeshBuilder = {
       }
     }
 
-    // The shafts, running forward from under the bed to the handle.
-    //
-    // **One number decides where they end, and the handle uses it.** It was
-    // three: the shafts were sized from their own length and offset, the handle
-    // was put at `bedLength/2 + shaft`, and the parking angle was solved from
-    // that same third number. So on every cart the crossbar floated about
-    // twenty centimetres in front of two shafts that stopped short of it — the
-    // handle of a handcart, detached, which is the one part of the object a
-    // player is going to look at.
-    //
-    // `tip` is where the shafts actually end. The handle goes there and the
-    // parking angle is solved to put *that* on the ground.
+    // The shafts, running forward from under the bed to the handle. `tip` is where
+    // they actually end: the handle goes there and the parking angle is solved to
+    // put that on the ground, so one number decides all three.
     const shaftY = floor * rng.range(0.35, 0.6);
     const shaftZ = bedWidth * rng.range(0.28, 0.38);
     const heel = -bedLength * 0.3;
     const tip = bedLength / 2 + shaft;
-    // **The shafts stop at the handle's axis, not past it.** They ran the whole
-    // way to `tip` while the handle sat centred a little short of it, so the
-    // square end of each shaft came out through the round bar and hung in the
-    // air beyond — which is the same joint failing a second way after the first
-    // fix. A shaft that ends *on* the axis is capped by the bar from every
-    // direction, and the bar is fat enough to cover the corner of the section.
+    // The shafts stop at the handle's axis, not past it. A shaft that ends on the
+    // axis is capped by the bar from every direction, and the bar is fat enough to
+    // cover the corner of the section.
     const grip = 0.05;
     for (const side of [-1, 1]) {
       const arm = new THREE.BoxGeometry(tip - grip - heel, 0.07, 0.06);
       arm.translate((tip - grip + heel) / 2, shaftY, side * shaftZ);
       add(arm, timber);
     }
-    // The crossbar, capping both shaft ends and running a little past them, so
-    // the joint is a lap rather than three sticks meeting at a point.
-    //
-    // **Turned, not sawn**, and that is what stops it z-fighting. It was a box
-    // of exactly the shafts' section at exactly their height, so its top and
-    // bottom faces were coplanar with theirs along the whole overlap — two
-    // surfaces at the same depth, which the buffer resolves differently from
-    // pixel to pixel and from frame to frame. A round handle has no face that
-    // can be coplanar with a flat one, and a handle is a thing you grip, so it
-    // is the right shape anyway.
-    //
-    // Its radius covers the half-diagonal of a shaft's section (0.035 × 0.030 →
-    // 0.046), so the flat end let into it is inside the round and not through
-    // the far side of it.
+    // The crossbar, capping both shaft ends and running a little past them, so the
+    // joint is a lap rather than three sticks meeting at a point. Turned, not sawn:
+    // a round handle has no face that can be coplanar with a flat one. Its radius
+    // covers the half-diagonal of a shaft's section, so the flat end let into it is
+    // inside the round and not through the far side.
     const bar = new THREE.CylinderGeometry(grip, grip, shaftZ * 2 + 0.1, 8);
     bar.rotateX(Math.PI / 2);
     bar.translate(tip - grip, shaftY, 0);
     add(bar, frame);
 
-    // **The parking angle.** Bring the shaft tips down to the ground: rotating
-    // by `t` about the axle takes (tip, shaftY) to y = shaftY·cos t − tip·sin t,
-    // and that plus the wheel radius has to be zero. Solved from the same `tip`
-    // the handle is nailed to, so the two cannot disagree about where the front
-    // of the cart is.
+    // The parking angle. Rotating by `t` about the axle takes (tip, shaftY) to
+    // y = shaftY·cos t − tip·sin t, and that plus the wheel radius has to be zero.
+    // Solved from the same `tip` the handle is nailed to.
     const span = Math.hypot(tip, shaftY);
     const park = Math.atan2(shaftY, tip) + Math.asin(Math.min(1, wheel / span));
 

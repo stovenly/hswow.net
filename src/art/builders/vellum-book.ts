@@ -1,17 +1,10 @@
 import { cover } from '../book';
 import { PALETTE, shade } from '../palette';
 
-/**
- * Limp, pale, and no boards at all.
- *
- * The pale end of the shelf, and the one silhouette that is not a rectangle:
- * with nothing stiff inside it a vellum cover cockles, so it is wider than its
- * own block and its edges do not agree with each other. Shelved, it is the
- * spine that has gone soft between two that have not.
- *
- * Tall — nearly the leather book's height — and a third of its thickness, which
- * is what separates them at a glance.
- */
+// Limp, pale, and no boards at all: the one silhouette in the family that is not
+// a rectangle, since with nothing stiff inside it a vellum cover cockles and its
+// edges do not agree with each other. Tall — nearly the leather book's height —
+// and a third of its thickness.
 export const vellumBook = cover('vellum-book', 'Vellum Book', {
   height: [0.245, 0.3],
   proportion: [0.64, 0.72],

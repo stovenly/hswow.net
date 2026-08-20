@@ -3,40 +3,16 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { stoneColour, weathered, stoneLump, stoneChunk } from '../stone';
 
-/**
- * A standing stone: one slab, set upright on end.
- *
- * `cairn`'s argument at five times the size. A rock is geology; a rock that
- * could not have got where it is on its own is *evidence*, and the whole content
- * of this object is that somebody stood it up. Placed at a bend, a boundary or a
- * high point it does more narrative work than a signpost without saying
- * anything, and it does a second job at the same time: it is the one member of
- * the stone family that reads as a **landmark**, so a player who has walked past
- * it once knows where they are the next time they see it.
- *
- * ## What makes it read as set rather than as fallen
- *
- * Three things, and the first is the important one.
- *
- * **It is a slab, not a column.** A menhir is a plate of rock stood on its
- * narrow edge — much wider one way than the other — so it presents a broad face
- * from one bearing and almost nothing from ninety degrees round. A square-section
- * pillar reads as masonry, and a round one reads as a chimney.
- *
- * And it is a slab **with no two faces parallel**. It was built from a jittered
- * box, which is the one shape that undoes everything else this object is trying
- * to say: a rectangular block set upright and packed at the foot is not a menhir,
- * it is a gatepost, and a gatepost is dressed stone. A hull of scattered points
- * sheared over between top and bottom is a stone somebody found and stood up.
- * See `art/stone.ts`.
- *
- * **It leans a little.** Never plumb: a stone set by hand into a hole has
- * settled since, and dead upright is the one angle that says machine.
- *
- * **It has packing stones at the foot.** That is literally how one is erected —
- * blocks wedged into the socket to hold it — and they are the detail that says
- * *set* rather than *dropped*.
- */
+// A standing stone: one slab, set upright on end — a rock that could not have got
+// where it is on its own, so the whole content is that somebody stood it up.
+//
+// A slab and not a column: much wider one way than the other, so it presents a
+// broad face from one bearing and almost nothing from ninety degrees round. A
+// square-section pillar reads as masonry. And no two faces parallel — a hull of
+// scattered points sheared over between top and bottom, because a jittered box set
+// upright is a gatepost, which is dressed stone. It leans a little, since dead
+// upright is the one angle that says machine, and it has packing stones at the
+// foot, which is literally how one is erected.
 export const standingStone: MeshBuilder = {
   name: 'standing-stone',
   category: 'nature',
@@ -73,13 +49,9 @@ export const standingStone: MeshBuilder = {
     slab.rotateY(rng.range(0, Math.PI * 2));
     parts.push({ geometry: slab, color: weathered(rng, bed, height), sway: 0 });
 
-    // Packing stones, wedged into the socket. Low, **against the butt**, and
-    // partly buried — they are holding it up, not lying beside it.
-    //
-    // They used to be thrown out to nearly a full width from the middle, where
-    // the slab itself only reaches half a width, so most of them stood clear of
-    // the stone they are supposed to be wedging and the group of them read as a
-    // separate little pile. A packing stone that is not touching is a pebble.
+    // Packing stones, wedged into the socket: low, against the butt, and partly
+    // buried, because they are holding it up rather than lying beside it. Thrown
+    // wide they stand clear of the slab and read as a separate little pile.
     for (let i = rng.int(3, 6); i > 0; i--) {
       const size = rng.range(0.1, 0.24);
       const bearing = rng.range(0, Math.PI * 2);

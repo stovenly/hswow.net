@@ -4,25 +4,9 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A chair.
- *
- * The back is the whole object. A chair is a stool with a back, and the back
- * is what carries every bit of character it has — whether it is slatted or
- * spindled or a solid board, and how far it rises. So the seat and legs here
- * are deliberately plain and the variation is spent upward.
- *
- * The back is dead vertical, continuing the line of the back legs. Real chairs
- * rake theirs backward for comfort, but with the angle rolled per instance the
- * sign is one edit from producing a chair that leans *forward*, which is a
- * thing nobody could sit in.
- *
- * The back legs run all the way up through the seat and become the back
- * uprights, rather than the back being a separate assembly sitting on top.
- * That is how a chair is actually made, it is one box instead of two, and it
- * means the joint between seat and back cannot come apart when the dimensions
- * are rolled differently.
- */
+// A chair. The back is the whole object, so the seat and legs are plain and the
+// variation is spent upward. The back is dead vertical, and the back legs run all
+// the way up through the seat to become its uprights.
 
 type Back = 'slats' | 'spindles' | 'board';
 
@@ -54,18 +38,11 @@ export const chair: MeshBuilder = {
     const halfD = seatDepth / 2 - legThickness * 0.7;
 
     /**
-     * Where a leg stops: **inside** the seat, not flush with the top of it.
-     *
-     * A leg exactly `seatHeight` tall ends with its top cap at `y =
-     * seatHeight`, which is the same plane as the seat's own top surface — and
-     * because the legs are inset, that cap lies entirely *within* it. Two
-     * coplanar quads, and the depth buffer has no way to choose between them,
-     * so the top of every leg flickers through the seat at any distance where
-     * the two round to the same depth.
-     *
-     * Ending part-way into the thickness leaves the leg buried in solid timber
-     * with nothing coincident anywhere, which is also how the joint really
-     * works — a leg goes *into* a seat.
+     * Where a leg stops: inside the seat, not flush with the top of it. A leg
+     * exactly `seatHeight` tall ends with its top cap in the same plane as the
+     * seat's own top surface, and because the legs are inset that cap lies
+     * entirely within it. Ending part-way into the thickness is also how the
+     * joint really works — a leg goes into a seat.
      */
     const legTop = seatHeight - seatThickness * 0.4;
 
@@ -82,27 +59,12 @@ export const chair: MeshBuilder = {
       leg.translate(sx * halfW, legTop / 2, -halfD);
       parts.push({ geometry: leg, color: frame, sway: 0 });
 
-      // Dead vertical, continuing the line of the leg below it.
-      //
-      // These used to rake backward by a tenth of a radian or so, which is how
-      // a comfortable chair is actually built — but a back that leans *forward*
-      // is a chair nobody could sit in, and with the rake rolled per instance
-      // the sign was one edit away from producing exactly that. Straight is
-      // also what a plain joined chair looks like, so nothing is lost.
-      // Run down *into* the leg rather than balanced on top of it.
-      //
-      // Straightening the back made the upright share its footprint exactly
-      // with the leg below, so the two met at one plane with four identical
-      // corner vertices — which weld into edges belonging to four triangles,
-      // and the mesh stops being watertight. With the old rake the joint was
-      // at an angle and the question never came up. A few millimetres of
-      // overlap is invisible and makes each box closed in its own right.
-      //
-      // Measured down from `legTop` rather than fixed, because the leg now
-      // stops short of the seat by an amount that varies with the seat's
-      // thickness. A constant that happened to exceed it for most rolls would
-      // fail for the thick ones and put the two caps in the same plane —
-      // exactly the fault this overlap exists to avoid.
+      // Dead vertical, continuing the line of the leg below it, and run down into
+      // the leg rather than balanced on top: sharing a footprint exactly would put
+      // four identical corner vertices in one plane, which weld into edges
+      // belonging to four triangles. Measured down from `legTop` rather than fixed,
+      // because the leg stops short of the seat by an amount that varies with the
+      // seat's thickness.
       const overlap = seatThickness * 0.4 + 0.02;
       const upright = new THREE.BoxGeometry(legThickness, backHeight + overlap, legThickness);
       upright.translate(sx * halfW, seatHeight + backHeight / 2 - overlap / 2, -halfD);
@@ -110,9 +72,8 @@ export const chair: MeshBuilder = {
     }
 
     // --- the back -----------------------------------------------------------
-    // Everything in the back is placed by height above the seat, against the
-    // same back plane as the uprights, so nothing can end up in front of or
-    // behind the posts it is fixed to.
+    // Everything in the back is placed by height above the seat, against the same
+    // back plane as the uprights, so nothing ends up in front of its posts.
     const onBack = (geometry: THREE.BufferGeometry, above: number): void => {
       geometry.translate(0, seatHeight + above, -halfD);
     };
@@ -133,15 +94,9 @@ export const chair: MeshBuilder = {
     } else {
       const count = rng.int(3, 5);
       const spread = seatWidth * 0.72;
-      // Spindles run the *whole* way, from the seat to the top rail.
-      //
-      // They were a fixed 62% of the back height, positioned by their centre at
-      // 62% — so they spanned from 31% up to 93%, floating a third of the way
-      // up the back with a clear gap beneath them. The top happened to meet the
-      // rail, which is what made it look deliberate rather than broken.
-      //
-      // Now both ends are derived from where they have to land: the rail above,
-      // and a little way *into* the seat below so the joint is covered.
+      // Spindles run the whole way, from a little inside the seat to the top rail.
+      // Both ends are derived from where they have to land rather than from a
+      // fraction of the back height.
       const railAt = backHeight * 0.93;
       const sink = 0.02;
       const spindleHeight = railAt + sink;

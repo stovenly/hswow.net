@@ -5,39 +5,15 @@ import { createRng } from '../random';
 import { roughBox } from '../masonry';
 import { stoneColour, faceWobble } from '../stone';
 
-/**
- * Scree: a fan of shattered rock spilling from the foot of a slope.
- *
- * **The cheapest thing in the kit that makes a rock line look like it belongs to
- * the hill behind it.** A boulder run laid across grass always has one problem
- * the boulders themselves cannot fix: the stones begin exactly where the grass
- * stops, on a line, and there is nothing between the two. Scree is that
- * something — the debris that says the slope above is coming apart and this is
- * where the pieces ended up.
- *
- * ## Sorted, because real screes are
- *
- * A fan is not a uniform sprinkle. Pieces that come off a face bounce, and the
- * heavy ones carry furthest — so the head of a fan is fine chippings and the toe
- * is the big stuff. That sorting is most of what makes it read as *fallen*
- * rather than *scattered*, and it costs one multiply.
- *
- * Spreads along **+Z**, so a placer points it downhill.
- *
- * ## Tetrahedra
- *
- * Four triangles each. At this size a chip is two or three pixels of silhouette
- * and nothing else survives, so what matters is only that the outline has
- * corners on it — and a tetrahedron is the fewest triangles that can have any.
- * Twenty-odd of them come to less than a single `rock`'s worth of the same idea
- * at four times the coverage.
- *
- * **Not solid.** The collider indexes raw triangles and its cost rises faster
- * than linearly with how densely they are packed, so a hand-span of small sharp
- * pieces is the worst possible thing to put in it — and the feel argument agrees:
- * catching on a stone chip reads as the world being made of invisible boxes. The
- * ground underneath is already `rock` on any slope steep enough to shed.
- */
+// Scree: a fan of shattered rock spilling from the foot of a slope — what puts
+// something between where the grass stops and the boulders begin. Sorted, because
+// heavy pieces bounce furthest: fine chippings at the head, the big stuff at the
+// toe. Spreads along +Z, so a placer points it downhill.
+//
+// Tetrahedra, four triangles each: at this size a chip is two or three pixels of
+// silhouette, and a tetrahedron is the fewest triangles that can have corners on
+// it. Not solid — a hand-span of small sharp pieces is the worst thing to put in
+// the collider, and catching on a stone chip reads as invisible boxes.
 export const scree: MeshBuilder = {
   name: 'scree',
   category: 'nature',

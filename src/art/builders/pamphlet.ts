@@ -1,17 +1,9 @@
 import { cover } from '../book';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A few sheets in a paper wrapper. The thinnest thing the family makes.
- *
- * Small and almost flat, which is the only register the covers do not otherwise
- * reach — everything else is a volume, and a shelf of nothing but volumes reads
- * as a set rather than as a collection. Shelved, a pamphlet is a sliver between
- * two spines and half of them will have slumped.
- *
- * No boards, no bands and no round: a stitched wrapper has none of the three,
- * and putting any of them on it would make it a small book instead.
- */
+// A few sheets in a paper wrapper: the thinnest thing the family makes, and the
+// only register the other covers do not reach. Shelved, it is a sliver between two
+// spines and half of them will have slumped. No boards, no bands and no round.
 export const pamphlet = cover('pamphlet', 'Pamphlet', {
   height: [0.15, 0.2],
   proportion: [0.7, 0.78],

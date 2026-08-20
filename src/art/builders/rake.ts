@@ -4,38 +4,14 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A hay rake: a long shaft, a wooden head across it, and a row of pegs.
- *
- * Built along **+X with its butt at the origin**, in the air, for `pitchfork`'s
- * reason: a hand tool has no resting position of its own, so it is handed over
- * on an axis and the placer decides whether it is leaning, lying or stuck in a
- * heap.
- *
- * ## It must not read as a pitchfork, and the difference is the head
- *
- * Both are a stick with prongs, so the silhouette has to separate them
- * completely or the kit has one tool twice:
- *
- * - **The head is a bar across the shaft**, at right angles to it. A fork has no
- *   crossbar at all — its tines continue the line of the handle. That single
- *   horizontal is the recognition, and it is why the head is wide: a third of
- *   the shaft's length, so it reads as a T from anywhere.
- * - **The teeth are short, many, and square to the ground.** A fork's tines are
- *   long, few, and curved along the handle. Nothing about the two is similar
- *   once both hold.
- * - **It is wood, not iron.** A hay rake is turned and pegged, and the pegs are
- *   the same timber as the head — where a fork's business end is the only bright
- *   metal on it.
- *
- * ## And a rake has a brace
- *
- * A metre-wide head on the end of a stick would snap at the join, so a real one
- * has two struts running from partway up the shaft out to the ends of the head.
- * They are the detail that says somebody made this rather than assembled it from
- * primitives, and — like the plough's stay — both their ends land on points that
- * already exist rather than being placed by eye.
- */
+// A hay rake: a long shaft, a wooden head across it, and a row of pegs. Built
+// along +X with its butt at the origin, in the air, for `pitchfork`'s reason.
+//
+// It must not read as a pitchfork, and the difference is the head: a bar across
+// the shaft at right angles, a third of its length, so it reads as a T from
+// anywhere; teeth short, many and square to the ground; and wood rather than
+// iron. Two struts run from partway up the shaft out to the ends of the head,
+// with both their ends landing on points that already exist.
 export const rake: MeshBuilder = {
   name: 'rake',
   category: 'objects',
@@ -89,16 +65,11 @@ export const rake: MeshBuilder = {
     }
 
     // --- the braces ----------------------------------------------------------
-    //
-    // From a point up the shaft out to each end of the head. Both ends land on
-    // things that already exist, so neither can be adrift.
-    // **Landing on the bar, not on its far corner.** They ran to two centimetres
-    // short of the head's very end, where the bar is 3 cm of timber seen
-    // edge-on — so a strut arriving at a shallow angle grazed the corner of it
-    // and stopped, connected by nothing you could see. They land a third of the
-    // way in from each end now, where there is bar either side of the joint, and
-    // each is lapped past its endpoint so it is let *into* the head rather than
-    // butted against it.
+    // From a point up the shaft out to each end of the head, so both ends land on
+    // things that already exist. They land a third of the way in from each end,
+    // where there is bar either side of the joint, and each is lapped past its
+    // endpoint so it is let into the head rather than butted against it — at the
+    // very end the bar is 3 cm of timber seen edge-on and a strut only grazes it.
     const UP = new THREE.Vector3(0, 1, 0);
     const collar = shaft * rng.range(0.68, 0.78);
     const lap = 0.05;

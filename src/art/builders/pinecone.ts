@@ -4,23 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A scatter of pine cones on the ground.
- *
- * The smallest thing in the kit, and it earns its place by being the one piece
- * of litter that is *specific*. A forest floor with nothing on it is a green
- * plane; one with cones on it has a particular kind of tree overhead, which is
- * a fact about the place that costs eighty triangles to state.
- *
- * A scatter rather than a single cone, for the same reason the flowers are
- * clumps: one lying alone is a modelling exercise, and a handful under a tree
- * is ground cover.
- *
- * **The scales are the whole object.** A bare tapered blob at this size is a
- * seed, a bud, a stone or a dropping. What makes it a pine cone is the stepped,
- * overlapping tiers — so they are built as real geometry rather than painted,
- * and the count is what the triangle budget goes on.
- */
+// A scatter of pine cones on the ground — the one piece of litter that is
+// specific, since cones overhead mean a particular kind of tree. A scatter rather
+// than a single cone, as the flowers are clumps. The stepped, overlapping tiers of
+// scales are the whole object and are built as real geometry.
 export const pinecone: MeshBuilder = {
   name: 'pinecone',
   category: 'nature',

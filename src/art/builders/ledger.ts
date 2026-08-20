@@ -1,18 +1,10 @@
 import { cover } from '../book';
 import { PALETTE, shade } from '../palette';
 
-/**
- * Tall, narrow and limp, with thongs hanging off the fore-edge.
- *
- * The one cover in the family whose *proportion* is the discriminator rather
- * than its size. A ledger is nearly twice as tall as it is wide, so it stands
- * a head above whatever is beside it and shows a spine half the width — which
- * is legible from across a room in a way that another dark rectangle of the
- * same shape would not be.
- *
- * Limp, because a book that is written *in* rather than printed was bound to be
- * opened flat on a desk a thousand times, and boards do not survive that.
- */
+// Tall, narrow and limp, with thongs hanging off the fore-edge — the one cover
+// whose proportion is the discriminator rather than its size: nearly twice as tall
+// as it is wide, so it stands a head above whatever is beside it. Limp, because a
+// book that is written in was bound to be opened flat a thousand times.
 export const ledger = cover('ledger', 'Ledger', {
   height: [0.33, 0.4],
   proportion: [0.4, 0.48],

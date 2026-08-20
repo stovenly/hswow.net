@@ -4,19 +4,12 @@ import { assemble, finish, heightRamp, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A tree: tapered trunk, a few limbs, overlapping canopy lumps.
- *
- * Three lumps rather than one, because a single blob reads as a lollipop. They
- * are deliberately unequal and off-centre — a canopy is not symmetrical, and
- * the eye picks up symmetry before it picks up anything else.
- *
- * Sway weights are the point of this builder as much as the shape is. The
- * trunk ramps from rigid at the roots to loose at the crown, the limbs inherit
- * roughly their attachment height, and the canopy is near-maximum throughout
- * so leaves move as a mass. Getting this wrong is very visible: a uniform
- * weight makes the whole tree slide sideways like a sticker.
- */
+// A tree: tapered trunk, a few limbs, overlapping canopy lumps. Three lumps rather
+// than one, unequal and off-centre, because a single blob reads as a lollipop and
+// the eye picks up symmetry first. The sway weights are as much the builder as the
+// shape: the trunk ramps from rigid at the roots to loose at the crown, the limbs
+// inherit roughly their attachment height, and the canopy is near-maximum
+// throughout, so a uniform weight cannot slide the whole tree sideways.
 export const tree: MeshBuilder = {
   name: 'tree',
   category: 'foliage',

@@ -4,35 +4,13 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A broad patch of rough grass, with seed heads standing out of it.
- *
- * About ten times the ground of `small-grass-clump` from a single placement.
- * That ratio is the point: a field laid with tufts is hundreds of objects and
- * hundreds of draw calls, and the tuft is the wrong unit for it — you place it
- * to break an edge or fill a gap, not to cover an acre.
- *
- * **It is not the small one scaled up.** A tuft is a dome: dense in the middle,
- * thinning evenly to the rim, because that is what one plant looks like. Ten
- * square feet of rough ground is not one plant, and a patch built as a giant
- * dome reads exactly like what it is — a tuft somebody enlarged. Three things
- * make the difference:
- *
- * - **Uneven density.** A handful of thicker knots scattered through the patch,
- *   with sparser ground between them, so the cover varies across it the way
- *   grazing and shade actually vary.
- * - **Two heights at once.** Short cropped blades everywhere, and taller
- *   coarser ones in the knots — rough ground is never one length.
- * - **Seed heads.** A scatter of flowering culms standing well clear of the
- *   sward, each a bare stem with a loose head on it. These are what read from
- *   any distance: the blades below merge into a green mass at ten metres and
- *   the culms are still individually visible, so they carry the whole texture
- *   of the patch on their own.
- *
- * Blades are three-sided cones squashed flat, the same trick the tuft uses:
- * crossed quads need an alpha-cut texture and there are none here, and a cone
- * flattened on one axis is three triangles that read from every angle.
- */
+// A broad patch of rough grass, with seed heads standing out of it — about ten
+// times the ground of `small-grass-clump` from one placement. Not the small one
+// scaled up: a tuft is an even dome, and rough ground is not. Three things carry
+// it — thicker knots with sparser ground between them, two blade heights at once,
+// and a scatter of flowering culms standing clear of the sward, which are what
+// read at distance once the blades merge into a green mass. Blades are three-sided
+// cones squashed flat.
 export const largeGrassClump: MeshBuilder = {
   name: 'large-grass-clump',
   category: 'foliage',
@@ -51,14 +29,10 @@ export const largeGrassClump: MeshBuilder = {
     const patch = rng.range(0.7, 0.95);
 
     // --- knots ---------------------------------------------------------------
-    //
-    // Where the grass is thickest. Rolled first so the blades below can be
-    // drawn toward them, which is what makes the density uneven rather than
-    // merely noisy.
-    // More of them, wider, and spread further out than they were. With three
-    // narrow knots the patch came out as a few tussocks with bald ground
-    // between — density *variation* is wanted, bare earth is not, and the two
-    // are only a couple of numbers apart.
+    // Where the grass is thickest, rolled first so the blades below can be drawn
+    // toward them — which is what makes the density uneven rather than merely noisy.
+    // Wide and well spread: narrow knots leave bald ground between tussocks, and
+    // density variation is wanted where bare earth is not.
     const knots = rng.int(5, 8);
     const knotAt: { x: number; z: number; grip: number }[] = [];
     for (let i = 0; i < knots; i++) {
@@ -74,16 +48,13 @@ export const largeGrassClump: MeshBuilder = {
     }
 
     // --- the sward -----------------------------------------------------------
-    // Half again as many. The patch is ten times the tuft's area and was
-    // carrying under ten times its blades, which is why it read thin — the
-    // shortfall is invisible in the numbers and obvious the moment you stand
-    // in it.
+    // The patch is ten times the tuft's area and needs more than ten times its
+    // blades, or it reads thin.
     const blades = rng.int(430, 620);
     for (let i = 0; i < blades; i++) {
-      // Half the blades are pulled into a knot and half are spread evenly over
-      // the whole patch. The even half is the floor: it guarantees cover
-      // everywhere, and the knots vary the density on top of it rather than
-      // being the only thing supplying it.
+      // Half the blades are pulled into a knot and half spread evenly over the whole
+      // patch. The even half is the floor: it guarantees cover everywhere, and the
+      // knots vary the density on top of it.
       let bx: number;
       let bz: number;
       let coarse = false;
@@ -115,21 +86,16 @@ export const largeGrassClump: MeshBuilder = {
       parts.push({
         geometry: blade,
         color: rng.chance(coarse ? 0.2 : 0.4) ? PALETTE.GRASS_DRY : PALETTE.GRASS,
-        // Free at the tip, pinned at the root — the classic grass profile.
-        //
-        // Clamped before the power, not after. Tilting a blade rotates its base
-        // vertices fractionally below y = 0, and a negative base raised to a
-        // fractional exponent is NaN, which would go straight into the vertex
-        // buffer and take the whole mesh with it.
+        // Free at the tip, pinned at the root. Clamped before the power, not after:
+        // tilting a blade rotates its base vertices fractionally below y = 0, and a
+        // negative base to a fractional exponent is NaN.
         sway: (_x, y) => Math.max(0, y / height) ** 1.5,
       });
     }
 
     // --- seed heads ----------------------------------------------------------
-    //
-    // The part that reads at distance. A bare culm well clear of the sward with
-    // a loose head on the end, mostly rising out of the knots — which is where
-    // grass gets tall enough to flower.
+    // The part that reads at distance: a bare culm well clear of the sward with a
+    // loose head on the end, mostly rising out of the knots.
     const culms = rng.int(14, 26);
     for (let i = 0; i < culms; i++) {
       const knot = knotAt[rng.int(0, knotAt.length - 1)];
@@ -156,17 +122,10 @@ export const largeGrassClump: MeshBuilder = {
       });
 
       /**
-       * A point on the culm, at `t` of its length.
-       *
-       * **Taken from the same two rotations the geometry got**, so a spikelet
-       * cannot be anywhere the stalk is not. The head used to be placed at the
-       * tip's x and z and then stepped straight *down in world Y* — which is
-       * only where the stalk is when the stalk is vertical. Every culm leans,
-       * by up to nineteen degrees, so the lower spikelets hung in clear air
-       * beside their own stem and the whole head came away from it.
-       *
-       * The same mistake the flowers made and the same fix: ask the transform
-       * where the stem is rather than working it out again by hand.
+       * A point on the culm, at `t` of its length, taken from the same two rotations
+       * the geometry got — so a spikelet cannot be anywhere the stalk is not.
+       * Stepping down in world Y is only right when the stalk is vertical, and
+       * every culm leans by up to nineteen degrees.
        */
       const axisAt = (t: number): THREE.Vector3 =>
         _axis
@@ -185,10 +144,8 @@ export const largeGrassClump: MeshBuilder = {
         const size = 0.011 * (1 - along * 0.4);
         const length = size * rng.range(3, 4.5);
         const grain = new THREE.ConeGeometry(size, length, 3);
-        // Base exactly on the origin, so rotating pivots it about the point
-        // where it meets the stem and the join stays shut. Half the height was
-        // being approximated by a constant before, which left every spikelet a
-        // few millimetres off its own attachment.
+        // Base exactly on the origin, so rotating pivots it about the point where it
+        // meets the stem and the join stays shut.
         grain.translate(0, length / 2, 0);
         grain.scale(1, 1, 0.6);
         // Out and down off the stem, which is how a grass head hangs.

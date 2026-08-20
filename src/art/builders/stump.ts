@@ -4,15 +4,9 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 
-/**
- * A cut stump with roots spreading into the ground.
- *
- * Pairs with the tree builder to say something neither says alone: a stand of
- * trees with two stumps in it is a place people take wood from. The cut face
- * is a separate disc in a paler colour, because the inside of a tree is not
- * the colour of its bark and that contrast is the only thing that makes it
- * read as *cut* rather than as a short post.
- */
+// A cut stump with roots spreading into the ground. The cut face is a separate
+// disc in a paler colour, because the inside of a tree is not the colour of its
+// bark, and that contrast is what makes it read as cut rather than as a short post.
 export const stump: MeshBuilder = {
   name: 'stump',
   category: 'foliage',

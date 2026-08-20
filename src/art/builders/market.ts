@@ -17,21 +17,11 @@ import {
 } from '../building';
 import { shade } from '../palette';
 
-/**
- * A shop: a trading floor open to the street, with the household over it.
- *
- * **The shopfront is the building.** A medieval shop had no glass and no door
- * onto its counter — the wall opened, and one pair of shutters did the whole
- * job: the upper hinged up to an awning that kept the rain off the goods, the
- * lower dropped down to become the counter they were sold across. Shut at
- * night, the two met and the shop was a wall again. That is joinery fixed to
- * the building, so it is here; what stands *on* the counter is not.
- *
- * Gable to the street and the upper floor jettied out over it, which is what
- * happens when frontage is what costs money and the room above it is free.
- *
- * **One design, not a family** — drawn rather than rolled. See `manor`.
- */
+// A shop: a trading floor open to the street, with the household over it. The
+// shopfront is the building — one pair of shutters, the upper hinged up to an
+// awning and the lower dropped down to become the counter. That is joinery fixed
+// to the building, so it is here; what stands on the counter is not. Gable to the
+// street, upper floor jettied out over it. One design, drawn rather than rolled.
 
 const WIDTH = 6.4;
 const DEPTH = 7.2;
@@ -104,11 +94,9 @@ export const market: MeshBuilder = {
 
     // --- the shopfront -------------------------------------------------------
     const front: Part[] = [];
-    // **Boarded, not open.** The upper shutter is propped out as an awning and
-    // the lower is down as a counter, but the building behind them has no room
-    // in it — an open shop front is a rectangle of black. So what is behind the
-    // awning is the shop shut up: boards on ledges, which is what a shopfront
-    // looks like from the street when nobody is trading.
+    // Boarded, not open: the building behind the shutters has no room in it, and an
+    // open shop front is a rectangle of black. What is behind the awning is the shop
+    // shut up — boards on ledges.
     front.push(...boarded(rng, SHOP_AT, COUNTER, SHOP_WIDTH, HEAD - COUNTER, lower));
     for (const side of [-1, 1]) {
       front.push({
@@ -125,13 +113,10 @@ export const market: MeshBuilder = {
       color: shade(lower.timber, 0.94),
     });
 
-    // The upper shutter, hinged at the head and propped out as an awning.
-    //
-    // **It slopes down and out.** That is the whole point of it — it throws rain
-    // clear of the goods on the counter — and it was tipped the other way, which
-    // sheds the water back into the shop and drags the props up with it.
-    // `rotateX(+θ)` takes +Z to `(0, −sin θ, cos θ)`, so the outer edge falls;
-    // the translate then puts the hinged edge back on the head beam.
+    // The upper shutter, hinged at the head and propped out as an awning. It slopes
+    // down and out, which is the whole point of it: `rotateX(+θ)` takes +Z to
+    // `(0, −sin θ, cos θ)`, so the outer edge falls, and the translate then puts the
+    // hinged edge back on the head beam.
     const reach = 1.15;
     const lift = 0.38;
     const awning = slab(SHOP_WIDTH + 0.24, 0.06, reach, 0, 0, 0);
@@ -189,10 +174,9 @@ export const market: MeshBuilder = {
       }
     }
 
-    // The stack, on the **rear gable** rather than the side. On the side it
-    // stood directly in front of one of the side casements, and a chimney with
-    // a window behind it is a window nobody can see. Clear of the gable oversail
-    // with a breast filling the gap, as every stack in the kit is.
+    // The stack, on the rear gable rather than the side: on the side it stands in
+    // front of a casement, and a chimney with a window behind it is a window nobody
+    // can see. Clear of the gable oversail with a breast filling the gap.
     const clear = high.roof.overGable + 0.1;
     parts.push(
       ...chimney(rng, {

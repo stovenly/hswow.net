@@ -3,24 +3,11 @@ import type { Part } from '../assemble';
 import { species, type HeadContext } from '../flower';
 import { rod } from '../rod';
 
-/**
- * Cow parsley: a flat white table carried on forked rays.
- *
- * Every verge and hedge bottom in May, in quantities nothing else here
- * approaches. Worth having for the shape alone — it is the only flower in the
- * kit whose head is *horizontal and flat*, so a stand of it reads as a layer of
- * white floating at knee height, which is exactly what a hedgerow looks like
- * and what no arrangement of the others can produce.
- *
- * **Every ray reaches the same height.** That is the whole umbel: the stem
- * forks into six or ten arms of visibly different lengths, all of which bend to
- * finish level, so the flowers form one plate. Rays that end at their own
- * heights give a dome, which is a different plant.
- *
- * The individual florets are far too small to model. What is drawn is one small
- * flattened blob per ray tip — an umbellet — and the eye supplies the rest,
- * because at this scale a haze of white is genuinely all there is to see.
- */
+// Cow parsley: a flat white table carried on forked rays — the only flower in the
+// kit whose head is horizontal, so a stand of it reads as a layer of white at knee
+// height. Every ray reaches the same height, which is the whole umbel; rays ending
+// at their own heights give a dome, which is a different plant. One flattened blob
+// per ray tip, because the florets are far too small to model.
 function cowParslyUmbel({ axis, height, rng }: HeadContext): Part[] {
   const parts: Part[] = [];
   const at = axis(1);
@@ -35,9 +22,7 @@ function cowParslyUmbel({ axis, height, rng }: HeadContext): Part[] {
     // arrive at the same height give an umbel.
     const out = reach * rng.range(0.5, 1.15);
     // One point for the end of the ray, used by the ray and by the head on it.
-    // They were computed separately before — the ray from an angle and a
-    // length, the pad from the coordinates — and the two did not always agree,
-    // so a third of the heads floated clear of anything holding them up.
+    // Computed separately they did not always agree, and the heads floated.
     const tip = new THREE.Vector3(at.x + Math.cos(a) * out, table, at.z + Math.sin(a) * out);
 
     parts.push({ geometry: rod(at, tip, 0.0028, 0.0018), color: 0x6a7a44, sway: 1 });

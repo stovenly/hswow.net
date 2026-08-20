@@ -59,10 +59,8 @@ export const figure: BuilderWith<LifeOptions> = {
     };
 
     // --- proportions ------------------------------------------------------
-    //
-    // Height first, and everything fitted into it. The head is big — a shell
-    // about twice as tall as it is wide — and under it the legs take more
-    // than half, as they do on anything that walks upright.
+    // Height first, and everything fitted into it. The head is big — a shell about
+    // twice as tall as it is wide — and under it the legs take more than half.
     const phy = people.physique;
     const height = rng.range(...phy.height);
     const headR = rng.range(...phy.headR);
@@ -73,10 +71,9 @@ export const figure: BuilderWith<LifeOptions> = {
     const top = bottom + T;
 
     const frame = drawFrame(rng, T, bottom, phy.frame);
-    // The shoulder pivot hangs just inside the acromion, so the deltoid ball
-    // is seated under the shoulder cap with the cap's tip reaching over it;
-    // where the upper arm needs more room to clear the ribs and a coat over
-    // them, the shoulders broaden to give it.
+    // The shoulder pivot hangs just inside the acromion, so the deltoid ball is
+    // seated under the shoulder cap with the cap's tip reaching over it; the
+    // shoulders broaden where the upper arm needs room to clear a coat.
     const armR = T * phy.armR;
     const out = T * 0.1;
     // The rest gap is the smallest animation ever makes it: no layer turns a
@@ -126,13 +123,10 @@ export const figure: BuilderWith<LifeOptions> = {
     mark('mask ornament');
 
     // --- arms -------------------------------------------------------------
-    //
     // Human in proportion: the upper arm half the trunk from the acromion, the
-    // forearm two fifths, so the wrist hangs about the crotch. The deltoid on
-    // the upper arm is the shoulder, centred on the pivot so it cannot swing
-    // off it, hung under the acromion with its top just under the shoulder
-    // cap, whose thin tip reaches over it. Hung a few degrees
-    // out from the side, elbows a touch forward — a stance, not a plumb line.
+    // forearm two fifths, so the wrist hangs about the crotch. The deltoid is
+    // centred on the pivot so it cannot swing off it. Hung a few degrees out from
+    // the side, elbows a touch forward — a stance, not a plumb line.
     const deltoidR = armR * 1.25;
     const upperLen = T * phy.upperArm;
     const foreLen = T * phy.forearm;
@@ -188,10 +182,9 @@ export const figure: BuilderWith<LifeOptions> = {
     mark('arms');
 
     // --- legs -------------------------------------------------------------
-    //
-    // Hip joints just above the crotch, the thigh's head sat inside the
-    // pelvis, and the pair of them filling the seat's width — a body wider at
-    // the bottom than its own legs is a skirt.
+    // Hip joints just above the crotch, the thigh's head sat inside the pelvis, and
+    // the pair filling the seat's width — a body wider at the bottom than its own
+    // legs is a skirt.
     const legR = T * phy.legR;
     const seatW = trunk.extent(0.06).w;
     const stance = seatW - legR * 1.28 * 1.02;

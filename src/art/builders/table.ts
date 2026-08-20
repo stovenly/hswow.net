@@ -4,25 +4,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A table.
- *
- * Sizes come in classes rather than from one continuous range, for the same
- * reason crates do: a room of tables that are all slightly different and all
- * basically the same reads as noise, where a small side table beside a long
- * refectory table reads as a room that has been furnished. The classes here
- * are a side table, an ordinary table, and a long one.
- *
- * The top is boards, not a slab. Three or four planks with shadow gaps between
- * them cost a dozen triangles and are the difference between a table and a
- * rectangle at knee height — the eye reads the seams as construction, and
- * construction is what makes a made object look made.
- *
- * Trestle or legged is the other axis. A trestle table stands on two end
- * frames joined by a beam, which is a completely different silhouette from
- * four corner legs, and both are period-plausible for anywhere this game is
- * likely to go.
- */
+// A table. Sizes come in classes rather than one continuous range, as crates do:
+// a side table, an ordinary table, and a long one. The top is boards rather than a
+// slab — the eye reads the seams as construction. Trestle or legged is the other
+// axis, and the two are completely different silhouettes.
 
 const CLASSES = [
   { weight: 0.28, width: [0.7, 1.0] as const, depth: [0.5, 0.68] as const },
@@ -78,19 +63,11 @@ export const table: MeshBuilder = {
     const legHeight = height - topThickness;
 
     /**
-     * Where anything standing under the top actually stops.
-     *
-     * Not `legHeight`, which is where the underside of the top *is* — and a
-     * leg ending exactly there puts its top cap in the same plane as the board
-     * above it. Coplanar quads, and the depth buffer cannot choose between
-     * them, so the top of every leg flickers through the table whenever it is
-     * seen from below or at a grazing angle.
-     *
-     * The boards make it worse rather than better: each is rolled between 93%
-     * and 100% of the nominal thickness, so on the thin rolls the leg does not
-     * reach its board at all and hangs a couple of millimetres short. One
-     * value fixes both — run everything a little way *into* the top, which is
-     * inside every board however it was rolled.
+     * Where anything standing under the top actually stops — not `legHeight`, which
+     * is where the underside of the top is: a leg ending exactly there puts its top
+     * cap in the same plane as the board above it. The boards make it worse, each
+     * rolled between 93% and 100% of nominal, so a leg can also hang short. Running
+     * everything a little way into the top is inside every board however it rolled.
      */
     const legTop = height - topThickness * 0.6;
 

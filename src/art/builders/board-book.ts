@@ -1,18 +1,10 @@
 import { cover } from '../book';
 import { PALETTE, shade } from '../palette';
 
-/**
- * Pale boards, a cloth spine, square and plain. The shelf's filler.
- *
- * **This is the one that has to be dull.** A shelf stocked entirely from covers
- * that each make a point is a shelf where nothing is the point; what makes a
- * clasped tome read as a clasped tome is the twenty ordinary books either side
- * of it. So this has no bands, no clasps, no round on its back and nothing
- * whatever going on — and the seed is spent on colour instead, because a spine
- * is nearly all colour once it has no other features.
- *
- * Its display name is just *Book*. It is what somebody would call it.
- */
+// Pale boards, a cloth spine, square and plain: the shelf's filler, and the one
+// cover that has to be dull — what makes a clasped tome read is the twenty
+// ordinary books either side of it. No bands, no clasps, no round on its back;
+// the seed is spent on colour instead.
 export const boardBook = cover('board-book', 'Book', {
   height: [0.19, 0.235],
   proportion: [0.62, 0.7],

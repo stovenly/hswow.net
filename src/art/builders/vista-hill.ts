@@ -4,29 +4,13 @@ import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import { landWash, markVista, vistaMass } from '../vista';
 
-/**
- * A rounded hill, a hundred metres away and mostly fog.
- *
- * The first vista builder, and the one that proves the recipe: a displaced
- * icosahedron at subdivision 1 — eighty triangles — squashed into a dome, sunk
- * so it grows out of the skirt rather than resting on it, and washed with a
- * drift of close greens that costs nothing at all.
- *
- * **Wide and low, about five to one.** That is what a hill is, and getting it
- * wrong is the mistake worth recording: the first pass was nearly spherical,
- * because it was sized to clear a rim that should never have been in front of
- * it. Standing on ordinary ground the eye is 1.35 m up, so anything past a few
- * metres tall already breaks the horizon and reads against sky — height buys
- * nothing after that, and every metre of it costs the shape.
- */
+// A rounded hill, a hundred metres away and mostly fog: a displaced icosahedron
+// at subdivision 1, squashed into a dome, sunk so it grows out of the skirt rather
+// than resting on it, and washed with a drift of close greens. Wide and low, about
+// five to one — the eye is 1.35 m up, so anything past a few metres tall already
+// breaks the horizon and height buys nothing after that.
 
-/**
- * Pasture, and the same pasture drying off.
- *
- * Three close colours each, ordered by value — the wash blends between
- * neighbours, so a palette that jumps about in brightness puts a hard step in
- * the middle of a hillside.
- */
+/** Pasture, and the same pasture drying off. Three close colours each, ordered by value — the wash blends between neighbours, so a palette that jumps in brightness puts a hard step in a hillside. */
 const GREEN = [PALETTE.LEAF_DARK, PALETTE.LEAF, PALETTE.GRASS] as const;
 /** The same hill in late summer, or on thinner soil. */
 const DRY = [PALETTE.LEAF, PALETTE.GRASS, PALETTE.GRASS_DRY] as const;

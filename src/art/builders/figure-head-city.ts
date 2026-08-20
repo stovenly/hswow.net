@@ -7,23 +7,16 @@ import { shade } from '../palette';
 import type { BuiltHead, HeadOptions } from './figure-head';
 
 /**
- * The cityfolk's heads: nothing of the villager's hood or board. A ceremonial
- * helm — reminiscent of armour, not armour — or a full cloth covering, in the
- * house's colours, at the villager's scale: as wide as the hood, dropping
- * below the head's base and drawn in at the rim the same way, so it covers
- * the neck and clears the shoulders on a look down as the hood does.
+ * The cityfolk's heads: a ceremonial helm or a full cloth covering, in the
+ * house's colours, at the villager's scale — as wide as the hood and drawn in at
+ * the rim the same way, so it covers the neck and clears the shoulders.
  *
- * A helm is a liner (a closed shell in the house's dark, with a flat plate
- * set back into its front) and a few plates in the house's mid lapped over
- * it — skull, cheeks, bevor, brow, visor — each its own solid. The plates
- * frame the face plate, and on it stands the house's device: big flat shapes
- * in the pale and the contrast, as plain and bold as a villager's board.
- * Everything on a curved surface is built along it — a plate's section
- * follows the shell's own rings — so nothing floats and nothing pokes through.
- * Eleven designs: nine helms, two cloth coverings.
+ * A helm is a liner (a closed shell with a flat face plate set back into it) and
+ * a few plates lapped over it, each its own solid, with the house's device
+ * standing on the face plate. Everything on a curved surface is built along it,
+ * so nothing floats and nothing pokes through. Eleven designs.
  *
- * The cowl rides `neck`; everything above rides `face`, a bone at the head's
- * centre, so talk moves the whole head.
+ * The cowl rides `neck`; everything above rides `face`, so talk moves the head.
  */
 
 export type CityHeadKind =

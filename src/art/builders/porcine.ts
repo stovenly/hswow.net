@@ -4,13 +4,9 @@ import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
 
-/**
- * A pig. A torpedo on short legs, heavy at the ham, no neck to speak of.
- *
- * The head runs straight on from the shoulders — the neck is short and level
- * — with a wedge face, a disc of a snout, and ears flopped forward over it.
- * The curl of tail does the rest.
- */
+// A pig: a torpedo on short legs, heavy at the ham, no neck to speak of. The head
+// runs straight on from the shoulders, with a wedge face, a disc of a snout and
+// ears flopped forward over it. The curl of tail does the rest.
 const PORCINE: Species = {
   length: [0.83, 1.13],
   girth: [0.45, 0.59],

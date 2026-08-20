@@ -3,18 +3,10 @@ import { assemble, finish, type Part } from '../assemble';
 import { sheet, LEAF } from '../paper';
 import { createRng } from '../random';
 
-/**
- * A single sheet, put down and left.
- *
- * The smallest readable there is, and the one that has to work hardest: a sheet
- * of paper on a floor is a pale rectangle a millimetre thick, and from standing
- * height that is nearly nothing. What makes it findable is the curl — a sheet
- * that has been anywhere does not lie flat, and a corner standing a centimetre
- * off the ground is the only part of it that catches the light differently from
- * whatever it is lying on.
- *
- * Built lying flat, face up, corners lifted.
- */
+// A single sheet, put down and left. The curl is what makes it findable: a sheet
+// that has been anywhere does not lie flat, and a corner standing a centimetre off
+// the ground is the only part catching the light differently from what it lies on.
+// Built lying flat, face up, corners lifted.
 export const looseNote: MeshBuilder = {
   name: 'loose-note',
   category: 'objects',

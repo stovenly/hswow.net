@@ -9,12 +9,10 @@ import { PALETTE } from '../palette';
 import type { LifeOptions, LifeSpec } from '../../life/spec';
 
 /**
- * A fowl. The only two-legged animal in the kit, so it has its own plan.
- *
- * A body tipped nose-down so the tail rides high, wings as plates on the
- * flanks, a neck up out of the breast, and on the head the three things that
- * identify it: comb, beak, and the fan of tail cocked behind. Facing +Z, feet
- * on y = 0. Bones:
+ * A fowl — the only two-legged animal in the kit, so it has its own plan. A body
+ * tipped nose-down so the tail rides high, wings as plates on the flanks, a neck
+ * up out of the breast, and comb, beak and cocked tail fan on the head. Facing
+ * +Z, feet on y = 0. Bones:
  *
  *   root ─ body ─ neck ─ head
  *        │      ├ wingL / wingR

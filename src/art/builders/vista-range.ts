@@ -6,36 +6,13 @@ import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import { landWash, markVista, vistaMass } from '../vista';
 
-/**
- * A range of hills, as one long silhouette — the biggest thing in the band.
- *
- * `vista-hill` is a hill. This is *country*: five or six masses strung along a
- * line, overlapping enough to read as one ridge with shoulders rather than as a
- * row of separate lumps. A hundred and forty metres of horizon in one prop.
- *
- * ## Why it is one builder and not six hills placed in a line
- *
- * Because the placer would never make this shape. Scatter keeps things apart —
- * that is what spacing is for — and a range is the opposite: the masses have to
- * interpenetrate, and their heights have to *rise and fall together* so the
- * profile reads as one landform seen end on. Both of those are facts about the
- * whole thing, so the whole thing is the prop.
- *
- * It also gives parallax something worth moving. A prop only reads as distant if
- * its motion disagrees with the ground, and disagreement is easier to see on
- * something that spans a third of the view than on something a thumb wide.
- *
- * ## Low, and lower than feels right
- *
- * The eye is 1.35 m up, so anything past a few metres tall already breaks the
- * horizon and reads against sky — `vista-hill` records the same lesson. What
- * makes a range read as *large* is its length and the fact that it steps down
- * to nothing at both ends, not its height. Peaks in the middle, shoulders
- * falling away, and the ends buried.
- *
- * Detail 0 throughout: twenty triangles a mass, and at this distance the facets
- * are smaller than the dither. Around 130 triangles for the whole ridge.
- */
+// A range of hills, as one long silhouette — five or six masses strung along a
+// line, overlapping enough to read as one ridge with shoulders. One builder rather
+// than six hills placed in a line, because a placer's spacing keeps things apart
+// and a range needs them to interpenetrate with their heights rising and falling
+// together. Low, and lower than feels right: what makes a range read as large is
+// its length and the fact that it steps down to nothing at both ends. Detail 0
+// throughout, around 130 triangles.
 
 /** Distance blues, not hillside greens — see `landWash` on close palettes. */
 const FAR = [PALETTE.LEAF_DARK, PALETTE.LEAF, PALETTE.GRASS] as const;
@@ -43,10 +20,9 @@ const FAR = [PALETTE.LEAF_DARK, PALETTE.LEAF, PALETTE.GRASS] as const;
 export const vistaRange: MeshBuilder = {
   name: 'vista-range',
   category: 'vista',
-  // Measured rather than guessed: the longest ridge these numbers produce is
-  // about 136 m end to end. Under-declaring it here would be read as spare room
-  // by the placer's spacing and by the parallax keep-out, both of which take
-  // this as the prop's half-extent.
+  // The longest ridge these numbers produce is about 136 m end to end. Under-
+  // declaring it is read as spare room by the placer's spacing and by the parallax
+  // keep-out, both of which take this as the prop's half-extent.
   radius: 70,
   solid: false,
 

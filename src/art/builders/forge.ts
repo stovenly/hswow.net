@@ -6,50 +6,22 @@ import { createRng } from '../random';
 import { rollActivity, FORGE } from '../activity';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A forge hearth: a brick firebox under a collecting hood and a flue.
- *
- * **The one that was owed.** Arkstin has had a `fire` emitter tuned as a
- * charcoal hearth since the audio phase, sounding out of open ground, and the
- * note against it said a forge is a *structure* and would wait for a structure
- * kit rather than being rushed in as a prop. This is that kit arriving. It is
- * also the piece that lets the anvil stand next to something instead of in a
- * yard on its own.
- *
- * **The funnel-to-pipe transition is the silhouette.** A box with a fire in it
- * is a brazier; what says forge is the great sheet-metal hood spreading over it
- * and narrowing hard into one thin flue — a wide-to-narrow taper is a shape
- * nothing else here makes, and it reads from across a hall and from outside a
- * doorway.
- *
- * Like the candle and the lantern it returns more than geometry: a `PointLight`
- * in the coal bed and additive glow for the embers you can see. Warm and low —
- * a banked fire lights the underside of its own hood and very little else,
- * which is exactly the effect worth having.
- *
- * Built facing +Z with the hood overhead, standing on y = 0.
- */
+// A forge hearth: a brick firebox under a collecting hood and a flue. The
+// funnel-to-pipe transition is the silhouette — a box with a fire in it is a
+// brazier, and what says forge is a great hood spreading over it and narrowing
+// hard into one thin flue. Returns a `PointLight` in the coal bed and additive
+// glow for the embers, warm and low. Built facing +Z with the hood overhead, on
+// y = 0.
 
-/**
- * Intensity at the coal bed.
- *
- * Between a lantern and a floodlight, and using `FLAME_DECAY`-style soft
- * falloff for the reason written out in `art/flame`: an inverse-square light in
- * a hearth you can lean over blows the whole near field onto one quantization
- * level and comes back as a flat white hole.
- */
+/** Intensity at the coal bed, with soft falloff: an inverse-square light in a hearth you can lean over blows the whole near field onto one quantization level. */
 const LIGHT_INTENSITY = 4.5;
 const LIGHT_RANGE = 11;
 const EMBER = 0xff8a3c;
 
 /**
  * Height of the coal bed above the forge's base, for placing the `fire` emitter.
- *
- * `bench` is rolled between 0.62 and 0.92 and the fire sits 0.09 above it, so
- * this is the middle of that range and within a few centimetres on any
- * instance. Same reasoning as `BELL_MOUTH_HEIGHT`: the sound comes from the
- * part that makes it, not from the object's origin, and a constant here is
- * closer than an origin every time.
+ * `bench` rolls between 0.62 and 0.92 and the fire sits 0.09 above it, so this is
+ * the middle of that range and within a few centimetres on any instance.
  */
 export const FORGE_FIRE_HEIGHT = 0.86;
 
@@ -77,10 +49,8 @@ export const forge: MeshBuilder = {
     const soot = 0x2a2724;
 
     // --- the firebox ---------------------------------------------------------
-    //
-    // Brick, and coursed. One flat mass reads as a painted block whatever
-    // colour it is; three courses at slightly different shades read as
-    // masonry for the cost of two extra boxes.
+    // Brick, and coursed: one flat mass reads as a painted block whatever colour it
+    // is, where three courses at slightly different shades read as masonry.
     const courses = rng.int(2, 4);
     for (let i = 0; i < courses; i++) {
       const h = bench / courses;
@@ -107,10 +77,8 @@ export const forge: MeshBuilder = {
     }
 
     // --- the coal bed --------------------------------------------------------
-    //
-    // A shallow heap of lumps in the middle. Drawn on the lit material rather
-    // than the glow one, because coal is mostly *dark* — only the fire in it
-    // glows, and that is the additive part below.
+    // A shallow heap of lumps in the middle, on the lit material rather than the
+    // glow one: coal is mostly dark, and only the fire in it glows.
     const lumps = rng.int(5, 9);
     for (let i = 0; i < lumps; i++) {
       const a = rng.range(0, Math.PI * 2);
@@ -119,10 +87,8 @@ export const forge: MeshBuilder = {
       const coal = new THREE.IcosahedronGeometry(size, 0);
       coal.rotateY(rng.range(0, Math.PI));
       coal.translate(Math.cos(a) * away, bench + 0.06 + size * 0.5, Math.sin(a) * away);
-      // A few of the lumps nearest the middle are lit through rather than
-      // black. Painted on the *lit* material, not the additive one — coal that
-      // has caught is a dull red surface, and only the fire between the lumps
-      // is bright enough to add light.
+      // A few of the lumps nearest the middle are lit through rather than black, and
+      // still on the lit material — coal that has caught is a dull red surface.
       parts.push({
         geometry: coal,
         color: rng.chance(heat * 0.45) ? 0x9c3f24 : shade(soot, rng.range(0.85, 1.3)),
@@ -145,10 +111,9 @@ export const forge: MeshBuilder = {
     glow.push({ geometry: core, color: 0xffd08a, sway: 0 });
 
     // --- the hood ------------------------------------------------------------
-    //
-    // Sheet steel, spreading over the hearth and closing to the flue. A lathe
-    // from a closed profile that never reaches the axis, which is the only way
-    // a solid of revolution comes out watertight.
+    // Sheet steel, spreading over the hearth and closing to the flue: a lathe from a
+    // closed profile that never reaches the axis, which is the only way a solid of
+    // revolution comes out watertight.
     const hoodBase = bench + rng.range(0.6, 1.15);
     const hoodTop = hoodBase + rng.range(0.65, 1.3);
     const spread = width * rng.range(0.62, 0.75);

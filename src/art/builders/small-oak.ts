@@ -6,28 +6,12 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { rod } from '../rod';
 
-/**
- * A young oak: a single leader with side branches all the way up it.
- *
- * **It has no fork, and that is the entire difference.** The adult builder is
- * organised around a low division into heavy limbs under a wide dome; a young
- * oak has not made that decision yet. It is running a single stem for height
- * and hanging short branches off it in a spiral, so the outline is a rough cone
- * — widest a third of the way up and tapering to the leader — where the adult's
- * is a mushroom. Shrink the adult instead and you get a miniature mushroom,
- * which reads as a shrub or as a mistake in the placement data.
- *
- * The other two tells are smaller and both worth having:
- *
- * - **Branches come off nearly level**, not steeply upward like a young birch's.
- *   An oak sapling spreads early and puts its leaves out sideways; a birch
- *   sapling is all vertical. Two saplings of comparable size have to differ
- *   somewhere, and branch angle is the only channel left at three metres.
- * - **The leaf clumps are large for the tree.** Oak leaves reach full size
- *   long before the tree does, so a young one is conspicuously over-leafed —
- *   the clumps here are nearly as big as the adult's on a stem a sixth the
- *   thickness.
- */
+// A young oak: a single leader with side branches all the way up it, and no fork
+// — the outline is a rough cone widest a third of the way up, where the adult's is
+// a mushroom. Branches come off nearly level rather than steeply up, which is the
+// only channel left to separate it from a birch sapling at three metres, and the
+// leaf clumps are large for the tree, because oak leaves reach full size long
+// before the tree does.
 
 const TAU = Math.PI * 2;
 

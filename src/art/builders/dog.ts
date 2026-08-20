@@ -4,14 +4,10 @@ import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
 
-/**
- * A dog: short, high off the ground, all head and tail.
- *
- * Deep at the chest and tucked at the loin, a long neck carried up, a head
- * with a stop, and a tail carried above the back — the four things that keep
- * it from reading as a calf. A wide range of leg length on purpose: a terrier
- * and a lurcher are both dogs.
- */
+// A dog: short, high off the ground, all head and tail. Deep at the chest, tucked
+// at the loin, a long neck carried up, a head with a stop, and a tail above the
+// back — the four things that keep it from reading as a calf. A wide range of leg
+// length on purpose: a terrier and a lurcher are both dogs.
 const CANINE: Species = {
   length: [0.5, 0.68],
   girth: [0.19, 0.24],

@@ -4,44 +4,19 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A log pile: cut firewood stacked between two stakes.
- *
- * **The classic yard wall, and the cheapest thing on this list that reads as
- * worked ground on sight.** A boulder says nobody has been here; a stack of split
- * logs says somebody comes out here with an axe, and it does it at about two
- * hundred triangles for two metres of solid, opaque, waist-high boundary. Against
- * a house wall it dresses a yard; across the end of a lane it closes it.
- *
- * ## The cut ends are the whole read
- *
- * A log pile seen from the side is a heap of sticks. Seen from the end — which is
- * how it is always stacked, because that is the only way it stays up — it is a
- * wall of pale discs in a dark frame, and that pattern is unmistakable at any
- * distance the prop is worth drawing at.
- *
- * So the logs run **along Z, into the pile**, and the colouring is a function of
- * position: faces out at the ends take sawn timber, everything between takes
- * bark. `Part.color` is evaluated once per face at its centroid, so the change
- * lands on the ring of facets where the cap meets the barrel and comes out as a
- * hard edge rather than a gradient.
- *
- * ## The packing
- *
- * Six-sided logs all turned to the same angle, on the honeycomb lattice those
- * hexagons tile: neighbours `r√3` apart, which is twice the apothem rather than
- * twice the radius. Rows step `1.5r` up and alternate rows shift half the
- * across-pitch.
- *
- * **Nothing is rotated and every log is the same size.** A log at its own angle
- * cannot tessellate with the one beside it, and a slot cut for the nominal
- * radius with a smaller log in the middle of it is a log touching nothing. What
- * varies is length, colour and which end shows sawn wood.
- *
- * The stakes at either end are what makes the packing legible.
- *
- * Built across **+X** with the logs running along Z, standing on y = 0.
- */
+// A log pile: cut firewood stacked between two stakes. The cut ends are the whole
+// read — a wall of pale discs in a dark frame — so the logs run along Z into the
+// pile and the colour is a function of position: end faces take sawn timber,
+// everything between takes bark, and `Part.color` lands the change on the ring of
+// facets where the cap meets the barrel.
+//
+// Six-sided logs all turned to the same angle, on the honeycomb lattice those
+// hexagons tile: neighbours r√3 apart, rows stepping 1.5r and alternating by half
+// the across-pitch. Nothing is rotated and every log is the same size — a log at
+// its own angle cannot tessellate with the one beside it. What varies is length,
+// colour and which end shows sawn wood.
+//
+// Built across +X with the logs running along Z, standing on y = 0.
 export const logPile: MeshBuilder = {
   name: 'log-pile',
   category: 'objects',
@@ -71,9 +46,8 @@ export const logPile: MeshBuilder = {
     const upPitch = log * 1.5 * TIGHT;
 
     // `CylinderGeometry`'s first vertex is on +Z, so after the quarter turn that
-    // lays a log along Z there is a vertex top and bottom — which is the phase
-    // whose flats face the six lattice neighbours. No correction, and none may
-    // be applied.
+    // lays a log along Z there is a vertex top and bottom — the phase whose flats
+    // face the six lattice neighbours. No correction, and none may be applied.
     const facets = 6;
 
     // The stakes. Driven in a little past the ends of the stack and leaning
@@ -116,10 +90,8 @@ export const logPile: MeshBuilder = {
           y + rng.around(0, log * SLOP),
           seat,
         );
-        // Measured from where this log actually ended up, not from the origin:
-        // the cut faces are a fixed distance along its own axis, and a log that
-        // has been nudged 3 cm along must not lose one of them to a test that
-        // assumes it did not move.
+        // Measured from where this log actually ended up, not from the origin: the
+        // cut faces are a fixed distance along its own axis.
         const end = (length / 2) * 0.86;
         parts.push({
           geometry: barrel,

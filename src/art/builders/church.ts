@@ -17,21 +17,10 @@ import {
 } from '../building';
 import { shade } from '../palette';
 
-/**
- * A parish church: a west tower, a nave, a lower chancel, and a south porch.
- *
- * Cellular, which is what a Romanesque parish church is — not one space but a
- * row of separate boxes that step *down* and *in* from the nave to the chancel,
- * with a tower at the other end standing well over both. That stepping is the
- * whole silhouette and the reason a church reads as a church from across a
- * valley: nothing else in a village is three heights at once.
- *
- * Everything is stone, the windows are narrow and round-headed because the wall
- * between them is what holds the roof up, and the buttresses are shallow
- * pilasters rather than the flying kind — this is a village, not a cathedral.
- *
- * **One design, not a family** — drawn rather than rolled. See `manor`.
- */
+// A parish church: a west tower, a nave, a lower chancel and a south porch,
+// stepping down and in from the nave — nothing else in a village is three heights
+// at once. All stone, windows narrow and round-headed, buttresses shallow
+// pilasters. One design, drawn rather than rolled.
 
 const NAVE_WIDTH = 10;
 const NAVE_DEPTH = 6;
@@ -40,11 +29,7 @@ const PITCH = 0.82;
 
 const CHANCEL_WIDTH = 4.6;
 const CHANCEL_DEPTH = 4.6;
-/**
- * Raised a quarter metre. The chancel is the lowest thing on the building and
- * its side lights had nowhere to go: at 3.7 the arch over one finished exactly
- * on the roof's underside. It still steps well below the nave's five.
- */
+/** The chancel is the lowest thing on the building and its side lights need room; it still steps well below the nave's five metres. */
 const CHANCEL_EAVE = 3.95;
 
 const TOWER_SIDE = 3.7;
@@ -62,13 +47,10 @@ const TOWER_X = NAVE_X - NAVE_WIDTH / 2 - TOWER_SIDE / 2 + 0.3;
 const PORCH_X = NAVE_X;
 
 /**
- * How tall a lancet may be on a wall of a given block.
- *
- * Two things `Block.head` does not know. It is measured at a lintel's depth, and
- * an arch ring stands half again as far out — where the roof's underside, being
- * a slope, is lower still. And a window wants a course of wall above it rather
- * than to finish on the ceiling. Both are taken off here, so every lancet on the
- * building is sized the same way instead of each carrying its own guess.
+ * How tall a lancet may be on a wall of a given block. `Block.head` is measured at
+ * a lintel's depth, and an arch ring stands half again as far out, where the
+ * roof's underside is lower still — and a window wants a course of wall above it.
+ * Both are taken off here, so every lancet on the building is sized the same way.
  */
 function lancetHeight(head: number, sill: number, width: number, want: number): number {
   /** From the opening's head to the outside of its arch ring. */
@@ -123,7 +105,6 @@ export const church: MeshBuilder = {
     parts.push(...chancel.parts);
 
     // --- the tower -----------------------------------------------------------
-    //
     // Square, buttressed only at its western corners, and taller than everything
     // else put together.
     const tower = block(rng, {
@@ -206,9 +187,7 @@ export const church: MeshBuilder = {
     }
 
     // --- the porch, and the two ways in --------------------------------------
-    //
-    // Neither doorway builds anything. The porch's arch and the west door's went
-    // with the rest of the frames: a door builder puts the whole opening there.
+    // Neither doorway builds anything: a door builder puts the whole opening there.
     // Both are still recorded, so the west door is still a way in.
     const porch = block(rng, {
       x: PORCH_X,
@@ -226,9 +205,8 @@ export const church: MeshBuilder = {
     parts.push(...porch.parts);
 
     // --- the lights ----------------------------------------------------------
-    //
-    // Three a side on the nave, with a pilaster between each pair. The porch
-    // stands under the middle bay on the south, so that one light is left out.
+    // Three a side on the nave, with a pilaster between each pair. The porch stands
+    // under the middle bay on the south, so that one light is left out.
     const bays = [-3.4, 0, 3.4];
     for (const face of [nave.wall.front, nave.wall.back]) {
       for (const at of bays) {
@@ -259,10 +237,8 @@ export const church: MeshBuilder = {
 
     for (const face of [chancel.wall.front, chancel.wall.back]) {
       parts.push(
-        // Clamped to the chancel's own head. The chancel is the lowest thing on
-        // the building and its side lights were the first to come out through
-        // the roof — the arch over a lancet is another quarter metre above the
-        // opening, and it stands proud, so it ducks lower still.
+        // Clamped to the chancel's own head: the arch over a lancet is another
+        // quarter metre above the opening, and it stands proud, so it ducks lower.
         ...onFace(
           lancet(rng, {
             at: 0,
@@ -276,15 +252,10 @@ export const church: MeshBuilder = {
       );
     }
 
-    // The east window: three lights, which is the one place a village church
-    // spent anything on glass. Kept under the chancel's own eave, which is well
-    // below the nave's.
-    //
-    // **Spaced, not grouped.** They stood at 62 cm centres, and a lancet is
-    // wider than that once its jambs and the ring of its arch are counted — the
-    // outer two had the middle one's arch driven through their frames. A lancet
-    // 40 cm wide measures 45 from its middle to the outside of its arch, so the
-    // centres have to clear 90; these are on 105 and each one stands alone.
+    // The east window: three lights, which is the one place a village church spent
+    // anything on glass, kept under the chancel's own eave. Spaced, not grouped — a
+    // lancet 40 cm wide measures 45 from its middle to the outside of its arch, so
+    // the centres have to clear 90 and these are on 105.
     const sill = 1.45;
     const middle = lancetHeight(chancel.head, sill, 0.4, 1.7);
     for (const [at, height] of [

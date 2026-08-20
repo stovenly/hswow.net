@@ -4,38 +4,15 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
-/**
- * A scarecrow: a cross of poles in old clothes, standing in a crop.
- *
- * **The cheapest figure in the kit, and it does a job no real figure can.** A
- * `figure` standing in a field is a person, and a person who never moves is the
- * single most unsettling thing a low-poly world can contain. A scarecrow is a
- * person-shaped object that is *supposed* not to move, so it gives a field the
- * human silhouette it wants at no cost in credibility — and at about a tenth of
- * the triangles.
- *
- * It is also the only prop here that implies the *crop*. A plough says the
- * ground is worked; a scarecrow says something is growing on it worth defending,
- * which is a further step and one nothing else in the kit takes.
- *
- * ## The cross has to read before the clothes do
- *
- * At any distance this is a vertical and a horizontal, and the proportion
- * between them is the whole recognition. So the arm pole is long — wider than
- * the coat by a good margin at each end — and it stays bare at the tips, because
- * a cross whose ends are hidden under cloth is a lump.
- *
- * **It leans**, and it leans about its foot. A post driven into soft ground and
- * left for a season is never plumb, and the lean is what separates this from a
- * signpost.
- *
- * ## The clothes hang, they are not worn
- *
- * There is no body under them and there must not appear to be one. So the coat
- * is a slab that stands *off* the pole rather than wrapping it, it is wider at
- * the hem than at the shoulder, and it is the one part of this that sways —
- * gently, and only below the arms, because that is where cloth is free.
- */
+// A scarecrow: a cross of poles in old clothes, standing in a crop — a
+// person-shaped object that is supposed not to move, which is what gives a field
+// a human silhouette at no cost in credibility.
+//
+// The cross has to read before the clothes do, so the arm pole is long — wider
+// than the coat by a good margin — and stays bare at the tips. It leans, about
+// its foot. The clothes hang rather than being worn: the coat is a slab standing
+// off the pole, wider at the hem than the shoulder, and it is the one part that
+// sways, only below the arms, because that is where cloth is free.
 export const scarecrow: MeshBuilder = {
   name: 'scarecrow',
   category: 'objects',

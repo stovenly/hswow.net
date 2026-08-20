@@ -5,32 +5,13 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { landWash, markVista, vistaMass } from '../vista';
 
-/**
- * A castle on its own hill — the largest built thing in the band.
- *
- * `vista-tower` is one shaft, and it reads as "somebody put a marker there".
- * This reads as *somewhere*: a mound, a keep, a run of curtain wall and the
- * corner turrets that make a wall a wall. It is the thing on the far ridge that
- * a player points at, which is the whole reason the band has a roster instead of
- * a hill and a copse.
- *
- * ## Three rules, all of them about being a kilometre away
- *
- * - **It stands on ground of its own.** A castle on flat land at this distance
- *   is a lump of stone in a field. The mound is most of what says "fortified" —
- *   it lifts the silhouette clear of the horizon line and puts a shadowed skirt
- *   under it, and it costs twenty triangles.
- * - **Rectangles, not cylinders.** At a couple of hundred metres the difference
- *   between a hexagonal turret and a square one is nothing, but the difference
- *   between straight edges and a soft mass is everything: straight is the only
- *   cue that separates built from geological once fog has taken the detail.
- * - **One thing is taller than everything else.** A castle silhouette is a
- *   stepped profile — wall, keep, tower — and the eye reads the steps rather
- *   than any of the shapes. Even heights read as a factory.
- *
- * Around 190 triangles, which is the most expensive prop in the family and the
- * only one that earns it. Well under the 300 the spec allows.
- */
+// A castle on its own hill — the largest built thing in the band, and the thing
+// on the far ridge a player points at. Three rules, all about being a kilometre
+// away: it stands on ground of its own, because a castle on flat land at this
+// distance is a lump of stone in a field; rectangles rather than cylinders, since
+// straight edges are the only cue separating built from geological once fog has
+// taken the detail; and one thing taller than everything else, because the eye
+// reads the steps of a stepped profile. Around 190 triangles.
 
 const STONE = [PALETTE.STONE_DARK, PALETTE.STONE, PALETTE.STONE_PALE] as const;
 /** The mound. Ordinary hillside, so it belongs to the land and not to the wall. */
@@ -66,9 +47,8 @@ export const vistaCastle: MeshBuilder = {
     });
 
     // --- the curtain, and what stands on it ----------------------------------
-    // Two runs meeting at a corner rather than a full circuit: from any one
-    // bearing you see two faces of a castle and never four, and the two that
-    // are hidden cost as much as the two that are not.
+    // Two runs meeting at a corner rather than a full circuit: from any one bearing
+    // you see two faces of a castle and never four.
     const wallHigh = rng.range(6, 8.5);
     const wallThick = rng.range(2.6, 3.6);
     const across = rng.range(15, 20);
