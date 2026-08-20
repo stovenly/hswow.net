@@ -8,18 +8,13 @@
  * overrides, each a flat map of dotted paths — `{"grit.q": 2.2}` — and each
  * comes back as a single-footfall wav named by its index.
  *
- * **This exists because tuning a liquid by ear-proxy does not converge.** There
- * are the better part of twenty coupled numbers in one of these, several of
- * them pulling against each other: spread widens the texture and also breaks it
- * into countable objects, grain length is both the wet/dry control and the
- * thing that decides how much of the band a grain covers, and every level moves
- * the balance of all the others. Changing one at a time and listening is a walk
- * through that space with no gradient, and eleven rounds of it produced goop,
- * then foil, then cereal.
- *
- * A search does not need to be clever to beat that. It needs the loop to be
- * cheap, which means one footfall and a short buffer, and it needs a score —
- * which `measure` on the reference recording supplies.
+ * A surface has the better part of twenty coupled numbers in it, several
+ * pulling against each other: spread widens the texture and also breaks it into
+ * countable objects, grain length is both the wet/dry control and the thing
+ * that decides how much of the band a grain covers. Changing one at a time and
+ * listening is a walk through that space with no gradient. A search needs the
+ * loop to be cheap — one footfall, a short buffer — and a score, which
+ * `measure` on the reference recording supplies.
  */
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { OfflineAudioContext } from 'node-web-audio-api';

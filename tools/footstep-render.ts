@@ -3,19 +3,13 @@
  *
  * `npm run render:footsteps -- mud gravel`
  *
- * **This runs the real `Footsteps`, not a model of it.** `audition/render.ts`
- * says why that matters and why it cannot be done in Node — `OfflineAudioContext`
- * *is* the Web Audio implementation, and a reimplementation would measure the
- * reimplementation. That was true when it was written; it stopped being true
- * when a Rust-backed Node build of the same API became installable. So the
- * class under test is the one that ships, filters and all.
+ * **This runs the real `Footsteps`, not a model of it**, on a Rust-backed Node
+ * build of the Web Audio API. A reimplementation would measure the
+ * reimplementation; the class under test is the one that ships, filters and all.
  *
- * The point is the loop it closes. Every surface in this file has been tuned by
- * describing a sound, writing numbers that ought to produce it, and waiting to
- * be told what came out — which is slow, and worse, it lets a confident
- * description survive an output that does not match it. A recording of the real
- * thing can be banded and measured; so can this; and then the two are the same
- * kind of object and the difference between them is a number.
+ * The point is the loop it closes: a recording of the real thing can be banded
+ * and measured, so can this, and then the difference between them is a number
+ * rather than a description.
  */
 import { writeFileSync } from 'node:fs';
 import { OfflineAudioContext } from 'node-web-audio-api';
