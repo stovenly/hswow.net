@@ -199,7 +199,8 @@ How anything gets worn is one system, in three files:
   surface, the bare skin; stuck things sample the dressed skin once at their
   anchor.
 - New primitives go in `figure-surface.ts` with a reason, or not at all.
-- Animations stay inside the motion envelope or widen it deliberately.
+- Animations stay inside the motion envelope (`BIPED_ENVELOPE`,
+  `src/life/envelope.ts`) or widen it deliberately.
 
 ### 3.3 The head — a hood, and a carved mask over it
 
@@ -421,6 +422,11 @@ one-sided skin — bands and cuffs are closed solids.
   does not wait for you to turn round before they look at you — twisting up to
   `BIPED_YAW_LIMIT`, which `look` shares out as a little torso, some neck and
   most head. All rotation; nothing extends.
+- **The motion envelope** (`src/life/envelope.ts`): `BIPED_ENVELOPE` records,
+  per bone, the largest rotation any layer applies, read out of `gaits.ts`.
+  It is the contract with clothing — the builder derives its clearances from
+  it, so a new animation either stays inside it or widens the entry it
+  exceeds, and the widened entry is the list of garments to recheck.
 - **The head goes first and the body follows it.** The shoulders wait, ease in,
   and stop `SHOULDER_EASE` short of square, because nobody squares up to
   someone they are talking to and the head holds the rest. **How far it has to

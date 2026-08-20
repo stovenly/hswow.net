@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import type { BuilderWith } from '../types';
 import type { Part } from '../assemble';
-import { loft } from '../loft';
 import { finishRigged, type BoneSpec } from '../rig';
 import { createRng } from '../random';
 import { shade } from '../palette';
 import type { LifeOptions, LifeSpec } from '../../life/spec';
+import { ARM_HANG_INWARD } from '../../life/envelope';
 import { buildHead, type AnyHeadKind } from './figure-head';
 import { U_CHEST, U_WAIST, drawFrame, makeTrunk, trunkSurface, type Body } from './figure-trunk';
 import { pickWeighted, type BoneBall } from './figure-surface';
 import { LayerStack, dress } from './figure-layers';
+import { boot, head, limb, makeLimb } from './figure-limbs';
 import { COAT_PROUD, PEOPLE } from './figure-people';
 
 /**
@@ -33,59 +34,6 @@ import { COAT_PROUD, PEOPLE } from './figure-people';
  *               │        ├ clavL ─ armLu ─ armLl     (and R)
  *               └ legLu ─ legLl ─ legLf              (and R)
  */
-
-const LIMB_SIDES = 8;
-
-/**
- * A limb segment: a loft along the line from `from` to `to`, with a profile
- * given as (t along the segment, radius). `t` may run below zero, which puts
- * a rounded joint head *above* the pivot. `flat` squashes the section across
- * the limb.
- */
-function limb(
-  from: THREE.Vector3,
-  to: THREE.Vector3,
-  stations: readonly (readonly [number, number])[],
-  flat = 1,
-  caps: { start?: boolean; end?: boolean } = { start: true, end: true },
-): THREE.BufferGeometry {
-  const dir = new THREE.Vector3().subVectors(to, from);
-  const length = dir.length();
-  const axis = dir.clone().divideScalar(length);
-  const at = axis.toArray() as [number, number, number];
-  return loft(
-    stations.map(([t, r]) => ({
-      at: [from.x + axis.x * t * length, from.y + axis.y * t * length, from.z + axis.z * t * length] as [number, number, number],
-      rx: r,
-      ry: r * flat,
-      axis: at,
-    })),
-    LIMB_SIDES,
-    caps,
-  );
-}
-
-/**
- * A joint head: the stations of a ball of radius `R` about a segment's start
- * pivot, for a segment `length` long, ending at the pivot itself. The segment
- * above must end thinner than `R` — then it is inside the ball whatever the
- * bend, and nothing pokes out or fights the surface.
- */
-function head(R: number, length: number): [number, number][] {
-  return [0.95, 0.75, 0.45, 0].map((k) => [(-k * R) / length, R * Math.sqrt(1 - k * k)]);
-}
-
-/** Radius of a limb profile at `t`, for wrapping things round it. */
-function radiusAt(stations: readonly (readonly [number, number])[], t: number): number {
-  for (let i = 1; i < stations.length; i++) {
-    if (t <= stations[i][0]) {
-      const [t0, r0] = stations[i - 1];
-      const [t1, r1] = stations[i];
-      return r0 + ((r1 - r0) * (t - t0)) / (t1 - t0);
-    }
-  }
-  return stations[stations.length - 1][1];
-}
 
 // --- the builder ------------------------------------------------------------------
 
@@ -128,7 +76,11 @@ export const figure: BuilderWith<LifeOptions> = {
     // them, the shoulders broaden to give it.
     const armR = T * phy.armR;
     const out = T * 0.1;
-    const ribsNeed = T * 0.25 * frame.chest + COAT_PROUD + armR * 1.04 - out * 0.25;
+    // The rest gap is the smallest animation ever makes it: no layer turns a
+    // hanging arm inward (`ARM_HANG_INWARD`), so clearing the ribs and the
+    // proudest coat at rest clears them always.
+    const ribsNeed =
+      T * 0.25 * frame.chest + COAT_PROUD + armR * 1.04 - out * 0.25 + Math.sin(ARM_HANG_INWARD) * T * phy.upperArm;
     const jointX = Math.max(ribsNeed, T * 0.3 * frame.breadth - T * 0.02);
     frame.breadth = (jointX + T * 0.02) / (T * 0.3);
     const trunk = makeTrunk(frame);
@@ -181,7 +133,8 @@ export const figure: BuilderWith<LifeOptions> = {
     const deltoidR = armR * 1.25;
     const upperLen = T * phy.upperArm;
     const foreLen = T * phy.forearm;
-    const { sleeveEnd, armWraps, foreCloth, glove } = people.sleeves(rng, o);
+    const sleeves = people.sleeves(rng, o);
+    const { sleeveEnd, foreCloth, glove } = sleeves;
     const deltoids: BoneBall[] = [];
     for (const side of [1, -1] as const) {
       const tag = side > 0 ? 'armL' : 'armR';
@@ -220,30 +173,7 @@ export const figure: BuilderWith<LifeOptions> = {
       thumb.scale(0.8, 1, 0.8);
       thumb.translate(hand.x - side * armR * 0.8, hand.y + armR * 0.4, hand.z + armR * 0.35);
       parts.push({ geometry: thumb, color: handColor, bone: `${tag}l`, name: `${tag} thumb` });
-      if (glove !== undefined) {
-        // The glove's gauntlet cuff, up over the wrist.
-        const r = radiusAt(fore, 0.9) + 0.004;
-        parts.push({ geometry: limb(elbow, wrist, [[0.84, r * 1.12], [1.02, r * 0.98]], 0.88), color: shade(glove, 0.88), bone: `${tag}l` });
-      }
-      if (!bare) {
-        // A cuff where the sleeve ends on the forearm.
-        const cuffAt = elbow.clone().lerp(wrist, 0.1);
-        const cuff = new THREE.CylinderGeometry(armR * 1.02, armR * 1.06, armR * 0.7, LIMB_SIDES);
-        cuff.translate(cuffAt.x, cuffAt.y, cuffAt.z);
-        parts.push({ geometry: cuff, color: trim, bone: `${tag}l` });
-      }
-      if (armWraps) {
-        // Wraps wound up the forearm: bands standing a little off it.
-        for (let i = 0; i < 4; i++) {
-          const t = 0.34 + i * 0.15;
-          const r = radiusAt(fore, t) + 0.004;
-          parts.push({
-            geometry: limb(elbow, wrist, [[t - 0.05, r], [t + 0.05, r * 0.98]], 0.88),
-            color: shade(accent, i % 2 ? 0.9 : 1),
-            bone: `${tag}l`,
-          });
-        }
-      }
+      parts.push(...people.limbs.arm(makeLimb(elbow, wrist, fore, 0.88, `${tag}l`, side, armR), sleeves, o));
 
       bones.push({ name: `${tag}u`, parent: side > 0 ? 'clavL' : 'clavR', at: joint.toArray() as [number, number, number] });
       bones.push({ name: `${tag}l`, parent: `${tag}u`, at: elbow.toArray() as [number, number, number] });
@@ -298,28 +228,7 @@ export const figure: BuilderWith<LifeOptions> = {
         color: lowerStyle === 'breeches' ? accent : lower,
         bone: `${tag}l`,
       });
-      if (lowerStyle === 'garters') {
-        // A garter tied under the knee, its ends hanging.
-        const r = radiusAt(shin, 0.16) + 0.004;
-        parts.push({ geometry: limb(knee, ankleTop, [[0.11, r], [0.2, r * 0.98]], 0.94), color: trim, bone: `${tag}l` });
-        const tail = new THREE.BoxGeometry(legR * 0.16, legR * 0.5, legR * 0.05);
-        const kneeOut = knee.clone().lerp(ankleTop, 0.16).add(new THREE.Vector3(side * r * 0.9, -legR * 0.28, r * 0.3));
-        tail.translate(kneeOut.x, kneeOut.y, kneeOut.z);
-        parts.push({ geometry: tail, color: shade(trim, 0.9), bone: `${tag}l` });
-      } else if (lowerStyle === 'breeches') {
-        // The breeches' cuff, gathered under the knee.
-        parts.push({ geometry: limb(knee, ankleTop, [[0.04, legR * 1.1], [0.2, legR * 1.06]], 0.94), color: lower, bone: `${tag}l` });
-      } else if (lowerStyle === 'wraps') {
-        for (let i = 0; i < 4; i++) {
-          const t = 0.2 + i * 0.18;
-          const r = radiusAt(shin, t) + 0.005;
-          parts.push({
-            geometry: limb(knee, ankleTop, [[t - 0.06, r], [t + 0.06, r * 0.98]], 0.94),
-            color: shade(accent, i % 2 ? 0.88 : 1),
-            bone: `${tag}l`,
-          });
-        }
-      }
+      parts.push(...(people.limbs.leg[lowerStyle]?.(makeLimb(knee, ankleTop, shin, 0.94, `${tag}l`, side, legR), o) ?? []));
       parts.push(...boot(ankle, ankleTop, cuffR, legR, leather, `${tag}l`, `${tag}f`, shoes ? lower : undefined));
       // Off the hips, so the pelvis carries the legs and the feet are solved
       // back to the ground from wherever it goes.
@@ -377,77 +286,3 @@ export const figure: BuilderWith<LifeOptions> = {
     return mesh;
   },
 };
-
-/**
- * A boot: a collar carrying straight on from the trouser leg, and a foot.
- * The collar starts on the *same ring* the shin ended on, with neither piece
- * capped there, so the two are one surface with a colour change at a ring.
- * The foot's rear rings stay inside the collar and it emerges forward only.
- * The collar rides the shin; the foot rides the ankle bone.
- */
-function boot(
-  ankle: THREE.Vector3,
-  ankleTop: THREE.Vector3,
-  cuffR: number,
-  legR: number,
-  color: number,
-  shinBone: string,
-  footBone: string,
-  hose?: number,
-): Part[] {
-  // With `hose` given this is a shoe: the collar is the hose down to the
-  // ankle, and the foot is low and long, drawn to a point.
-  const shoe = hose !== undefined;
-  const w = legR * 1.3;
-  const h = legR * (shoe ? 1.2 : 1.5);
-  const length = legR * (shoe ? 4.4 : 3.7);
-  const back = ankle.z - legR * 1.2;
-
-  const collar = limb(
-    ankleTop,
-    new THREE.Vector3(ankle.x, ankle.y - legR * 0.5, ankle.z),
-    shoe
-      ? [
-          [0, cuffR],
-          [0.5, legR * 0.78],
-          [1, legR * 0.78],
-        ]
-      : [
-          [0, cuffR],
-          [0.3, legR * 1.14],
-          [0.6, legR * 1.1],
-          [1, legR * 1.0],
-        ],
-    0.94,
-    { start: false, end: true },
-  );
-
-  const foot = loft(
-    shoe
-      ? [
-          { at: [ankle.x, h * 0.5, back], rx: w * 0.62, ry: h * 0.5 },
-          { at: [ankle.x, h * 0.5, back + length * 0.3], rx: w * 0.94, ry: h * 0.5 },
-          { at: [ankle.x, h * 0.42, back + length * 0.56], rx: w * 0.9, ry: h * 0.42 },
-          { at: [ankle.x, h * 0.3, back + length * 0.78], rx: w * 0.6, ry: h * 0.3 },
-          { at: [ankle.x, h * 0.2, back + length * 0.92], rx: w * 0.3, ry: h * 0.18 },
-          { at: [ankle.x, h * 0.16, back + length], rx: w * 0.1, ry: h * 0.1 },
-        ]
-      : [
-          { at: [ankle.x, h * 0.5, back], rx: w * 0.66, ry: h * 0.5 },
-          { at: [ankle.x, h * 0.5, back + length * 0.34], rx: w, ry: h * 0.5 },
-          { at: [ankle.x, h * 0.45, back + length * 0.66], rx: w * 0.96, ry: h * 0.45 },
-          { at: [ankle.x, h * 0.36, back + length * 0.88], rx: w * 0.78, ry: h * 0.36 },
-          { at: [ankle.x, h * 0.3, back + length], rx: w * 0.44, ry: h * 0.28 },
-        ],
-    LIMB_SIDES + 1,
-  );
-
-  const strap = new THREE.BoxGeometry(w * (shoe ? 1.9 : 2.06), legR * (shoe ? 0.2 : 0.26), legR * 0.42);
-  strap.translate(ankle.x, h * (shoe ? 0.7 : 0.6), back + length * (shoe ? 0.3 : 0.36));
-
-  return [
-    { geometry: collar, color: hose ?? color, bone: shinBone },
-    { geometry: foot, color, bone: footBone },
-    { geometry: strap, color: shoe ? shade(color, 1.3) : shade(color, 0.75), bone: footBone },
-  ];
-}
