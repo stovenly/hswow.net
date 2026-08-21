@@ -249,7 +249,14 @@ function blendHex(a: number, b: number, t: number, out: THREE.Color): THREE.Colo
   return fromOklab(LAB_A.lerp(LAB_B, t), out);
 }
 
-function tint(colour: THREE.Color, toward: THREE.Color, amount: number): void {
+/**
+ * Pulls a colour's hue and chroma toward another and leaves its lightness
+ * alone. What the weather does to the air is change what colour it is, not how
+ * bright it is — a snow haze is pale by daylight and dark at midnight, and
+ * lerping toward the pale value at midnight lifts the whole sky behind the
+ * cloud and reads as the clouds having gone dark.
+ */
+export function tintToward(colour: THREE.Color, toward: THREE.Color, amount: number): void {
   if (amount <= 0) return;
   toOklab(colour, LAB_A);
   toOklab(toward, LAB_B);
@@ -257,6 +264,10 @@ function tint(colour: THREE.Color, toward: THREE.Color, amount: number): void {
   // dusk at the same elevation, and it is not.
   const l = LAB_A.x;
   fromOklab(LAB_A.lerp(LAB_B, amount).setX(l), colour);
+}
+
+function tint(colour: THREE.Color, toward: THREE.Color, amount: number): void {
+  tintToward(colour, toward, amount);
 }
 
 export function createAtmosphere(): Atmosphere {

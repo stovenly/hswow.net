@@ -133,6 +133,7 @@ attribute vec4 iColour;
 attribute float iSpin;
 
 uniform sampler2D gustIntegral;
+uniform sampler2D gustField;
 uniform vec2 windDir;
 uniform float windLagScale;
 uniform float windHalfSpan;
@@ -213,8 +214,18 @@ const PARTICLE_VERTEX = /* glsl */ `
   vec2 at = volume > 0.5 ? centre.xz + iOrigin.xz : home.xz;
   float lag = dot(at, windDir) * windLagScale;
   float uNow = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
-  float uThen = clamp(uNow - age * windAgeScale, 0.0, 1.0);
-  float carried = (gustSum(uNow) - gustSum(uThen)) * uWindCarry * iVary.y * swayAmount;
+  float uThen = uNow - age * windAgeScale;
+  float carried = (gustSum(uNow) - gustSum(max(uThen, 0.0))) * uWindCarry * iVary.y * swayAmount;
+  // Past the start of the table the field is simply not written down, and
+  // clamping there stops the sum growing — so a flake old enough to reach the
+  // edge gains no more sideways drift and falls dead straight beside one that
+  // does. Snow finds it and rain does not: a flake takes twenty seconds to
+  // cross the box where a raindrop takes two. The remainder is carried at the
+  // edge value instead, which is the honest reading of a field that ends.
+  if (uThen < 0.0) {
+    float edge = texture2D(gustField, vec2(0.0, 0.5)).r;
+    carried += (-uThen / max(windAgeScale, 1e-6)) * edge * uWindCarry * iVary.y * swayAmount;
+  }
   vec3 drift = vec3(windDir.x, 0.0, windDir.y) * carried;
 
   // A small wander on top, so ash does not fall like snow and a plume is not a

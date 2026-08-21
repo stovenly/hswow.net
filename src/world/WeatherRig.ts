@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Climate, WEATHER_KINDS, planSky, type DeckTarget, type WeatherKind } from './climate';
-import { createAtmosphere, sampleAtmosphere, cloudLightAt } from '../engine/atmosphere';
+import { createAtmosphere, sampleAtmosphere, cloudLightAt, tintToward } from '../engine/atmosphere';
 import { createDecks, type DeckState } from '../engine/Sky';
 import { GENERA, twilightLead } from '../art/glsl/clouds';
 import { createParticles, setParticleWeather } from '../art/particles';
@@ -165,15 +165,16 @@ export class WeatherRig {
     this.air.sunScale *= 1 - shut * 0.82;
     this.air.ambientScale *= 1 + shut * 0.2;
     this.air.fillScale *= 1 - shut * 0.35;
+    // Hue and chroma only, never lightness. How bright the sky is at this hour
+    // is the atmosphere's to say; what colour the weather has made it is this.
     if (this.airMix > 0) {
       const wash = this.airMix * overcast;
-      this.air.horizon.lerp(this.airColour, wash * 0.75);
-      this.air.zenith.lerp(this.airColour, wash * 0.9);
-      this.air.ground.lerp(this.airColour, wash * 0.5);
-      this.air.ambientSky.lerp(this.airColour, wash * 0.65);
-      this.air.fillColour.lerp(this.airColour, wash * 0.5);
-      this.air.sunColour.lerp(this.airColour, wash * 0.5);
-      this.air.cloudLit.lerp(this.airColour, wash * 0.4);
+      tintToward(this.air.horizon, this.airColour, wash * 0.8);
+      tintToward(this.air.zenith, this.airColour, wash * 0.95);
+      tintToward(this.air.ground, this.airColour, wash * 0.55);
+      tintToward(this.air.ambientSky, this.airColour, wash * 0.7);
+      tintToward(this.air.fillColour, this.airColour, wash * 0.55);
+      tintToward(this.air.sunColour, this.airColour, wash * 0.55);
     }
 
     postfx.aimSun(climate.sunDirection);
@@ -225,6 +226,19 @@ export class WeatherRig {
       if (grey > 0) {
         deck.lit.lerp(deck.shade, grey);
         deck.shade.multiplyScalar(1 - grey * 0.35);
+      }
+      // And the weather's own colour on the cloud, by hue as everywhere else.
+      // A deck raining or snowing out of its bottom is that colour too — it is
+      // the same air, seen from underneath rather than through.
+      if (this.airMix > 0) {
+        tintToward(deck.lit, this.airColour, this.airMix * 0.55);
+        tintToward(deck.shade, this.airColour, this.airMix * 0.4);
+        // Falling weather thickens the deck it falls out of.
+        const falling = this.climate.falling;
+        if (falling > 0) {
+          deck.lit.multiplyScalar(1 - falling * 0.22);
+          deck.shade.multiplyScalar(1 - falling * 0.3);
+        }
       }
     }
     postfx.setDecks(
