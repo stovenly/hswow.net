@@ -1,7 +1,14 @@
 # Cloth — spec
 
-**Nothing here is built.** This is the investigation and the plan. Names of
-modules, builders and fabrics below are provisional throughout.
+**Built, C1 and C2.** `art/cloth.ts` is the sim, `art/clothMesh.ts` the
+meshing, `engine/ClothActivity.ts` the driver, and `banner`, `hanging-banner`,
+`flag` and `curtain` are the props. The fabrics gallery hangs off the general
+hall.
+
+**C3 and C4 are dropped.** C3 put simulated cloth on figures, which the
+standing rule against cloth on rigged creatures rules out. C4 was always
+conditional on C1–C3, and its one delight — a doorway curtain parting as you
+walk through — is not worth a player capsule in the collider on its own.
 
 A companion to [PARTICLES.md](PARTICLES.md) and the sway system in
 `art/sway.ts`, and deliberately positioned between them: sway is stateless

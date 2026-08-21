@@ -13,29 +13,48 @@ prior conversation context. Update it as decisions change.
 | Phase | State |
 |---|---|
 | 0 — Harness | **Complete** |
-| 1 — First-person controller | **Built, awaiting your verdict on feel** |
-| 2 — Render pipeline and filters | **Built, not yet seen on a screen** |
+| 1 — First-person controller | **Complete** |
+| 2 — Render pipeline and filters | **Complete** |
 | 3 — Procedural audio engine | **Complete** |
 | 4 — Procedural art kit | **Complete** |
-| 5 — Zones and portals | **Complete** (trigger volumes and prop streaming deferred) |
+| 5 — Zones and portals | **Complete** — trigger volumes deferred; residency and streaming landed with `ZONE-LOADING` |
 | 6 — Procedural audio: the sound of places | **Complete** |
 | 6b — Galleries, and objects for the sounds | **Complete** |
-| 6c — Procedural music | **Complete through musicality (steps 1–7)** |
-| 6d — The voicing pass | **Built, awaiting the listening pass** — baselines to re-capture after it |
-| 6e — The vibe book | **Built, awaiting the audition pass** — the table in the phase is the tunable |
-| 6f — The wider band | **Built, awaiting the audition pass** — both tables in the phase are the tunables |
-| 6g — The composed machine | **Built** — all six options in; the audition pass and the tunables (grounds, cells, tempo spans, alternates) await the owner's ear |
-| 6h — Nine places, one band | **Built** — character blocks, the one clock, the rarer hands; the character table is the tunable |
-| 6i — Rust and cold water | **Built** — eleven new vibes, five new modes, six new voices; every table in the phase is the tunable, and the audition pass awaits the owner's ear |
-| 6j — Bows, bends and breath | **Built** — five performer voices into twelve palette seats; the recipes and levels are the tunable, and the audition pass awaits the owner's ear |
-| 6k — The old rules | **Built** — five of the six moves in (the echo waits on the listening pass by design); the just table, the neighbour steps and the ornament dice are the tunables |
-| 6l — The back of the wagon | **Built** — five voices in, eleven seats swapped; the audition pass and the three viol drone levels wait on the owner's ear |
-| 6m — The other side of things | **Built** — the five inversion moves ride the night scalar; the mid-piece toggle listening pass waits on the owner's ear |
-| 7 — Actors, animation, wind sway | Not started |
-| 8 — Keyword dialogue, quests, narrative | Not started |
-| 9 — Autosave, touch controls, performance | Not started |
-| 10 — Content authoring | Not started |
-| 11 — World editor *(cuttable)* | **Deferred** — revisit when hand-editing hurts for a reason a builder cannot fix |
+| 6c — Procedural music | **Complete** |
+| 6d — The voicing pass | **Complete** |
+| 6e — The vibe book | **Complete** |
+| 6f — The wider band | **Complete** |
+| 6g — The composed machine | **Complete** |
+| 6h — Nine places, one band | **Complete** |
+| 6i — Rust and cold water | **Complete** |
+| 6j — Bows, bends and breath | **Complete** |
+| 6k — The old rules | **Complete** |
+| 6l — The back of the wagon | **Complete** |
+| 6m — The other side of things | **Complete** |
+| 6n–6s — The theory pass | **Complete** — voice leading, melody invariant, metrical accent, harmonic distance, pulse-free structure, phrase form |
+| 7 — Actors, animation, wind sway | **Complete** — figures, animals, rig, gaits and voices, per `done/LIFE.md` |
+| 8 — Keyword dialogue, quests, narrative | **Not started** — the largest unbuilt phase, and two other documents wait on it |
+| 9 — Autosave, performance | **Performance complete**; autosave not started. Touch controls **dropped** — desktop keyboard and mouse only |
+| 10 — Content authoring | **Not started** |
+| 11 — World editor *(cuttable)* | **Deferred** — `EDITOR.md` is the plan for it; revisit when hand-editing hurts for a reason a builder cannot fix |
+
+### Where the rest of the work lives
+
+`specs/` holds what is open; `specs/done/` holds what is closed and is kept for
+its reasoning. Open, at the time of writing:
+
+| | |
+|---|---|
+| `ATMOSPHERE-WEATHER.md` | The day/night clock, weather, and props that make their own air |
+| `SHADERS-V2.md` | God rays, heat shimmer, depth of field |
+| `EDITOR.md` | Zones as data, then the editor over that data |
+| `SWIMMING-CONTROLS.md` | Water the player can be inside |
+| `VISTA.md` | The countryside band, and picking into the vista merge |
+| `FOOTSTEPS.md` | Crouch, per-foot character, the surface derivation table |
+| `READABLES-POLISH.md` | Making the reading screen worth stopping for |
+| `ZONE-LOADING.md` | Migrating the remaining zones to lazy load |
+| `FUTURE-REFACTORS.md` | Understood, unblocked, unscheduled |
+| `BUGS.md` | Temporary, until there is a tracker |
 
 ---
 
@@ -2394,6 +2413,31 @@ slow correlations back into a signal whose entire purpose is not having any.
 
 ---
 
+## Structural work still owed
+
+`done/SCALING.md` worked out what has to change for the world to reach its
+finished size. Most of it landed; five decisions did not, and each is cheap to
+make now and expensive to make after the phase that needs it has shipped. They
+are listed here because the document they came from is closed.
+
+- **The override layer, and stable ids.** Anything the player changes about a
+  zone cannot be a mutation of built geometry — a zone is rebuilt from a seed.
+  It has to be data held outside the zone, keyed to a stable id, and replayed
+  when the zone is rebuilt. **Must land before Phase 8.**
+- **Static and dynamic, declared.** A builder says which of its parts move, so
+  the shadow map can stop redrawing a world that does not. **Must land with the
+  first geometry that moves.**
+- **Autosave at transitions.** Phase 9 owns it; the shape is settled in the
+  scaling document.
+- **A builder returns a descriptor, not a `Mesh`.** The contract change that
+  makes a zone cheap to rebuild. Wanted by whichever phase first needs it.
+- **A `casts` flag on `MeshBuilder`.** Every solid surface currently casts a
+  shadow, including grass and clutter whose shadows are sub-pixel after the
+  chunky stage and the quantize. Half of the shadow work landed; this is the
+  other half.
+
+---
+
 ## Open questions
 
 1. World editor — build Phase 11, or hand-edit JSON? *(Leaning hand-edit; see Phase 11.)*
@@ -2401,7 +2445,8 @@ slow correlations back into a signal whose entire purpose is not having any.
    rain, crowd, and the scatter one-shots.)*
 3. Crouch and sprint-stamina — in or out? *(Phase 1 shipped without them.)*
 4. Keep the minimal settings overlay, or truly no UI at all?
-5. Fixed hour or a day/night cycle?
+5. ~~Fixed hour or a day/night cycle?~~ *(Settled: the sun moves. The clock is
+   `ATMOSPHERE-WEATHER.md` §1.)*
 6. The 16-colour palette itself — the shipped one is placeholder scaffolding.
 
 ---

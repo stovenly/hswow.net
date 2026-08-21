@@ -1,6 +1,12 @@
 # Scaling to the finished shape
 
-A companion to [SPEC.md](SPEC.md), and subordinate to it: the spec says what the game
+**Partly built, and the rest is carried in `MASTER-SPEC.md`.** Zone residency,
+the instrumentation and half the shadow pass landed; the override layer, the
+static/dynamic declaration, autosave at transitions, the builder descriptor and
+the `casts` flag did not, and each is tied to a phase that has not happened yet.
+The bottom of the master spec lists them.
+
+A companion to [MASTER-SPEC.md](../MASTER-SPEC.md), and subordinate to it: the spec says what the game
 is, this says what has to change structurally for the game to reach the size it is
 meant to reach. Nothing here is a feature. Everything here is a decision that is cheap
 to make now and expensive to make after the phase that depends on it has shipped.

@@ -8,7 +8,8 @@ leans, drains and darkens. Same machinery end to end: world-space volumes
 strength dial 0..1 with fixed per-effect onsets, per-effect weight sliders,
 everything a pure function of the clock.
 
-All effect and recipe names are working names.
+**Built.** All effect and recipe names are working names. The reduced-motion
+gap in §5 is tracked in `BUGS.md`.
 
 ## 1. The effects, in ladder order
 
@@ -133,8 +134,8 @@ steady override, strength, freeze.
 ## 5. Known gaps and hazards
 
 - Flicker and headshake are the photosensitivity risks; both are rate-capped
-  in the shader, and neither is wired to the reduced-motion option yet — the
-  same standing gap glitch has.
+  in the shader, and neither is wired to the reduced-motion option — the same
+  standing gap glitch has. Tracked in `BUGS.md`.
 - A free-standing volume's centre doubles as the anchor `breathe` swells away
   from, so a volume floating well above its subjects inflates them downward.
   Site the centre at the height of what it haunts.

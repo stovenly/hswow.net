@@ -1,10 +1,12 @@
 # Shaders and materials
 
-A companion to [SPEC.md](SPEC.md) and [SCALING.md](SCALING.md): the spec says what the
+A companion to [MASTER-SPEC.md](../MASTER-SPEC.md) and [SCALING.md](SCALING.md): the spec says what the
 game is, scaling says what must change structurally, and this says how each planned
-graphical feature would actually be built against the pipeline as it stands. Nothing
-here is committed work. Everything here is a design worked out far enough that starting
-it is a matter of doing, not deciding.
+graphical feature would actually be built against the pipeline as it stands.
+
+**Built: R0–R3 and R6, M0–M3.** R4 moved to `ATMOSPHERE-WEATHER.md`, R5 and R7
+to `SHADERS-V2.md`, and M4 was answered by the water reflection. What is left
+here is the reasoning and the ground rules the built pipeline still obeys.
 
 Two halves. The first is the screen-space roadmap — the pixel stage and the effects
 that run in it, phased R0–R7. The second, from *Materials* onward, is the surface
@@ -782,7 +784,7 @@ off the draw-call and frame readouts that already exist: R1's frame cost, R2's
 writing down because the phases after this one are budgeted against them, and
 nobody can judge a budget by eye.
 
-### R4 — Day/night *(independent of R0; the largest phase — sub-phased)*
+### R4 — Day/night *(moved to `ATMOSPHERE-WEATHER.md`)*
 
 Mostly clock and keyframes, not shader work, so it can proceed in parallel with
 R1–R3. Each sub-phase is shippable alone.
@@ -806,7 +808,7 @@ R1–R3. Each sub-phase is shippable alone.
   uniform, with the per-prop `uLit` attribute recorded as the follow-up (§5 has the
   trade). *Exit:* the village lights itself at dusk; with R3 landed, it blooms.
 
-### R5 — God rays *(wants R0; worth doing after R4)*
+### R5 — God rays *(moved to `SHADERS-V2.md`)*
 
 §4 in full. Technically only needs R0, but the effect earns its cost at a low golden
 sun, which does not exist until R4a/R4b.
@@ -980,7 +982,7 @@ and leave the water switch doing nothing. It stops the waves **and the noise scr
 together — a waterline undulating around an otherwise dead pond is precisely what
 somebody turning the option on is asking to be rid of.
 
-### R7 — Garnish *(each independent; any time after its named parent)*
+### R7 — Garnish *(moved to `SHADERS-V2.md`)*
 
 Two small items, in either order, neither blocking anything:
 
@@ -1014,8 +1016,8 @@ velvet, iridescence, transmission, refraction, subsurface scattering — the fam
 things a physically-based renderer calls material parameters, worked out against a
 pipeline that is deliberately not a physically-based renderer.
 
-Nothing here is committed work. Everything is designed far enough that starting it is
-a matter of doing, not deciding. Names are provisional throughout.
+M0 through M3 are built. M4 is answered by the water reflection; see its entry
+in the phase list. Names are provisional throughout.
 
 The use cases this was written against: gilded objects, polished metal, chrome, silk,
 velvet, crystals, bubbles, polished marble.
@@ -1651,7 +1653,10 @@ are independent of everything after M0's gallery exists to look at them in.
   needed — nothing placed yet reads as floating. No player option, by the water
   rule; the dev panel gets a refraction scale and glass rides water's
   reflection switch rather than growing a second one.
-- **M4 — general SSR.** *Parked until a prop wants a room reflection.* Mirrorness
+- **M4 — general SSR.** *Answered by R6.* Reflection arrived inside the water
+  shader, marched in world space against the depth buffer — SSR's best case, and
+  the only case the world had. A general tier for wet stone and polished floors
+  stays parked in `SHADERS-V2.md`. Mirrorness
   into the normal target's alpha, the masked march in the effect slot. *Exit: a
   chrome fixture reflects the gallery; the pass reads zero-cost in a zone with no
   mirror pixels.*

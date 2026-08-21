@@ -1,8 +1,11 @@
 # Particles — spec
 
-**P1 to P5 are built.** `art/particles.ts`, `engine/Particles.ts`, the layer, the
-wind integral in `art/sway.ts`, and the showcase room off the general hall. P6
-(props build their own) and P7 (weather on the environment) are not.
+**Built, P1 to P5.** `art/particles.ts`, `engine/Particles.ts`, the layer, the
+wind integral in `art/sway.ts`, and the showcase room off the general hall.
+
+**P6 and P7 moved to `ATMOSPHERE-WEATHER.md`** — props building their own
+emitters, and weather on the environment. They are the same body of work as the
+day/night clock, and they are specified there rather than here.
 
 Where building it disagreed with this document, the document has been corrected
 and the correction is marked **[measured]**. There are five. Two of them were

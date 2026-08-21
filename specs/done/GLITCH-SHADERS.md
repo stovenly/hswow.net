@@ -6,8 +6,10 @@ a room. Every effect has a strength slider, and one master slider walks an objec
 "something is faintly wrong about this" through "this thing is visibly breaking apart"
 to "I cannot tell what this was."
 
-All effect names below are working names. Rename freely; nothing in the design depends
-on them.
+**Built**, both tiers — see §11. All effect names below are working names.
+
+Two items from §12 are settled: the `erode` shadow-and-outline gap is **dropped**,
+and the photosensitivity damping of §8.3 is tracked in `BUGS.md`.
 
 ---
 
@@ -476,10 +478,11 @@ Both tiers shipped together, with these deltas from the plan above:
 None of these force rework now; they are the points where later systems touch
 this one.
 
-1. **`erode` vs shadows/outlines.** The discard lives only in the surface
-   fragment stage, so holes don't open in an eroded object's shadow or
-   outline. Closing it means a fragment patch on the depth and normal
-   materials carrying the face varying. Worth judging in the gallery first.
+1. **`erode` vs shadows/outlines — dropped.** The discard lives only in the
+   surface fragment stage, so holes do not open in an eroded object's shadow or
+   outline. Closing it means a fragment patch on the depth and normal materials
+   carrying the face varying, and the gallery says the gap does not read. Not
+   worth the two extra patches.
 2. **Skinned figures.** The vertex chunk is anchored after
    `#include <skinning_vertex>` precisely so that jointed figures corrupt in
    their posed positions. When figures animate, nothing here should need to
@@ -498,6 +501,5 @@ this one.
 6. **Non-indexed assumption.** Per-face effects break quietly if kit geometry
    is ever indexed or instanced. The assumption is stated at the `gl_VertexID`
    site in `art/glitch.ts`.
-7. **Photosensitivity damping** (§8.3) is not yet wired to `reducedMotion`;
-   flash rates are tuned conservative instead. Wire it in `effective()` /
-   `apply.ts` if the flicker-class effects ship anywhere player-facing.
+7. **Photosensitivity damping** (§8.3) is not wired to `reducedMotion`; flash
+   rates are tuned conservative instead. Tracked in `BUGS.md`.

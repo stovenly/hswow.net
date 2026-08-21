@@ -1,8 +1,10 @@
 # Performance
 
-Status: **proposed**, nothing built.
+**Built**, P0 through P6. **P7, adaptive resolution, is dropped** — it was
+always conditional on the frame turning out fill-bound, and the per-pass numbers
+P0 delivered say it is not.
 
-A companion to [SPEC.md](SPEC.md) and a sibling of [SCALING.md](SCALING.md). Scaling asks
+A companion to [MASTER-SPEC.md](../MASTER-SPEC.md) and a sibling of [SCALING.md](SCALING.md). Scaling asks
 what has to change for the world to reach its finished size. This asks a narrower and more
 immediate question: **the game is demanding for a browser, and it degrades badly when the
 machine is busy with something else.** Both halves matter, and they have different answers.
@@ -451,10 +453,10 @@ and already produces transferable typed arrays. Plus one throwaway frame during 
 effect pass forced on, so water, glass, glitch, horror and the effect mask do not compile on the
 first frame after a fade lifts. §9.
 
-### P7 — Adaptive resolution
+### P7 — Adaptive resolution *(dropped)*
 
-Conditional on P0. Build it only if the frame turns out fill-bound; if the shadow pass dominates,
-a resolution scaler underdelivers and the effort belongs elsewhere. §8.
+Conditional on P0, and P0 answered it. The frame is not fill-bound, so a resolution
+scaler underdelivers and the effort belongs elsewhere. §8.
 
 *Done when the game holds its frame rate on a machine that is busy with something else, and
 when the answer to "why is this frame slow" is a number on a HUD rather than an argument.*

@@ -62,7 +62,7 @@ than writing code.
 
 ## Build plan
 
-See **[SPEC.md](specs/SPEC.md)** — phases, status, locked decisions, open questions, and the
+See **[MASTER-SPEC.md](specs/MASTER-SPEC.md)** — phases, status, locked decisions, open questions, and the
 reasoning behind the audio and dialogue systems. It is written to be read without prior
 context and is the source of truth for the build.
 
