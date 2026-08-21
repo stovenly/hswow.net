@@ -103,7 +103,7 @@ export const skyUniforms = {
   uMoonDirection: { value: new THREE.Vector3(0, 1, 0) },
   uMoonColor: { value: new THREE.Color(0xdce8ff) },
   uMoonIntensity: { value: 0 },
-  uMoonSize: { value: Math.cos((1.4 * Math.PI) / 180) },
+  uMoonSize: { value: Math.cos((1.9 * Math.PI) / 180) },
   uMoonPhase: { value: 0.5 },
   uStars: { value: 0 },
   /** Belt of Venus, 22 degree halo, 42 degree bow, and the shadow's top as sin(elevation). */
@@ -338,14 +338,21 @@ export const SKY_GLSL = /* glsl */ `
   }
 
   /**
-   * The moon: a disc with a terminator across it, and a glow that belongs to
-   * whatever part of it is actually lit. A halo drawn round the whole disc is
-   * the tell that gives away a crescent — it reads as a full moon with most of
-   * itself missing.
+   * The moon.
    *
-   * The bright limb faces the sun, so the terminator axis is the sun direction
-   * with the moon direction taken out of it. That holds when the sun is under
-   * the horizon, which is when anyone is looking.
+   * Everything is measured in units of the moon's own angular radius, never by
+   * thresholding the cosine: at a radius of a degree or two the whole disc
+   * spans six ten-thousandths of the cosine's range, so an edge written that
+   * way cannot resolve at all and comes out as a fuzzy ball.
+   *
+   * A sphere lit from one side and seen from another shows the intersection of
+   * a circle and an ellipse whose major axis is the circle's own diameter —
+   * convex against the circle is gibbous, concave is a crescent. That falls out
+   * of testing the surface normal against the sun, because on a sphere the
+   * normal is the point: with u toward the sun, v across it and w out of the
+   * disc toward the eye, the visible point is (u, v, -w) and the sun sits at
+   * (sin E, 0, cos E) for elongation E. Lit is u sin E - w cos E > 0, which
+   * rearranges to u^2 / cos^2(E) + v^2 = 1 — the ellipse, exactly.
    */
   vec3 skyMoon(vec3 direction, vec3 colour) {
     if (uMoonIntensity <= 0.001) return colour;
@@ -356,46 +363,50 @@ export const SKY_GLSL = /* glsl */ `
     // How much of the disc is lit. 0 at new, 1 at full.
     float lit = 0.5 - 0.5 * cos(uMoonPhase * 6.2831853);
 
+    float radius = sqrt(max(1.0 - uMoonSize * uMoonSize, 1e-6));
+    vec3 offset = direction - toward * toMoon;
+    // 0 at the centre, 1 at the limb.
+    float r = length(offset) / radius;
+
+    // The glow, scaled by the square of what is lit: a crescent gives off
+    // almost nothing, and a full round halo round a crescent is the tell that
+    // gives the whole thing away.
+    float glow = exp(-r * 0.55) * lit * lit;
+    colour = mix(colour, uMoonColor, clamp(glow * 0.22, 0.0, 1.0) * uMoonIntensity);
+    if (r > 1.04) return colour;
+
+    // Toward the sun, and across it. When the sun is directly behind or in
+    // front of the moon there is no limb to speak of and any axis will do.
     vec3 sunward = normalize(uSunDirection);
     vec3 across = sunward - toward * dot(sunward, toward);
     float span = length(across);
-    // Sun directly behind or in front of the moon: no limb to speak of, and any
-    // axis will do for a disc that is either wholly lit or wholly dark.
-    across = span > 1e-4 ? across / span : normalize(cross(toward, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
-
-    // Scaled by the square of what is lit, so a crescent barely glows. A full
-    // round halo is the tell that gives a phase away: it reads as a whole moon
-    // with most of itself missing.
-    float radius = sqrt(max(1.0 - uMoonSize * uMoonSize, 1e-6));
-    float u = dot(direction - toward * toMoon, across) / radius;
+    across = span > 1e-4
+      ? across / span
+      : normalize(cross(toward, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
     vec3 side = cross(toward, across);
-    float halo = pow(toMoon, 1400.0) * lit * lit;
-    colour = mix(colour, uMoonColor, clamp(halo * 0.35, 0.0, 1.0) * uMoonIntensity);
 
-    float disc = smoothstep(uMoonSize - 0.0006, uMoonSize + 0.0006, toMoon);
-    if (disc <= 0.0) return colour;
+    float u = dot(offset, across) / radius;
+    float v = dot(offset, side) / radius;
+    float w = sqrt(max(1.0 - r * r, 0.0));
 
-    // The terminator is a great circle on a sphere, so in projection it is half
-    // an ellipse — which is what makes a crescent a crescent. Cutting the disc
-    // along a straight line gives a sphere with a slice taken off it instead,
-    // and no phase but the quarters looks right.
-    //
-    // Standing the disc up in its own frame: u toward the sun, v across it, w
-    // out of the disc toward the eye. A point is lit where its normal faces the
-    // sun, and on a sphere the normal *is* the point.
-    float v = dot(direction - toward * toMoon, side) / radius;
-    float w = sqrt(max(1.0 - u * u - v * v, 0.0));
-    // Phase angle at the moon: zero when the sun is behind the eye, which is
-    // full. uMoonPhase runs from new at 0 through full at 0.5.
-    float sinPhase = sin(uMoonPhase * 6.2831853);
-    float cosPhase = -cos(uMoonPhase * 6.2831853);
-    float face = smoothstep(-0.035, 0.035, u * sinPhase + w * cosPhase);
+    float elongation = uMoonPhase * 6.2831853;
+    float face = smoothstep(-0.05, 0.05, u * sin(elongation) - w * cos(elongation));
 
-    // The dark limb is not black: earthshine puts a little of the sky back in
-    // it, and hardest when the lit crescent is thinnest, which is when the
-    // Earth above it is nearly full.
-    vec3 dark = colour * 0.55 + uMoonColor * (0.05 + 0.12 * (1.0 - lit));
-    return mix(colour, mix(dark, uMoonColor, face), disc * uMoonIntensity);
+    // The maria. Two octaves over the disc, and it is worth the eight hashes:
+    // a plain white circle reads as a light, and any marking at all reads as
+    // the moon.
+    float mare = valueNoise(vec2(u, v) * 2.1 + 31.7) * 0.6
+      + valueNoise(vec2(u, v) * 5.3 - 12.4) * 0.4;
+    vec3 rock = uMoonColor * (0.88 + 0.12 * smoothstep(0.35, 0.75, mare));
+
+    // No limb darkening. The moon is retroreflective, which is why a full one
+    // reads as a flat disc cut out of the sky rather than as a lit ball.
+    float disc = 1.0 - smoothstep(0.9, 1.02, r);
+    // The dark limb is not black: earthshine puts a little back into it, and
+    // hardest when the crescent is thinnest, which is when the Earth hanging
+    // over it is nearly full.
+    vec3 dark = colour * 0.5 + uMoonColor * (0.06 + 0.14 * (1.0 - lit));
+    return mix(colour, mix(dark, rock, face), disc * uMoonIntensity);
   }
 
   /**
@@ -613,16 +624,19 @@ export class Sky {
         light[i].set(0, 0, 0, 0);
         continue;
       }
-      shape[i].set(genus.cover, genus.softness, 1 / genus.element, genus.opacity * this.opacity);
-      form[i].set(genus.height, FORM[genus.form], genus.detail, genus.stretch);
+      shape[i].set(genus.cover, genus.erosion, 1 / genus.element, genus.opacity * this.opacity);
+      form[i].set(genus.height, FORM[genus.form], genus.base, genus.stretch);
       light[i].set(genus.shade, genus.drift * this.speed * speed, amount, genus.ripple);
       lit[i].copy(deck.lit);
       shade[i].copy(deck.shade);
 
-      // Union rather than sum: two decks over the same sky do not cover twice.
-      cover = cover + amount * genus.opacity - cover * amount * genus.opacity;
-      if (amount * genus.opacity > heaviest) {
-        heaviest = amount * genus.opacity;
+      // How much sky this deck actually takes: how much it covers at full,
+      // scaled by how much of it there is and how opaque it is. Union rather
+      // than sum — two decks over the same sky do not cover it twice.
+      const taken = amount * genus.cover * genus.opacity;
+      cover = cover + taken - cover * taken;
+      if (taken > heaviest) {
+        heaviest = taken;
         scale = 1 / (genus.element * 3.5);
         (u.uSkyCloudColour.value as THREE.Color).copy(deck.lit).lerp(deck.shade, genus.shade * 0.4);
       }

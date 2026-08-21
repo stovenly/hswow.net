@@ -272,7 +272,7 @@ export class WeatherRig {
     let total = 0;
     for (const deck of this.decks) {
       if (!deck.genus) continue;
-      const taken = deck.amount * GENERA[deck.genus].opacity;
+      const taken = deck.amount * GENERA[deck.genus].cover * GENERA[deck.genus].opacity;
       total = total + taken - total * taken;
     }
     return total;
@@ -287,10 +287,13 @@ export class WeatherRig {
     for (const kind of WEATHER_KINDS) {
       const amount = this.climate.amountOf(kind.name);
       if (amount <= 0 || !kind.air) continue;
-      const weight = amount * (kind.air.colourMix ?? 0);
+      // A kind with a palette runs in whichever colour the day drew.
+      const tone = this.climate.toneOf(kind);
+      const weight = amount * (kind.air.colourMix ?? 0) * (tone ? tone.mix : 1);
       if (weight > 0) {
         this.airColour.add(
-          AIR_ONE.setHex(kind.air.colour ?? 0xffffff, THREE.SRGBColorSpace).multiplyScalar(weight),
+          AIR_ONE.setHex(tone ? tone.colour : (kind.air.colour ?? 0xffffff), THREE.SRGBColorSpace)
+            .multiplyScalar(weight),
         );
         this.airMix += weight;
       }

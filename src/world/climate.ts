@@ -23,6 +23,41 @@ export interface AirBias {
   far?: number;
 }
 
+/**
+ * One colour a kind can come in. Smog is not a colour, it is whatever is being
+ * burned or dug or smelted that week, so the kind carries a palette and the day
+ * draws from it.
+ */
+export interface Tone {
+  readonly name: string;
+  /** sRGB hex. */
+  readonly colour: number;
+  /** Multiplier on the kind's own `air.colourMix`. Some tones are thicker. */
+  readonly mix: number;
+}
+
+/**
+ * Fourteen tones a chemical, dust or combustion haze actually comes in. Every
+ * one of these is something being burnt, quarried or smelted — none of them is
+ * a hue picked for variety, which is why none of them is saturated.
+ */
+export const SMOG_TONES: readonly Tone[] = [
+  { name: 'sulphur', colour: 0xb8a24a, mix: 1 },
+  { name: 'coal smoke', colour: 0x6e6357, mix: 1.1 },
+  { name: 'soot', colour: 0x4a4643, mix: 1.2 },
+  { name: 'ochre dust', colour: 0xb08a52, mix: 0.9 },
+  { name: 'brick dust', colour: 0xa4694f, mix: 0.95 },
+  { name: 'iron oxide', colour: 0x8c4a34, mix: 1.05 },
+  { name: 'ash', colour: 0x9a978f, mix: 0.85 },
+  { name: 'tar', colour: 0x57504a, mix: 1.15 },
+  { name: 'brass haze', colour: 0xc0a06a, mix: 0.9 },
+  { name: 'lime kiln', colour: 0xc9c6ae, mix: 0.8 },
+  { name: 'verdigris', colour: 0x7d9182, mix: 0.95 },
+  { name: 'slag', colour: 0x6a6470, mix: 1 },
+  { name: 'chlorine', colour: 0xa8bda2, mix: 0.85 },
+  { name: 'bitumen', colour: 0x7a6a58, mix: 1.1 },
+];
+
 /** What a kind does to the ground and to what moves over it. */
 export interface GroundBias {
   /** Added to the zone's wind multiplier at full amount. */
@@ -57,6 +92,11 @@ export interface WeatherKind {
   /** Which rain-model surface this sounds like. Absent is silent. */
   readonly sound?: RainSurface;
   readonly air?: AirBias;
+  /**
+   * Which colours this kind comes in. The day draws one; absent means the kind
+   * only ever looks like its own `air.colour`.
+   */
+  readonly tones?: readonly Tone[];
   /** What it does to every surface the sky can reach. */
   readonly surface?: 'wet' | 'crust';
   /** Which cloud genera it puts overhead, and how much of each. */
@@ -131,6 +171,13 @@ function clamp01(value: number): number {
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = clamp01((x - edge0) / (edge1 - edge0 || 1e-6));
   return t * t * (3 - 2 * t);
+}
+
+/** A stable integer per kind name, so one kind's draw is not another's. */
+function nameKey(name: string): number {
+  let value = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) value = Math.imul(value ^ name.charCodeAt(i), 0x01000193);
+  return value >>> 8;
 }
 
 function clampSigned(value: number): number {
@@ -224,7 +271,8 @@ export const WEATHER_KINDS: WeatherKind[] = [
     onset: 0.72,
     pace: 0.3,
     season: (phase) => 0.5 + WINTER(phase) * 0.5,
-    air: { colour: 0x9c8c6c, colourMix: 0.6, far: 0.4 },
+    air: { colour: 0x9c8c6c, colourMix: 0.62, far: 0.4 },
+    tones: SMOG_TONES,
     sky: [['altostratus', 0.9]],
     blow: -0.5,
   },
@@ -303,6 +351,8 @@ export class Climate {
 
   private readonly amounts = new Map<string, number>();
   private readonly forced = new Map<string, number>();
+  /** A pinned palette row per kind, or absent to let the day draw one. */
+  private readonly pinnedTone = new Map<string, number>();
   private place: ZonePlace = ORIGIN;
 
   constructor(wind: Weather) {
@@ -331,6 +381,29 @@ export class Climate {
 
   amountOf(name: string): number {
     return this.amounts.get(name) ?? 0;
+  }
+
+  /**
+   * Which colour this kind is running in today. Drawn from the kind's palette
+   * on the day's own seed, so it is the same for everyone everywhere and it is
+   * a different week's pollution next week.
+   */
+  toneOf(kind: WeatherKind): Tone | null {
+    if (!kind.tones || kind.tones.length === 0) return null;
+    const pinned = this.pinnedTone.get(kind.name);
+    if (pinned !== undefined) return kind.tones[pinned % kind.tones.length];
+    const roll = hash(this.settings.seed + this.day * 7919 + nameKey(kind.name));
+    return kind.tones[Math.floor(roll * kind.tones.length) % kind.tones.length];
+  }
+
+  /** Pins a kind to one row of its palette, or hands the choice back with null. */
+  pinTone(name: string, index: number | null): void {
+    if (index === null) this.pinnedTone.delete(name);
+    else this.pinnedTone.set(name, index);
+  }
+
+  pinnedToneOf(name: string): number | null {
+    return this.pinnedTone.get(name) ?? null;
   }
 
   /** How much of anything is falling. Drives the shared precipitation switch. */
