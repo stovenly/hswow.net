@@ -745,16 +745,21 @@ ${trans ? /* glsl */ `
               ? (1.0 - vFinish.x) * (1.0 - vFinish.z) * smoothstep(0.12, 0.55, vFinish.y)
               : 1.0;
             // Rain runs down a wall and never reaches an underside.
-            // One wide gate on the normal and nothing else. How wet a surface
-            // is has to come from where it stands, not from which way it
-            // faces: the material is flat shaded, so every normal term is one
-            // value for a whole triangle, and two of them stacked is how the
-            // mesh ends up drawn on the surface in grey.
+            // The normal decides one thing only: whether this face points at
+            // the ground. Everything else the sky can reach gets wet, because
+            // rain blows and water runs down whatever it lands on — a shingle
+            // course is not dry on its risers.
+            //
+            // Anything finer than that cannot be asked of a normal here. The
+            // material is flat shaded, so a normal term is one value for a
+            // whole triangle, and a surface built of many small facets comes
+            // back with its own mesh drawn on it. What is sheltered is the
+            // map's answer, not the normal's.
             finishWet = uWetness * soak * reach
-              * smoothstep(-0.6, 0.25, finishUp.y)
+              * smoothstep(-0.85, -0.2, finishUp.y)
               // Water stands where the ground lets it. Flat and even is a
               // varnish; uneven is a wet street.
-              * (0.72 + 0.5 * finishGrain);
+              * (0.8 + 0.32 * finishGrain);
 
             // Snow needs a surface near enough level to hold it. A roof at
             // forty degrees sheds, which is what a pitched roof is for, and a
@@ -901,8 +906,13 @@ ${aniso ? /* glsl */ `
           // toward F0 by however much rim the recipe asked for.
           vec3 f90 = mix(finishF0, max(vec3(1.0 - finishRough), finishF0), recipeRim);
           vec3 envF = finishF0 + (f90 - finishF0) * pow(1.0 - finishNV, 5.0);
-          // Bare and wet: off the ray rather than off the facet. See finishGraze.
-          envF = mix(envF, vec3(mix(0.025, 0.5, finishGraze)), finishSmooth);
+          // Bare and wet: off the ray rather than off the facet, and at water's
+          // own reflectance rather than a wash. Water is two per cent
+          // reflective face on, and only climbs at angles far more grazing
+          // than most of a frame ever gets — half the sky laid over every
+          // surface is not a wet surface, it is a filter, and it is what was
+          // turning wet roofs grey while the ground beside them stayed green.
+          envF = mix(envF, vec3(mix(0.02, 0.11, finishGraze)), finishSmooth);
           // Scaled by the same (1 − sheen) the direct lobe is: a velvet
           // reflecting the sky would be a velvet-coloured mirror.
           reflectedLight.indirectSpecular +=
