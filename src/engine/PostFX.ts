@@ -19,8 +19,9 @@ import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
 import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
-import { Sky, DEFAULT_SKY, type SkySettings } from './Sky';
+import { Sky, DEFAULT_SKY, type SkySettings, type DeckState } from './Sky';
 import { fogUniforms } from './fog';
+import { bakeSkyMap, clearSkyMap } from '../world/skymap';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
@@ -91,6 +92,8 @@ export interface RenderSettings {
   clutterCull: number;
 
   sky: SkySettings;
+  /** How dark the low deck's shadow falls on the ground, 0..1. Zero costs no noise at all. */
+  cloudShadow: number;
   /** Drive the fog colour from the sky's horizon, so distance does not fade into a band of the wrong colour. */
   linkFogToSky: boolean;
   fogColor: string;
@@ -139,6 +142,7 @@ export const DEFAULT_RENDER: RenderSettings = {
   clutterCull: 0.75,
 
   sky: { ...DEFAULT_SKY },
+  cloudShadow: 0.35,
   linkFogToSky: true,
   fogColor: '#bcd4e6',
   fogNear: 25,
@@ -232,6 +236,19 @@ export class PostFX {
   private readonly sky = new Sky();
   /** Null until a zone is entered, which on a real boot is immediately. */
   private air: ZoneAir | null = null;
+  /** What the atmosphere painted the horizon this frame. The fog follows it. */
+  /** What the atmosphere painted this frame. The dome and the fog both follow it. */
+  private readonly horizon = new THREE.Color(0xcce6f9);
+  private readonly zenith = new THREE.Color(0x458acf);
+  private readonly groundBand = new THREE.Color(0x656d72);
+  private readonly sunTint = new THREE.Color(0xfff6e0);
+  private skyWarmth = 0.3;
+  private readonly weatherAir = new THREE.Color(0xffffff);
+  private weatherMix = 0;
+  private weatherNear = 1;
+  private weatherFar = 1;
+  /** Whether anything is falling. The pass costs a scene walk either way. */
+  private weatherParticles = false;
 
   /**
    * Layered over `settings` rather than written into it: the settings are a
@@ -359,13 +376,67 @@ export class PostFX {
     // A pass that walks the scene graph for water must not run in a room with none.
     this.water.setActive(air?.water ?? false);
     this.glass.setActive(air?.glass ?? false);
-    this.particles.setActive(air?.particles ?? false);
+    this.particles.setActive((air?.particles ?? false) || this.weatherParticles);
     this.apply();
   }
 
-  /** Called once at start-up; the sun is static. */
+  /** Per frame: the sun moves, so nothing may bake or rate-limit what depends on it. */
   aimSun(direction: THREE.Vector3): void {
     this.sky.aimAt(direction);
+  }
+
+  /** The colours the atmosphere decided this frame, over the authored sky. */
+  setAir(horizon: THREE.Color, zenith: THREE.Color, ground: THREE.Color, sun: THREE.Color, warmth: number): void {
+    this.horizon.copy(horizon);
+    this.zenith.copy(zenith);
+    this.groundBand.copy(ground);
+    this.sunTint.copy(sun);
+    this.skyWarmth = warmth;
+    this.sky.setAir(horizon, zenith, ground, sun, warmth);
+    this.applyFog();
+  }
+
+  /** Weather draws on the particle layer without being part of any zone. */
+  setPrecipitating(falling: boolean): void {
+    if (this.weatherParticles === falling) return;
+    this.weatherParticles = falling;
+    this.particles.setActive((this.air?.particles ?? false) || falling);
+    this.apply();
+  }
+
+  setNight(stars: number, moon: number, phase: number, direction: THREE.Vector3, latitude: number, elapsed: number): void {
+    this.sky.setNight(stars, moon, phase, direction, latitude, elapsed);
+  }
+
+  /**
+   * Bakes what the sky can reach over one zone. Once per zone, when it is
+   * built: the sun moves, but a roof does not.
+   */
+  bakeShelter(root: THREE.Object3D | null): void {
+    if (root === null) clearSkyMap();
+    else bakeSkyMap(this.viewport.renderer, root);
+  }
+
+  setPhenomena(belt: number, halo: number, bow: number, shadowTop: number): void {
+    this.sky.setPhenomena(belt, halo, bow, shadowTop);
+  }
+
+  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number): void {
+    this.sky.setDecks(decks, windBearing, elapsed);
+    this.sky.setCloudShadow(this.settings.cloudShadow, decks);
+  }
+
+  /**
+   * The weather's bias on this zone's own air. Layered rather than written in,
+   * as `ZoneAir` is over `RenderSettings`: a shower must not overwrite what the
+   * place is.
+   */
+  setWeatherAir(colour: THREE.Color, mix: number, near: number, far: number): void {
+    this.weatherAir.copy(colour);
+    this.weatherMix = mix;
+    this.weatherNear = near;
+    this.weatherFar = far;
+    this.applyFog();
   }
 
   setDither(enabled: boolean): void {
@@ -542,6 +613,10 @@ export class PostFX {
     u.uColorblindStrength.value = this.colorblindStrength;
 
     this.sky.apply(s.sky);
+    // Back over the top: `apply` writes the authored dome, and the sky's colour
+    // belongs to the atmosphere table now. Without this a settings change
+    // flashes the noon sky for one frame at midnight.
+    this.sky.setAir(this.horizon, this.zenith, this.groundBand, this.sunTint, this.skyWarmth);
     this.sky.mesh.visible = this.air === null || this.air.sky;
 
     // The far plane, and the frustum culling every prop gets from it. The sky
@@ -553,34 +628,49 @@ export class PostFX {
       camera.updateProjectionMatrix();
     }
 
+    this.applyFog();
+  }
+
+  /**
+   * The fog, and the clear colour behind it. Split out of `apply` because the
+   * sun moves: this runs every frame off the atmosphere and the weather, while
+   * the rest of `apply` runs when a setting changes.
+   */
+  private applyFog(): void {
+    const s = this.settings;
     const fog = this.viewport.scene.fog;
-    if (fog instanceof THREE.Fog) {
-      // Indoors the fog is the darkness at the end of the room, not the horizon.
-      if (this.air && !this.air.sky) {
-        fog.color.set(this.air.fogColor);
-      } else if (s.linkFogToSky) {
-        fog.color.set(s.sky.horizon);
-      } else {
-        fog.color.set(this.air?.fogColor ?? s.fogColor);
-      }
-      // Clamped under the far plane, never extended: a cut with no fade in front
-      // of it is geometry disappearing in mid-air.
-      const range = clampFog(this.air?.fogNear ?? s.fogNear, this.air?.fogFar ?? s.fogFar, far);
-      fog.near = range.near;
-      fog.far = range.far;
-      // Indoors there is no sky to take a colour from.
-      const outdoors = this.air === null || this.air.sky;
-      fogUniforms.uFogHeight.value = s.fogHeight;
-      fogUniforms.uFogSky.value = outdoors ? s.fogSky : 0;
-      fogUniforms.uFogRamp.value = s.fogRamp;
-      // The ceiling is a fact about outdoor air.
-      fogUniforms.uFogCeiling.value = outdoors ? s.fogCeiling : 1;
-      // The clear colour shows where nothing was drawn; with the dome off that
-      // is every pixel the geometry does not cover.
-      this.viewport.renderer.setClearColor(fog.color, 1);
-      // After the air has had its say, so an interior's short fog shortens the AO.
-      this.gtao.setFog(fog.near, fog.far);
+    if (!(fog instanceof THREE.Fog)) return;
+    const far = this.viewDistance ?? this.baseFar;
+    const outdoors = this.air === null || this.air.sky;
+
+    // Indoors the fog is the darkness at the end of the room, not the horizon.
+    if (!outdoors) {
+      fog.color.set(this.air?.fogColor ?? s.fogColor);
+    } else if (s.linkFogToSky) {
+      fog.color.copy(this.horizon);
+    } else {
+      fog.color.set(this.air?.fogColor ?? s.fogColor);
     }
+    if (outdoors && this.weatherMix > 0) fog.color.lerp(this.weatherAir, this.weatherMix);
+
+    // Clamped under the far plane, never extended: a cut with no fade in front
+    // of it is geometry disappearing in mid-air.
+    const near = (this.air?.fogNear ?? s.fogNear) * (outdoors ? this.weatherNear : 1);
+    const distance = (this.air?.fogFar ?? s.fogFar) * (outdoors ? this.weatherFar : 1);
+    const range = clampFog(near, distance, far);
+    fog.near = range.near;
+    fog.far = range.far;
+
+    fogUniforms.uFogHeight.value = s.fogHeight;
+    fogUniforms.uFogSky.value = outdoors ? s.fogSky : 0;
+    fogUniforms.uFogRamp.value = s.fogRamp;
+    // The ceiling is a fact about outdoor air.
+    fogUniforms.uFogCeiling.value = outdoors ? s.fogCeiling : 1;
+    // The clear colour shows where nothing was drawn; with the dome off that
+    // is every pixel the geometry does not cover.
+    this.viewport.renderer.setClearColor(fog.color, 1);
+    // After the air has had its say, so an interior's short fog shortens the AO.
+    this.gtao.setFog(fog.near, fog.far);
   }
 
   /**

@@ -48,7 +48,17 @@ export const coverUniforms = {
   /** Toward the sun, and the plume backlight colour, premultiplied. */
   coverSunDir: { value: new THREE.Vector3(0, 1, 0) },
   coverGlow: { value: new THREE.Color(0, 0, 0) },
+  /** How far lying snow has buried and whitened the blades, 0..1. */
+  coverSnow: { value: 0 },
+  /** How heavy rain has left them, 0..1. Wet grass lies over and goes darker. */
+  coverWet: { value: 0 },
 };
+
+/** What the weather has done to the ground cover. See `world/WeatherRig`. */
+export function setCoverWeather(snow: number, wet: number): void {
+  coverUniforms.coverSnow.value = snow;
+  coverUniforms.coverWet.value = wet;
+}
 
 /** World direction into a mesh's object space: Y rotation and uniform scale only. */
 const TO_OBJECT = /* glsl */ `
@@ -78,6 +88,8 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
       attribute vec4 iWild;    // breathe phase, flutter phase, give, unused
       attribute vec3 iNormal;  // the ground's normal under the root
       uniform float coverHeight;
+      uniform float coverSnow;
+      uniform float coverWet;
       uniform float coverWidth;
       uniform float coverPixel;
       uniform vec3 coverPlayer;
@@ -108,7 +120,9 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         float scaleSq = max(dot(c0, c0), 0.0001);
 
         vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
-        float len = iShape.x * coverHeight;
+        // Buried by snow and pressed down by rain, both by shortening: a blade
+        // half under snow is a blade half as tall with white on it.
+        float len = iShape.x * coverHeight * (1.0 - coverSnow * 0.72 - coverWet * 0.12);
 
         // The same travelling gust the trees answer. See art/sway.ts.
         float lag = dot(worldRoot.xz, windDir) * windLagScale;
@@ -151,6 +165,10 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         transformed = iPlace.xyz + coverToObject(disp, c0, c1, c2, scaleSq);
 
         vCoverTint = iTint * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * t);
+        vCoverTint *= 1.0 - coverWet * 0.28;
+        // Whitened from the root up: what is left standing out of the snow is
+        // the tip, and the tip is the part that is still green.
+        vCoverTint = mix(vCoverTint, vec3(0.86, 0.9, 0.96), coverSnow * (1.0 - t * 0.55));
       }
       `,
     );

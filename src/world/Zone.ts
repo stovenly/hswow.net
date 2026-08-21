@@ -6,6 +6,7 @@ import type { MusicSpec } from '../audio/music/director';
 import type { FogVolume } from '../engine/FogVolumes';
 import type { GlitchPlacement } from '../engine/Glitch';
 import type { HorrorPlacement } from '../engine/Horror';
+import type { ZonePlace } from './climate';
 
 /**
  * A zone is a place: one contiguous piece of world you can walk around in. The
@@ -177,6 +178,13 @@ export interface ZoneDefinition {
    */
   readonly group?: ZoneGroup;
   readonly environment: ZoneEnvironment;
+  /**
+   * Where this place stands on the map, in kilometres. Declaring it is what
+   * puts the zone under the world's weather; a zone with no coordinate is held
+   * clear, which is what a gallery or a showcase wants — an exhibit in a
+   * snowstorm is an exhibit nobody can judge.
+   */
+  readonly place?: ZonePlace;
   /** Where you arrive with no portal to derive it from — a fresh boot. */
   readonly spawn: Placement;
   /** Below this the player has fallen out of the world and is put back. */
@@ -269,6 +277,11 @@ export class Zone {
 
   get spawn(): Placement {
     return this.definition.spawn;
+  }
+
+  /** Undefined for every zone that stands outside the weather. See `ZoneDefinition`. */
+  get place(): ZonePlace | undefined {
+    return this.definition.place;
   }
 
   /** Empty for every zone that has not placed any. See `ZoneDefinition`. */

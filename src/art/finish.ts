@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { NOISE_GLSL } from '../engine/noise';
+import { CLOUD_SHADOW_GLSL } from './glsl/clouds';
+import { SKY_MAP_GLSL, skyMapUniforms } from '../world/skymap';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import { sinHash3 } from './glsl/hash';
 import { RAMP_GLSL, RAMP_V, rampUniforms } from './glsl/ramp';
@@ -232,6 +234,14 @@ export function resolveFinish(finish: FinishName | Finish, grain?: Grain): Finis
 export const finishUniforms = {
   /** The dev toggle. Zero is bit-identical to Lambert. */
   uFinishOn: { value: 1 },
+  /**
+   * How wet every surface the sky can reach is, 0..1. Lags the rain by minutes
+   * in both directions — see `world/WeatherRig`, which integrates it.
+   */
+  uWetness: { value: 0 },
+  /** How much snow lies on every up-facing surface, 0..1. */
+  uSnow: { value: 0 },
+  uSnowColour: { value: new THREE.Color(0xeef3fa) },
   /** Global scale on the direct highlight. */
   uFinishSpecular: { value: 1 },
   /** Global scale on the reflection term. */
@@ -260,7 +270,7 @@ export function applyFinish(material: THREE.Material, mask: number): void {
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
 
-    Object.assign(shader.uniforms, finishUniforms, recipeUniforms, rampUniforms, skyUniforms);
+    Object.assign(shader.uniforms, finishUniforms, recipeUniforms, rampUniforms, skyUniforms, skyMapUniforms);
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -296,12 +306,15 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         varying float vFace;
         /** A phase per placed object, from where it stands. */
         varying float vObjectPhase;
+        /** Metres, world space. What the cloud shadow is looked up at. */
+        varying vec3 vFinishWorld;
         `,
       )
       .replace(
         '#include <begin_vertex>',
         /* glsl */ `#include <begin_vertex>
         vFinish = ${FINISH_ATTRIBUTE};
+        vFinishWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
         {
           // Y recovered rather than stored: this is an axis, so it was flipped
           // to the upper hemisphere on the way in. See resolveFinish.
@@ -353,6 +366,10 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         uniform float uFinishSpecular;
         uniform float uFinishEnv;
         uniform float uFinishSky;
+        uniform float uWetness;
+        uniform float uSnow;
+        uniform vec3 uSnowColour;
+        varying vec3 vFinishWorld;
         `,
       )
       .replace(
@@ -362,6 +379,14 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         /* glsl */ `#include <lights_lambert_pars_fragment>
         ${NOISE_GLSL}
         ${SKY_GLSL}
+        ${CLOUD_SHADOW_GLSL}
+        ${SKY_MAP_GLSL}
+
+        /** How wet and how snowed-on this fragment is. See the weather rig. */
+        float finishWet = 0.0;
+        float finishCrust = 0.0;
+        /** 1 in open sun, down to 1 − strength under the low deck. */
+        float finishCloud = 1.0;
 
         // Written in main once the colour chain has run; read by the lobes. Zero
         // wherever a vertex declared no finish, and the stage is gated on it.
@@ -576,7 +601,9 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
           const in LambertMaterial material,
           inout ReflectedLight reflectedLight
         ) {
-          RE_Direct_Lambert(directLight, geometryPosition, geometryNormal, geometryViewDir,
+          IncidentLight shadedLight = directLight;
+          shadedLight.color *= finishCloud;
+          RE_Direct_Lambert(shadedLight, geometryPosition, geometryNormal, geometryViewDir,
             geometryClearcoatNormal, material, reflectedLight);
           if (finishStrength <= 0.0) return;
 
@@ -593,7 +620,7 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
 
           float distribution = finishD(geometryNormal, halfDir);
 
-          reflectedLight.directSpecular += directLight.color * F
+          reflectedLight.directSpecular += shadedLight.color * F
             * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * recipeGloss * uFinishSpecular);
 ${glint ? /* glsl */ `
           if (finishGlint > 0.0) {
@@ -602,7 +629,7 @@ ${glint ? /* glsl */ `
             // way — a grain driven to clip has no hue left at all.
             vec3 spark = mix(F, vec3(1.0), 0.35) * 2.1;
             reflectedLight.directSpecular +=
-              directLight.color * spark * (finishSparkle(dotNH, 1.0) * finishGlint * dotNL * uFinishSpecular);
+              shadedLight.color * spark * (finishSparkle(dotNH, 1.0) * finishGlint * dotNL * uFinishSpecular);
           }
 ` : ''}
 
@@ -611,7 +638,7 @@ ${glint ? /* glsl */ `
           if (finishSheen > 0.0) {
             float rim = pow(1.0 - dotNV, 3.0);
             reflectedLight.directSpecular +=
-              directLight.color * finishSheenColour * (finishSheen * rim * dotNL * uFinishSpecular);
+              shadedLight.color * finishSheenColour * (finishSheen * rim * dotNL * uFinishSpecular);
           }
 ${trans ? /* glsl */ `
           if (finishTrans > 0.0) {
@@ -621,12 +648,12 @@ ${trans ? /* glsl */ `
               (dot(geometryNormal, directLight.direction) + finishTrans) / (1.0 + finishTrans)
             );
             reflectedLight.directDiffuse +=
-              directLight.color * BRDF_Lambert(material.diffuseColor) * max(wrapped - dotNL, 0.0);
+              shadedLight.color * BRDF_Lambert(material.diffuseColor) * max(wrapped - dotNL, 0.0);
             // And what comes through from behind. The shadow factor is already in
             // directLight.color, so this reads on thin geometry and edges.
             float through = pow(saturate(dot(geometryViewDir, -directLight.direction)), 3.0);
             reflectedLight.directDiffuse +=
-              directLight.color * material.diffuseColor * (through * finishTrans * 0.35);
+              shadedLight.color * material.diffuseColor * (through * finishTrans * 0.35);
           }
 ` : ''}${anyRecipe ? /* glsl */ `
           // Recipes answering a light. Object-space half vector, so they vary
@@ -636,7 +663,7 @@ ${trans ? /* glsl */ `
             vec3 halfObj = normalize(vRecipeView + lightObj);
             vec3 normalObj = recipeToObject(recipeSmoothNormal());
             float smoothNL = saturate(dot(recipeSmoothNormal(), directLight.direction));
-            float weight = dot(directLight.color, vec3(0.2126, 0.7152, 0.0722));
+            float weight = dot(shadedLight.color, vec3(0.2126, 0.7152, 0.0722));
             if (weight > recipeSunWeight) {
               recipeSunWeight = weight;
               recipeSunObj = lightObj;
@@ -655,10 +682,39 @@ ${trans ? /* glsl */ `
         // finishWorn is the weathering hand-off — where rust won, gilt is matte.
         '#include <lights_lambert_fragment>',
         /* glsl */ `#include <lights_lambert_fragment>
-        finishStrength = uFinishOn * step(0.001, vFinish.y) * (1.0 - finishWorn);
+        if (uFinishSky > 0.5) {
+          finishCloud = cloudShadowAt(vFinishWorld, normalize(uSunDirection));
+          if (uWetness > 0.0 || uSnow > 0.0) {
+            vec3 finishUp = inverseTransformDirection(normal, viewMatrix);
+            // Whether anything stands between this fragment and the sky. The
+            // normal alone cannot tell a roof from the ground under its eave.
+            float reach = skyReach(vFinishWorld);
+            // Porosity. A surface that declared no finish is plain stone, soil
+            // or timber and drinks; a metal, a glaze or a cloth does not.
+            float soak = vFinish.y > 0.001
+              ? (1.0 - vFinish.x) * (1.0 - vFinish.z) * smoothstep(0.12, 0.55, vFinish.y)
+              : 1.0;
+            // Rain runs down a wall and never reaches an underside; snow lies
+            // only on what faces up. What is under a roof is the map's answer.
+            finishWet = uWetness * soak * reach
+              * smoothstep(-0.4, -0.02, finishUp.y)
+              * mix(0.3, 1.0, smoothstep(-0.05, 0.55, finishUp.y));
+            finishCrust = uSnow * reach * smoothstep(0.3, 0.7, finishUp.y);
+            finishWet *= 1.0 - finishCrust;
+          }
+        }
+        if (finishCrust > 0.0) {
+          // Outside the finish gate on purpose: most of the world declares no
+          // finish at all, and snow lies on all of it.
+          material.diffuseColor = mix(material.diffuseColor, uSnowColour, finishCrust);
+        }
+        finishStrength = uFinishOn
+          * max(step(0.001, vFinish.y), step(0.004, finishWet)) * (1.0 - finishWorn);
         if (finishStrength > 0.0) {
           float finishMetal = vFinish.x * finishStrength;
-          finishRough = clamp(vFinish.y, 0.05, 1.0);
+          // Nothing declared is fully rough, not a mirror: vFinish.y is zero
+          // there, and clamping it to the floor would gloss the whole world.
+          finishRough = vFinish.y > 0.001 ? clamp(vFinish.y, 0.05, 1.0) : 1.0;
           finishSheen = vFinish.z * finishStrength;
           finishSheenColour = material.diffuseColor;
           finishAniso = clamp(vFinishExtra.x, 0.0, 0.95) * finishStrength;
@@ -702,6 +758,21 @@ ${aniso ? /* glsl */ `
           vec3 tint = mix(vec3(1.0), film, vFinish.w * finishStrength * recipeFilmMix);
 ` : ''}          finishF0 = mix(vec3(0.05), material.diffuseColor, finishMetal) * finishStrength${film ? ' * tint' : ''};
           ${slot('surface', 10)}
+          if (finishCrust > 0.0) {
+            finishRough = mix(finishRough, 0.82, finishCrust);
+            finishSheen *= 1.0 - finishCrust;
+          }
+          if (finishWet > 0.0) {
+            // Water standing in the pores. The darkening is not linear in the
+            // dry albedo — a pale stone loses far more of its value than a
+            // dark one, which is why a wet pavement reads as a different
+            // material rather than as the same one turned down.
+            material.diffuseColor *= 1.0 - 0.45 * finishWet;
+            // Floored near a tenth. A narrower lobe than that crawls against
+            // the quantizer, and a painted register does not want a mirror.
+            finishRough = mix(finishRough, max(0.11, finishRough * 0.28), finishWet);
+            finishF0 = max(finishF0, vec3(0.02 * finishWet));
+          }
           finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
             - min(min(finishF0.r, finishF0.g), finishF0.b);
           material.diffuseColor *= 1.0 - finishMetal;

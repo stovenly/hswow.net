@@ -15,13 +15,14 @@ import type { WindModel } from './audio/models/wind';
 import type { FoliageModel } from './audio/models/foliage';
 import type { MachineModel } from './audio/models/machine';
 import type { FireModel } from './audio/models/fire';
-import type { RainModel } from './audio/models/rain';
 import type { WaterModel } from './audio/models/water';
 import { AudioEngine } from './audio/AudioEngine';
 import { VOICE_TUNING, pushVoiceTuning, type VoiceTuning } from './audio/voice/tuning';
 import { createDevTools } from './debug/DevPanel';
 import { Identify } from './debug/Identify';
 import { ZoneManager } from './world/ZoneManager';
+import { Climate, WEATHER_KINDS } from './world/climate';
+import { WeatherRig } from './world/WeatherRig';
 import { Interaction } from './world/Interaction';
 import { Reticle, Fade } from './ui/Reticle';
 import { Crosshair } from './ui/Crosshair';
@@ -139,8 +140,6 @@ for (const portal of world.portals) zones.link(portal);
 // are prepared, so setting it afterwards would raise the exterior with the
 // wrong casters and then walk all of it again to correct them.
 zones.setShadows(options.shadows);
-// The drawn sun and the shadow-casting one are the same direction by
-// construction. Static for now; when it moves, this call moves with it.
 postfx.aimSun(zones.sunDirection);
 
 await loader.step('settling the world', 0.6, () => zones.enter(ZONE_EXTERIOR));
@@ -157,6 +156,17 @@ await loader.step('raising the countryside', 0.78, () => zones.prebuild(ZONE_COU
 // built until they are done. The buffer size is read here rather than in
 // `applyOptions`: it can only be chosen as the context is opened.
 const audio = new AudioEngine(audioLatencyHint(options));
+
+/**
+ * The clock, the wind and the weather — one object deciding what today is,
+ * everywhere at once — and the rig that applies it to the world. The wind field
+ * itself still belongs to the audio engine, which steps it; the climate writes
+ * its settings and reads it back.
+ */
+const climate = new Climate(audio.weather);
+/** Read back into the panel each frame. The climate names the sky; nobody sets it. */
+const deckNames = { high: '—', mid: '—', low: '—' };
+const weather = new WeatherRig(climate, viewport.scene);
 
 /**
  * Your own feet, which belong to you rather than to any zone. Everything else
@@ -194,7 +204,7 @@ await loader.step('tuning the air', 0.96, () => {
     // under you, and a cobbled lane that sounds like the grass beside it is
     // only paint.
     const at = player.position;
-    footsteps.surface = zones.surfaceAt(at.x, at.z);
+    footsteps.surface = weather.surface ?? zones.surfaceAt(at.x, at.z);
     footsteps.step(step);
   };
   // Landing is part of the same system — same surface, same models, different
@@ -202,7 +212,7 @@ await loader.step('tuning the air', 0.96, () => {
   player.onLand = (impact, horizontal) => {
     if (!footsteps) return;
     const at = player.position;
-    footsteps.surface = zones.surfaceAt(at.x, at.z);
+    footsteps.surface = weather.surface ?? zones.surfaceAt(at.x, at.z);
     footsteps.land(impact, horizontal);
   };
   // The push-off. The controller decides whether this one counts — a hop
@@ -211,7 +221,7 @@ await loader.step('tuning the air', 0.96, () => {
   player.onJump = (speed) => {
     if (!footsteps) return;
     const at = player.position;
-    footsteps.surface = zones.surfaceAt(at.x, at.z);
+    footsteps.surface = weather.surface ?? zones.surfaceAt(at.x, at.z);
     footsteps.jump(speed);
   };
   // Attaching builds the current zone's soundscape, including the one the
@@ -463,14 +473,10 @@ if (dev.gui) {
   // drawn, a stair's walkway included. See `ZoneManager.showBarriers`.
   vista.add(zones, 'showBarriers').name('show invisible walls');
 
+  // Shape only. Every colour in the sky comes off the sun's elevation and is a
+  // row of the table in `engine/atmosphere.ts`.
   const sky = dev.gui.addFolder('sky');
-  sky.addColor(r.sky, 'zenith').onChange(refresh);
-  sky.addColor(r.sky, 'horizon').onChange(refresh);
-  sky.addColor(r.sky, 'ground').name('below horizon').onChange(refresh);
   sky.add(r.sky, 'curve', 0.1, 3, 0.05).name('curve up').onChange(refresh);
-  // Reaches the fog as well as the dome: the fog fades to this gradient, so
-  // the two warm together or the land parts company with the sky.
-  sky.add(r.sky, 'warmth', 0, 1, 0.02).name('warm toward sun').onChange(refresh);
   sky.add(r.sky, 'underCurve', 0.1, 4, 0.05).name('curve down').onChange(refresh);
   // The fog's own, and nothing to do with the two above — see `SkySettings.airCurve`.
   // Below about 2 distant props start taking a blue ramp that matches the sky
@@ -478,12 +484,14 @@ if (dev.gui) {
   sky.add(r.sky, 'airCurve', 0.3, 6, 0.1).name('curve for fog').onChange(refresh);
 
   const clouds = dev.gui.addFolder('sky clouds');
-  clouds.addColor(r.sky, 'cloudColor').name('colour').onChange(refresh);
-  clouds.add(r.sky, 'cloudCover', 0.1, 0.9, 0.01).name('cover').onChange(refresh);
-  clouds.add(r.sky, 'cloudSoftness', 0.01, 0.6, 0.01).name('softness').onChange(refresh);
-  clouds.add(r.sky, 'cloudScale', 0.2, 4, 0.05).name('scale').onChange(refresh);
   clouds.add(r.sky, 'cloudOpacity', 0, 1, 0.01).name('opacity').onChange(refresh);
-  clouds.add(r.sky, 'cloudDrift', 0, 0.1, 0.001).name('drift').onChange(refresh);
+  clouds.add(r.sky, 'cloudDrift', 0, 2, 0.02).name('drift').onChange(refresh);
+  clouds.add(r, 'cloudShadow', 0, 1, 0.02).name('shadow on ground').onChange(refresh);
+  // Which genus is overhead is the climate's to decide; the readout names what
+  // it chose, so a sky can be identified without guessing at it.
+  for (const level of ['high', 'mid', 'low'] as const) {
+    clouds.add(deckNames, level).name(level).listen().disable();
+  }
 
   // Owned by the zone manager and overwritten on every crossing, so these are
   // for looking at a zone's lighting rather than for dialling one in — that
@@ -624,23 +632,50 @@ if (dev.gui) {
   dial('turbulence', 0, 1.5, 0.01, 'turbulence');
   dial('gain', 0.05, 1.5, 0.01, 'model gain');
 
-  const weather = dev.gui.addFolder('weather');
-  weather.add(audio.weather.settings, 'windSpeed', 0, 1, 0.01).name('wind');
-  weather.add(audio.weather.settings, 'gustDepth', 0, 1, 0.01).name('gust depth');
-  weather.add(audio.weather.settings, 'gustRate', 0.01, 0.6, 0.01).name('gust rate');
-  weather
+  // The clock, and one hold per registered kind. A hold overrides the field; the
+  // release beside it hands the day back to the climate.
+  const climateFolder = dev.gui.addFolder('climate');
+  const held: Record<string, number> = {};
+  climateFolder.add(climate, 'timeOfDay', 0, 1, 0.001)
+    .name('time of day')
+    .listen()
+    .onChange((value: number) => climate.setTimeOfDay(value));
+  climateFolder.add(climate, 'frozen').name('hold the clock');
+  climateFolder.add(climate, 'day', 0, 200, 1).name('day').listen();
+  climateFolder.add(climate.settings, 'dayLength', 60, 3600, 10).name('day length (s)');
+  climateFolder.add(climate.settings, 'yearLength', 8, 365, 1).name('year (days)');
+  climateFolder.add(climate.settings, 'latitude', 0, 70, 1).name('latitude');
+  climateFolder.add(climate.settings, 'baseWind', 0, 1, 0.01).name('baseline wind');
+  climateFolder.add(climate.settings, 'pace', 0.1, 20, 0.1).name('weather pace');
+  for (const kind of WEATHER_KINDS) {
+    held[kind.name] = 0;
+    climateFolder
+      .add(held, kind.name, 0, 1, 0.01)
+      .onChange((value: number) => climate.force(kind.name, value > 0 ? value : null));
+  }
+  climateFolder.add({ release: () => {
+    for (const kind of WEATHER_KINDS) {
+      climate.force(kind.name, null);
+      held[kind.name] = 0;
+    }
+  } }, 'release').name('hand the day back');
+
+  const gusts = dev.gui.addFolder('wind');
+  gusts.add(audio.weather.settings, 'gustDepth', 0, 1, 0.01).name('gust depth');
+  gusts.add(audio.weather.settings, 'gustRate', 0.01, 0.6, 0.01).name('gust rate');
+  gusts
     .add(audio.weather.settings, 'windDirection', 0, Math.PI * 2, 0.01)
     .name('wind direction');
   // How fast a gust crosses the world. The control that decides whether the
   // wind reads as weather or as a global parameter being turned: at the top of
   // this range the front is near enough instant and everything moves together.
-  weather
-    .add(audio.weather.settings, 'frontSpeed', 1, 60, 0.5)
+  gusts
+    .add(climate.settings, 'frontSpeed', 1, 60, 0.5)
     .name('front speed (m/s)');
   // One global scale over the vertex sway, so the whole world's motion can be
   // judged — or turned off — without re-tuning seventy builders against each
   // other. `art/flex.ts` holds the per-species part.
-  weather.add(windUniforms.swayAmount, 'value', 0, 2, 0.01).name('sway');
+  gusts.add(windUniforms.swayAmount, 'value', 0, 2, 0.01).name('sway');
 
   // The fabrics gallery's station controls: a wind override so calm, breeze and
   // gale can be reproduced on demand, the collider wireframes behind the
@@ -692,7 +727,6 @@ if (dev.gui) {
     leaves: 1,
     machineRpm: 52,
     fireIntensity: 0.85,
-    rain: 0,
     water: 1,
     // Scatter events are minutes apart by design, so tuning one by waiting for
     // it means changing a parameter twice between hearings.
@@ -702,13 +736,13 @@ if (dev.gui) {
     // right.
     toll: () => zones.sound?.findField('bell')?.trigger(),
   };
-  weather
+  gusts
     .add(tuning, 'windTone', 700, 9000, 50)
     .name('wind tone (Hz)')
     .onChange((value: number) => {
       zones.sound?.find<WindModel>('wind')?.setTone(value);
     });
-  weather
+  gusts
     .add(tuning, 'leaves', 0, 2, 0.01)
     .name('leaf articulation')
     .onChange((value: number) => {
@@ -719,33 +753,27 @@ if (dev.gui) {
         zones.sound?.find<FoliageModel>(id)?.setArticulation(base * value);
       }
     });
-  weather
+  gusts
     .add(tuning, 'machineRpm', 0, 200, 1)
     .name('mill rpm')
     .onChange((value: number) => {
       zones.sound?.find<MachineModel>('mill')?.setRpm(value);
     });
-  weather
+  gusts
     .add(tuning, 'fireIntensity', 0, 1, 0.01)
     .name('forge intensity')
     .onChange((value: number) => {
       zones.sound?.find<FireModel>('forge')?.setIntensity(value);
     });
-  weather
-    .add(tuning, 'rain', 0, 1, 0.01)
-    .name('rain')
-    .onChange((value: number) => {
-      zones.sound?.find<RainModel>('rain')?.setIntensity(value);
-    });
-  weather
+  gusts
     .add(tuning, 'water', 0, 1, 0.01)
     .name('water flow')
     .onChange((value: number) => {
       zones.sound?.find<WaterModel>('cistern')?.setRate(value);
     });
-  weather.add(tuning, 'strike').name('hammer now');
-  weather.add(tuning, 'drop').name('clatter now');
-  weather.add(tuning, 'toll').name('bell now');
+  gusts.add(tuning, 'strike').name('hammer now');
+  gusts.add(tuning, 'drop').name('clatter now');
+  gusts.add(tuning, 'toll').name('bell now');
 
   // A readout rather than a control: what the controller thinks is happening,
   // which is the only way to tell a tuning problem from a collision problem.
@@ -771,6 +799,11 @@ if (dev.gui) {
     buffers: '—',
     zone: '—',
     crossings: 0,
+    // Sun elevation and the temperature where you stand — the two numbers that
+    // decide the whole atmosphere table and whether it rains or snows.
+    sun: '—',
+    /** How wet the world is, and how much snow is lying on it. */
+    soaked: '—',
     room: '—',
     // Audio has no visible output at all, so a readout of what it thinks is
     // happening is the only way to tell "occlusion is broken" apart from
@@ -970,6 +1003,13 @@ if (dev.gui) {
     readout.audio = footsteps === null ? 'rendering…' : audio.context.state;
     readout.gust = audio.weather.strength.toFixed(2);
     readout.swell = audio.weather.swell.toFixed(2);
+    readout.sun = `${climate.sunElevation.toFixed(1)}°  ${climate.temperature.toFixed(0)}°C`;
+    readout.soaked = `${weather.wet.toFixed(2)} / ${weather.lying.toFixed(2)}`;
+    for (let i = 0; i < 3; i++) {
+      const deck = weather.decks[i];
+      deckNames[(['high', 'mid', 'low'] as const)[i]] =
+        deck.genus ? `${deck.genus} ${deck.amount.toFixed(2)}` : '—';
+    }
     readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
     readout.music = zones.music?.status ?? '—';
     // The voice budget, made visible. HRTF panning is the most expensive node in
@@ -1052,6 +1092,10 @@ loop.add((rawDt, rawElapsed) => {
   // the next — a whole frame of drift between a sight and a sound that are
   // meant to be one event.
   updateWind(audio.weather, elapsed);
+  // After the wind has been stepped and shipped, and before anything is drawn:
+  // the sun moves, so the light rig, the dome and the shadow camera are all
+  // per-frame now. Nothing here may bake.
+  weather.update(dt, elapsed, postfx, zones, audio, viewport.camera.position);
   // After the wind for the same reason again: each cloth samples the same
   // field the trees just bent to, so a gust arrives at the flag and the tree
   // beside it on the same frame.

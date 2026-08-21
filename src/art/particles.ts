@@ -443,10 +443,22 @@ export function setPrecipitation(on: boolean): void {
   particleUniforms.uPrecipitation.value = on ? 1 : 0;
 }
 
+/**
+ * How hard this one system is running, 0..1 — the weather's amount, over the
+ * preset's density. Count rather than alpha: fewer drops *is* what a drizzle
+ * is, and every instance's position was rolled independently, so a prefix of
+ * the buffer is an even sample of the box.
+ */
+export function setParticleWeather(mesh: THREE.Mesh, amount: number): void {
+  mesh.geometry.userData.amount = Math.min(Math.max(amount, 0), 1);
+  refreshDraw(mesh);
+}
+
 function refreshDraw(mesh: THREE.Mesh): void {
   const geometry = mesh.geometry as THREE.InstancedBufferGeometry;
   const full = geometry.userData.count as number;
-  geometry.instanceCount = Math.max(1, Math.round(full * drawDensity));
+  const amount = (geometry.userData.amount as number | undefined) ?? 1;
+  geometry.instanceCount = Math.max(1, Math.round(full * drawDensity * amount));
   mesh.visible = drawOn;
 }
 

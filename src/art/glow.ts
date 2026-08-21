@@ -88,6 +88,19 @@ TEXT_GLOW_ADDITIVE.customProgramCacheKey = () => 'text-glow-additive';
  * prop in a stable order between frames. Which of the three glow materials is a
  * caller's choice; that everything goes through here is not.
  */
+/**
+ * The dusk-to-dawn schedule, 0 at noon and 1 in the dark. One global rather than
+ * a per-prop switch, and it lifts rather than lights: an additive flame is far
+ * too strong against a bright sky and about right against a dim one, so the
+ * floor is what a lamp looks like at noon and the ceiling is what it looks like
+ * at midnight. Nothing is ever switched off.
+ */
+export function setGlowLevel(darkness: number): void {
+  const level = 0.55 + Math.min(Math.max(darkness, 0), 1) * 0.45;
+  GLOW_MATERIAL.opacity = level;
+  TEXT_GLOW_ADDITIVE.opacity = level;
+}
+
 export function finishGlow(
   geometry: THREE.BufferGeometry,
   name: string,
