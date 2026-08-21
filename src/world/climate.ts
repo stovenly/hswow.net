@@ -255,7 +255,9 @@ export const WEATHER_KINDS: WeatherKind[] = [
       ['stratus', 0.6],
     ],
     ground: { wind: 0.15, surface: 'snow', cover: 1 },
-    blow: 0.3,
+    // Well under rain's. Heavy snow wants slack air — enough wind and it does
+    // not settle, it drifts, and that is a different weather.
+    blow: 0.08,
   },
   {
     name: 'fog',
@@ -399,9 +401,9 @@ export class Climate {
   }
 
   /**
-   * Holds the moon at one phase, or hands it back to the month with null. The
-   * position follows: a full moon has to be opposite the sun, so holding the
-   * phase moves the moon in the sky as well as reshaping it.
+   * Holds the drawn phase, or hands it back to the month with null. Only what
+   * the disc looks like — where the moon stands keeps running on the real
+   * month, so holding the phase does not teleport it across the sky.
    */
   holdMoon(phase: number | null): void {
     this.heldPhase = phase === null ? null : ((phase % 1) + 1) % 1;
@@ -520,9 +522,12 @@ export class Climate {
     // the sun's company, a first quarter stands due south at sunset, and a full
     // moon rises as the sun goes down.
     const month = Math.max(this.settings.moonMonth, 1);
-    this.moonPhase = this.heldPhase ?? ((this.elapsedDays / month) % 1 + 1) % 1;
-    const swing = this.moonPhase * Math.PI * 2;
-    this.moonLight = 0.5 - Math.cos(swing) * 0.5;
+    const natural = ((this.elapsedDays / month) % 1 + 1) % 1;
+    this.moonPhase = this.heldPhase ?? natural;
+    this.moonLight = 0.5 - Math.cos(this.moonPhase * Math.PI * 2) * 0.5;
+    // The month's own phase, not the held one: where the moon stands is a fact
+    // about the date, and a slider for how it looks should not move it.
+    const swing = natural * Math.PI * 2;
     this.aimAt(hourAngle - swing, sunLongitude + swing, this.moonDirection);
   }
 

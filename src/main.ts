@@ -1066,7 +1066,7 @@ if (dev.gui) {
     readout.room = audio.room ?? 'open';
     stageState.reverb = audio.reverbKind === 'fdn' ? 'fdn — tunable' : 'convolution — fixed';
     readout.audio = footsteps === null ? 'rendering…' : audio.context.state;
-    readout.gust = audio.weather.strength.toFixed(2);
+    readout.gust = `${audio.weather.strength.toFixed(2)} of ${audio.weather.settings.windSpeed.toFixed(2)}`;
     readout.swell = audio.weather.swell.toFixed(2);
     readout.sun = `${climate.sunElevation.toFixed(1)}°  ${climate.temperature.toFixed(0)}°C`;
     readout.moon = `${climate.moonName} ${(climate.moonLight * 100).toFixed(0)}%`;
