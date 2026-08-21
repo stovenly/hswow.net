@@ -126,6 +126,8 @@ export class Soundscape {
   private readonly fields = new Map<string, ScatterField>();
   /** Beds are updated by hand — they have no emitter to do it for them. */
   private readonly beds: SoundModel[] = [];
+  /** Which ids are beds. A station on the sound stage shares ids with the air. */
+  private readonly bedIds = new Set<string>();
   /** One fader over every bed, so ducking the air is one automation event. */
   private readonly bedBus: GainNode | null = null;
   private readonly scatter: ScatterField[] = [];
@@ -145,7 +147,10 @@ export class Soundscape {
         gain.gain.value = declared.gain ?? 1;
         model.output.connect(gain).connect(bus);
         this.beds.push(model);
-        if (declared.id) this.models.set(declared.id, model);
+        if (declared.id) {
+          this.models.set(declared.id, model);
+          this.bedIds.add(declared.id);
+        }
       }
     }
 
@@ -217,6 +222,15 @@ export class Soundscape {
    */
   find<T extends SoundModel>(id: string): T | null {
     return (this.models.get(id) as T | undefined) ?? null;
+  }
+
+  /**
+   * A bed by its declared `id`, and only a bed. The weather drives the air a
+   * zone declared; a station on the sound stage carrying the same id is an
+   * exhibit and is nobody's to turn down.
+   */
+  findBed<T extends SoundModel>(id: string): T | null {
+    return this.bedIds.has(id) ? ((this.models.get(id) as T | undefined) ?? null) : null;
   }
 
   /** A scatter field by its declared `id`. See `find`. */

@@ -241,7 +241,9 @@ export const finishUniforms = {
   uWetness: { value: 0 },
   /** How much snow lies on every up-facing surface, 0..1. */
   uSnow: { value: 0 },
-  uSnowColour: { value: new THREE.Color(0xeef3fa) },
+  uSnowColour: { value: new THREE.Color(0xdde5f0) },
+  /** How much of a surface's own colour snow is allowed to take, 0..1. */
+  uSnowDepth: { value: 0.82 },
   /** Global scale on the direct highlight. */
   uFinishSpecular: { value: 1 },
   /** Global scale on the reflection term. */
@@ -369,6 +371,7 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         uniform float uWetness;
         uniform float uSnow;
         uniform vec3 uSnowColour;
+        uniform float uSnowDepth;
         varying vec3 vFinishWorld;
         `,
       )
@@ -385,6 +388,8 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         /** How wet and how snowed-on this fragment is. See the weather rig. */
         float finishWet = 0.0;
         float finishCrust = 0.0;
+        /** Where the weather lies thick and where it lies thin, 0..1. */
+        float finishGrain = 0.5;
         /** 1 in open sun, down to 1 − strength under the low deck. */
         float finishCloud = 1.0;
 
@@ -689,24 +694,45 @@ ${trans ? /* glsl */ `
             // Whether anything stands between this fragment and the sky. The
             // normal alone cannot tell a roof from the ground under its eave.
             float reach = skyReach(vFinishWorld);
+            // Two scales of world noise. Weather that covers evenly is paint:
+            // the coarse one decides where a drift lies and where the ground
+            // shows through, the fine one ravels the edge of it.
+            finishGrain = valueNoise(vFinishWorld.xz * 0.35) * 0.6
+              + valueNoise(vFinishWorld.xz * 1.9 + vFinishWorld.y * 0.7) * 0.4;
+
             // Porosity. A surface that declared no finish is plain stone, soil
             // or timber and drinks; a metal, a glaze or a cloth does not.
             float soak = vFinish.y > 0.001
               ? (1.0 - vFinish.x) * (1.0 - vFinish.z) * smoothstep(0.12, 0.55, vFinish.y)
               : 1.0;
-            // Rain runs down a wall and never reaches an underside; snow lies
-            // only on what faces up. What is under a roof is the map's answer.
+            // Rain runs down a wall and never reaches an underside.
             finishWet = uWetness * soak * reach
               * smoothstep(-0.4, -0.02, finishUp.y)
-              * mix(0.3, 1.0, smoothstep(-0.05, 0.55, finishUp.y));
-            finishCrust = uSnow * reach * smoothstep(0.3, 0.7, finishUp.y);
+              * mix(0.25, 1.0, smoothstep(-0.05, 0.55, finishUp.y))
+              // Water stands where the ground lets it. Flat and even is a
+              // varnish; uneven is a wet street.
+              * (0.72 + 0.5 * finishGrain);
+
+            // Snow needs a surface near enough level to hold it. A roof at
+            // forty degrees sheds, which is what a pitched roof is for, and a
+            // wall holds none at all — so the threshold is high and narrow,
+            // and the noise is what stops the line it draws from being a band.
+            float lie = smoothstep(0.5, 0.86, finishUp.y);
+            finishCrust = uSnow * reach
+              * smoothstep(0.28, 0.72, lie * (0.62 + 0.72 * finishGrain));
             finishWet *= 1.0 - finishCrust;
           }
         }
         if (finishCrust > 0.0) {
           // Outside the finish gate on purpose: most of the world declares no
           // finish at all, and snow lies on all of it.
-          material.diffuseColor = mix(material.diffuseColor, uSnowColour, finishCrust);
+          //
+          // Never all the way to the snow colour. Taking every surface to one
+          // value is what turns a snowy village into a white shape with a
+          // skyline: what is left of the material underneath is the only thing
+          // still saying which part of it is a roof and which is a road.
+          vec3 lying = uSnowColour * (0.9 + 0.16 * finishGrain);
+          material.diffuseColor = mix(material.diffuseColor, lying, finishCrust * uSnowDepth);
         }
         finishStrength = uFinishOn
           * max(step(0.001, vFinish.y), step(0.004, finishWet)) * (1.0 - finishWorn);
@@ -767,7 +793,7 @@ ${aniso ? /* glsl */ `
             // dry albedo — a pale stone loses far more of its value than a
             // dark one, which is why a wet pavement reads as a different
             // material rather than as the same one turned down.
-            material.diffuseColor *= 1.0 - 0.45 * finishWet;
+            material.diffuseColor *= 1.0 - 0.34 * finishWet;
             // Floored near a tenth. A narrower lobe than that crawls against
             // the quantizer, and a painted register does not want a mirror.
             finishRough = mix(finishRough, max(0.11, finishRough * 0.28), finishWet);

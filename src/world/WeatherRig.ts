@@ -46,7 +46,8 @@ export class WeatherRig {
   private readonly systems = new Map<string, THREE.Mesh>();
   private readonly root = new THREE.Group();
   private rain: RainModel | null = null;
-  private rainGain: GainNode | null = null;
+  /** Seconds the fallback bed has been silent, before it is let go. */
+  private quiet = 0;
   private readonly key = new THREE.Vector3();
 
   constructor(climate: Climate, scene: THREE.Scene) {
@@ -118,6 +119,8 @@ export class WeatherRig {
     postfx.setAir(this.air.horizon, this.air.zenith, this.air.ground, this.air.sunDisc, this.air.warmth);
     postfx.setNight(
       this.air.stars * clear,
+      // Drawn whatever the phase — a new moon is a hole in the stars, not an
+      // absence — but the *light* it gives is the lit fraction's, below.
       this.air.moon * (0.35 + clear * 0.65),
       climate.moonPhase,
       climate.moonDirection,
@@ -130,7 +133,10 @@ export class WeatherRig {
     // a bright night read as night rather than as a dim day.
     const moonlit = climate.sunElevation < MOON_TAKES_OVER;
     this.key.copy(moonlit ? climate.moonDirection : climate.sunDirection);
-    zones.aimKeyLight(this.key, (moonlit ? 0.45 : 1) * clear * clear);
+    // A new moon lights nothing. Not zero at the bottom: at that point the sky
+    // itself is the light, and the key is only shaping it.
+    const phase = 0.25 + climate.moonLight * 0.75;
+    zones.aimKeyLight(this.key, (moonlit ? 0.45 * phase : 1) * clear * clear);
     zones.applyLightRig(this.air);
 
     // The lamps come up as the sun goes down, on the sun's elevation rather
@@ -293,6 +299,13 @@ export class WeatherRig {
     listener: THREE.Vector3,
     outdoors: boolean,
   ): void {
+    // A zone that stands outside the weather keeps its own air entirely. The
+    // sound stage has a rain station on it, and it is an exhibit.
+    if (zones.current?.place === undefined) {
+      this.silence(audio, dt, listener);
+      return;
+    }
+
     let level = 0;
     let surface: RainSurface = 'earth';
     for (const kind of WEATHER_KINDS) {
@@ -308,29 +321,43 @@ export class WeatherRig {
 
     // A zone that declared a rain bed of its own gets driven rather than
     // doubled: its model is already in the zone's bus, so it ducks, stops and
-    // resumes with the rest of the air.
-    const declared = zones.sound?.find<RainModel>('rain') ?? null;
+    // resumes with the rest of the air, and the soundscape updates it.
+    const declared = zones.sound?.findBed<RainModel>('rain') ?? null;
     if (declared) {
+      this.silence(audio, dt, listener);
       declared.setSurface(surface);
       declared.setIntensity(level);
       return;
     }
 
-    if (level <= 0.01) {
-      if (this.rainGain) this.rainGain.gain.setTargetAtTime(0, audio.context.currentTime, 0.4);
-      return;
+    if (this.rain === null) {
+      if (level <= 0.01 || !audio.noise || !audio.started) return;
+      // The same level a zone authors its own bed at, straight into the dry
+      // bus. No second gain over it: the model ramps itself, and a fader on
+      // top of that ramp is two envelopes racing.
+      this.rain = createRain(audio, { gain: 0.5, intensity: 0, surface });
+      this.rain.output.connect(audio.dry);
     }
-    if (!this.rain) {
-      if (!audio.noise || !audio.started) return;
-      this.rain = createRain(audio, { gain: 1, intensity: 0, surface });
-      this.rainGain = audio.context.createGain();
-      this.rainGain.gain.value = 0;
-      this.rain.output.connect(this.rainGain).connect(audio.dry);
-    }
+    this.quiet = 0;
     this.rain.setSurface(surface);
     this.rain.setIntensity(level);
-    this.rainGain?.gain.setTargetAtTime(0.6, audio.context.currentTime, 0.6);
+    // Updated at every level including zero, and that is the point: the model
+    // resets its own drop clocks when it goes quiet, and one that stops being
+    // told the time keeps replaying the last block it scheduled.
     this.rain.update?.(dt, audio, listener);
+  }
+
+  /** Winds the fallback bed down, and lets it go once it is actually silent. */
+  private silence(audio: AudioEngine, dt: number, listener: THREE.Vector3): void {
+    if (this.rain === null) return;
+    this.rain.setIntensity(0);
+    this.rain.update?.(dt, audio, listener);
+    this.quiet += dt;
+    if (this.quiet > 3) {
+      this.rain.dispose();
+      this.rain = null;
+      this.quiet = 0;
+    }
   }
 
   dispose(): void {

@@ -166,6 +166,10 @@ const audio = new AudioEngine(audioLatencyHint(options));
 const climate = new Climate(audio.weather);
 /** Read back into the panel each frame. The climate names the sky; nobody sets it. */
 const deckNames = { high: '—', mid: '—', low: '—' };
+/** The panel's weather sliders, and whether they are driving or reporting. */
+const weatherHold = { on: false };
+const weatherLevels: Record<string, number> = {};
+for (const kind of WEATHER_KINDS) weatherLevels[kind.name] = 0;
 const weather = new WeatherRig(climate, viewport.scene);
 
 /**
@@ -635,7 +639,6 @@ if (dev.gui) {
   // The clock, and one hold per registered kind. A hold overrides the field; the
   // release beside it hands the day back to the climate.
   const climateFolder = dev.gui.addFolder('climate');
-  const held: Record<string, number> = {};
   climateFolder.add(climate, 'timeOfDay', 0, 1, 0.001)
     .name('time of day')
     .listen()
@@ -647,18 +650,27 @@ if (dev.gui) {
   climateFolder.add(climate.settings, 'latitude', 0, 70, 1).name('latitude');
   climateFolder.add(climate.settings, 'baseWind', 0, 1, 0.01).name('baseline wind');
   climateFolder.add(climate.settings, 'pace', 0.1, 20, 0.1).name('weather pace');
+  // Off, the sliders read back what the climate decided. On, they *are* what
+  // the weather is — including zero, which is the whole reason the toggle
+  // exists: a slider that means nothing at one end is not a control.
+  climateFolder
+    .add(weatherHold, 'on')
+    .name('hold the weather')
+    .listen()
+    .onChange((on: boolean) => {
+      for (const kind of WEATHER_KINDS) climate.force(kind.name, on ? weatherLevels[kind.name] : null);
+    });
   for (const kind of WEATHER_KINDS) {
-    held[kind.name] = 0;
     climateFolder
-      .add(held, kind.name, 0, 1, 0.01)
-      .onChange((value: number) => climate.force(kind.name, value > 0 ? value : null));
+      .add(weatherLevels, kind.name, 0, 1, 0.01)
+      .listen()
+      .onChange((value: number) => {
+        // Moving one takes the hold: otherwise the first drag does nothing and
+        // the reason why is in a checkbox above it.
+        weatherHold.on = true;
+        climate.force(kind.name, value);
+      });
   }
-  climateFolder.add({ release: () => {
-    for (const kind of WEATHER_KINDS) {
-      climate.force(kind.name, null);
-      held[kind.name] = 0;
-    }
-  } }, 'release').name('hand the day back');
 
   const gusts = dev.gui.addFolder('wind');
   gusts.add(audio.weather.settings, 'gustDepth', 0, 1, 0.01).name('gust depth');
@@ -804,6 +816,8 @@ if (dev.gui) {
     sun: '—',
     /** How wet the world is, and how much snow is lying on it. */
     soaked: '—',
+    /** Tonight's moon, and how much of it is lit. */
+    moon: '—',
     room: '—',
     // Audio has no visible output at all, so a readout of what it thinks is
     // happening is the only way to tell "occlusion is broken" apart from
@@ -1004,11 +1018,15 @@ if (dev.gui) {
     readout.gust = audio.weather.strength.toFixed(2);
     readout.swell = audio.weather.swell.toFixed(2);
     readout.sun = `${climate.sunElevation.toFixed(1)}°  ${climate.temperature.toFixed(0)}°C`;
+    readout.moon = `${climate.moonName} ${(climate.moonLight * 100).toFixed(0)}%`;
     readout.soaked = `${weather.wet.toFixed(2)} / ${weather.lying.toFixed(2)}`;
     for (let i = 0; i < 3; i++) {
       const deck = weather.decks[i];
       deckNames[(['high', 'mid', 'low'] as const)[i]] =
         deck.genus ? `${deck.genus} ${deck.amount.toFixed(2)}` : '—';
+    }
+    if (!weatherHold.on) {
+      for (const kind of WEATHER_KINDS) weatherLevels[kind.name] = climate.amountOf(kind.name);
     }
     readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
     readout.music = zones.music?.status ?? '—';
