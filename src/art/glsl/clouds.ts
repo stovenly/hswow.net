@@ -19,7 +19,7 @@ export type GenusName =
 export type DeckLevel = 'high' | 'mid' | 'low';
 
 /** Which form function draws it. The shader branches on this as a float. */
-export const FORM = { sheet: 0, cells: 1, fibres: 2 } as const;
+export const FORM = { sheet: 0, heap: 1, fibres: 2 } as const;
 export type FormName = keyof typeof FORM;
 
 export interface Genus {
@@ -39,8 +39,13 @@ export interface Genus {
   readonly stretch: number;
   /** How dark its own shadowed side goes, 0..1. Ice clouds barely shade at all. */
   readonly shade: number;
-  /** How much high-frequency ragging is added to the form, 0..1. */
+  /** How ragged the outline is, 0..1. Wobbles the cut, never the body. */
   readonly detail: number;
+  /**
+   * How hard the deck breaks into bands lying across the wind, 0..1. The
+   * mackerel in a mackerel sky.
+   */
+  readonly ripple: number;
   /** Kilometres of drift per second. */
   readonly drift: number;
   /** How grey the lit colour is before the sky's own light is applied, 0..1. */
@@ -48,10 +53,17 @@ export interface Genus {
 }
 
 /**
- * The roster. Element sizes are in kilometres and the apparent size a viewer
- * judges genus by falls out of the height: 0.12 km at 7.5 km subtends under a
- * degree and is cirrocumulus, the same billow at 1.6 km subtends ten and is
- * stratocumulus. That is the WMO distinction, and here it is arithmetic.
+ * The roster. Element sizes are in kilometres; what a viewer names a genus by is
+ * the angle one element subtends, which the deck's height decides.
+ *
+ * The projection foreshortens: a ray at elevation t crosses the deck at
+ * h/tan(t), so one element spans `element * sin(t)^2 / h` radians, not
+ * `element / h`. At forty-five degrees that is half the naive figure and near
+ * the horizon a small fraction of it — so an element sized for the zenith is
+ * under a degree across most of the sky, and at this resolution that is not a
+ * cloud, it is noise. Every size here is set from the angle wanted at
+ * mid-elevation: about 2 degrees for cirrocumulus, 4 for altocumulus, 11 for
+ * stratocumulus, which is the WMO ordering and the whole point of the table.
  */
 export const GENERA: Record<GenusName, Genus> = {
   cirrus: {
@@ -64,7 +76,8 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.55,
     stretch: 6,
     shade: 0,
-    detail: 0.5,
+    detail: 0.55,
+    ripple: 0.1,
     drift: 0.02,
     grey: 0,
   },
@@ -78,21 +91,23 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.3,
     stretch: 1.6,
     shade: 0,
-    detail: 0.2,
+    detail: 0.25,
+    ripple: 0.0,
     drift: 0.016,
     grey: 0.04,
   },
   cirrocumulus: {
     level: 'high',
     height: 7.5,
-    form: 'cells',
-    element: 0.12,
-    cover: 0.42,
-    softness: 0.22,
-    opacity: 0.5,
+    form: 'heap',
+    element: 0.62,
+    cover: 0.4,
+    softness: 0.16,
+    opacity: 0.55,
     stretch: 1.35,
-    shade: 0.06,
-    detail: 0.35,
+    shade: 0.05,
+    detail: 0.45,
+    ripple: 0.85,
     drift: 0.014,
     grey: 0.02,
   },
@@ -106,49 +121,53 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.82,
     stretch: 1.5,
     shade: 0.12,
-    detail: 0.25,
+    detail: 0.3,
+    ripple: 0.0,
     drift: 0.01,
     grey: 0.42,
   },
   altocumulus: {
     level: 'mid',
     height: 4,
-    form: 'cells',
-    element: 0.25,
-    cover: 0.45,
-    softness: 0.2,
+    form: 'heap',
+    element: 0.78,
+    cover: 0.4,
+    softness: 0.15,
     opacity: 0.85,
     stretch: 1.5,
-    shade: 0.3,
-    detail: 0.4,
+    shade: 0.32,
+    detail: 0.5,
+    ripple: 0.68,
     drift: 0.009,
     grey: 0.16,
   },
   stratocumulus: {
     level: 'low',
     height: 1.6,
-    form: 'cells',
-    element: 0.35,
+    form: 'heap',
+    element: 0.85,
     cover: 0.4,
-    softness: 0.16,
+    softness: 0.14,
     opacity: 0.95,
     stretch: 1.7,
-    shade: 0.45,
-    detail: 0.45,
+    shade: 0.48,
+    detail: 0.55,
+    ripple: 0.34,
     drift: 0.006,
     grey: 0.24,
   },
   cumulus: {
     level: 'low',
     height: 1.2,
-    form: 'sheet',
-    element: 0.75,
-    cover: 0.62,
+    form: 'heap',
+    element: 1.05,
+    cover: 0.6,
     softness: 0.1,
     opacity: 1,
     stretch: 1.1,
-    shade: 0.55,
-    detail: 0.55,
+    shade: 0.58,
+    detail: 0.6,
+    ripple: 0.0,
     drift: 0.005,
     grey: 0.08,
   },
@@ -163,6 +182,7 @@ export const GENERA: Record<GenusName, Genus> = {
     stretch: 1.4,
     shade: 0.1,
     detail: 0.2,
+    ripple: 0.14,
     drift: 0.004,
     grey: 0.5,
   },
@@ -176,7 +196,8 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 1,
     stretch: 1.3,
     shade: 0.28,
-    detail: 0.35,
+    detail: 0.3,
+    ripple: 0.0,
     drift: 0.007,
     grey: 0.72,
   },
@@ -215,7 +236,7 @@ export const CLOUDS_GLSL = /* glsl */ `
   uniform vec4 uDeckShape[3];
   /** height in kilometres, form code, detail, stretch. */
   uniform vec4 uDeckForm[3];
-  /** shade, drift kilometres per second, amount, 0. */
+  /** shade, drift kilometres per second, amount, ripple. */
   uniform vec4 uDeckLight[3];
   uniform vec3 uDeckLit[3];
   uniform vec3 uDeckShade[3];
@@ -227,42 +248,56 @@ export const CLOUDS_GLSL = /* glsl */ `
   uniform vec3 uSkyCloudColour;
   uniform float uSkyCheapScale;
 
-  vec2 cloudHash2(vec2 p) {
-    return vec2(hash(p), hash(p + 37.19));
+  /**
+   * The warp. Displacing a noise field by another noise field is the single
+   * thing that separates a cloud from a stain: it turns round lumps into
+   * billows that curl, and it costs two lookups.
+   */
+  vec2 cloudWarp(vec2 p) {
+    return vec2(valueNoise(p + 11.31), valueNoise(p * 1.07 + 41.77)) - 0.5;
   }
 
-  /** Discrete elements: mackerel sky, and the base of every cumuliform deck. */
-  float cloudCells(vec2 p) {
-    vec2 cell = floor(p);
-    vec2 f = fract(p);
-    float best = 2.0;
-    for (int j = -1; j <= 1; j++) {
-      for (int i = -1; i <= 1; i++) {
-        vec2 o = vec2(float(i), float(j));
-        vec2 jitter = cloudHash2(cell + o);
-        best = min(best, length(o + jitter - f));
-      }
-    }
-    // Inverted, so a cell centre is dense and the lanes between them are sky.
-    return clamp(1.0 - best * 1.15, 0.0, 1.0);
+  /** Stratiform: warped masses, four octaves, soft everywhere. */
+  float cloudSheet(vec2 p) {
+    vec2 q = p + cloudWarp(p * 0.55) * 1.4;
+    return valueNoise(q) * 0.50
+      + valueNoise(q * 2.03 + 5.1) * 0.28
+      + valueNoise(q * 4.11 + 9.7) * 0.15
+      + valueNoise(q * 8.27 + 2.3) * 0.07;
   }
 
   /**
-   * Fibres: fbm drawn out hard along one axis and then domain-warped across it,
-   * which is what makes a cirrus streak bend rather than merely stretch.
+   * Cumuliform: billow noise, which is ordinary noise folded about its middle.
+   * The fold is what makes the tops round and the valleys sharp, and that is
+   * the whole difference between a heap of cloud and a hill of it.
+   */
+  float cloudHeap(vec2 p) {
+    vec2 q = p + cloudWarp(p * 0.7) * 0.95;
+    float sum = 0.0;
+    float total = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 3; i++) {
+      sum += amp * (1.0 - abs(valueNoise(q) * 2.0 - 1.0));
+      total += amp;
+      q = q * 2.07 + 3.13;
+      amp *= 0.5;
+    }
+    return sum / total;
+  }
+
+  /**
+   * Fibres: a sheet drawn out hard along one axis and warped across it, which
+   * is what makes a cirrus streak bend rather than merely stretch.
    */
   float cloudFibres(vec2 p) {
     float warp = valueNoise(p * vec2(0.35, 1.1));
-    return fbm(p + vec2(0.0, (warp - 0.5) * 2.2));
+    return cloudSheet(p + vec2(0.0, (warp - 0.5) * 2.4));
   }
 
-  float cloudForm(vec2 p, float form, float detail) {
-    float base;
-    if (form < 0.5) base = fbm(p);
-    else if (form < 1.5) base = cloudCells(p);
-    else base = cloudFibres(p);
-    if (detail > 0.0) base = mix(base, base * (0.55 + 0.9 * valueNoise(p * 4.7)), detail);
-    return base;
+  float cloudForm(vec2 p, float form) {
+    if (form < 0.5) return cloudSheet(p);
+    if (form < 1.5) return cloudHeap(p);
+    return cloudFibres(p);
   }
 
   /**
@@ -271,7 +306,11 @@ export const CLOUDS_GLSL = /* glsl */ `
    * deck read as a ceiling rather than a dome is the projection's own doing.
    */
   vec2 cloudPlane(vec3 direction, float heightKm) {
-    return (direction.xz / max(direction.y, 0.02)) * heightKm;
+    // Floored well above zero. The shared hash is fract-of-a-large-product and
+    // loses most of its precision once its input reaches the hundreds, which it
+    // does within a couple of degrees of the horizon — and a hash losing
+    // precision does not soften, it speckles.
+    return (direction.xz / max(direction.y, 0.05)) * heightKm;
   }
 
   /**
@@ -297,10 +336,24 @@ export const CLOUDS_GLSL = /* glsl */ `
     vec2 sheared = along * (dot(plane, along) / max(form.w, 0.05)) + across * dot(plane, across);
     vec2 p = sheared * shape.z;
 
-    float density = cloudForm(p, form.y, form.z);
+    float density = cloudForm(p, form.y);
+
+    // Rows. A mackerel sky is not scattered lumps, it is a sheet broken into
+    // bands lying across the wind, and that banding is most of what a person
+    // recognises altocumulus and cirrocumulus by.
+    if (light.w > 0.0) {
+      float lane = dot(plane, along) * shape.z;
+      float wave = 0.5 + 0.5 * sin(lane * 2.1 + valueNoise(p * 0.33) * 7.0);
+      density *= 1.0 - light.w * 0.55 * (1.0 - wave);
+    }
+
     // Cover opens as the amount climbs, so a deck arrives by taking more sky
     // rather than by fading up out of nothing.
     float threshold = mix(1.05, shape.x, amount);
+    // Ragged edges by wobbling the cut, never by roughening the body: noise
+    // multiplied into the density speckles the middle of a cloud, and noise on
+    // the threshold only moves its outline.
+    threshold += (valueNoise(p * 2.6 + 19.43) - 0.5) * form.z * 0.18;
     float mask = smoothstep(threshold, threshold + shape.y, density);
     if (mask <= 0.0) return vec4(0.0);
 
@@ -309,7 +362,7 @@ export const CLOUDS_GLSL = /* glsl */ `
       // Self-shadowing: denser cloud a short way toward the sun means this part
       // is behind it. One extra form evaluation, and the term that separates a
       // modelled cumulus from a white stain.
-      float toward = cloudForm(p + sunward * (shape.z * form.x * 0.06), form.y, form.z);
+      float toward = cloudForm(p + sunward * 0.22, form.y);
       colour = mix(colour, dark, clamp((toward - density) * 2.6, 0.0, 1.0) * light.x);
       // And the base, shaded whatever the sun is doing: the deeper into the
       // deck the ray goes, the less of the top gets out of the bottom.
@@ -319,7 +372,7 @@ export const CLOUDS_GLSL = /* glsl */ `
     // Faded out at the horizon, where the projection stretches to infinity and
     // the form turns to mush. The dome and the air have to agree exactly at
     // direction.y = 0, and this is what guarantees it.
-    return vec4(colour, mask * shape.w * smoothstep(0.0, 0.14, direction.y));
+    return vec4(colour, mask * shape.w * smoothstep(0.0, 0.2, direction.y));
   }
 
   /** The three decks over whatever the gradient already painted. High first. */
@@ -341,7 +394,7 @@ export const CLOUDS_GLSL = /* glsl */ `
     float density = valueNoise(p) * 0.62 + valueNoise(p * 2.3 + 11.7) * 0.38;
     float threshold = mix(1.0, 0.28, uSkyCover);
     float amount = smoothstep(threshold, threshold + 0.22, density)
-      * smoothstep(0.0, 0.14, direction.y);
+      * smoothstep(0.0, 0.2, direction.y);
     return mix(base, uSkyCloudColour, amount);
   }
 

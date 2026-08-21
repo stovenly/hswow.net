@@ -80,6 +80,8 @@ export interface ClimateSettings {
   pace: number;
   /** Metres per second the weather front crosses the map. */
   frontSpeed: number;
+  /** Days from one new moon to the next. The real one is 29.53. */
+  moonMonth: number;
 }
 
 export const DEFAULT_CLIMATE: ClimateSettings = {
@@ -90,6 +92,7 @@ export const DEFAULT_CLIMATE: ClimateSettings = {
   baseWind: 0.5,
   pace: 1,
   frontSpeed: 11,
+  moonMonth: 29.53,
 };
 
 /** Kilometres a weather field's cell spans. Fronts are tens of kilometres across. */
@@ -142,7 +145,10 @@ const WINTER = (phase: number): number => 1 - SUMMER(phase);
 const FALL_BOX = new THREE.Vector3(26, 18, 26);
 
 export const RAIN_PARTICLES: ParticleSpec = {
-  count: 1300,
+  // Full downpour, and the count is the only thing the amount scales: fewer
+  // drops is what a drizzle *is*, where the same drops at half alpha is a
+  // downpour behind a gauze.
+  count: 6000,
   shape: 'billboard',
   motion: 'fall',
   volume: { kind: 'follow', size: FALL_BOX },
@@ -155,7 +161,7 @@ export const RAIN_PARTICLES: ParticleSpec = {
 };
 
 export const SNOW_PARTICLES: ParticleSpec = {
-  count: 700,
+  count: 3600,
   shape: 'billboard',
   motion: 'fall',
   volume: { kind: 'follow', size: FALL_BOX },
@@ -230,6 +236,28 @@ export function registerWeather(kind: WeatherKind): void {
   else WEATHER_KINDS.push(kind);
 }
 
+export type MoonName =
+  | 'new'
+  | 'waxing crescent'
+  | 'first quarter'
+  | 'waxing gibbous'
+  | 'full'
+  | 'waning gibbous'
+  | 'last quarter'
+  | 'waning crescent';
+
+/** Eight names over the month, each centred on its eighth. */
+const MOON_NAMES: readonly MoonName[] = [
+  'new',
+  'waxing crescent',
+  'first quarter',
+  'waxing gibbous',
+  'full',
+  'waning gibbous',
+  'last quarter',
+  'waning crescent',
+];
+
 /** Where a place stands on the map. Kilometres, and the node map's fiction made numeric. */
 export interface ZonePlace {
   readonly at: readonly [number, number];
@@ -257,8 +285,10 @@ export class Climate {
   /** Degrees above the horizon. Negative below it; what the atmosphere table is keyed on. */
   sunElevation = 90;
   readonly moonDirection = new THREE.Vector3(0, 1, 0);
-  /** 0 new, 0.5 full. */
+  /** 0 and 1 are new, 0.5 is full. Waxing below a half, waning above it. */
   moonPhase = 0.5;
+  /** How much of the disc is lit, 0..1 — the phase turned into light. */
+  moonLight = 1;
   /** Degrees C where the last sample was taken. */
   temperature = 12;
   /** How much is falling here now, and how much will be in a few hours. */
@@ -322,6 +352,11 @@ export class Climate {
     return (this.elapsedDays / this.settings.yearLength) % 1;
   }
 
+  /** What a person would call tonight's moon. */
+  get moonName(): MoonName {
+    return MOON_NAMES[Math.floor(((this.moonPhase + 1 / 16) % 1) * 8) % 8];
+  }
+
   update(dt: number): void {
     if (!this.frozen) {
       this.timeOfDay += dt / Math.max(this.settings.dayLength, 1);
@@ -359,13 +394,15 @@ export class Climate {
    * east, +Y up, +Z south, so a northern noon sun sits at +Z and an afternoon
    * one at −X.
    */
-  private aim(): void {
-    const phase = this.seasonPhase;
-    const declination = -OBLIQUITY * DEG * Math.cos(phase * Math.PI * 2);
+  /**
+   * Where a point at this ecliptic longitude stands, given its hour angle.
+   * Built straight in the horizontal frame rather than rotated into it: +X is
+   * east, +Y up, +Z south, so a northern noon sun sits at +Z and an afternoon
+   * one at −X.
+   */
+  private aimAt(hourAngle: number, longitude: number, out: THREE.Vector3): void {
+    const declination = Math.asin(Math.sin(OBLIQUITY * DEG) * Math.sin(longitude));
     const latitude = this.settings.latitude * DEG;
-    // Zero at local noon, positive in the afternoon.
-    const hourAngle = (this.timeOfDay - 0.5) * Math.PI * 2;
-
     const sinD = Math.sin(declination);
     const cosD = Math.cos(declination);
     const sinL = Math.sin(latitude);
@@ -375,23 +412,29 @@ export class Climate {
     const east = -cosD * Math.sin(hourAngle);
     const north = sinD * cosL - cosD * cosH * sinL;
     const up = sinD * sinL + cosD * cosH * cosL;
+    out.set(east, up, -north).normalize();
+  }
 
-    this.sunDirection.set(east, up, -north).normalize();
+  private aim(): void {
+    // Midwinter is the December solstice, where the sun sits at 270 degrees of
+    // ecliptic longitude — so season phase zero is there and the year runs on
+    // from it.
+    const sunLongitude = this.seasonPhase * Math.PI * 2 + Math.PI * 1.5;
+    // Zero at local noon, positive in the afternoon.
+    const hourAngle = (this.timeOfDay - 0.5) * Math.PI * 2;
+    this.aimAt(hourAngle, sunLongitude, this.sunDirection);
     this.sunElevation = Math.asin(clampSigned(this.sunDirection.y)) / DEG;
 
-    // Swung off the antisolar point by the phase, so a full moon rises as the
-    // sun sets and a new one keeps the sun's company instead.
-    this.moonPhase = ((this.day / 29.5) % 1 + 1) % 1;
-    const swing = (this.moonPhase - 0.5) * Math.PI * 2;
-    const c = Math.cos(swing);
-    const s = Math.sin(swing);
-    this.moonDirection
-      .set(
-        -this.sunDirection.x * c - this.sunDirection.z * s,
-        -this.sunDirection.y * 0.7 + 0.3,
-        -this.sunDirection.z * c + this.sunDirection.x * s,
-      )
-      .normalize();
+    // The moon runs the same arithmetic one synodic phase further round the
+    // ecliptic. Longitude *ahead* of the sun and hour angle *behind* it by the
+    // same amount, which is the whole geometry of the month: a new moon keeps
+    // the sun's company, a first quarter stands due south at sunset, and a full
+    // moon rises as the sun goes down.
+    const month = Math.max(this.settings.moonMonth, 1);
+    this.moonPhase = ((this.elapsedDays / month) % 1 + 1) % 1;
+    const swing = this.moonPhase * Math.PI * 2;
+    this.moonLight = 0.5 - Math.cos(swing) * 0.5;
+    this.aimAt(hourAngle - swing, sunLongitude + swing, this.moonDirection);
   }
 
   private sample(): void {
@@ -479,7 +522,8 @@ export function planSky(climate: Climate, out: DeckState[]): void {
   // The fair-weather sky, before any weather is asked about. A slow high field
   // that is there most days, and a mid one that is there less often.
   const highLevel = slowField(day * 0.8, 233.1);
-  put(highLevel > 0.62 ? 'cirrocumulus' : 'cirrus', smoothstep(0.4, 0.72, highLevel) * 0.8);
+  // Cirrus most days; a mackerel sky is the rarer one and the finest-grained.
+  put(highLevel > 0.78 ? 'cirrocumulus' : 'cirrus', smoothstep(0.4, 0.72, highLevel) * 0.75);
   put('altocumulus', smoothstep(0.55, 0.85, slowField(day * 0.65, 97.4)) * 0.7);
 
   // Diurnal cumulus: nothing at dawn, most of it mid-afternoon, gone by dusk.

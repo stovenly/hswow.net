@@ -316,26 +316,36 @@ export const SKY_GLSL = /* glsl */ `
     vec3 spun = direction * cos(a) + cross(axis, direction) * sin(a)
       + axis * dot(axis, direction) * (1.0 - cos(a));
 
-    vec3 p = spun * 44.0;
+    vec3 p = spun * 54.0;
     vec3 cell = floor(p);
     vec2 key = cell.xy + cell.z * 37.31;
     float pick = hash(key + 7.71);
-    if (pick > 0.14) return 0.0;
+    if (pick > 0.2) return 0.0;
 
     vec3 jitter = vec3(hash(key + 1.37), hash(key + 4.19), hash(key + 9.53)) - 0.5;
-    float magnitude = 0.3 + 0.7 * hash(key + 3.11);
+    // Size and brightness are separate draws off one magnitude, and size grows
+    // far slower than brightness: a sky whose bright stars are also its big
+    // ones reads as dots on paper rather than as depth.
+    float magnitude = hash(key + 3.11);
+    float size = 0.09 + 0.12 * magnitude * magnitude;
+    float bright = 0.4 + 0.6 * magnitude;
     float d = length(fract(p) - 0.5 - jitter * 0.7);
     // Scintillation: the near-horizon ones twinkle hardest, which is what a
     // longer path through the air does to them.
     float twinkle = 0.72 + 0.28 * sin(uCloudTime * (1.7 + pick * 40.0) + pick * 61.0);
     twinkle = mix(1.0, twinkle, 1.0 - smoothstep(0.15, 0.7, direction.y));
-    return smoothstep(0.3 * magnitude, 0.0, d) * magnitude * twinkle * uStars;
+    return smoothstep(size, 0.0, d) * bright * twinkle * uStars;
   }
 
   /**
-   * The moon: a disc with a terminator across it. The phase cuts along the axis
-   * across the disc rather than by darkening the whole thing, so a crescent is a
-   * crescent and not a dim full moon.
+   * The moon: a disc with a terminator across it, and a glow that belongs to
+   * whatever part of it is actually lit. A halo drawn round the whole disc is
+   * the tell that gives away a crescent — it reads as a full moon with most of
+   * itself missing.
+   *
+   * The bright limb faces the sun, so the terminator axis is the sun direction
+   * with the moon direction taken out of it. That holds when the sun is under
+   * the horizon, which is when anyone is looking.
    */
   vec3 skyMoon(vec3 direction, vec3 colour) {
     if (uMoonIntensity <= 0.001) return colour;
@@ -343,22 +353,49 @@ export const SKY_GLSL = /* glsl */ `
     float toMoon = dot(direction, toward);
     if (toMoon <= 0.0) return colour;
 
-    float halo = pow(toMoon, 900.0);
+    // How much of the disc is lit. 0 at new, 1 at full.
+    float lit = 0.5 - 0.5 * cos(uMoonPhase * 6.2831853);
+
+    vec3 sunward = normalize(uSunDirection);
+    vec3 across = sunward - toward * dot(sunward, toward);
+    float span = length(across);
+    // Sun directly behind or in front of the moon: no limb to speak of, and any
+    // axis will do for a disc that is either wholly lit or wholly dark.
+    across = span > 1e-4 ? across / span : normalize(cross(toward, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
+
+    // Scaled by the square of what is lit, so a crescent barely glows. A full
+    // round halo is the tell that gives a phase away: it reads as a whole moon
+    // with most of itself missing.
+    float radius = sqrt(max(1.0 - uMoonSize * uMoonSize, 1e-6));
+    float u = dot(direction - toward * toMoon, across) / radius;
+    vec3 side = cross(toward, across);
+    float halo = pow(toMoon, 1400.0) * lit * lit;
     colour = mix(colour, uMoonColor, clamp(halo * 0.35, 0.0, 1.0) * uMoonIntensity);
 
     float disc = smoothstep(uMoonSize - 0.0006, uMoonSize + 0.0006, toMoon);
     if (disc <= 0.0) return colour;
-    // Across the disc, in units of its own radius.
-    vec3 across = normalize(cross(toward, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
-    float radius = sqrt(max(1.0 - uMoonSize * uMoonSize, 1e-6));
-    float u = dot(direction - toward * toMoon, across) / radius;
-    // The lit fraction is (1 − cos 2*pi*phase) / 2, so the terminator sits at
-    // 1 − 2k = cos 2*pi*phase: off the far edge at full, off the near one at new.
-    float terminator = cos(uMoonPhase * 6.2831853);
-    float lit = smoothstep(terminator - 0.12, terminator + 0.12, u);
-    // The dark limb is not black: earthshine puts a little of the sky back in it.
-    vec3 face = mix(colour * 0.6 + uMoonColor * 0.12, uMoonColor, lit);
-    return mix(colour, face, disc * uMoonIntensity);
+
+    // The terminator is a great circle on a sphere, so in projection it is half
+    // an ellipse — which is what makes a crescent a crescent. Cutting the disc
+    // along a straight line gives a sphere with a slice taken off it instead,
+    // and no phase but the quarters looks right.
+    //
+    // Standing the disc up in its own frame: u toward the sun, v across it, w
+    // out of the disc toward the eye. A point is lit where its normal faces the
+    // sun, and on a sphere the normal *is* the point.
+    float v = dot(direction - toward * toMoon, side) / radius;
+    float w = sqrt(max(1.0 - u * u - v * v, 0.0));
+    // Phase angle at the moon: zero when the sun is behind the eye, which is
+    // full. uMoonPhase runs from new at 0 through full at 0.5.
+    float sinPhase = sin(uMoonPhase * 6.2831853);
+    float cosPhase = -cos(uMoonPhase * 6.2831853);
+    float face = smoothstep(-0.035, 0.035, u * sinPhase + w * cosPhase);
+
+    // The dark limb is not black: earthshine puts a little of the sky back in
+    // it, and hardest when the lit crescent is thinnest, which is when the
+    // Earth above it is nearly full.
+    vec3 dark = colour * 0.55 + uMoonColor * (0.05 + 0.12 * (1.0 - lit));
+    return mix(colour, mix(dark, uMoonColor, face), disc * uMoonIntensity);
   }
 
   /**
@@ -367,7 +404,7 @@ export const SKY_GLSL = /* glsl */ `
    */
   vec3 skyDome(vec3 direction) {
     vec3 colour = skyTwilight(direction, skyGradient(direction));
-    colour += vec3(0.85, 0.9, 1.0) * starField(direction);
+    colour += vec3(1.55, 1.62, 1.85) * starField(direction);
     colour = skyMoon(direction, colour);
     colour = skyOptics(direction, colour);
 
@@ -578,7 +615,7 @@ export class Sky {
       }
       shape[i].set(genus.cover, genus.softness, 1 / genus.element, genus.opacity * this.opacity);
       form[i].set(genus.height, FORM[genus.form], genus.detail, genus.stretch);
-      light[i].set(genus.shade, genus.drift * this.speed, amount, 0);
+      light[i].set(genus.shade, genus.drift * this.speed, amount, genus.ripple);
       lit[i].copy(deck.lit);
       shade[i].copy(deck.shade);
 
