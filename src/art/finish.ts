@@ -858,13 +858,16 @@ ${aniso ? /* glsl */ `
             // Tight enough to read as water and no tighter: a narrower lobe
             // than this crawls against the quantizer, and the painted register
             // does not want a mirror.
-            float wetRough = mix(max(0.13, finishRough * 0.18), 0.38, finishBare);
+            float wetRough = mix(max(0.2, finishRough * 0.34), 0.38, finishBare);
             finishRough = mix(finishRough, wetRough, finishWet);
             finishF0 = max(finishF0, vec3(0.02 * finishWet));
           }
-          // Set last, once roughness is settled. Bare wet surfaces take the
-          // sky's average rather than a sample of it.
-          finishEnvBlur = mix(finishRough, 0.95, finishSmooth);
+          // Set last, once roughness is settled, and keyed on wetness rather
+          // than on bareness. A wet surface that *did* declare a finish is the
+          // worse case, not the better one: its roughness falls furthest, so
+          // its reflection sharpens the most, and a sharp reflection on flat
+          // shaded geometry is one sky sample per triangle. Wet always blurs.
+          finishEnvBlur = max(finishRough, finishWet * 0.92);
           finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
             - min(min(finishF0.r, finishF0.g), finishF0.b);
           material.diffuseColor *= 1.0 - finishMetal;
@@ -912,7 +915,7 @@ ${aniso ? /* glsl */ `
           // than most of a frame ever gets — half the sky laid over every
           // surface is not a wet surface, it is a filter, and it is what was
           // turning wet roofs grey while the ground beside them stayed green.
-          envF = mix(envF, vec3(mix(0.02, 0.11, finishGraze)), finishSmooth);
+          envF = mix(envF, vec3(mix(0.02, 0.11, finishGraze)), finishWet);
           // Scaled by the same (1 − sheen) the direct lobe is: a velvet
           // reflecting the sky would be a velvet-coloured mirror.
           reflectedLight.indirectSpecular +=
