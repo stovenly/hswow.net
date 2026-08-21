@@ -423,8 +423,13 @@ export class PostFX {
     this.sky.setPhenomena(belt, halo, bow, shadowTop);
   }
 
-  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number, speed: number): void {
-    this.sky.setDecks(decks, windBearing, elapsed, speed);
+  setDecks(
+    decks: readonly DeckState[],
+    windBearing: number,
+    windStrength: number,
+    elapsed: number,
+  ): void {
+    this.sky.setDecks(decks, windBearing, windStrength, elapsed);
     this.decks = decks;
     this.sky.setCloudShadow(this.settings.cloudShadow * this.shadowScale, decks);
   }

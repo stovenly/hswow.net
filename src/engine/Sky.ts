@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { NOISE_GLSL } from './noise';
-import { CLOUDS_GLSL, DECK_LEVELS, GENERA, FORM, type GenusName } from '../art/glsl/clouds';
+import { CLOUDS_GLSL, DECK_LEVELS, GENERA, FORM, windAtHeight, type GenusName } from '../art/glsl/clouds';
 
 /**
  * A procedural sky: vertical gradient plus a drifting cloud layer. No cubemap and
@@ -92,7 +92,8 @@ export const skyUniforms = {
   uDeckLight: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] },
   uDeckLit: { value: [new THREE.Color(), new THREE.Color(), new THREE.Color()] },
   uDeckShade: { value: [new THREE.Color(), new THREE.Color(), new THREE.Color()] },
-  uCloudWind: { value: new THREE.Vector2(1, 0) },
+  uDeckWind: { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
+  uCloudWind: { value: new THREE.Vector2(0.01, 0) },
   uCloudTime: { value: 0 },
   /** What every path that is not the dome sees instead of three decks. */
   uSkyCover: { value: 0 },
@@ -604,17 +605,31 @@ export class Sky {
     (this.material.uniforms.uPhenomena.value as THREE.Vector4).set(belt, halo, bow, shadowTop);
   }
 
-  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number, speed: number): void {
+  setDecks(
+    decks: readonly DeckState[],
+    windBearing: number,
+    windStrength: number,
+    elapsed: number,
+  ): void {
     const u = this.material.uniforms;
     const shape = u.uDeckShape.value as THREE.Vector4[];
     const form = u.uDeckForm.value as THREE.Vector4[];
     const light = u.uDeckLight.value as THREE.Vector4[];
+    const wind = u.uDeckWind.value as THREE.Vector2[];
     const lit = u.uDeckLit.value as THREE.Color[];
     const shade = u.uDeckShade.value as THREE.Color[];
 
     let cover = 0;
     let heaviest = 0;
     let scale = 0.55;
+    // The low deck overwrites this; without one there is nothing casting a
+    // shadow anyway, and the cheap path still wants a direction to drift in.
+    {
+      const air = windAtHeight(windStrength, windBearing, 1.5);
+      (u.uCloudWind.value as THREE.Vector2)
+        .set(Math.cos(air.bearing), Math.sin(air.bearing))
+        .multiplyScalar(air.speed * this.speed);
+    }
 
     for (let i = 0; i < 3; i++) {
       const deck = decks[i];
@@ -626,7 +641,12 @@ export class Sky {
       }
       shape[i].set(genus.cover, genus.erosion, 1 / genus.element, genus.opacity * this.opacity);
       form[i].set(genus.height, FORM[genus.form], genus.base, genus.stretch);
-      light[i].set(genus.shade, genus.drift * this.speed * speed, amount, genus.ripple);
+      light[i].set(genus.shade, 0, amount, genus.ripple);
+      // No deck has a speed of its own. It goes at the speed of the air it is
+      // in, and the air at nine kilometres is not the air at head height.
+      const air = windAtHeight(windStrength, windBearing, genus.height);
+      wind[i].set(Math.cos(air.bearing), Math.sin(air.bearing)).multiplyScalar(air.speed * this.speed);
+      if (genus.level === 'low') (u.uCloudWind.value as THREE.Vector2).copy(wind[i]);
       lit[i].copy(deck.lit);
       shade[i].copy(deck.shade);
 
@@ -644,7 +664,6 @@ export class Sky {
 
     u.uSkyCover.value = cover;
     u.uSkyCheapScale.value = scale;
-    (u.uCloudWind.value as THREE.Vector2).set(Math.cos(windBearing), Math.sin(windBearing));
     u.uCloudTime.value = elapsed;
   }
 
@@ -657,7 +676,7 @@ export class Sky {
       value,
       genus ? 1 / (genus.element * 2.2) : 0.7,
       genus ? genus.height : 1.6,
-      genus ? genus.drift * this.speed : 0.006,
+      0,
     );
   }
 

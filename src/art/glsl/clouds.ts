@@ -46,8 +46,6 @@ export interface Genus {
    * mackerel in a mackerel sky.
    */
   readonly ripple: number;
-  /** Kilometres of drift per second. */
-  readonly drift: number;
   /** How grey the lit colour is before the sky's own light is applied, 0..1. */
   readonly grey: number;
 }
@@ -79,7 +77,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0,
     base: 0,
     ripple: 0.1,
-    drift: 0.042,
     grey: 0,
   },
   // A veil over the whole sky that you notice by the halo rather than by
@@ -96,7 +93,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0,
     base: 0,
     ripple: 0,
-    drift: 0.034,
     grey: 0.04,
   },
   // Fine granulation in bands. Unshaded — its elements are too small and too
@@ -114,7 +110,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.04,
     base: 0,
     ripple: 0.85,
-    drift: 0.03,
     grey: 0.02,
   },
   // A featureless grey sheet the sun shows through as a bright patch.
@@ -130,7 +125,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.14,
     base: 0.15,
     ripple: 0,
-    drift: 0.022,
     grey: 0.42,
   },
   // Rolls with a shaded side: the same billow as cirrocumulus, four kilometres
@@ -148,7 +142,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.34,
     base: 0.2,
     ripple: 0.68,
-    drift: 0.02,
     grey: 0.16,
   },
   // Large rolls with blue between them, well shaded and with a definite base.
@@ -164,7 +157,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.5,
     base: 0.35,
     ripple: 0.34,
-    drift: 0.014,
     grey: 0.24,
   },
   // Isolated heaps: little cover, hard self-shadow, a flat dark base, and the
@@ -181,7 +173,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.6,
     base: 0.4,
     ripple: 0,
-    drift: 0.012,
     grey: 0.08,
   },
   // Uniform low grey with no structure at all. Cover is total; what makes it
@@ -198,7 +189,6 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.1,
     base: 0.25,
     ripple: 0.14,
-    drift: 0.008,
     grey: 0.5,
   },
   // Dark, total and soft: rain falling out of the bottom of a deck blurs its
@@ -215,12 +205,40 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.3,
     base: 0.4,
     ripple: 0,
-    drift: 0.015,
     grey: 0.72,
   },
 };
 
 export const DECK_LEVELS: readonly DeckLevel[] = ['high', 'mid', 'low'];
+
+/**
+ * The wind a deck at this height is in. There is one wind, and a cloud does not
+ * have a speed of its own — it goes at the speed of the air it is in, and that
+ * air is not the air at head height.
+ *
+ * Speed grows with height and the bearing veers clockwise with it, both of
+ * which are what the real profile does: the surface drags on the bottom of the
+ * atmosphere and the Coriolis turn is what is left once that drag lets go. It
+ * is also why a cirrus deck can race across a still afternoon, which looks like
+ * an inconsistency and is not one.
+ *
+ * `surface` is the 0..1 gust-field strength. Returns kilometres per second and
+ * a bearing in radians.
+ */
+export function windAtHeight(
+  surface: number,
+  bearing: number,
+  heightKm: number,
+): { speed: number; bearing: number } {
+  // Two to eighteen metres a second at head height, and about five times that
+  // at nine kilometres.
+  const ground = 2 + surface * 16;
+  return {
+    speed: (ground * (1 + heightKm * 0.5)) / 1000,
+    // Around three and a half degrees a kilometre, levelling off high up.
+    bearing: bearing + Math.min(heightKm, 10) * 0.062,
+  };
+}
 
 /**
  * How far below the horizon the sun can sit and still light a deck at this
@@ -252,11 +270,17 @@ export const CLOUDS_GLSL = /* glsl */ `
   uniform vec4 uDeckShape[3];
   /** height in kilometres, form code, base darkening, stretch. */
   uniform vec4 uDeckForm[3];
-  /** shade, drift kilometres per second, amount, ripple. */
+  /** shade, spare, amount, ripple. */
   uniform vec4 uDeckLight[3];
+  /** Each deck's own wind, in kilometres per second across its plane. */
+  uniform vec2 uDeckWind[3];
   uniform vec3 uDeckLit[3];
   uniform vec3 uDeckShade[3];
-  /** Unit vector the decks travel along, in world xz. */
+  /**
+   * The low deck's wind, in kilometres per second. What the cheap path and the
+   * ground shadow both use — a shadow has to slide at the speed of the cloud
+   * casting it, not at some speed of its own.
+   */
   uniform vec2 uCloudWind;
   uniform float uCloudTime;
   /** Total sky covered, and the one colour the cheap path paints it. */
@@ -347,17 +371,17 @@ export const CLOUDS_GLSL = /* glsl */ `
    * uniform array may only be subscripted by a loop index, never by a function
    * parameter, and a driver that happens to allow it is not one to rely on.
    */
-  vec4 cloudDeck(vec4 shape, vec4 form, vec4 light, vec3 lit, vec3 dark,
+  vec4 cloudDeck(vec4 shape, vec4 form, vec4 light, vec2 wind, vec3 lit, vec3 dark,
                  vec3 direction, vec3 sunDir) {
     float amount = light.z;
     if (amount <= 0.001 || direction.y <= 0.0) return vec4(0.0);
 
-    vec2 drift = uCloudWind * (uCloudTime * light.y);
+    vec2 drift = wind * uCloudTime;
     vec2 plane = cloudPlane(direction, form.x) + drift;
     // Stretched across the wind rather than along it: a sheared deck lies in
     // bands at right angles to the shear, which is what banners a cirrus field.
-    vec2 along = uCloudWind;
-    vec2 across = vec2(-uCloudWind.y, uCloudWind.x);
+    vec2 along = normalize(wind + vec2(1e-6, 0.0));
+    vec2 across = vec2(-along.y, along.x);
     vec2 sheared = along * (dot(plane, along) / max(form.w, 0.05)) + across * dot(plane, across);
     vec2 p = sheared * shape.z;
 
@@ -383,11 +407,13 @@ export const CLOUDS_GLSL = /* glsl */ `
     // Erosion. High-frequency noise eats into the edges and leaves the body
     // alone, which is what a torn cloud edge is; noise multiplied into the
     // density instead speckles the middle and reads as static. The detail
-    // drifts faster than the base it sits on, so a deck evolves as it travels
-    // rather than sliding past whole.
+    // drifts a little faster than the base it sits on, so a deck evolves as it
+    // travels rather than sliding past whole — but only a little, because it
+    // is sampled at three times the frequency and any more of a difference
+    // shimmers rather than evolves.
     float h = shape.y;
     if (h > 0.0) {
-      float fine = cloudForm(p * 3.3 + drift * shape.z * 2.4, form.y);
+      float fine = cloudForm(p * 3.3 + drift * shape.z * 1.35, form.y);
       float a = fine * (1.0 - h) + h;
       density = clamp(cloudRemap(a, 1.0 - density, 1.0 - density + h), 0.0, 1.0);
       if (density <= 0.0) return vec4(0.0);
@@ -435,7 +461,7 @@ export const CLOUDS_GLSL = /* glsl */ `
     vec3 sunDir = normalize(uSunDirection);
     vec3 colour = base;
     for (int i = 0; i < 3; i++) {
-      vec4 deck = cloudDeck(uDeckShape[i], uDeckForm[i], uDeckLight[i],
+      vec4 deck = cloudDeck(uDeckShape[i], uDeckForm[i], uDeckLight[i], uDeckWind[i],
         uDeckLit[i], uDeckShade[i], direction, sunDir);
       colour = mix(colour, deck.rgb, deck.a);
     }
@@ -445,7 +471,7 @@ export const CLOUDS_GLSL = /* glsl */ `
   /** One layer, no shading. Everything that is not the dome uses this. */
   vec3 skyCloudsCheap(vec3 direction, vec3 base) {
     if (uSkyCover <= 0.001 || direction.y <= 0.0) return base;
-    vec2 p = cloudPlane(direction, 2.0) * uSkyCheapScale + uCloudWind * (uCloudTime * 0.008);
+    vec2 p = (cloudPlane(direction, 2.0) + uCloudWind * uCloudTime) * uSkyCheapScale;
     float density = valueNoise(p) * 0.62 + valueNoise(p * 2.3 + 11.7) * 0.38;
     float amount = clamp(cloudRemap(density, 1.0 - uSkyCover, 1.0), 0.0, 1.0)
       * smoothstep(0.0, 0.12, direction.y);
@@ -464,7 +490,7 @@ export const CLOUD_SHADOW_GLSL = /* glsl */ `
   #ifndef CLOUD_SHADOW_INCLUDED
   #define CLOUD_SHADOW_INCLUDED
 
-  /** Strength, elements per kilometre, deck height in kilometres, drift. */
+  /** Strength, elements per kilometre, deck height in kilometres, spare. */
   uniform vec4 uCloudShadow;
 
   /**
@@ -475,7 +501,7 @@ export const CLOUD_SHADOW_GLSL = /* glsl */ `
   float cloudShadowAt(vec3 at, vec3 toSun) {
     if (uCloudShadow.x <= 0.001 || toSun.y <= 0.05) return 1.0;
     vec3 up = at * 0.001 + toSun * ((uCloudShadow.z - at.y * 0.001) / toSun.y);
-    vec2 p = up.xz * uCloudShadow.y + uCloudWind * (uCloudTime * uCloudShadow.w);
+    vec2 p = (up.xz + uCloudWind * uCloudTime) * uCloudShadow.y;
     float density = valueNoise(p) * 0.62 + valueNoise(p * 2.4 + 5.3) * 0.38;
     return 1.0 - smoothstep(0.42, 0.72, density) * uCloudShadow.x;
   }
