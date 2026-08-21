@@ -249,6 +249,8 @@ export class PostFX {
   private weatherFar = 1;
   /** Whether anything is falling. The pass costs a scene walk either way. */
   private weatherParticles = false;
+  private shadowScale = 1;
+  private decks: readonly DeckState[] | null = null;
 
   /**
    * Layered over `settings` rather than written into it: the settings are a
@@ -421,9 +423,16 @@ export class PostFX {
     this.sky.setPhenomena(belt, halo, bow, shadowTop);
   }
 
-  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number): void {
-    this.sky.setDecks(decks, windBearing, elapsed);
-    this.sky.setCloudShadow(this.settings.cloudShadow, decks);
+  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number, speed: number): void {
+    this.sky.setDecks(decks, windBearing, elapsed, speed);
+    this.decks = decks;
+    this.sky.setCloudShadow(this.settings.cloudShadow * this.shadowScale, decks);
+  }
+
+  /** How much of a shadow the low deck is in a position to cast. See the rig. */
+  setCloudShadowScale(scale: number): void {
+    this.shadowScale = scale;
+    if (this.decks) this.sky.setCloudShadow(this.settings.cloudShadow * scale, this.decks);
   }
 
   /**

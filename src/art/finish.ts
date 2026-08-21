@@ -789,14 +789,18 @@ ${aniso ? /* glsl */ `
             finishSheen *= 1.0 - finishCrust;
           }
           if (finishWet > 0.0) {
-            // Water standing in the pores. The darkening is not linear in the
-            // dry albedo — a pale stone loses far more of its value than a
-            // dark one, which is why a wet pavement reads as a different
-            // material rather than as the same one turned down.
-            material.diffuseColor *= 1.0 - 0.34 * finishWet;
-            // Floored near a tenth. A narrower lobe than that crawls against
-            // the quantizer, and a painted register does not want a mirror.
-            finishRough = mix(finishRough, max(0.11, finishRough * 0.28), finishWet);
+            // Water standing in the pores. Multiplied by *itself* rather than
+            // by a constant, which is the whole difference between a wet
+            // surface and a dim one: squaring darkens a dark surface further
+            // in proportion than a pale one, and it deepens the hue instead of
+            // washing it out. A flat multiply plus a grey sky reflection over
+            // the top is exactly how a wet street ends up looking like a grey
+            // street with nothing on it.
+            material.diffuseColor *= mix(vec3(1.0), material.diffuseColor, finishWet * 0.7);
+            // Tight enough to read as water and no tighter: a narrower lobe
+            // than this crawls against the quantizer, and the painted register
+            // does not want a mirror.
+            finishRough = mix(finishRough, max(0.13, finishRough * 0.18), finishWet);
             finishF0 = max(finishF0, vec3(0.02 * finishWet));
           }
           finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)

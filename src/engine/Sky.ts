@@ -316,11 +316,11 @@ export const SKY_GLSL = /* glsl */ `
     vec3 spun = direction * cos(a) + cross(axis, direction) * sin(a)
       + axis * dot(axis, direction) * (1.0 - cos(a));
 
-    vec3 p = spun * 54.0;
+    vec3 p = spun * 62.0;
     vec3 cell = floor(p);
     vec2 key = cell.xy + cell.z * 37.31;
     float pick = hash(key + 7.71);
-    if (pick > 0.2) return 0.0;
+    if (pick > 0.32) return 0.0;
 
     vec3 jitter = vec3(hash(key + 1.37), hash(key + 4.19), hash(key + 9.53)) - 0.5;
     // Size and brightness are separate draws off one magnitude, and size grows
@@ -593,7 +593,7 @@ export class Sky {
     (this.material.uniforms.uPhenomena.value as THREE.Vector4).set(belt, halo, bow, shadowTop);
   }
 
-  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number): void {
+  setDecks(decks: readonly DeckState[], windBearing: number, elapsed: number, speed: number): void {
     const u = this.material.uniforms;
     const shape = u.uDeckShape.value as THREE.Vector4[];
     const form = u.uDeckForm.value as THREE.Vector4[];
@@ -615,7 +615,7 @@ export class Sky {
       }
       shape[i].set(genus.cover, genus.softness, 1 / genus.element, genus.opacity * this.opacity);
       form[i].set(genus.height, FORM[genus.form], genus.detail, genus.stretch);
-      light[i].set(genus.shade, genus.drift * this.speed, amount, genus.ripple);
+      light[i].set(genus.shade, genus.drift * this.speed * speed, amount, genus.ripple);
       lit[i].copy(deck.lit);
       shade[i].copy(deck.shade);
 

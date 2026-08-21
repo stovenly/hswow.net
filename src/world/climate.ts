@@ -4,7 +4,7 @@ import type { ParticleSpec } from '../art/particles';
 import type { SurfaceName } from '../audio/models/footsteps';
 import type { RainSurface } from '../audio/models/rain';
 import { DECK_LEVELS, GENERA, type GenusName } from '../art/glsl/clouds';
-import type { DeckState } from '../engine/Sky';
+
 
 /**
  * The clock, the weather and the wind: one object that decides what today is,
@@ -498,6 +498,12 @@ export class Climate {
   }
 }
 
+/** What each deck slot is heading toward. The rig eases the live decks to it. */
+export interface DeckTarget {
+  genus: GenusName | null;
+  amount: number;
+}
+
 /**
  * Which genus sits in each deck, and how much of it. Data rather than code: a
  * warm front is a set of curves against how far off the rain is, and it plays
@@ -506,7 +512,7 @@ export class Climate {
  * Reads high, mid, low. Nothing here writes a colour — the deck's own height
  * decides how far past sunset it stays lit, and the atmosphere fills that in.
  */
-export function planSky(climate: Climate, out: DeckState[]): void {
+export function planSky(climate: Climate, out: DeckTarget[]): void {
   const pick = new Map<GenusName, number>();
   const put = (genus: GenusName, amount: number): void => {
     if (amount > (pick.get(genus) ?? 0)) pick.set(genus, amount);

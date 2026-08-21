@@ -32,6 +32,7 @@ import { VIBES } from './audio/music/vibes';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
+import { finishUniforms } from './art/finish';
 import { RECIPES, RECIPE_KNOBS, RECIPE_PARAMS, uploadRecipeKnobs } from './art/recipes';
 import { RAMPS, uploadRamps } from './art/glsl/ramp';
 import { setClothWindOverride, setClothFrozen } from './engine/ClothActivity';
@@ -671,6 +672,15 @@ if (dev.gui) {
         climate.force(kind.name, value);
       });
   }
+
+  // What the weather does to what it lands on. Held apart from the climate,
+  // which decides *whether* it is raining; this is what raining looks like.
+  const lying = dev.gui.addFolder('weather surfaces');
+  lying.addColor({ snow: '#dde5f0' }, 'snow')
+    .name('snow colour')
+    .onChange((value: string) => (finishUniforms.uSnowColour.value as THREE.Color).set(value));
+  lying.add(finishUniforms.uSnowDepth, 'value', 0, 1, 0.02).name('snow depth');
+  lying.add(finishUniforms.uFinishEnv, 'value', 0, 2, 0.05).name('sky in surfaces');
 
   const gusts = dev.gui.addFolder('wind');
   gusts.add(audio.weather.settings, 'gustDepth', 0, 1, 0.01).name('gust depth');
