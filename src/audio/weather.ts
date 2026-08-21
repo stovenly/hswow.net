@@ -32,7 +32,7 @@ const SWELL_RATIO = 0.11;
  * structure in it — banding in graphics, and here slow correlations that would
  * put a period back into a signal whose whole purpose is not having one.
  */
-function hash(n: number): number {
+export function hash(n: number): number {
   let x = Math.imul(n | 0, 0x27d4eb2d);
   x ^= x >>> 15;
   x = Math.imul(x, 0x85ebca6b);
@@ -41,7 +41,7 @@ function hash(n: number): number {
 }
 
 /** Cosine-interpolated value noise: continuous in value and in slope. */
-function valueNoise(t: number): number {
+export function valueNoise(t: number): number {
   const i = Math.floor(t);
   const f = t - i;
   const blend = (1 - Math.cos(f * Math.PI)) * 0.5;

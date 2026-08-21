@@ -45,7 +45,8 @@ its reasoning. Open, at the time of writing:
 
 | | |
 |---|---|
-| `ATMOSPHERE-WEATHER.md` | The day/night clock, weather, and props that make their own air |
+| `CLIMATE.md` | The clock, the weather, the surfaces and the sky. Steps 1–14 **built**; the numbers in the atmosphere table and the genus roster are open to tuning |
+| `ATMOSPHERE-WEATHER.md` | Superseded by `CLIMATE.md` except for §3, props that make their own air |
 | `SHADERS-V2.md` | God rays, heat shimmer, depth of field |
 | `EDITOR.md` | Zones as data, then the editor over that data |
 | `SWIMMING-CONTROLS.md` | Water the player can be inside |

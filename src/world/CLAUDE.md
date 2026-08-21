@@ -26,6 +26,31 @@ builders are seeded: a rebuild gives back the same world down to the blade of
 grass. Geometry, the collider's octree, the doors, the soundscape and the warm
 mark all go together.
 
+## The climate
+
+`climate.ts` decides what today is: the clock, the sun's position from a real
+solar model, the wind field's settings, and how much of each registered weather
+kind is running. It is sampled at a **map coordinate**, never declared — two
+zones in the same valley get the same shower, and a zone with no `place` stands
+outside the weather entirely, which is what a gallery wants.
+
+A weather **kind** is a row. What a kind can do is closed — particles, sound,
+air, surface, sky, ground, wind — and which kinds exist is open, so smog is a
+row and needs no code anywhere downstream.
+
+`WeatherRig.ts` is the other half: what the climate does to the world, once a
+frame. The light rig, the dome's colours, the cloud decks, what is falling, what
+it sounds like, and how wet the stones are. It integrates the wet and lying
+values itself — rain soaks a surface in about half a minute and takes minutes to
+leave it, so the gloss outlives the shower.
+
+`skymap.ts` bakes one orthographic pass straight down over each zone as it is
+built. The finish stage reads it to tell a roof from the ground under its eave.
+
+**The sun moves, so nothing may bake or rate-limit what depends on its
+direction.** The shadow map is rebuilt every frame; the light and the fill both
+travel with it.
+
 ## Dressing, interior, terrain, vista
 
 - **`terrain.ts`** — the walkable heightfield, summed from placed landforms.

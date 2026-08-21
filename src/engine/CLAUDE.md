@@ -46,6 +46,28 @@ forward and re-renders the scene with the camera on its own layer, so it costs
 its own draw calls and a scene-graph walk — which is why each is gated on what
 the entered zone actually built, observed rather than declared.
 
+## The sky
+
+`Sky.ts` draws one dome from `skyUniforms`, which are at module scope because
+water reflects into the sky and two copies would be two skies. Its *shape* — the
+elevation curves, the disc's size, the master cloud dials — is `SkySettings` and
+persists with the render preset. Its **colour is not authored**: every colour in
+the sky comes off the sun's elevation through the table in `atmosphere.ts`,
+because one authored blue can only ever be right at one hour.
+
+`atmosphere.ts` is seven rows keyed on sun elevation, interpolated in Oklab —
+straight RGB between a night blue and a sunset orange passes through a dead grey.
+Dawn is tinted cooler and pinker than dusk over the same rows.
+
+Clouds are three decks, high to low, each a row of the genus table in
+`art/glsl/clouds.ts`. The dome runs the full function; **everything else runs a
+single cheap layer**, because `skyColour` is evaluated on every lit fragment
+through `finishEnv` and on every reflection miss in the water.
+
+Every new sky layer must be either invisible at `direction.y = 0` or present
+identically in `skyAir`. That one line is what the vista band cannot afford a
+seam on.
+
 ## Conventions
 
 Effects are **spatial only**: one value per chunky pixel, no accumulation

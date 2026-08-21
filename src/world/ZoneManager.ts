@@ -33,6 +33,37 @@ import type { Reticle, Fade } from '../ui/Reticle';
 // black in one frame. The three world lights live here, not in any zone.
 
 /** A `Layers` to test a mesh against, so the particle gate is one call. */
+/**
+ * Metres the sun light stands out along its own direction. It is where the
+ * orthographic shadow camera sits, so it has to clear the scene and stay inside
+ * the camera's near and far.
+ */
+const SUN_DISTANCE = 140;
+
+/**
+ * Degrees below which the shadow box stops being usable. The light is held here
+ * and the shadow ramped out rather than the box widened.
+ */
+const SHADOW_FLOOR = 8;
+
+/**
+ * How dark a shadow gets at full strength, 0..1. Not full: the sun is only part
+ * of the light here, and the pipeline quantizes, so a dark shadow drives
+ * everything under it onto the bottom level.
+ */
+const SHADOW_DEPTH = 0.34;
+
+/** What the atmosphere hands the rig each frame. See `engine/atmosphere.ts`. */
+export interface LightRig {
+  sunScale: number;
+  sunColour: THREE.Color;
+  fillScale: number;
+  fillColour: THREE.Color;
+  ambientScale: number;
+  ambientSky: THREE.Color;
+  ambientGround: THREE.Color;
+}
+
 const PARTICLE_MASK = new THREE.Layers();
 PARTICLE_MASK.set(PARTICLE_LAYER);
 
@@ -205,7 +236,7 @@ export class ZoneManager {
     // with the zone. About 45° up and well round to one side, mid-morning. Set
     // far out along that direction, because a directional light's position is
     // where the shadow camera stands — at 25 units half the world falls behind it.
-    this.lights.sun.position.set(-70, 90, 50);
+    this.lights.sun.position.set(-70, 90, 50).setLength(SUN_DISTANCE);
 
     // Shadow setup, applied once; whether it is used is `setShadows`. A
     // directional light's shadow camera is orthographic and has to be sized by
@@ -230,9 +261,9 @@ export class ZoneManager {
     // How dark a shadow gets, 0..1. Not full strength: the sun is only part of
     // the light here, and the pipeline quantizes, so a dark shadow drives
     // everything under it onto the bottom level.
-    shadow.intensity = 0.34;
-    // Opposed on both horizontal axes but still above, so it lifts the walls
-    // the sun misses without lighting the ceiling from underneath.
+    shadow.intensity = SHADOW_DEPTH;
+    // Opposed to the key and above it. `aimKeyLight` moves it every frame; this
+    // is only where it stands before the clock has run once.
     this.lights.fill.position.set(9, 7, -7);
     // The three world lights are the scene's, not a zone's, so `prepare`'s walk
     // never reaches them.
@@ -245,6 +276,57 @@ export class ZoneManager {
   /** Which way the sun shines, normalised and pointing toward it — a directional light arrives from its position. */
   get sunDirection(): THREE.Vector3 {
     return this.lights.sun.position;
+  }
+
+  /**
+   * Points the key light and travels the shadow box with it. The light's
+   * position is where the orthographic shadow camera stands, so keeping it at a
+   * fixed distance along the direction leaves near and far correct at every
+   * hour instead of growing the box as the sun drops.
+   *
+   * Below the clamp the geometry stops working — a box wide enough for a shadow
+   * cast from two degrees is a box with no texels left — so the light is held at
+   * the clamp and the shadow is ramped out instead of stretched.
+   */
+  aimKeyLight(direction: THREE.Vector3, shadow: number): void {
+    const flat = Math.hypot(direction.x, direction.z);
+    const elevation = (Math.atan2(direction.y, flat) * 180) / Math.PI;
+    const sun = this.lights.sun;
+    if (elevation < SHADOW_FLOOR && flat > 1e-4) {
+      const lift = Math.tan((SHADOW_FLOOR * Math.PI) / 180) * flat;
+      sun.position.set(direction.x, lift, direction.z);
+    } else {
+      sun.position.copy(direction);
+    }
+    sun.position.normalize().multiplyScalar(SUN_DISTANCE);
+    const fade = Math.max(0, Math.min(1, (elevation - SHADOW_FLOOR + 4) / 6));
+    sun.shadow.intensity = SHADOW_DEPTH * shadow * fade * fade * (3 - 2 * fade * fade);
+
+    // The fill stands opposite the key and above it, and has to travel with it:
+    // its whole job is taking the faces the key cannot, and a fixed one ends up
+    // on the same side of the world twice a day doing nothing.
+    this.lights.fill.position
+      .set(-direction.x, Math.abs(direction.y) * 0.5 + 0.55, -direction.z)
+      .normalize()
+      .multiplyScalar(60);
+  }
+
+  /**
+   * The atmosphere over the zone's own declaration. The zone says how bright
+   * this place is relative to open daylight; the atmosphere says what open
+   * daylight currently is. Interiors keep their own rig, which is what makes a
+   * lit room at night read as a lit room.
+   */
+  applyLightRig(rig: LightRig): void {
+    const env = this.current?.environment;
+    if (!env || !env.sky) return;
+    this.lights.sun.intensity = env.sunIntensity * rig.sunScale;
+    this.lights.sun.color.copy(rig.sunColour);
+    this.lights.fill.intensity = env.fillIntensity * rig.fillScale;
+    this.lights.fill.color.copy(rig.fillColour);
+    this.lights.ambient.intensity = env.ambientIntensity * rig.ambientScale;
+    this.lights.ambient.color.copy(rig.ambientSky);
+    this.lights.ambient.groundColor.copy(rig.ambientGround);
   }
 
   /** Turns cast shadows on or off for the whole game. Shadows are a look, and belong with the render preset rather than with a place. */
@@ -482,6 +564,8 @@ export class ZoneManager {
     this.lights.ambient.color.setHex(env.ambientSky);
     this.lights.ambient.groundColor.setHex(env.ambientGround);
     setZoneWind(env.wind ?? 1);
+    // Once per zone, at full black. Indoors there is no weather to shelter from.
+    postfx.bakeShelter(env.sky ? root : null);
 
     this.applyAudio(zone);
 

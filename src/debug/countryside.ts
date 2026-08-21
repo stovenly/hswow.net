@@ -271,8 +271,7 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
   // it — the bowl takes the top off the wind before it reaches the middle.
   bed: [
     { model: 'wind', id: 'wind', options: { gain: 0.15, tone: 3000 } },
-    // Off by default and driven from the tuning panel, because there is no
-    // weather system yet to decide when it should rain. Idle cost is one noise
+    // Driven by the climate, which finds it by this id. Idle cost is one noise
     // voice and a filter: below an intensity of 0.02 the model stops scheduling
     // drops entirely rather than raining faintly out of a clear sky.
     {
@@ -526,6 +525,9 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
 export function countrysideZone(): ZoneDefinition {
   return {
     id: ZONE_COUNTRYSIDE,
+    // Under the world's weather. Origin for now — the map's real coordinates
+    // are laid out when the node map is.
+    place: { at: [0, 0], altitude: 0 },
     name: 'Countryside Exterior Demo',
     group: 'countryside',
     environment: {

@@ -238,6 +238,7 @@ const WALL_MATERIAL = new THREE.MeshBasicMaterial();
 export function vistaShowcaseZone(): ZoneDefinition {
   return {
     id: ZONE_VISTA_SHOWCASE,
+    place: { at: [0, 0], altitude: 0 },
     name: 'Vista Showcase',
     group: 'general',
     environment: {

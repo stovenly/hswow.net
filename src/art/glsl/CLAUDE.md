@@ -14,6 +14,7 @@ being true, edit the line — do not append a correction.
 - `ramp.ts` — colour ramps as data, and `rampAt` to evaluate one on the CPU.
 - `volume.ts` — which effect volume owns a vertex or fragment, and how strongly.
 - `sky.ts` — the sky function the scene-class recipes look out through.
+- `clouds.ts` — the genus table, the three form functions, and the deck compositor.
 - `text.ts` — `indent` and `reindent`, so a spliced block lands readable.
 
 ## Conventions
@@ -27,6 +28,11 @@ stops: every stop is mixed over whatever the chain has produced so far, so where
 one window has not closed before the next opens, three colours are in play at
 once and the *order* decides the hue. `rampAt` runs the same chain in the same
 order the shader does, so a swatch and a surface cannot disagree.
+
+**A genus is a row, not a shader.** Apparent element size — the thing a viewer
+actually names a cloud by — falls out of the deck's height and the element's size
+in kilometres, so cirrocumulus and stratocumulus are the same billow at
+different altitudes and the arithmetic says so.
 
 **A volume is a sphere or a box.** Membership feathers over the outer third; an
 *owned* volume ignores geometry entirely and takes its object whole; the
