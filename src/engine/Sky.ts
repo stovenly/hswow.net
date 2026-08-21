@@ -1,6 +1,15 @@
 import * as THREE from 'three';
-import { NOISE_GLSL } from './noise';
-import { CLOUDS_GLSL, DECK_LEVELS, GENERA, FORM, windAtHeight, type GenusName } from '../art/glsl/clouds';
+import { NOISE_GLSL, VOLUME_NOISE_GLSL, noiseTexture } from './noise';
+import {
+  CLOUDS_GLSL,
+  CLOUD_VOLUME_GLSL,
+  DECK_LEVELS,
+  GENERA,
+  FORM,
+  windAtHeight,
+  type Genus,
+  type GenusName,
+} from '../art/glsl/clouds';
 
 /**
  * A procedural sky: vertical gradient plus a drifting cloud layer. No cubemap and
@@ -103,6 +112,12 @@ export const skyUniforms = {
   uSkyCheapScale: { value: 0.55 },
   /** Strength, elements per kilometre, deck height in kilometres, drift. */
   uCloudShadow: { value: new THREE.Vector4(0, 0.7, 1.6, 0.006) },
+  /** base km, top km, longest path km, extinction. */
+  uLowSlab: { value: new THREE.Vector4(1.1, 3.0, 26, 9) },
+  /** swell, detail per kilometre, light step km, spare. */
+  uLowShape: { value: new THREE.Vector4(1, 7, 0.16, 0) },
+  /** ambient gain, powder, phase g, sun gain. */
+  uLowLight: { value: new THREE.Vector4(0.34, 0.7, 0.55, 0.42) },
   uMoonDirection: { value: new THREE.Vector3(0, 1, 0) },
   uMoonColor: { value: new THREE.Color(0xdce8ff) },
   uMoonIntensity: { value: 0 },
@@ -459,9 +474,16 @@ const SkyShader = {
     // backticks in this comment either, for the reason given above.)
     ${NOISE_GLSL}
     ${SKY_GLSL}
+    // Only the dome marches, so only the dome declares the noise texture it
+    // marches through. Every other caller of the sky takes the flat path.
+    ${VOLUME_NOISE_GLSL}
+    ${CLOUD_VOLUME_GLSL}
 
     void main() {
-      gl_FragColor = vec4(skyDome(normalize(vDirection)), 1.0);
+      vec3 direction = normalize(vDirection);
+      vec3 colour = skyDome(direction);
+      vec4 low = skyLowDeck(direction, normalize(uSunDirection), uHorizon);
+      gl_FragColor = vec4(mix(colour, low.rgb, low.a), 1.0);
     }
   `,
 };
@@ -522,7 +544,10 @@ export class Sky {
       // The shared set, not a clone — see `skyUniforms`. Water reads these to
       // resolve the miss case of its reflection march, and two copies would be
       // two skies.
-      uniforms: skyUniforms,
+      // Spread rather than shared, and the entries are the same objects: the
+      // dome needs one sampler nothing else does, and every uniform written
+      // through `skyUniforms` still lands here because the references match.
+      uniforms: { ...skyUniforms, uNoise: { value: noiseTexture() } },
       vertexShader: SkyShader.vertexShader,
       fragmentShader: SkyShader.fragmentShader,
       // Seen from inside, and never occluding anything: it writes no depth and
@@ -650,6 +675,7 @@ export class Sky {
       shape[i].set(genus.cover, genus.erosion, 1 / genus.element, genus.opacity * this.opacity);
       form[i].set(genus.height, FORM[genus.form], genus.base, genus.stretch);
       light[i].set(genus.shade, 0, amount, genus.ripple);
+      if (genus.level === 'low') this.setSlab(genus, amount);
       // No deck has a speed of its own. It goes at the speed of the air it is
       // in, and the air at nine kilometres is not the air at head height.
       const air = windAtHeight(windStrength, windBearing, genus.height);
@@ -673,6 +699,39 @@ export class Sky {
     u.uSkyCover.value = cover;
     u.uSkyCheapScale.value = scale;
     u.uCloudTime.value = elapsed;
+  }
+
+  /**
+   * The slab the low deck is marched through. Extinction rises with how opaque
+   * the genus is and the longest path is capped in multiples of the thickness:
+   * a ray a degree above the horizon crosses tens of kilometres of slab, and
+   * past the first few the far side is behind solid cloud anyway.
+   */
+  private setSlab(genus: Genus, amount: number): void {
+    const u = this.material.uniforms;
+    const top = genus.height + genus.thickness;
+    (u.uLowSlab.value as THREE.Vector4).set(
+      genus.height,
+      top,
+      genus.thickness * 9,
+      4 + genus.opacity * 9,
+    );
+    (u.uLowShape.value as THREE.Vector4).set(
+      genus.swell,
+      // Erosion detail an eighth the size of an element, and a light step of
+      // about a fifth of the slab.
+      8 / Math.max(genus.element, 0.2),
+      Math.max(genus.thickness * 0.22, 0.06),
+      0,
+    );
+    // A thin deck lets more of the sky through it and needs less powder; a
+    // deep one is lit almost entirely by what has bounced inside it.
+    (u.uLowLight.value as THREE.Vector4).set(
+      0.26 + genus.grey * 0.22,
+      0.4 + genus.swell * 0.45,
+      0.4 + genus.swell * 0.3,
+      0.34 + amount * 0.12,
+    );
   }
 
   /** How hard a low deck darkens the ground under it. Zero costs no noise at all. */

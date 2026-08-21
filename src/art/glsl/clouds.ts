@@ -48,6 +48,17 @@ export interface Genus {
   readonly ripple: number;
   /** How grey the lit colour is before the sky's own light is applied, 0..1. */
   readonly grey: number;
+  /**
+   * Kilometres from the base to the top. The low deck is marched through
+   * rather than projected, and this is the slab it is marched through; the
+   * high and mid decks are genuinely thin sheets and it is unused there.
+   */
+  readonly thickness: number;
+  /**
+   * How far the top climbs where there is more cloud, 0..1. What separates a
+   * heap that towers over its own gaps from a sheet of even depth.
+   */
+  readonly swell: number;
 }
 
 /**
@@ -78,6 +89,8 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0,
     ripple: 0.1,
     grey: 0,
+    thickness: 0.2,
+    swell: 0,
   },
   // A veil over the whole sky that you notice by the halo rather than by
   // seeing it: near-total cover, almost no contrast, barely opaque.
@@ -94,6 +107,8 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0,
     ripple: 0,
     grey: 0.04,
+    thickness: 0.3,
+    swell: 0,
   },
   // Fine granulation in bands. Unshaded — its elements are too small and too
   // thin to have a dark side, which is the test that separates it from
@@ -111,6 +126,8 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0,
     ripple: 0.85,
     grey: 0.02,
+    thickness: 0.4,
+    swell: 0.1,
   },
   // A featureless grey sheet the sun shows through as a bright patch.
   altostratus: {
@@ -126,6 +143,8 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0.15,
     ripple: 0,
     grey: 0.42,
+    thickness: 0.8,
+    swell: 0.05,
   },
   // Rolls with a shaded side: the same billow as cirrocumulus, four kilometres
   // lower and so several times the apparent size, and shaded because at this
@@ -143,11 +162,13 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0.2,
     ripple: 0.68,
     grey: 0.16,
+    thickness: 0.6,
+    swell: 0.3,
   },
   // Large rolls with blue between them, well shaded and with a definite base.
   stratocumulus: {
     level: 'low',
-    height: 1.6,
+    height: 1.2,
     form: 'heap',
     element: 0.85,
     cover: 0.72,
@@ -158,12 +179,14 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0.35,
     ripple: 0.34,
     grey: 0.24,
+    thickness: 0.85,
+    swell: 0.55,
   },
   // Isolated heaps: little cover, hard self-shadow, a flat dark base, and the
   // most eroded edges of anything here.
   cumulus: {
     level: 'low',
-    height: 1.2,
+    height: 1.1,
     form: 'heap',
     element: 1.05,
     cover: 0.42,
@@ -174,12 +197,14 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0.4,
     ripple: 0,
     grey: 0.08,
+    thickness: 1.9,
+    swell: 1.0,
   },
   // Uniform low grey with no structure at all. Cover is total; what makes it
   // stratus rather than fog is that it has a base you can stand under.
   stratus: {
     level: 'low',
-    height: 0.55,
+    height: 0.4,
     form: 'sheet',
     element: 9,
     cover: 0.96,
@@ -190,12 +215,14 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0.25,
     ripple: 0.14,
     grey: 0.5,
+    thickness: 0.35,
+    swell: 0.05,
   },
   // Dark, total and soft: rain falling out of the bottom of a deck blurs its
   // outline away, so nimbostratus is the one cloud with no edges to speak of.
   nimbostratus: {
     level: 'low',
-    height: 0.9,
+    height: 0.8,
     form: 'sheet',
     element: 7,
     cover: 0.98,
@@ -206,6 +233,8 @@ export const GENERA: Record<GenusName, Genus> = {
     base: 0.4,
     ripple: 0,
     grey: 0.72,
+    thickness: 2.7,
+    swell: 0.15,
   },
 };
 
@@ -456,11 +485,14 @@ export const CLOUDS_GLSL = /* glsl */ `
     return vec4(colour, density * shape.w * smoothstep(0.0, 0.12, direction.y));
   }
 
-  /** The three decks over whatever the gradient already painted. High first. */
+  /**
+   * The high and mid decks over whatever the gradient already painted, furthest
+   * first. The low deck is not here: it has real depth and is marched.
+   */
   vec3 skyDecks(vec3 direction, vec3 base) {
     vec3 sunDir = normalize(uSunDirection);
     vec3 colour = base;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
       vec4 deck = cloudDeck(uDeckShape[i], uDeckForm[i], uDeckLight[i], uDeckWind[i],
         uDeckLit[i], uDeckShade[i], direction, sunDir);
       colour = mix(colour, deck.rgb, deck.a);
@@ -507,4 +539,185 @@ export const CLOUD_SHADOW_GLSL = /* glsl */ `
   }
 
   #endif
+`;
+
+/**
+ * The low deck, marched rather than projected.
+ *
+ * A cirrus sheet is kilometres across and tens of metres thick, so a plane is
+ * not an approximation of it, it is the right model. A cumulus is one to two
+ * kilometres tall and a plane can never be right: no flat base, no lit side, no
+ * parallax between its front and its back. So the low deck alone gets a slab
+ * and a ray through it, and it is the only path here that costs a loop.
+ *
+ * The shape comes from the same two-dimensional field the flat decks use — one
+ * coverage map, so the shadow on the ground, the sky in a puddle and the cloud
+ * overhead can never disagree — with the vertical structure and the erosion
+ * added in three dimensions on top. That division of labour is what keeps the
+ * marched path affordable: the expensive noise is only ever evaluated where the
+ * cheap field has already said there is cloud.
+ *
+ * Dome only. Requires NOISE_GLSL, VOLUME_NOISE_GLSL and CLOUDS_GLSL.
+ */
+export const CLOUD_VOLUME_GLSL = /* glsl */ `
+  /** base km, top km, longest path km, extinction. */
+  uniform vec4 uLowSlab;
+  /** swell, detail per kilometre, light step km, spare. */
+  uniform vec4 uLowShape;
+  /** ambient gain, powder, phase g, sun gain. */
+  uniform vec4 uLowLight;
+
+  /**
+   * How much cloud stands over this square of ground, 0..1. The flat decks'
+   * own field read off the low slot, so every consumer of it agrees.
+   */
+  float lowCoverage(vec2 planeKm) {
+    vec2 along = normalize(uDeckWind[2] + vec2(1e-6, 0.0));
+    vec2 across = vec2(-along.y, along.x);
+    vec2 plane = planeKm + uDeckWind[2] * uCloudTime;
+    vec2 sheared = along * (dot(plane, along) / max(uDeckForm[2].w, 0.05))
+      + across * dot(plane, across);
+    vec2 p = sheared * uDeckShape[2].z;
+
+    float base = cloudForm(p, uDeckForm[2].y);
+    if (uDeckLight[2].w > 0.0) {
+      float lane = dot(plane, along) * uDeckShape[2].z;
+      float wave = 0.5 + 0.5 * sin(lane * 2.1 + valueNoise(p * 0.33) * 7.0);
+      base *= 1.0 - uDeckLight[2].w * 0.55 * (1.0 - wave);
+    }
+    float coverage = clamp(uDeckLight[2].z * uDeckShape[2].x, 0.0, 1.0);
+    return clamp(cloudRemap(base, 1.0 - coverage, 1.0), 0.0, 1.0);
+  }
+
+  /**
+   * Density at a point in the slab, in kilometres. The fine flag buys the
+   * three-dimensional erosion; the light march goes without it, which is both
+   * cheaper and right — a shadow cast through a cloud does not care about the
+   * lace on its edge.
+   *
+   * The height gradient is what makes a heap a heap. The base is cut flat,
+   * because that is where the air reaches its dew point and not a metre lower,
+   * and the top climbs with how much cloud is standing here — so a heap towers
+   * over its own gaps instead of lying at one depth like a sheet.
+   */
+  float lowDensity(vec3 posKm, bool fine) {
+    float span = max(uLowSlab.y - uLowSlab.x, 0.01);
+    float h = (posKm.y - uLowSlab.x) / span;
+    if (h < 0.0 || h > 1.0) return 0.0;
+
+    float cover = lowCoverage(posKm.xz);
+    if (cover <= 0.001) return 0.0;
+
+    float top = mix(1.0, 0.25 + 0.75 * cover, uLowShape.x);
+    float gradient = smoothstep(0.0, 0.09, h) * (1.0 - smoothstep(top * 0.4, top, h));
+    float density = cover * gradient;
+    if (density <= 0.0 || !fine) return density;
+
+    // Eroded in three dimensions by the same remap the flat decks use: it eats
+    // into the surface and leaves the body alone, so a billow keeps its mass
+    // and gains a torn edge rather than going to soup.
+    vec3 q = posKm * uLowShape.y;
+    q.xz += uDeckWind[2] * (uCloudTime * uLowShape.y * 1.4);
+    float wisp = volumeNoise(q) * 0.62 + volumeNoise(q * 2.7 + 13.1) * 0.38;
+    float e = uDeckShape[2].y;
+    return clamp(cloudRemap(wisp * (1.0 - e) + e, 1.0 - density, 1.0 - density + e), 0.0, 1.0);
+  }
+
+  /** Optical depth from here to the sun, in the slab's own units. */
+  float lowSunDepth(vec3 posKm, vec3 sunDir) {
+    float step = uLowShape.z;
+    float depth = 0.0;
+    for (int i = 0; i < 4; i++) {
+      depth += lowDensity(posKm + sunDir * (step * (float(i) + 0.7)), false);
+    }
+    return depth * step;
+  }
+
+  /**
+   * How much sunlight comes back out, summed over three orders of scattering.
+   *
+   * One Beer term alone drives a thick cloud to black and a real one never goes
+   * black: the light that failed to come straight through arrives later having
+   * bounced, softer and from everywhere. Each order halves the scattering,
+   * halves the extinction and slackens the anisotropy, so the first is a sharp
+   * forward lobe through thin cloud and the last is nearly uniform light
+   * through thick cloud.
+   */
+  float lowEnergy(float depth, float density, float cosT) {
+    float energy = 0.0;
+    float scatter = 1.0;
+    float extinct = 1.0;
+    float anisotropy = 1.0;
+    for (int i = 0; i < 3; i++) {
+      float g = uLowLight.z * anisotropy;
+      float g2 = g * g;
+      float phase = (1.0 - g2) / pow(1.0 + g2 - 2.0 * g * cosT, 1.5);
+      energy += scatter * exp(-depth * uLowSlab.w * extinct) * phase;
+      scatter *= 0.5;
+      extinct *= 0.5;
+      anisotropy *= 0.6;
+    }
+    // The powder term: just inside a lit edge less light comes back out than
+    // Beer's law predicts, because it has not had the depth to turn round.
+    return energy * mix(1.0, 1.0 - exp(-density * 7.0), uLowLight.y);
+  }
+
+  /**
+   * The slab, marched. Returns the light gathered and how much of the sky
+   * behind it is left over.
+   *
+   * The ray is pushed along itself by a low-discrepancy amount per pixel before
+   * it starts. Twelve steps through two kilometres of cloud is a sample every
+   * hundred and seventy metres, and without the offset every one of them lands
+   * on the same plane right across the frame and the deck comes back as contour
+   * lines. Spatial and not temporal — nothing here accumulates between frames.
+   */
+  vec4 skyLowDeck(vec3 direction, vec3 sunDir, vec3 horizon) {
+    if (uDeckLight[2].z <= 0.001 || direction.y <= 0.012) return vec4(0.0);
+
+    float t0 = uLowSlab.x / direction.y;
+    float t1 = min(uLowSlab.y / direction.y, t0 + uLowSlab.z);
+    float span = t1 - t0;
+    if (span <= 0.0) return vec4(0.0);
+
+    // R2, the two-dimensional low-discrepancy sequence: one dot product and a
+    // fract, and it spreads over a neighbourhood far more evenly than a hash.
+    float jitter = fract(dot(gl_FragCoord.xy, vec2(0.7548776662, 0.5698402909)));
+
+    float dt = span / 12.0;
+    float t = t0 + dt * jitter;
+    float cosT = dot(direction, sunDir);
+    float transmittance = 1.0;
+    vec3 gathered = vec3(0.0);
+
+    for (int i = 0; i < 12; i++) {
+      vec3 pos = direction * t;
+      float density = lowDensity(pos, true);
+      if (density > 0.002) {
+        float energy = lowEnergy(lowSunDepth(pos, sunDir), density, cosT);
+
+        // Where in the slab this sample sits. The top of a cloud sees the whole
+        // sky and the base sees the ground, and that gradient is what reads as
+        // depth even with the sun behind you.
+        float h = clamp((pos.y - uLowSlab.x) / max(uLowSlab.y - uLowSlab.x, 0.01), 0.0, 1.0);
+        vec3 ambient = mix(uDeckShade[2], uDeckLit[2], h * h) * uLowLight.x;
+        vec3 sunlit = uDeckLit[2] * (energy * uLowLight.w * uSunIntensity);
+
+        float stepT = exp(-density * dt * uLowSlab.w);
+        gathered += transmittance * (1.0 - stepT) * (sunlit + ambient);
+        transmittance *= stepT;
+        if (transmittance < 0.02) break;
+      }
+      t += dt;
+    }
+
+    float alpha = 1.0 - transmittance;
+    if (alpha <= 0.002) return vec4(0.0);
+    // Aerial perspective. The deck runs to the horizon and loses itself in the
+    // haze rather than stopping in a ring — and because it arrives at exactly
+    // the horizon colour, the one line the vista band cannot afford a seam on
+    // still holds.
+    float away = 1.0 - smoothstep(0.012, 0.3, direction.y);
+    return vec4(mix(gathered / max(alpha, 1e-4), horizon, away * 0.96), alpha);
+  }
 `;
