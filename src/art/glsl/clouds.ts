@@ -78,7 +78,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0,
     detail: 0.55,
     ripple: 0.1,
-    drift: 0.02,
+    drift: 0.042,
     grey: 0,
   },
   cirrostratus: {
@@ -93,7 +93,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0,
     detail: 0.25,
     ripple: 0.0,
-    drift: 0.016,
+    drift: 0.034,
     grey: 0.04,
   },
   cirrocumulus: {
@@ -108,7 +108,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.05,
     detail: 0.45,
     ripple: 0.85,
-    drift: 0.014,
+    drift: 0.03,
     grey: 0.02,
   },
   altostratus: {
@@ -123,7 +123,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.12,
     detail: 0.3,
     ripple: 0.0,
-    drift: 0.01,
+    drift: 0.022,
     grey: 0.42,
   },
   altocumulus: {
@@ -138,7 +138,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.32,
     detail: 0.5,
     ripple: 0.68,
-    drift: 0.009,
+    drift: 0.02,
     grey: 0.16,
   },
   stratocumulus: {
@@ -153,7 +153,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.48,
     detail: 0.55,
     ripple: 0.34,
-    drift: 0.006,
+    drift: 0.014,
     grey: 0.24,
   },
   cumulus: {
@@ -168,7 +168,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.58,
     detail: 0.6,
     ripple: 0.0,
-    drift: 0.005,
+    drift: 0.012,
     grey: 0.08,
   },
   stratus: {
@@ -183,7 +183,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.1,
     detail: 0.2,
     ripple: 0.14,
-    drift: 0.004,
+    drift: 0.008,
     grey: 0.5,
   },
   nimbostratus: {
@@ -198,7 +198,7 @@ export const GENERA: Record<GenusName, Genus> = {
     shade: 0.28,
     detail: 0.3,
     ripple: 0.0,
-    drift: 0.007,
+    drift: 0.015,
     grey: 0.72,
   },
 };
@@ -254,7 +254,11 @@ export const CLOUDS_GLSL = /* glsl */ `
    * billows that curl, and it costs two lookups.
    */
   vec2 cloudWarp(vec2 p) {
-    return vec2(valueNoise(p + 11.31), valueNoise(p * 1.07 + 41.77)) - 0.5;
+    // The warp field creeps, and in a direction of its own. A deck that only
+    // translates is a photograph on a conveyor: what makes it read as weather
+    // is that the billows curl and re-form while they travel.
+    vec2 churn = vec2(uCloudTime * 0.0045, uCloudTime * -0.0032);
+    return vec2(valueNoise(p + churn + 11.31), valueNoise(p * 1.07 - churn + 41.77)) - 0.5;
   }
 
   /** Stratiform: warped masses, four octaves, soft everywhere. */
@@ -372,7 +376,7 @@ export const CLOUDS_GLSL = /* glsl */ `
     // Faded out at the horizon, where the projection stretches to infinity and
     // the form turns to mush. The dome and the air have to agree exactly at
     // direction.y = 0, and this is what guarantees it.
-    return vec4(colour, mask * shape.w * smoothstep(0.0, 0.2, direction.y));
+    return vec4(colour, mask * shape.w * smoothstep(0.0, 0.12, direction.y));
   }
 
   /** The three decks over whatever the gradient already painted. High first. */
@@ -394,7 +398,7 @@ export const CLOUDS_GLSL = /* glsl */ `
     float density = valueNoise(p) * 0.62 + valueNoise(p * 2.3 + 11.7) * 0.38;
     float threshold = mix(1.0, 0.28, uSkyCover);
     float amount = smoothstep(threshold, threshold + 0.22, density)
-      * smoothstep(0.0, 0.2, direction.y);
+      * smoothstep(0.0, 0.12, direction.y);
     return mix(base, uSkyCloudColour, amount);
   }
 

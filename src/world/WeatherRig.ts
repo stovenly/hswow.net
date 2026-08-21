@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Climate, WEATHER_KINDS, planSky, type WeatherKind } from './climate';
+import { Climate, WEATHER_KINDS, planSky, type DeckTarget, type WeatherKind } from './climate';
 import { createAtmosphere, sampleAtmosphere, cloudLightAt } from '../engine/atmosphere';
 import { createDecks, type DeckState } from '../engine/Sky';
 import { GENERA, twilightLead } from '../art/glsl/clouds';
@@ -34,10 +34,28 @@ const THAW = 420;
  */
 const MOON_TAKES_OVER = -3;
 
+/**
+ * Seconds a deck takes to arrive or leave. A sky whose genus changes on the
+ * frame the arithmetic changes its mind pops, and the pop is the one thing that
+ * says "a parameter was turned" rather than "the weather moved".
+ */
+const DECK_EASE = 14;
+
+/**
+ * Seconds a held surface takes to answer. The lag is the point in play, and
+ * exactly wrong in a panel: a control you wait three minutes to see is not one.
+ */
+const HELD_SNAP = 2.5;
+
 export class WeatherRig {
   readonly climate: Climate;
   readonly air = createAtmosphere();
   readonly decks: DeckState[] = createDecks();
+  private readonly wanted: DeckTarget[] = [
+    { genus: null, amount: 0 },
+    { genus: null, amount: 0 },
+    { genus: null, amount: 0 },
+  ];
 
   /** How wet and how snowed-over the world is, 0..1. Both lag the weather. */
   wet = 0;
@@ -49,6 +67,10 @@ export class WeatherRig {
   /** Seconds the fallback bed has been silent, before it is let go. */
   private quiet = 0;
   private readonly key = new THREE.Vector3();
+  private readonly airColour = new THREE.Color();
+  private airMix = 0;
+  private airNear = 1;
+  private airFar = 1;
 
   constructor(climate: Climate, scene: THREE.Scene) {
     this.climate = climate;
@@ -99,9 +121,10 @@ export class WeatherRig {
     climate.pinned = zone !== null && zone.place === undefined;
     climate.update(dt);
 
+    this.readAir();
     this.applyLight(postfx, zones, elapsed);
-    this.applySky(postfx, elapsed);
-    this.applyAir(postfx);
+    this.applySky(postfx, dt, elapsed);
+    postfx.setWeatherAir(this.airColour, this.airMix, this.airNear, this.airFar);
     this.applySurfaces(dt, outdoors, zone?.environment.wind ?? 1);
     this.applyFalling(postfx, outdoors);
     this.applySound(dt, audio, zones, listener, outdoors);
@@ -114,7 +137,28 @@ export class WeatherRig {
     sampleAtmosphere(climate.sunElevation, rising, this.air);
 
     // Overcast has no stars behind it and no moon through it.
-    const clear = 1 - this.cover();
+    const overcast = this.cover();
+    const clear = 1 - overcast;
+
+    // The single thing that makes an overcast day read as one. A sky the sun
+    // cannot get through has to *change the light*: the key goes out, the sky
+    // itself becomes the light, and everything it lands on takes its colour.
+    // Fog alone in front of an unchanged blue sky is a filter over the frame.
+    const shut = overcast * overcast;
+    this.air.sunScale *= 1 - shut * 0.82;
+    this.air.ambientScale *= 1 + shut * 0.2;
+    this.air.fillScale *= 1 - shut * 0.35;
+    if (this.airMix > 0) {
+      const wash = this.airMix * overcast;
+      this.air.horizon.lerp(this.airColour, wash * 0.75);
+      this.air.zenith.lerp(this.airColour, wash * 0.9);
+      this.air.ground.lerp(this.airColour, wash * 0.5);
+      this.air.ambientSky.lerp(this.airColour, wash * 0.65);
+      this.air.fillColour.lerp(this.airColour, wash * 0.5);
+      this.air.sunColour.lerp(this.airColour, wash * 0.5);
+      this.air.cloudLit.lerp(this.airColour, wash * 0.4);
+    }
+
     postfx.aimSun(climate.sunDirection);
     postfx.setAir(this.air.horizon, this.air.zenith, this.air.ground, this.air.sunDisc, this.air.warmth);
     postfx.setNight(
@@ -145,8 +189,9 @@ export class WeatherRig {
     setGlowLevel(dusk * dusk * (3 - 2 * dusk));
   }
 
-  private applySky(postfx: PostFX, elapsed: number): void {
-    planSky(this.climate, this.decks);
+  private applySky(postfx: PostFX, dt: number, elapsed: number): void {
+    planSky(this.climate, this.wanted);
+    this.easeDecks(dt);
     for (const deck of this.decks) {
       if (!deck.genus) continue;
       // The deck's own sunset, not the observer's: a cirrus at nine kilometres
@@ -165,8 +210,38 @@ export class WeatherRig {
         deck.shade.multiplyScalar(1 - grey * 0.35);
       }
     }
-    postfx.setDecks(this.decks, this.climate.wind.settings.windDirection, elapsed);
+    // Cloud speed is the wind's, so a blustery day has a sky to match and a
+    // still one barely moves. The clock is real seconds; the decks are in
+    // kilometres, and one crosses the visible plane in several minutes.
+    const speed = 0.45 + this.climate.wind.settings.windSpeed * 1.6;
+    postfx.setDecks(this.decks, this.climate.wind.settings.windDirection, elapsed, speed);
+    // Strongest at broken cover and gone at both ends: a clear sky casts no
+    // cloud shadow, and a solid one casts no shadow either — it darkens
+    // everything, which the light rig above has already done.
+    const broken = this.cover();
+    postfx.setCloudShadowScale(4 * broken * (1 - broken));
     this.applyPhenomena(postfx);
+  }
+
+  /**
+   * Eases each slot toward what the plan wants. A slot whose genus is being
+   * replaced empties first and fills afterwards, so one form never becomes
+   * another between frames — cirrus does not turn into stratocumulus, it goes,
+   * and then stratocumulus arrives.
+   */
+  private easeDecks(dt: number): void {
+    const step = Math.min(1, dt / DECK_EASE);
+    for (let i = 0; i < this.decks.length; i++) {
+      const deck = this.decks[i];
+      const want = this.wanted[i];
+      const target = deck.genus === null || deck.genus === want.genus ? want.amount : 0;
+      deck.amount += (target - deck.amount) * step;
+      if (deck.genus === null && want.genus !== null) deck.genus = want.genus;
+      else if (deck.amount < 0.015 && deck.genus !== want.genus) {
+        deck.genus = want.genus;
+        deck.amount = 0;
+      }
+    }
   }
 
   /**
@@ -203,24 +278,28 @@ export class WeatherRig {
     return total;
   }
 
-  private applyAir(postfx: PostFX): void {
-    const colour = AIR_COLOUR.setRGB(0, 0, 0);
-    let mix = 0;
-    let near = 1;
-    let far = 1;
+  /** What every kind running right now does to the air between things. */
+  private readAir(): void {
+    this.airColour.setRGB(0, 0, 0);
+    this.airMix = 0;
+    this.airNear = 1;
+    this.airFar = 1;
     for (const kind of WEATHER_KINDS) {
       const amount = this.climate.amountOf(kind.name);
       if (amount <= 0 || !kind.air) continue;
       const weight = amount * (kind.air.colourMix ?? 0);
       if (weight > 0) {
-        colour.add(AIR_ONE.setHex(kind.air.colour ?? 0xffffff, THREE.SRGBColorSpace).multiplyScalar(weight));
-        mix += weight;
+        this.airColour.add(
+          AIR_ONE.setHex(kind.air.colour ?? 0xffffff, THREE.SRGBColorSpace).multiplyScalar(weight),
+        );
+        this.airMix += weight;
       }
-      near *= 1 - (1 - (kind.air.near ?? 1)) * amount;
-      far *= 1 - (1 - (kind.air.far ?? 1)) * amount;
+      this.airNear *= 1 - (1 - (kind.air.near ?? 1)) * amount;
+      this.airFar *= 1 - (1 - (kind.air.far ?? 1)) * amount;
     }
-    if (mix > 0) colour.multiplyScalar(1 / mix);
-    postfx.setWeatherAir(colour, Math.min(mix, 0.95), near, far);
+    if (this.airMix > 0) this.airColour.multiplyScalar(1 / this.airMix);
+    else this.airColour.setRGB(0.5, 0.53, 0.56);
+    this.airMix = Math.min(this.airMix, 0.95);
   }
 
   /**
@@ -240,15 +319,22 @@ export class WeatherRig {
       if (kind.surface === 'crust') snowTarget = Math.max(snowTarget, amount);
     }
 
+    // A kind being held from the panel is a control, and a control you wait
+    // three minutes to see the effect of is not one. The lag is what this is
+    // for in play; under a hold it gets out of the way.
+    const held = WEATHER_KINDS.some(
+      (kind) => kind.surface !== undefined && climate.forcedAmount(kind.name) !== null,
+    );
+
     // Sun and wind take it off; still, shaded air keeps it.
     const drying = 1 + Math.max(0, this.air.sunScale) * 1.2 + climate.wind.strength * 0.8;
-    const wetTau = wetTarget > this.wet ? SOAK : DRY / drying;
+    const wetTau = held ? HELD_SNAP : wetTarget > this.wet ? SOAK : DRY / drying;
     this.wet += (wetTarget - this.wet) * Math.min(1, dt / wetTau);
 
     // Snow lies while it falls and goes once it is above freezing, at a rate
     // the temperature decides rather than the weather.
     const thaw = Math.max(0, climate.temperature) / 6;
-    const snowTau = snowTarget > this.lying ? SETTLE : THAW / (0.25 + thaw);
+    const snowTau = held ? HELD_SNAP : snowTarget > this.lying ? SETTLE : THAW / (0.25 + thaw);
     this.lying += (snowTarget - this.lying) * Math.min(1, dt / snowTau);
 
     const gate = outdoors ? 1 : 0;
@@ -371,7 +457,6 @@ export class WeatherRig {
   }
 }
 
-const AIR_COLOUR = new THREE.Color();
 const AIR_ONE = new THREE.Color();
 
 function hashName(name: string): number {
