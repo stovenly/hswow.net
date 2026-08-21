@@ -353,6 +353,8 @@ export class Climate {
   private readonly forced = new Map<string, number>();
   /** A pinned palette row per kind, or absent to let the day draw one. */
   private readonly pinnedTone = new Map<string, number>();
+  /** A held moon phase, or null to let the month run. */
+  private heldPhase: number | null = null;
   private place: ZonePlace = ORIGIN;
 
   constructor(wind: Weather) {
@@ -394,6 +396,20 @@ export class Climate {
     if (pinned !== undefined) return kind.tones[pinned % kind.tones.length];
     const roll = hash(this.settings.seed + this.day * 7919 + nameKey(kind.name));
     return kind.tones[Math.floor(roll * kind.tones.length) % kind.tones.length];
+  }
+
+  /**
+   * Holds the moon at one phase, or hands it back to the month with null. The
+   * position follows: a full moon has to be opposite the sun, so holding the
+   * phase moves the moon in the sky as well as reshaping it.
+   */
+  holdMoon(phase: number | null): void {
+    this.heldPhase = phase === null ? null : ((phase % 1) + 1) % 1;
+    this.aim();
+  }
+
+  get moonHeld(): boolean {
+    return this.heldPhase !== null;
   }
 
   /** Pins a kind to one row of its palette, or hands the choice back with null. */
@@ -504,7 +520,7 @@ export class Climate {
     // the sun's company, a first quarter stands due south at sunset, and a full
     // moon rises as the sun goes down.
     const month = Math.max(this.settings.moonMonth, 1);
-    this.moonPhase = ((this.elapsedDays / month) % 1 + 1) % 1;
+    this.moonPhase = this.heldPhase ?? ((this.elapsedDays / month) % 1 + 1) % 1;
     const swing = this.moonPhase * Math.PI * 2;
     this.moonLight = 0.5 - Math.cos(swing) * 0.5;
     this.aimAt(hourAngle - swing, sunLongitude + swing, this.moonDirection);
