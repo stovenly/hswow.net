@@ -674,7 +674,7 @@ export class Sky {
       }
       shape[i].set(genus.cover, genus.erosion, 1 / genus.element, genus.opacity * this.opacity);
       form[i].set(genus.height, FORM[genus.form], genus.base, genus.stretch);
-      light[i].set(genus.shade, 0, amount, genus.ripple);
+      light[i].set(genus.shade, genus.glow, amount, genus.ripple);
       if (genus.level === 'low') this.setSlab(genus, amount);
       // No deck has a speed of its own. It goes at the speed of the air it is
       // in, and the air at nine kilometres is not the air at head height.

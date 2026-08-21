@@ -39,6 +39,12 @@ export interface Genus {
   readonly stretch: number;
   /** How dark its own shadowed side goes, 0..1. Ice clouds barely shade at all. */
   readonly shade: number;
+  /**
+   * How hard it throws light forward, 0..1. Ice scatters forward far harder
+   * than water, so a cirrus field near the sun burns where a low deck only
+   * brightens.
+   */
+  readonly glow: number;
   /** How dark the underside is, 0..1. What says how high a deck is. */
   readonly base: number;
   /**
@@ -81,11 +87,12 @@ export const GENERA: Record<GenusName, Genus> = {
     height: 9,
     form: 'fibres',
     element: 5,
-    cover: 0.52,
+    cover: 0.58,
     erosion: 0.45,
-    opacity: 0.6,
-    stretch: 6,
+    opacity: 0.72,
+    stretch: 2.4,
     shade: 0,
+    glow: 1.0,
     base: 0,
     ripple: 0.1,
     grey: 0,
@@ -100,10 +107,11 @@ export const GENERA: Record<GenusName, Genus> = {
     form: 'sheet',
     element: 22,
     cover: 0.94,
-    erosion: 0.12,
-    opacity: 0.28,
+    erosion: 0.08,
+    opacity: 0.42,
     stretch: 1.6,
     shade: 0,
+    glow: 0.85,
     base: 0,
     ripple: 0,
     grey: 0.04,
@@ -123,6 +131,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.55,
     stretch: 1.35,
     shade: 0.04,
+    glow: 0.7,
     base: 0,
     ripple: 0.85,
     grey: 0.02,
@@ -140,6 +149,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.85,
     stretch: 1.5,
     shade: 0.14,
+    glow: 0.45,
     base: 0.15,
     ripple: 0,
     grey: 0.42,
@@ -159,6 +169,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.88,
     stretch: 1.5,
     shade: 0.34,
+    glow: 0.4,
     base: 0.2,
     ripple: 0.68,
     grey: 0.16,
@@ -176,6 +187,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.96,
     stretch: 1.7,
     shade: 0.5,
+    glow: 0.3,
     base: 0.35,
     ripple: 0.34,
     grey: 0.24,
@@ -194,6 +206,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 1,
     stretch: 1.1,
     shade: 0.6,
+    glow: 0.35,
     base: 0.4,
     ripple: 0,
     grey: 0.08,
@@ -212,6 +225,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 0.94,
     stretch: 1.4,
     shade: 0.1,
+    glow: 0.2,
     base: 0.25,
     ripple: 0.14,
     grey: 0.5,
@@ -230,6 +244,7 @@ export const GENERA: Record<GenusName, Genus> = {
     opacity: 1,
     stretch: 1.3,
     shade: 0.3,
+    glow: 0.15,
     base: 0.4,
     ripple: 0,
     grey: 0.72,
@@ -299,7 +314,7 @@ export const CLOUDS_GLSL = /* glsl */ `
   uniform vec4 uDeckShape[3];
   /** height in kilometres, form code, base darkening, stretch. */
   uniform vec4 uDeckForm[3];
-  /** shade, spare, amount, ripple. */
+  /** shade, forward-scatter gain, amount, ripple. */
   uniform vec4 uDeckLight[3];
   /** Each deck's own wind, in kilometres per second across its plane. */
   uniform vec2 uDeckWind[3];
@@ -366,11 +381,22 @@ export const CLOUDS_GLSL = /* glsl */ `
    * and bent across itself so the streaks curve rather than run parallel.
    */
   float cloudFibres(vec2 p) {
-    float bend = valueNoise(p * vec2(0.22, 0.9)) - 0.5;
-    vec2 q = p + vec2(0.0, bend * 2.6);
-    return valueNoise(q) * 0.42
-      + valueNoise(q * vec2(4.3, 1.35) + 7.1) * 0.33
-      + valueNoise(q * vec2(11.7, 2.1) + 3.9) * 0.25;
+    // Bent first, by a field that varies slowly along the streak and slowly
+    // across it, so the strands curve and hook the way a fallstreak does
+    // instead of running like ruled lines.
+    float bend = valueNoise(vec2(p.x * 0.5, p.y * 0.22)) - 0.5;
+    float y = p.y + bend * 2.9;
+    // Every octave is far finer across the streak than along it, and that
+    // ratio is the whole of what a fibre is. Stretching an isotropic field
+    // cannot produce it: stretching lowers the detail along the streak by
+    // exactly as much as it lengthens it, and what comes out is a smear.
+    float strand = valueNoise(vec2(p.x * 0.55, y * 2.6)) * 0.50
+      + valueNoise(vec2(p.x * 1.5, y * 6.1) + 7.31) * 0.30
+      + valueNoise(vec2(p.x * 3.7, y * 14.0) + 3.17) * 0.20;
+    // A streak thins and gathers along its own length. Without this a cirrus
+    // field reads as combed hair.
+    float gather = valueNoise(vec2(p.x * 0.85, y * 0.35) + 21.7);
+    return strand * (0.52 + 0.72 * gather);
   }
 
   float cloudForm(vec2 p, float form) {
@@ -409,10 +435,14 @@ export const CLOUDS_GLSL = /* glsl */ `
     vec2 plane = cloudPlane(direction, form.x) + drift;
     // Stretched across the wind rather than along it: a sheared deck lies in
     // bands at right angles to the shear, which is what banners a cirrus field.
+    // Turned into the wind's own frame, not merely stretched in world space.
+    // The old form rebuilt a world-axis vector after dividing one component,
+    // which stretches an isotropic field correctly and leaves an anisotropic
+    // one pointing the wrong way — so a fibre could never lie along the wind
+    // however hard it was drawn out.
     vec2 along = normalize(wind + vec2(1e-6, 0.0));
     vec2 across = vec2(-along.y, along.x);
-    vec2 sheared = along * (dot(plane, along) / max(form.w, 0.05)) + across * dot(plane, across);
-    vec2 p = sheared * shape.z;
+    vec2 p = vec2(dot(plane, along) / max(form.w, 0.05), dot(plane, across)) * shape.z;
 
     float base = cloudForm(p, form.y);
 
@@ -420,7 +450,7 @@ export const CLOUDS_GLSL = /* glsl */ `
     // bands lying across the wind, and that banding is most of what a person
     // recognises altocumulus and cirrocumulus by.
     if (light.w > 0.0) {
-      float lane = dot(plane, along) * shape.z;
+      float lane = p.x * max(form.w, 0.05);
       float wave = 0.5 + 0.5 * sin(lane * 2.1 + valueNoise(p * 0.33) * 7.0);
       base *= 1.0 - light.w * 0.55 * (1.0 - wave);
     }
@@ -465,12 +495,13 @@ export const CLOUDS_GLSL = /* glsl */ `
       colour *= mix(1.0, 0.72 + 0.28 * (1.0 - exp(-density * 4.5)), light.x);
     }
 
-    // Forward scattering, Henyey-Greenstein. Cloud within a few degrees of the
-    // sun silvers, and nothing else in a sky says "lit from behind" so plainly.
+    // Forward scattering, Henyey-Greenstein, at the deck's own gain. Ice
+    // throws light forward far harder than water does, which is why a cirrus
+    // field near the sun burns and a stratocumulus deck merely brightens.
     float cosT = dot(direction, sunDir);
     float g2 = 0.62 * 0.62;
     float phase = (1.0 - g2) / pow(1.0 + g2 - 2.0 * 0.62 * cosT, 1.5);
-    colour += lit * clamp((phase - 0.4) * 0.12, 0.0, 0.5) * uSunIntensity;
+    colour += lit * clamp((phase - 0.35) * 0.17, 0.0, 0.7) * uSunIntensity * light.y;
 
     // The base. Looking toward the horizon is looking at the underside of the
     // deck, and a deck with a defined base has a dark one — which is the cue
@@ -616,10 +647,17 @@ export const CLOUD_VOLUME_GLSL = /* glsl */ `
     // Eroded in three dimensions by the same remap the flat decks use: it eats
     // into the surface and leaves the body alone, so a billow keeps its mass
     // and gains a torn edge rather than going to soup.
+    // volumeFbm, not two raw lookups: volumeNoise is one octave of filtered
+    // white noise, and two of those under a saturating remap is not erosion,
+    // it is blotches. The fractal is normalised and smooth, which is what the
+    // remap wants underneath it.
     vec3 q = posKm * uLowShape.y;
     q.xz += uDeckWind[2] * (uCloudTime * uLowShape.y * 1.4);
-    float wisp = volumeNoise(q) * 0.62 + volumeNoise(q * 2.7 + 13.1) * 0.38;
-    float e = uDeckShape[2].y;
+    float wisp = volumeFbm(q);
+    // Shallower than the flat decks': at this scale the erosion is carving the
+    // body of the cloud rather than its outline, and a deep cut there hollows
+    // it out into lumps.
+    float e = min(uDeckShape[2].y, 0.28);
     return clamp(cloudRemap(wisp * (1.0 - e) + e, 1.0 - density, 1.0 - density + e), 0.0, 1.0);
   }
 
@@ -666,11 +704,10 @@ export const CLOUD_VOLUME_GLSL = /* glsl */ `
    * The slab, marched. Returns the light gathered and how much of the sky
    * behind it is left over.
    *
-   * The ray is pushed along itself by a low-discrepancy amount per pixel before
-   * it starts. Twelve steps through two kilometres of cloud is a sample every
-   * hundred and seventy metres, and without the offset every one of them lands
-   * on the same plane right across the frame and the deck comes back as contour
-   * lines. Spatial and not temporal — nothing here accumulates between frames.
+   * Twenty even steps, and no dither. Nothing here accumulates between frames,
+   * so the usual trick of scattering the start offset per pixel would have to
+   * survive to the screen unfiltered at a third of display resolution — which
+   * means it arrives as dots rather than as smoothness.
    */
   vec4 skyLowDeck(vec3 direction, vec3 sunDir, vec3 horizon) {
     if (uDeckLight[2].z <= 0.001 || direction.y <= 0.012) return vec4(0.0);
@@ -680,17 +717,18 @@ export const CLOUD_VOLUME_GLSL = /* glsl */ `
     float span = t1 - t0;
     if (span <= 0.0) return vec4(0.0);
 
-    // R2, the two-dimensional low-discrepancy sequence: one dot product and a
-    // fract, and it spreads over a neighbourhood far more evenly than a hash.
-    float jitter = fract(dot(gl_FragCoord.xy, vec2(0.7548776662, 0.5698402909)));
-
-    float dt = span / 12.0;
-    float t = t0 + dt * jitter;
+    // No per-pixel jitter. It is the usual answer to banding at a low step
+    // count, and it is the wrong one here: it trades bands for noise, and this
+    // pipeline draws at a third of display resolution with no filter that
+    // could resolve noise again — so every offset stays on screen as a dot.
+    // Bands are cheaper to remove honestly, by taking more steps.
+    float dt = span / 20.0;
+    float t = t0 + dt * 0.5;
     float cosT = dot(direction, sunDir);
     float transmittance = 1.0;
     vec3 gathered = vec3(0.0);
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 20; i++) {
       vec3 pos = direction * t;
       float density = lowDensity(pos, true);
       if (density > 0.002) {
