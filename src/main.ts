@@ -170,6 +170,9 @@ const deckNames = { high: '—', mid: '—', low: '—' };
 /** What the tone picker calls handing the choice back to the day. */
 const ROLLED = 'as the day rolls it';
 
+/** The panel's moon slider, and whether it is driving or reporting. */
+const moonHold = { on: false, phase: 0.5 };
+
 /** The panel's weather sliders, and whether they are driving or reporting. */
 const weatherHold = { on: false };
 const weatherLevels: Record<string, number> = {};
@@ -491,6 +494,8 @@ if (dev.gui) {
   // behind them, and go see-through.
   sky.add(r.sky, 'airCurve', 0.3, 6, 0.1).name('curve for fog').onChange(refresh);
 
+  sky.add(r.sky, 'moonSize', 0.2, 4, 0.05).name('moon radius (deg)').onChange(refresh);
+
   const clouds = dev.gui.addFolder('sky clouds');
   clouds.add(r.sky, 'cloudOpacity', 0, 1, 0.01).name('opacity').onChange(refresh);
   clouds.add(r.sky, 'cloudDrift', 0, 2, 0.02).name('drift').onChange(refresh);
@@ -652,6 +657,22 @@ if (dev.gui) {
   climateFolder.add(climate.settings, 'dayLength', 60, 3600, 10).name('day length (s)');
   climateFolder.add(climate.settings, 'yearLength', 8, 365, 1).name('year (days)');
   climateFolder.add(climate.settings, 'latitude', 0, 70, 1).name('latitude');
+  climateFolder.add(climate.settings, 'moonMonth', 2, 60, 0.5).name('month (days)');
+  // Off, the slider reads back where the month has got to. On, it is the phase,
+  // and the moon moves in the sky to match — a full moon stands opposite the sun.
+  climateFolder
+    .add(moonHold, 'on')
+    .name('hold the moon')
+    .listen()
+    .onChange((on: boolean) => climate.holdMoon(on ? moonHold.phase : null));
+  climateFolder
+    .add(moonHold, 'phase', 0, 1, 0.005)
+    .name('moon phase')
+    .listen()
+    .onChange((value: number) => {
+      moonHold.on = true;
+      climate.holdMoon(value);
+    });
   climateFolder.add(climate.settings, 'baseWind', 0, 1, 0.01).name('baseline wind');
   climateFolder.add(climate.settings, 'pace', 0.1, 20, 0.1).name('weather pace');
   // Off, the sliders read back what the climate decided. On, they *are* what
@@ -1057,6 +1078,7 @@ if (dev.gui) {
       deckNames[(['high', 'mid', 'low'] as const)[i]] =
         deck.genus ? `${deck.genus} ${deck.amount.toFixed(2)}` : '—';
     }
+    if (!moonHold.on) moonHold.phase = climate.moonPhase;
     if (!weatherHold.on) {
       for (const kind of WEATHER_KINDS) weatherLevels[kind.name] = climate.amountOf(kind.name);
     }

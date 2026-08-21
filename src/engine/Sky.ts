@@ -53,6 +53,8 @@ export interface SkySettings {
   sun: boolean;
   /** Angular radius of the disc, in degrees. The real one is about 0.27. */
   sunSize: number;
+  /** The moon's, likewise. The real one is about 0.26. */
+  moonSize: number;
   /** How far the halo reaches. Larger is *tighter* — it is an exponent. */
   sunGlow: number;
 }
@@ -391,14 +393,18 @@ export const SKY_GLSL = /* glsl */ `
     float w = sqrt(max(1.0 - r * r, 0.0));
 
     float elongation = uMoonPhase * 6.2831853;
-    float face = smoothstep(-0.05, 0.05, u * sin(elongation) - w * cos(elongation));
+    float face = smoothstep(-0.075, 0.075, u * sin(elongation) - w * cos(elongation));
 
     // The maria. Two octaves over the disc, and it is worth the eight hashes:
     // a plain white circle reads as a light, and any marking at all reads as
     // the moon.
-    float mare = valueNoise(vec2(u, v) * 2.1 + 31.7) * 0.6
-      + valueNoise(vec2(u, v) * 5.3 - 12.4) * 0.4;
-    vec3 rock = uMoonColor * (0.88 + 0.12 * smoothstep(0.35, 0.75, mare));
+    float mare = valueNoise(vec2(u, v) * 1.6 + 31.7) * 0.62
+      + valueNoise(vec2(u, v) * 3.5 - 12.4) * 0.38;
+    // Driven past white on purpose. The moon is the brightest thing in a night
+    // sky by a long way, and a lit face that peaks exactly at white reads as a
+    // pale disc rather than as a light — so the highlands clip and only the
+    // maria stay under, which is what leaves them visible at all.
+    vec3 rock = uMoonColor * (1.45 * (0.78 + 0.22 * smoothstep(0.35, 0.75, mare)));
 
     // No limb darkening. The moon is retroreflective, which is why a full one
     // reads as a flat disc cut out of the sky rather than as a lit ball.
@@ -479,6 +485,7 @@ export const DEFAULT_SKY: SkySettings = {
   // the pixelation pass has had it, which reads as a stuck dead pixel rather
   // than as the sun.
   sunSize: 1.1,
+  moonSize: 0.95,
   sunGlow: 240,
 
 };
@@ -553,6 +560,7 @@ export class Sky {
     // doing the conversion here keeps an `acos` out of the per-pixel path and
     // keeps the setting in units a person can reason about.
     u.uSunSize.value = Math.cos((settings.sunSize * Math.PI) / 180);
+    u.uMoonSize.value = Math.cos((settings.moonSize * Math.PI) / 180);
     u.uSunGlow.value = settings.sunGlow;
   }
 
