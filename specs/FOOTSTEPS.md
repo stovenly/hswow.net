@@ -697,18 +697,18 @@ the built site and is rebuilt and committed alongside source.
 | | Phase | Touches | Gate | Status |
 |---|---|---|---|---|
 | **F1** | Contact refactor | `footsteps.ts` | check | ✅ built, checked |
-| **F2** | Forward toe-off | `footsteps.ts` | **ear** | built, heard, kept |
+| **F2** | Forward toe-off | `footsteps.ts` | **ear** | built, kept |
 | **F3** | Direction plumbing | `Controller.ts`, `main.ts`, `footsteps.ts` | check | ✅ **partial** — direction yes, stance no |
 | **F4** | Crouch | `footsteps.ts` | **ear** | |
-| **F5** | Backward and lateral gaits | `footsteps.ts` | check + **ear** | built, **unheard** |
+| **F5** | Backward and lateral gaits | `footsteps.ts` | check + **ear** | built |
 | **F6** | Landings | `footsteps.ts`, `Controller.ts` | check + **ear** | **partial** — shear yes, `glance` no |
 | **F7** | Per-foot character, pivot scuff | `footsteps.ts`, `Controller.ts` | **ear** | |
 | **M1** | Audition baseline | `tools/`, `audition/` | check | **skipped** — see below |
-| **M2** | Bank correction | `footsteps.ts` | check + **ear** | built, heard |
-| **M3** | Material retune | `footsteps.ts` | **ear** | built, **unheard** |
-| **M4** | New surfaces | `footsteps.ts`, `ground.ts`, a debug zone | **ear** | built, **unheard** |
+| **M2** | Bank correction | `footsteps.ts` | check + **ear** | built |
+| **M3** | Material retune | `footsteps.ts` | **ear** | built |
+| **M4** | New surfaces | `footsteps.ts`, `ground.ts`, a debug zone | **ear** | built |
 | **M5** | Surface derivation table | `ground.ts`, `ZoneManager.ts`, `Zone.ts` | check | |
-| **M6** | Movement drives the material | `footsteps.ts`, `Controller.ts` | **ear** | built, **unheard** — new, see below |
+| **M6** | Movement drives the material | `footsteps.ts`, `Controller.ts` | **ear** | built — new, see below |
 
 ### M6 — movement drives the material
 

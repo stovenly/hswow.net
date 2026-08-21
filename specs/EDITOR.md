@@ -2,12 +2,12 @@
 
 **Not built.** This is the plan for making zones data instead of code, and then for editing
 that data in the running game. Nothing here exists yet; the file names, key names and slugs
-throughout are provisional — naming is the repo owner's. SPEC.md reserves the destinations
+throughout are provisional — naming is the repo owner's. MASTER-SPEC.md reserves the destinations
 already: `src/content/` ("data only — zones, npcs, topics, quests, items, notes") and
 `src/editor/` ("world editor, Phase 11"), with the note that content files hold no engine
 imports. This document says what goes in them and in what order the work runs.
 
-The trigger for writing it is the one SPEC.md's Phase 11 deferral told us to watch for:
+The trigger for writing it is the one MASTER-SPEC.md's Phase 11 deferral told us to watch for:
 *"wanting to nudge one prop at a time, or authoring a zone that is mostly hand-placed set
 pieces rather than rules."* The long-term intent is hand-placed zones authored by a person,
 and that intent has now been stated. The deferral has expired.
@@ -254,7 +254,7 @@ anchored to props (`"at": { "ref": "smithy-forge", "lift": 1.1 }` — replacing 
 shared-constant convention with the same guarantee that neither can move without the
 other), and eventually quest scripts. Everything else stays anonymous.
 
-**Conditions.** Entries and layers may carry `when`, in the grammar SPEC.md's dialogue
+**Conditions.** Entries and layers may carry `when`, in the grammar MASTER-SPEC.md's dialogue
 model already commits to — quest stage, flag — with the three combinators:
 
 ```jsonc
@@ -284,7 +284,7 @@ the other town.
 **The delineation, in one line each.** The zone file knows where a body stands; the
 character file knows who they are. So: `content/zones/` — places, layers, refs.
 `content/world.json` — the portal graph. `content/npcs/` — greeting, topics, rebuffs, per
-SPEC.md's existing data model; a zone places `{ "npc": "miller", "figureSeed": 3, "at": …,
+MASTER-SPEC.md's existing data model; a zone places `{ "npc": "miller", "figureSeed": 3, "at": …,
 "patrol": [...] }` and the id joins the two. `content/quests/` — stages and the flags they
 set. `content/notes/` — readable text, teaching keywords. Zone documents point *into*
 these by id and never contain them; `check:world` grows a cross-reference pass so a

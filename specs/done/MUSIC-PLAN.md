@@ -1,6 +1,8 @@
 # Music director — research findings and plan
 
-Answer to `MUSIC-RESEARCH.md`. Written plan with options; no code changes made.
+**Built.** Answer to `MUSIC-RESEARCH.md`; phases 6n–6s all landed, and the
+listening pass is done. What follows is the measurement and the reasoning the
+build came from.
 
 Every number below came from a measurement pass over the current director, not
 from reading it. The harness is

@@ -1,5 +1,9 @@
 # Figure refactor: one surface vocabulary, explicit layers, physiques
 
+**Built**, all ten steps. `figure-surface.ts`, `figure-layers.ts`,
+`figure-people.ts`, `figure-limbs.ts` and `src/life/envelope.ts` are the files
+the path below asked for.
+
 A design for reworking how figures are dressed and proportioned. Read LIFE.md
 §3 and §5 first; this document assumes it. The code it covers: `figure.ts`,
 `figure-trunk.ts`, `figure-wear.ts`, `figure-finery.ts` in `src/art/builders/`,

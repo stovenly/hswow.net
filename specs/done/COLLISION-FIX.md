@@ -1,8 +1,12 @@
 # Collision fix
 
-Status: **proposed**, nothing built. Four phases, in order. Phases 1 and 2 are engine
-work in one file and need no content decisions; phases 3 and 4 are the builder contract
-and the retrofit behind it.
+**Built, phases 1 and 2** — the query stamp and the split guards, in one file.
+Worst-spot query cost fell from 7.83 ms to 0.125 ms in the exterior and from
+6.64 ms to 0.109 ms in the villager hut.
+
+**Phases 3 and 4 moved to `FUTURE-REFACTORS.md`** — the per-part solid field and
+the retrofit behind it. They make the index *right* rather than fast, and nothing
+is waiting on them.
 
 ---
 

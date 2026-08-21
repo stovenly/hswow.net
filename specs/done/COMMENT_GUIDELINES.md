@@ -1,6 +1,9 @@
 # Comment cleanup — spec
 
-Nothing in this document has been applied. No project file was touched.
+**Applied**, phases 0 through 9, one commit per phase, and every area
+`CLAUDE.md` in the proposed set is written. **Phase 10, `tools/`, moved to
+`FUTURE-REFACTORS.md`** — it is blocked on the decision about the check
+harnesses, which is not a comment question.
 
 ## 0. What is actually there
 
@@ -204,11 +207,11 @@ files describe what they place — which is what the code already shows.
 Entry point. Late because it references every area and reads best once the areas
 beneath it are settled.
 
-### Phase 10 — `tools/` (8 files)
-Same treatment. Separately: `tools/` still holds `audio-check.ts`,
-`glsl-check.ts`, `movement-check.ts`, `world-check.ts`, `faust-check.ts` — the
-no-checks rule says these should not exist. **Out of scope for this work**, but
-worth a decision, and if they are going anyway they should not be tidied first.
+### Phase 10 — `tools/` (8 files) *(moved out)*
+The two footstep tools were done; the other six were not. Blocked on the
+decision about the five check harnesses, which the no-checks rule says should
+not exist at all — tidying files that are meant to go is wasted work. Carried
+in `FUTURE-REFACTORS.md`.
 
 Rough total: ~28,000 of the 36,400 comment lines expected to go, around 1.1 MB.
 

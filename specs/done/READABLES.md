@@ -1,10 +1,16 @@
 # Books, letters and notes — spec
 
-**Not built.** This is the plan for things in the world that carry writing, the screen you
-read them on, and where the words live. Names throughout are provisional — file name,
-builder slugs, key names, and every word of fiction are yours.
+**Built, R1 through R7.** `art/book.ts` and `art/writing.ts` are the shared
+construction, the roster is in `art/builders/`, `content/notes.ts` holds the
+words and `ui/Reading.ts` is the screen. The gallery and the showcase are both
+standing.
 
-SPEC.md already commits to most of the shape: Phase 8 lists *"readable notes and letters
+**R8 was split.** Its keyword half — parsing `[[keyword]]`, rendering it, and
+teaching a topic — is dialogue work and lives in `MASTER-SPEC.md` Phase 8. Its
+presentation half, along with everything the reading screen still needs to look
+good, is `READABLES-POLISH.md`.
+
+MASTER-SPEC.md already commits to most of the shape: Phase 8 lists *"readable notes and letters
 found in the world — these teach keywords too"*, `[[keyword]]` markup that highlights and
 teaches as lines are read, a `NoteUI`, and `content/notes/` as data. EDITOR.md's delineation
 paragraph already reserves the directory: *"`content/notes/` — readable text, teaching
@@ -526,8 +532,8 @@ Readables are never merged, by the rule two sections up.
 ## Phases
 
 Eight phases, and **every one of them ends with something you can walk up to and look at**
-— SPEC.md's rule for its own phases, and the reason this order is what it is rather than
-schema-first. R-numbered so they cannot be confused with SPEC.md's global phases; the whole
+— MASTER-SPEC.md's rule for its own phases, and the reason this order is what it is rather than
+schema-first. R-numbered so they cannot be confused with MASTER-SPEC.md's global phases; the whole
 sequence is a slice of that document's Phase 8, taken without the quests.
 
 The order is picture-first: the two claims most likely to change the design — *does a
@@ -630,7 +636,7 @@ systems, and until R6 there is nothing finished to argue with.
 
 ### Phase R8 — Keywords, memory and the accessibility pass
 
-`[[keyword]]` rendered highlighted against a `teach()` that is a stub until SPEC.md's
+`[[keyword]]` rendered highlighted against a `teach()` that is a stub until MASTER-SPEC.md's
 Phase 8 exists. Read-state dimming on the tooltip, and the read set added to the autosave
 payload it is already listed in. Repagination that holds the reader's place **by word rather
 than by page number**, so changing text size mid-note does not throw you elsewhere in it.

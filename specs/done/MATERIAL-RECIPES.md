@@ -5,7 +5,9 @@ built the finish stage (M0–M2) and the transmissive family (M3). This proposes
 goes on that stage *next*, and one small piece of architecture that makes a long list
 of them affordable instead of one of them expensive.
 
-Nothing here is committed work. Names are placeholders throughout, as they are there.
+**Built.** M5–M8 are in `art/recipes/`; asterism, grating, aventurine and
+retroreflect were cut in review and their indices retired. The gallery has been
+walked and the set signed off.
 
 ---
 
