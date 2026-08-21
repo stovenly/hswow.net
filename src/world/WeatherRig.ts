@@ -67,6 +67,18 @@ export class WeatherRig {
   /** Seconds the fallback bed has been silent, before it is let go. */
   private quiet = 0;
   private readonly key = new THREE.Vector3();
+  /**
+   * The sky's own clock, in seconds. Driven by *game* time rather than by the
+   * frame clock, so scrubbing the hour moves the cloud with it — but geared
+   * down, because a day compressed to twenty-four minutes would otherwise put
+   * the decks through sixty times their own speed and streak them.
+   *
+   * Kept as an accumulator rather than derived from the day count: the shared
+   * hash loses its precision in the thousands, and a world several days old
+   * would land there.
+   */
+  private cloudClock = 0;
+  private lastDay = 0;
   private readonly airColour = new THREE.Color();
   private airMix = 0;
   private airNear = 1;
@@ -120,10 +132,15 @@ export class WeatherRig {
     climate.setPlace(zone?.place);
     climate.pinned = zone !== null && zone.place === undefined;
     climate.update(dt);
+    // Geared so that at the default day length one sky second is one real
+    // second, and a longer or shorter day slows or quickens the sky with it.
+    const moved = (climate.elapsedDays - this.lastDay) * 86400;
+    this.lastDay = climate.elapsedDays;
+    this.cloudClock += Math.max(0, Math.min(moved / 60, 600));
 
     this.readAir();
     this.applyLight(postfx, zones, elapsed);
-    this.applySky(postfx, dt, elapsed);
+    this.applySky(postfx, dt);
     postfx.setWeatherAir(this.airColour, this.airMix, this.airNear, this.airFar);
     this.applySurfaces(dt, outdoors, zone?.environment.wind ?? 1);
     this.applyFalling(postfx, outdoors);
@@ -189,7 +206,7 @@ export class WeatherRig {
     setGlowLevel(dusk * dusk * (3 - 2 * dusk));
   }
 
-  private applySky(postfx: PostFX, dt: number, elapsed: number): void {
+  private applySky(postfx: PostFX, dt: number): void {
     planSky(this.climate, this.wanted);
     this.easeDecks(dt);
     for (const deck of this.decks) {
@@ -210,11 +227,12 @@ export class WeatherRig {
         deck.shade.multiplyScalar(1 - grey * 0.35);
       }
     }
-    // Cloud speed is the wind's, so a blustery day has a sky to match and a
-    // still one barely moves. The clock is real seconds; the decks are in
-    // kilometres, and one crosses the visible plane in several minutes.
-    const speed = 0.45 + this.climate.wind.settings.windSpeed * 1.6;
-    postfx.setDecks(this.decks, this.climate.wind.settings.windDirection, elapsed, speed);
+    postfx.setDecks(
+      this.decks,
+      this.climate.wind.settings.windDirection,
+      this.climate.wind.settings.windSpeed,
+      this.cloudClock,
+    );
     // Strongest at broken cover and gone at both ends: a clear sky casts no
     // cloud shadow, and a solid one casts no shadow either — it darkens
     // everything, which the light rig above has already done.
