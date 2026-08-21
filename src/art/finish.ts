@@ -402,6 +402,19 @@ export function applyFinish(material: THREE.Material, mask: number): void {
          */
         float finishSmooth = 0.0;
         float finishEnvBlur = 1.0;
+        /**
+         * How grazing the *view ray* is, 0 looking straight down at a surface
+         * and 1 looking along it. Smooth over the whole frame, because it does
+         * not touch the normal at all.
+         *
+         * A bare wet surface cannot use a fresnel off its own normal: the
+         * material is flat shaded, so that fresnel is one value per triangle
+         * and swings from a twentieth to three quarters between neighbouring
+         * facets — the whole mesh comes back drawn on the surface in grey. The
+         * cue that actually reads on wet ground is the ray's own angle anyway:
+         * the road far off is bright and the road at your feet is dark.
+         */
+        float finishGraze = 0.0;
 
         /** The interpolated attribute normal, in view space. See finishSmooth. */
         vec3 finishSoftNormal() {
@@ -646,8 +659,13 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
 
           float distribution = finishD(finishLobeNormal, halfDir);
 
+          // Pulled down where the finish stage is only running because the
+          // surface is wet: a direct lobe on a flat-shaded facet is one value
+          // for the whole triangle however broad it is, so a bare wet surface
+          // leans on the sky and the darkening instead.
           reflectedLight.directSpecular += shadedLight.color * F
-            * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * recipeGloss * uFinishSpecular);
+            * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * recipeGloss
+               * uFinishSpecular * mix(1.0, 0.3, finishSmooth));
 ${glint ? /* glsl */ `
           if (finishGlint > 0.0) {
             // Pushed most of the way to white and hard: a grain is a fraction of
@@ -727,9 +745,13 @@ ${trans ? /* glsl */ `
               ? (1.0 - vFinish.x) * (1.0 - vFinish.z) * smoothstep(0.12, 0.55, vFinish.y)
               : 1.0;
             // Rain runs down a wall and never reaches an underside.
+            // One wide gate on the normal and nothing else. How wet a surface
+            // is has to come from where it stands, not from which way it
+            // faces: the material is flat shaded, so every normal term is one
+            // value for a whole triangle, and two of them stacked is how the
+            // mesh ends up drawn on the surface in grey.
             finishWet = uWetness * soak * reach
-              * smoothstep(-0.4, -0.02, finishUp.y)
-              * mix(0.25, 1.0, smoothstep(-0.05, 0.55, finishUp.y))
+              * smoothstep(-0.6, 0.25, finishUp.y)
               // Water stands where the ground lets it. Flat and even is a
               // varnish; uneven is a wet street.
               * (0.72 + 0.5 * finishGrain);
@@ -738,7 +760,7 @@ ${trans ? /* glsl */ `
             // forty degrees sheds, which is what a pitched roof is for, and a
             // wall holds none at all — so the threshold is high and narrow,
             // and the noise is what stops the line it draws from being a band.
-            float lie = smoothstep(0.5, 0.86, finishUp.y);
+            float lie = smoothstep(0.34, 0.95, finishUp.y);
             finishCrust = uSnow * reach
               * smoothstep(0.28, 0.72, lie * (0.62 + 0.72 * finishGrain));
             finishWet *= 1.0 - finishCrust;
@@ -814,6 +836,10 @@ ${aniso ? /* glsl */ `
           // carried by the darkening and the grazing fresnel instead.
           float finishBare = 1.0 - step(0.001, vFinish.y);
           finishSmooth = finishWet * finishBare;
+          {
+            vec3 toEye = inverseTransformDirection(normalize(vViewPosition), viewMatrix);
+            finishGraze = pow(1.0 - abs(toEye.y), 5.0);
+          }
 
           if (finishWet > 0.0) {
             // Water standing in the pores. Multiplied by *itself* rather than
@@ -875,6 +901,8 @@ ${aniso ? /* glsl */ `
           // toward F0 by however much rim the recipe asked for.
           vec3 f90 = mix(finishF0, max(vec3(1.0 - finishRough), finishF0), recipeRim);
           vec3 envF = finishF0 + (f90 - finishF0) * pow(1.0 - finishNV, 5.0);
+          // Bare and wet: off the ray rather than off the facet. See finishGraze.
+          envF = mix(envF, vec3(mix(0.025, 0.5, finishGraze)), finishSmooth);
           // Scaled by the same (1 − sheen) the direct lobe is: a velvet
           // reflecting the sky would be a velvet-coloured mirror.
           reflectedLight.indirectSpecular +=
