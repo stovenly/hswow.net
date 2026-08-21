@@ -390,6 +390,23 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         float finishCrust = 0.0;
         /** Where the weather lies thick and where it lies thin, 0..1. */
         float finishGrain = 0.5;
+        /**
+         * How far to lean on the interpolated normal instead of the face one,
+         * and how hard to blur what the surface reflects.
+         *
+         * A surface with no finish of its own is lit only because it is wet,
+         * and the material is flat shaded: one normal per triangle means one
+         * sky sample and one dot(N, H) per triangle, so a narrow lobe and a
+         * sharp reflection both come back as patches shaped like the mesh.
+         * That is the field of triangles a wet field turns into otherwise.
+         */
+        float finishSmooth = 0.0;
+        float finishEnvBlur = 1.0;
+
+        /** The interpolated attribute normal, in view space. See finishSmooth. */
+        vec3 finishSoftNormal() {
+          return normalize(vRecipeNormal);
+        }
         /** 1 in open sun, down to 1 − strength under the low deck. */
         float finishCloud = 1.0;
 
@@ -612,18 +629,22 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
             geometryClearcoatNormal, material, reflectedLight);
           if (finishStrength <= 0.0) return;
 
+          // The diffuse keeps the face normal — the props read low-poly and
+          // that is the look — but the highlight takes the interpolated one,
+          // or it lands as whole triangles.
+          vec3 finishLobeNormal = normalize(mix(geometryNormal, finishSoftNormal(), finishSmooth));
           vec3 halfDir = normalize(directLight.direction + geometryViewDir);
-          float dotNL = saturate(dot(geometryNormal, directLight.direction));
-          float dotNH = saturate(dot(geometryNormal, halfDir));
+          float dotNL = saturate(dot(finishLobeNormal, directLight.direction));
+          float dotNH = saturate(dot(finishLobeNormal, halfDir));
           float dotVH = saturate(dot(geometryViewDir, halfDir));
-          float dotNV = saturate(dot(geometryNormal, geometryViewDir));
+          float dotNV = saturate(dot(finishLobeNormal, geometryViewDir));
           vec3 F = F_Schlick(finishF0, 1.0, dotVH);
 
           // Sheen replaces this lobe rather than standing on top of it: cloth
           // scatters in its fibres and does not also carry a dielectric mirror.
           float lobe = 1.0 - finishSheen;
 
-          float distribution = finishD(geometryNormal, halfDir);
+          float distribution = finishD(finishLobeNormal, halfDir);
 
           reflectedLight.directSpecular += shadedLight.color * F
             * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * recipeGloss * uFinishSpecular);
@@ -788,6 +809,12 @@ ${aniso ? /* glsl */ `
             finishRough = mix(finishRough, 0.82, finishCrust);
             finishSheen *= 1.0 - finishCrust;
           }
+          // Bare, and wet: the finish stage is only running here because of
+          // the weather. Wide lobe, flat reflection, and the wetness read
+          // carried by the darkening and the grazing fresnel instead.
+          float finishBare = 1.0 - step(0.001, vFinish.y);
+          finishSmooth = finishWet * finishBare;
+
           if (finishWet > 0.0) {
             // Water standing in the pores. Multiplied by *itself* rather than
             // by a constant, which is the whole difference between a wet
@@ -800,9 +827,13 @@ ${aniso ? /* glsl */ `
             // Tight enough to read as water and no tighter: a narrower lobe
             // than this crawls against the quantizer, and the painted register
             // does not want a mirror.
-            finishRough = mix(finishRough, max(0.13, finishRough * 0.18), finishWet);
+            float wetRough = mix(max(0.13, finishRough * 0.18), 0.38, finishBare);
+            finishRough = mix(finishRough, wetRough, finishWet);
             finishF0 = max(finishF0, vec3(0.02 * finishWet));
           }
+          // Set last, once roughness is settled. Bare wet surfaces take the
+          // sky's average rather than a sample of it.
+          finishEnvBlur = mix(finishRough, 0.95, finishSmooth);
           finishTintDepth = max(max(finishF0.r, finishF0.g), finishF0.b)
             - min(min(finishF0.r, finishF0.g), finishF0.b);
           material.diffuseColor *= 1.0 - finishMetal;
@@ -816,8 +847,10 @@ ${aniso ? /* glsl */ `
         '#include <lights_fragment_end>',
         /* glsl */ `#include <lights_fragment_end>
         if (finishStrength > 0.0) {
-          vec3 finishBounce = reflect(
-            -geometryViewDir, recipeSmoothEnv ? recipeSmoothNormal() : geometryNormal);
+          vec3 finishEnvNormal = recipeSmoothEnv
+            ? recipeSmoothNormal()
+            : normalize(mix(geometryNormal, finishSoftNormal(), finishSmooth));
+          vec3 finishBounce = reflect(-geometryViewDir, finishEnvNormal);
           vec3 finishWorld = inverseTransformDirection(finishBounce, viewMatrix);
           ${slot('envBend', 10)}
           vec3 finishEnv = vec3(0.0);
@@ -827,7 +860,7 @@ ${aniso ? /* glsl */ `
           ${anyRecipe ? recipeChain(recipes, 'envSource', 10) : ''}if (uFinishSky > 0.5) {
             vec3 finishSky = skyColourWithSun(finishWorld, recipeSunGlare);
             finishEnv = mix(finishSky, mix(uHorizon, uZenith, 0.4),
-              smoothstep(0.15, 0.85, finishRough));
+              smoothstep(0.15, 0.85, finishEnvBlur));
           }
           // A tinted metal reflecting only the sky comes back wrong: gold has
           // almost no blue and the sky little else, so gilding renders olive.
@@ -836,8 +869,7 @@ ${aniso ? /* glsl */ `
           float envLuma = dot(finishEnv, vec3(0.2126, 0.7152, 0.0722));
           finishEnv = mix(finishEnv, vec3(envLuma), saturate(finishTintDepth) * 0.8);
 
-          float finishNV = saturate(dot(
-            recipeSmoothEnv ? recipeSmoothNormal() : geometryNormal, geometryViewDir));
+          float finishNV = saturate(dot(finishEnvNormal, geometryViewDir));
           // Schlick climbs to 1 at a grazing angle whatever the surface is, so
           // the grazing value is capped by roughness and then pulled back
           // toward F0 by however much rim the recipe asked for.

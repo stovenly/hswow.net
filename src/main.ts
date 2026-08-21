@@ -167,6 +167,9 @@ const audio = new AudioEngine(audioLatencyHint(options));
 const climate = new Climate(audio.weather);
 /** Read back into the panel each frame. The climate names the sky; nobody sets it. */
 const deckNames = { high: '—', mid: '—', low: '—' };
+/** What the tone picker calls handing the choice back to the day. */
+const ROLLED = 'as the day rolls it';
+
 /** The panel's weather sliders, and whether they are driving or reporting. */
 const weatherHold = { on: false };
 const weatherLevels: Record<string, number> = {};
@@ -673,6 +676,21 @@ if (dev.gui) {
       });
   }
 
+  // A kind with a palette gets a picker: what smog is made of is not a
+  // constant, and which week's pollution this is should be visible and pinnable.
+  for (const kind of WEATHER_KINDS) {
+    if (!kind.tones || kind.tones.length === 0) continue;
+    const names = [ROLLED, ...kind.tones.map((tone) => tone.name)];
+    const pick = { tone: ROLLED };
+    climateFolder
+      .add(pick, 'tone', names)
+      .name(`${kind.name} tone`)
+      .onChange((value: string) => {
+        const at = kind.tones ? kind.tones.findIndex((tone) => tone.name === value) : -1;
+        climate.pinTone(kind.name, at < 0 ? null : at);
+      });
+  }
+
   // What the weather does to what it lands on. Held apart from the climate,
   // which decides *whether* it is raining; this is what raining looks like.
   const lying = dev.gui.addFolder('weather surfaces');
@@ -828,6 +846,8 @@ if (dev.gui) {
     soaked: '—',
     /** Tonight's moon, and how much of it is lit. */
     moon: '—',
+    /** Which colour the smog is running in today. */
+    haze: '—',
     room: '—',
     // Audio has no visible output at all, so a readout of what it thinks is
     // happening is the only way to tell "occlusion is broken" apart from
@@ -1029,6 +1049,8 @@ if (dev.gui) {
     readout.swell = audio.weather.swell.toFixed(2);
     readout.sun = `${climate.sunElevation.toFixed(1)}°  ${climate.temperature.toFixed(0)}°C`;
     readout.moon = `${climate.moonName} ${(climate.moonLight * 100).toFixed(0)}%`;
+    const smog = WEATHER_KINDS.find((kind) => kind.name === 'smog');
+    readout.haze = smog ? (climate.toneOf(smog)?.name ?? '—') : '—';
     readout.soaked = `${weather.wet.toFixed(2)} / ${weather.lying.toFixed(2)}`;
     for (let i = 0; i < 3; i++) {
       const deck = weather.decks[i];
