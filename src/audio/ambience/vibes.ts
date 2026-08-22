@@ -387,10 +387,10 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'air', id: 'air', options: { gain: 0.05, tone: 400, shelter: 0.95, aperture: 0.55, roar: 1.0, rush: 0.35, hiss: 0.05 }, follow: [{ by: 'wind', span: [0.7, 1.1] }] },
-    // The passage, blown across. The best cave sound there is and it is already
-    // in the kit.
-    { model: 'waveguide', options: { pitch: 41, decay: 4.5, closed: true, bright: 0.12, gain: 0.16 }, follow: [{ by: 'gust', span: [0.4, 1] }] },
+    { model: 'air', id: 'air', options: { gain: 0.028, tone: 400, shelter: 0.95, aperture: 0.2, roar: 1.0, rush: 0.3, hiss: 0.04 }, follow: [{ by: 'wind', span: [0.7, 1.1] }] },
+    // The chamber itself. Not a pipe: a cave has no note, it has several broad
+    // irrational resonances that wander as the air moves through it.
+    { model: 'cavern', id: 'room', options: { size: 42, hard: 0.78, drift: 0.55, floor: 0.6, gain: 0.2 } },
   ],
   chorus: [
     { model: 'water', tier: 'far', options: { flow: 'stream', gain: 0.09, tone: 0.3 } },
@@ -412,8 +412,9 @@ export const CAVE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'air', id: 'air', options: { gain: 0.04, tone: 500, shelter: 0.95, aperture: 0.45, roar: 0.95, rush: 0.35, hiss: 0.06 }, follow: [{ by: 'wind', span: [0.7, 1.05] }] },
-    { model: 'waveguide', options: { pitch: 55, decay: 3.6, closed: true, bright: 0.16, gain: 0.11 }, follow: [{ by: 'gust', span: [0.4, 1] }] },
+    { model: 'air', id: 'air', options: { gain: 0.024, tone: 500, shelter: 0.95, aperture: 0.2, roar: 0.95, rush: 0.3, hiss: 0.05 }, follow: [{ by: 'wind', span: [0.7, 1.05] }] },
+    // Smaller and softer than the deep cave: it has been lived in.
+    { model: 'cavern', id: 'room', options: { size: 62, hard: 0.62, drift: 0.4, floor: 0.45, gain: 0.16 } },
   ],
   chorus: [
     { model: 'fire', tier: 'near', height: 0.4, options: { gain: 0.3, intensity: 0.5, tone: 0.85, crackle: 0.55, draught: 0.1 } },
@@ -441,9 +442,9 @@ export const CAVE_2_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_DARK_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'air', id: 'air', options: { gain: 0.05, tone: 300, shelter: 0.97, aperture: 0.6, roar: 1.1, rush: 0.3, hiss: 0.03 }, follow: [{ by: 'wind', span: [0.8, 1.05] }] },
-    // A passage whose length keeps changing as the air moves through it.
-    { model: 'waveguide', options: { pitch: 33, decay: 6, closed: true, bright: 0.08, gain: 0.19 }, follow: [{ by: 'gust', span: [0.5, 1] }] },
+    { model: 'air', id: 'air', options: { gain: 0.03, tone: 300, shelter: 0.97, aperture: 0.25, roar: 1.1, rush: 0.25, hiss: 0.02 }, follow: [{ by: 'wind', span: [0.8, 1.05] }] },
+    // Bigger, harder and lower than the cave above it, and it drifts further.
+    { model: 'cavern', id: 'room', options: { size: 28, hard: 0.88, drift: 0.75, floor: 0.85, gain: 0.24 } },
   ],
   chorus: [
     { model: 'water', tier: 'far', options: { flow: 'stream', gain: 0.07, tone: 0.22 } },
@@ -464,14 +465,15 @@ export const CAVE_DARK_AMBIENCE: AmbienceSpec = {
 
 export const FACTORY_1_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'air', id: 'air', options: { gain: 0.06, tone: 1600, shelter: 0.85, aperture: 0.1, roar: 0.6, rush: 0.8, hiss: 0.25 } },
-    // The plant, felt before it is heard.
-    { model: 'machine', options: { rpm: 340, fundamental: 50, gain: 0.16, wear: 0.5, clank: 0.1 } },
+    { model: 'air', id: 'air', options: { gain: 0.05, tone: 1600, shelter: 0.85, aperture: 0.1, roar: 0.6, rush: 0.8, hiss: 0.25 } },
+    // The plant, felt before it is heard. Noise resonating in metal with the
+    // saturation inside the loop, so it grinds and wanders rather than droning.
+    { model: 'plant', id: 'plant', options: { rpm: 340, size: 74, metal: 0.55, clank: 0.35, wear: 0.5, load: 0.5, duty: 0.5, gain: 0.2 } },
   ],
   chorus: [
-    { model: 'machine', tier: 'mid', height: 2, options: { rpm: 96, fundamental: 62, gain: 0.2, wear: 0.55, clank: 0.7 } },
+    { model: 'plant', tier: 'mid', height: 2, options: { rpm: 96, size: 120, metal: 0.7, clank: 0.8, wear: 0.55, load: 0.4, duty: 0.7, gain: 0.18 } },
     { model: 'friction', tier: 'mid', height: 1.5, options: { force: 0.45, pitch: 180, decay: 0.4, bright: 0.55, roughness: 0.75, gain: 0.16, motion: 'steady', speed: 0.4 } },
-    { model: 'machine', tier: 'far', height: 3, options: { rpm: 520, fundamental: 88, gain: 0.12, wear: 0.7, clank: 0.05 } },
+    { model: 'plant', tier: 'far', height: 3, options: { rpm: 520, size: 165, metal: 0.4, clank: 0.05, wear: 0.7, load: 0.3, duty: 0.4, gain: 0.11 } },
   ],
   cast: [
     { voice: 'metal', every: [20, 55], tier: 'mid' },
@@ -493,11 +495,11 @@ export const FACTORY_1_AMBIENCE: AmbienceSpec = {
 
 export const FACTORY_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'air', id: 'air', options: { gain: 0.05, tone: 1400, shelter: 0.88, aperture: 0.08, roar: 0.65, rush: 0.8, hiss: 0.2 } },
-    { model: 'machine', options: { rpm: 260, fundamental: 42, gain: 0.24, wear: 0.6, clank: 0.15 } },
+    { model: 'air', id: 'air', options: { gain: 0.045, tone: 1400, shelter: 0.88, aperture: 0.08, roar: 0.65, rush: 0.8, hiss: 0.2 } },
+    { model: 'plant', id: 'plant', options: { rpm: 260, size: 58, metal: 0.75, clank: 0.6, wear: 0.6, load: 0.75, duty: 0.6, gain: 0.26 } },
   ],
   chorus: [
-    { model: 'machine', tier: 'near', height: 1.5, options: { rpm: 140, fundamental: 55, gain: 0.26, wear: 0.6, clank: 0.85 } },
+    { model: 'plant', tier: 'near', height: 1.5, options: { rpm: 140, size: 96, metal: 0.85, clank: 0.9, wear: 0.6, load: 0.7, duty: 0.55, gain: 0.22 } },
     { model: 'fire', tier: 'mid', height: 1, options: { gain: 0.3, intensity: 0.95, tone: 0.7, crackle: 0.25, draught: 0.05 } },
     { model: 'friction', tier: 'near', height: 1.2, options: { force: 0.75, pitch: 420, decay: 0.25, bright: 0.9, roughness: 0.85, gain: 0.2, motion: 'steady', speed: 0.75 } },
   ],
@@ -518,8 +520,8 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
 export const SEWER_1_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.05, tone: 600, shelter: 0.92, aperture: 0.5, roar: 0.85, rush: 0.45, hiss: 0.1 } },
-    // Down the length of it, at a different length from the score's drone.
-    { model: 'waveguide', options: { pitch: 47, decay: 5, closed: true, bright: 0.14, gain: 0.15 }, follow: [{ by: 'gust', span: [0.5, 1] }] },
+    // A long brick tube: high, hard, and it drifts almost not at all.
+    { model: 'cavern', id: 'room', options: { size: 96, hard: 0.85, drift: 0.2, floor: 0.4, gain: 0.15 } },
     { model: 'water', id: 'flow', options: { flow: 'stream', gain: 0.14, tone: 0.5 } },
   ],
   chorus: [

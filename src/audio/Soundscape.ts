@@ -12,6 +12,8 @@ import { createCrowd, type CrowdOptions } from './models/crowd';
 import { createFriction, type FrictionOptions } from './models/friction';
 import { createWaveguide, type WaveguideOptions } from './models/waveguide';
 import { createAir, type AirOptions } from './models/air';
+import { createCavern, type CavernOptions } from './models/cavern';
+import { createPlant, type PlantOptions } from './models/plant';
 import { createInsect, type InsectOptions } from './models/insect';
 import { createSurf, type SurfOptions } from './models/surf';
 import { createWire, type WireOptions } from './models/wire';
@@ -53,6 +55,8 @@ export type ModelSpec =
   | { model: 'friction'; options?: FrictionOptions }
   | { model: 'waveguide'; options?: WaveguideOptions }
   | { model: 'air'; options?: AirOptions }
+  | { model: 'cavern'; options?: CavernOptions }
+  | { model: 'plant'; options?: PlantOptions }
   | { model: 'insect'; options?: InsectOptions }
   | { model: 'surf'; options?: SurfOptions }
   | { model: 'wire'; options?: WireOptions }
@@ -135,6 +139,10 @@ export function buildModel(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createWaveguide(engine, spec.options);
     case 'air':
       return createAir(engine, spec.options);
+    case 'cavern':
+      return createCavern(engine, spec.options);
+    case 'plant':
+      return createPlant(engine, spec.options);
     case 'insect':
       return createInsect(engine, spec.options);
     case 'surf':
