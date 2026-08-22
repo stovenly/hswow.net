@@ -589,7 +589,7 @@ export class Footsteps {
 
     this.output.connect(this.body);
     this.body.connect(this.panner);
-    this.panner.connect(engine.dry);
+    this.panner.connect(engine.steps);
     // A little reverb, so your own steps tell you what room you are in. Through
     // its own gain because a long tail on something at zero distance reads as a
     // cave rather than a hall.

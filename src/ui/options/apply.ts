@@ -80,12 +80,15 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   const options = effective(stored);
 
   // --- audio ---------------------------------------------------------------
-  // Master, music and ambience; the other three are stored, shown and marked as
-  // unconnected in the menu itself. See `notWired` in `model.ts`.
+  // Every slider is a percentage of the level the game is mixed at, so 100 is
+  // the sound as designed and none of them can push the limiter into working.
   audio.settings.masterVolume = DEFAULT_AUDIO.masterVolume * (options.masterVolume / 100);
   audio.settings.musicVolume = DEFAULT_AUDIO.musicVolume * (options.musicVolume / 100);
-  audio.settings.ambienceVolume =
-    DEFAULT_AUDIO.ambienceVolume * (options.ambientVolume / 100);
+  audio.settings.ambienceVolume = DEFAULT_AUDIO.ambienceVolume * (options.ambientVolume / 100);
+  audio.settings.weatherVolume = DEFAULT_AUDIO.weatherVolume * (options.weatherVolume / 100);
+  audio.settings.footstepVolume = DEFAULT_AUDIO.footstepVolume * (options.footstepVolume / 100);
+  audio.settings.creatureVolume = DEFAULT_AUDIO.creatureVolume * (options.creatureVolume / 100);
+  audio.settings.npcVolume = DEFAULT_AUDIO.npcVolume * (options.npcVolume / 100);
 
   // --- video ---------------------------------------------------------------
   // Snapped rather than eased — see `setFieldOfView`. A slider whose picture

@@ -182,7 +182,9 @@ export class Soundscape {
         const model = buildModel(engine, declared);
         const gain = engine.context.createGain();
         gain.gain.value = declared.gain ?? 1;
-        model.output.connect(gain).connect(bus);
+        // Precipitation goes to the weather bus wherever it was declared, so
+        // one slider covers it whether the zone asked for rain or the rig did.
+        model.output.connect(gain).connect(declared.model === 'rain' ? engine.weatherBus : bus);
         this.beds.push(model);
         if (declared.id) {
           this.models.set(declared.id, model);

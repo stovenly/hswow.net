@@ -37,6 +37,7 @@ export interface Options {
   masterVolume: number;
   musicVolume: number;
   ambientVolume: number;
+  weatherVolume: number;
   footstepVolume: number;
   creatureVolume: number;
   npcVolume: number;
@@ -158,6 +159,7 @@ export const DEFAULT_OPTIONS: Options = {
   masterVolume: 100,
   musicVolume: 100,
   ambientVolume: 100,
+  weatherVolume: 100,
   footstepVolume: 100,
   creatureVolume: 100,
   npcVolume: 100,
@@ -300,15 +302,6 @@ const volume = (key: KeysOf<number>, label: string): SliderControl => ({
 });
 
 /**
- * The four categories that are not yet connected to anything. Said once, in the
- * menu, rather than left for the player to discover by dragging a slider that
- * does nothing: every emitter connects straight to the engine's dry and send
- * buses, so a per-category volume needs gain nodes in between and a category
- * declared on every sound in the game.
- */
-const notWired = (): string => 'not connected yet';
-
-/**
  * The tabs, in the order they appear — and the first is the one the panel opens
  * on. Video leads because it is what somebody opens this menu to change: the
  * audio is two working sliders, four waiting on a mixer and one setting that
@@ -417,9 +410,10 @@ export const CATEGORIES: readonly Category[] = [
       volume('masterVolume', 'master'),
       volume('musicVolume', 'music'),
       volume('ambientVolume', 'ambience'),
-      { ...volume('footstepVolume', 'footsteps'), note: notWired },
-      { ...volume('creatureVolume', 'creatures'), note: notWired },
-      { ...volume('npcVolume', 'voices'), note: notWired },
+      volume('weatherVolume', 'weather'),
+      volume('footstepVolume', 'footsteps'),
+      volume('creatureVolume', 'creatures'),
+      volume('npcVolume', 'voices'),
       {
         kind: 'choice',
         key: 'audioBuffer',

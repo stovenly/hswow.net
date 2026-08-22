@@ -733,6 +733,7 @@ export class Creature {
         maxDistance: 45,
         rolloff: 1.15,
         reverb: 0.5,
+        out: world.audio.voices,
       });
     }
     this.said = this.voice.babble(kind, world.audio.context.currentTime + 0.05);
@@ -771,6 +772,7 @@ export class Creature {
         maxDistance: 45,
         rolloff: 1.15,
         reverb: 0.5,
+        out: world.audio.creatures,
       });
     }
     this.shot!.fire(world.audio.context.currentTime + 0.05, force);

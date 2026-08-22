@@ -45,6 +45,14 @@ export interface AudioSettings {
   musicVolume: number;
   /** The ambience layer's level, under its own limiter. */
   ambienceVolume: number;
+  /** Your own feet and hands: footsteps and the door cue. */
+  footstepVolume: number;
+  /** Animals you can see, as against the ambience's unseen ones. */
+  creatureVolume: number;
+  /** People talking. */
+  npcVolume: number;
+  /** Precipitation, wherever it was declared. */
+  weatherVolume: number;
 }
 
 export const DEFAULT_AUDIO: AudioSettings = {
@@ -54,6 +62,12 @@ export const DEFAULT_AUDIO: AudioSettings = {
   occlusion: 0.8,
   musicVolume: 0.3,
   ambienceVolume: 0.85,
+  // These four are the levels the game is already mixed at, so a slider at
+  // 100% is the sound as designed and every slider only ever attenuates.
+  footstepVolume: 1,
+  creatureVolume: 1,
+  npcVolume: 1,
+  weatherVolume: 1,
 };
 
 /** Raycasts listener→emitter cost real time; they do not need doing every frame. */
@@ -83,6 +97,15 @@ export class AudioEngine {
   /** Emitters connect their dry path here and their wet path to `send`. */
   readonly dry: GainNode;
   readonly send: GainNode;
+  /**
+   * Sub-buses into `dry`, one per thing a player would reach for a slider to
+   * turn down. A source belongs to exactly one of them, and anything that does
+   * not belong to any goes straight to `dry` as before.
+   */
+  readonly steps: GainNode;
+  readonly creatures: GainNode;
+  readonly voices: GainNode;
+  readonly weatherBus: GainNode;
   /** Pulled down under dialogue in Phase 8. Unity for now. */
   readonly duck: GainNode;
   readonly master: GainNode;
@@ -140,6 +163,11 @@ export class AudioEngine {
     this.dry = this.context.createGain();
     this.send = this.context.createGain();
 
+    this.steps = this.context.createGain();
+    this.creatures = this.context.createGain();
+    this.voices = this.context.createGain();
+    this.weatherBus = this.context.createGain();
+
     // A limiter, not a compressor, despite the node's name. Procedural audio
     // has no mastering engineer, and a dozen emitters lining up in phase is a
     // matter of when rather than if.
@@ -154,6 +182,11 @@ export class AudioEngine {
     limiter.ratio.value = 16;
     limiter.attack.value = 0.002;
     limiter.release.value = 0.1;
+
+    this.steps.connect(this.dry);
+    this.creatures.connect(this.dry);
+    this.voices.connect(this.dry);
+    this.weatherBus.connect(this.dry);
 
     this.dry.connect(this.duck);
     this.duck.connect(this.master);
@@ -327,6 +360,12 @@ export class AudioEngine {
     if (this.master.gain.value !== this.settings.masterVolume) {
       this.master.gain.value = this.settings.masterVolume;
     }
+    // Written when they move, for the same reason: an `AudioParam` assignment
+    // is a message to the audio thread and these change when a slider does.
+    this.hold(this.steps, this.settings.footstepVolume);
+    this.hold(this.creatures, this.settings.creatureVolume);
+    this.hold(this.voices, this.settings.npcVolume);
+    this.hold(this.weatherBus, this.settings.weatherVolume);
 
     this.occlusionTimer -= dt;
     if (this.occlusionTimer > 0) return false;
@@ -345,6 +384,10 @@ export class AudioEngine {
    * nearer. Anything past its own `maxDistance` is out regardless of rank: the
    * budget decides between things you could hear.
    */
+  private hold(gain: GainNode, value: number): void {
+    if (gain.gain.value !== value) gain.gain.value = value;
+  }
+
   private allocateVoices(): void {
     this.ranking.length = 0;
     let n = 0;

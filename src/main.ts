@@ -634,6 +634,10 @@ if (dev.gui) {
   sound.add(audio.settings, 'masterVolume', 0, 1, 0.01).name('volume');
   sound.add(audio.settings, 'musicVolume', 0, 1, 0.01).name('music');
   sound.add(audio.settings, 'ambienceVolume', 0, 1, 0.01).name('ambience');
+  sound.add(audio.settings, 'weatherVolume', 0, 1, 0.01).name('weather');
+  sound.add(audio.settings, 'footstepVolume', 0, 1, 0.01).name('footsteps');
+  sound.add(audio.settings, 'creatureVolume', 0, 1, 0.01).name('creatures');
+  sound.add(audio.settings, 'npcVolume', 0, 1, 0.01).name('voices');
   sound
     .add(audio.settings, 'reverbAmount', 0, 2, 0.01)
     .name('reverb')

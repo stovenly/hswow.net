@@ -191,7 +191,7 @@ export class DoorAudio {
     // place you have arrived in.
     send.gain.value = 0.7;
 
-    output.connect(this.engine.dry);
+    output.connect(this.engine.steps);
     output.connect(send);
     send.connect(this.engine.send);
     nodes.push(output, send);

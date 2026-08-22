@@ -556,7 +556,7 @@ export class WeatherRig {
       // bus. No second gain over it: the model ramps itself, and a fader on
       // top of that ramp is two envelopes racing.
       this.rain = createRain(audio, { gain: 0.17, intensity: 0, surface });
-      this.rain.output.connect(audio.dry);
+      this.rain.output.connect(audio.weatherBus);
     }
     this.quiet = 0;
     this.rain.setSurface(surface);
