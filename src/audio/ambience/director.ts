@@ -12,6 +12,7 @@ import { ambienceFor, VIBES, type VibeChoice, type VibeName } from '../vibes';
 import { CLEAR, night, openness, weatherDamp, type Conditions } from './conditions';
 import type {
   AirLayer,
+  Band,
   AmbienceSpec,
   AmbienceVoice,
   CastMember,
@@ -102,6 +103,41 @@ const TIERS: Record<
   },
 };
 
+/**
+ * Where each band starts, in Hz. Coarse on purpose: this is a masking model,
+ * not an equaliser.
+ */
+const BAND_EDGES: readonly (readonly [Band, number])[] = [
+  ['floor', 0],
+  ['body', 80],
+  ['throat', 300],
+  ['call', 900],
+  ['song', 2500],
+  ['air', 6000],
+];
+
+function bandOf(hz: number): Band {
+  let found: Band = 'floor';
+  for (const [band, edge] of BAND_EDGES) if (hz >= edge) found = band;
+  return found;
+}
+
+/**
+ * How long an event holds its band, as a multiple of its own length. A near
+ * source masks for longer than a far one, because distance is itself a form of
+ * masking relief.
+ */
+const HOLD: Record<Tier, number> = { near: 1.4, mid: 1, far: 0.6 };
+
+/** Multiplier on that hold in a band the score is already sitting in. */
+const CLAIMED_HOLD = 2.5;
+
+/** Seconds a hush lasts, and how long the cast takes to come back after it. */
+const HUSH: readonly [number, number] = [15, 40];
+const RECOVER = 14;
+/** Mean seconds between hushes that nothing in particular caused. */
+const HUSH_EVERY = 280;
+
 /** Coprime, so the swells never re-align. Seconds. */
 const CYCLES = [41, 67, 103];
 const CYCLE_WEIGHTS = [0.5, 0.3, 0.2];
@@ -111,6 +147,8 @@ interface Held {
   emitter: Emitter;
   /** Audio-clock time this voice is free again. */
   busyUntil: number;
+  /** Set while this voice is crossing. See `THE PASS` in `update`. */
+  path: { from: THREE.Vector3; to: THREE.Vector3; start: number; length: number } | null;
 }
 
 interface Pool {
@@ -162,6 +200,21 @@ export class AmbienceDirector {
   private struck = -1;
   /** What the whole biophony is scaled by right now. */
   private live = 0;
+
+  /** When each band is free again, on the audio clock. */
+  private readonly busy: Record<Band, number> = {
+    floor: 0,
+    body: 0,
+    throat: 0,
+    call: 0,
+    song: 0,
+    air: 0,
+  };
+  /** Bands the score is sitting in while a piece plays. */
+  private claimed: readonly Band[] = [];
+  /** When the hush ends, and when the next unprovoked one is due. */
+  private hushUntil = 0;
+  private hushDue = 0;
 
   constructor(engine: AudioEngine) {
     this.engine = engine;
@@ -217,6 +270,27 @@ export class AmbienceDirector {
     for (let i = 0; i < rack.signalDue.length; i++) rack.signalDue[i] = now + 20 + Math.random() * 40;
   }
 
+  /**
+   * Where the score is sitting, or null while it rests. The ambience thins in
+   * those bands rather than vacating them — a wood does not stop having birds
+   * in it because a flute came in.
+   */
+  setScore(voicing: { root: number; melody: number } | null): void {
+    this.claimed = voicing ? [bandOf(voicing.root), bandOf(voicing.melody)] : [];
+  }
+
+  /**
+   * Stops everything alive, for fifteen to forty seconds. An alarm call, a
+   * stack going over, or a roll of the dice — and later, whatever the game
+   * wants to make a place hold its breath for.
+   *
+   * The keynote and the geophony do not take part. Wind does not stop because
+   * a jay shouted.
+   */
+  hush(now = this.engine.context.currentTime): void {
+    this.hushUntil = Math.max(this.hushUntil, now + HUSH[0] + Math.random() * (HUSH[1] - HUSH[0]));
+  }
+
   /** Silences the whole layer without tearing it down. */
   setActive(active: boolean): void {
     const now = this.engine.context.currentTime;
@@ -235,8 +309,17 @@ export class AmbienceDirector {
     const at = this.engine.listenerPosition;
     for (const layer of rack.air) layer.model.update?.(dt, this.engine, at);
     for (const layer of rack.chorus) layer.emitter.update(dt, collider, retestOcclusion);
+    const now = this.engine.context.currentTime;
     for (const pool of rack.pools.values()) {
-      for (const voice of pool.voices) voice.emitter.update(dt, collider, retestOcclusion);
+      for (const voice of pool.voices) {
+        const path = voice.path;
+        if (path) {
+          const t = (now - path.start) / path.length;
+          if (t >= 1) voice.path = null;
+          else if (t > 0) voice.emitter.moveTo(_point.lerpVectors(path.from, path.to, t));
+        }
+        voice.emitter.update(dt, collider, retestOcclusion);
+      }
     }
   }
 
@@ -252,6 +335,12 @@ export class AmbienceDirector {
     const conditions = this.conditions;
 
     this.live = spec.activity * weatherDamp(conditions) * this.cycle(rack);
+
+    if (this.hushDue === 0) this.hushDue = now + HUSH_EVERY * (0.5 + Math.random());
+    else if (now > this.hushDue && now > this.hushUntil) {
+      this.hush(now);
+      this.hushDue = now + HUSH_EVERY * (0.5 + Math.random());
+    }
 
     this.driveLayers(rack.air, now, conditions);
     this.driveLayers(rack.chorus, now, conditions);
@@ -318,6 +407,12 @@ export class AmbienceDirector {
     for (let i = 0; i < cast.length; i++) {
       if (rack.due[i] > now) continue;
       const member = cast[i];
+      // The hush releases in wake order — the same ordering that runs the dawn
+      // chorus, compressed. Earliest riser back first.
+      if (VOICES[member.voice].alive && now < this.releasedAt(member)) {
+        rack.due[i] = now + 1 + Math.random() * 2;
+        continue;
+      }
       const open = openness(member.when, conditions);
       // Shut, and cheap: one comparison and nothing is built. A cast member out
       // of season costs nothing for half the year.
@@ -337,27 +432,75 @@ export class AmbienceDirector {
     }
   }
 
-  private speak(rack: Rack, member: CastMember, at: number): void {
-    const pool = this.poolFor(rack, member.voice, member.tier);
+  private speak(rack: Rack, member: CastMember, at: number, voiceName = member.voice): void {
+    const entry = VOICES[voiceName];
+    const band = entry.band;
+    // The niche rule. An event whose band is taken is dropped, not queued, and
+    // the drop is inaudible by construction — it is indistinguishable from the
+    // event never having been due. It is also an event never synthesised.
+    if (band !== 'floor' && this.busy[band] > at) return;
+
+    const pool = this.poolFor(rack, voiceName, member.tier);
     const voice = pool.voices.find((held) => held.busyUntil <= at);
-    // Every throat still ringing. Dropping is correct and inaudible: it is
-    // indistinguishable from the event not having been due.
     if (!voice || voice.emitter.isVirtual) return;
 
     const tier = TIERS[member.tier];
     const listener = this.engine.listenerPosition;
     const bearing = Math.random() * Math.PI * 2;
     const radius = tier.radius[0] + Math.random() * (tier.radius[1] - tier.radius[0]);
+    const height = listener.y + (member.height ?? tier.lift) * (0.7 + Math.random() * 0.6);
     _point.set(
       listener.x + Math.cos(bearing) * radius,
-      listener.y + (member.height ?? tier.lift) * (0.7 + Math.random() * 0.6),
+      height,
       listener.z + Math.sin(bearing) * radius,
     );
     voice.emitter.moveTo(_point);
+    voice.path = null;
+
+    // A source that crosses rather than sits. `PannerNode` has no Doppler, so
+    // the pitch is bent by hand across the flight.
+    if (member.passes) {
+      const seconds = member.passes.seconds;
+      const flight = seconds[0] + Math.random() * (seconds[1] - seconds[0]);
+      const across = bearing + Math.PI / 2 + (Math.random() - 0.5) * 0.7;
+      const half = member.passes.over / 2;
+      voice.path = {
+        from: _point.clone().addScaledVector(_axis.set(Math.cos(across), 0, Math.sin(across)), -half),
+        to: _point.clone().addScaledVector(_axis, half),
+        start: at,
+        length: flight,
+      };
+      voice.emitter.moveTo(voice.path.from);
+      voice.shot.setBend?.(70, flight);
+    }
 
     const force = (member.level ?? 1) * (0.7 + Math.random() * 0.4);
     const busy = voice.shot.fire(at, force);
     voice.busyUntil = at + busy;
+
+    const hold = HOLD[member.tier] * (this.claimed.includes(band) ? CLAIMED_HOLD : 1);
+    if (band !== 'floor') this.busy[band] = Math.max(this.busy[band], at + busy * hold);
+
+    // The answer comes from somewhere else, later, and often as a different
+    // call — which is what a tawny owl and the bird replying to it actually are.
+    if (member.answers && Math.random() < member.answers) {
+      const reply = member.answer ?? voiceName;
+      const delay = 0.7 + Math.random() * 2.6;
+      const echo = { ...member, level: (member.level ?? 1) * 0.8, answers: 0, passes: undefined };
+      // Straight to the far side of the ring, not the same throat.
+      this.speak(rack, echo, at + busy + delay, reply);
+    }
+  }
+
+  /**
+   * When a cast member may speak again after a hush. Larger `wakes` is an
+   * earlier riser, and it comes back first.
+   */
+  private releasedAt(member: CastMember): number {
+    if (this.hushUntil === 0) return 0;
+    const wakes = member.when?.wakes ?? 25;
+    const share = 1 - Math.min(wakes, 50) / 50;
+    return this.hushUntil + share * RECOVER;
   }
 
   private considerSignal(rack: Rack, now: number, conditions: Conditions): void {
@@ -386,6 +529,7 @@ export class AmbienceDirector {
         continue;
       }
       this.speak(rack, signal, now + LOOKAHEAD);
+      if (signal.hushes) this.hush(now);
       const mean = signal.every[0] + Math.random() * (signal.every[1] - signal.every[0]);
       rack.signalDue[i] = now + signal.floor + -Math.log(1 - Math.random()) * (mean / open);
     }
@@ -409,6 +553,7 @@ export class AmbienceDirector {
       voices.push({
         shot,
         busyUntil: 0,
+        path: null,
         emitter: new Emitter(this.engine, shot, {
           position: this.engine.listenerPosition,
           refDistance: shape.refDistance,
@@ -523,6 +668,8 @@ export class AmbienceDirector {
     const voices = this.rack
       ? [...this.rack.pools.values()].reduce((n, pool) => n + pool.voices.length, 0)
       : 0;
+    const now = this.engine.context.currentTime;
+    if (now < this.hushUntil) return `hushed ${(this.hushUntil - now).toFixed(0)}s`;
     return `live ${this.live.toFixed(2)} · ${voices} throats`;
   }
 
@@ -564,3 +711,4 @@ function faded(model: SoundModel, gain: GainNode): SoundModel {
 }
 
 const _point = new THREE.Vector3();
+const _axis = new THREE.Vector3();

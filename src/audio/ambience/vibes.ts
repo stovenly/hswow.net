@@ -41,7 +41,7 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     { voice: 'wood', every: [45, 120], tier: 'mid', when: { sun: [-4, 90] } },
     { voice: 'latch', every: [70, 200], tier: 'mid', when: { sun: [-6, 90] } },
     { voice: 'whistle', every: [90, 260], tier: 'mid', when: { sun: [-4, 25] } },
-    { voice: 'owl', every: [70, 200], tier: 'far', height: 10, answers: 0.7, when: { sun: [-90, -5] } },
+    { voice: 'owl', every: [70, 200], tier: 'far', height: 10, answers: 0.7, answer: 'owl-answer', when: { sun: [-90, -5] } },
   ],
   signals: [
     { voice: 'bell-church', every: [0, 0], tier: 'far', height: 18, floor: 0, clock: 'hour', level: 0.9 },
@@ -177,7 +177,7 @@ export const FARM_AMBIENCE: AmbienceSpec = {
     { voice: 'call', every: [60, 170], tier: 'mid', when: { sun: [0, 90] } },
     { voice: 'whistle', every: [110, 300], tier: 'mid', level: 0.7, when: { sun: [0, 90] } },
     { voice: 'wood', every: [40, 110], tier: 'mid', when: { sun: [-2, 90] } },
-    { voice: 'owl', every: [90, 240], tier: 'far', height: 9, answers: 0.6, when: { sun: [-90, -5] } },
+    { voice: 'owl', every: [90, 240], tier: 'far', height: 9, answers: 0.6, answer: 'owl-answer', when: { sun: [-90, -5] } },
     { voice: 'cricket', every: [3, 9], tier: 'near', height: 0.15, when: { warmth: [13, 34], sun: [-90, 6], season: [0.35, 0.8] } },
   ],
   signals: [
@@ -253,7 +253,7 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
   ],
   signals: [
     // The hoot, and a second bird answering with something else entirely.
-    { voice: 'owl', every: [90, 260], tier: 'mid', height: 11, floor: 60, answers: 0.85, when: { sun: [-90, -4] } },
+    { voice: 'owl', every: [90, 260], tier: 'mid', height: 11, floor: 60, answers: 0.85, answer: 'owl-answer', when: { sun: [-90, -4] } },
   ],
   activity: 0.45,
   seed: 151,

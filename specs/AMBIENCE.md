@@ -281,13 +281,13 @@ export interface AmbienceSpec {
 
 export interface CastMember {
   voice: AmbienceVoice;
-  band: Band;
   /** Mean seconds between utterances at full activity. */
   every: Span;
   /** Decides reverb, absorption, rolloff and whether occlusion is tested. */
   tier: 'near' | 'mid' | 'far';
-  /** Chance this one is answered from somewhere else, 0..1. */
+  /** Chance this one is answered from somewhere else, 0..1, and by what. */
   answers?: number;
+  answer?: AmbienceVoice;
   /** It crosses rather than sits. Path length in metres, and seconds to fly it. */
   passes?: { over: number; seconds: Span };
   when?: Window;
@@ -315,6 +315,11 @@ export interface Window {
   under?: 'roof' | 'sky';
 }
 ```
+
+The band is **not** on the cast entry. It is a fact about the voice — a robin
+occupies the same niche whichever wood it is in — so it lives beside the voice
+in `voices.ts`, along with whether the voice is something breathing, which is
+what decides whether a hush silences it.
 
 `Signal` is a `CastMember` with a floor on its gap and a cap of one at a time.
 A **soundmark** is a `Signal` with `clock: 'hour'` — the climate already knows

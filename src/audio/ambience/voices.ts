@@ -25,6 +25,11 @@ import type { AmbienceVoice, Band } from './spec';
 
 export interface VoiceEntry {
   band: Band;
+  /**
+   * Whether this is something breathing. Only the living hush — a clock does
+   * not stop ticking because a jay shouted, and a press does not either.
+   */
+  alive: boolean;
   build(engine: AudioEngine): OneShot;
 }
 
@@ -37,38 +42,45 @@ const s = (
   extra: Omit<Syllable, 'from' | 'to' | 'length' | 'gap'> = {},
 ): Syllable => ({ from, to, length, gap, ...extra });
 
-const sung = (band: Band, shape: CallShape, tone = 1): VoiceEntry => ({
+const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,
+  alive,
   build: (engine) => createCall(engine, { shape, tone }),
 });
 
 const beast = (band: Band, options: AnimalOptions): VoiceEntry => ({
   band,
+  alive: true,
   build: (engine) => createAnimal(engine, options),
 });
 
 const thing = (band: Band, options: ClatterOptions): VoiceEntry => ({
   band,
+  alive: false,
   build: (engine) => createClatter(engine, options),
 });
 
 const rung = (band: Band, options: BellOptions): VoiceEntry => ({
   band,
+  alive: false,
   build: (engine) => createBell(engine, options),
 });
 
 const drop = (band: Band, options: DripOptions): VoiceEntry => ({
   band,
+  alive: false,
   build: (engine) => createDrip(engine, options),
 });
 
 const said = (band: Band, options: VoiceOptions): VoiceEntry => ({
   band,
+  alive: true,
   build: (engine) => createVoice(engine, options),
 });
 
 const struck = (band: Band, options: HammerOptions): VoiceEntry => ({
   band,
+  alive: false,
   build: (engine) => createHammer(engine, options),
 });
 
@@ -830,7 +842,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     q: 2,
     fade: 1,
     gain: 0.5,
-  }),
+  }, false),
 
   foghorn: sung('body', {
     pitch: 120,
@@ -840,7 +852,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 260,
     q: 2.6,
     gain: 0.6,
-  }),
+  }, false),
 
   press: struck('body', { tone: 0.35, damping: 0.75, bounces: 0, gain: 0.7 }),
   steam: sung('air', {
@@ -850,7 +862,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 4200,
     q: 0.7,
     gain: 0.45,
-  }),
+  }, false),
   relay: thing('call', { material: 'metal', tone: 2.2, pieces: 1, heft: 0.9, gain: 0.22 }),
   contactor: thing('body', { material: 'metal', tone: 0.55, pieces: 2, heft: 0.95, gain: 0.45 }),
   tick: thing('song', { material: 'wood', tone: 2.8, pieces: 1, heft: 0.9, gain: 0.16 }),

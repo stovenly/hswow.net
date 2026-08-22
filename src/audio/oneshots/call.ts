@@ -96,6 +96,10 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
 
   const pending: AudioNode[] = [];
   let sweep = 0;
+  /** Set by `setBend` and spent by the next `fire`. */
+  let bendCents = 0;
+  let bendOver = 0;
+  let bendFrom = 0;
 
   const syllable = (at: number, unit: Syllable, base: number, force: number): number => {
     const length = between(unit.length);
@@ -147,6 +151,17 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
       pending.push(depth);
     }
 
+    if (bendCents !== 0) {
+      // One ramp across the whole flight, sampled over this syllable: the note
+      // is already falling by the time the second one starts.
+      const span = Math.max(bendOver, 0.05);
+      const cents = (t: number) => bendCents * (1 - 2 * Math.min(Math.max(t, 0), 1));
+      voice.detune.setValueAtTime(cents((at - bendFrom) / span), at);
+      voice.detune.linearRampToValueAtTime(cents((at + length - bendFrom) / span), at + length);
+      edge.detune.setValueAtTime(cents((at - bendFrom) / span), at);
+      edge.detune.linearRampToValueAtTime(cents((at + length - bendFrom) / span), at + length);
+    }
+
     voice.connect(envelope);
     edge.connect(edgeGain).connect(envelope);
 
@@ -186,8 +201,14 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   return {
     output,
 
+    setBend(cents, seconds) {
+      bendCents = cents;
+      bendOver = seconds;
+    },
+
     fire(at, force) {
       sweep = at;
+      bendFrom = at;
       // One pitch for the whole call. Re-rolling per syllable is the commonest
       // way a procedural bird turns into a set of unrelated beeps.
       const variance = shape.variance ?? 0.08;
@@ -207,6 +228,7 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
         if (repeat < says - 1) cursor += shape.between ? between(shape.between) : 0.3;
       }
 
+      bendCents = 0;
       const busy = sweep - at;
       window.clearTimeout(cleanup);
       cleanup = window.setTimeout(

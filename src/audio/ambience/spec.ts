@@ -222,6 +222,12 @@ export interface CastMember {
   height?: number;
   /** Chance this one is answered from somewhere else a beat later, 0..1. */
   answers?: number;
+  /**
+   * What answers it. Absent is another of its own kind; naming a different
+   * voice is the tawny owl's case, where the reply is a different call
+   * altogether and that is the whole effect.
+   */
+  answer?: AmbienceVoice;
   /** It crosses rather than sits: path length in metres, seconds to fly it. */
   passes?: { over: number; seconds: Span };
   when?: Window;

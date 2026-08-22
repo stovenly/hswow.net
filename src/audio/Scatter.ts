@@ -54,6 +54,12 @@ export interface OneShot extends SoundModel {
    * with the sound. Voiced models keep it current; the rest leave it out.
    */
   readonly syllables?: readonly { at: number; length: number }[];
+  /**
+   * Bends the next event's pitch by `cents` across `seconds`, starting high.
+   * `PannerNode` carries no Doppler, so a source that crosses the sky has to
+   * be given one by hand. Models with no pitch to bend leave it out.
+   */
+  setBend?(cents: number, seconds: number): void;
 }
 
 export type OneShotSpec =

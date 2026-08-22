@@ -644,6 +644,7 @@ export class ZoneManager {
   updateSound(dt: number, retestOcclusion: boolean): void {
     if (!this.active) return;
     this.soundscapes.get(this.active.id)?.update(dt, this.options.collider, retestOcclusion);
+    this.air?.setScore(this.director?.voicing ?? null);
     this.air?.update(dt, this.options.collider, retestOcclusion);
   }
 

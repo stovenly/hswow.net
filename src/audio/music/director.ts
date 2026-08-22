@@ -524,6 +524,21 @@ export class MusicDirector {
     }
   }
 
+  /**
+   * Where the score is sitting, in Hz, while a piece is playing — the drone's
+   * root and the melody's centre. Null when it is resting.
+   *
+   * The ambience director reads this and thins its own sources in those two
+   * bands. It is the only thing the two directors say to each other.
+   */
+  get voicing(): { root: number; melody: number } | null {
+    if (!this.playing || !this.spec) return null;
+    return {
+      root: this.spec.root,
+      melody: this.spec.root * Math.pow(2, this.spec.character.melodyOctave / 12),
+    };
+  }
+
   /** For the debug readout: what the machine thinks it is doing. */
   get status(): string {
     if (!this.spec) return 'unscored';
