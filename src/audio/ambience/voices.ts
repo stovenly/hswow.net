@@ -2,6 +2,7 @@ import type { AudioEngine } from '../AudioEngine';
 import type { OneShot } from '../Scatter';
 import { createCall, type CallShape, type Syllable } from '../oneshots/call';
 import { createBeast, type BeastOptions } from '../oneshots/beast';
+import { createVessel, type VesselOptions } from '../oneshots/vessel';
 import { createClatter, type ClatterOptions } from '../oneshots/clatter';
 import { createBell, type BellOptions } from '../oneshots/bell';
 import { createDrip, type DripOptions } from '../oneshots/drip';
@@ -52,6 +53,12 @@ const beast = (band: Band, options: BeastOptions): VoiceEntry => ({
   band,
   alive: true,
   build: (engine) => createBeast(engine, options),
+});
+
+const held = (band: Band, options: VesselOptions): VoiceEntry => ({
+  band,
+  alive: false,
+  build: (engine) => createVessel(engine, options),
 });
 
 const thing = (band: Band, options: ClatterOptions): VoiceEntry => ({
@@ -787,7 +794,15 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // --- things handled --------------------------------------------------------
 
   wood: thing('call', { material: 'wood', gain: 0.45 }),
-  pot: thing('call', { material: 'pot', gain: 0.45 }),
+  // Vessels, which have an inside: the air in them is a note of its own and it
+  // climbs as they fill.
+  pot: held('call', { kind: 'pot', handling: 'set-down', gain: 0.42, full: 0.25 }),
+  pail: held('call', { kind: 'pail', handling: 'set-down', gain: 0.45, full: 0.4 }),
+  'pail-fill': held('body', { kind: 'pail', handling: 'fill', gain: 0.4, full: 0.05 }),
+  'pail-pour': held('body', { kind: 'pail', handling: 'pour', gain: 0.4, full: 0.8 }),
+  churn: held('body', { kind: 'churn', handling: 'knock', gain: 0.4, full: 0.5 }),
+  trough: held('body', { kind: 'trough', handling: 'fill', gain: 0.38, full: 0.2 }),
+  jar: held('song', { kind: 'jar', handling: 'set-down', gain: 0.35, full: 0.3 }),
   metal: thing('call', { material: 'metal', gain: 0.45 }),
   stone: thing('throat', { material: 'stone', gain: 0.45 }),
   coins: thing('song', { material: 'metal', tone: 2.4, pieces: 12, heft: 0.15, gain: 0.3 }),

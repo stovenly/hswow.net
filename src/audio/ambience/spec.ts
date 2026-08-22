@@ -105,6 +105,12 @@ export type AmbienceVoice =
   // Things handled.
   | 'wood'
   | 'pot'
+  | 'pail'
+  | 'pail-fill'
+  | 'pail-pour'
+  | 'churn'
+  | 'trough'
+  | 'jar'
   | 'metal'
   | 'stone'
   | 'coins'
