@@ -62,7 +62,6 @@ export interface CallShape {
   formant2?: number;
   /** Level lost per syllable, as a ratio. */
   fade?: number;
-  gain?: number;
 }
 
 export interface CallOptions {
@@ -106,7 +105,7 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   const rasp = shape.rasp ?? 0;
 
   const output = context.createGain();
-  output.gain.value = options.gain ?? shape.gain ?? 0.5;
+  output.gain.value = options.gain ?? 0.5;
 
   // Everything below is built once and shared across syllables — a bird does
   // not change size between notes, and the syllables of a call do not overlap.

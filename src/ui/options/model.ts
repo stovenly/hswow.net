@@ -416,7 +416,7 @@ export const CATEGORIES: readonly Category[] = [
     controls: [
       volume('masterVolume', 'master'),
       volume('musicVolume', 'music'),
-      { ...volume('ambientVolume', 'ambience'), note: notWired },
+      volume('ambientVolume', 'ambience'),
       { ...volume('footstepVolume', 'footsteps'), note: notWired },
       { ...volume('creatureVolume', 'creatures'), note: notWired },
       { ...volume('npcVolume', 'voices'), note: notWired },

@@ -120,6 +120,16 @@ const TIERS: Record<
   },
 };
 
+/** Decibels to a gain. The mix is stated in dB and applied here. */
+const gainOf = (db: number): number => Math.pow(10, db / 20);
+
+/**
+ * The ambience never goes above this, whatever the book says and whatever the
+ * dice do. A ceiling rather than a mix: it exists so that a stack of events
+ * landing together cannot startle, not to make anything sit anywhere.
+ */
+const CEILING_DB = -3;
+
 /** How much a fixed offset may swing the level. Small: it is not a distance. */
 const ROLLOFF = 0.25;
 /** Past any offset a tier uses, so the emitter's own taper never engages. */
@@ -216,6 +226,7 @@ export class AmbienceDirector {
   private readonly engine: AudioEngine;
   private readonly out: GainNode;
   private readonly wetOut: GainNode;
+  private readonly limiter: DynamicsCompressorNode;
 
   private readonly racks = new Map<AmbienceSpec, Rack>();
   private rack: Rack | null = null;
@@ -251,8 +262,20 @@ export class AmbienceDirector {
     this.engine = engine;
     const context = engine.context;
 
+    // A limiter across the whole layer, before the trim. Procedural audio has
+    // no mastering engineer and a dozen sources landing in phase is a matter of
+    // when rather than if; this is the backstop that makes "stable across the
+    // whole soundscape" true by construction rather than by tuning.
+    const ceiling = context.createDynamicsCompressor();
+    ceiling.threshold.value = CEILING_DB;
+    ceiling.knee.value = 6;
+    ceiling.ratio.value = 12;
+    ceiling.attack.value = 0.004;
+    ceiling.release.value = 0.25;
+
     this.out = context.createGain();
-    this.out.connect(engine.dry);
+    this.out.connect(ceiling).connect(engine.dry);
+    this.limiter = ceiling;
     this.wetOut = context.createGain();
     this.wetOut.connect(engine.send);
 
@@ -372,6 +395,12 @@ export class AmbienceDirector {
 
   private readonly pump = (): void => {
     const now = this.engine.context.currentTime;
+    // Written when it moves, not sixty times a second to say the same number.
+    const wanted = this.engine.settings.ambienceVolume;
+    if (this.out.gain.value !== wanted) {
+      this.out.gain.value = wanted;
+      this.wetOut.gain.value = wanted;
+    }
     const step = this.lastPump === 0 ? PUMP_MS / 1000 : Math.min(now - this.lastPump, 1);
     this.lastPump = now;
     this.clock += step;
@@ -554,7 +583,12 @@ export class AmbienceDirector {
       voice.shot.setBend?.(70, flight);
     }
 
-    const force = (member.level ?? 1) * (0.7 + Math.random() * 0.4);
+    // The declared level is a **ceiling**. The dice may take an event below it
+    // and may never take one above it, which is the whole of "no random harsh
+    // loud things" — a source cannot surprise you by being louder than it was
+    // ever supposed to be.
+    const force =
+      (member.level ?? 1) * gainOf(entry.db) * (0.62 + Math.random() * 0.38);
     const busy = voice.shot.fire(at, force);
     voice.busyUntil = at + busy;
 
@@ -793,8 +827,12 @@ export class AmbienceDirector {
       ? [...this.rack.pools.values()].reduce((n, pool) => n + pool.voices.length, 0)
       : 0;
     const now = this.engine.context.currentTime;
+    // The reduction is the one number that says whether the mix is behaving:
+    // anything past a couple of decibels means the book is fighting itself.
+    const held = this.limiter.reduction;
+    const duck = held < -0.2 ? ` · -${(-held).toFixed(1)}dB` : '';
     if (now < this.hushUntil) return `hushed ${(this.hushUntil - now).toFixed(0)}s`;
-    return `live ${this.live.toFixed(2)} · ${voices} throats`;
+    return `live ${this.live.toFixed(2)} · ${voices} throats${duck}`;
   }
 
   dispose(): void {

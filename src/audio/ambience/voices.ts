@@ -27,6 +27,11 @@ import type { AmbienceVoice, Band } from './spec';
 export interface VoiceEntry {
   band: Band;
   /**
+   * How prominent this voice is, in decibels against the ambience reference.
+   * Set from `DB` below; see the note there. Never set on the model.
+   */
+  db: number;
+  /**
    * Whether this is something breathing. Only the living hush — a clock does
    * not stop ticking because a jay shouted, and a press does not either.
    */
@@ -43,52 +48,75 @@ const s = (
   extra: Omit<Syllable, 'from' | 'to' | 'length' | 'gap'> = {},
 ): Syllable => ({ from, to, length, gap, ...extra });
 
+/**
+ * Family normalisation. One number per synthesis family, whose only job is to
+ * bring the families onto the same footing so that `fire(t, 1)` peaks in the
+ * same place whichever one is speaking. **These are not the mix** — the mix is
+ * `DB`, and nothing else may set a level.
+ */
+const CALL_GAIN = 0.5;
+const BEAST_GAIN = 0.55;
+const VESSEL_GAIN = 0.45;
+const THING_GAIN = 0.45;
+const BELL_GAIN = 0.45;
+const DRIP_GAIN = 0.5;
+const SAID_GAIN = 0.4;
+const STRUCK_GAIN = 0.5;
+
 const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,
+  db: 0,
   alive,
-  build: (engine) => createCall(engine, { shape, tone }),
+  build: (engine) => createCall(engine, { shape, tone, gain: CALL_GAIN }),
 });
 
 const beast = (band: Band, options: BeastOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: true,
-  build: (engine) => createBeast(engine, options),
+  build: (engine) => createBeast(engine, { ...options, gain: BEAST_GAIN }),
 });
 
 const held = (band: Band, options: VesselOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: false,
-  build: (engine) => createVessel(engine, options),
+  build: (engine) => createVessel(engine, { ...options, gain: VESSEL_GAIN }),
 });
 
 const thing = (band: Band, options: ClatterOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: false,
-  build: (engine) => createClatter(engine, options),
+  build: (engine) => createClatter(engine, { ...options, gain: THING_GAIN }),
 });
 
 const rung = (band: Band, options: BellOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: false,
-  build: (engine) => createBell(engine, options),
+  build: (engine) => createBell(engine, { ...options, gain: BELL_GAIN }),
 });
 
 const drop = (band: Band, options: DripOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: false,
-  build: (engine) => createDrip(engine, options),
+  build: (engine) => createDrip(engine, { ...options, gain: DRIP_GAIN }),
 });
 
 const said = (band: Band, options: VoiceOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: true,
-  build: (engine) => createVoice(engine, options),
+  build: (engine) => createVoice(engine, { ...options, gain: SAID_GAIN }),
 });
 
 const struck = (band: Band, options: HammerOptions): VoiceEntry => ({
   band,
+  db: 0,
   alive: false,
-  build: (engine) => createHammer(engine, options),
+  build: (engine) => createHammer(engine, { ...options, gain: STRUCK_GAIN }),
 });
 
 export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
@@ -110,7 +138,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     ],
     count: [3, 8],
     formant: 3600,
-    gain: 0.5,
   }),
 
   blackbird: sung('song', {
@@ -129,7 +156,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     repeats: [1, 2],
     formant: 2400,
     q: 0.9,
-    gain: 0.55,
   }),
 
   songthrush: sung('song', {
@@ -144,7 +170,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     repeats: [2, 4],
     between: [0.18, 0.32],
     formant: 3200,
-    gain: 0.55,
   }),
 
   wren: sung('song', {
@@ -160,7 +185,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [8, 14],
     formant: 4600,
     fade: 0.985,
-    gain: 0.5,
   }),
 
   'wren-scold': sung('song', {
@@ -171,7 +195,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 3600,
     q: 1.6,
     fade: 0.995,
-    gain: 0.42,
   }),
 
   chaffinch: sung('song', {
@@ -186,7 +209,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
       s(0.86, 1.24, [0.13, 0.19], [0.4, 0.9], { drive: 0.45, bend: { at: 0.45, to: 0.74 } }),
     ],
     formant: 3600,
-    gain: 0.5,
   }),
 
   greattit: sung('song', {
@@ -199,7 +221,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     between: [0.02, 0.06],
     formant: 4000,
     fade: 1,
-    gain: 0.45,
   }),
 
   blackcap: sung('song', {
@@ -211,7 +232,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     ],
     count: [6, 12],
     formant: 3100,
-    gain: 0.45,
   }),
 
   skylark: sung('song', {
@@ -226,7 +246,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [40, 90],
     formant: 4400,
     fade: 0.999,
-    gain: 0.34,
   }),
 
   yellowhammer: sung('song', {
@@ -240,7 +259,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     ],
     formant: 4200,
     fade: 1,
-    gain: 0.42,
   }),
 
   whitethroat: sung('song', {
@@ -253,7 +271,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [5, 9],
     rasp: 0.25,
     formant: 3200,
-    gain: 0.42,
   }),
 
   // Two stones tapped together, and that is the entire bird.
@@ -266,7 +283,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.55,
     formant: 3400,
     q: 1.8,
-    gain: 0.4,
   }),
 
   meadowpipit: sung('song', {
@@ -275,7 +291,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [6, 14],
     formant: 4600,
     fade: 0.97,
-    gain: 0.36,
   }),
 
   linnet: sung('song', {
@@ -287,7 +302,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     ],
     count: [6, 12],
     formant: 3600,
-    gain: 0.36,
   }),
 
   sparrow: sung('song', {
@@ -297,7 +311,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [2, 5],
     rasp: 0.22,
     formant: 3000,
-    gain: 0.4,
   }),
 
   swallow: sung('song', {
@@ -310,7 +323,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [4, 9],
     rasp: 0.3,
     formant: 4000,
-    gain: 0.38,
   }),
 
   // The scream over the rooftops. Long, high and harsh, and it arrives moving.
@@ -322,7 +334,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.45,
     formant: 4800,
     q: 1.4,
-    gain: 0.4,
   }),
 
   wagtail: sung('song', {
@@ -332,7 +343,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
       s(1.06, 0.96, [0.03, 0.045], [0.4, 1.2], { drive: 0.4 }),
     ],
     formant: 3900,
-    gain: 0.36,
   }),
 
   // Rhythm and almost nothing else: a dry chatter that never settles on a tune.
@@ -347,7 +357,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.4,
     formant: 2900,
     fade: 0.995,
-    gain: 0.38,
   }),
 
   // Two notes, a falling minor third, and nothing else ever.
@@ -363,7 +372,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 1400,
     q: 2.2,
     fade: 1,
-    gain: 0.5,
   }),
 
   kingfisher: sung('song', {
@@ -371,7 +379,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     phrase: [s(1, 1.04, [0.06, 0.09], [0.1, 0.2], { drive: 0.3 })],
     count: [1, 3],
     formant: 4800,
-    gain: 0.45,
   }),
 
   // --- corvids and the harsh end ------------------------------------------
@@ -384,7 +391,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.75,
     formant: 1800,
     q: 1.2,
-    gain: 0.6,
   }),
 
   raven: sung('throat', {
@@ -399,7 +405,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.6,
     formant: 900,
     q: 1.1,
-    gain: 0.55,
   }),
 
   rook: sung('throat', {
@@ -409,7 +414,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [2, 4],
     rasp: 0.7,
     formant: 1300,
-    gain: 0.5,
   }),
 
   crow: sung('throat', {
@@ -419,7 +423,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [3, 4],
     rasp: 0.75,
     formant: 1200,
-    gain: 0.52,
   }),
 
   magpie: sung('call', {
@@ -429,7 +432,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.65,
     formant: 2000,
     q: 1.5,
-    gain: 0.5,
   }),
 
   // --- doves, game and waders ---------------------------------------------
@@ -450,7 +452,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 700,
     q: 2.6,
     fade: 1,
-    gain: 0.5,
   }),
 
   pheasant: sung('call', {
@@ -463,7 +464,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.85,
     formant: 1500,
     q: 1,
-    gain: 0.65,
   }),
 
   woodpecker: sung('call', {
@@ -474,7 +474,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.8,
     formant: 900,
     q: 3,
-    gain: 0.5,
   }),
 
   woodcock: sung('throat', {
@@ -487,7 +486,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     ],
     rasp: 0.5,
     formant: 800,
-    gain: 0.45,
   }),
 
   // The bubbling call: an accelerating trill that climbs the whole way.
@@ -503,7 +501,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 2600,
     q: 1.6,
     fade: 1,
-    gain: 0.5,
   }),
 
   oystercatcher: sung('song', {
@@ -512,7 +509,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [5, 12],
     formant: 3200,
     fade: 0.99,
-    gain: 0.45,
   }),
 
   heron: sung('throat', {
@@ -522,7 +518,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [1, 2],
     rasp: 0.85,
     formant: 1000,
-    gain: 0.6,
   }),
 
   duck: sung('call', {
@@ -537,7 +532,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     ],
     rasp: 0.7,
     formant: 1400,
-    gain: 0.5,
   }),
 
   moorhen: sung('call', {
@@ -546,7 +540,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [1, 2],
     rasp: 0.6,
     formant: 1900,
-    gain: 0.5,
   }),
 
   // The long wailing series. The most beach sound there is.
@@ -563,7 +556,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 2000,
     q: 1.3,
     fade: 0.97,
-    gain: 0.55,
   }),
 
   kittiwake: sung('song', {
@@ -577,7 +569,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     between: [0.25, 0.5],
     rasp: 0.3,
     formant: 2600,
-    gain: 0.42,
   }),
 
   // --- night ---------------------------------------------------------------
@@ -594,7 +585,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 620,
     q: 3.2,
     fade: 1,
-    gain: 0.55,
   }),
 
   // The other bird answering. A different call entirely, which is the point.
@@ -604,7 +594,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     phrase: [s(1, 1.35, [0.16, 0.24], [0.8, 2], { drive: 0.5 })],
     rasp: 0.35,
     formant: 1800,
-    gain: 0.5,
   }),
 
   // A churr: a pulse train, not a note. Mechanical, and unmistakable for it.
@@ -620,7 +609,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 1900,
     q: 1.4,
     fade: 1,
-    gain: 0.34,
   }),
 
 
@@ -632,25 +620,24 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.5,
     formant: 8000,
     q: 2,
-    gain: 0.28,
   }),
 
   // --- kept animals ---------------------------------------------------------
 
-  dog: beast('throat', { kind: 'dog', gain: 0.6 }),
-  cow: beast('body', { kind: 'cow', gain: 0.6 }),
-  sheep: beast('throat', { kind: 'sheep', gain: 0.55 }),
-  pig: beast('throat', { kind: 'pig', gain: 0.55 }),
-  hen: beast('call', { kind: 'fowl', gain: 0.5 }),
+  dog: beast('throat', { kind: 'dog' }),
+  cow: beast('body', { kind: 'cow' }),
+  sheep: beast('throat', { kind: 'sheep' }),
+  pig: beast('throat', { kind: 'pig' }),
+  hen: beast('call', { kind: 'fowl' }),
   // Bigger throat than a hen and driven harder.
-  cockerel: beast('call', { kind: 'fowl', tone: 0.78, gain: 0.6, rasp: 0.15 }),
-  goose: beast('call', { kind: 'fowl', tone: 0.55, gain: 0.7, rasp: 0.25, chaos: 0.2 }),
+  cockerel: beast('call', { kind: 'fowl', tone: 0.78, rasp: 0.15 }),
+  goose: beast('call', { kind: 'fowl', tone: 0.55, rasp: 0.25, chaos: 0.2 }),
   // A long tract, and the vibrato does the rest.
-  horse: beast('throat', { kind: 'sheep', tone: 0.62, gain: 0.6, rasp: 0.3, chaos: 0.2 }),
-  deer: beast('throat', { kind: 'dog', tone: 0.7, gain: 0.55, rasp: 0.2 }),
-  fox: beast('call', { kind: 'fox', gain: 0.6 }),
-  stag: beast('body', { kind: 'stag', gain: 0.7 }),
-  seal: beast('body', { kind: 'cow', tone: 0.85, gain: 0.55, rasp: 0.35, chaos: 0.3 }),
+  horse: beast('throat', { kind: 'sheep', tone: 0.62, rasp: 0.3, chaos: 0.2 }),
+  deer: beast('throat', { kind: 'dog', tone: 0.7, rasp: 0.2 }),
+  fox: beast('call', { kind: 'fox' }),
+  stag: beast('body', { kind: 'stag' }),
+  seal: beast('body', { kind: 'cow', tone: 0.85, rasp: 0.35, chaos: 0.3 }),
   rat: sung('air', {
     pitch: 5200,
     variance: 0.18,
@@ -658,7 +645,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [2, 6],
     rasp: 0.4,
     formant: 5600,
-    gain: 0.3,
   }),
   mouse: sung('air', {
     pitch: 6800,
@@ -667,12 +653,11 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     count: [2, 5],
     rasp: 0.35,
     formant: 7000,
-    gain: 0.22,
   }),
   // The foot, not the voice.
-  rabbit: thing('body', { material: 'stone', tone: 0.55, pieces: 1, heft: 0.95, gain: 0.35 }),
-  frog: beast('throat', { kind: 'pig', tone: 1.5, gain: 0.4, rasp: 0.2 }),
-  toad: beast('throat', { kind: 'pig', tone: 1.25, gain: 0.38, rasp: 0.15 }),
+  rabbit: thing('body', { material: 'stone', tone: 0.55, pieces: 1, heft: 0.95 }),
+  frog: beast('throat', { kind: 'pig', tone: 1.5, rasp: 0.2 }),
+  toad: beast('throat', { kind: 'pig', tone: 1.25, rasp: 0.15 }),
 
   // --- insects --------------------------------------------------------------
   //
@@ -687,7 +672,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 4600,
     q: 8,
     fade: 1,
-    gain: 0.3,
   }),
 
   grasshopper: sung('air', {
@@ -696,7 +680,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.85,
     formant: 5600,
     q: 1.2,
-    gain: 0.26,
   }),
 
   bee: sung('throat', {
@@ -707,7 +690,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.2,
     formant: 660,
     q: 2.4,
-    gain: 0.28,
   }),
 
   wasp: sung('throat', {
@@ -717,7 +699,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.3,
     formant: 800,
     q: 2,
-    gain: 0.26,
   }),
 
   fly: sung('call', {
@@ -728,7 +709,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.25,
     formant: 1300,
     q: 1.8,
-    gain: 0.22,
   }),
 
   midge: sung('air', {
@@ -737,7 +717,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     phrase: [s(1, 1.1, [0.4, 1.2], [0.4, 1.4], { drive: 0.55, trill: { hz: 9, cents: 120 } })],
     formant: 2200,
     q: 2.2,
-    gain: 0.16,
   }),
 
   dragonfly: sung('call', {
@@ -746,7 +725,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.4,
     formant: 1600,
     q: 1.2,
-    gain: 0.2,
   }),
 
   // --- people ---------------------------------------------------------------
@@ -772,7 +750,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 500,
     q: 2.8,
     fade: 1,
-    gain: 0.3,
   }),
 
   whistle: sung('song', {
@@ -788,50 +765,49 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 1500,
     q: 4,
     fade: 1,
-    gain: 0.3,
   }),
 
   // --- things handled --------------------------------------------------------
 
-  wood: thing('call', { material: 'wood', gain: 0.45 }),
+  wood: thing('call', { material: 'wood' }),
   // Vessels, which have an inside: the air in them is a note of its own and it
   // climbs as they fill.
-  pot: held('call', { kind: 'pot', handling: 'set-down', gain: 0.42, full: 0.25 }),
-  pail: held('call', { kind: 'pail', handling: 'set-down', gain: 0.45, full: 0.4 }),
-  'pail-fill': held('body', { kind: 'pail', handling: 'fill', gain: 0.4, full: 0.05 }),
-  'pail-pour': held('body', { kind: 'pail', handling: 'pour', gain: 0.4, full: 0.8 }),
-  churn: held('body', { kind: 'churn', handling: 'knock', gain: 0.4, full: 0.5 }),
-  trough: held('body', { kind: 'trough', handling: 'fill', gain: 0.38, full: 0.2 }),
-  jar: held('song', { kind: 'jar', handling: 'set-down', gain: 0.35, full: 0.3 }),
-  metal: thing('call', { material: 'metal', gain: 0.45 }),
-  stone: thing('throat', { material: 'stone', gain: 0.45 }),
-  coins: thing('song', { material: 'metal', tone: 2.4, pieces: 12, heft: 0.15, gain: 0.3 }),
-  paper: thing('air', { material: 'wood', tone: 3.2, pieces: 14, heft: 0.1, gain: 0.18 }),
-  latch: thing('call', { material: 'metal', tone: 1.4, pieces: 2, heft: 0.8, gain: 0.4 }),
-  hinge: thing('call', { material: 'metal', tone: 0.8, pieces: 1, heft: 0.7, gain: 0.35 }),
-  whetstone: thing('song', { material: 'stone', tone: 3, pieces: 3, heft: 0.2, gain: 0.3 }),
-  thump: thing('body', { material: 'stone', tone: 0.45, pieces: 1, heft: 1, gain: 0.5 }),
-  grit: thing('air', { material: 'stone', tone: 3.4, pieces: 16, heft: 0.05, gain: 0.2 }),
-  slab: thing('body', { material: 'stone', tone: 0.4, pieces: 3, heft: 0.9, gain: 0.55 }),
-  rockfall: thing('body', { material: 'stone', tone: 0.5, pieces: 30, heft: 0.7, gain: 0.7 }),
+  pot: held('call', { kind: 'pot', handling: 'set-down', full: 0.25 }),
+  pail: held('call', { kind: 'pail', handling: 'set-down', full: 0.4 }),
+  'pail-fill': held('body', { kind: 'pail', handling: 'fill', full: 0.05 }),
+  'pail-pour': held('body', { kind: 'pail', handling: 'pour', full: 0.8 }),
+  churn: held('body', { kind: 'churn', handling: 'knock', full: 0.5 }),
+  trough: held('body', { kind: 'trough', handling: 'fill', full: 0.2 }),
+  jar: held('song', { kind: 'jar', handling: 'set-down', full: 0.3 }),
+  metal: thing('call', { material: 'metal' }),
+  stone: thing('throat', { material: 'stone' }),
+  coins: thing('song', { material: 'metal', tone: 2.4, pieces: 12, heft: 0.15 }),
+  paper: thing('air', { material: 'wood', tone: 3.2, pieces: 14, heft: 0.1 }),
+  latch: thing('call', { material: 'metal', tone: 1.4, pieces: 2, heft: 0.8 }),
+  hinge: thing('call', { material: 'metal', tone: 0.8, pieces: 1, heft: 0.7 }),
+  whetstone: thing('song', { material: 'stone', tone: 3, pieces: 3, heft: 0.2 }),
+  thump: thing('body', { material: 'stone', tone: 0.45, pieces: 1, heft: 1 }),
+  grit: thing('air', { material: 'stone', tone: 3.4, pieces: 16, heft: 0.05 }),
+  slab: thing('body', { material: 'stone', tone: 0.4, pieces: 3, heft: 0.9 }),
+  rockfall: thing('body', { material: 'stone', tone: 0.5, pieces: 30, heft: 0.7 }),
   // A pigeon leaving a tree: a burst of small soft contacts and no ring at all.
-  wings: thing('call', { material: 'wood', tone: 1.8, pieces: 18, heft: 0.12, gain: 0.35 }),
-  embers: thing('body', { material: 'wood', tone: 0.7, pieces: 7, heft: 0.08, gain: 0.22 }),
+  wings: thing('call', { material: 'wood', tone: 1.8, pieces: 18, heft: 0.12 }),
+  embers: thing('body', { material: 'wood', tone: 0.7, pieces: 7, heft: 0.08 }),
 
   // --- water -----------------------------------------------------------------
 
   drip: drop('song', { gain: 0.5 }),
-  plop: drop('call', { radius: [0.004, 0.007], cycles: 26, tick: 0.5, gain: 0.5 }),
-  splash: drop('call', { radius: [0.006, 0.02], cycles: 12, tick: 0.9, gain: 0.6 }),
+  plop: drop('call', { radius: [0.004, 0.007], cycles: 26, tick: 0.5 }),
+  splash: drop('call', { radius: [0.006, 0.02], cycles: 12, tick: 0.9 }),
 
   // --- signals and soundmarks -------------------------------------------------
 
-  'bell-church': rung('body', { hz: 168, decay: 16, strokes: 1, gain: 0.55 }),
-  'bell-hand': rung('song', { hz: 880, decay: 3.2, strokes: 3, interval: 0.34, gain: 0.4 }),
-  'bell-shop': rung('song', { hz: 1150, decay: 1.8, strokes: 2, interval: 0.16, gain: 0.35 }),
+  'bell-church': rung('body', { hz: 168, decay: 16, strokes: 1 }),
+  'bell-hand': rung('song', { hz: 880, decay: 3.2, strokes: 3, interval: 0.34 }),
+  'bell-shop': rung('song', { hz: 1150, decay: 1.8, strokes: 2, interval: 0.16 }),
   // Rung by the sea, so it is one stroke and a long tail.
-  'bell-buoy': rung('body', { hz: 300, decay: 9, strokes: 1, warble: 2.2, gain: 0.45 }),
-  bowl: rung('song', { hz: 520, decay: 11, strokes: 1, warble: 1.6, strike: 0.2, gain: 0.4 }),
+  'bell-buoy': rung('body', { hz: 300, decay: 9, strokes: 1, warble: 2.2 }),
+  bowl: rung('song', { hz: 520, decay: 11, strokes: 1, warble: 1.6, strike: 0.2 }),
 
   klaxon: sung('call', {
     pitch: 330,
@@ -846,7 +822,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 1000,
     q: 2,
     fade: 1,
-    gain: 0.5,
   }, false),
 
   foghorn: sung('body', {
@@ -856,23 +831,175 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     rasp: 0.1,
     formant: 260,
     q: 2.6,
-    gain: 0.6,
   }, false),
 
-  press: struck('body', { tone: 0.35, damping: 0.75, bounces: 0, gain: 0.7 }),
+  press: struck('body', { tone: 0.35, damping: 0.75, bounces: 0 }),
   steam: sung('air', {
     pitch: 2600,
     phrase: [s(1, 0.42, [0.9, 1.8], [2, 6], { drive: 1 })],
     rasp: 1,
     formant: 4200,
     q: 0.7,
-    gain: 0.45,
   }, false),
-  relay: thing('call', { material: 'metal', tone: 2.2, pieces: 1, heft: 0.9, gain: 0.22 }),
-  contactor: thing('body', { material: 'metal', tone: 0.55, pieces: 2, heft: 0.95, gain: 0.45 }),
-  tick: thing('song', { material: 'wood', tone: 2.8, pieces: 1, heft: 0.9, gain: 0.16 }),
-  crack: thing('song', { material: 'wood', tone: 2.2, pieces: 1, heft: 0.85, gain: 0.2 }),
+  relay: thing('call', { material: 'metal', tone: 2.2, pieces: 1, heft: 0.9 }),
+  contactor: thing('body', { material: 'metal', tone: 0.55, pieces: 2, heft: 0.95 }),
+  tick: thing('song', { material: 'wood', tone: 2.8, pieces: 1, heft: 0.9 }),
+  crack: thing('song', { material: 'wood', tone: 2.2, pieces: 1, heft: 0.85 }),
 };
+
+/**
+ * **The mix.** One table, one unit, and the only place a level is decided.
+ *
+ * Decibels against the ambience reference, where 0 dB is as loud as anything in
+ * this layer is ever allowed to be — a soundmark, heard on purpose, once an
+ * hour. Everything else is below it, and most things are a long way below it.
+ *
+ * The rule this table exists to enforce: **no source may be startling.** A
+ * songbird thirty metres off is not a foreground event and must not arrive like
+ * one, however good the synthesis is. The tier trim in the director attenuates
+ * further on top of this, and the declared value is a **ceiling** — the
+ * per-event dice can only take a source below it, never above.
+ *
+ * Anything absent sits at the default for its stratum, which is -24.
+ */
+const DB: Partial<Record<AmbienceVoice, number>> = {
+  // --- soundmarks: the loudest things here, and the rarest ----------------
+  'bell-church': -6,
+  'bell-buoy': -10,
+  foghorn: -8,
+  klaxon: -9,
+  'bell-hand': -13,
+  'bell-shop': -17,
+  bowl: -15,
+
+  // --- signals: meant to be listened to -----------------------------------
+  jay: -14,
+  pheasant: -14,
+  goose: -13,
+  rockfall: -12,
+  press: -13,
+  steam: -16,
+  contactor: -17,
+
+  // --- animals near enough to matter --------------------------------------
+  dog: -17,
+  cow: -17,
+  stag: -16,
+  fox: -17,
+  sheep: -19,
+  pig: -20,
+  horse: -19,
+  seal: -19,
+  cockerel: -18,
+  heron: -18,
+  raven: -19,
+  crow: -20,
+  rook: -20,
+  magpie: -20,
+  gull: -18,
+  hen: -22,
+  deer: -21,
+  duck: -21,
+  moorhen: -22,
+  kittiwake: -21,
+  oystercatcher: -22,
+  woodpigeon: -21,
+  owl: -19,
+  'owl-answer': -21,
+  woodcock: -23,
+  curlew: -19,
+  nightjar: -25,
+
+  // --- songbirds ----------------------------------------------------------
+  //
+  // Down here on purpose. A wood full of birds is a *texture*: individually
+  // audible, never demanding. This is the block that was arriving as a
+  // foreground event and should not have been.
+  blackbird: -23,
+  songthrush: -23,
+  robin: -24,
+  wren: -23,
+  chaffinch: -24,
+  greattit: -24,
+  blackcap: -25,
+  skylark: -26,
+  yellowhammer: -25,
+  whitethroat: -25,
+  stonechat: -25,
+  meadowpipit: -26,
+  linnet: -26,
+  sparrow: -25,
+  swallow: -25,
+  swift: -22,
+  wagtail: -26,
+  reedwarbler: -25,
+  cuckoo: -20,
+  kingfisher: -23,
+  woodpecker: -19,
+  'wren-scold': -24,
+
+  // --- people -------------------------------------------------------------
+  shout: -16,
+  call: -18,
+  laugh: -20,
+  chatter: -23,
+  cough: -24,
+  hum: -25,
+  whistle: -23,
+  tannoy: -17,
+
+  // --- things handled -----------------------------------------------------
+  pail: -20,
+  'pail-fill': -21,
+  'pail-pour': -21,
+  churn: -21,
+  trough: -22,
+  jar: -22,
+  pot: -21,
+  wood: -21,
+  metal: -20,
+  stone: -21,
+  coins: -25,
+  paper: -30,
+  latch: -22,
+  hinge: -23,
+  whetstone: -23,
+  thump: -20,
+  grit: -28,
+  slab: -19,
+  wings: -22,
+  embers: -28,
+  relay: -28,
+  tick: -30,
+  crack: -26,
+
+  // --- water --------------------------------------------------------------
+  drip: -22,
+  plop: -23,
+  splash: -20,
+
+  // --- the small and the far ----------------------------------------------
+  rat: -28,
+  mouse: -32,
+  rabbit: -25,
+  bats: -30,
+  frog: -24,
+  toad: -25,
+  cricket: -28,
+  grasshopper: -29,
+  bee: -26,
+  wasp: -27,
+  fly: -28,
+  midge: -33,
+  dragonfly: -29,
+};
+
+/** Anything the table does not name. Deliberately quiet. */
+const DEFAULT_DB = -24;
+
+for (const [name, entry] of Object.entries(VOICES)) {
+  entry.db = DB[name as AmbienceVoice] ?? DEFAULT_DB;
+}
 
 /** Every name, for the dev panel's picker. */
 export const AMBIENCE_VOICES = Object.keys(VOICES) as readonly AmbienceVoice[];

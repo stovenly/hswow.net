@@ -43,6 +43,8 @@ export interface AudioSettings {
   occlusion: number;
   /** The music director's level. The gain exists whether or not a zone is scored. */
   musicVolume: number;
+  /** The ambience layer's level, under its own limiter. */
+  ambienceVolume: number;
 }
 
 export const DEFAULT_AUDIO: AudioSettings = {
@@ -51,6 +53,7 @@ export const DEFAULT_AUDIO: AudioSettings = {
   airAbsorption: 0.65,
   occlusion: 0.8,
   musicVolume: 0.3,
+  ambienceVolume: 0.85,
 };
 
 /** Raycasts listener→emitter cost real time; they do not need doing every frame. */
