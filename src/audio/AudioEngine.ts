@@ -188,9 +188,11 @@ export class AudioEngine {
     this.voices.connect(this.dry);
     this.weatherBus.connect(this.dry);
 
+    const spread = crossfeed(this.context);
     this.dry.connect(this.duck);
     this.duck.connect(this.master);
-    this.master.connect(limiter);
+    this.master.connect(spread.input);
+    spread.output.connect(limiter);
     limiter.connect(this.context.destination);
 
     // Before `build`, because `build` publishes `noise` and that is the flag
@@ -523,6 +525,57 @@ export class AudioEngine {
     document.removeEventListener('visibilitychange', this.handleVisibility);
     void this.context.close();
   }
+}
+
+/**
+ * How much of each channel is fed to the other, and how dull it arrives.
+ *
+ * **Nothing in the world ever reaches one ear and not the other.** A head is
+ * not an infinite baffle: a sound hard on your right still arrives at your left
+ * a few hundred microseconds later and only six to ten decibels down, and dull,
+ * because a head is small compared to a bass wavelength and large compared to a
+ * treble one. Panning that reaches the ends of the field has no physical
+ * counterpart at all — it is a property of two loudspeakers, not of listening —
+ * and on headphones it is the thing that makes a mix feel like it is happening
+ * inside your skull rather than around you.
+ *
+ * So the whole master is crossfed. The delay is the real interaural one at a
+ * wide angle; the lowpass is the head shadow, which is why the bleed is warm
+ * and does not smear the top end. This costs four nodes for the entire game and
+ * it applies to every source, positioned or not, including anything added later
+ * that forgets to think about it.
+ */
+const CROSSFEED = 0.32;
+const CROSSFEED_DELAY = 0.00027;
+const CROSSFEED_HZ = 750;
+
+function crossfeed(context: BaseAudioContext): { input: GainNode; output: GainNode } {
+  const input = context.createGain();
+  const output = context.createGain();
+  const split = context.createChannelSplitter(2);
+  const merge = context.createChannelMerger(2);
+
+  input.connect(split);
+  // The direct path, untouched.
+  split.connect(merge, 0, 0);
+  split.connect(merge, 1, 1);
+
+  for (let side = 0; side < 2; side++) {
+    const delay = context.createDelay(0.01);
+    delay.delayTime.value = CROSSFEED_DELAY;
+    const shadow = context.createBiquadFilter();
+    shadow.type = 'lowpass';
+    shadow.frequency.value = CROSSFEED_HZ;
+    shadow.Q.value = 0.5;
+    const level = context.createGain();
+    level.gain.value = CROSSFEED;
+    split.connect(delay, side).connect(shadow).connect(level);
+    // Into the *other* ear.
+    level.connect(merge, 0, side === 0 ? 1 : 0);
+  }
+
+  merge.connect(output);
+  return { input, output };
 }
 
 export type { RoomName, RoomAcoustics };

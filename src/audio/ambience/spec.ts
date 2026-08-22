@@ -12,9 +12,6 @@ import type { ModelSpec } from '../Soundscape';
  */
 export type Band = 'floor' | 'body' | 'throat' | 'call' | 'song' | 'air';
 
-/** How far off a source stands. Decides reverb, rolloff and occlusion. */
-export type Tier = 'near' | 'mid' | 'far';
-
 export type Span = readonly [number, number];
 
 /**
@@ -208,14 +205,13 @@ export type AirLayer = ModelSpec & {
 };
 
 /**
- * The middle distance: continuous and positional. Sited by the director in a
- * ring rather than at a coordinate — a zone that wants a source at a place
- * declares it in its own `SoundscapeSpec` instead.
+ * Continuous, and somewhere out there. Sited by the director in a ring around
+ * the listener rather than at a coordinate — a zone that wants a source at a
+ * place declares it in its own `SoundscapeSpec` instead.
  */
 export type ChorusLayer = ModelSpec & {
   id?: string;
   gain?: number;
-  tier: Tier;
   /** Metres above the listener. Height is most of what stops a ring of speakers. */
   height?: number;
   follow?: readonly Follow[];
@@ -233,7 +229,6 @@ export interface CastMember {
    * time, and those do not slow down because the place has gone quiet.
    */
   rhythm?: 'poisson' | 'periodic';
-  tier: Tier;
   level?: number;
   height?: number;
   /** Chance this one is answered from somewhere else a beat later, 0..1. */

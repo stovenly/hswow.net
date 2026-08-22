@@ -13,6 +13,9 @@ import { createFriction, type FrictionOptions } from './models/friction';
 import { createWaveguide, type WaveguideOptions } from './models/waveguide';
 import { createAir, type AirOptions } from './models/air';
 import { createCavern, type CavernOptions } from './models/cavern';
+import { createMurmur, type MurmurOptions } from './models/murmur';
+import { createHedge, type HedgeOptions } from './models/hedge';
+import { createFlue, type FlueOptions } from './models/flue';
 import { createPlant, type PlantOptions } from './models/plant';
 import { createInsect, type InsectOptions } from './models/insect';
 import { createSurf, type SurfOptions } from './models/surf';
@@ -56,6 +59,9 @@ export type ModelSpec =
   | { model: 'waveguide'; options?: WaveguideOptions }
   | { model: 'air'; options?: AirOptions }
   | { model: 'cavern'; options?: CavernOptions }
+  | { model: 'murmur'; options?: MurmurOptions }
+  | { model: 'hedge'; options?: HedgeOptions }
+  | { model: 'flue'; options?: FlueOptions }
   | { model: 'plant'; options?: PlantOptions }
   | { model: 'insect'; options?: InsectOptions }
   | { model: 'surf'; options?: SurfOptions }
@@ -141,6 +147,12 @@ export function buildModel(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createAir(engine, spec.options);
     case 'cavern':
       return createCavern(engine, spec.options);
+    case 'murmur':
+      return createMurmur(engine, spec.options);
+    case 'hedge':
+      return createHedge(engine, spec.options);
+    case 'flue':
+      return createFlue(engine, spec.options);
     case 'plant':
       return createPlant(engine, spec.options);
     case 'insect':

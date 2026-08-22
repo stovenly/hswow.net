@@ -76,10 +76,28 @@ const WHISTLE_MAX_HZ = 3200;
 const WHISTLE_MIN_Q = 3;
 const WHISTLE_MAX_Q = 10;
 
+/**
+ * How far toward one side any part of the bed may sit.
+ *
+ * Deliberately short of the ends. Nothing in a real environment arrives at one
+ * ear and not the other — your head is not an infinite baffle, and a sound to
+ * your right still reaches your left a fraction of a millisecond later and only
+ * a few decibels down. A bed panned to the stops sounds like headphones with a
+ * fault, and it is the single most common way synthesised air gives itself away.
+ */
+const MAX_PAN = 0.75;
+
 interface Layer {
   /** Two voices, panned apart. The whole reason this file is not `wind.ts`. */
   voices: NoiseVoice[];
   pans: StereoPannerNode[];
+  /**
+   * Where each side sits at full width. Held here rather than read back off
+   * the node: an `AudioParam` mid-ramp reports where it has got to, not where
+   * it was aimed, so scaling the live value compounds every frame and walks
+   * the field into the middle — and `Math.sign` pins it there once it arrives.
+   */
+  base: number[];
   filter: BiquadFilterNode;
   level: GainNode;
 }
@@ -124,17 +142,22 @@ export function createAir(engine: AudioEngine, options: AirOptions = {}): AirMod
     // Two voices into two pans, not one voice split — a split source is still
     // one source and the ear places it dead centre however far the pans go.
     const pans: StereoPannerNode[] = [];
+    const base: number[] = [];
     const voices: NoiseVoice[] = [];
     for (let side = 0; side < 2; side++) {
       const pan = context.createStereoPanner();
-      pan.pan.value = (side === 0 ? -1 : 1) * spread * width;
+      // Never fully to one side. Air is all around you; a bed that reaches the
+      // ends of the field is a bed with a hole in the middle of it.
+      const seat = (side === 0 ? -1 : 1) * spread * width * MAX_PAN;
+      pan.pan.value = seat;
       pan.connect(filter);
       pans.push(pan);
+      base.push(seat);
       // A wider rate detune than the default: these run for the whole session
       // and two voices at nearly the same rate drift into audible phasing.
       voices.push(playNoise(context, buffer, pan, 0.11));
     }
-    return { voices, pans, filter, level };
+    return { voices, pans, base, filter, level };
   };
 
   // Brown for the mass, pink for the body, white for the detail — the three
@@ -181,11 +204,10 @@ export function createAir(engine: AudioEngine, options: AirOptions = {}): AirMod
     whistle.level.gain.setTargetAtTime(aperture * rising * 0.22, at, 0.2);
 
     // The field narrows as it quietens. A still place is a small place.
-    const spread = 0.45 + 0.55 * speed;
+    const narrow = 0.5 + 0.5 * speed;
     for (const layer of [roar, rush, hiss, whistle]) {
       for (let side = 0; side < 2; side++) {
-        const base = layer.pans[side].pan.value;
-        layer.pans[side].pan.setTargetAtTime(Math.sign(base) * Math.abs(base) * spread, at, 1.2);
+        layer.pans[side].pan.setTargetAtTime(layer.base[side] * narrow, at, 1.2);
       }
     }
   };

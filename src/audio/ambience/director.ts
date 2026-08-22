@@ -22,7 +22,6 @@ import type {
   ChorusLayer,
   Driver,
   Follow,
-  Tier,
 } from './spec';
 
 /**
@@ -51,74 +50,44 @@ const CROSSFADE = 0.9;
 const LEAVE = 0.35;
 
 /**
- * A tier is a **treatment, not a distance**.
+ * **Everything in this layer is far.** That is not a setting, it is what the
+ * layer *is*: global ambience is what a whole zone sounds like, and a whole
+ * zone is never at arm's length. There is no near and no middle distance,
+ * because a source close enough to be either is a source that belongs to a
+ * place — the zone's own `SoundscapeSpec` — and not to this.
  *
- * This layer is global: it is what the whole zone sounds like, heard relative
- * to the player wherever they stand. So none of it is anchored in the world,
- * nothing in it is behind a particular wall, and nothing in it should be
- * getting quieter because the player walked away from a coordinate — there is
- * no coordinate to walk away from.
+ * So there is one treatment and every source gets it: quiet, dark, with a lot
+ * of room around it and a handful of scattered early returns, which is what
+ * being a long way off in the open actually does to a sound.
  *
- * Which means the physical chain has to be taken *off*. Sources sit at a modest
- * fixed offset that exists only so the panner has a direction to render; the
- * distance model is flattened by matching `refDistance` to that offset, the
- * taper is put out of reach, absorption is turned off, and occlusion is never
- * tested. Far-ness is then something stated on purpose — quieter, darker, more
- * room around it — rather than a number that fell out of an inverse square.
- *
- * `lift` is how far above the listener it sits. Height is most of what stops a
- * ring of sources reading as a ring of speakers at head level.
+ * Direction is a **bias and never a side.** A single distant source may lean
+ * one way, because a rook really is over there; nothing may ever arrive at one
+ * ear and not the other, because that does not happen outside headphones. The
+ * pan is capped well short of the ends and the master is crossfed on top.
  */
-const TIERS: Record<
-  Tier,
-  {
-    radius: readonly [number, number];
-    lift: number;
-    /** Level, tone and room, all stated rather than derived. */
-    level: number;
-    tone: number;
-    reverb: number;
-    /** Early reflections: tap times in seconds, and how loud they come back. */
-    taps: readonly number[];
-    tapLevel: number;
-    importance: number;
-  }
-> = {
-  near: {
-    radius: [3, 7],
-    lift: 1,
-    level: 1,
-    tone: 15000,
-    reverb: 0.2,
-    taps: [],
-    tapLevel: 0,
-    // Brief and individually audible is exactly what the HRTF budget is for,
-    // so ambience events outrank a continuous drone rather than losing to one.
-    importance: 2.2,
-  },
-  mid: {
-    radius: [6, 12],
-    lift: 3,
-    level: 0.5,
-    tone: 6200,
-    reverb: 0.55,
-    taps: [0.021, 0.037],
-    tapLevel: 0.22,
-    importance: 1.3,
-  },
-  far: {
-    radius: [10, 20],
-    lift: 7,
-    level: 0.22,
-    tone: 2300,
-    reverb: 0.95,
-    // The part that actually reads as open country: a handful of late,
-    // scattered returns rather than one pre-delay.
-    taps: [0.029, 0.053, 0.079, 0.113],
-    tapLevel: 0.3,
-    importance: 0.6,
-  },
+const FAR = {
+  /** Where a source may stand. One ring, and it exists to give a bearing. */
+  radius: [14, 26] as const,
+  /** Metres above the listener, by default. */
+  lift: 5,
+  level: 0.32,
+  tone: 2600,
+  reverb: 0.9,
+  /** Early reflections: tap times in seconds, and how loud they come back. */
+  taps: [0.029, 0.053, 0.079, 0.113] as const,
+  tapLevel: 0.3,
+  importance: 0.6,
 };
+
+/**
+ * How far off centre a single source may sit, as a fraction of the ring.
+ *
+ * A source pushed to the edge of the field is a source in one ear, and nothing
+ * outdoors is ever in one ear — your head is small and sound goes round it. So
+ * the bearing is real and the extent of it is not: a rook to your right is to
+ * your right, audibly, and still present on your left.
+ */
+const BIAS = 0.55;
 
 /** Decibels to a gain. The mix is stated in dB and applied here. */
 const gainOf = (db: number): number => Math.pow(10, db / 20);
@@ -131,8 +100,8 @@ const gainOf = (db: number): number => Math.pow(10, db / 20);
 const CEILING_DB = -3;
 
 /** How much a fixed offset may swing the level. Small: it is not a distance. */
-const ROLLOFF = 0.25;
-/** Past any offset a tier uses, so the emitter's own taper never engages. */
+const ROLLOFF = 0.2;
+/** Past any offset in use, so the emitter's own taper never engages. */
 const REACH = 4000;
 
 /**
@@ -159,7 +128,7 @@ function bandOf(hz: number): Band {
  * source masks for longer than a far one, because distance is itself a form of
  * masking relief.
  */
-const HOLD: Record<Tier, number> = { near: 1.4, mid: 1, far: 0.6 };
+const HOLD = 0.8;
 
 /** Multiplier on that hold in a band the score is already sitting in. */
 const CLAIMED_HOLD = 2.5;
@@ -195,7 +164,7 @@ interface Layer {
   spec: AirLayer | ChorusLayer;
 }
 
-/** One treatment chain, shared by every source at that tier. */
+/** The one treatment chain, shared by everything in the layer. */
 interface Bus {
   /** Emitters' dry path lands here. */
   in: GainNode;
@@ -209,7 +178,7 @@ interface Rack {
   /** The vibe's fader. Two nodes so the wet path fades with the dry one. */
   dry: GainNode;
   wet: GainNode;
-  buses: Record<Tier, Bus>;
+  bus: Bus;
   air: Layer[];
   /** `offset` is from the listener, not from the world origin. See `update`. */
   chorus: (Layer & { emitter: Emitter; offset: THREE.Vector3 })[];
@@ -351,9 +320,9 @@ export class AmbienceDirector {
    * mostly waiting, and waiting is how a parameter gets changed twice between
    * hearings.
    */
-  say(voice: AmbienceVoice, tier: Tier = 'mid'): void {
+  say(voice: AmbienceVoice): void {
     if (!this.rack) return;
-    this.speak(this.rack, { voice, every: [1, 1], tier }, this.engine.context.currentTime + 0.05);
+    this.speak(this.rack, { voice, every: [1, 1] }, this.engine.context.currentTime + 0.05);
   }
 
   /** Silences the whole layer without tearing it down. */
@@ -549,19 +518,20 @@ export class AmbienceDirector {
     // Two throats only where this one can answer itself. Everywhere else a
     // second is a second emitter that is never both busy at once.
     const throats = member.answers && (member.answer ?? member.voice) === voiceName ? 2 : 1;
-    const pool = this.poolFor(rack, voiceName, member.tier, throats);
+    const pool = this.poolFor(rack, voiceName, throats);
     const voice = pool.voices.find((held) => held.busyUntil <= at);
     if (!voice || voice.emitter.isVirtual) return;
 
-    const tier = TIERS[member.tier];
     const listener = this.engine.listenerPosition;
     const bearing = Math.random() * Math.PI * 2;
-    const radius = tier.radius[0] + Math.random() * (tier.radius[1] - tier.radius[0]);
-    const height = listener.y + (member.height ?? tier.lift) * (0.7 + Math.random() * 0.6);
+    const radius = FAR.radius[0] + Math.random() * (FAR.radius[1] - FAR.radius[0]);
+    const height = listener.y + (member.height ?? FAR.lift) * (0.7 + Math.random() * 0.6);
+    // `BIAS` shortens the horizontal offset without touching the height, so a
+    // source has a real bearing and still never reaches the edge of the field.
     _point.set(
-      listener.x + Math.cos(bearing) * radius,
+      listener.x + Math.cos(bearing) * radius * BIAS,
       height,
-      listener.z + Math.sin(bearing) * radius,
+      listener.z + Math.sin(bearing) * radius * BIAS,
     );
     voice.emitter.moveTo(_point);
     voice.path = null;
@@ -572,7 +542,7 @@ export class AmbienceDirector {
       const seconds = member.passes.seconds;
       const flight = seconds[0] + Math.random() * (seconds[1] - seconds[0]);
       const across = bearing + Math.PI / 2 + (Math.random() - 0.5) * 0.7;
-      const half = member.passes.over / 2;
+      const half = (member.passes.over / 2) * BIAS;
       voice.path = {
         from: _point.clone().addScaledVector(_axis.set(Math.cos(across), 0, Math.sin(across)), -half),
         to: _point.clone().addScaledVector(_axis, half),
@@ -592,7 +562,7 @@ export class AmbienceDirector {
     const busy = voice.shot.fire(at, force);
     voice.busyUntil = at + busy;
 
-    const hold = HOLD[member.tier] * (this.claimed.includes(band) ? CLAIMED_HOLD : 1);
+    const hold = HOLD * (this.claimed.includes(band) ? CLAIMED_HOLD : 1);
     if (band !== 'floor') this.busy[band] = Math.max(this.busy[band], at + busy * hold);
 
     // The answer comes from somewhere else, later, and often as a different
@@ -659,13 +629,11 @@ export class AmbienceDirector {
    * Keyed on voice and tier rather than on the cast entry, so two members
    * naming the same bird share one throat. That is where the budget comes from.
    */
-  private poolFor(rack: Rack, voice: AmbienceVoice, tier: Tier, throats: number): Pool {
-    const key = `${voice}:${tier}`;
-    let pool = rack.pools.get(key);
+  private poolFor(rack: Rack, voice: AmbienceVoice, throats: number): Pool {
+    let pool = rack.pools.get(voice);
     if (pool) return pool;
 
     const entry = VOICES[voice];
-    const shape = TIERS[tier];
     const voices: Held[] = [];
     for (let i = 0; i < throats; i++) {
       const shot = entry.build(this.engine);
@@ -677,20 +645,20 @@ export class AmbienceDirector {
           position: this.engine.listenerPosition,
           // Flat by construction: the offset exists to give the panner a
           // direction, not to set a level. See `TIERS`.
-          refDistance: (shape.radius[0] + shape.radius[1]) / 2,
+          refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * BIAS,
           maxDistance: REACH,
           rolloff: ROLLOFF,
           reverb: 1,
-          importance: shape.importance,
+          importance: FAR.importance,
           ignoreAbsorption: true,
           ignoreOcclusion: true,
-          out: rack.buses[tier].in,
-          send: rack.buses[tier].send,
+          out: rack.bus.in,
+          send: rack.bus.send,
         }),
       });
     }
     pool = { voices };
-    rack.pools.set(key, pool);
+    rack.pools.set(voice, pool);
     return pool;
   }
 
@@ -706,52 +674,46 @@ export class AmbienceDirector {
     wet.gain.value = 0;
     wet.connect(this.wetOut);
 
-    // One chain per tier, shared by everything at it, rather than a darkened
-    // copy of each model.
-    const buses = {} as Record<Tier, Bus>;
-    for (const name of ['near', 'mid', 'far'] as const) {
-      const tier = TIERS[name];
-      const nodes: AudioNode[] = [];
+    // One chain, shared by everything, rather than a darkened copy per model.
+    const nodes: AudioNode[] = [];
+    const input = context.createGain();
+    const level = context.createGain();
+    level.gain.value = FAR.level;
 
-      const input = context.createGain();
-      const level = context.createGain();
-      level.gain.value = tier.level;
+    const tone = context.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = FAR.tone;
+    tone.Q.value = 0.5;
+    input.connect(tone).connect(level).connect(dry);
+    nodes.push(input, tone, level);
 
-      const tone = context.createBiquadFilter();
-      tone.type = 'lowpass';
-      tone.frequency.value = tier.tone;
-      tone.Q.value = 0.5;
-      input.connect(tone).connect(level).connect(dry);
-      nodes.push(input, tone, level);
+    // Early reflections. A few scattered returns are what says "outdoors and
+    // some way off"; one pre-delay says nothing at all. They land off centre,
+    // and on alternating sides, because surfaces are not all on one side —
+    // which is also what stops a lone source collapsing to a point.
+    FAR.taps.forEach((time, i) => {
+      const delay = context.createDelay(0.5);
+      delay.delayTime.value = time;
+      const tap = context.createGain();
+      tap.gain.value = FAR.tapLevel * Math.pow(0.62, i);
+      const pan = context.createStereoPanner();
+      pan.pan.value = (i % 2 === 0 ? -1 : 1) * (0.3 + i * 0.09);
+      input.connect(delay).connect(tap).connect(pan).connect(level);
+      nodes.push(delay, tap, pan);
+    });
 
-      // Early reflections. A few scattered returns are what says "outdoors and
-      // some way off"; one pre-delay says nothing at all.
-      tier.taps.forEach((time, i) => {
-        const delay = context.createDelay(0.5);
-        delay.delayTime.value = time;
-        const tap = context.createGain();
-        tap.gain.value = tier.tapLevel * Math.pow(0.62, i);
-        const pan = context.createStereoPanner();
-        // Alternating and never quite full: a reflection arrives from a
-        // surface, and the surfaces are not all on one side.
-        pan.pan.value = (i % 2 === 0 ? -1 : 1) * (0.45 + i * 0.12);
-        input.connect(delay).connect(tap).connect(pan).connect(level);
-        nodes.push(delay, tap, pan);
-      });
+    const send = context.createGain();
+    send.gain.value = FAR.reverb;
+    send.connect(wet);
+    nodes.push(send);
 
-      const send = context.createGain();
-      send.gain.value = tier.reverb;
-      send.connect(wet);
-      nodes.push(send);
-
-      buses[name] = { in: input, send, nodes };
-    }
+    const bus: Bus = { in: input, send, nodes };
 
     const rack: Rack = {
       spec,
       dry,
       wet,
-      buses,
+      bus,
       air: [],
       chorus: [],
       pools: new Map(),
@@ -774,28 +736,27 @@ export class AmbienceDirector {
       const gain = context.createGain();
       gain.gain.value = 0;
       model.output.connect(gain);
-      const shape = TIERS[layer.tier];
       const bearing = rack.rng() * Math.PI * 2;
-      const radius = shape.radius[0] + rack.rng() * (shape.radius[1] - shape.radius[0]);
+      const radius = FAR.radius[0] + rack.rng() * (FAR.radius[1] - FAR.radius[0]);
       // An offset from the listener, held for the life of the rack. A vibe's
       // chorus is a ring around you and travels with you; a source that belongs
       // at a coordinate is the zone's own `SoundscapeSpec` and not this.
       const offset = new THREE.Vector3(
-        Math.cos(bearing) * radius,
-        layer.height ?? shape.lift,
-        Math.sin(bearing) * radius,
+        Math.cos(bearing) * radius * BIAS,
+        layer.height ?? FAR.lift,
+        Math.sin(bearing) * radius * BIAS,
       );
       const emitter = new Emitter(this.engine, faded(model, gain), {
         position: _point.copy(this.engine.listenerPosition).add(offset),
-        refDistance: (shape.radius[0] + shape.radius[1]) / 2,
+        refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * BIAS,
         maxDistance: REACH,
         rolloff: ROLLOFF,
         reverb: 1,
-        importance: shape.importance,
+        importance: FAR.importance,
         ignoreAbsorption: true,
         ignoreOcclusion: true,
-        out: buses[layer.tier].in,
-        send: buses[layer.tier].send,
+        out: bus.in,
+        send: bus.send,
       });
       rack.chorus.push({
         model,
@@ -844,9 +805,7 @@ export class AmbienceDirector {
       for (const pool of rack.pools.values()) {
         for (const voice of pool.voices) voice.emitter.dispose();
       }
-      for (const bus of Object.values(rack.buses)) {
-        for (const node of bus.nodes) node.disconnect();
-      }
+      for (const node of rack.bus.nodes) node.disconnect();
       rack.dry.disconnect();
       rack.wet.disconnect();
     }

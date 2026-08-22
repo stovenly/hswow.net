@@ -31,7 +31,7 @@ import { createTestWorld, ZONE_EXTERIOR, ZONE_COUNTRYSIDE } from './debug/zones'
 import { STAGE_STATIONS } from './debug/SoundStage';
 import { VIBES, VIBE_NAMES, musicFor, type VibeName } from './audio/vibes';
 import { AMBIENCE_VOICES } from './audio/ambience/voices';
-import type { AmbienceVoice, Tier } from './audio/ambience/spec';
+import type { AmbienceVoice } from './audio/ambience/spec';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
@@ -1072,8 +1072,7 @@ if (dev.gui) {
   const airState = {
     vibe: 'zone',
     voice: 'robin' as AmbienceVoice,
-    tier: 'mid' as Tier,
-    say: () => zones.ambience?.say(airState.voice, airState.tier),
+    say: () => zones.ambience?.say(airState.voice),
     hush: () => zones.ambience?.hush(),
   };
   air
@@ -1088,7 +1087,6 @@ if (dev.gui) {
       }
     });
   air.add(airState, 'voice', [...AMBIENCE_VOICES]);
-  air.add(airState, 'tier', ['near', 'mid', 'far']);
   air.add(airState, 'say').name('say it');
   air.add(airState, 'hush').name('hush the place');
 
