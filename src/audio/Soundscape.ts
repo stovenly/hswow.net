@@ -11,6 +11,7 @@ import { createWater, type WaterOptions } from './models/water';
 import { createCrowd, type CrowdOptions } from './models/crowd';
 import { createFriction, type FrictionOptions } from './models/friction';
 import { createWaveguide, type WaveguideOptions } from './models/waveguide';
+import { createAir, type AirOptions } from './models/air';
 import { createInsect, type InsectOptions } from './models/insect';
 import { createSurf, type SurfOptions } from './models/surf';
 import { createWire, type WireOptions } from './models/wire';
@@ -51,6 +52,7 @@ export type ModelSpec =
   | { model: 'crowd'; options?: CrowdOptions }
   | { model: 'friction'; options?: FrictionOptions }
   | { model: 'waveguide'; options?: WaveguideOptions }
+  | { model: 'air'; options?: AirOptions }
   | { model: 'insect'; options?: InsectOptions }
   | { model: 'surf'; options?: SurfOptions }
   | { model: 'wire'; options?: WireOptions }
@@ -131,6 +133,8 @@ export function buildModel(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createFriction(engine, spec.options);
     case 'waveguide':
       return createWaveguide(engine, spec.options);
+    case 'air':
+      return createAir(engine, spec.options);
     case 'insect':
       return createInsect(engine, spec.options);
     case 'surf':

@@ -14,7 +14,7 @@ import type { AmbienceSpec } from './spec';
 
 export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.15, tone: 3000 }, follow: [{ by: 'wind', span: [0.5, 1.2] }] },
+    { model: 'air', id: 'air', options: { gain: 0.15, tone: 3000, shelter: 0.45, aperture: 0.25, roar: 0.5, rush: 1.0, hiss: 0.6 }, follow: [{ by: 'wind', span: [0.5, 1.2] }] },
     // The settlement itself, too far off to make out a word of it.
     {
       model: 'crowd',
@@ -52,7 +52,7 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
 
 export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.11, tone: 2800 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
+    { model: 'air', id: 'air', options: { gain: 0.11, tone: 2800, shelter: 0.55, aperture: 0.2, roar: 0.5, rush: 1.0, hiss: 0.5 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
     // The square, and it is the keynote here rather than a source in it.
     {
       model: 'crowd',
@@ -92,7 +92,7 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
   air: [
     // The room, and nothing else. An interior with a generic hum in it sounds
     // like a menu; this is the wall taking the outside down to a murmur.
-    { model: 'wind', id: 'air', options: { gain: 0.035, tone: 700, whistle: 0 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
+    { model: 'air', id: 'air', options: { gain: 0.035, tone: 700, shelter: 0.9, aperture: 0.35, roar: 0.35, rush: 0.5, hiss: 0.12 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
     { model: 'rain', id: 'rain', options: { gain: 0.06, intensity: 0, surface: 'stone', articulation: 0.5 } },
   ],
   chorus: [
@@ -117,7 +117,7 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
 
 export const VILLAGE_INTERIOR_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.03, tone: 900, whistle: 0 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
+    { model: 'air', id: 'air', options: { gain: 0.03, tone: 900, shelter: 0.92, aperture: 0.3, roar: 0.3, rush: 0.45, hiss: 0.1 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
   ],
   chorus: [
     { model: 'fire', tier: 'near', height: 0.5, options: { gain: 0.2, intensity: 0.3, tone: 1.1, crackle: 0.4, draught: 0.08 } },
@@ -146,7 +146,7 @@ export const VILLAGE_INTERIOR_2_AMBIENCE: AmbienceSpec = {
 
 export const FARM_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.19, tone: 3600 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
+    { model: 'air', id: 'air', options: { gain: 0.19, tone: 3600, shelter: 0.1, aperture: 0.35, roar: 0.7, rush: 1.0, hiss: 0.95 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
     // The crop. Dry, high and papery, and it is the field's own voice.
     {
       model: 'foliage',
@@ -193,7 +193,7 @@ export const FARM_AMBIENCE: AmbienceSpec = {
 
 export const FOREST_A_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.12, tone: 3100 }, follow: [{ by: 'wind', span: [0.35, 1.2] }] },
+    { model: 'air', id: 'air', options: { gain: 0.12, tone: 3100, shelter: 0.5, aperture: 0.2, roar: 0.55, rush: 1.0, hiss: 0.75 }, follow: [{ by: 'wind', span: [0.35, 1.2] }] },
     { model: 'foliage', options: { density: 280, tone: 0.8, gain: 0.16, articulation: 0.2, restlessness: 0.12 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
   ],
   chorus: [
@@ -229,7 +229,7 @@ export const FOREST_A_AMBIENCE: AmbienceSpec = {
 
 export const FOREST_B_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.14, tone: 2400 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
+    { model: 'air', id: 'air', options: { gain: 0.14, tone: 2400, shelter: 0.62, aperture: 0.15, roar: 0.7, rush: 1.0, hiss: 0.6 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
     // Conifer: steadier and higher than broadleaf, and it never quite stops.
     { model: 'foliage', options: { density: 340, tone: 1.35, gain: 0.15, articulation: 0.12, restlessness: 0.32 }, follow: [{ by: 'wind', span: [0.35, 1] }] },
   ],
@@ -263,7 +263,7 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
 
 export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.15, tone: 3300 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
+    { model: 'air', id: 'air', options: { gain: 0.15, tone: 3300, shelter: 0.38, aperture: 0.25, roar: 0.55, rush: 1.0, hiss: 0.8 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
     { model: 'foliage', options: { density: 200, tone: 1.1, gain: 0.12, articulation: 0.24 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
   ],
   chorus: [
@@ -295,7 +295,7 @@ export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
 
 export const FOREST_PATH_B_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.1, tone: 2200 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
+    { model: 'air', id: 'air', options: { gain: 0.1, tone: 2200, shelter: 0.7, aperture: 0.12, roar: 0.6, rush: 0.9, hiss: 0.45 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
     { model: 'foliage', options: { density: 260, tone: 0.65, gain: 0.15, articulation: 0.16, restlessness: 0.14 }, follow: [{ by: 'wind', span: [0.3, 1] }] },
   ],
   chorus: [
@@ -323,7 +323,7 @@ export const FOREST_PATH_B_AMBIENCE: AmbienceSpec = {
 
 export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.12, tone: 3200 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
+    { model: 'air', id: 'air', options: { gain: 0.12, tone: 3200, shelter: 0.3, aperture: 0.3, roar: 0.5, rush: 1.0, hiss: 0.85 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
     { model: 'water', id: 'river', options: { flow: 'stream', gain: 0.2, tone: 1 } },
   ],
   chorus: [
@@ -381,7 +381,7 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.05, tone: 400, whistle: 0 }, follow: [{ by: 'wind', span: [0.7, 1.1] }] },
+    { model: 'air', id: 'air', options: { gain: 0.05, tone: 400, shelter: 0.95, aperture: 0.55, roar: 1.0, rush: 0.35, hiss: 0.05 }, follow: [{ by: 'wind', span: [0.7, 1.1] }] },
     // The passage, blown across. The best cave sound there is and it is already
     // in the kit.
     { model: 'waveguide', options: { pitch: 41, decay: 4.5, closed: true, bright: 0.12, gain: 0.16 }, follow: [{ by: 'gust', span: [0.4, 1] }] },
@@ -406,7 +406,7 @@ export const CAVE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.04, tone: 500, whistle: 0 }, follow: [{ by: 'wind', span: [0.7, 1.05] }] },
+    { model: 'air', id: 'air', options: { gain: 0.04, tone: 500, shelter: 0.95, aperture: 0.45, roar: 0.95, rush: 0.35, hiss: 0.06 }, follow: [{ by: 'wind', span: [0.7, 1.05] }] },
     { model: 'waveguide', options: { pitch: 55, decay: 3.6, closed: true, bright: 0.16, gain: 0.11 }, follow: [{ by: 'gust', span: [0.4, 1] }] },
   ],
   chorus: [
@@ -435,7 +435,7 @@ export const CAVE_2_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_DARK_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.05, tone: 300, whistle: 0 }, follow: [{ by: 'wind', span: [0.8, 1.05] }] },
+    { model: 'air', id: 'air', options: { gain: 0.05, tone: 300, shelter: 0.97, aperture: 0.6, roar: 1.1, rush: 0.3, hiss: 0.03 }, follow: [{ by: 'wind', span: [0.8, 1.05] }] },
     // A passage whose length keeps changing as the air moves through it.
     { model: 'waveguide', options: { pitch: 33, decay: 6, closed: true, bright: 0.08, gain: 0.19 }, follow: [{ by: 'gust', span: [0.5, 1] }] },
   ],
@@ -458,7 +458,7 @@ export const CAVE_DARK_AMBIENCE: AmbienceSpec = {
 
 export const FACTORY_1_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.06, tone: 1600, whistle: 0 } },
+    { model: 'air', id: 'air', options: { gain: 0.06, tone: 1600, shelter: 0.85, aperture: 0.1, roar: 0.6, rush: 0.8, hiss: 0.25 } },
     // The plant, felt before it is heard.
     { model: 'machine', options: { rpm: 340, fundamental: 50, gain: 0.16, wear: 0.5, clank: 0.1 } },
   ],
@@ -487,7 +487,7 @@ export const FACTORY_1_AMBIENCE: AmbienceSpec = {
 
 export const FACTORY_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.05, tone: 1400, whistle: 0 } },
+    { model: 'air', id: 'air', options: { gain: 0.05, tone: 1400, shelter: 0.88, aperture: 0.08, roar: 0.65, rush: 0.8, hiss: 0.2 } },
     { model: 'machine', options: { rpm: 260, fundamental: 42, gain: 0.24, wear: 0.6, clank: 0.15 } },
   ],
   chorus: [
@@ -511,7 +511,7 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
 
 export const SEWER_1_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.05, tone: 600, whistle: 0 } },
+    { model: 'air', id: 'air', options: { gain: 0.05, tone: 600, shelter: 0.92, aperture: 0.5, roar: 0.85, rush: 0.45, hiss: 0.1 } },
     // Down the length of it, at a different length from the score's drone.
     { model: 'waveguide', options: { pitch: 47, decay: 5, closed: true, bright: 0.14, gain: 0.15 }, follow: [{ by: 'gust', span: [0.5, 1] }] },
     { model: 'water', id: 'flow', options: { flow: 'stream', gain: 0.14, tone: 0.5 } },
@@ -538,7 +538,7 @@ export const SEWER_1_AMBIENCE: AmbienceSpec = {
 
 export const SEWER_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.045, tone: 800, whistle: 0 } },
+    { model: 'air', id: 'air', options: { gain: 0.045, tone: 800, shelter: 0.93, aperture: 0.35, roar: 0.8, rush: 0.5, hiss: 0.12 } },
     { model: 'machine', options: { rpm: 420, fundamental: 96, gain: 0.1, wear: 0.75, clank: 0.05 } },
   ],
   chorus: [
@@ -563,7 +563,7 @@ export const SEWER_2_AMBIENCE: AmbienceSpec = {
 
 export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.2, tone: 4200 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
+    { model: 'air', id: 'air', options: { gain: 0.2, tone: 4200, shelter: 0.05, aperture: 0.85, roar: 0.75, rush: 1.0, hiss: 1.0 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
   ],
   chorus: [
     // Loose corrugated sheet. The defining sound of the place, and it exists
@@ -593,7 +593,7 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
 
 export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.13, tone: 3800 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
+    { model: 'air', id: 'air', options: { gain: 0.13, tone: 3800, shelter: 0.1, aperture: 0.8, roar: 0.6, rush: 1.0, hiss: 0.95 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
     // A hundred hertz and its even harmonics, with corona over it that gets
     // louder in the wet. Both are in the model, and both are why.
     { model: 'electric', id: 'hum', options: { mains: 50, harmonics: 0.65, corona: 0.4, gain: 0.2 } },
@@ -620,7 +620,7 @@ export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
 
 export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.17, tone: 4000 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
+    { model: 'air', id: 'air', options: { gain: 0.17, tone: 4000, shelter: 0.08, aperture: 0.75, roar: 0.6, rush: 1.0, hiss: 1.0 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
     // The harmonic without the fundamental: thinner, and there is no mass in
     // it. The gear is derelict, so it is failing as well.
     { model: 'electric', id: 'whine', options: { mains: 150, harmonics: 0.35, corona: 0.15, fault: 0.5, gain: 0.09 } },
@@ -648,7 +648,7 @@ export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
 export const BEACH_AMBIENCE: AmbienceSpec = {
   air: [
     // The strongest wind in the book: nothing between here and the water.
-    { model: 'wind', id: 'air', options: { gain: 0.24, tone: 4400 }, follow: [{ by: 'wind', span: [0.4, 1.35] }] },
+    { model: 'air', id: 'air', options: { gain: 0.24, tone: 4400, shelter: 0.0, aperture: 0.4, roar: 0.9, rush: 1.0, hiss: 1.1 }, follow: [{ by: 'wind', span: [0.4, 1.35] }] },
     // Stand-up, break, and the draw back over the shingle. A cycle, which is
     // the whole difference between a shore and a waterfall.
     { model: 'surf', id: 'surf', options: { gain: 0.26, shingle: 0.85, period: [8, 14] } },
@@ -680,7 +680,7 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
 
 export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
   air: [
-    { model: 'wind', id: 'air', options: { gain: 0.19, tone: 3900 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
+    { model: 'air', id: 'air', options: { gain: 0.19, tone: 3900, shelter: 0.15, aperture: 0.45, roar: 0.8, rush: 1.0, hiss: 1.0 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
     { model: 'surf', id: 'surf', options: { gain: 0.13, shingle: 0.7, period: [9, 15], tone: 0.6 } },
   ],
   chorus: [
