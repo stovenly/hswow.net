@@ -3,10 +3,9 @@ import type { OneShot } from '../Scatter';
 import { createCall, type CallShape, type Syllable } from '../oneshots/call';
 import { createBeast, type BeastOptions } from '../oneshots/beast';
 import { createVessel, type VesselOptions } from '../oneshots/vessel';
-import { createClatter, type ClatterOptions } from '../oneshots/clatter';
-import { createBell, type BellOptions } from '../oneshots/bell';
-import { createDrip, type DripOptions } from '../oneshots/drip';
-import { createHammer, type HammerOptions } from '../oneshots/hammer';
+import { createStrike, type StrikeOptions } from '../oneshots/strike';
+import { createFlow, type FlowOptions } from '../oneshots/flow';
+import { createDroplet, type DropletOptions } from '../oneshots/droplet';
 import { createVoice } from '../voice/Voice';
 import type { VoiceOptions } from '../voice/types';
 import type { AmbienceVoice, Band } from './spec';
@@ -58,10 +57,9 @@ const CALL_GAIN = 0.5;
 const BEAST_GAIN = 0.55;
 const VESSEL_GAIN = 0.45;
 const THING_GAIN = 0.45;
-const BELL_GAIN = 0.45;
-const DRIP_GAIN = 0.5;
+const FLOW_GAIN = 0.45;
+const DROPLET_GAIN = 0.5;
 const SAID_GAIN = 0.4;
-const STRUCK_GAIN = 0.5;
 
 const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,
@@ -84,25 +82,25 @@ const held = (band: Band, options: VesselOptions): VoiceEntry => ({
   build: (engine) => createVessel(engine, { ...options, gain: VESSEL_GAIN }),
 });
 
-const thing = (band: Band, options: ClatterOptions): VoiceEntry => ({
+const thing = (band: Band, options: StrikeOptions): VoiceEntry => ({
   band,
   db: 0,
   alive: false,
-  build: (engine) => createClatter(engine, { ...options, gain: THING_GAIN }),
+  build: (engine) => createStrike(engine, { ...options, gain: THING_GAIN }),
 });
 
-const rung = (band: Band, options: BellOptions): VoiceEntry => ({
+const wet = (band: Band, options: DropletOptions): VoiceEntry => ({
   band,
   db: 0,
   alive: false,
-  build: (engine) => createBell(engine, { ...options, gain: BELL_GAIN }),
+  build: (engine) => createDroplet(engine, { ...options, gain: DROPLET_GAIN }),
 });
 
-const drop = (band: Band, options: DripOptions): VoiceEntry => ({
+const loose = (band: Band, options: FlowOptions): VoiceEntry => ({
   band,
   db: 0,
   alive: false,
-  build: (engine) => createDrip(engine, { ...options, gain: DRIP_GAIN }),
+  build: (engine) => createFlow(engine, { ...options, gain: FLOW_GAIN }),
 });
 
 const said = (band: Band, options: VoiceOptions): VoiceEntry => ({
@@ -112,12 +110,7 @@ const said = (band: Band, options: VoiceOptions): VoiceEntry => ({
   build: (engine) => createVoice(engine, { ...options, gain: SAID_GAIN }),
 });
 
-const struck = (band: Band, options: HammerOptions): VoiceEntry => ({
-  band,
-  db: 0,
-  alive: false,
-  build: (engine) => createHammer(engine, { ...options, gain: STRUCK_GAIN }),
-});
+
 
 export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // --- songbirds ----------------------------------------------------------
@@ -655,7 +648,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 7000,
   }),
   // The foot, not the voice.
-  rabbit: thing('body', { material: 'stone', tone: 0.55, pieces: 1, heft: 0.95 }),
+  rabbit: thing('body', { material: 'oak', size: 0.6, striker: 0.2, ring: 0.5 }),
   frog: beast('throat', { kind: 'pig', tone: 1.5, rasp: 0.2 }),
   toad: beast('throat', { kind: 'pig', tone: 1.25, rasp: 0.15 }),
 
@@ -769,7 +762,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   // --- things handled --------------------------------------------------------
 
-  wood: thing('call', { material: 'wood' }),
+  wood: thing('call', { material: 'oak', size: 0.8, striker: 0.5 }),
   // Vessels, which have an inside: the air in them is a note of its own and it
   // climbs as they fill.
   pot: held('call', { kind: 'pot', handling: 'set-down', full: 0.25 }),
@@ -779,35 +772,50 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   churn: held('body', { kind: 'churn', handling: 'knock', full: 0.5 }),
   trough: held('body', { kind: 'trough', handling: 'fill', full: 0.2 }),
   jar: held('song', { kind: 'jar', handling: 'set-down', full: 0.3 }),
-  metal: thing('call', { material: 'metal' }),
-  stone: thing('throat', { material: 'stone' }),
-  coins: thing('song', { material: 'metal', tone: 2.4, pieces: 12, heft: 0.15 }),
-  paper: thing('air', { material: 'wood', tone: 3.2, pieces: 14, heft: 0.1 }),
-  latch: thing('call', { material: 'metal', tone: 1.4, pieces: 2, heft: 0.8 }),
-  hinge: thing('call', { material: 'metal', tone: 0.8, pieces: 1, heft: 0.7 }),
-  whetstone: thing('song', { material: 'stone', tone: 3, pieces: 3, heft: 0.2 }),
-  thump: thing('body', { material: 'stone', tone: 0.45, pieces: 1, heft: 1 }),
-  grit: thing('air', { material: 'stone', tone: 3.4, pieces: 16, heft: 0.05 }),
-  slab: thing('body', { material: 'stone', tone: 0.4, pieces: 3, heft: 0.9 }),
-  rockfall: thing('body', { material: 'stone', tone: 0.5, pieces: 30, heft: 0.7 }),
-  // A pigeon leaving a tree: a burst of small soft contacts and no ring at all.
-  wings: thing('call', { material: 'wood', tone: 1.8, pieces: 18, heft: 0.12 }),
-  embers: thing('body', { material: 'wood', tone: 0.7, pieces: 7, heft: 0.08 }),
+  metal: thing('call', { material: 'iron', size: 1.1, striker: 0.85 }),
+  stone: thing('throat', { material: 'stone', size: 0.9, striker: 0.8 }),
+  coins: thing('song', { material: 'brass', size: 3.4, striker: 0.9, hits: [3, 6], spacing: [0.03, 0.07] }),
+  paper: thing('air', { material: 'pine', size: 3.6, striker: 0.15, ring: 0.3, hits: [2, 4] }),
+  // Two contacts, accelerating: the bolt, then the catch.
+  latch: thing('call', { material: 'iron', size: 1.9, striker: 0.9, ring: 0.4, hits: [2, 2], spacing: [0.05, 0.09] }),
+  hinge: thing('call', { material: 'iron', size: 1.3, striker: 0.35, ring: 0.6 }),
+  whetstone: thing('song', { material: 'stone', size: 2.6, striker: 0.7, hits: [2, 4], spacing: [0.11, 0.2] }),
+  thump: thing('body', { material: 'oak', size: 0.4, striker: 0.2, ring: 0.7 }),
+  slab: thing('body', { material: 'stone', size: 0.45, striker: 0.85 }),
+  press: thing('body', { material: 'iron', size: 0.35, striker: 1, ring: 0.5 }),
+  relay: thing('call', { material: 'iron', size: 2.6, striker: 1, ring: 0.25, hits: [1, 2], spacing: [0.02, 0.04] }),
+  contactor: thing('body', { material: 'iron', size: 0.7, striker: 1, ring: 0.4, hits: [1, 2], spacing: [0.03, 0.05] }),
+  tick: thing('song', { material: 'brass', size: 3, striker: 1, ring: 0.12 }),
+  crack: thing('song', { material: 'pine', size: 2.2, striker: 1, ring: 0.35 }),
+
+  // --- loose material, which arrives over a span and keeps finding stragglers
+  grit: loose('air', { kind: 'grit' }),
+  slip: loose('throat', { kind: 'scree', amount: 0.7 }),
+  rockfall: loose('body', { kind: 'rubble', amount: 1.3 }),
+  embers: loose('body', { kind: 'ember', amount: 0.6 }),
+  // A pigeon leaving a tree: soft, broad, and no ring at all.
+  wings: loose('call', { kind: 'feather' }),
+  rabble: loose('throat', { kind: 'gravel' }),
 
   // --- water -----------------------------------------------------------------
 
-  drip: drop('song', { gain: 0.5 }),
-  plop: drop('call', { radius: [0.004, 0.007], cycles: 26, tick: 0.5 }),
-  splash: drop('call', { radius: [0.006, 0.02], cycles: 12, tick: 0.9 }),
+  // The cavity is what makes a drip say how big the room is, so the ones that
+  // fall indoors get one and the ones outdoors do not.
+  drip: wet('song', { kind: 'drip', cavity: 130, room: 0.55 }),
+  plop: wet('call', { kind: 'rise' }),
+  splash: wet('call', { kind: 'splash' }),
+  patter: wet('air', { kind: 'patter' }),
 
   // --- signals and soundmarks -------------------------------------------------
 
-  'bell-church': rung('body', { hz: 168, decay: 16, strokes: 1 }),
-  'bell-hand': rung('song', { hz: 880, decay: 3.2, strokes: 3, interval: 0.34 }),
-  'bell-shop': rung('song', { hz: 1150, decay: 1.8, strokes: 2, interval: 0.16 }),
-  // Rung by the sea, so it is one stroke and a long tail.
-  'bell-buoy': rung('body', { hz: 300, decay: 9, strokes: 1, warble: 2.2 }),
-  bowl: rung('song', { hz: 520, decay: 11, strokes: 1, warble: 1.6, strike: 0.2 }),
+  // Bells are a shell whose partials are deliberately not harmonic, and a
+  // tower bell swings, so it also turns its mouth toward you and away. Neither
+  // is a struck bar. Standing in as long metal until they have their own model.
+  'bell-church': thing('body', { material: 'brass', size: 0.32, striker: 0.9, ring: 3.5 }),
+  'bell-hand': thing('song', { material: 'brass', size: 1.7, striker: 0.9, ring: 1.4, hits: [3, 3], spacing: [0.3, 0.38] }),
+  'bell-shop': thing('song', { material: 'brass', size: 2.4, striker: 1, ring: 0.8, hits: [2, 2], spacing: [0.14, 0.19] }),
+  'bell-buoy': thing('body', { material: 'brass', size: 0.6, striker: 0.75, ring: 2.4 }),
+  bowl: thing('song', { material: 'brass', size: 1.1, striker: 0.4, ring: 3 }),
 
   klaxon: sung('call', {
     pitch: 330,
@@ -833,7 +841,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     q: 2.6,
   }, false),
 
-  press: struck('body', { tone: 0.35, damping: 0.75, bounces: 0 }),
   steam: sung('air', {
     pitch: 2600,
     phrase: [s(1, 0.42, [0.9, 1.8], [2, 6], { drive: 1 })],
@@ -841,10 +848,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 4200,
     q: 0.7,
   }, false),
-  relay: thing('call', { material: 'metal', tone: 2.2, pieces: 1, heft: 0.9 }),
-  contactor: thing('body', { material: 'metal', tone: 0.55, pieces: 2, heft: 0.95 }),
-  tick: thing('song', { material: 'wood', tone: 2.8, pieces: 1, heft: 0.9 }),
-  crack: thing('song', { material: 'wood', tone: 2.2, pieces: 1, heft: 0.85 }),
 };
 
 /**
@@ -966,6 +969,8 @@ const DB: Partial<Record<AmbienceVoice, number>> = {
   whetstone: -23,
   thump: -20,
   grit: -28,
+  slip: -22,
+  rabble: -23,
   slab: -19,
   wings: -22,
   embers: -28,
@@ -977,6 +982,7 @@ const DB: Partial<Record<AmbienceVoice, number>> = {
   drip: -22,
   plop: -23,
   splash: -20,
+  patter: -27,
 
   // --- the small and the far ----------------------------------------------
   rat: -28,

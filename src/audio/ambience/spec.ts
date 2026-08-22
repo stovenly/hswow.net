@@ -120,6 +120,8 @@ export type AmbienceVoice =
   | 'whetstone'
   | 'thump'
   | 'grit'
+  | 'slip'
+  | 'rabble'
   | 'slab'
   | 'rockfall'
   | 'wings'
@@ -128,6 +130,7 @@ export type AmbienceVoice =
   | 'drip'
   | 'plop'
   | 'splash'
+  | 'patter'
   // Signals and soundmarks.
   | 'bell-church'
   | 'bell-hand'
