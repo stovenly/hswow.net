@@ -536,7 +536,7 @@ export function countrysideZone(): ZoneDefinition {
       // size is being able to see across it.
       fogNear: 30,
       fogFar: 190,
-      footstepReverb: 0.5,
+      firstPersonReverb: 0.5,
       soundscape: COUNTRYSIDE_SOUND,
     },
     spawn: { position: onGround(0, 28), yaw: Math.PI },

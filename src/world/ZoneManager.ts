@@ -620,7 +620,7 @@ export class ZoneManager {
     if (!this.audio) return;
     this.audio.engine.setRoom(zone.environment.room);
     this.audio.footsteps.surface = zone.environment.surface;
-    this.audio.footsteps.setReverb(zone.environment.footstepReverb);
+    this.audio.engine.setFirstPersonReverb(zone.environment.firstPersonReverb);
 
     let soundscape = this.soundscapes.get(zone.id);
     if (!soundscape) {

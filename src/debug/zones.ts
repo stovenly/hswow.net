@@ -307,7 +307,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         sunIntensity: 1.2,
         fillIntensity: 0.8,
         fillColor: 0xa08c6a,
-        footstepReverb: 0.45,
+        firstPersonReverb: 0.45,
       },
       // Only reached if something goes wrong — arriving through the door puts
       // you on the portal's marker instead. Placed in the middle of the floor
@@ -349,7 +349,7 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
         // four-second stone tail on your own boots is a gunshot in a cathedral;
         // with almost no send they go dry, which puts them back at the
         // listener's head, just quieter.
-        footstepReverb: 0.34,
+        firstPersonReverb: 0.34,
         soundscape: FACTORY_SOUND,
       },
       spawn: { position: new THREE.Vector3(0, 0.1, 2), yaw: Math.PI },

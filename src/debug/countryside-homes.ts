@@ -61,7 +61,7 @@ const COTTAGE_ENVIRONMENT: ZoneEnvironment = {
   sunIntensity: 1.2,
   fillIntensity: 0.8,
   fillColor: 0xa08c6a,
-  footstepReverb: 0.45,
+  firstPersonReverb: 0.45,
 };
 
 /**
@@ -73,7 +73,7 @@ const STORE_ENVIRONMENT: ZoneEnvironment = {
   surface: 'stone',
   fogNear: 6,
   fogFar: 24,
-  footstepReverb: 0.55,
+  firstPersonReverb: 0.55,
 };
 
 export function countrysideHomeZones(): ZoneDefinition[] {

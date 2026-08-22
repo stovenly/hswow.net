@@ -73,9 +73,6 @@ const FAR = {
   level: 0.32,
   tone: 2600,
   reverb: 0.9,
-  /** Early reflections: tap times in seconds, and how loud they come back. */
-  taps: [0.029, 0.053, 0.079, 0.113] as const,
-  tapLevel: 0.3,
   importance: 0.6,
 };
 
@@ -687,20 +684,10 @@ export class AmbienceDirector {
     input.connect(tone).connect(level).connect(dry);
     nodes.push(input, tone, level);
 
-    // Early reflections. A few scattered returns are what says "outdoors and
-    // some way off"; one pre-delay says nothing at all. They land off centre,
-    // and on alternating sides, because surfaces are not all on one side —
-    // which is also what stops a lone source collapsing to a point.
-    FAR.taps.forEach((time, i) => {
-      const delay = context.createDelay(0.5);
-      delay.delayTime.value = time;
-      const tap = context.createGain();
-      tap.gain.value = FAR.tapLevel * Math.pow(0.62, i);
-      const pan = context.createStereoPanner();
-      pan.pan.value = (i % 2 === 0 ? -1 : 1) * (0.3 + i * 0.09);
-      input.connect(delay).connect(tap).connect(pan).connect(level);
-      nodes.push(delay, tap, pan);
-    });
+    // No early reflections here. The room owns those — see `ROOM_PRESETS` and
+    // `EARLY_TAPS` — and a second set on this bus would be a second answer to
+    // the same question, so a cave's ambience would come back off outdoor
+    // walls. The send below is how this layer reaches them.
 
     const send = context.createGain();
     send.gain.value = FAR.reverb;

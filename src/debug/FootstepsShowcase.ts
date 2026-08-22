@@ -166,7 +166,7 @@ export function footstepsShowcaseZone(): ZoneDefinition {
       // the comparison this zone exists to make — a reverb tail on a footstep
       // is itself a hollow ring, and telling it apart from the material's own
       // is the whole task.
-      footstepReverb: 0.12,
+      firstPersonReverb: 0.12,
       soundscape: SILENCE,
     },
     spawn: { position: new THREE.Vector3(0, 0.1, DOOR_Z - 2), yaw: Math.PI },

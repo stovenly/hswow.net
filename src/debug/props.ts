@@ -180,7 +180,7 @@ const INDUSTRIAL_ENVIRONMENT = {
   sunIntensity: 0.85,
   fillIntensity: 0.8,
   fillColor: 0x8e9eb0,
-  footstepReverb: 0.34,
+  firstPersonReverb: 0.34,
 };
 
 const COUNTRYSIDE_ENVIRONMENT = {
@@ -196,7 +196,7 @@ const COUNTRYSIDE_ENVIRONMENT = {
   sunIntensity: 1.2,
   fillIntensity: 0.8,
   fillColor: 0xa08c6a,
-  footstepReverb: 0.45,
+  firstPersonReverb: 0.45,
 };
 
 export function propZones(): ZoneDefinition[] {

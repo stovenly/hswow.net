@@ -57,11 +57,16 @@ export interface ZoneEnvironment {
   /** What the floor is made of, for footsteps. */
   surface: SurfaceName;
   /**
-   * How much of your own footsteps feed the room, 0..1. Separate from the room's own
-   * wetness, because footfalls are the one sound that happens at the listener, and a
-   * long tail on something with no distance to it reads as standing in a cave.
+   * How much of what happens *at* you feeds the room, 0..1 — footsteps, the
+   * door cue, and whatever is added later.
+   *
+   * Separate from the room's own wetness, because these are the sounds with no
+   * distance to derive a send from: every other source gets one from how far
+   * off it is, and a first-person gesture is not anywhere. It lives on the bus
+   * rather than on each model, so a weapon swing inherits it without anybody
+   * having to remember.
    */
-  footstepReverb: number;
+  firstPersonReverb: number;
   /**
    * What this place sounds like when nothing is happening in it. Declared here next
    * to the fog and the light, because those three together are what a zone is before
@@ -105,7 +110,7 @@ export const OUTDOOR_ENVIRONMENT: ZoneEnvironment = {
   ambientGround: 0x8a7f68,
   room: 'open',
   surface: 'soil',
-  footstepReverb: 0.7,
+  firstPersonReverb: 0.7,
   // Wind and nothing else. A zone that wants trees or a mill declares them;
   // this is only what every outdoor place has in common.
   soundscape: { bed: { model: 'wind', id: 'wind', options: { gain: 0.17, tone: 3400 } } },
@@ -131,7 +136,7 @@ export const INDOOR_ENVIRONMENT: ZoneEnvironment = {
   ambientGround: 0x4a443a,
   room: 'cell',
   surface: 'wood',
-  footstepReverb: 0.5,
+  firstPersonReverb: 0.5,
   // Silent by default, and deliberately so. An interior with a generic hum in
   // it sounds like a menu; one that is genuinely quiet makes the room you came
   // from audible by its absence, which is most of what a threshold is for.

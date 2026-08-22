@@ -45,7 +45,7 @@ const ENVIRONMENT: Partial<ZoneEnvironment> = {
   fogNear: 16,
   fogFar: 52,
   room: 'hall',
-  footstepReverb: 0.3,
+  firstPersonReverb: 0.3,
 };
 
 /** Room enough for the rank, the two bays and the door home at z = 16. */

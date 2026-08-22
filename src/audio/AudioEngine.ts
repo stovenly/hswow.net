@@ -70,6 +70,16 @@ export const DEFAULT_AUDIO: AudioSettings = {
   weatherVolume: 1,
 };
 
+/**
+ * Where the early returns can land, in seconds.
+ *
+ * Spread over the range a real first reflection occupies: sound covers about
+ * 34 cm per millisecond, so 7 ms is a wall two metres away and 140 ms is one
+ * nearly fifty metres off. Prime-ish and irregular, because evenly spaced taps
+ * comb-filter into a pitch and the pitch is the sound of a flanger.
+ */
+const EARLY_TAPS = [0.007, 0.013, 0.023, 0.037, 0.053, 0.079, 0.109, 0.149];
+
 /** Raycasts listener→emitter cost real time; they do not need doing every frame. */
 const OCCLUSION_INTERVAL = 0.12;
 
@@ -98,11 +108,28 @@ export class AudioEngine {
   readonly dry: GainNode;
   readonly send: GainNode;
   /**
+   * The first few returns off the nearest surfaces, which is what a person
+   * means by *echo*. The tail says how big a space is; these say how hard it
+   * is, how close the walls are, and whether there is anything soft in it —
+   * and a cave without them is just a long reverb.
+   */
+  private readonly early: GainNode;
+  private readonly taps: GainNode[] = [];
+  /**
    * Sub-buses into `dry`, one per thing a player would reach for a slider to
    * turn down. A source belongs to exactly one of them, and anything that does
    * not belong to any goes straight to `dry` as before.
    */
   readonly steps: GainNode;
+  /**
+   * How much of the first-person bus reaches the room.
+   *
+   * Footsteps, the door cue, and anything else that happens *at* the listener
+   * have no distance to derive a send from, so they need telling. It is one
+   * number per zone on the bus rather than one field per sound: a weapon swing
+   * added tomorrow inherits it without anybody remembering to.
+   */
+  private readonly stepsSend: GainNode;
   readonly creatures: GainNode;
   readonly voices: GainNode;
   readonly weatherBus: GainNode;
@@ -120,6 +147,8 @@ export class AudioEngine {
   started = false;
 
   private readonly rooms = new Map<RoomName, { convolver: ConvolverNode; gain: GainNode }>();
+  /** Rooms whose impulse response is still rendering. See `ensureRoom`. */
+  private readonly pendingRooms = new Set<RoomName>();
   private currentRoom: RoomName | null = null;
   private occlusionTimer = 0;
 
@@ -163,6 +192,7 @@ export class AudioEngine {
     this.dry = this.context.createGain();
     this.send = this.context.createGain();
 
+    this.early = this.context.createGain();
     this.steps = this.context.createGain();
     this.creatures = this.context.createGain();
     this.voices = this.context.createGain();
@@ -183,7 +213,29 @@ export class AudioEngine {
     limiter.attack.value = 0.002;
     limiter.release.value = 0.1;
 
+    // Fixed times, per-room *levels*. Changing a `DelayNode`'s time while it
+    // runs pitch-shifts whatever is in it, so a room chooses which of a fixed
+    // set of returns it has rather than moving them — and a doorway is then a
+    // crossfade between two patterns instead of a swept comb.
+    this.send.connect(this.early);
+    for (const time of EARLY_TAPS) {
+      const delay = this.context.createDelay(0.5);
+      delay.delayTime.value = time;
+      const tap = this.context.createGain();
+      tap.gain.value = 0;
+      const pan = this.context.createStereoPanner();
+      // Reflections do not all come from one side, and the alternation is what
+      // keeps a room from collapsing onto whichever ear the source is in.
+      pan.pan.value = (this.taps.length % 2 === 0 ? -1 : 1) * 0.45;
+      this.early.connect(delay).connect(tap).connect(pan).connect(this.duck);
+      this.taps.push(tap);
+    }
+
     this.steps.connect(this.dry);
+    this.stepsSend = this.context.createGain();
+    this.stepsSend.gain.value = 0;
+    this.steps.connect(this.stepsSend);
+    this.stepsSend.connect(this.send);
     this.creatures.connect(this.dry);
     this.voices.connect(this.dry);
     this.weatherBus.connect(this.dry);
@@ -222,21 +274,38 @@ export class AudioEngine {
       this.faustWet = wet;
     }
 
-    // Rendered in parallel; the hall's four-second tail is the long pole.
-    const names = Object.keys(ROOM_PRESETS) as RoomName[];
-    const buffers = await Promise.all(
-      names.map((name) => generateImpulseResponse(this.context.sampleRate, ROOM_PRESETS[name])),
-    );
+    // Nothing is rendered here, and nothing is built here.
+    //
+    // A `ConvolverNode` is one of the most expensive nodes in the API and it
+    // does not stop working when its output gain is zero — it keeps convolving
+    // the send bus into silence. So the fallback exists only when the network
+    // is missing, and even then a room is rendered the first time a zone asks
+    // for it and never again.
+    //
+    // That is what makes the preset book free to grow: on the network path a
+    // room is a handful of numbers, and on the fallback it costs one offline
+    // render the first time somebody stands in it. Adding a room nobody visits
+    // costs nothing at all.
+    if (this.currentRoom !== null) this.setRoom(this.currentRoom);
+  }
 
-    // Only if the network did not arrive. A `ConvolverNode` is one of the most
-    // expensive nodes in the API and it does not stop working when its output
-    // gain is zero — it keeps convolving the send bus into silence.
-    if (this.faust) return;
+  /**
+   * Builds the fallback's convolver for one room, once. Returns null while the
+   * render is still running — the caller has already crossfaded, so the room
+   * simply arrives a moment late rather than not at all.
+   */
+  private ensureRoom(name: RoomName): { convolver: ConvolverNode; gain: GainNode } | null {
+    const built = this.rooms.get(name);
+    if (built) return built;
+    if (this.pendingRooms.has(name)) return null;
+    this.pendingRooms.add(name);
 
-    names.forEach((name, index) => {
+    void generateImpulseResponse(this.context.sampleRate, ROOM_PRESETS[name]).then((buffer) => {
+      this.pendingRooms.delete(name);
+      if (this.faust) return;
       const convolver = this.context.createConvolver();
       convolver.normalize = true;
-      convolver.buffer = buffers[index];
+      convolver.buffer = buffer;
 
       const gain = this.context.createGain();
       gain.gain.value = 0;
@@ -245,9 +314,11 @@ export class AudioEngine {
       convolver.connect(gain);
       gain.connect(this.duck);
       this.rooms.set(name, { convolver, gain });
+      // Whatever the room is *now*, which may not be the one just rendered if
+      // the player has walked on while it was being made.
+      if (this.currentRoom !== null) this.setRoom(this.currentRoom, 0.25);
     });
-
-    if (this.currentRoom !== null) this.setRoom(this.currentRoom);
+    return null;
   }
 
   /**
@@ -258,6 +329,20 @@ export class AudioEngine {
     this.currentRoom = name;
     const now = this.context.currentTime;
     const preset = ROOM_PRESETS[name];
+
+    // The early reflections, whichever tail is running underneath them. A
+    // Gaussian window over the fixed taps: `spread` picks which returns this
+    // room has and `bounce` says how much comes back.
+    const width = Math.max(preset.spread * 0.8, 0.008);
+    this.taps.forEach((tap, i) => {
+      const offset = (EARLY_TAPS[i] - preset.spread) / width;
+      const weight = Math.exp(-offset * offset);
+      tap.gain.setTargetAtTime(
+        preset.bounce * weight * this.settings.reverbAmount,
+        now,
+        seconds / 3,
+      );
+    });
 
     // --- the network -------------------------------------------------------
     //
@@ -286,13 +371,25 @@ export class AudioEngine {
     }
 
     // --- the fallback ------------------------------------------------------
-    if (this.rooms.size === 0) return; // IRs still rendering; picked up in build()
+    this.ensureRoom(name);
 
     for (const [key, room] of this.rooms) {
       const target = key === name ? ROOM_PRESETS[key].wet * this.settings.reverbAmount : 0;
       room.gain.gain.cancelScheduledValues(now);
       room.gain.gain.setTargetAtTime(target, now, seconds / 3);
     }
+  }
+
+  /**
+   * How much of what happens at the listener feeds the room, 0..1. Set per
+   * zone; see `stepsSend`.
+   */
+  setFirstPersonReverb(amount: number): void {
+    this.stepsSend.gain.setTargetAtTime(
+      Math.min(1, Math.max(0, amount)),
+      this.context.currentTime,
+      0.12,
+    );
   }
 
   /** Which reverb is actually running, for the debug readout. */

@@ -97,7 +97,7 @@ const WORKS_ENVIRONMENT = {
   sunIntensity: 0.85,
   fillIntensity: 0.8,
   fillColor: 0x8e9eb0,
-  footstepReverb: 0.34,
+  firstPersonReverb: 0.34,
 };
 
 /** A dwelling: warm, close, and lit by things standing on other things. */
@@ -112,7 +112,7 @@ const HOUSE_ENVIRONMENT = {
   sunIntensity: 1.2,
   fillIntensity: 0.8,
   fillColor: 0xa08c6a,
-  footstepReverb: 0.45,
+  firstPersonReverb: 0.45,
 };
 
 export function chainZones(): ZoneDefinition[] {

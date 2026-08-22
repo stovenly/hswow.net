@@ -41,7 +41,7 @@ export const UNLIT: Partial<ZoneEnvironment> = {
   ambientGround: 0x181410,
   room: 'cell',
   surface: 'stone',
-  footstepReverb: 0.4,
+  firstPersonReverb: 0.4,
 };
 
 /** How far the room reaches: x ±HALF, z from SOUTH back to NORTH, LID high. */
