@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import type { OneShot } from '../Scatter';
 import { createCall, type CallShape, type Syllable } from '../oneshots/call';
-import { createAnimal, type AnimalOptions } from '../oneshots/animal';
+import { createBeast, type BeastOptions } from '../oneshots/beast';
 import { createClatter, type ClatterOptions } from '../oneshots/clatter';
 import { createBell, type BellOptions } from '../oneshots/bell';
 import { createDrip, type DripOptions } from '../oneshots/drip';
@@ -48,10 +48,10 @@ const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry 
   build: (engine) => createCall(engine, { shape, tone }),
 });
 
-const beast = (band: Band, options: AnimalOptions): VoiceEntry => ({
+const beast = (band: Band, options: BeastOptions): VoiceEntry => ({
   band,
   alive: true,
-  build: (engine) => createAnimal(engine, options),
+  build: (engine) => createBeast(engine, options),
 });
 
 const thing = (band: Band, options: ClatterOptions): VoiceEntry => ({
@@ -616,17 +616,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     gain: 0.34,
   }),
 
-  fox: sung('call', {
-    pitch: 850,
-    variance: 0.08,
-    phrase: [s(1, 1.22, [0.4, 0.6], [0.7, 1.6], { drive: 0.9, bend: { at: 0.25, to: 1.3 } })],
-    count: [2, 4],
-    rasp: 0.55,
-    formant: 1500,
-    q: 1.1,
-    fade: 0.9,
-    gain: 0.6,
-  }),
 
   bats: sung('air', {
     pitch: 7200,
@@ -648,12 +637,13 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   hen: beast('call', { kind: 'fowl', gain: 0.5 }),
   // Bigger throat than a hen and driven harder.
   cockerel: beast('call', { kind: 'fowl', tone: 0.78, gain: 0.6, rasp: 0.15 }),
-  goose: beast('call', { kind: 'fowl', tone: 0.55, gain: 0.7, rasp: 0.25 }),
+  goose: beast('call', { kind: 'fowl', tone: 0.55, gain: 0.7, rasp: 0.25, chaos: 0.2 }),
   // A long tract, and the vibrato does the rest.
-  horse: beast('throat', { kind: 'sheep', tone: 0.62, gain: 0.6, rasp: 0.3 }),
+  horse: beast('throat', { kind: 'sheep', tone: 0.62, gain: 0.6, rasp: 0.3, chaos: 0.2 }),
   deer: beast('throat', { kind: 'dog', tone: 0.7, gain: 0.55, rasp: 0.2 }),
-  stag: beast('body', { kind: 'cow', tone: 0.72, gain: 0.7, rasp: 0.3 }),
-  seal: beast('body', { kind: 'cow', tone: 0.85, gain: 0.55, rasp: 0.35 }),
+  fox: beast('call', { kind: 'fox', gain: 0.6 }),
+  stag: beast('body', { kind: 'stag', gain: 0.7 }),
+  seal: beast('body', { kind: 'cow', tone: 0.85, gain: 0.55, rasp: 0.35, chaos: 0.3 }),
   rat: sung('air', {
     pitch: 5200,
     variance: 0.18,

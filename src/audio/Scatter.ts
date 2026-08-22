@@ -6,7 +6,7 @@ import { createDrip, type DripOptions } from './oneshots/drip';
 import { createBell, type BellOptions } from './oneshots/bell';
 import { createHammer, type HammerOptions } from './oneshots/hammer';
 import { createClatter, type ClatterOptions } from './oneshots/clatter';
-import { createAnimal, type AnimalOptions } from './oneshots/animal';
+import { createBeast, type BeastOptions } from './oneshots/beast';
 import type { VoiceOptions } from './voice/types';
 import { createVoice } from './voice/Voice';
 
@@ -65,7 +65,7 @@ export interface OneShot extends SoundModel {
 export type OneShotSpec =
   | { sound: 'hammer'; options?: HammerOptions }
   | { sound: 'clatter'; options?: ClatterOptions }
-  | { sound: 'animal'; options?: AnimalOptions }
+  | { sound: 'animal'; options?: BeastOptions }
   | { sound: 'voice'; options?: VoiceOptions }
   | { sound: 'drip'; options?: DripOptions }
   | { sound: 'bell'; options?: BellOptions };
@@ -116,7 +116,7 @@ export function buildOneShot(engine: AudioEngine, spec: OneShotSpec): OneShot {
     case 'clatter':
       return createClatter(engine, spec.options);
     case 'animal':
-      return createAnimal(engine, spec.options);
+      return createBeast(engine, spec.options);
     case 'voice':
       return createVoice(engine, spec.options);
     case 'drip':
