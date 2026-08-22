@@ -29,7 +29,7 @@ import { Reticle, Fade } from './ui/Reticle';
 import { Crosshair } from './ui/Crosshair';
 import { createTestWorld, ZONE_EXTERIOR, ZONE_COUNTRYSIDE } from './debug/zones';
 import { STAGE_STATIONS } from './debug/SoundStage';
-import { VIBES } from './audio/music/vibes';
+import { VIBES, VIBE_NAMES, musicFor, type VibeName } from './audio/vibes';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
@@ -1037,11 +1037,15 @@ if (dev.gui) {
     stop: () => zones.music?.stopNow(),
   };
   music
-    .add(musicState, 'vibe', ['zone', ...Object.keys(VIBES)])
+    .add(musicState, 'vibe', ['zone', ...VIBE_NAMES])
     .onChange((value: string) => {
       const director = zones.music;
       if (!director) return;
-      director.setZone(value === 'zone' ? (zones.current?.environment.music ?? null) : VIBES[value]);
+      director.setZone(
+        value === 'zone'
+          ? musicFor(zones.current?.environment.vibe)
+          : VIBES[value as VibeName].music,
+      );
     });
   music.add(musicState, 'night').onChange((value: boolean) => {
     zones.music?.setNight(value ? 1 : 0);

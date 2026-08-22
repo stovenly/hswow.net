@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { OUTDOOR_ENVIRONMENT, type ZoneDefinition } from '../world/Zone';
 import { SILENCE, type SoundscapeSpec, type EmitterSpec } from '../audio/Soundscape';
-import { VILLAGE_1_VIBE, CAVE_VIBE } from '../audio/music/vibes';
 import type { PlayedOptions, PlayedVoice } from '../audio/music/played';
 import type { PortalEnd, PortalDefinition } from '../world/Portal';
 import { flatGround, GRID_TILE } from '../world/floor';
 import { signPost } from './galleries/layout';
 import { plinth, PLINTH_H } from './SoundStage';
+import { VIBES } from '../audio/vibes';
 
 /**
  * The music stage — the sound stage's method applied to the score.
@@ -53,12 +53,15 @@ const SPAWN_Z = 26;
  */
 const UNIFORM = { refDistance: 2, maxDistance: 6, rolloff: 1.4, reverb: 0.4 } as const;
 
+/** The key the rank and the listening ground share. */
+const STAGE_KEY = VIBES['village 1'].music;
+
 /** Every station states the stage's own material, in the stage's own key. */
 const line = (voice: PlayedVoice, octave: number, every: number): PlayedOptions => ({
   voice,
-  root: VILLAGE_1_VIBE.root,
-  mode: VILLAGE_1_VIBE.mode,
-  seed: VILLAGE_1_VIBE.seed,
+  root: STAGE_KEY.root,
+  mode: STAGE_KEY.mode,
+  seed: STAGE_KEY.seed,
   octave,
   every,
 });
@@ -152,7 +155,9 @@ export function musicStageZone(): ZoneDefinition {
       // the listening ground is hearing the silence the scarcity machine
       // actually leaves.
       soundscape: STAGE_SOUND,
-      music: VILLAGE_1_VIBE,
+      // Music only: the listening ground exists to hear the score against
+      // silence, so it takes no ambience half.
+      vibe: { music: 'village 1' },
     },
     spawn: { position: new THREE.Vector3(0, 0.1, SPAWN_Z), yaw: 0 },
     floor: -20,
@@ -187,7 +192,7 @@ export function musicAnnexZone(): ZoneDefinition {
       // and the cave vibe is the village's far opposite, so the border is
       // the hardest one the book has.
       soundscape: SILENCE,
-      music: CAVE_VIBE,
+      vibe: { music: 'cave' },
     },
     spawn: { position: new THREE.Vector3(0, 0.1, 4), yaw: 0 },
     floor: -20,

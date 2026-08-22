@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { RoomName } from '../audio/reverb';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
-import type { MusicSpec } from '../audio/music/director';
+import type { VibeChoice } from '../audio/vibes';
 import type { FogVolume } from '../engine/FogVolumes';
 import type { GlitchPlacement } from '../engine/Glitch';
 import type { HorrorPlacement } from '../engine/Horror';
@@ -69,11 +69,14 @@ export interface ZoneEnvironment {
    */
   soundscape: SoundscapeSpec;
   /**
-   * What the music director may play here — root, mode, palette, density,
-   * pulse and the zone's seeds. Absent means silent: every zone stays
-   * untouched until it is scored on purpose.
+   * Which kind of place this is, for the two directors that ask. A bare name
+   * takes the vibe's music and its ambience; the object form splits them, and
+   * an array of ambience names is a rotation drawn per day.
+   *
+   * Absent means silent on both counts: every zone stays untouched until it is
+   * given a vibe on purpose.
    */
-  music?: MusicSpec;
+  vibe?: VibeChoice;
 }
 
 export const OUTDOOR_ENVIRONMENT: ZoneEnvironment = {

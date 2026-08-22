@@ -25,6 +25,7 @@ import type { Footsteps, SurfaceName } from '../audio/models/footsteps';
 import { DoorAudio } from '../audio/models/door';
 import { Soundscape } from '../audio/Soundscape';
 import { MusicDirector } from '../audio/music/director';
+import { musicFor } from '../audio/vibes';
 import type { Reticle, Fade } from '../ui/Reticle';
 
 // Owns which place you are in. Exactly one zone is in the scene and in the
@@ -627,7 +628,7 @@ export class ZoneManager {
     // collider that no longer holds the world it lives in.
     for (const [id, other] of this.soundscapes) other.setActive(id === zone.id);
 
-    this.director?.setZone(zone.environment.music ?? null);
+    this.director?.setZone(musicFor(zone.environment.vibe));
   }
 
   /**

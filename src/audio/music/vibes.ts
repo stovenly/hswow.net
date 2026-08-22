@@ -730,29 +730,3 @@ export const BEACH_PATH_VIBE: MusicSpec = {
   pulse: [56, 66],
   seed: 69,
 };
-
-/** The book by name, for the dev panel. */
-export const VIBES: Record<string, MusicSpec> = {
-  'village 1': VILLAGE_1_VIBE,
-  'village 2': VILLAGE_2_VIBE,
-  'village interior 1': VILLAGE_INTERIOR_1_VIBE,
-  'village interior 2': VILLAGE_INTERIOR_2_VIBE,
-  farm: FARM_VIBE,
-  'forest a': FOREST_A_VIBE,
-  'forest b': FOREST_B_VIBE,
-  'forest path a': FOREST_PATH_A_VIBE,
-  'forest path b': FOREST_PATH_B_VIBE,
-  riverside: RIVERSIDE_VIBE,
-  cave: CAVE_VIBE,
-  'cave 2': CAVE_2_VIBE,
-  'cave dark': CAVE_DARK_VIBE,
-  'factory 1': FACTORY_1_VIBE,
-  'factory 2': FACTORY_2_VIBE,
-  'sewer 1': SEWER_1_VIBE,
-  'sewer 2': SEWER_2_VIBE,
-  scrapyard: SCRAPYARD_VIBE,
-  'substation 1': SUBSTATION_1_VIBE,
-  'substation 2': SUBSTATION_2_VIBE,
-  beach: BEACH_VIBE,
-  'beach path': BEACH_PATH_VIBE,
-};
