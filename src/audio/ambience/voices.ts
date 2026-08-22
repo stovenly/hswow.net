@@ -6,8 +6,6 @@ import { createVessel, type VesselOptions } from '../oneshots/vessel';
 import { createStrike, type StrikeOptions } from '../oneshots/strike';
 import { createFlow, type FlowOptions } from '../oneshots/flow';
 import { createDroplet, type DropletOptions } from '../oneshots/droplet';
-import { createVoice } from '../voice/Voice';
-import type { VoiceOptions } from '../voice/types';
 import type { AmbienceVoice, Band } from './spec';
 
 /**
@@ -59,7 +57,6 @@ const VESSEL_GAIN = 0.45;
 const THING_GAIN = 0.45;
 const FLOW_GAIN = 0.45;
 const DROPLET_GAIN = 0.5;
-const SAID_GAIN = 0.4;
 
 const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,
@@ -101,13 +98,6 @@ const loose = (band: Band, options: FlowOptions): VoiceEntry => ({
   db: 0,
   alive: false,
   build: (engine) => createFlow(engine, { ...options, gain: FLOW_GAIN }),
-});
-
-const said = (band: Band, options: VoiceOptions): VoiceEntry => ({
-  band,
-  db: 0,
-  alive: true,
-  build: (engine) => createVoice(engine, { ...options, gain: SAID_GAIN }),
 });
 
 
@@ -722,14 +712,12 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   // --- people ---------------------------------------------------------------
 
-  call: said('call', { gain: 0.45 }),
-  shout: said('call', { gain: 0.6, pitch: 210 }),
-  laugh: said('throat', { gain: 0.4, pitch: 200 }),
-  cough: said('throat', { gain: 0.3, tone: 0.95 }),
-  chatter: said('throat', { gain: 0.3, pitch: 175 }),
-  // Through a horn and a bad amplifier: the words never arrive, and that is
-  // the whole effect.
-  tannoy: said('call', { gain: 0.5, pitch: 150, tone: 0.85, lect: 'city' }),
+  // --- people ---------------------------------------------------------------
+  //
+  // **No speech.** Nobody talks in the ambience: a voice is a person, a person
+  // is somebody you can walk up to, and that is the creature system's job. What
+  // is left here is wordless and tuneful — a whistle carrying across a yard is
+  // a sound the place makes, and a conversation is not.
 
   hum: sung('throat', {
     pitch: 220,
@@ -942,14 +930,8 @@ const DB: Partial<Record<AmbienceVoice, number>> = {
   'wren-scold': -24,
 
   // --- people -------------------------------------------------------------
-  shout: -16,
-  call: -18,
-  laugh: -20,
-  chatter: -23,
-  cough: -24,
   hum: -25,
   whistle: -23,
-  tannoy: -17,
 
   // --- things handled -----------------------------------------------------
   pail: -20,

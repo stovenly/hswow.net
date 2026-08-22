@@ -15,16 +15,12 @@ import type { AmbienceSpec } from './spec';
 export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.15, tone: 3000, shelter: 0.45, aperture: 0.25, roar: 0.5, rush: 1.0, hiss: 0.6 }, follow: [{ by: 'wind', span: [0.5, 1.2] }] },
-    // The settlement itself, too far off to make out a word of it — which is
-    // a syllable rate and a speech spectrum, and no vowels at all.
-    {
-      model: 'murmur',
-      options: { gain: 0.055, voices: 3, density: 0.35, rate: 3.6, distance: 850, pitch: 175 },
-      follow: [{ by: 'night', span: [1, 0.12] }],
-      when: { sun: [-6, 90] },
-    },
   ],
   chorus: [
+    // The village working, out of sight and with nobody talking. This is the
+    // continuous middle a settlement needs: without it the place is the air
+    // and then a bucket, and nothing in between.
+    { model: 'bustle', options: { rate: 7, distance: 700, roll: 0.4, busy: 0.5, gain: 0.09 }, follow: [{ by: 'night', span: [1, 0.1] }] },
     // Gardens and a hedge, near enough that you hear leaves rather than hush.
     { model: 'hedge', options: { density: 190, tone: 1.15, woody: 0.45, gain: 0.16 } },
     { model: 'hedge', height: 4, options: { density: 240, tone: 0.85, woody: 0.3, gain: 0.14 } },
@@ -61,22 +57,15 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
 export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.11, tone: 2800, shelter: 0.55, aperture: 0.2, roar: 0.5, rush: 1.0, hiss: 0.5 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
-    // The square, and it is the keynote here rather than a source in it.
-    {
-      model: 'murmur',
-      options: { gain: 0.14, voices: 5, density: 0.65, rate: 4.4, distance: 1250, pitch: 165 },
-      follow: [{ by: 'night', span: [1, 0.04] }, { by: 'rain', span: [1, 0.35] }],
-      when: { sun: [-4, 90] },
-    },
   ],
   chorus: [
+    // The square. Crates, hooves, wheels, shutters — a great many contacts too
+    // far off to pick apart, which is what a market is once the voices are out.
+    { model: 'bustle', options: { rate: 24, distance: 1000, roll: 0.75, busy: 0.85, gain: 0.14 }, follow: [{ by: 'night', span: [1, 0.05] }, { by: 'rain', span: [1, 0.4] }] },
     { model: 'hedge', options: { density: 130, tone: 1.3, woody: 0.5, gain: 0.11 } },
     { model: 'flue', height: 5, options: { size: 105, draw: 0.35, exposure: 0.5, sooted: 0.6, gain: 0.1 } },
   ],
   cast: [
-    { voice: 'shout', every: [18, 45], when: { sun: [-2, 90] } },
-    { voice: 'laugh', every: [25, 70], when: { sun: [-2, 90] } },
-    { voice: 'chatter', every: [12, 30], when: { sun: [-2, 90] } },
     { voice: 'pot', every: [18, 44], when: { sun: [-2, 90] } },
     { voice: 'jar', every: [26, 65], when: { sun: [-2, 90] } },
     { voice: 'pail-pour', every: [45, 120], when: { sun: [-2, 90] } },
@@ -106,9 +95,11 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     { model: 'fire', height: 0.4, options: { gain: 0.34, intensity: 0.55, tone: 0.9, crackle: 0.6, draught: 0.15 } },
-    // Down the chimney, and only when it gusts. A lit hearth draws whether or
-    // not it is blowing, so the two halves are separate controls.
-    { model: 'flue', height: 4, options: { size: 72, draw: 0.8, exposure: 0.65, sooted: 0.45, gain: 0.17 } },
+    // Indoors the flue is nearly all draw and hardly any buffet: a lit hearth
+    // pulls whether or not it is blowing, and the wind is outside. The
+    // exposure is low enough that the moan only arrives in a real blow, which
+    // is the only time you would hear one through a wall anyway.
+    { model: 'flue', height: 4, options: { size: 72, draw: 0.85, exposure: 0.18, sooted: 0.5, gain: 0.14 } },
     { model: 'tick', height: 1.7, options: { every: 1.05, pitch: 2100, decay: 0.07, swing: 0.4, gain: 0.055 } },
   ],
   cast: [
@@ -141,7 +132,6 @@ export const VILLAGE_INTERIOR_2_AMBIENCE: AmbienceSpec = {
     { voice: 'paper', every: [40, 120] },
     { voice: 'coins', every: [55, 160] },
     { voice: 'pot', every: [70, 200], level: 0.6 },
-    { voice: 'cough', every: [110, 300], level: 0.5 },
     { voice: 'fly', every: [40, 120], height: 1.6, when: { season: [0.35, 0.72], warmth: [14, 40] } },
     { voice: 'mouse', every: [80, 240], height: 0.1, when: { sun: [-90, -3] } },
   ],
@@ -209,7 +199,6 @@ export const FARM_AMBIENCE: AmbienceSpec = {
     { voice: 'swallow', every: [16, 40], height: 6, passes: { over: 40, seconds: [1.2, 2.4] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
     { voice: 'skylark', every: [45, 130], height: 40, when: { season: [0.3, 0.72], sun: [6, 90], shy: 0.6 } },
     { voice: 'whetstone', every: [70, 200], when: { sun: [2, 90] } },
-    { voice: 'call', every: [60, 170], when: { sun: [0, 90] } },
     { voice: 'whistle', every: [110, 300], level: 0.7, when: { sun: [0, 90] } },
     { voice: 'wood', every: [40, 110], when: { sun: [-2, 90] } },
     { voice: 'owl', every: [90, 240], height: 9, answers: 0.6, answer: 'owl-answer', when: { sun: [-90, -5] } },
@@ -453,7 +442,6 @@ export const CAVE_2_AMBIENCE: AmbienceSpec = {
     { voice: 'embers', every: [40, 120], height: 0.3 },
     { voice: 'grit', every: [70, 210], height: 3, level: 0.6 },
     { voice: 'pot', every: [110, 300], level: 0.6 },
-    { voice: 'cough', every: [150, 420], level: 0.6 },
   ],
   signals: [
     // One throat, held, in a register the score's monks never occupy — and not
@@ -503,14 +491,11 @@ export const FACTORY_1_AMBIENCE: AmbienceSpec = {
     { voice: 'metal', every: [20, 55] },
     { voice: 'relay', every: [9, 26], height: 1.6 },
     { voice: 'contactor', every: [60, 180] },
-    { voice: 'chatter', every: [40, 120], level: 0.7 },
-    { voice: 'shout', every: [70, 200], level: 0.8 },
     { voice: 'tick', every: [1.7, 1.7], height: 1.2, level: 0.5 },
     { voice: 'steam', every: [50, 160], height: 2 },
   ],
   signals: [
     // Unintelligible on purpose: the words never arrive and the room does.
-    { voice: 'tannoy', every: [200, 620], height: 5, floor: 150 },
     { voice: 'klaxon', every: [0, 0], height: 6, floor: 0, clock: 'hour', level: 0.8 },
   ],
   activity: 0.75,
@@ -533,7 +518,6 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
     { voice: 'press', every: [2.9, 2.9], level: 0.9 },
     { voice: 'metal', every: [10, 26] },
     { voice: 'contactor', every: [30, 90] },
-    { voice: 'shout', every: [40, 120], level: 1.1 },
     { voice: 'steam', every: [30, 90], height: 2 },
   ],
   signals: [{ voice: 'klaxon', every: [280, 900], height: 5, floor: 220 }],
@@ -556,7 +540,6 @@ export const SEWER_1_AMBIENCE: AmbienceSpec = {
     { voice: 'drip', every: [5.7, 5.7], height: 3.4, level: 0.8 },
     { voice: 'rat', every: [24, 70], height: 0.1 },
     { voice: 'grit', every: [50, 150], level: 0.6 },
-    { voice: 'chatter', every: [90, 280], level: 0.5 },
   ],
   signals: [
     // The street, through a grating, and it is the only daylight in the place.

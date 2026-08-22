@@ -11,7 +11,7 @@ import type { InsectModel } from '../models/insect';
 import type { ElectricModel } from '../models/electric';
 import type { SurfModel } from '../models/surf';
 import { VOICES } from './voices';
-import { ambienceFor, VIBES, type VibeChoice, type VibeName } from '../vibes';
+import { ambienceFor, VIBES, VIBE_NAMES, type VibeChoice, type VibeName } from '../vibes';
 import { CLEAR, night, openness, weatherDamp, type Conditions } from './conditions';
 import type {
   AirLayer,
@@ -77,14 +77,23 @@ const FAR = {
 };
 
 /**
- * How far off centre a single source may sit, as a fraction of the ring.
+ * How far off centre a source may sit, as a fraction of the ring.
  *
- * A source pushed to the edge of the field is a source in one ear, and nothing
- * outdoors is ever in one ear — your head is small and sound goes round it. So
- * the bearing is real and the extent of it is not: a rook to your right is to
- * your right, audibly, and still present on your left.
+ * Two numbers, because there are two kinds of thing here and they localise
+ * completely differently.
+ *
+ * **A continuous layer is diffuse.** Nobody can point at a chimney by ear, or
+ * at a hedge, or at the plant behind a fence — they are large, they are steady,
+ * and by the time they reach you they have come off every surface between. A
+ * bed with a bearing is a loudspeaker with a bearing.
+ *
+ * **A discrete event has one**, because a rook really is over there and you
+ * really do turn your head. Even then the extent is small: a source pushed to
+ * the edge of the field is a source in one ear, and nothing outdoors is ever in
+ * one ear — your head is small and sound goes round it.
  */
-const BIAS = 0.55;
+const CHORUS_BIAS = 0.12;
+const EVENT_BIAS = 0.4;
 
 /** Decibels to a gain. The mix is stated in dB and applied here. */
 const gainOf = (db: number): number => Math.pow(10, db / 20);
@@ -318,8 +327,13 @@ export class AmbienceDirector {
    * hearings.
    */
   say(voice: AmbienceVoice): void {
-    if (!this.rack) return;
-    this.speak(this.rack, { voice, every: [1, 1] }, this.engine.context.currentTime + 0.05);
+    // Falls back to the first vibe in the book rather than doing nothing: no
+    // zone declares an ambience yet, so without this the button is silent until
+    // somebody happens to pick a vibe first, which is not discoverable.
+    if (!this.rack) this.select(VIBES[VIBE_NAMES[0]].ambience);
+    const rack = this.rack;
+    if (!rack) return;
+    this.speak(rack, { voice, every: [1, 1] }, this.engine.context.currentTime + 0.08, voice, true);
   }
 
   /** Silences the whole layer without tearing it down. */
@@ -504,20 +518,31 @@ export class AmbienceDirector {
     }
   }
 
-  private speak(rack: Rack, member: CastMember, at: number, voiceName = member.voice): void {
+  private speak(
+    rack: Rack,
+    member: CastMember,
+    at: number,
+    voiceName = member.voice,
+    forced = false,
+  ): void {
     const entry = VOICES[voiceName];
     const band = entry.band;
     // The niche rule. An event whose band is taken is dropped, not queued, and
     // the drop is inaudible by construction — it is indistinguishable from the
     // event never having been due. It is also an event never synthesised.
-    if (band !== 'floor' && this.busy[band] > at) return;
+    if (!forced && band !== 'floor' && this.busy[band] > at) return;
 
     // Two throats only where this one can answer itself. Everywhere else a
     // second is a second emitter that is never both busy at once.
     const throats = member.answers && (member.answer ?? member.voice) === voiceName ? 2 : 1;
     const pool = this.poolFor(rack, voiceName, throats);
-    const voice = pool.voices.find((held) => held.busyUntil <= at);
-    if (!voice || voice.emitter.isVirtual) return;
+    const voice =
+      pool.voices.find((held) => held.busyUntil <= at) ?? (forced ? pool.voices[0] : undefined);
+    if (!voice || (voice.emitter.isVirtual && !forced)) return;
+    // The budget and the ledger both exist to stop the book fighting itself,
+    // and neither has any business silencing a button whose whole purpose is
+    // "let me hear this one thing, now".
+    if (forced) voice.emitter.enabled = true;
 
     const listener = this.engine.listenerPosition;
     const bearing = Math.random() * Math.PI * 2;
@@ -526,9 +551,9 @@ export class AmbienceDirector {
     // `BIAS` shortens the horizontal offset without touching the height, so a
     // source has a real bearing and still never reaches the edge of the field.
     _point.set(
-      listener.x + Math.cos(bearing) * radius * BIAS,
+      listener.x + Math.cos(bearing) * radius * EVENT_BIAS,
       height,
-      listener.z + Math.sin(bearing) * radius * BIAS,
+      listener.z + Math.sin(bearing) * radius * EVENT_BIAS,
     );
     voice.emitter.moveTo(_point);
     voice.path = null;
@@ -539,7 +564,7 @@ export class AmbienceDirector {
       const seconds = member.passes.seconds;
       const flight = seconds[0] + Math.random() * (seconds[1] - seconds[0]);
       const across = bearing + Math.PI / 2 + (Math.random() - 0.5) * 0.7;
-      const half = (member.passes.over / 2) * BIAS;
+      const half = (member.passes.over / 2) * EVENT_BIAS;
       voice.path = {
         from: _point.clone().addScaledVector(_axis.set(Math.cos(across), 0, Math.sin(across)), -half),
         to: _point.clone().addScaledVector(_axis, half),
@@ -642,7 +667,7 @@ export class AmbienceDirector {
           position: this.engine.listenerPosition,
           // Flat by construction: the offset exists to give the panner a
           // direction, not to set a level. See `TIERS`.
-          refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * BIAS,
+          refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * EVENT_BIAS,
           maxDistance: REACH,
           rolloff: ROLLOFF,
           reverb: 1,
@@ -729,13 +754,13 @@ export class AmbienceDirector {
       // chorus is a ring around you and travels with you; a source that belongs
       // at a coordinate is the zone's own `SoundscapeSpec` and not this.
       const offset = new THREE.Vector3(
-        Math.cos(bearing) * radius * BIAS,
+        Math.cos(bearing) * radius * CHORUS_BIAS,
         layer.height ?? FAR.lift,
-        Math.sin(bearing) * radius * BIAS,
+        Math.sin(bearing) * radius * CHORUS_BIAS,
       );
       const emitter = new Emitter(this.engine, faded(model, gain), {
         position: _point.copy(this.engine.listenerPosition).add(offset),
-        refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * BIAS,
+        refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * CHORUS_BIAS,
         maxDistance: REACH,
         rolloff: ROLLOFF,
         reverb: 1,

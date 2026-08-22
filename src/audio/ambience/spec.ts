@@ -91,14 +91,8 @@ export type AmbienceVoice =
   | 'dragonfly'
   | 'wasp'
   // People.
-  | 'call'
-  | 'shout'
-  | 'laugh'
-  | 'cough'
   | 'hum'
   | 'whistle'
-  | 'chatter'
-  | 'tannoy'
   // Things handled.
   | 'wood'
   | 'pot'
