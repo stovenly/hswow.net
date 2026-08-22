@@ -238,7 +238,11 @@ const WALL_MATERIAL = new THREE.MeshBasicMaterial();
 export function vistaShowcaseZone(): ZoneDefinition {
   return {
     id: ZONE_VISTA_SHOWCASE,
-    place: { at: [0, 0], altitude: 0 },
+    // No map coordinate, so nothing falls here of its own accord. This is a
+    // room built to judge the vista band, and rain and fog are the two things
+    // in the game whose whole job is to hide what is far away. The clock still
+    // runs overhead, and the panel's holds still reach in — so any weather can
+    // be put here on purpose, which is the only way it should arrive.
     name: 'Vista Showcase',
     group: 'general',
     environment: {

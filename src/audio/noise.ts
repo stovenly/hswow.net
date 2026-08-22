@@ -32,16 +32,21 @@ export function createNoiseBuffers(context: BaseAudioContext): NoiseBuffers {
 }
 
 function fill(context: BaseAudioContext, length: number, next: () => number): AudioBuffer {
+  const fade = Math.min(2048, (length / 4) | 0);
+  // Generated `fade` samples longer than the buffer, and the overrun is what
+  // the head is faded into. Blending the *last* samples into the head instead
+  // leaves the wrap discontinuous — the sample after the final one becomes a
+  // value from `fade` samples earlier, which is a step, and a step in noise is
+  // a click you can hear once a second forever.
+  const source = new Float32Array(length + fade);
+  for (let i = 0; i < source.length; i++) source[i] = next();
+
   const buffer = context.createBuffer(1, length, context.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) data[i] = next();
-
-  // Cross-fade the tail into the head so the loop point is not a click. A
-  // discontinuity in noise is still a discontinuity, and it is audible.
-  const fade = Math.min(2048, (length / 4) | 0);
+  data.set(source.subarray(0, length));
   for (let i = 0; i < fade; i++) {
     const t = i / fade;
-    data[i] = data[i] * t + data[length - fade + i] * (1 - t);
+    data[i] = source[i] * t + source[length + i] * (1 - t);
   }
 
   normalise(data);

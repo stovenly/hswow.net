@@ -108,8 +108,37 @@ export const particleUniforms = {
   uParticleScale: { value: 1 },
   /** The accessibility switch. Zero collapses every weather system. */
   uPrecipitation: { value: 1 },
+  /**
+   * What weather is tinted by, and only weather. Night is bright and blue here
+   * by design, so white flakes against it have almost nothing to separate them
+   * — a snowfall reads by contrast, and after dark the contrast has to come
+   * from the flakes being darker than the sky rather than lighter.
+   */
+  uWeatherTint: { value: 1 },
   uWindCarry: { value: WIND_CARRY },
+  /**
+   * How far the air has carried, in metres, accumulated a frame at a time.
+   *
+   * There is no per-particle state here — every particle is a closed form of
+   * its index and the clock — so anything worked out from a particle's own age
+   * has to be rebuilt every frame from whatever that age currently is. For a
+   * wrapped volume the age is a *wrapped* quantity that moves whenever the box
+   * moves, which is how jumping came to fling the whole field sideways and
+   * crouching to drag it back. Handing the displacement in already integrated
+   * takes the box out of the physics entirely.
+   */
+  uWindDrift: { value: new THREE.Vector2() },
 };
+
+const windDrift = new THREE.Vector2();
+
+/** Per frame, from whatever owns the wind. See `uWindDrift`. */
+export function advanceParticleWind(bearing: number, strength: number, dt: number): void {
+  const carried = WIND_CARRY * strength * dt;
+  windDrift.x += Math.cos(bearing) * carried;
+  windDrift.y += Math.sin(bearing) * carried;
+  particleUniforms.uWindDrift.value.copy(windDrift);
+}
 
 /**
  * The shared vertex code: where a particle is, and how big it is on screen.
@@ -146,6 +175,8 @@ uniform float uShutter;
 uniform float uParticleScale;
 uniform float uPrecipitation;
 uniform float uWindCarry;
+uniform vec2 uWindDrift;
+uniform float uWeatherTint;
 
 varying vec4 vParticle;
 varying float vParticleDepth;
@@ -202,7 +233,12 @@ const PARTICLE_VERTEX = /* glsl */ `
   if (motion < 0.5 || motion > 2.5) {
     // Metres fallen since it entered the top of the box. The modulo is the
     // whole of the wrap: nothing is ever respawned, it simply re-enters.
-    float fallen = mod(iOrigin.y + t * iShape.y, max(box.y, 0.01));
+    //
+    // The box's own height is inside the modulo, which anchors the fall to the
+    // world: jump or crouch and the flakes stay where they are instead of
+    // riding up and down with you. Safe to do now that nothing downstream
+    // reads the age back: the drift arrives already integrated.
+    float fallen = mod(iOrigin.y + t * iShape.y + centre.y + box.y * 0.5, max(box.y, 0.01));
     age = fallen / max(iShape.y, 0.0001);
   } else {
     age = mod(t + iShape.z, max(iShape.w, 0.01));
@@ -211,22 +247,33 @@ const PARTICLE_VERTEX = /* glsl */ `
   // --- the wind, integrated over that age ----------------------------------
   // Sampled where the particle is now rather than along its path: over a flake's
   // few metres of drift that is a fraction of a texel.
-  vec2 at = volume > 0.5 ? centre.xz + iOrigin.xz : home.xz;
-  float lag = dot(at, windDir) * windLagScale;
-  float uNow = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
-  float uThen = uNow - age * windAgeScale;
-  float carried = (gustSum(uNow) - gustSum(max(uThen, 0.0))) * uWindCarry * iVary.y * swayAmount;
-  // Past the start of the table the field is simply not written down, and
-  // clamping there stops the sum growing — so a flake old enough to reach the
-  // edge gains no more sideways drift and falls dead straight beside one that
-  // does. Snow finds it and rain does not: a flake takes twenty seconds to
-  // cross the box where a raindrop takes two. The remainder is carried at the
-  // edge value instead, which is the honest reading of a field that ends.
-  if (uThen < 0.0) {
-    float edge = texture2D(gustField, vec2(0.0, 0.5)).r;
-    carried += (-uThen / max(windAgeScale, 1e-6)) * edge * uWindCarry * iVary.y * swayAmount;
+  //
+  // Where it *is*, in the world — the wrapped position without its own drift —
+  // and not the camera's position plus an offset. Sampling relative to the
+  // camera makes the wind under every drop change as the player walks, so the
+  // whole field slides sideways when they do, which reads as the rain leaning
+  // over on its own.
+  vec2 boxHalf = box.xz * 0.5;
+  vec3 drift;
+  if (volume > 0.5) {
+    // A wrapped volume takes the displacement already integrated. Every
+    // particle drifts at the same rate, which is what falling weather does —
+    // and the per-instance drag still varies how much of the air each one
+    // takes, so the field is not a rigid sheet.
+    drift = vec3(uWindDrift.x, 0.0, uWindDrift.y) * (iVary.y * swayAmount);
+  } else {
+    // An emitter's plume has nowhere to wrap to, so it keeps the integral over
+    // its own age: a spark leaves the fire and the wind takes it from there.
+    float lag = dot(home.xz, windDir) * windLagScale;
+    float uNow = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
+    float uThen = uNow - age * windAgeScale;
+    float carried = (gustSum(uNow) - gustSum(max(uThen, 0.0))) * uWindCarry * iVary.y * swayAmount;
+    if (uThen < 0.0) {
+      float edge = texture2D(gustField, vec2(0.0, 0.5)).r;
+      carried += (-uThen / max(windAgeScale, 1e-6)) * edge * uWindCarry * iVary.y * swayAmount;
+    }
+    drift = vec3(windDir.x, 0.0, windDir.y) * carried;
   }
-  vec3 drift = vec3(windDir.x, 0.0, windDir.y) * carried;
 
   // A small wander on top, so ash does not fall like snow and a plume is not a
   // fountain. Continuous in time, and its phase comes off the instance.
@@ -246,9 +293,14 @@ const PARTICLE_VERTEX = /* glsl */ `
     pos.y = top - mod(iOrigin.y + t * iShape.y, max(box.y, 0.01));
     // Wrapped *after* the drift, so a gust carries the field rather than
     // sliding it out of its own box.
+    //
+    // And wrapped about the *world*, not about the box: the centre goes inside
+    // the modulo, so a drop falls at a place and the box only decides which
+    // drops are near enough to draw. Without that subtraction the whole field
+    // is defined relative to the camera and slides along with the player, which
+    // rain does not do — you walk through it, it does not follow you.
     vec2 xz = iOrigin.xz + drift.xz;
-    vec2 half2 = box.xz * 0.5;
-    pos.xz = centre.xz + mod(xz + half2, max(box.xz, vec2(0.01))) - half2;
+    pos.xz = centre.xz + mod(xz - centre.xz + boxHalf, max(box.xz, vec2(0.01))) - boxHalf;
     pos.y += drift.y;
     vel = vec3(0.0, -iShape.y, 0.0);
 
@@ -256,6 +308,16 @@ const PARTICLE_VERTEX = /* glsl */ `
     // up is the one visible tell a camera-carried box has.
     vec3 q = abs(pos - centre) / max(box * 0.5, vec3(0.01));
     alpha *= 1.0 - smoothstep(0.82, 1.0, max(max(q.x, q.y), q.z));
+
+    // Thinned right at the eye. A drop a hand's width from your face covers as
+    // much screen as a cloud and arrives as an insect rather than as weather;
+    // what reads as rain is the depth of it, not the nearest few.
+    // The nearest drops are also the ones that sweep hardest across the view
+    // when the player moves — a drop two metres off crosses the whole screen
+    // at walking pace. Holding the field back a few metres is most of what
+    // makes rain read as weather standing still rather than as something
+    // reacting to you.
+    if (weather) alpha *= smoothstep(3.5, 11.0, distance(pos, cameraPosition));
   } else if (motion < 1.5) {
     // ballistic: a spark leaving an anvil, spray off a weir.
     vec3 g = vec3(0.0, -iField.x, 0.0);
@@ -285,7 +347,11 @@ const PARTICLE_VERTEX = /* glsl */ `
   // Carried through the size *and* the clamp below, because the clamp's whole
   // job is to floor a small thing at one pixel — including, without this, a
   // thing that was switched off.
-  float live = alpha > 0.0 ? 1.0 : 0.0;
+  // Collapsed to nothing well before alpha reaches zero, at the same 1/16 the
+  // quantizer floors at — see QUANTIZE_FLOOR. Anything under that is fill spent
+  // on a fragment that rounds away, and the ones the near fade is dimming are
+  // the largest on screen, so it is the most expensive fill in the frame.
+  float live = alpha > 0.0625 ? 1.0 : 0.0;
   float size = iShape.x * uParticleScale * grow * live;
 
   // --- how big it is on screen ----------------------------------------------
@@ -328,7 +394,7 @@ const PARTICLE_VERTEX = /* glsl */ `
     transformed = pos + right * offset.x + up * offset.y;
   }
 
-  vParticle = vec4(iColour.rgb, alpha * iColour.a);
+  vParticle = vec4(iColour.rgb * (weather ? uWeatherTint : 1.0), alpha * iColour.a);
 `;
 
 /**
@@ -452,6 +518,11 @@ export function setParticleDraw(on: boolean, density: number, scale: number): vo
 /** The accessibility switch. See `ParticleSpec.weather`. */
 export function setPrecipitation(on: boolean): void {
   particleUniforms.uPrecipitation.value = on ? 1 : 0;
+}
+
+/** How dark the falling weather is drawn, 0..1. See `uWeatherTint`. */
+export function setWeatherTint(tint: number): void {
+  particleUniforms.uWeatherTint.value = tint;
 }
 
 /**

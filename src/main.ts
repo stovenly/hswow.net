@@ -22,6 +22,7 @@ import { createDevTools } from './debug/DevPanel';
 import { Identify } from './debug/Identify';
 import { ZoneManager } from './world/ZoneManager';
 import { Climate, WEATHER_KINDS } from './world/climate';
+import { DECK_LEVELS, GENERA } from './art/glsl/clouds';
 import { WeatherRig } from './world/WeatherRig';
 import { Interaction } from './world/Interaction';
 import { Reticle, Fade } from './ui/Reticle';
@@ -167,8 +168,17 @@ const audio = new AudioEngine(audioLatencyHint(options));
 const climate = new Climate(audio.weather);
 /** Read back into the panel each frame. The climate names the sky; nobody sets it. */
 const deckNames = { high: '—', mid: '—', low: '—' };
-/** What the tone picker calls handing the choice back to the day. */
+/** What the pickers call handing the choice back to the day. */
 const ROLLED = 'as the day rolls it';
+/** And holding a deck slot empty, which is not the same answer. */
+const CLEAR = 'none';
+
+/** The panel's per-deck genus pickers. */
+const deckHold: Record<string, { genus: string; amount: number }> = {
+  high: { genus: 'as the day rolls it', amount: 0.8 },
+  mid: { genus: 'as the day rolls it', amount: 0.8 },
+  low: { genus: 'as the day rolls it', amount: 0.8 },
+};
 
 /** The panel's moon slider, and whether it is driving or reporting. */
 const moonHold = { on: false, phase: 0.5 };
@@ -500,6 +510,7 @@ if (dev.gui) {
   clouds.add(r.sky, 'cloudOpacity', 0, 1, 0.01).name('opacity').onChange(refresh);
   clouds.add(r.sky, 'cloudDrift', 0, 2, 0.02).name('drift').onChange(refresh);
   clouds.add(r, 'cloudShadow', 0, 1, 0.02).name('shadow on ground').onChange(refresh);
+  clouds.add(r.sky, 'cloudHaze', 0, 0.5, 0.005).name('haze into horizon').onChange(refresh);
   // Which genus is overhead is the climate's to decide; the readout names what
   // it chose, so a sky can be identified without guessing at it.
   for (const level of ['high', 'mid', 'low'] as const) {
@@ -710,6 +721,30 @@ if (dev.gui) {
         const at = kind.tones ? kind.tones.findIndex((tone) => tone.name === value) : -1;
         climate.pinTone(kind.name, at < 0 ? null : at);
       });
+  }
+
+  // One picker per deck. The sky still works out what it would have chosen, so
+  // letting go drops straight back into whatever the day was doing.
+  for (const level of DECK_LEVELS) {
+    const here = deckHold[level];
+    const names = [
+      ROLLED,
+      CLEAR,
+      ...Object.keys(GENERA).filter((n) => GENERA[n as keyof typeof GENERA].level === level),
+    ];
+    const pick = (genus: string, amount: number): void => {
+      if (genus === ROLLED) climate.releaseDeck(level);
+      else if (genus === CLEAR) climate.holdDeck(level, null, 0);
+      else climate.holdDeck(level, genus as keyof typeof GENERA, amount);
+    };
+    climateFolder
+      .add(here, 'genus', names)
+      .name(`${level} deck`)
+      .onChange((value: string) => pick(value, here.amount));
+    climateFolder
+      .add(here, 'amount', 0, 1, 0.01)
+      .name(`${level} amount`)
+      .onChange((value: number) => pick(here.genus, value));
   }
 
   // What the weather does to what it lands on. Held apart from the climate,
@@ -1167,7 +1202,7 @@ loop.add((rawDt, rawElapsed) => {
   // After the wind has been stepped and shipped, and before anything is drawn:
   // the sun moves, so the light rig, the dome and the shadow camera are all
   // per-frame now. Nothing here may bake.
-  weather.update(dt, elapsed, postfx, zones, audio, viewport.camera.position);
+  weather.update(dt, postfx, zones, audio, viewport.camera.position);
   // After the wind for the same reason again: each cloth samples the same
   // field the trees just bent to, so a gust arrives at the flag and the tree
   // beside it on the same frame.

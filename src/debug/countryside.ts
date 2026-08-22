@@ -277,7 +277,7 @@ const COUNTRYSIDE_SOUND: SoundscapeSpec = {
     {
       model: 'rain',
       id: 'rain',
-      options: { gain: 0.5, intensity: 0, surface: 'earth', articulation: 0.3 },
+      options: { gain: 0.17, intensity: 0, surface: 'earth', articulation: 0.3 },
     },
   ],
   emitters: [
