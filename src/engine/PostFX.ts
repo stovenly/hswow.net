@@ -21,7 +21,6 @@ import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings, type DeckState } from './Sky';
 import { fogUniforms } from './fog';
-import { bakeSkyMap, clearSkyMap } from '../world/skymap';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
@@ -406,17 +405,23 @@ export class PostFX {
     this.apply();
   }
 
-  setNight(stars: number, moon: number, phase: number, direction: THREE.Vector3, latitude: number, elapsed: number): void {
-    this.sky.setNight(stars, moon, phase, direction, latitude, elapsed);
+  setNight(stars: number, moon: number, bright: number, direction: THREE.Vector3, latitude: number, spin: number): void {
+    this.sky.setNight(stars, moon, bright, direction, latitude, spin);
   }
 
   /**
-   * Bakes what the sky can reach over one zone. Once per zone, when it is
-   * built: the sun moves, but a roof does not.
+   * How wet the world is, for the occlusion. A wet surface is darker, so less
+   * light bounces back out of a crevice into it — the pit genuinely reads
+   * deeper against the open ground beside it, and water gathers down there
+   * besides. Modest: this occlusion is screen-space, and leaning on it hard
+   * reads as grime rather than as depth.
    */
-  bakeShelter(root: THREE.Object3D | null): void {
-    if (root === null) clearSkyMap();
-    else bakeSkyMap(this.viewport.renderer, root);
+  setSurfaceWet(wet: number): void {
+    this.gtao.strength = this.settings.ao.strength * (1 + wet * 0.35);
+  }
+
+  setSkyLight(direction: THREE.Vector3, strength: number): void {
+    this.sky.setSkyLight(direction, strength);
   }
 
   setPhenomena(belt: number, halo: number, bow: number, shadowTop: number): void {
@@ -428,8 +433,9 @@ export class PostFX {
     windBearing: number,
     windStrength: number,
     elapsed: number,
+    dt: number,
   ): void {
-    this.sky.setDecks(decks, windBearing, windStrength, elapsed);
+    this.sky.setDecks(decks, windBearing, windStrength, elapsed, dt);
     this.decks = decks;
     this.sky.setCloudShadow(this.settings.cloudShadow * this.shadowScale, decks);
   }

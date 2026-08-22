@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { NOISE_GLSL } from '../engine/noise';
 import { CLOUD_SHADOW_GLSL } from './glsl/clouds';
-import { SKY_MAP_GLSL, skyMapUniforms } from '../world/skymap';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import { sinHash3 } from './glsl/hash';
 import { RAMP_GLSL, RAMP_V, rampUniforms } from './glsl/ramp';
@@ -272,7 +271,7 @@ export function applyFinish(material: THREE.Material, mask: number): void {
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
 
-    Object.assign(shader.uniforms, finishUniforms, recipeUniforms, rampUniforms, skyUniforms, skyMapUniforms);
+    Object.assign(shader.uniforms, finishUniforms, recipeUniforms, rampUniforms, skyUniforms);
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -383,13 +382,10 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         ${NOISE_GLSL}
         ${SKY_GLSL}
         ${CLOUD_SHADOW_GLSL}
-        ${SKY_MAP_GLSL}
 
         /** How wet and how snowed-on this fragment is. See the weather rig. */
         float finishWet = 0.0;
         float finishCrust = 0.0;
-        /** Where the weather lies thick and where it lies thin, 0..1. */
-        float finishGrain = 0.5;
         /**
          * How far to lean on the interpolated normal instead of the face one,
          * and how hard to blur what the surface reflects.
@@ -415,6 +411,16 @@ export function applyFinish(material: THREE.Material, mask: number): void {
          * the road far off is bright and the road at your feet is dark.
          */
         float finishGraze = 0.0;
+        /**
+         * How far off this fragment is, 0 near and 1 far.
+         *
+         * A wet highlight is a point of light on a facet, and the material is
+         * flat shaded, so at distance that point covers a whole triangle and
+         * arrives as a glowing blob rather than as a glint. A rougher surface
+         * with a wider footprint would average it away; there is no footprint
+         * here, so it is faded out by hand.
+         */
+        float finishFar = 0.0;
 
         /** The interpolated attribute normal, in view space. See finishSmooth. */
         vec3 finishSoftNormal() {
@@ -659,13 +665,15 @@ ${anyRecipe ? /* glsl */ `        ${recipeGlsl(recipes)}` : ''}
 
           float distribution = finishD(finishLobeNormal, halfDir);
 
-          // Pulled down where the finish stage is only running because the
-          // surface is wet: a direct lobe on a flat-shaded facet is one value
-          // for the whole triangle however broad it is, so a bare wet surface
-          // leans on the sky and the darkening instead.
+          // Pulled down wherever the surface is wet, and pulled out entirely
+          // with distance. A direct lobe on a flat-shaded facet is one value
+          // for the whole triangle however broad it is, so wet leans on the
+          // sky and the darkening instead — and far off it leans on them
+          // completely, because that is where a highlight stops being a glint
+          // and becomes a lit triangle.
           reflectedLight.directSpecular += shadedLight.color * F
             * (distribution * finishV(dotNL, dotNV) * dotNL * lobe * recipeGloss
-               * uFinishSpecular * mix(1.0, 0.3, finishSmooth));
+               * uFinishSpecular * mix(1.0, 0.22 * (1.0 - finishFar), finishWet));
 ${glint ? /* glsl */ `
           if (finishGlint > 0.0) {
             // Pushed most of the way to white and hard: a grain is a fraction of
@@ -730,15 +738,6 @@ ${trans ? /* glsl */ `
           finishCloud = cloudShadowAt(vFinishWorld, normalize(uSunDirection));
           if (uWetness > 0.0 || uSnow > 0.0) {
             vec3 finishUp = inverseTransformDirection(normal, viewMatrix);
-            // Whether anything stands between this fragment and the sky. The
-            // normal alone cannot tell a roof from the ground under its eave.
-            float reach = skyReach(vFinishWorld);
-            // Two scales of world noise. Weather that covers evenly is paint:
-            // the coarse one decides where a drift lies and where the ground
-            // shows through, the fine one ravels the edge of it.
-            finishGrain = valueNoise(vFinishWorld.xz * 0.35) * 0.6
-              + valueNoise(vFinishWorld.xz * 1.9 + vFinishWorld.y * 0.7) * 0.4;
-
             // Porosity. A surface that declared no finish is plain stone, soil
             // or timber and drinks; a metal, a glaze or a cloth does not.
             float soak = vFinish.y > 0.001
@@ -755,19 +754,16 @@ ${trans ? /* glsl */ `
             // whole triangle, and a surface built of many small facets comes
             // back with its own mesh drawn on it. What is sheltered is the
             // map's answer, not the normal's.
-            finishWet = uWetness * soak * reach
-              * smoothstep(-0.85, -0.2, finishUp.y)
-              // Water stands where the ground lets it. Flat and even is a
-              // varnish; uneven is a wet street.
-              * (0.8 + 0.32 * finishGrain);
+            // Even, everywhere the sky reaches. Rain does not fall in patches
+            // over a roof, and any variation laid over an even lattice of
+            // cover instances stops being texture and becomes a pattern.
+            finishWet = uWetness * soak * smoothstep(-0.85, -0.2, finishUp.y);
 
             // Snow needs a surface near enough level to hold it. A roof at
             // forty degrees sheds, which is what a pitched roof is for, and a
             // wall holds none at all — so the threshold is high and narrow,
             // and the noise is what stops the line it draws from being a band.
-            float lie = smoothstep(0.34, 0.95, finishUp.y);
-            finishCrust = uSnow * reach
-              * smoothstep(0.28, 0.72, lie * (0.62 + 0.72 * finishGrain));
+            finishCrust = uSnow * smoothstep(0.34, 0.95, finishUp.y);
             finishWet *= 1.0 - finishCrust;
           }
         }
@@ -779,8 +775,7 @@ ${trans ? /* glsl */ `
           // value is what turns a snowy village into a white shape with a
           // skyline: what is left of the material underneath is the only thing
           // still saying which part of it is a roof and which is a road.
-          vec3 lying = uSnowColour * (0.9 + 0.16 * finishGrain);
-          material.diffuseColor = mix(material.diffuseColor, lying, finishCrust * uSnowDepth);
+          material.diffuseColor = mix(material.diffuseColor, uSnowColour, finishCrust * uSnowDepth);
         }
         finishStrength = uFinishOn
           * max(step(0.001, vFinish.y), step(0.004, finishWet)) * (1.0 - finishWorn);
@@ -844,6 +839,7 @@ ${aniso ? /* glsl */ `
           {
             vec3 toEye = inverseTransformDirection(normalize(vViewPosition), viewMatrix);
             finishGraze = pow(1.0 - abs(toEye.y), 5.0);
+            finishFar = smoothstep(16.0, 50.0, length(vViewPosition));
           }
 
           if (finishWet > 0.0) {
@@ -858,7 +854,13 @@ ${aniso ? /* glsl */ `
             // Tight enough to read as water and no tighter: a narrower lobe
             // than this crawls against the quantizer, and the painted register
             // does not want a mirror.
-            float wetRough = mix(max(0.2, finishRough * 0.34), 0.38, finishBare);
+            // A wet surface is darker and deeper long before it is a mirror.
+            // On flat-shaded low-poly geometry a tight lobe is one bright
+            // facet and its neighbour untouched, so the gloss stays broad.
+            // Wet is darker and deeper long before it is a mirror, and on
+            // low-poly flat-shaded geometry a tight lobe is one bright facet
+            // beside an untouched one. Kept broad.
+            float wetRough = mix(max(0.42, finishRough * 0.7), 0.58, finishBare);
             finishRough = mix(finishRough, wetRough, finishWet);
             finishF0 = max(finishF0, vec3(0.02 * finishWet));
           }
@@ -915,7 +917,7 @@ ${aniso ? /* glsl */ `
           // than most of a frame ever gets — half the sky laid over every
           // surface is not a wet surface, it is a filter, and it is what was
           // turning wet roofs grey while the ground beside them stayed green.
-          envF = mix(envF, vec3(mix(0.02, 0.11, finishGraze)), finishWet);
+          envF = mix(envF, vec3(mix(0.015, 0.035, finishGraze)), finishWet);
           // Scaled by the same (1 − sheen) the direct lobe is: a velvet
           // reflecting the sky would be a velvet-coloured mirror.
           reflectedLight.indirectSpecular +=

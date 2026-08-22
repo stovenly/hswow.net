@@ -3,7 +3,7 @@ import { hash, valueNoise, type Weather } from '../audio/weather';
 import type { ParticleSpec } from '../art/particles';
 import type { SurfaceName } from '../audio/models/footsteps';
 import type { RainSurface } from '../audio/models/rain';
-import { DECK_LEVELS, GENERA, type GenusName } from '../art/glsl/clouds';
+import { DECK_LEVELS, GENERA, type DeckLevel, type GenusName } from '../art/glsl/clouds';
 
 
 /**
@@ -21,6 +21,13 @@ export interface AirBias {
   /** Multipliers on the zone's own distances at full amount. */
   near?: number;
   far?: number;
+  /**
+   * How much light the haze takes out, 0..1. Separate from the colour, because
+   * the colour is applied as hue and chroma alone — which is what stops a pale
+   * snow haze lifting a night sky, and would otherwise leave a brown smog as
+   * bright as the clear day it replaced.
+   */
+  darken?: number;
 }
 
 /**
@@ -37,25 +44,33 @@ export interface Tone {
 }
 
 /**
- * Fourteen tones a chemical, dust or combustion haze actually comes in. Every
- * one of these is something being burnt, quarried or smelted — none of them is
- * a hue picked for variety, which is why none of them is saturated.
+ * The colours a chemical, dust or combustion haze comes in — pushed well past
+ * what a photograph of one would show.
+ *
+ * A real industrial haze is nearly all low-chroma brown and grey, and a table of
+ * those is a table nobody can tell apart through a screen at a third of display
+ * resolution. These keep the *reason* for each colour — what is being burnt,
+ * quarried or smelted — and take the saturation up until the day is nameable at
+ * a glance. Hue separation is doing the work, so they are spread right round:
+ * yellow, gold, orange, red, violet, brown, black, neutral, green, blue.
  */
 export const SMOG_TONES: readonly Tone[] = [
-  { name: 'sulphur', colour: 0xb8a24a, mix: 1 },
-  { name: 'coal smoke', colour: 0x6e6357, mix: 1.1 },
-  { name: 'soot', colour: 0x4a4643, mix: 1.2 },
-  { name: 'ochre dust', colour: 0xb08a52, mix: 0.9 },
-  { name: 'brick dust', colour: 0xa4694f, mix: 0.95 },
-  { name: 'iron oxide', colour: 0x8c4a34, mix: 1.05 },
-  { name: 'ash', colour: 0x9a978f, mix: 0.85 },
-  { name: 'tar', colour: 0x57504a, mix: 1.15 },
-  { name: 'brass haze', colour: 0xc0a06a, mix: 0.9 },
-  { name: 'lime kiln', colour: 0xc9c6ae, mix: 0.8 },
-  { name: 'verdigris', colour: 0x7d9182, mix: 0.95 },
-  { name: 'slag', colour: 0x6a6470, mix: 1 },
-  { name: 'chlorine', colour: 0xa8bda2, mix: 0.85 },
-  { name: 'bitumen', colour: 0x7a6a58, mix: 1.1 },
+  { name: 'sulphur', colour: 0xd8c73c, mix: 1 },
+  { name: 'brass haze', colour: 0xdba94e, mix: 0.95 },
+  { name: 'ochre dust', colour: 0xc98a33, mix: 0.95 },
+  { name: 'brick dust', colour: 0xc4643c, mix: 1 },
+  { name: 'iron oxide', colour: 0xab3a24, mix: 1.05 },
+  { name: 'furnace', colour: 0xd4552a, mix: 1 },
+  { name: 'slag', colour: 0x745f96, mix: 1 },
+  { name: 'coal smoke', colour: 0x6b5a4e, mix: 1.1 },
+  { name: 'tar', colour: 0x40372f, mix: 1.2 },
+  { name: 'soot', colour: 0x3c3e46, mix: 1.25 },
+  // The one with no colour in it, kept deliberately: a day that is only thick.
+  { name: 'ash', colour: 0xa9a7a1, mix: 0.85 },
+  { name: 'lime kiln', colour: 0xe2ddb8, mix: 0.8 },
+  { name: 'verdigris', colour: 0x4f9b7a, mix: 1 },
+  { name: 'chlorine', colour: 0xb9d75f, mix: 0.9 },
+  { name: 'sulphate', colour: 0x4a7fae, mix: 0.95 },
 ];
 
 /** What a kind does to the ground and to what moves over it. */
@@ -195,7 +210,7 @@ export const RAIN_PARTICLES: ParticleSpec = {
   // Full downpour, and the count is the only thing the amount scales: fewer
   // drops is what a drizzle *is*, where the same drops at half alpha is a
   // downpour behind a gauze.
-  count: 6000,
+  count: 18000,
   shape: 'billboard',
   motion: 'fall',
   volume: { kind: 'follow', size: FALL_BOX },
@@ -208,7 +223,7 @@ export const RAIN_PARTICLES: ParticleSpec = {
 };
 
 export const SNOW_PARTICLES: ParticleSpec = {
-  count: 3600,
+  count: 10800,
   shape: 'billboard',
   motion: 'fall',
   volume: { kind: 'follow', size: FALL_BOX },
@@ -240,7 +255,7 @@ export const WEATHER_KINDS: WeatherKind[] = [
       ['altostratus', 0.7],
     ],
     ground: { wind: 0.35, surface: 'mud' },
-    blow: 0.45,
+    blow: 0.25,
   },
   {
     name: 'snow',
@@ -273,7 +288,12 @@ export const WEATHER_KINDS: WeatherKind[] = [
     onset: 0.72,
     pace: 0.3,
     season: (phase) => 0.5 + WINTER(phase) * 0.5,
-    air: { colour: 0x9c8c6c, colourMix: 0.62, far: 0.4 },
+    // At the top of its range this is not weather you look through, it is
+    // weather you are inside: the air ends about ten metres out and everything
+    // past that is one colour. It stays rare — the draw has to clear a high
+    // onset and then find a thick patch of the field — and once places carry
+    // their own region rows it will be rare *everywhere but the factory*.
+    air: { colour: 0x9c8c6c, colourMix: 0.9, near: 0.12, far: 0.07, darken: 0.45 },
     tones: SMOG_TONES,
     sky: [['altostratus', 0.9]],
     blow: -0.5,
@@ -357,6 +377,8 @@ export class Climate {
   private readonly pinnedTone = new Map<string, number>();
   /** A held moon phase, or null to let the month run. */
   private heldPhase: number | null = null;
+  /** A held genus per deck slot, or absent to let the sky decide. */
+  private readonly heldDeck = new Map<DeckLevel, { genus: GenusName | null; amount: number }>();
   private place: ZonePlace = ORIGIN;
 
   constructor(wind: Weather) {
@@ -414,6 +436,27 @@ export class Climate {
     return this.heldPhase !== null;
   }
 
+  /**
+   * Pins one deck slot. A genus holds that genus, `null` holds the slot *empty*,
+   * and `release` hands it back to the sky — three states, because "clear" and
+   * "whatever the day decided" are different answers and a picker that cannot
+   * say the first cannot show you a bare sky.
+   *
+   * What the sky would have chosen is still worked out underneath, so letting
+   * go drops straight back into whatever the day was doing.
+   */
+  holdDeck(level: DeckLevel, genus: GenusName | null, amount: number): void {
+    this.heldDeck.set(level, { genus, amount });
+  }
+
+  releaseDeck(level: DeckLevel): void {
+    this.heldDeck.delete(level);
+  }
+
+  heldDeckAt(level: DeckLevel): { genus: GenusName | null; amount: number } | null {
+    return this.heldDeck.get(level) ?? null;
+  }
+
   /** Pins a kind to one row of its palette, or hands the choice back with null. */
   pinTone(name: string, index: number | null): void {
     if (index === null) this.pinnedTone.delete(name);
@@ -441,6 +484,22 @@ export class Climate {
   /** 0..1 with 0 at midwinter. */
   get seasonPhase(): number {
     return (this.elapsedDays / this.settings.yearLength) % 1;
+  }
+
+  /**
+   * How far the sky has turned, in radians — the same hour angle the sun runs
+   * on, plus one extra turn a year.
+   *
+   * That extra turn is the whole difference between a solar day and a sidereal
+   * one: the planet has to spin slightly more than once to bring the sun back
+   * round, because it has moved along its orbit in the meantime. It is why a
+   * given star rises four minutes earlier each night and why the constellations
+   * of winter are not the constellations of summer.
+   */
+  get starAngle(): number {
+    const solar = (this.timeOfDay - 0.5) * Math.PI * 2;
+    const sidereal = (this.elapsedDays / Math.max(this.settings.yearLength, 1)) * Math.PI * 2;
+    return (solar + sidereal) % (Math.PI * 2);
   }
 
   /** What a person would call tonight's moon. */
@@ -521,14 +580,22 @@ export class Climate {
     // same amount, which is the whole geometry of the month: a new moon keeps
     // the sun's company, a first quarter stands due south at sunset, and a full
     // moon rises as the sun goes down.
+    // The moon runs its own month and is placed by it, so it is over the
+    // horizon for about half of every day — often while the sun is up, which
+    // is exactly when a real one is a pale disc in a blue sky.
+    //
+    // Holding the phase moves it, and it has to: the lit face is worked out
+    // from where the moon stands relative to the sun, so a phase is a position
+    // and there is no way to have one without the other.
     const month = Math.max(this.settings.moonMonth, 1);
-    const natural = ((this.elapsedDays / month) % 1 + 1) % 1;
-    this.moonPhase = this.heldPhase ?? natural;
-    this.moonLight = 0.5 - Math.cos(this.moonPhase * Math.PI * 2) * 0.5;
-    // The month's own phase, not the held one: where the moon stands is a fact
-    // about the date, and a slider for how it looks should not move it.
-    const swing = natural * Math.PI * 2;
+    this.moonPhase = this.heldPhase ?? (((this.elapsedDays / month) % 1) + 1) % 1;
+    const swing = this.moonPhase * Math.PI * 2;
     this.aimAt(hourAngle - swing, sunLongitude + swing, this.moonDirection);
+
+    // And the lit fraction comes back off the two directions rather than off
+    // the phase that produced them, which is the same number by construction
+    // and cannot drift from what the sky is drawing.
+    this.moonLight = 0.5 - this.sunDirection.dot(this.moonDirection) * 0.5;
   }
 
   private sample(): void {
@@ -596,6 +663,8 @@ export class Climate {
 export interface DeckTarget {
   genus: GenusName | null;
   amount: number;
+  /** Held from the panel: arrive now rather than easing, so a pick reads at once. */
+  snap: boolean;
 }
 
 /**
@@ -621,15 +690,23 @@ export function planSky(climate: Climate, out: DeckTarget[]): void {
 
   // The fair-weather sky, before any weather is asked about. A slow high field
   // that is there most days, and a mid one that is there less often.
+  // `slowField` clusters hard around a half, so a window opening at 0.55 is a
+  // window that is shut most days. These sit low and wide on purpose: an empty
+  // sky should be the exception, not the ordinary case.
   const highLevel = slowField(day * 0.8, 233.1);
-  // Cirrus most days; a mackerel sky is the rarer one and the finest-grained.
-  put(highLevel > 0.78 ? 'cirrocumulus' : 'cirrus', smoothstep(0.4, 0.72, highLevel) * 0.75);
-  put('altocumulus', smoothstep(0.55, 0.85, slowField(day * 0.65, 97.4)) * 0.7);
+  // Cirrus most days; rows of small cloud the rarer one.
+  put(highLevel > 0.72 ? 'cirrocumulus' : 'cirrus', smoothstep(0.26, 0.6, highLevel) * 0.9);
+  const midLevel = slowField(day * 0.65, 97.4);
+  put(midLevel > 0.62 ? 'altostratus' : 'altocumulus', smoothstep(0.38, 0.72, midLevel) * 0.85);
 
-  // Diurnal cumulus: nothing at dawn, most of it mid-afternoon, gone by dusk.
-  // Convective, so it wants a warm day and dies out over a cold one.
-  const convection = Math.max(0, Math.sin(((hour - 0.33) / 0.5) * Math.PI));
-  put('cumulus', convection * (0.25 + summer * 0.6) * (1 - here));
+  // A low deck that is simply there, most days, whatever the hour. Without one
+  // the sky empties out entirely between the morning and the afternoon.
+  put('stratocumulus', smoothstep(0.42, 0.78, slowField(day * 0.5, 61.2)) * 0.8);
+
+  // Diurnal cumulus over the top of it: nothing at dawn, most of it
+  // mid-afternoon, gone by dusk. Convective, so it wants a warm day.
+  const convection = Math.max(0, Math.sin(((hour - 0.28) / 0.56) * Math.PI));
+  put('cumulus', convection * (0.45 + summer * 0.45) * (1 - here));
 
   // Valley stratus: still, damp and only around dawn.
   const settled = 1 - climate.wind.settings.windSpeed;
@@ -662,7 +739,9 @@ export function planSky(climate: Climate, out: DeckTarget[]): void {
       best = genus;
       bestAmount = amount;
     }
-    out[i].genus = best;
-    out[i].amount = clamp01(bestAmount);
+    const held = climate.heldDeckAt(level);
+    out[i].genus = held ? held.genus : best;
+    out[i].amount = held ? (held.genus === null ? 0 : clamp01(held.amount)) : clamp01(bestAmount);
+    out[i].snap = held !== null;
   }
 }

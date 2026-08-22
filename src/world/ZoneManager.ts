@@ -564,8 +564,6 @@ export class ZoneManager {
     this.lights.ambient.color.setHex(env.ambientSky);
     this.lights.ambient.groundColor.setHex(env.ambientGround);
     setZoneWind(env.wind ?? 1);
-    // Once per zone, at full black. Indoors there is no weather to shelter from.
-    postfx.bakeShelter(env.sky ? root : null);
 
     this.applyAudio(zone);
 

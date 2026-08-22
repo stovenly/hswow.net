@@ -156,8 +156,69 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
   bedFilter.Q.value = surface.bedQ;
   const bedGain = context.createGain();
   bedGain.gain.value = 0;
-  const bed: NoiseVoice = playNoise(context, noise.pink, bedFilter);
+
+  // Three voices, not one. A single six-second buffer through a narrow band is
+  // recognisable inside two passes: the band picks out that one buffer's own
+  // wander and hands it back on a timer. Three at rates a few per cent apart
+  // have loop lengths that do not line up again for many minutes, and the ear
+  // stops finding a period at all.
+  //
+  // Spread across the stereo field rather than stacked in the middle. Rain is
+  // the one sound that is genuinely all around you, and a mono hiss sits inside
+  // your head instead — which is most of why it reads as an effect rather than
+  // as weather.
+  const bedSum = context.createGain();
+  const bed: NoiseVoice[] = [-0.75, 0.0, 0.75].map((side) => {
+    const panner = context.createStereoPanner();
+    panner.pan.value = side;
+    panner.connect(bedSum);
+    return playNoise(context, noise.pink, panner, 0.09);
+  });
+  bedSum.gain.value = 0.58;
+  bedSum.connect(bedFilter);
+
+  // And a second band under it. Rain is not one filtered hiss: there is the
+  // spatter you can pick drops out of and, under it, the weight of everything
+  // too far off to resolve. One bandpass alone is what makes synthetic rain
+  // read as noise with a filter on it rather than as a sound with distance in
+  // it.
+  const roar = context.createBiquadFilter();
+  roar.type = 'lowpass';
+  roar.frequency.value = 340 * tone;
+  roar.Q.value = 0.6;
+  const roarGain = context.createGain();
+  roarGain.gain.value = 0.72;
+  bedSum.connect(roar);
+  roar.connect(roarGain).connect(bedGain);
+
+  // A third band over the other two: the fine spatter, the part with drops
+  // almost resolvable in it. Low, high and something between is the least that
+  // sounds like water rather than like a filter sweep.
+  const fine = context.createBiquadFilter();
+  fine.type = 'bandpass';
+  fine.frequency.value = surface.bedHz * tone * 3.1;
+  fine.Q.value = 0.7;
+  const fineGain = context.createGain();
+  fineGain.gain.value = 0.34;
+  bedSum.connect(fine);
+  fine.connect(fineGain).connect(bedGain);
+
   bedFilter.connect(bedGain).connect(output);
+
+  // A slow hand on the level, taken off brown noise played at a thirtieth
+  // speed — six seconds of buffer become three minutes of wander. Rain surges
+  // and slackens over tens of seconds and a bed held at one level is a fan;
+  // this is the cheapest honest way to give it that, because it costs an
+  // oscillator and no per-frame work at all. Summed into the gain rather than
+  // multiplied, which is what an AudioParam does with a connected source.
+  const swell = context.createBufferSource();
+  swell.buffer = noise.brown;
+  swell.loop = true;
+  swell.playbackRate.value = 0.033;
+  const swellDepth = context.createGain();
+  swellDepth.gain.value = 0;
+  swell.connect(swellDepth).connect(bedGain.gain);
+  swell.start(0, Math.random() * noise.brown.duration);
 
   let intensity = options.intensity ?? 0.5;
   const articulation = options.articulation ?? 0.35;
@@ -216,6 +277,8 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
       const now = context.currentTime;
       bedFilter.frequency.setTargetAtTime(surface.bedHz * tone, now, 0.25);
       bedFilter.Q.setTargetAtTime(surface.bedQ, now, 0.25);
+      roar.frequency.setTargetAtTime(340 * tone, now, 0.25);
+      fine.frequency.setTargetAtTime(surface.bedHz * tone * 3.1, now, 0.25);
       // The drop bands are fixed at construction — rebuilding filter nodes
       // mid-texture drops every drop in flight. Retuning them by ratio keeps
       // the character of the new surface without the seam.
@@ -247,6 +310,7 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
       // floor would keep eight drops a second falling out of a clear sky.
       if (fall < 0.02) {
         bedGain.gain.setTargetAtTime(0, now, 0.6);
+        swellDepth.gain.setTargetAtTime(0, now, 0.6);
         dropBus.gain.setTargetAtTime(0, now, 0.6);
         clock.reset();
         eaveClock.reset();
@@ -254,8 +318,12 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
       }
 
       bedGain.gain.setTargetAtTime(fall * 0.55, now, 0.6);
+      // The surge rides on top, and scales with the rain: a downpour heaves,
+      // a drizzle barely moves.
+      swellDepth.gain.setTargetAtTime(fall * fall * 0.2, now, 1.2);
       // Harder rain is brighter: faster drops, sharper contacts, more spray.
       bedFilter.frequency.setTargetAtTime(surface.bedHz * tone * (0.7 + fall * 0.55), now, 0.6);
+      fine.frequency.setTargetAtTime(surface.bedHz * tone * 3.1 * (0.8 + fall * 0.4), now, 0.6);
       dropBus.gain.setTargetAtTime(articulation * (0.2 + fall * 0.8), now, 0.6);
 
       dropGap.rate = Math.max(8, surface.density * fall * fall);
@@ -269,7 +337,12 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
     },
 
     dispose() {
-      bed.stop();
+      for (const voice of bed) voice.stop();
+      try {
+        swell.stop();
+      } catch {
+        // Already stopped. Web Audio throws rather than shrugging.
+      }
       drops.dispose();
       dropBus.disconnect();
       bedGain.disconnect();

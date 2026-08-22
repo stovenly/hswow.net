@@ -52,12 +52,42 @@ export const coverUniforms = {
   coverSnow: { value: 0 },
   /** How heavy rain has left them, 0..1. Wet grass lies over and goes darker. */
   coverWet: { value: 0 },
+  /** What the surfaces under the cover are reflecting. See `coverWeather`. */
+  coverSky: { value: new THREE.Color(0.5, 0.55, 0.6) },
 };
 
+/**
+ * What the weather does to a cover colour, and it has to be *exactly* what the
+ * weather does to the surface underneath — see `art/finish.ts`. Cover is an
+ * even lattice of instances, so the moment it responds differently to the
+ * ground it stands in, the lattice stops being a texture and becomes a pattern:
+ * saturated green tufts stencilled across a desaturated wet roof.
+ *
+ * Wet darkens by multiplying the colour by itself, which takes proportionally
+ * more off a dark colour than a pale one and deepens the hue rather than
+ * washing it out. That is the same operation the finish stage runs.
+ */
+const COVER_WEATHER = /* glsl */ `
+uniform float coverSnow;
+uniform float coverWet;
+uniform vec3 coverSky;
+
+vec3 coverWeather(vec3 tint) {
+  vec3 wet = tint * mix(vec3(1.0), tint, coverWet * 0.7);
+  // And the same sheen of sky the surface underneath picks up. Cover carries
+  // no finish stage, so it has no environment term of its own — without this
+  // the ground goes grey in the rain while everything growing out of it stays
+  // green, and an even lattice of instances becomes a lattice you can see.
+  wet += coverSky * (coverWet * 0.03);
+  return mix(wet, vec3(0.86, 0.9, 0.96), coverSnow * 0.62);
+}
+`;
+
 /** What the weather has done to the ground cover. See `world/WeatherRig`. */
-export function setCoverWeather(snow: number, wet: number): void {
+export function setCoverWeather(snow: number, wet: number, sky: THREE.Color): void {
   coverUniforms.coverSnow.value = snow;
   coverUniforms.coverWet.value = wet;
+  coverUniforms.coverSky.value.copy(sky);
 }
 
 /** World direction into a mesh's object space: Y rotation and uniform scale only. */
@@ -88,8 +118,6 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
       attribute vec4 iWild;    // breathe phase, flutter phase, give, unused
       attribute vec3 iNormal;  // the ground's normal under the root
       uniform float coverHeight;
-      uniform float coverSnow;
-      uniform float coverWet;
       uniform float coverWidth;
       uniform float coverPixel;
       uniform vec3 coverPlayer;
@@ -120,9 +148,7 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         float scaleSq = max(dot(c0, c0), 0.0001);
 
         vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
-        // Buried by snow and pressed down by rain, both by shortening: a blade
-        // half under snow is a blade half as tall with white on it.
-        float len = iShape.x * coverHeight * (1.0 - coverSnow * 0.72 - coverWet * 0.12);
+        float len = iShape.x * coverHeight;
 
         // The same travelling gust the trees answer. See art/sway.ts.
         float lag = dot(worldRoot.xz, windDir) * windLagScale;
@@ -165,10 +191,6 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         transformed = iPlace.xyz + coverToObject(disp, c0, c1, c2, scaleSq);
 
         vCoverTint = iTint * (${ROOT.toFixed(2)} + ${RAMP.toFixed(2)} * t);
-        vCoverTint *= 1.0 - coverWet * 0.28;
-        // Whitened from the root up: what is left standing out of the snow is
-        // the tip, and the tip is the part that is still green.
-        vCoverTint = mix(vCoverTint, vec3(0.86, 0.9, 0.96), coverSnow * (1.0 - t * 0.55));
       }
       `,
     );
@@ -183,6 +205,7 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
       '#include <common>',
       /* glsl */ `#include <common>
       varying vec3 vCoverTint;
+      ${COVER_WEATHER}
       `,
     )
     .replace(
@@ -196,7 +219,7 @@ COVER_MATERIAL.onBeforeCompile = (shader) => {
     .replace(
       '#include <color_fragment>',
       /* glsl */ `#include <color_fragment>
-      diffuseColor.rgb = vCoverTint;
+      diffuseColor.rgb = coverWeather(vCoverTint);
       `,
     );
 };
@@ -326,6 +349,7 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
       uniform vec3 coverGlow;
       varying vec3 vTuftTint;
       varying vec3 vTuftWorld;
+      ${COVER_WEATHER}
       ${TUFT_STIPPLE_DECL}
       `,
     )
@@ -346,7 +370,7 @@ TUFT_MATERIAL.onBeforeCompile = (shader) => {
     .replace(
       '#include <color_fragment>',
       /* glsl */ `#include <color_fragment>
-      diffuseColor.rgb *= vTuftTint;
+      diffuseColor.rgb = coverWeather(diffuseColor.rgb * vTuftTint);
       `,
     )
     .replace(

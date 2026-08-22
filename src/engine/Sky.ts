@@ -1,13 +1,11 @@
 import * as THREE from 'three';
-import { NOISE_GLSL, VOLUME_NOISE_GLSL, noiseTexture } from './noise';
+import { NOISE_GLSL } from './noise';
 import {
   CLOUDS_GLSL,
-  CLOUD_VOLUME_GLSL,
   DECK_LEVELS,
   GENERA,
   FORM,
   windAtHeight,
-  type Genus,
   type GenusName,
 } from '../art/glsl/clouds';
 
@@ -57,12 +55,22 @@ export interface SkySettings {
   cloudOpacity: number;
   /** Master multiplier on how fast the decks travel. 0 freezes them. */
   cloudDrift: number;
+  /**
+   * How thick the low haze is, per unit of airmass. Larger buries the decks in
+   * the horizon sooner, which is what keeps them agreeing with the land in
+   * front of them.
+   */
+  cloudHaze: number;
 
   /** Whether a sun disc is drawn at all. */
   sun: boolean;
-  /** Angular radius of the disc, in degrees. The real one is about 0.27. */
+  /**
+   * Angular radius of the disc, in degrees. The real one is about 0.27, and the
+   * moon's is about 0.26 — near enough identical, which is why an eclipse works
+   * at all. Drawn several times life size here, but the two stay matched.
+   */
   sunSize: number;
-  /** The moon's, likewise. The real one is about 0.26. */
+  /** The moon's, likewise. */
   moonSize: number;
   /** How far the halo reaches. Larger is *tighter* — it is an exponent. */
   sunGlow: number;
@@ -104,25 +112,25 @@ export const skyUniforms = {
   uDeckLit: { value: [new THREE.Color(), new THREE.Color(), new THREE.Color()] },
   uDeckShade: { value: [new THREE.Color(), new THREE.Color(), new THREE.Color()] },
   uDeckWind: { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
+  uDeckDrift: { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
   uCloudWind: { value: new THREE.Vector2(0.01, 0) },
   uCloudTime: { value: 0 },
   /** What every path that is not the dome sees instead of three decks. */
   uSkyCover: { value: 0 },
   uSkyCloudColour: { value: new THREE.Color(0xf2f5f8) },
   uSkyCheapScale: { value: 0.55 },
+  /** How hard the decks fade into the horizon haze. See `SkySettings.cloudHaze`. */
+  uCloudHaze: { value: 0.05 },
+  /** What lights the decks: xyz toward it, w how strong. Sun by day, moon by night. */
+  uSkyLight: { value: new THREE.Vector4(0, 1, 0, 1) },
   /** Strength, elements per kilometre, deck height in kilometres, drift. */
   uCloudShadow: { value: new THREE.Vector4(0, 0.7, 1.6, 0.006) },
-  /** base km, top km, longest path km, extinction. */
-  uLowSlab: { value: new THREE.Vector4(1.1, 3.0, 26, 9) },
-  /** swell, detail per kilometre, light step km, spare. */
-  uLowShape: { value: new THREE.Vector4(1, 7, 0.16, 0) },
-  /** ambient gain, powder, phase g, sun gain. */
-  uLowLight: { value: new THREE.Vector4(0.34, 0.7, 0.55, 0.42) },
   uMoonDirection: { value: new THREE.Vector3(0, 1, 0) },
   uMoonColor: { value: new THREE.Color(0xdce8ff) },
   uMoonIntensity: { value: 0 },
   uMoonSize: { value: Math.cos((1.9 * Math.PI) / 180) },
-  uMoonPhase: { value: 0.5 },
+  /** How hard the lit face is driven. Past 1 it clips to white; by day it does not. */
+  uMoonBright: { value: 1.78 },
   uStars: { value: 0 },
   /** Belt of Venus, 22 degree halo, 42 degree bow, and the shadow's top as sin(elevation). */
   uPhenomena: { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -218,7 +226,7 @@ export const SKY_GLSL = /* glsl */ `
   uniform vec3 uMoonColor;
   uniform float uMoonIntensity;
   uniform float uMoonSize;
-  uniform float uMoonPhase;
+  uniform float uMoonBright;
   uniform float uStars;
   uniform vec4 uStarSpin;
   uniform vec4 uPhenomena;
@@ -266,13 +274,17 @@ export const SKY_GLSL = /* glsl */ `
 
     float bow = uPhenomena.z;
     if (bow > 0.001 && direction.y > 0.0) {
-      // Measured from the antisolar point: 42 degrees for red, 40.5 for violet,
-      // whose cosines are 0.743145 and 0.760406.
+      // Measured from the antisolar point. A real primary bow runs from about
+      // 42.4 degrees for red to 40.4 for violet — two degrees of sky, which is
+      // right for an eye and too thin for a screen, where it collapses into
+      // one pale line. Drawn at three and a half degrees wide instead, and on
+      // a radius pulled in by a third so the arc sits nearer the ground: the
+      // real one climbs out of frame at anything but a very low sun.
       float a = dot(direction, -toward);
-      float t = (a - 0.743145) / 0.017261;
+      float t = (a - 0.85921) / 0.02958;
       if (t > 0.0 && t < 1.0) {
         vec3 arc = 0.55 + 0.45 * cos(6.2831853 * (t * 0.85 + vec3(0.0, 0.33, 0.67)));
-        colour += arc * (sin(t * 3.14159265) * bow * 0.16 * smoothstep(0.0, 0.12, direction.y));
+        colour += arc * (sin(t * 3.14159265) * bow * 0.3 * smoothstep(0.0, 0.12, direction.y));
       }
     }
     return colour;
@@ -372,14 +384,37 @@ export const SKY_GLSL = /* glsl */ `
    * (sin E, 0, cos E) for elongation E. Lit is u sin E - w cos E > 0, which
    * rearranges to u^2 / cos^2(E) + v^2 = 1 — the ellipse, exactly.
    */
+  /**
+   * How much of this direction the moon's disc covers, 0..1. Needed on its own
+   * so the stars can be held out of it: the moon is rock, and nothing is
+   * visible through rock.
+   */
+  float moonDisc(vec3 direction) {
+    if (uMoonIntensity <= 0.001) return 0.0;
+    vec3 toward = normalize(uMoonDirection);
+    float toMoon = dot(direction, toward);
+    if (toMoon <= 0.0) return 0.0;
+    float radius = sqrt(max(1.0 - uMoonSize * uMoonSize, 1e-6));
+    return 1.0 - smoothstep(0.9, 1.02, length(direction - toward * toMoon) / radius);
+  }
+
   vec3 skyMoon(vec3 direction, vec3 colour) {
     if (uMoonIntensity <= 0.001) return colour;
     vec3 toward = normalize(uMoonDirection);
     float toMoon = dot(direction, toward);
     if (toMoon <= 0.0) return colour;
 
-    // How much of the disc is lit. 0 at new, 1 at full.
-    float lit = 0.5 - 0.5 * cos(uMoonPhase * 6.2831853);
+    // Everything about the phase comes off the two directions and nothing else.
+    //
+    // The elongation is simply the angle between the sun and the moon as seen
+    // from here, so its cosine is one dot product; the illuminated fraction is
+    // (1 − cos E) / 2, and the terminator sits at u = cos E along the axis
+    // pointing at the sun. Deriving it this way rather than from a phase
+    // parameter means the lit face cannot disagree with where the moon is: put
+    // the moon anywhere and the light on it is already right.
+    vec3 sunward = normalize(uSunDirection);
+    float cosE = dot(sunward, toward);
+    float lit = 0.5 - 0.5 * cosE;
 
     float radius = sqrt(max(1.0 - uMoonSize * uMoonSize, 1e-6));
     vec3 offset = direction - toward * toMoon;
@@ -389,14 +424,20 @@ export const SKY_GLSL = /* glsl */ `
     // The glow, scaled by the square of what is lit: a crescent gives off
     // almost nothing, and a full round halo round a crescent is the tell that
     // gives the whole thing away.
-    float glow = exp(-r * 0.55) * lit * lit;
-    colour = mix(colour, uMoonColor, clamp(glow * 0.22, 0.0, 1.0) * uMoonIntensity);
+    // The glow falls off far more slowly than the lit area does. A crescent
+    // gives out a small fraction of a full moon's light and it does not look
+    // like a small fraction — the sliver itself is every bit as bright, and a
+    // crescent drawn with no glow at all reads as a paper cut-out. Scaling by
+    // the square of the lit fraction was true to the photometry and wrong to
+    // the eye.
+    float glow = exp(-r * 0.55) * pow(lit, 0.45) * smoothstep(0.9, 1.6, uMoonBright);
+    colour = mix(colour, uMoonColor, clamp(glow * 0.26, 0.0, 1.0) * uMoonIntensity);
     if (r > 1.04) return colour;
 
-    // Toward the sun, and across it. When the sun is directly behind or in
+    // The axis toward the sun, across the disc. Its length is sin E, which is
+    // the other half of the terminator. When the sun is directly behind or in
     // front of the moon there is no limb to speak of and any axis will do.
-    vec3 sunward = normalize(uSunDirection);
-    vec3 across = sunward - toward * dot(sunward, toward);
+    vec3 across = sunward - toward * cosE;
     float span = length(across);
     across = span > 1e-4
       ? across / span
@@ -407,28 +448,66 @@ export const SKY_GLSL = /* glsl */ `
     float v = dot(offset, side) / radius;
     float w = sqrt(max(1.0 - r * r, 0.0));
 
-    float elongation = uMoonPhase * 6.2831853;
-    float face = smoothstep(-0.075, 0.075, u * sin(elongation) - w * cos(elongation));
+    // Lit where the surface normal faces the sun. On a sphere the normal is the
+    // point, so with the visible face at (u, v, −w) and the sun at (sin E, 0,
+    // cos E) that is u sin E − w cos E > 0 — which rearranges to the ellipse
+    // that makes a crescent a crescent.
+    float sunlit = smoothstep(-0.075, 0.075, u * span - w * cosE);
 
-    // The maria. Two octaves over the disc, and it is worth the eight hashes:
-    // a plain white circle reads as a light, and any marking at all reads as
-    // the moon.
-    float mare = valueNoise(vec2(u, v) * 1.6 + 31.7) * 0.62
-      + valueNoise(vec2(u, v) * 3.5 - 12.4) * 0.38;
+    // The maria, three octaves over the disc. Worth the dozen hashes: a plain
+    // white circle reads as a light, and any marking at all reads as the moon.
+    vec2 spot = vec2(u, v);
+    float mare = valueNoise(spot * 1.6 + 31.7) * 0.50
+      + valueNoise(spot * 3.5 - 12.4) * 0.32
+      + valueNoise(spot * 8.1 + 5.31) * 0.18;
+    float sea = smoothstep(0.34, 0.62, mare);
+
     // Driven past white on purpose. The moon is the brightest thing in a night
     // sky by a long way, and a lit face that peaks exactly at white reads as a
-    // pale disc rather than as a light — so the highlands clip and only the
-    // maria stay under, which is what leaves them visible at all.
-    vec3 rock = uMoonColor * (1.45 * (0.78 + 0.22 * smoothstep(0.35, 0.75, mare)));
+    // pale disc rather than as a light — so the highlands clip and the seas
+    // stay under, which is what leaves them visible at all.
+    //
+    // And the two are not the same colour. The highlands run a shade warm and
+    // the seas a shade cool, which is nearly all of the colour a real moon
+    // shows and the difference between looking at a light and looking at a
+    // place.
+    // And the sliver is driven harder the thinner it gets, for the same reason:
+    // what is lit is lit by the same sun whatever the phase, so a crescent
+    // should be a bright edge rather than a dim one.
+    // The thin-crescent boost is a night trick — a sliver has to hold its own
+    // against a black sky. In daylight there is nothing to hold out against and
+    // it only makes the moon easier to find than it should be.
+    float sliver = 1.0 + (1.0 - lit) * 0.55 * smoothstep(0.95, 1.6, uMoonBright);
+    vec3 rock = uMoonColor * mix(uMoonBright, uMoonBright * 0.65, sea) * sliver
+      * mix(vec3(1.04, 1.0, 0.95), vec3(0.93, 0.97, 1.05), sea);
 
     // No limb darkening. The moon is retroreflective, which is why a full one
     // reads as a flat disc cut out of the sky rather than as a lit ball.
     float disc = 1.0 - smoothstep(0.9, 1.02, r);
-    // The dark limb is not black: earthshine puts a little back into it, and
-    // hardest when the crescent is thinnest, which is when the Earth hanging
-    // over it is nearly full.
-    vec3 dark = colour * 0.5 + uMoonColor * (0.06 + 0.14 * (1.0 - lit));
-    return mix(colour, mix(dark, rock, face), disc * uMoonIntensity);
+    // The dark limb is not black, but it is dark: earthshine puts a little back
+    // into it, hardest when the crescent is thinnest, which is when the Earth
+    // hanging over it is nearly full. Taken over the sky's own colour and not
+    // over whatever has been drawn into this pixel already — reading the
+    // running colour back here lets a star behind the moon light the very limb
+    // that is meant to be hiding it.
+    vec3 sky = skyGradient(direction);
+    vec3 dark = sky * 0.3 + uMoonColor * (0.025 + 0.085 * (1.0 - lit));
+
+    // Then the air in front of it. There are kilometres of lit atmosphere
+    // between an observer and the moon, and by day that airlight swamps the
+    // unlit face entirely — which is why a new moon is not a black hole in a
+    // blue sky but nothing at all, and why a daytime crescent shows as a sliver
+    // with no disc behind it. At night there is no airlight to speak of and the
+    // dark limb stays dark.
+    float airlight = smoothstep(1.6, 0.95, uMoonBright);
+    dark = mix(dark, sky, airlight * 0.94);
+
+    // And the same air over the lit face. A daytime moon is pale because it is
+    // being looked at through a glowing sky, not because it has dimmed — so the
+    // veil goes over the whole disc rather than only over the part with nothing
+    // of its own to show.
+    vec3 face = mix(mix(dark, rock, sunlit), sky, airlight * 0.56);
+    return mix(colour, face, disc * uMoonIntensity);
   }
 
   /**
@@ -437,7 +516,10 @@ export const SKY_GLSL = /* glsl */ `
    */
   vec3 skyDome(vec3 direction) {
     vec3 colour = skyTwilight(direction, skyGradient(direction));
-    colour += vec3(1.55, 1.62, 1.85) * starField(direction);
+    // Held out of the moon's disc. The moon does not have to be at full
+    // brightness to be opaque — it is rock at every phase and every hour, and
+    // a half-lit one that lets the sky through reads as a decal.
+    colour += vec3(1.55, 1.62, 1.85) * starField(direction) * (1.0 - moonDisc(direction));
     colour = skyMoon(direction, colour);
     colour = skyOptics(direction, colour);
 
@@ -474,16 +556,9 @@ const SkyShader = {
     // backticks in this comment either, for the reason given above.)
     ${NOISE_GLSL}
     ${SKY_GLSL}
-    // Only the dome marches, so only the dome declares the noise texture it
-    // marches through. Every other caller of the sky takes the flat path.
-    ${VOLUME_NOISE_GLSL}
-    ${CLOUD_VOLUME_GLSL}
 
     void main() {
-      vec3 direction = normalize(vDirection);
-      vec3 colour = skyDome(direction);
-      vec4 low = skyLowDeck(direction, normalize(uSunDirection), uHorizon);
-      gl_FragColor = vec4(mix(colour, low.rgb, low.a), 1.0);
+      gl_FragColor = vec4(skyDome(normalize(vDirection)), 1.0);
     }
   `,
 };
@@ -500,13 +575,14 @@ export const DEFAULT_SKY: SkySettings = {
   airCurve: 1.4,
 
   cloudOpacity: 0.95,
-  cloudDrift: 1,
+  cloudDrift: 0.6,
+  cloudHaze: 0.05,
 
   sun: true,
-  // Several times life size. At the real 0.27° the sun is under two pixels once
-  // the pixelation pass has had it, which reads as a stuck dead pixel rather
-  // than as the sun.
-  sunSize: 1.1,
+  // Several times life size. At the real 0.27 degrees the sun is under two
+  // pixels once the pixelation pass has had it, which reads as a stuck dead
+  // pixel rather than as the sun.
+  sunSize: 0.95,
   moonSize: 0.95,
   sunGlow: 240,
 
@@ -537,6 +613,7 @@ export class Sky {
   /** Master dials off `SkySettings`, applied to every deck. */
   private opacity = 1;
   private speed = 1;
+  private readonly spare = new THREE.Vector2();
 
   constructor() {
     this.material = new THREE.ShaderMaterial({
@@ -544,10 +621,7 @@ export class Sky {
       // The shared set, not a clone — see `skyUniforms`. Water reads these to
       // resolve the miss case of its reflection march, and two copies would be
       // two skies.
-      // Spread rather than shared, and the entries are the same objects: the
-      // dome needs one sampler nothing else does, and every uniform written
-      // through `skyUniforms` still lands here because the references match.
-      uniforms: { ...skyUniforms, uNoise: { value: noiseTexture() } },
+      uniforms: skyUniforms,
       vertexShader: SkyShader.vertexShader,
       fragmentShader: SkyShader.fragmentShader,
       // Seen from inside, and never occluding anything: it writes no depth and
@@ -580,6 +654,7 @@ export class Sky {
     u.uAirCurve.value = settings.airCurve;
     this.opacity = settings.cloudOpacity;
     this.speed = settings.cloudDrift;
+    u.uCloudHaze.value = settings.cloudHaze;
     u.uSunIntensity.value = settings.sun ? 1 : 0;
     // Degrees in, cosine out. The shader compares against a dot product, so
     // doing the conversion here keeps an `acos` out of the per-pixel path and
@@ -611,16 +686,46 @@ export class Sky {
     u.uWarmth.value = warmth;
   }
 
-  setNight(stars: number, moon: number, phase: number, direction: THREE.Vector3, latitude: number, elapsed: number): void {
+  /** Which light the decks are shaded by, and how hard. See `uSkyLight`. */
+  setSkyLight(direction: THREE.Vector3, strength: number): void {
+    const v = this.material.uniforms.uSkyLight.value as THREE.Vector4;
+    v.set(direction.x, direction.y, direction.z, strength);
+    const length = Math.hypot(v.x, v.y, v.z) || 1;
+    v.x /= length;
+    v.y /= length;
+    v.z /= length;
+  }
+
+  /**
+   * `moon` is presence — whether it is up at all — and `bright` is how hard the
+   * lit face is driven. They are different questions: the moon is over the
+   * horizon for half of every day, and for much of that the sun is up too, when
+   * it is a pale disc rather than a lamp. One number for both is what stopped
+   * it ever being drawn in daylight.
+   */
+  setNight(
+    stars: number,
+    moon: number,
+    bright: number,
+    direction: THREE.Vector3,
+    latitude: number,
+    spin: number,
+  ): void {
     const u = this.material.uniforms;
     u.uStars.value = stars;
     u.uMoonIntensity.value = moon;
-    u.uMoonPhase.value = phase;
+    u.uMoonBright.value = bright;
     (u.uMoonDirection.value as THREE.Vector3).copy(direction).normalize();
     // The celestial pole: due north, at the latitude's own elevation. +Z is
     // south here, so north is −Z.
+    //
+    // The angle is the sun's own hour angle, not a rate of its own. A point at
+    // hour angle H sits where R(pole, −H) puts it, and the shader turns the
+    // *lookup* direction rather than the sky — so the two negatives cancel and
+    // the spin is H exactly. Nothing about the stars is authored: give the sun
+    // a different latitude or a longer day and they follow it.
     const tilt = (latitude * Math.PI) / 180;
-    (u.uStarSpin.value as THREE.Vector4).set(0, Math.sin(tilt), -Math.cos(tilt), elapsed * 0.0007);
+    (u.uStarSpin.value as THREE.Vector4).set(0, Math.sin(tilt), -Math.cos(tilt), spin);
   }
 
   /**
@@ -643,12 +748,14 @@ export class Sky {
     windBearing: number,
     windStrength: number,
     elapsed: number,
+    dt: number,
   ): void {
     const u = this.material.uniforms;
     const shape = u.uDeckShape.value as THREE.Vector4[];
     const form = u.uDeckForm.value as THREE.Vector4[];
     const light = u.uDeckLight.value as THREE.Vector4[];
     const wind = u.uDeckWind.value as THREE.Vector2[];
+    const drift = u.uDeckDrift.value as THREE.Vector2[];
     const lit = u.uDeckLit.value as THREE.Color[];
     const shade = u.uDeckShade.value as THREE.Color[];
 
@@ -659,9 +766,10 @@ export class Sky {
     // shadow anyway, and the cheap path still wants a direction to drift in.
     {
       const air = windAtHeight(windStrength, windBearing, 1.5);
-      (u.uCloudWind.value as THREE.Vector2)
+      this.spare
         .set(Math.cos(air.bearing), Math.sin(air.bearing))
-        .multiplyScalar(air.speed * this.speed);
+        .multiplyScalar(air.speed * this.speed * dt);
+      (u.uCloudWind.value as THREE.Vector2).add(this.spare);
     }
 
     for (let i = 0; i < 3; i++) {
@@ -672,15 +780,16 @@ export class Sky {
         light[i].set(0, 0, 0, 0);
         continue;
       }
-      shape[i].set(genus.cover, genus.erosion, 1 / genus.element, genus.opacity * this.opacity);
+      shape[i].set(genus.cover, genus.softness, 1 / genus.element, genus.opacity * this.opacity);
       form[i].set(genus.height, FORM[genus.form], genus.base, genus.stretch);
       light[i].set(genus.shade, genus.glow, amount, genus.ripple);
-      if (genus.level === 'low') this.setSlab(genus, amount);
       // No deck has a speed of its own. It goes at the speed of the air it is
       // in, and the air at nine kilometres is not the air at head height.
       const air = windAtHeight(windStrength, windBearing, genus.height);
       wind[i].set(Math.cos(air.bearing), Math.sin(air.bearing)).multiplyScalar(air.speed * this.speed);
-      if (genus.level === 'low') (u.uCloudWind.value as THREE.Vector2).copy(wind[i]);
+      // Integrated, never speed times the clock. See `uDeckDrift`.
+      drift[i].addScaledVector(wind[i], dt);
+      if (genus.level === 'low') (u.uCloudWind.value as THREE.Vector2).copy(drift[i]);
       lit[i].copy(deck.lit);
       shade[i].copy(deck.shade);
 
@@ -699,39 +808,6 @@ export class Sky {
     u.uSkyCover.value = cover;
     u.uSkyCheapScale.value = scale;
     u.uCloudTime.value = elapsed;
-  }
-
-  /**
-   * The slab the low deck is marched through. Extinction rises with how opaque
-   * the genus is and the longest path is capped in multiples of the thickness:
-   * a ray a degree above the horizon crosses tens of kilometres of slab, and
-   * past the first few the far side is behind solid cloud anyway.
-   */
-  private setSlab(genus: Genus, amount: number): void {
-    const u = this.material.uniforms;
-    const top = genus.height + genus.thickness;
-    (u.uLowSlab.value as THREE.Vector4).set(
-      genus.height,
-      top,
-      genus.thickness * 9,
-      4 + genus.opacity * 9,
-    );
-    (u.uLowShape.value as THREE.Vector4).set(
-      genus.swell,
-      // Erosion detail an eighth the size of an element, and a light step of
-      // about a fifth of the slab.
-      8 / Math.max(genus.element, 0.2),
-      Math.max(genus.thickness * 0.22, 0.06),
-      0,
-    );
-    // A thin deck lets more of the sky through it and needs less powder; a
-    // deep one is lit almost entirely by what has bounced inside it.
-    (u.uLowLight.value as THREE.Vector4).set(
-      0.26 + genus.grey * 0.22,
-      0.4 + genus.swell * 0.45,
-      0.4 + genus.swell * 0.3,
-      0.34 + amount * 0.12,
-    );
   }
 
   /** How hard a low deck darkens the ground under it. Zero costs no noise at all. */
