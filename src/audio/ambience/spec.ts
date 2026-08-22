@@ -175,6 +175,8 @@ export interface Window {
   shy?: number;
   /** Rain amount tolerated, 0..1. */
   rain?: Span;
+  /** Fog needed, 0..1. A foghorn in clear air is a foghorn nobody believes. */
+  fog?: Span;
   /** Speaks only once the weather has stopped — eaves, gutters, a wet wood. */
   after?: 'rain' | 'snow';
   /** Degrees C. Below the floor it does not sound at all. */

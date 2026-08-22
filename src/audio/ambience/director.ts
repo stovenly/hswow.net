@@ -1,0 +1,566 @@
+import * as THREE from 'three';
+import type { AudioEngine } from '../AudioEngine';
+import { Emitter, type SoundModel } from '../Emitter';
+import type { OneShot } from '../Scatter';
+import { createTicker, type Ticker } from '../dsp/ticker';
+import { valueNoise } from '../weather';
+import { createRng, type Rng } from '../../art/random';
+import type { Collider } from '../../player/Collider';
+import { buildModel } from '../Soundscape';
+import { VOICES } from './voices';
+import { ambienceFor, VIBES, type VibeChoice, type VibeName } from '../vibes';
+import { CLEAR, night, openness, weatherDamp, type Conditions } from './conditions';
+import type {
+  AirLayer,
+  AmbienceSpec,
+  AmbienceVoice,
+  CastMember,
+  ChorusLayer,
+  Driver,
+  Follow,
+  Tier,
+} from './spec';
+
+/**
+ * The ambience director.
+ *
+ * The score is a scarcity system; this is its opposite. A place that falls
+ * silent has died, so the keynote never stops and the scarcity lives one
+ * stratum up: signals are rare and soundmarks are rarer than signals.
+ *
+ * One rack per spec, kept the way the score keeps its own — built once,
+ * silenced often — and one pump on a worker timer. Every decision below is
+ * made against the audio clock and a conditions struct sampled once, never
+ * against frame state.
+ *
+ * The director sites its own sources in a ring around the listener. A zone
+ * that wants a sound at a coordinate declares it in its `SoundscapeSpec`
+ * instead; nothing here knows where anything in the world is.
+ */
+
+const PUMP_MS = 100;
+/** How far ahead an event is placed. Comfortably past one pump. */
+const LOOKAHEAD = 0.12;
+
+/** Seconds a border takes, and the faster exit into unscored country. */
+const CROSSFADE = 0.9;
+const LEAVE = 0.35;
+
+/** Where the far bus rolls off, and how long its pre-delay runs. */
+const FAR_HZ = 2600;
+const FAR_DELAY = 0.028;
+
+/**
+ * The rings. `radius` is where a source may stand, `lift` how far above the
+ * listener it sits by default — height is most of what stops a scatter field
+ * sounding like a ring of speakers at head height.
+ */
+const TIERS: Record<
+  Tier,
+  {
+    radius: readonly [number, number];
+    lift: number;
+    refDistance: number;
+    maxDistance: number;
+    rolloff: number;
+    reverb: number;
+    importance: number;
+    ignoreOcclusion: boolean;
+  }
+> = {
+  near: {
+    radius: [3, 14],
+    lift: 1,
+    refDistance: 3,
+    maxDistance: 26,
+    rolloff: 1.4,
+    reverb: 0.3,
+    importance: 1,
+    ignoreOcclusion: false,
+  },
+  mid: {
+    radius: [14, 45],
+    lift: 3,
+    refDistance: 8,
+    maxDistance: 70,
+    rolloff: 1.2,
+    reverb: 0.6,
+    importance: 0.7,
+    ignoreOcclusion: false,
+  },
+  far: {
+    radius: [45, 160],
+    lift: 8,
+    refDistance: 24,
+    maxDistance: 220,
+    rolloff: 1,
+    reverb: 0.95,
+    // Loses the budget first, and never raycasts: nothing between here and a
+    // rook half a mile off is worth a wall test.
+    importance: 0.35,
+    ignoreOcclusion: true,
+  },
+};
+
+/** Coprime, so the swells never re-align. Seconds. */
+const CYCLES = [41, 67, 103];
+const CYCLE_WEIGHTS = [0.5, 0.3, 0.2];
+
+interface Held {
+  shot: OneShot;
+  emitter: Emitter;
+  /** Audio-clock time this voice is free again. */
+  busyUntil: number;
+}
+
+interface Pool {
+  voices: Held[];
+}
+
+interface Layer {
+  model: SoundModel;
+  gain: GainNode;
+  follow: readonly Follow[];
+  base: number;
+  spec: AirLayer | ChorusLayer;
+}
+
+interface Rack {
+  spec: AmbienceSpec;
+  /** The vibe's fader. Two nodes so the wet path fades with the dry one. */
+  dry: GainNode;
+  wet: GainNode;
+  /** The shared far chain — one lowpass and one pre-delay for every far source. */
+  far: GainNode;
+  air: Layer[];
+  chorus: (Layer & { emitter: Emitter })[];
+  pools: Map<string, Pool>;
+  /** Audio-clock time each cast member and signal is next due. */
+  due: number[];
+  signalDue: number[];
+  rng: Rng;
+  /** Where this vibe's cycles start, so two places are never in step. */
+  offsets: number[];
+}
+
+export class AmbienceDirector {
+  private readonly engine: AudioEngine;
+  private readonly out: GainNode;
+  private readonly wetOut: GainNode;
+
+  private readonly racks = new Map<AmbienceSpec, Rack>();
+  private rack: Rack | null = null;
+  private spec: AmbienceSpec | null = null;
+
+  private readonly ticker: Ticker;
+  private conditions: Conditions = { ...CLEAR };
+
+  /** Clock time in seconds, for the cycles. Runs whether or not a zone is live. */
+  private clock = 0;
+  private lastPump = 0;
+  /** The hour last struck, so a soundmark fires on the change and not per pump. */
+  private struck = -1;
+  /** What the whole biophony is scaled by right now. */
+  private live = 0;
+
+  constructor(engine: AudioEngine) {
+    this.engine = engine;
+    const context = engine.context;
+
+    this.out = context.createGain();
+    this.out.connect(engine.dry);
+    this.wetOut = context.createGain();
+    this.wetOut.connect(engine.send);
+
+    this.ticker = createTicker(PUMP_MS, this.pump);
+  }
+
+  /**
+   * What the world is doing. Pushed in rather than read, because the clock and
+   * the weather live in `src/world` and nothing under `src/audio` reads it.
+   */
+  setConditions(conditions: Conditions): void {
+    this.conditions = conditions;
+  }
+
+  /**
+   * Follows the player across a border. See the score's `setZone`.
+   *
+   * Takes the zone's choice rather than a spec, because a rotation is drawn on
+   * the zone and the day and the day is already here in the conditions.
+   */
+  setZone(choice: VibeChoice | undefined, zoneId: string): void {
+    this.select(ambienceFor(choice, zoneId, Math.floor(this.conditions.elapsed)));
+  }
+
+  /** For the dev panel: hold one vibe's ambience, or hand it back with null. */
+  setVibe(name: VibeName | null): void {
+    this.select(name ? VIBES[name].ambience : null);
+  }
+
+  private select(spec: AmbienceSpec | null): void {
+    if (spec === this.spec) return;
+    const now = this.engine.context.currentTime;
+    const seconds = spec ? CROSSFADE : LEAVE;
+
+    if (this.rack) this.fade(this.rack, 0, seconds);
+
+    this.spec = spec;
+    this.rack = spec ? this.rackFor(spec) : null;
+    if (!this.rack) return;
+
+    this.fade(this.rack, 1, CROSSFADE);
+    // The clocks resume from now rather than from whenever this rack was last
+    // live, so coming back to a place does not fire a backlog at the door.
+    const rack = this.rack;
+    for (let i = 0; i < rack.due.length; i++) rack.due[i] = now + Math.random() * 4;
+    for (let i = 0; i < rack.signalDue.length; i++) rack.signalDue[i] = now + 20 + Math.random() * 40;
+  }
+
+  /** Silences the whole layer without tearing it down. */
+  setActive(active: boolean): void {
+    const now = this.engine.context.currentTime;
+    this.out.gain.setTargetAtTime(active ? 1 : 0, now, 0.15);
+    this.wetOut.gain.setTargetAtTime(active ? 1 : 0, now, 0.15);
+  }
+
+  /**
+   * Drives the emitters. Separate from the pump because spatialisation is
+   * frame work and scheduling is not — the pump decides what speaks, this
+   * moves what is already speaking.
+   */
+  update(dt: number, collider: Collider, retestOcclusion: boolean): void {
+    const rack = this.rack;
+    if (!rack) return;
+    const at = this.engine.listenerPosition;
+    for (const layer of rack.air) layer.model.update?.(dt, this.engine, at);
+    for (const layer of rack.chorus) layer.emitter.update(dt, collider, retestOcclusion);
+    for (const pool of rack.pools.values()) {
+      for (const voice of pool.voices) voice.emitter.update(dt, collider, retestOcclusion);
+    }
+  }
+
+  private readonly pump = (): void => {
+    const now = this.engine.context.currentTime;
+    const step = this.lastPump === 0 ? PUMP_MS / 1000 : Math.min(now - this.lastPump, 1);
+    this.lastPump = now;
+    this.clock += step;
+
+    const rack = this.rack;
+    if (!rack || !this.engine.started) return;
+    const spec = rack.spec;
+    const conditions = this.conditions;
+
+    this.live = spec.activity * weatherDamp(conditions) * this.cycle(rack);
+
+    this.driveLayers(rack.air, now, conditions);
+    this.driveLayers(rack.chorus, now, conditions);
+    this.walkCast(rack, now, conditions);
+    this.considerSignal(rack, now, conditions);
+  };
+
+  // --- the swell -------------------------------------------------------------
+
+  /**
+   * Three value-noise fields at coprime periods, so a place has busy stretches
+   * and quiet ones and nothing in it ever reads as periodic.
+   */
+  private cycle(rack: Rack): number {
+    let sum = 0;
+    for (let i = 0; i < CYCLES.length; i++) {
+      sum += valueNoise(this.clock / CYCLES[i] + rack.offsets[i]) * CYCLE_WEIGHTS[i];
+    }
+    // Expanded, because summed octaves cluster hard around their mean and a
+    // field that never leaves the middle is a field with no shape.
+    return Math.min(1, Math.max(0.12, 0.5 + (sum - 0.5) * 1.5));
+  }
+
+  private driverValue(by: Driver, now: Conditions): number {
+    switch (by) {
+      case 'wind':
+        return now.wind;
+      case 'gust':
+        return now.gust;
+      case 'rain':
+        return now.rain;
+      case 'snow':
+        return now.snow;
+      case 'fog':
+        return now.fog;
+      case 'night':
+        return night(now);
+      case 'warmth':
+        return Math.min(1, Math.max(0, (now.warmth + 5) / 30));
+      case 'activity':
+        return this.live;
+    }
+  }
+
+  private driveLayers(layers: readonly Layer[], now: number, conditions: Conditions): void {
+    for (const layer of layers) {
+      let level = layer.base * openness(layer.spec.when, conditions);
+      for (const follow of layer.follow) {
+        const driver = this.driverValue(follow.by, conditions);
+        level *= follow.span[0] + (follow.span[1] - follow.span[0]) * driver;
+      }
+      // A layer that only moves level reads as somebody turning a knob, so this
+      // is slow on purpose: it is the hour changing, not a fader.
+      layer.gain.gain.setTargetAtTime(level, now, 1.2);
+    }
+  }
+
+  // --- the cast ---------------------------------------------------------------
+
+  private walkCast(rack: Rack, now: number, conditions: Conditions): void {
+    const cast = rack.spec.cast;
+    if (!cast) return;
+
+    for (let i = 0; i < cast.length; i++) {
+      if (rack.due[i] > now) continue;
+      const member = cast[i];
+      const open = openness(member.when, conditions);
+      // Shut, and cheap: one comparison and nothing is built. A cast member out
+      // of season costs nothing for half the year.
+      if (open < 0.03 || this.live < 0.05) {
+        rack.due[i] = now + 4 + Math.random() * 6;
+        continue;
+      }
+
+      this.speak(rack, member, now + LOOKAHEAD);
+
+      const mean = (member.every[0] + Math.random() * (member.every[1] - member.every[0]));
+      // Exponential gaps: the same mean sometimes gives two in a row and
+      // sometimes a long nothing, and a source the ear can predict stops being
+      // heard within about three repetitions.
+      const gap = -Math.log(1 - Math.random()) * (mean / Math.max(open * this.live, 0.04));
+      rack.due[i] = now + Math.min(gap, 600);
+    }
+  }
+
+  private speak(rack: Rack, member: CastMember, at: number): void {
+    const pool = this.poolFor(rack, member.voice, member.tier);
+    const voice = pool.voices.find((held) => held.busyUntil <= at);
+    // Every throat still ringing. Dropping is correct and inaudible: it is
+    // indistinguishable from the event not having been due.
+    if (!voice || voice.emitter.isVirtual) return;
+
+    const tier = TIERS[member.tier];
+    const listener = this.engine.listenerPosition;
+    const bearing = Math.random() * Math.PI * 2;
+    const radius = tier.radius[0] + Math.random() * (tier.radius[1] - tier.radius[0]);
+    _point.set(
+      listener.x + Math.cos(bearing) * radius,
+      listener.y + (member.height ?? tier.lift) * (0.7 + Math.random() * 0.6),
+      listener.z + Math.sin(bearing) * radius,
+    );
+    voice.emitter.moveTo(_point);
+
+    const force = (member.level ?? 1) * (0.7 + Math.random() * 0.4);
+    const busy = voice.shot.fire(at, force);
+    voice.busyUntil = at + busy;
+  }
+
+  private considerSignal(rack: Rack, now: number, conditions: Conditions): void {
+    const signals = rack.spec.signals;
+    if (!signals) return;
+
+    // On the hour, whatever else is happening. The clock is the one thing a
+    // soundmark is allowed to be predictable about.
+    if (conditions.hour !== this.struck) {
+      const first = this.struck < 0;
+      this.struck = conditions.hour;
+      for (const signal of signals) {
+        if (first) break;
+        if (signal.clock !== 'hour') continue;
+        if (openness(signal.when, conditions) < 0.3) continue;
+        this.speak(rack, signal, now + LOOKAHEAD);
+      }
+    }
+
+    for (let i = 0; i < signals.length; i++) {
+      const signal = signals[i];
+      if (signal.clock === 'hour' || rack.signalDue[i] > now) continue;
+      const open = openness(signal.when, conditions);
+      if (open < 0.05) {
+        rack.signalDue[i] = now + signal.floor;
+        continue;
+      }
+      this.speak(rack, signal, now + LOOKAHEAD);
+      const mean = signal.every[0] + Math.random() * (signal.every[1] - signal.every[0]);
+      rack.signalDue[i] = now + signal.floor + -Math.log(1 - Math.random()) * (mean / open);
+    }
+  }
+
+  // --- building ----------------------------------------------------------------
+
+  private poolFor(rack: Rack, voice: AmbienceVoice, tier: Tier): Pool {
+    const key = `${voice}:${tier}`;
+    let pool = rack.pools.get(key);
+    if (pool) return pool;
+
+    const entry = VOICES[voice];
+    const shape = TIERS[tier];
+    // One throat, and two only where a source answers itself. A pool is per
+    // voice rather than per cast member: two members naming the same bird share
+    // one, which is where the whole budget comes from.
+    const voices: Held[] = [];
+    for (let i = 0; i < 2; i++) {
+      const shot = entry.build(this.engine);
+      voices.push({
+        shot,
+        busyUntil: 0,
+        emitter: new Emitter(this.engine, shot, {
+          position: this.engine.listenerPosition,
+          refDistance: shape.refDistance,
+          maxDistance: shape.maxDistance,
+          rolloff: shape.rolloff,
+          reverb: shape.reverb,
+          importance: shape.importance,
+          ignoreOcclusion: shape.ignoreOcclusion,
+          out: tier === 'far' ? rack.far : rack.dry,
+          send: rack.wet,
+        }),
+      });
+    }
+    pool = { voices };
+    rack.pools.set(key, pool);
+    return pool;
+  }
+
+  private rackFor(spec: AmbienceSpec): Rack {
+    const existing = this.racks.get(spec);
+    if (existing) return existing;
+
+    const context = this.engine.context;
+    const dry = context.createGain();
+    dry.gain.value = 0;
+    dry.connect(this.out);
+    const wet = context.createGain();
+    wet.gain.value = 0;
+    wet.connect(this.wetOut);
+
+    // One lowpass and one pre-delay for every far source there will ever be,
+    // rather than a darkened copy of each model.
+    const far = context.createGain();
+    const farTone = context.createBiquadFilter();
+    farTone.type = 'lowpass';
+    farTone.frequency.value = FAR_HZ;
+    farTone.Q.value = 0.6;
+    const farDelay = context.createDelay(0.2);
+    farDelay.delayTime.value = FAR_DELAY;
+    far.connect(farTone).connect(farDelay).connect(dry);
+
+    const rack: Rack = {
+      spec,
+      dry,
+      wet,
+      far,
+      air: [],
+      chorus: [],
+      pools: new Map(),
+      due: (spec.cast ?? []).map(() => 0),
+      signalDue: (spec.signals ?? []).map(() => 0),
+      rng: createRng(spec.seed),
+      offsets: CYCLES.map((_, i) => createRng(spec.seed + i * 97)() * 1000),
+    };
+
+    for (const layer of spec.air) {
+      const model = buildModel(this.engine, layer);
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      model.output.connect(gain).connect(dry);
+      rack.air.push({ model, gain, follow: layer.follow ?? [], base: layer.gain ?? 1, spec: layer });
+    }
+
+    for (const layer of spec.chorus ?? []) {
+      const model = buildModel(this.engine, layer);
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      model.output.connect(gain);
+      const shape = TIERS[layer.tier];
+      const bearing = rack.rng() * Math.PI * 2;
+      const radius = shape.radius[0] + rack.rng() * (shape.radius[1] - shape.radius[0]);
+      const emitter = new Emitter(this.engine, faded(model, gain), {
+        position: new THREE.Vector3(
+          Math.cos(bearing) * radius,
+          layer.height ?? shape.lift,
+          Math.sin(bearing) * radius,
+        ),
+        refDistance: shape.refDistance,
+        maxDistance: shape.maxDistance,
+        rolloff: shape.rolloff,
+        reverb: shape.reverb,
+        importance: shape.importance,
+        ignoreOcclusion: shape.ignoreOcclusion,
+        out: layer.tier === 'far' ? far : dry,
+        send: wet,
+      });
+      rack.chorus.push({
+        model,
+        gain,
+        follow: layer.follow ?? [],
+        base: layer.gain ?? 1,
+        spec: layer,
+        emitter,
+      });
+    }
+
+    this.racks.set(spec, rack);
+    return rack;
+  }
+
+  private fade(rack: Rack, to: number, seconds: number): void {
+    const now = this.engine.context.currentTime;
+    for (const gain of [rack.dry, rack.wet]) {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(to, now, seconds / 3);
+    }
+  }
+
+  /** For the debug readout. */
+  get status(): string {
+    if (!this.spec) return 'no vibe';
+    const voices = this.rack
+      ? [...this.rack.pools.values()].reduce((n, pool) => n + pool.voices.length, 0)
+      : 0;
+    return `live ${this.live.toFixed(2)} · ${voices} throats`;
+  }
+
+  dispose(): void {
+    this.ticker.stop();
+    for (const rack of this.racks.values()) {
+      for (const layer of rack.air) layer.model.dispose();
+      // The emitter owns the wrapper, and the wrapper owns the model.
+      for (const layer of rack.chorus) layer.emitter.dispose();
+      for (const pool of rack.pools.values()) {
+        for (const voice of pool.voices) voice.emitter.dispose();
+      }
+      rack.dry.disconnect();
+      rack.wet.disconnect();
+      rack.far.disconnect();
+    }
+    this.racks.clear();
+    this.rack = null;
+    this.out.disconnect();
+    this.wetOut.disconnect();
+  }
+}
+
+/**
+ * A model behind its own fader, so a chorus layer can answer the conditions
+ * before the emitter spatialises it. Forwards everything, because a foliage
+ * layer that never has `update` called reads the wind exactly once.
+ */
+function faded(model: SoundModel, gain: GainNode): SoundModel {
+  return {
+    output: gain,
+    update: (dt, engine, at) => model.update?.(dt, engine, at),
+    setActive: (active) => model.setActive?.(active),
+    dispose: () => {
+      model.dispose();
+      gain.disconnect();
+    },
+  };
+}
+
+const _point = new THREE.Vector3();

@@ -62,6 +62,13 @@ export interface EmitterOptions {
   rolloff?: number;
   /** How much of this emitter feeds the room, 0..1. */
   reverb?: number;
+  /**
+   * Where the dry and wet paths land. Both default to the engine's own buses.
+   * A caller that supplies them owns a fader over a whole group of emitters —
+   * which is what lets an ambience crossfade at a border rather than cut.
+   */
+  out?: AudioNode;
+  send?: AudioNode;
   /** Which way it faces, for directional sources. Omit for omnidirectional. */
   direction?: THREE.Vector3;
   coneInner?: number;
@@ -192,9 +199,9 @@ export class Emitter {
     this.absorption.connect(this.occlusion);
     this.occlusion.connect(this.swap);
     this.swap.connect(this.panner);
-    this.panner.connect(engine.dry);
+    this.panner.connect(options.out ?? engine.dry);
     this.panner.connect(this.sendGain);
-    this.sendGain.connect(engine.send);
+    this.sendGain.connect(options.send ?? engine.send);
 
     this.connect();
     engine.register(this);

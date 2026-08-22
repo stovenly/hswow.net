@@ -90,7 +90,11 @@ export interface SoundscapeSpec {
 /** Nothing at all. Interiors default to this until they are given a voice. */
 export const SILENCE: SoundscapeSpec = {};
 
-function build(engine: AudioEngine, spec: ModelSpec): SoundModel {
+/**
+ * Builds a model from its spec. Exported for the ambience director, which
+ * builds the same models from a book of its own rather than from a zone.
+ */
+export function buildModel(engine: AudioEngine, spec: ModelSpec): SoundModel {
   switch (spec.model) {
     case 'wind':
       return createWind(engine, spec.options);
@@ -142,7 +146,7 @@ export class Soundscape {
       bus.connect(engine.dry);
       this.bedBus = bus;
       for (const declared of bedSpecs) {
-        const model = build(engine, declared);
+        const model = buildModel(engine, declared);
         const gain = engine.context.createGain();
         gain.gain.value = declared.gain ?? 1;
         model.output.connect(gain).connect(bus);
@@ -155,7 +159,7 @@ export class Soundscape {
     }
 
     for (const placed of spec.emitters ?? []) {
-      const model = build(engine, placed);
+      const model = buildModel(engine, placed);
       if (placed.id) this.models.set(placed.id, model);
       const emitter = new Emitter(engine, model, {
         position: new THREE.Vector3(...placed.at),

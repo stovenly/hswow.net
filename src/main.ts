@@ -917,6 +917,9 @@ if (dev.gui) {
     // minutes — without this line, "working" and "broken" look identical for
     // the length of a rest.
     music: '—',
+    // The same argument, for the layer that is never supposed to stop: a
+    // silent wood and a broken director look identical from inside one.
+    ambience: '—',
   };
   const state = dev.gui.addFolder('state');
   state.add(readout, 'speed').listen().disable();
@@ -930,6 +933,7 @@ if (dev.gui) {
   state.add(readout, 'swell').listen().disable();
   state.add(readout, 'machine').listen().disable();
   state.add(readout, 'music').listen().disable();
+  state.add(readout, 'ambience').listen().disable();
   state.add(readout, 'emitters').name('hrtf / panned / virtual').listen().disable();
   state.add(readout, 'draws').name('draw calls').listen().disable();
   state.add(readout, 'drawn').name('drawn tris').listen().disable();
@@ -1053,6 +1057,21 @@ if (dev.gui) {
   music.add(musicState, 'play').name('play the vibe');
   music.add(musicState, 'stop').name('stop the vibe');
 
+  // The ambience has no play button and never will: it is the layer that does
+  // not stop. What it needs instead is a way to stand in a place out of season
+  // and out of hours, which the climate panel above already provides.
+  const airState = { vibe: 'zone' };
+  dev.gui
+    .addFolder('ambience')
+    .close()
+    .add(airState, 'vibe', ['zone', ...VIBE_NAMES])
+    .onChange((value: string) => {
+      const director = zones.ambience;
+      if (!director) return;
+      if (value === 'zone') director.setZone(zones.current?.environment.vibe, zones.current?.id ?? '');
+      else director.setVibe(value as VibeName);
+    });
+
   // --- generated Faust panels ----------------------------------------------
   //
   // Not written, read. Every compiled module declares its controls' ranges and
@@ -1123,6 +1142,7 @@ if (dev.gui) {
     }
     readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
     readout.music = zones.music?.status ?? '—';
+    readout.ambience = zones.ambience?.status ?? '—';
     // The voice budget, made visible. HRTF panning is the most expensive node in
     // the API, so "how many are running one" is the number that decides whether
     // a dense zone is affordable.

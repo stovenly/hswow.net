@@ -26,6 +26,7 @@ import { DoorAudio } from '../audio/models/door';
 import { Soundscape } from '../audio/Soundscape';
 import { MusicDirector } from '../audio/music/director';
 import { musicFor } from '../audio/vibes';
+import { AmbienceDirector } from '../audio/ambience/director';
 import type { Reticle, Fade } from '../ui/Reticle';
 
 // Owns which place you are in. Exactly one zone is in the scene and in the
@@ -156,6 +157,8 @@ export class ZoneManager {
   private doorAudio: DoorAudio | null = null;
   /** One director for the whole world: a piece outlives any single zone, and the drone retunes across a border rather than restarting. */
   private director: MusicDirector | null = null;
+  /** One director for the ambience too, for the same reason: it crosses borders. */
+  private air: AmbienceDirector | null = null;
 
   /** One soundscape per zone that has been entered, kept for the session. Built lazily on first entry and never rebuilt. */
   private readonly soundscapes = new Map<ZoneId, Soundscape>();
@@ -464,6 +467,7 @@ export class ZoneManager {
     this.audio = audio;
     this.doorAudio = new DoorAudio(audio.engine);
     this.director = new MusicDirector(audio.engine);
+    this.air = new AmbienceDirector(audio.engine);
     // The zone was entered before the audio existed, so its acoustics and its
     // floor material were never applied. Do it now.
     if (this.active) this.applyAudio(this.active);
@@ -629,6 +633,7 @@ export class ZoneManager {
     for (const [id, other] of this.soundscapes) other.setActive(id === zone.id);
 
     this.director?.setZone(musicFor(zone.environment.vibe));
+    this.air?.setZone(zone.environment.vibe, zone.id);
   }
 
   /**
@@ -639,11 +644,17 @@ export class ZoneManager {
   updateSound(dt: number, retestOcclusion: boolean): void {
     if (!this.active) return;
     this.soundscapes.get(this.active.id)?.update(dt, this.options.collider, retestOcclusion);
+    this.air?.update(dt, this.options.collider, retestOcclusion);
   }
 
   /** The music director, for the debug readout and the stage. */
   get music(): MusicDirector | null {
     return this.director;
+  }
+
+  /** The ambience director, for the debug readout and the weather rig. */
+  get ambience(): AmbienceDirector | null {
+    return this.air;
   }
 
   /** The active zone's soundscape, for tuning panels and readouts. */
@@ -964,6 +975,8 @@ export class ZoneManager {
     this.soundscapes.clear();
     this.director?.dispose();
     this.director = null;
+    this.air?.dispose();
+    this.air = null;
     for (const zone of this.zones.values()) zone.dispose();
     this.zones.clear();
     this.doored.clear();

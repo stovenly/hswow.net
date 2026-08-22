@@ -14,6 +14,7 @@ import { setCoverWeather } from '../art/cover';
 import { setGlowLevel } from '../art/glow';
 import { setZoneWind } from '../art/sway';
 import { createRain, type RainModel, type RainSurface } from '../audio/models/rain';
+import type { Conditions } from '../audio/ambience/conditions';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { PostFX } from '../engine/PostFX';
 import type { ZoneManager } from './ZoneManager';
@@ -152,6 +153,7 @@ export class WeatherRig {
     this.applySurfaces(dt, outdoors, zone?.environment.wind ?? 1);
     this.applyFalling(postfx, outdoors, dt);
     this.applySound(dt, audio, zones, listener, outdoors);
+    this.applyAmbience(zones, listener, outdoors);
   }
 
   private applyLight(postfx: PostFX, zones: ZoneManager): void {
@@ -476,6 +478,41 @@ export class WeatherRig {
     postfx.setPrecipitating(any);
   }
 
+  /**
+   * Hands the ambience director what the world is doing. Sampled here because
+   * this already owns the climate and the surface lag, and because nothing
+   * under `src/audio` reads `src/world`.
+   */
+  private applyAmbience(zones: ZoneManager, listener: THREE.Vector3, outdoors: boolean): void {
+    const director = zones.ambience;
+    if (!director) return;
+    const climate = this.climate;
+    const wind = climate.wind;
+    // Degrees the sun climbs per game minute at the horizon: fifteen an hour,
+    // foreshortened by the latitude. It is what turns "forty-seven minutes
+    // before sunrise" into an elevation a gate can test.
+    const sunRate = 0.25 * Math.cos(climate.settings.latitude * (Math.PI / 180));
+
+    CONDITIONS.sun = climate.sunElevation;
+    CONDITIONS.sunRate = Math.max(sunRate, 0.02);
+    CONDITIONS.rising = climate.timeOfDay < 0.5;
+    CONDITIONS.timeOfDay = climate.timeOfDay;
+    CONDITIONS.hour = Math.floor(climate.timeOfDay * 24);
+    CONDITIONS.season = climate.seasonPhase;
+    CONDITIONS.warmth = climate.temperature;
+    CONDITIONS.moon = climate.moonLight;
+    CONDITIONS.rain = climate.amountOf('rain');
+    CONDITIONS.snow = climate.amountOf('snow');
+    CONDITIONS.fog = climate.amountOf('fog');
+    CONDITIONS.wet = this.wet;
+    CONDITIONS.lying = this.lying;
+    CONDITIONS.wind = wind.strengthAt(listener.x, listener.z);
+    CONDITIONS.gust = wind.gust;
+    CONDITIONS.indoors = !outdoors;
+    CONDITIONS.elapsed = climate.elapsedDays;
+    director.setConditions(CONDITIONS);
+  }
+
   private applySound(
     dt: number,
     audio: AudioEngine,
@@ -553,6 +590,27 @@ export class WeatherRig {
     this.rain?.dispose();
   }
 }
+
+/** Refilled every frame rather than rebuilt: one struct, handed straight over. */
+const CONDITIONS: Conditions = {
+  sun: 50,
+  sunRate: 0.15,
+  rising: true,
+  timeOfDay: 0.5,
+  hour: 12,
+  season: 0.5,
+  warmth: 12,
+  moon: 0,
+  rain: 0,
+  snow: 0,
+  fog: 0,
+  wet: 0,
+  lying: 0,
+  wind: 0.4,
+  gust: 0.5,
+  indoors: false,
+  elapsed: 0,
+};
 
 const AIR_ONE = new THREE.Color();
 const COVER_SKY = new THREE.Color();
