@@ -30,6 +30,8 @@ import { Crosshair } from './ui/Crosshair';
 import { createTestWorld, ZONE_EXTERIOR, ZONE_COUNTRYSIDE } from './debug/zones';
 import { STAGE_STATIONS } from './debug/SoundStage';
 import { VIBES, VIBE_NAMES, musicFor, type VibeName } from './audio/vibes';
+import { AMBIENCE_VOICES } from './audio/ambience/voices';
+import type { AmbienceVoice, Tier } from './audio/ambience/spec';
 import { auditionToConsole } from './debug/Audition';
 import { createMeter } from './debug/Meter';
 import { patchArtMaterial, updateWind, windUniforms } from './art/sway';
@@ -1059,18 +1061,31 @@ if (dev.gui) {
 
   // The ambience has no play button and never will: it is the layer that does
   // not stop. What it needs instead is a way to stand in a place out of season
-  // and out of hours, which the climate panel above already provides.
-  const airState = { vibe: 'zone' };
-  dev.gui
-    .addFolder('ambience')
-    .close()
+  // and out of hours, which the climate folder already provides, and a way to
+  // hear a source that speaks every ninety seconds without waiting for it.
+  const air = dev.gui.addFolder('ambience').close();
+  const airState = {
+    vibe: 'zone',
+    voice: 'robin' as AmbienceVoice,
+    tier: 'mid' as Tier,
+    say: () => zones.ambience?.say(airState.voice, airState.tier),
+    hush: () => zones.ambience?.hush(),
+  };
+  air
     .add(airState, 'vibe', ['zone', ...VIBE_NAMES])
     .onChange((value: string) => {
       const director = zones.ambience;
       if (!director) return;
-      if (value === 'zone') director.setZone(zones.current?.environment.vibe, zones.current?.id ?? '');
-      else director.setVibe(value as VibeName);
+      if (value === 'zone') {
+        director.setZone(zones.current?.environment.vibe, zones.current?.id ?? '');
+      } else {
+        director.setVibe(value as VibeName);
+      }
     });
+  air.add(airState, 'voice', [...AMBIENCE_VOICES]);
+  air.add(airState, 'tier', ['near', 'mid', 'far']);
+  air.add(airState, 'say').name('say it');
+  air.add(airState, 'hush').name('hush the place');
 
   // --- generated Faust panels ----------------------------------------------
   //

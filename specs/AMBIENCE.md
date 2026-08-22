@@ -1,8 +1,15 @@
 # Ambience — research and plan
 
-**Not built.** This is the design for a third audio layer beside the soundscape
-and the score: one ambience per vibe, wired into zones the way music already is,
-driven by a director of its own that reads the clock and the weather.
+**Built, apart from step 30 and the listening pass.** A third audio layer
+beside the soundscape and the score: one ambience per vibe, wired into zones the
+way music already is, driven by a director of its own that reads the clock and
+the weather.
+
+Two things are outstanding and both are named where they belong: the Faust
+syrinx tier (step 30), and the tuning pass (step 32), which is listening and
+therefore not mine. **No zone declares an ambience half yet** — which vibe a
+place gets is content, and the dev panel's picker is how the book is walked in
+the meantime.
 
 Everything below is checked against the code as it stands. No instrument was
 built to write it and none should be built to verify it — the render and the
@@ -994,20 +1001,21 @@ limits, not targets.
 |---|---|
 | `air` layers per vibe | ≤ 3 models, non-positional, straight to the bed bus |
 | `chorus` emitters live at once | ≤ 6 |
-| cast voices live at once | ≤ 6, pooled |
 | signals live at once | 1 |
-| ambience share of the emitter cap | ≤ 12 of 24 |
+| cast throats | one per voice-and-tier **actually used**, built on first speak; two only where a voice answers itself |
+| ambience emitters competing for the cap | whatever those come to — the engine's own ranking decides which are audible, and a cast is mostly out of season, out of hours or rained off |
 | ambience emitters that may reach `hrtf` | ≤ 2, and only `near` |
 | director cost per pump | one conditions sample, six counters, one pass over the cast |
 
 Five decisions carry most of it:
 
-**Pool by band, not by species.** `ScatterField` builds one `OneShot` per voice
-per spec, so a cast of fifteen birds would be fifteen fields. Instead the
-ambience rack owns a **small pool of generic voices per band**, and the species
-is an argument to `fire`. A pool of four in `song` serves every songbird in the
-vibe. This is the single largest saving in the design and it is why §8.1 is one
-model with a table rather than fifteen models.
+**Pool by voice, not by cast entry, and build on first speak.**
+`ScatterField` builds one `OneShot` per voice per spec, so a cast of fifteen
+birds declared that way would be fifteen fields standing ready. Instead a rack
+holds one throat per voice-and-tier, created the first time that voice actually
+says anything — so a cast member out of season never costs a node, and two
+entries naming the same bird share one throat. This is why §8.1 is one model
+with a table rather than fifteen models.
 
 **The niche allocator is a performance feature.** An event dropped because its
 band is busy is an event never synthesised, and the drop is inaudible by
@@ -1118,11 +1126,26 @@ points where the work stands up on its own.
 
 ### Tuning
 
-31. **A way to audition** — switch vibe, scrub the hour, force the weather, fire
-    any cast member. Most likely a debug menu; shape open, no gallery zone.
-    Pull this earlier the moment tuning starts to hurt, which will be somewhere
-    around step 24.
+31. **A way to audition** — the dev panel's `ambience` folder: hold any vibe,
+    say any voice at any tier on demand, and hush the place. The hour and the
+    weather come from the climate folder that was already there.
 32. **The tuning pass**, vibe by vibe, in the world. **Ship.**
+
+### Where this stopped
+
+Steps 1–29 and 31 are built. Two remain.
+
+**Step 30, the Faust syrinx, is deliberately not done.** The tier would take
+precedence over the native path the moment its wasm loaded, and it cannot be
+judged from the code — a per-sample labial oscillator either sounds like a bird
+or sounds like a fault, and there is no reading of the source that separates
+those. Shipping an unheard module that outranks a path that *was* reasoned
+through is the wrong trade. It stays available and it stays last.
+
+**Step 32 is listening**, and the render is the ground truth. What could be
+checked from the code has been: every vibe is inside the budget in §9, no vibe
+repeats another's soundmark, and the strata counts run 1–3 air, 2–5 chorus,
+4–14 cast, 1–2 signals across the book.
 
 ---
 

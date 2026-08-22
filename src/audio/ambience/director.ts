@@ -294,6 +294,17 @@ export class AmbienceDirector {
     this.hushUntil = Math.max(this.hushUntil, now + HUSH[0] + Math.random() * (HUSH[1] - HUSH[0]));
   }
 
+  /**
+   * Fires one voice now, ignoring its gates and its clock. Tuning a source
+   * whose whole design is that it speaks every ninety seconds is otherwise
+   * mostly waiting, and waiting is how a parameter gets changed twice between
+   * hearings.
+   */
+  say(voice: AmbienceVoice, tier: Tier = 'mid'): void {
+    if (!this.rack) return;
+    this.speak(this.rack, { voice, every: [1, 1], tier }, this.engine.context.currentTime + 0.05);
+  }
+
   /** Silences the whole layer without tearing it down. */
   setActive(active: boolean): void {
     const now = this.engine.context.currentTime;
@@ -473,7 +484,10 @@ export class AmbienceDirector {
     // event never having been due. It is also an event never synthesised.
     if (band !== 'floor' && this.busy[band] > at) return;
 
-    const pool = this.poolFor(rack, voiceName, member.tier);
+    // Two throats only where this one can answer itself. Everywhere else a
+    // second is a second emitter that is never both busy at once.
+    const throats = member.answers && (member.answer ?? member.voice) === voiceName ? 2 : 1;
+    const pool = this.poolFor(rack, voiceName, member.tier, throats);
     const voice = pool.voices.find((held) => held.busyUntil <= at);
     if (!voice || voice.emitter.isVirtual) return;
 
@@ -570,18 +584,23 @@ export class AmbienceDirector {
 
   // --- building ----------------------------------------------------------------
 
-  private poolFor(rack: Rack, voice: AmbienceVoice, tier: Tier): Pool {
+  /**
+   * Built on first use rather than up front: a vibe's cast is mostly out of
+   * season, out of hours or rained off at any moment, and a voice that has not
+   * spoken has cost nothing.
+   *
+   * Keyed on voice and tier rather than on the cast entry, so two members
+   * naming the same bird share one throat. That is where the budget comes from.
+   */
+  private poolFor(rack: Rack, voice: AmbienceVoice, tier: Tier, throats: number): Pool {
     const key = `${voice}:${tier}`;
     let pool = rack.pools.get(key);
     if (pool) return pool;
 
     const entry = VOICES[voice];
     const shape = TIERS[tier];
-    // One throat, and two only where a source answers itself. A pool is per
-    // voice rather than per cast member: two members naming the same bird share
-    // one, which is where the whole budget comes from.
     const voices: Held[] = [];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < throats; i++) {
       const shot = entry.build(this.engine);
       voices.push({
         shot,

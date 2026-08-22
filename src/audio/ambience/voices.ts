@@ -868,3 +868,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   tick: thing('song', { material: 'wood', tone: 2.8, pieces: 1, heft: 0.9, gain: 0.16 }),
   crack: thing('song', { material: 'wood', tone: 2.2, pieces: 1, heft: 0.85, gain: 0.2 }),
 };
+
+/** Every name, for the dev panel's picker. */
+export const AMBIENCE_VOICES = Object.keys(VOICES) as readonly AmbienceVoice[];
