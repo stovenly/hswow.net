@@ -7,6 +7,9 @@ import { valueNoise } from '../weather';
 import { createRng, type Rng } from '../../art/random';
 import type { Collider } from '../../player/Collider';
 import { buildModel } from '../Soundscape';
+import type { InsectModel } from '../models/insect';
+import type { ElectricModel } from '../models/electric';
+import type { SurfModel } from '../models/surf';
 import { VOICES } from './voices';
 import { ambienceFor, VIBES, type VibeChoice, type VibeName } from '../vibes';
 import { CLEAR, night, openness, weatherDamp, type Conditions } from './conditions';
@@ -344,6 +347,8 @@ export class AmbienceDirector {
 
     this.driveLayers(rack.air, now, conditions);
     this.driveLayers(rack.chorus, now, conditions);
+    this.driveModels(rack.air, conditions);
+    this.driveModels(rack.chorus, conditions);
     this.walkCast(rack, now, conditions);
     this.considerSignal(rack, now, conditions);
   };
@@ -398,6 +403,30 @@ export class AmbienceDirector {
     }
   }
 
+  /**
+   * The handful of models whose *rate* is a condition rather than their level.
+   * A cricket's chirp rate is the temperature and a corona's crackle rate is
+   * the damp; neither is expressible as a gain, so neither goes through
+   * `follow`.
+   */
+  private driveModels(layers: readonly Layer[], now: Conditions): void {
+    for (const layer of layers) {
+      switch (layer.spec.model) {
+        case 'insect':
+          (layer.model as InsectModel).setWarmth(now.warmth);
+          break;
+        case 'electric':
+          (layer.model as ElectricModel).setDamp(Math.max(now.rain, now.wet));
+          break;
+        case 'surf':
+          (layer.model as SurfModel).setSwell(0.3 + now.wind * 0.7);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
   // --- the cast ---------------------------------------------------------------
 
   private walkCast(rack: Rack, now: number, conditions: Conditions): void {
@@ -423,11 +452,15 @@ export class AmbienceDirector {
 
       this.speak(rack, member, now + LOOKAHEAD);
 
-      const mean = (member.every[0] + Math.random() * (member.every[1] - member.every[0]));
+      const mean = member.every[0] + Math.random() * (member.every[1] - member.every[0]);
       // Exponential gaps: the same mean sometimes gives two in a row and
-      // sometimes a long nothing, and a source the ear can predict stops being
-      // heard within about three repetitions.
-      const gap = -Math.log(1 - Math.random()) * (mean / Math.max(open * this.live, 0.04));
+      // sometimes a long nothing. A periodic source keeps its own time and is
+      // not slowed by the place being quiet — but nothing physical is exact,
+      // and a train the ear can predict exactly stops being heard.
+      const gap =
+        member.rhythm === 'periodic'
+          ? mean * (0.94 + Math.random() * 0.12)
+          : -Math.log(1 - Math.random()) * (mean / Math.max(open * this.live, 0.04));
       rack.due[i] = now + Math.min(gap, 600);
     }
   }

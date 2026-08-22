@@ -215,8 +215,15 @@ export type ChorusLayer = ModelSpec & {
 
 export interface CastMember {
   voice: AmbienceVoice;
-  /** Mean seconds between utterances at full activity. Exponentially spread. */
+  /** Mean seconds between utterances at full activity. */
   every: Span;
+  /**
+   * How the gaps fall. `'poisson'` for anything a creature does, which is
+   * nearly everything — a source the ear can predict stops being heard within
+   * about three repetitions. `'periodic'` for the few that genuinely keep
+   * time, and those do not slow down because the place has gone quiet.
+   */
+  rhythm?: 'poisson' | 'periodic';
   tier: Tier;
   level?: number;
   height?: number;

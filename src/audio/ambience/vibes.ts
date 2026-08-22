@@ -99,10 +99,10 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
     { model: 'fire', tier: 'near', height: 0.4, options: { gain: 0.34, intensity: 0.55, tone: 0.9, crackle: 0.6, draught: 0.15 } },
     // Down the chimney, and only when it gusts.
     { model: 'waveguide', tier: 'near', height: 4, options: { pitch: 74, decay: 3, closed: true, bright: 0.2, gain: 0.2 }, follow: [{ by: 'gust', span: [0, 1] }] },
+    { model: 'tick', tier: 'near', height: 1.7, options: { every: 1.05, pitch: 2100, decay: 0.07, swing: 0.4, gain: 0.055 } },
   ],
   cast: [
     { voice: 'embers', every: [18, 55], tier: 'near', height: 0.3 },
-    { voice: 'tick', every: [1.05, 1.05], tier: 'near', height: 1.7, level: 0.7 },
     { voice: 'fly', every: [30, 90], tier: 'near', height: 1.5, when: { season: [0.35, 0.72], warmth: [14, 40], sun: [0, 90] } },
     { voice: 'mouse', every: [60, 180], tier: 'near', height: 0.1, when: { sun: [-90, -3] } },
     { voice: 'hum', every: [90, 260], tier: 'near', level: 0.7 },
@@ -121,13 +121,13 @@ export const VILLAGE_INTERIOR_2_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     { model: 'fire', tier: 'near', height: 0.5, options: { gain: 0.2, intensity: 0.3, tone: 1.1, crackle: 0.4, draught: 0.08 } },
+    // Three clocks at coprime periods, so they never fall into step. The
+    // shop's whole character, and it costs three layers.
+    { model: 'tick', tier: 'near', height: 1.8, options: { every: 1.03, pitch: 2600, decay: 0.05, swing: 0.4, gain: 0.05 } },
+    { model: 'tick', tier: 'near', height: 1.4, options: { every: 1.19, pitch: 1900, decay: 0.08, swing: 0.3, gain: 0.04 } },
+    { model: 'tick', tier: 'near', height: 2.1, options: { every: 1.31, pitch: 3300, decay: 0.04, swing: 0.5, gain: 0.03 } },
   ],
   cast: [
-    // Three clocks at coprime periods, so they never fall into step. The shop's
-    // whole character, and it costs three entries.
-    { voice: 'tick', every: [1.03, 1.03], tier: 'near', height: 1.8, level: 0.65 },
-    { voice: 'tick', every: [1.19, 1.19], tier: 'near', height: 1.4, level: 0.5 },
-    { voice: 'tick', every: [1.31, 1.31], tier: 'near', height: 2.1, level: 0.4 },
     { voice: 'paper', every: [40, 120], tier: 'near' },
     { voice: 'coins', every: [55, 160], tier: 'near' },
     { voice: 'pot', every: [70, 200], tier: 'near', level: 0.6 },
@@ -160,6 +160,9 @@ export const FARM_AMBIENCE: AmbienceSpec = {
     // The windpump: it has no engine, only the weather.
     { model: 'machine', tier: 'mid', height: 5, options: { rpm: 34, fundamental: 46, gain: 0.2, wear: 0.6, clank: 0.5 }, follow: [{ by: 'wind', span: [0.05, 1] }] },
     { model: 'friction', tier: 'mid', height: 2, options: { force: 0.35, pitch: 240, decay: 0.5, bright: 0.5, roughness: 0.7, gain: 0.14, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
+    // The field's own insects. Their rate is the temperature, so a cold night
+    // is quiet for a reason nobody has to be told.
+    { model: 'insect', tier: 'near', height: 0.15, options: { kind: 'cricket', voices: 4, gain: 0.085 }, follow: [{ by: 'night', span: [0.35, 1] }], when: { season: [0.32, 0.82] } },
     // The hive, and only in the heat.
     { model: 'crowd', tier: 'near', height: 1.2, options: { gain: 0.05, voices: 5, density: 0.95, pitch: 220, variety: 0.35, distance: 900 }, when: { season: [0.32, 0.74], warmth: [16, 40], sun: [4, 90] } },
   ],
@@ -178,7 +181,6 @@ export const FARM_AMBIENCE: AmbienceSpec = {
     { voice: 'whistle', every: [110, 300], tier: 'mid', level: 0.7, when: { sun: [0, 90] } },
     { voice: 'wood', every: [40, 110], tier: 'mid', when: { sun: [-2, 90] } },
     { voice: 'owl', every: [90, 240], tier: 'far', height: 9, answers: 0.6, answer: 'owl-answer', when: { sun: [-90, -5] } },
-    { voice: 'cricket', every: [3, 9], tier: 'near', height: 0.15, when: { warmth: [13, 34], sun: [-90, 6], season: [0.35, 0.8] } },
   ],
   signals: [
     // Geese. The best "somebody is coming" sound there is, and it stops the
@@ -268,6 +270,7 @@ export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
     { model: 'foliage', tier: 'near', height: 1.6, options: { density: 150, tone: 1.5, gain: 0.22, articulation: 0.34 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
     { model: 'foliage', tier: 'far', height: 8, options: { density: 220, tone: 0.8, gain: 0.2, articulation: 0.16 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     { model: 'water', tier: 'mid', options: { flow: 'brook', gain: 0.12, tone: 1 } },
+    { model: 'insect', tier: 'near', height: 0.2, options: { kind: 'grasshopper', voices: 4, gain: 0.06 }, when: { sun: [4, 90], season: [0.36, 0.8] } },
   ],
   cast: [
     { voice: 'yellowhammer', every: [26, 65], tier: 'near', height: 2.5, when: { season: [0.28, 0.72], sun: [2, 90], shy: 0.6 } },
@@ -277,7 +280,6 @@ export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
     { voice: 'greattit', every: [34, 90], tier: 'near', height: 5, when: { sun: [-1, 60], shy: 0.6 } },
     { voice: 'woodpigeon', every: [45, 120], tier: 'mid', height: 8, when: { sun: [-2, 90] } },
     { voice: 'rabbit', every: [50, 150], tier: 'near', height: 0.1, when: { sun: [-9, 12] } },
-    { voice: 'grasshopper', every: [8, 24], tier: 'near', height: 0.2, when: { warmth: [17, 38], sun: [6, 90], season: [0.38, 0.78] } },
     { voice: 'bee', every: [22, 60], tier: 'near', height: 1.1, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
     { voice: 'dog', every: [90, 260], tier: 'far' },
     { voice: 'wood', every: [80, 240], tier: 'far', level: 0.7 },
@@ -330,6 +332,31 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
     // Reeds: dry, papery, and nothing else in the book sounds like them.
     { model: 'foliage', tier: 'near', height: 1.4, options: { density: 170, tone: 2.2, gain: 0.16, articulation: 0.45 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     { model: 'friction', tier: 'near', height: 0.6, options: { force: 0.3, pitch: 150, decay: 0.7, bright: 0.35, roughness: 0.5, gain: 0.13, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
+    // A pond of frogs, and the only thing in the book that entrains: it pulls
+    // into step over a few seconds, holds, and falls apart again.
+    {
+      model: 'flock',
+      tier: 'near',
+      height: 0.1,
+      options: {
+        shape: {
+          pitch: 340,
+          variance: 0.14,
+          phrase: [{ from: 1, to: 0.86, length: [0.09, 0.16], gap: [0.14, 0.3], drive: 0.8 }],
+          count: [2, 5],
+          rasp: 0.55,
+          formant: 620,
+          q: 2.2,
+        },
+        voices: 6,
+        density: 0.55,
+        variety: 0.5,
+        entrain: 0.65,
+        distance: 2200,
+        gain: 0.1,
+      },
+      when: { warmth: [12, 32], sun: [-90, 2], season: [0.26, 0.62] },
+    },
   ],
   cast: [
     { voice: 'duck', every: [22, 60], tier: 'mid', height: 0.4, answers: 0.4 },
@@ -339,7 +366,6 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
     { voice: 'kingfisher', every: [120, 340], tier: 'mid', height: 1.2, when: { sun: [2, 90] } },
     { voice: 'wagtail', every: [35, 95], tier: 'near', height: 0.6, when: { sun: [0, 90] } },
     { voice: 'plop', every: [40, 120], tier: 'mid', height: 0, when: { sun: [-8, 20] } },
-    { voice: 'frog', every: [8, 24], tier: 'near', height: 0.1, when: { warmth: [12, 32], sun: [-90, 2], season: [0.26, 0.62] } },
     { voice: 'dragonfly', every: [20, 55], tier: 'near', height: 1.2, when: { warmth: [17, 38], sun: [8, 90], season: [0.38, 0.76] } },
     { voice: 'curlew', every: [70, 200], tier: 'far', height: 6, when: { sun: [-8, 14] } },
     { voice: 'swallow', every: [18, 48], tier: 'near', height: 3, passes: { over: 40, seconds: [1.1, 2.2] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
@@ -540,11 +566,14 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
     { model: 'wind', id: 'air', options: { gain: 0.2, tone: 4200 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
   ],
   chorus: [
-    // Loose sheet. The defining sound of the place, and it only exists in wind.
-    { model: 'friction', tier: 'near', height: 1.5, options: { force: 0.6, pitch: 72, decay: 2.4, bright: 0.85, roughness: 0.9, gain: 0.26, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
-    { model: 'friction', tier: 'mid', height: 2.5, options: { force: 0.45, pitch: 128, decay: 1.8, bright: 0.9, roughness: 0.85, gain: 0.2, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
-    // Chainlink: a fine whistle that pitches up with the wind.
-    { model: 'wind', tier: 'near', height: 2, options: { gain: 0.12, tone: 6200, whistle: 1.6 }, follow: [{ by: 'wind', span: [0.05, 1] }] },
+    // Loose corrugated sheet. The defining sound of the place, and it exists
+    // only in wind — including the crack when a panel lets go.
+    { model: 'plate', tier: 'near', height: 1.5, options: { pitch: 88, decay: 2.2, bright: 0.75, onset: 0.3, snap: 0.4, gain: 0.24 } },
+    { model: 'plate', tier: 'mid', height: 2.5, options: { pitch: 148, decay: 1.5, bright: 0.85, onset: 0.36, snap: 0.3, gain: 0.19 } },
+    { model: 'wire', tier: 'near', height: 2, options: { diameter: 0.0028, strands: 4, gain: 0.09 } },
+    // Steel giving up the day's heat: fast at first, slowing to nothing.
+    { model: 'tick', tier: 'near', height: 1, options: { every: 0.5, pitch: 1300, decay: 0.12, swing: 0.15, cooling: 260, gain: 0.075 }, when: { sun: [-8, 9] } },
+    { model: 'tick', tier: 'mid', height: 1.4, options: { every: 0.8, pitch: 900, decay: 0.16, swing: 0.1, cooling: 320, gain: 0.06 }, when: { sun: [-8, 9] } },
   ],
   cast: [
     { voice: 'gull', every: [30, 90], tier: 'far', height: 14, when: { sun: [-2, 90] } },
@@ -552,9 +581,6 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
     { voice: 'metal', every: [24, 70], tier: 'mid' },
     { voice: 'rat', every: [40, 120], tier: 'near', height: 0.1 },
     { voice: 'dog', every: [90, 260], tier: 'far' },
-    // Steel letting go of the day's heat. Gated on the sun going down.
-    { voice: 'tick', every: [2.3, 2.3], tier: 'near', height: 1, level: 0.8, when: { sun: [-8, 9] } },
-    { voice: 'tick', every: [3.7, 3.7], tier: 'mid', height: 1.4, level: 0.6, when: { sun: [-8, 9] } },
     { voice: 'grit', every: [50, 150], tier: 'mid', level: 0.7 },
   ],
   signals: [
@@ -568,26 +594,18 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
 export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'wind', id: 'air', options: { gain: 0.13, tone: 3800 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
-    // A hundred hertz: twice the line frequency, because the core pulls twice
-    // per cycle. Not fifty.
-    { model: 'machine', id: 'hum', options: { rpm: 3000, fundamental: 100, gain: 0.2, wear: 0.2, clank: 0 } },
-    // Corona, and the damp makes it worse — which is physically why, not a
-    // gesture at a mixer.
-    {
-      model: 'wind',
-      id: 'corona',
-      options: { gain: 0.05, tone: 9000, whistle: 0.2 },
-      follow: [{ by: 'rain', span: [0.35, 1.6] }],
-    },
+    // A hundred hertz and its even harmonics, with corona over it that gets
+    // louder in the wet. Both are in the model, and both are why.
+    { model: 'electric', id: 'hum', options: { mains: 50, harmonics: 0.65, corona: 0.4, gain: 0.2 } },
   ],
   chorus: [
     { model: 'machine', tier: 'mid', height: 2, options: { rpm: 680, fundamental: 118, gain: 0.12, wear: 0.6, clank: 0.1 } },
-    { model: 'wind', tier: 'near', height: 1.8, options: { gain: 0.11, tone: 5800, whistle: 1.5 }, follow: [{ by: 'wind', span: [0.05, 1] }] },
+    // The fence singing up in a gust: f is about 0.2 U over d.
+    { model: 'wire', tier: 'near', height: 1.8, options: { diameter: 0.003, strands: 5, gain: 0.085 } },
   ],
   cast: [
     { voice: 'relay', every: [6, 18], tier: 'near', height: 1.7 },
     { voice: 'contactor', every: [70, 220], tier: 'mid' },
-    { voice: 'tick', every: [2.9, 2.9], tier: 'near', height: 2.2, level: 0.5 },
     { voice: 'sparrow', every: [26, 75], tier: 'near', height: 4, when: { sun: [0, 90] } },
     { voice: 'wagtail', every: [50, 150], tier: 'near', height: 3, when: { sun: [2, 90] } },
     { voice: 'wasp', every: [30, 90], tier: 'near', height: 1.5, when: { season: [0.4, 0.76], warmth: [16, 40], sun: [4, 90] } },
@@ -603,13 +621,14 @@ export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
 export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'wind', id: 'air', options: { gain: 0.17, tone: 4000 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
-    // The harmonic without the fundamental: thinner, and there is no mass in it.
-    { model: 'machine', id: 'whine', options: { rpm: 3000, fundamental: 300, gain: 0.09, wear: 0.35, clank: 0 } },
+    // The harmonic without the fundamental: thinner, and there is no mass in
+    // it. The gear is derelict, so it is failing as well.
+    { model: 'electric', id: 'whine', options: { mains: 150, harmonics: 0.35, corona: 0.15, fault: 0.5, gain: 0.09 } },
   ],
   chorus: [
     // A fan with no power, turned by the weather and nothing else.
     { model: 'machine', tier: 'near', height: 2, options: { rpm: 20, fundamental: 74, gain: 0.16, wear: 0.85, clank: 0.6 }, follow: [{ by: 'wind', span: [0, 1] }] },
-    { model: 'friction', tier: 'mid', height: 2, options: { force: 0.4, pitch: 150, decay: 1.6, bright: 0.8, roughness: 0.85, gain: 0.18, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
+    { model: 'plate', tier: 'mid', height: 2, options: { pitch: 165, decay: 1.2, bright: 0.85, onset: 0.34, snap: 0.35, gain: 0.17 } },
     { model: 'foliage', tier: 'near', height: 0.6, options: { density: 130, tone: 1.9, gain: 0.14, articulation: 0.42 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
   ],
   cast: [
@@ -630,8 +649,9 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
   air: [
     // The strongest wind in the book: nothing between here and the water.
     { model: 'wind', id: 'air', options: { gain: 0.24, tone: 4400 }, follow: [{ by: 'wind', span: [0.4, 1.35] }] },
-    // The surf, until it has a cycle of its own.
-    { model: 'water', id: 'surf', options: { flow: 'fountain', gain: 0.22, tone: 0.42 } },
+    // Stand-up, break, and the draw back over the shingle. A cycle, which is
+    // the whole difference between a shore and a waterfall.
+    { model: 'surf', id: 'surf', options: { gain: 0.26, shingle: 0.85, period: [8, 14] } },
   ],
   chorus: [
     { model: 'water', tier: 'near', height: 0, options: { flow: 'brook', gain: 0.14, tone: 0.6 } },
@@ -661,12 +681,15 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
 export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'wind', id: 'air', options: { gain: 0.19, tone: 3900 }, follow: [{ by: 'wind', span: [0.4, 1.3] }] },
-    { model: 'water', id: 'surf', options: { flow: 'fountain', gain: 0.11, tone: 0.28 } },
+    { model: 'surf', id: 'surf', options: { gain: 0.13, shingle: 0.7, period: [9, 15], tone: 0.6 } },
   ],
   chorus: [
     { model: 'foliage', tier: 'near', height: 0.9, options: { density: 170, tone: 1.6, gain: 0.2, articulation: 0.38 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     { model: 'foliage', tier: 'mid', height: 0.6, options: { density: 200, tone: 1.3, gain: 0.16, articulation: 0.3 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
-    { model: 'wind', tier: 'near', height: 1.4, options: { gain: 0.08, tone: 5400, whistle: 1.4 }, follow: [{ by: 'wind', span: [0.05, 1] }] },
+    // A fence wire singing. It pitches up as the gust arrives, because vortex
+    // shedding does.
+    { model: 'wire', tier: 'near', height: 1.4, options: { diameter: 0.004, strands: 3, gain: 0.075 } },
+    { model: 'insect', tier: 'near', height: 0.2, options: { kind: 'grasshopper', voices: 4, gain: 0.055 }, when: { sun: [4, 90], season: [0.36, 0.8] } },
   ],
   cast: [
     { voice: 'skylark', every: [34, 95], tier: 'far', height: 38, when: { season: [0.3, 0.72], sun: [6, 90], shy: 0.6 } },
@@ -674,7 +697,6 @@ export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
     { voice: 'linnet', every: [34, 95], tier: 'near', height: 1.2, when: { season: [0.3, 0.74], sun: [2, 90] } },
     { voice: 'gull', every: [40, 120], tier: 'far', height: 16, when: { sun: [-2, 90] } },
     { voice: 'rabbit', every: [50, 150], tier: 'near', height: 0.1, when: { sun: [-9, 12] } },
-    { voice: 'grasshopper', every: [9, 26], tier: 'near', height: 0.2, when: { warmth: [17, 38], sun: [6, 90], season: [0.38, 0.78] } },
     { voice: 'bee', every: [26, 75], tier: 'near', height: 1, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
     { voice: 'dog', every: [110, 320], tier: 'far' },
   ],

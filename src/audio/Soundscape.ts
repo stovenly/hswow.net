@@ -11,6 +11,13 @@ import { createWater, type WaterOptions } from './models/water';
 import { createCrowd, type CrowdOptions } from './models/crowd';
 import { createFriction, type FrictionOptions } from './models/friction';
 import { createWaveguide, type WaveguideOptions } from './models/waveguide';
+import { createInsect, type InsectOptions } from './models/insect';
+import { createSurf, type SurfOptions } from './models/surf';
+import { createWire, type WireOptions } from './models/wire';
+import { createElectric, type ElectricOptions } from './models/electric';
+import { createPlate, type PlateOptions } from './models/plate';
+import { createTick, type TickOptions } from './models/tick';
+import { createFlock, type FlockOptions } from './models/flock';
 import { createPlayed, type PlayedOptions } from './music/played';
 import { ScatterField, type ScatterSpec } from './Scatter';
 import type { Collider } from '../player/Collider';
@@ -44,6 +51,14 @@ export type ModelSpec =
   | { model: 'crowd'; options?: CrowdOptions }
   | { model: 'friction'; options?: FrictionOptions }
   | { model: 'waveguide'; options?: WaveguideOptions }
+  | { model: 'insect'; options?: InsectOptions }
+  | { model: 'surf'; options?: SurfOptions }
+  | { model: 'wire'; options?: WireOptions }
+  | { model: 'electric'; options?: ElectricOptions }
+  | { model: 'plate'; options?: PlateOptions }
+  | { model: 'tick'; options?: TickOptions }
+  // Options required: a flock with no call named is not a default anything.
+  | { model: 'flock'; options: FlockOptions }
   // Options required, not optional: a played instrument with no voice named
   // is not a default anything, so there is nothing sensible to fall back to.
   | { model: 'played'; options: PlayedOptions };
@@ -116,6 +131,20 @@ export function buildModel(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createFriction(engine, spec.options);
     case 'waveguide':
       return createWaveguide(engine, spec.options);
+    case 'insect':
+      return createInsect(engine, spec.options);
+    case 'surf':
+      return createSurf(engine, spec.options);
+    case 'wire':
+      return createWire(engine, spec.options);
+    case 'electric':
+      return createElectric(engine, spec.options);
+    case 'plate':
+      return createPlate(engine, spec.options);
+    case 'tick':
+      return createTick(engine, spec.options);
+    case 'flock':
+      return createFlock(engine, spec.options);
     case 'played':
       return createPlayed(engine, spec.options);
   }

@@ -5,16 +5,20 @@ import type { OneShot } from '../Scatter';
  * A voice with a syrinx: birds, and anything else whose call is a pitch being
  * bent rather than a throat being shaped.
  *
- * The table is the species and the synthesis is shared, the same split
- * `animal.ts` makes — and for the same reason. **The rhythm is the species.**
- * A song thrush is a bird that says everything three times; a wren is four
- * seconds of nothing followed by an explosion; a chaffinch is an accelerating
- * descent into a flourish. Get those right and a plain source carries them.
+ * A songbird's labia sit in the bronchi and behave as a nonlinear oscillator:
+ * at the point of instability the oscillation is born with almost no spectral
+ * content and **grows richer as it is driven harder**. So the source here is a
+ * sine into a saturating curve, with the *envelope applied before the curve* —
+ * which is the whole model. A note that swells brightens as it swells and dulls
+ * as it dies, and no fixed waveform does that.
  *
- * The source is a sine with a sawtooth mixed in by `drive`, through one
- * resonance standing for the tract. That is the cheap reading of a syrinx: a
- * labial oscillator whose spectrum grows richer as it is driven harder,
- * filtered by the tube above it.
+ * Above it: the beak, as a lowpass that opens with effort, and two resonances
+ * standing for the trachea and the cavity behind it. Nothing here has a formant
+ * table, and nothing here is a recording.
+ *
+ * The rest is time, and time is the species. **The rhythm is what makes a song
+ * thrush a song thrush** — everything said two to four times — long before the
+ * timbre is. Get the table right and a plain source carries it.
  */
 
 export type Span = readonly [number, number];
@@ -26,7 +30,7 @@ export interface Syllable {
   length: Span;
   /** Silence after it. */
   gap: Span;
-  /** How hard the source is driven, 0..1. Low is a whistle, high is a shout. */
+  /** How hard the labia are blown, 0..1. Low is a whistle, high is a shout. */
   drive?: number;
   /** Pitch turns here, 0..1 through the syllable, and heads for `to` instead. */
   bend?: { at: number; to: number };
@@ -51,9 +55,11 @@ export interface CallShape {
   between?: Span;
   /** Noise in the source, 0..1. Corvids, game birds and waders have plenty. */
   rasp?: number;
-  /** The tract's resonance in Hz, and how much it insists. */
+  /** The trachea's resonance in Hz, and how much it insists. */
   formant?: number;
   q?: number;
+  /** The cavity above it. Defaults to a little over twice the first. */
+  formant2?: number;
   /** Level lost per syllable, as a ratio. */
   fade?: number;
   gain?: number;
@@ -65,6 +71,26 @@ export interface CallOptions {
   /** Size, as a multiplier on pitch and tract together. Below 1 is bigger. */
   tone?: number;
 }
+
+/**
+ * The saturating curve the labia are read through. `tanh`, normalised so unit
+ * input gives unit output: below about a fifth of full scale it is a sine and
+ * by full scale it has a stack of odd harmonics on it.
+ */
+const CURVE = (() => {
+  const points = 2048;
+  const curve = new Float32Array(points);
+  const k = 3.2;
+  for (let i = 0; i < points; i++) {
+    const x = (i / (points - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * k) / Math.tanh(k);
+  }
+  return curve;
+})();
+
+/** Where the beak sits shut, and how far effort opens it. Hz. */
+const BEAK_SHUT = 900;
+const BEAK_OPEN = 9000;
 
 function between(span: Span): number {
   return span[0] + Math.random() * (span[1] - span[0]);
@@ -80,19 +106,46 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   const rasp = shape.rasp ?? 0;
 
   const output = context.createGain();
-  output.gain.value = (options.gain ?? shape.gain ?? 0.5) * 1;
+  output.gain.value = options.gain ?? shape.gain ?? 0.5;
 
-  // One resonance for the tract, shared across every syllable — a bird does not
-  // change size between notes.
+  // Everything below is built once and shared across syllables — a bird does
+  // not change size between notes, and the syllables of a call do not overlap.
+  const level = context.createGain();
+  level.gain.value = 0;
+  level.connect(output);
+
+  const first = (shape.formant ?? shape.pitch * 1.6) * tone;
   const tract = context.createBiquadFilter();
   tract.type = 'bandpass';
-  tract.frequency.value = (shape.formant ?? shape.pitch * 1.6) * tone;
+  tract.frequency.value = first;
   tract.Q.value = shape.q ?? 1.1;
-  tract.connect(output);
-  // Straight through as well, so the resonance colours rather than replaces.
+  tract.connect(level);
+
+  const cavity = context.createBiquadFilter();
+  cavity.type = 'bandpass';
+  cavity.frequency.value = (shape.formant2 ?? first * 2.35) * (shape.formant2 ? tone : 1);
+  cavity.Q.value = (shape.q ?? 1.1) * 1.4;
+  const cavityGain = context.createGain();
+  cavityGain.gain.value = 0.45;
+  cavity.connect(cavityGain).connect(level);
+
+  // Straight through as well, so the resonances colour rather than replace.
   const direct = context.createGain();
-  direct.gain.value = 0.55;
-  direct.connect(output);
+  direct.gain.value = 0.5;
+  direct.connect(level);
+
+  const beak = context.createBiquadFilter();
+  beak.type = 'lowpass';
+  beak.frequency.value = BEAK_SHUT;
+  beak.Q.value = 0.7;
+  beak.connect(tract);
+  beak.connect(cavity);
+  beak.connect(direct);
+
+  const labia = context.createWaveShaper();
+  labia.curve = CURVE;
+  labia.oversample = '2x';
+  labia.connect(beak);
 
   const pending: AudioNode[] = [];
   let sweep = 0;
@@ -104,38 +157,24 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   const syllable = (at: number, unit: Syllable, base: number, force: number): number => {
     const length = between(unit.length);
     const drive = unit.drive ?? 0.25;
-    const envelope = context.createGain();
-    envelope.connect(tract);
-    envelope.connect(direct);
+    const peak = force * (unit.level ?? 1);
+    const rise = Math.min(0.014, length * 0.22);
+    const hold = at + length * 0.7;
 
     const from = base * unit.from;
     const to = base * unit.to;
 
-    const voice = context.createOscillator();
-    voice.type = 'sine';
-    voice.frequency.setValueAtTime(from, at);
-
-    // The driven half. A sawtooth has something for the tract to resonate with;
-    // a sine has nothing, which is why a pure-sine bird is a whistle forever.
-    const edge = context.createOscillator();
-    edge.type = 'sawtooth';
-    edge.frequency.setValueAtTime(from, at);
-    const edgeGain = context.createGain();
-    edgeGain.gain.value = drive * 0.32;
+    const osc = context.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(from, at);
 
     // Exponential, because pitch is heard in ratios: a linear sweep sounds like
     // it slows down as it rises.
     const glide = (target: number, when: number): void => {
-      voice.frequency.exponentialRampToValueAtTime(Math.max(target, 20), when);
-      edge.frequency.exponentialRampToValueAtTime(Math.max(target, 20), when);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(target, 20), when);
     };
-
-    if (unit.bend) {
-      glide(base * unit.bend.to, at + length * unit.bend.at);
-      glide(to, at + length);
-    } else {
-      glide(to, at + length);
-    }
+    if (unit.bend) glide(base * unit.bend.to, at + length * unit.bend.at);
+    glide(to, at + length);
 
     if (unit.trill) {
       const lfo = context.createOscillator();
@@ -143,54 +182,64 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
       const depth = context.createGain();
       // Cents, so the warble stays constant in pitch as the note moves.
       depth.gain.value = unit.trill.cents;
-      lfo.connect(depth);
-      depth.connect(voice.detune);
-      depth.connect(edge.detune);
+      lfo.connect(depth).connect(osc.detune);
       lfo.start(at);
       lfo.stop(at + length + 0.05);
       pending.push(depth);
     }
 
     if (bendCents !== 0) {
-      // One ramp across the whole flight, sampled over this syllable: the note
-      // is already falling by the time the second one starts.
+      // One ramp across the whole flight, sampled over this syllable, so the
+      // note is already falling by the time the next one starts.
       const span = Math.max(bendOver, 0.05);
-      const cents = (t: number) => bendCents * (1 - 2 * Math.min(Math.max(t, 0), 1));
-      voice.detune.setValueAtTime(cents((at - bendFrom) / span), at);
-      voice.detune.linearRampToValueAtTime(cents((at + length - bendFrom) / span), at + length);
-      edge.detune.setValueAtTime(cents((at - bendFrom) / span), at);
-      edge.detune.linearRampToValueAtTime(cents((at + length - bendFrom) / span), at + length);
+      const cents = (t: number): number => bendCents * (1 - 2 * Math.min(Math.max(t, 0), 1));
+      osc.detune.setValueAtTime(cents((at - bendFrom) / span), at);
+      osc.detune.linearRampToValueAtTime(cents((at + length - bendFrom) / span), at + length);
     }
 
-    voice.connect(envelope);
-    edge.connect(edgeGain).connect(envelope);
+    // **Before the curve.** This is the model: how hard the labia are blown
+    // decides both how loud and how rich, so the two cannot be separated.
+    const blow = context.createGain();
+    const blown = 0.22 + drive * 0.78;
+    blow.gain.setValueAtTime(0, at);
+    blow.gain.linearRampToValueAtTime(blown, at + rise);
+    blow.gain.setValueAtTime(blown, hold);
+    blow.gain.linearRampToValueAtTime(blown * 0.25, at + length);
+    osc.connect(blow).connect(labia);
+
+    // The beak, opening with effort.
+    const open = BEAK_SHUT + BEAK_OPEN * drive;
+    beak.frequency.setValueAtTime(BEAK_SHUT, at);
+    beak.frequency.linearRampToValueAtTime(open, at + rise);
+    beak.frequency.setValueAtTime(open, hold);
+    beak.frequency.linearRampToValueAtTime(BEAK_SHUT, at + length);
+
+    level.gain.setValueAtTime(0, at);
+    level.gain.linearRampToValueAtTime(peak, at + rise);
+    level.gain.setValueAtTime(peak, hold);
+    level.gain.linearRampToValueAtTime(0, at + length);
 
     let breath: AudioBufferSourceNode | null = null;
     if (rasp > 0.01) {
+      // Through the tract but not through the labia: breath is air past the
+      // throat, not the throat itself.
       breath = context.createBufferSource();
       breath.buffer = noise.white;
       breath.playbackRate.value = 0.9 + Math.random() * 0.4;
       const raspGain = context.createGain();
-      raspGain.gain.value = rasp * 0.4 * force;
-      breath.connect(raspGain).connect(tract);
+      raspGain.gain.setValueAtTime(0, at);
+      raspGain.gain.linearRampToValueAtTime(rasp * 0.5, at + rise);
+      raspGain.gain.linearRampToValueAtTime(0, at + length);
+      breath.connect(raspGain).connect(beak);
       breath.start(at, Math.random() * Math.max(noise.white.duration - 2, 0));
       breath.stop(at + length + 0.02);
       pending.push(raspGain);
     }
 
-    const peak = force * (unit.level ?? 1);
-    const rise = Math.min(0.012, length * 0.22);
-    envelope.gain.setValueAtTime(0, at);
-    envelope.gain.linearRampToValueAtTime(peak, at + rise);
-    envelope.gain.setValueAtTime(peak, at + length * 0.7);
-    envelope.gain.linearRampToValueAtTime(0, at + length);
-
     const end = at + length + 0.02;
-    voice.start(at);
-    edge.start(at);
-    voice.stop(end);
-    edge.stop(end);
-    pending.push(envelope, edgeGain);
+    osc.start(at);
+    osc.stop(end);
+    pending.push(blow);
     sweep = Math.max(sweep, end);
 
     return length + between(unit.gap);
@@ -212,10 +261,8 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
       // One pitch for the whole call. Re-rolling per syllable is the commonest
       // way a procedural bird turns into a set of unrelated beeps.
       const variance = shape.variance ?? 0.08;
-      const base = shape.pitch * (options.tone ?? 1) * (1 + (Math.random() * 2 - 1) * variance);
-      const count = shape.count
-        ? Math.round(between(shape.count))
-        : shape.phrase.length;
+      const base = shape.pitch * tone * (1 + (Math.random() * 2 - 1) * variance);
+      const count = shape.count ? Math.round(between(shape.count)) : shape.phrase.length;
       const says = shape.repeats ? Math.round(between(shape.repeats)) : 1;
       const fade = shape.fade ?? 0.94;
 
@@ -245,8 +292,13 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
       window.clearTimeout(cleanup);
       for (const node of pending) node.disconnect();
       pending.length = 0;
+      labia.disconnect();
+      beak.disconnect();
       tract.disconnect();
+      cavity.disconnect();
+      cavityGain.disconnect();
       direct.disconnect();
+      level.disconnect();
       output.disconnect();
     },
   };
