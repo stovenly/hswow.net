@@ -174,7 +174,8 @@ interface Rack {
   /** The shared far chain — one lowpass and one pre-delay for every far source. */
   far: GainNode;
   air: Layer[];
-  chorus: (Layer & { emitter: Emitter })[];
+  /** `offset` is from the listener, not from the world origin. See `update`. */
+  chorus: (Layer & { emitter: Emitter; offset: THREE.Vector3 })[];
   pools: Map<string, Pool>;
   /** Audio-clock time each cast member and signal is next due. */
   due: number[];
@@ -322,7 +323,12 @@ export class AmbienceDirector {
     if (!rack) return;
     const at = this.engine.listenerPosition;
     for (const layer of rack.air) layer.model.update?.(dt, this.engine, at);
-    for (const layer of rack.chorus) layer.emitter.update(dt, collider, retestOcclusion);
+    for (const layer of rack.chorus) {
+      // Carried with the listener. Sited once at the world origin, a chorus is
+      // audible only in whichever zone happens to be built around it.
+      layer.emitter.moveTo(_point.copy(at).add(layer.offset));
+      layer.emitter.update(dt, collider, retestOcclusion);
+    }
     const now = this.engine.context.currentTime;
     for (const pool of rack.pools.values()) {
       for (const voice of pool.voices) {
@@ -677,12 +683,16 @@ export class AmbienceDirector {
       const shape = TIERS[layer.tier];
       const bearing = rack.rng() * Math.PI * 2;
       const radius = shape.radius[0] + rack.rng() * (shape.radius[1] - shape.radius[0]);
+      // An offset from the listener, held for the life of the rack. A vibe's
+      // chorus is a ring around you and travels with you; a source that belongs
+      // at a coordinate is the zone's own `SoundscapeSpec` and not this.
+      const offset = new THREE.Vector3(
+        Math.cos(bearing) * radius,
+        layer.height ?? shape.lift,
+        Math.sin(bearing) * radius,
+      );
       const emitter = new Emitter(this.engine, faded(model, gain), {
-        position: new THREE.Vector3(
-          Math.cos(bearing) * radius,
-          layer.height ?? shape.lift,
-          Math.sin(bearing) * radius,
-        ),
+        position: _point.copy(this.engine.listenerPosition).add(offset),
         refDistance: shape.refDistance,
         maxDistance: shape.maxDistance,
         rolloff: shape.rolloff,
@@ -699,6 +709,7 @@ export class AmbienceDirector {
         base: layer.gain ?? 1,
         spec: layer,
         emitter,
+        offset,
       });
     }
 
