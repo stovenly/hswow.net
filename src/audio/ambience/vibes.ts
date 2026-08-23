@@ -28,7 +28,6 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     { voice: 'robin', every: [26, 60], height: 3, when: { sun: [-9, 20], wakes: 45, shy: 0.6 } },
     { voice: 'sparrow', every: [14, 34], height: 3, when: { sun: [-1, 90], shy: 0.7 } },
     { voice: 'swift', every: [12, 30], height: 16, passes: { over: 60, seconds: [1.6, 3] }, when: { sun: [2, 40], season: [0.38, 0.68] } },
-    // without any gate: a pail goes down empty and comes up full, and the air
   ],
   signals: [
     { voice: 'bell-church', every: [0, 0], height: 18, floor: 0, clock: 'hour', level: 0.9 },
@@ -63,12 +62,6 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
     { model: 'cavern', id: 'room', options: { size: 155, hard: 0.22, draught: 0.12, drift: 0.1, floor: 0.22, gain: 0.09 } },
     { model: 'rain', id: 'rain', options: { gain: 0.06, intensity: 0, surface: 'stone', articulation: 0.5 } },
   ],
-  cast: [
-    { voice: 'fly', every: [30, 90], height: 1.5, when: { season: [0.35, 0.72], warmth: [14, 40], sun: [0, 90] } },
-    { voice: 'mouse', every: [60, 180], height: 0.1, when: { sun: [-90, -3] } },
-    { voice: 'wood', every: [70, 200], level: 0.6 },
-  ],
-  signals: [{ voice: 'bell-shop', every: [0, 0], floor: 0, clock: 'hour', level: 0.45 }],
   activity: 0.3,
   seed: 167,
 };
@@ -80,10 +73,7 @@ export const VILLAGE_INTERIOR_2_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     // A smaller frame than the hearth room's, so it talks more and says less.
-    { voice: 'wood', every: [50, 160], level: 0.42 },
     { voice: 'crack', every: [90, 260], level: 0.35, when: { sun: [-9, 8] } },
-    { voice: 'mouse', every: [60, 190], height: 0.1, when: { sun: [-90, -3] } },
-    { voice: 'fly', every: [40, 120], height: 1.6, when: { season: [0.35, 0.72], warmth: [14, 40] } },
   ],
   activity: 0.3,
   seed: 168,
@@ -107,7 +97,6 @@ export const FARM_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     { voice: 'swallow', every: [16, 40], height: 6, passes: { over: 40, seconds: [1.2, 2.4] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
-    { voice: 'wood', every: [40, 110], when: { sun: [-2, 90] } },
   ],
   activity: 0.7,
   seed: 149,
@@ -133,8 +122,6 @@ export const FOREST_A_AMBIENCE: AmbienceSpec = {
     { voice: 'greattit', every: [28, 70], height: 6, when: { sun: [-1, 60], wakes: 8, shy: 0.6 } },
     { voice: 'blackcap', every: [34, 90], height: 7, when: { season: [0.3, 0.7], sun: [-4, 60], shy: 0.55 } },
     { voice: 'wings', every: [50, 150], height: 7 },
-    { voice: 'bee', every: [20, 60], height: 1.2, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
-    { voice: 'midge', every: [12, 34], height: 1.7, when: { warmth: [13, 40], sun: [-6, 8], season: [0.35, 0.8] } },
   ],
   activity: 0.8,
   seed: 150,
@@ -154,10 +141,7 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     { voice: 'wren', every: [45, 130], height: 1.2, when: { sun: [-2, 40], shy: 0.5 } },
-    { voice: 'fox', every: [120, 380], when: { sun: [-90, -6], season: [0.78, 0.28] } },
-    { voice: 'stag', every: [160, 460], when: { season: [0.66, 0.84], sun: [-90, 4] } },
     { voice: 'bats', every: [14, 40], height: 5, when: { sun: [-9, -1], warmth: [8, 40] } },
-    { voice: 'midge', every: [16, 44], height: 1.7, when: { warmth: [12, 40], sun: [-7, 6] } },
     { voice: 'crack', every: [70, 220], height: 1, level: 0.8 },
     { voice: 'slab', every: [220, 700], level: 0.6 },
   ],
@@ -182,9 +166,6 @@ export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
     { voice: 'chaffinch', every: [30, 78], height: 6, when: { sun: [-2, 60], wakes: 10, shy: 0.6 } },
     { voice: 'robin', every: [30, 80], height: 2, when: { sun: [-9, 30], wakes: 45, shy: 0.6 } },
     { voice: 'greattit', every: [34, 90], height: 5, when: { sun: [-1, 60], shy: 0.6 } },
-    { voice: 'rabbit', every: [50, 150], height: 0.1, when: { sun: [-9, 12] } },
-    { voice: 'bee', every: [22, 60], height: 1.1, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
-    { voice: 'wood', every: [80, 240], level: 0.7 },
     { voice: 'bell-church', every: [0, 0], height: 20, level: 0.4 },
   ],
   activity: 0.65,
@@ -209,8 +190,6 @@ export const FOREST_PATH_B_AMBIENCE: AmbienceSpec = {
     { voice: 'robin', every: [34, 95], height: 2, when: { sun: [-9, 20], wakes: 45 } },
     { voice: 'blackbird', every: [60, 170], height: 6, when: { sun: [-8, 14], wakes: 50 } },
     { voice: 'grit', every: [40, 120], height: 0.1, level: 0.6 },
-    { voice: 'toad', every: [50, 150], height: 0.1, when: { warmth: [10, 30], sun: [-90, 2], season: [0.24, 0.6] } },
-    { voice: 'midge', every: [10, 28], height: 1.7, when: { warmth: [12, 40], sun: [-7, 8] } },
   ],
   activity: 0.5,
   seed: 153,
@@ -252,11 +231,7 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     { voice: 'reedwarbler', every: [26, 70], height: 1.4, when: { season: [0.32, 0.68], sun: [-2, 90] } },
-    { voice: 'kingfisher', every: [120, 340], height: 1.2, when: { sun: [2, 90] } },
     { voice: 'wagtail', every: [35, 95], height: 0.6, when: { sun: [0, 90] } },
-    { voice: 'plop', every: [40, 120], height: 0, when: { sun: [-8, 20] } },
-    { voice: 'dragonfly', every: [20, 55], height: 1.2, when: { warmth: [17, 38], sun: [8, 90], season: [0.38, 0.76] } },
-    { voice: 'curlew', every: [70, 200], height: 6, when: { sun: [-8, 14] } },
     { voice: 'swallow', every: [18, 48], height: 3, passes: { over: 40, seconds: [1.1, 2.2] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
   ],
   signals: [
@@ -269,7 +244,6 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_AMBIENCE: AmbienceSpec = {
   air: [
-    // The chamber itself. Not a pipe: a cave has no note, it has several broad
     // irrational resonances that wander as the air moves through it.
     { model: 'cavern', id: 'room', options: { size: 42, hard: 0.78, drift: 0.55, floor: 0.6, gain: 0.2 } },
   ],
@@ -338,14 +312,12 @@ export const FACTORY_1_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 340, size: 74, metal: 0.55, clank: 0.35, wear: 0.5, load: 0.5, duty: 0.5, gain: 0.2 } },
   ],
   chorus: [
-    // valve in here stands somewhere and carries its own sound; what a shop
     // a great deal of steel being handled out of sight.
     { model: 'bustle', options: { rate: 16, distance: 1400, roll: 0.6, metal: 0.9, busy: 0.7, gain: 0.11 } },
   ],
   cast: [
     // load dropped at the other end of the building.
     { voice: 'slab', every: [40, 130], level: 0.8 },
-    { voice: 'steam', every: [50, 160], level: 0.7 },
   ],
   activity: 0.75,
   seed: 161,
@@ -362,7 +334,6 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     { voice: 'slab', every: [22, 70], level: 0.9 },
-    { voice: 'steam', every: [30, 90], level: 0.8 },
     { voice: 'rockfall', every: [90, 300], level: 0.6 },
   ],
   activity: 0.9,
@@ -382,7 +353,6 @@ export const SEWER_1_AMBIENCE: AmbienceSpec = {
   cast: [
     { voice: 'drip', every: [3.1, 3.1], height: 2.6 },
     { voice: 'drip', every: [5.7, 5.7], height: 3.4, level: 0.8 },
-    { voice: 'rat', every: [24, 70], height: 0.1 },
     { voice: 'grit', every: [50, 150], level: 0.6 },
   ],
   activity: 0.4,
@@ -391,7 +361,6 @@ export const SEWER_1_AMBIENCE: AmbienceSpec = {
 
 export const SEWER_2_AMBIENCE: AmbienceSpec = {
   air: [
-    // is a pump, it stands somewhere, and at four hundred revolutions a minute
     // its once-per-turn knock is seven a second, which is a helicopter.
     { model: 'cavern', id: 'room', options: { size: 128, hard: 0.55, draught: 0.2, drift: 0.1, floor: 0.28, gain: 0.12 } },
     { model: 'water', id: 'flow', options: { flow: 'cistern', gain: 0.13, tone: 0.55 } },
@@ -402,7 +371,6 @@ export const SEWER_2_AMBIENCE: AmbienceSpec = {
   cast: [
     { voice: 'drip', every: [2.3, 2.3], height: 2.2 },
     { voice: 'drip', every: [4.7, 4.7], height: 2.8, level: 0.7 },
-    { voice: 'rat', every: [18, 55], height: 0.1 },
   ],
   activity: 0.4,
   seed: 157,
@@ -422,7 +390,6 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
     { model: 'tick', height: 1.4, options: { every: 0.8, pitch: 900, decay: 0.16, swing: 0.1, cooling: 320, gain: 0.06 }, when: { sun: [-8, 9] } },
   ],
   cast: [
-    { voice: 'rat', every: [40, 120], height: 0.1 },
     { voice: 'grit', every: [50, 150], level: 0.7 },
   ],
   signals: [
@@ -446,7 +413,6 @@ export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
   cast: [
     { voice: 'sparrow', every: [26, 75], height: 4, when: { sun: [0, 90] } },
     { voice: 'wagtail', every: [50, 150], height: 3, when: { sun: [2, 90] } },
-    { voice: 'wasp', every: [30, 90], height: 1.5, when: { season: [0.4, 0.76], warmth: [16, 40], sun: [4, 90] } },
   ],
   signals: [
     { voice: 'crack', every: [40, 140], height: 4, floor: 25, level: 1.2, when: { rain: [0.15, 1] } },
@@ -469,10 +435,7 @@ export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
   cast: [
     { voice: 'sparrow', every: [22, 65], height: 3, when: { sun: [0, 90] } },
     { voice: 'linnet', every: [40, 120], height: 2.5, when: { season: [0.3, 0.74], sun: [2, 90] } },
-    { voice: 'rat', every: [50, 150], height: 0.1 },
-    { voice: 'grasshopper', every: [10, 30], height: 0.2, when: { warmth: [17, 38], sun: [6, 90], season: [0.38, 0.78] } },
   ],
-  signals: [{ voice: 'metal', every: [150, 460], floor: 120, level: 1.1 }],
   activity: 0.4,
   seed: 164,
 };
@@ -489,11 +452,6 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
     { model: 'foliage', height: 0.8, options: { density: 150, tone: 2, gain: 0.065, articulation: 0.44 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
   ],
   cast: [
-    { voice: 'kittiwake', every: [26, 70], height: 16, when: { sun: [-2, 90] } },
-    { voice: 'oystercatcher', every: [34, 95], height: 2, when: { sun: [-4, 90] } },
-    { voice: 'curlew', every: [50, 150], height: 5, when: { season: [0.72, 0.32] } },
-    { voice: 'seal', every: [160, 480], height: 0 },
-    { voice: 'splash', every: [30, 90], height: 0 },
     { voice: 'grit', every: [26, 75], height: 0.1, level: 0.8 },
   ],
   signals: [
@@ -519,8 +477,6 @@ export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     { voice: 'linnet', every: [34, 95], height: 1.2, when: { season: [0.3, 0.74], sun: [2, 90] } },
-    { voice: 'rabbit', every: [50, 150], height: 0.1, when: { sun: [-9, 12] } },
-    { voice: 'bee', every: [26, 75], height: 1, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
   ],
   signals: [
     // game.
