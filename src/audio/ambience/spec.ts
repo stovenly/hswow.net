@@ -146,15 +146,13 @@ export type AirLayer = ModelSpec & {
 };
 
 /**
- * Continuous, and somewhere out there. Sited by the director in a ring around
- * the listener rather than at a coordinate — a zone that wants a source at a
- * place declares it in its own `SoundscapeSpec` instead.
+ * Continuous, and all around. Widened into a field with no bearing rather than
+ * sited — a zone that wants a source at a place declares it in its own
+ * `SoundscapeSpec` instead.
  */
 export type ChorusLayer = ModelSpec & {
   id?: string;
   gain?: number;
-  /** Metres above the listener. Height is most of what stops a ring of speakers. */
-  height?: number;
   follow?: readonly Follow[];
   when?: Window;
 };

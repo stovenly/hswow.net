@@ -22,7 +22,7 @@ Schafer's, and they are the ambience equivalent of drone, texture and melody:
 
 - **`air`** — the keynote. No position, no events to resolve, and it never
   stops. Wind, water, a plant's hum, a room's tone.
-- **`chorus`** — the middle distance. Continuous and positional.
+- **`chorus`** — the middle distance. Continuous, widened, and with no bearing.
 - **`cast`** — who speaks. Brief, individually audible, and scarce.
 - **`signals`** — meant to be listened to. One at a time. A signal with
   `clock: 'hour'` is a **soundmark**, and no two vibes share one.
@@ -47,8 +47,9 @@ single fire do not.
 
 **Everything here is far**, for the same reason. There is no near and no middle
 distance — a source close enough to be either is a source that belongs to a
-place. Continuous layers are diffuse and only brief events carry a bearing,
-because nobody localises a hum and everybody turns toward a shout.
+place. Continuous layers never go through a panner — a panner localises by
+direction and no offset shortens a direction — and only brief events carry a
+bearing, because nobody localises a hum and everybody turns toward a shout.
 
 **Nobody talks.** A voice is a person and a person is somebody you can walk up
 to. Speech is the creature system's; what is left here is wordless.

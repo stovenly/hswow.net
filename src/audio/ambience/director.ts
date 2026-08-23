@@ -78,23 +78,24 @@ const FAR = {
 };
 
 /**
- * How far off centre a source may sit, as a fraction of the ring.
+ * How far off centre an event may sit, as a fraction of the ring. A discrete
+ * event has a bearing, because a rook really is over there and you really do
+ * turn your head. Even then the extent is small: a source pushed to the edge of
+ * the field is a source in one ear, and nothing outdoors is ever in one ear.
  *
- * Two numbers, because there are two kinds of thing here and they localise
- * completely differently.
- *
- * **A continuous layer is diffuse.** Nobody can point at a chimney by ear, or
- * at a hedge, or at the plant behind a fence — they are large, they are steady,
- * and by the time they reach you they have come off every surface between. A
- * bed with a bearing is a loudspeaker with a bearing.
- *
- * **A discrete event has one**, because a rook really is over there and you
- * really do turn your head. Even then the extent is small: a source pushed to
- * the edge of the field is a source in one ear, and nothing outdoors is ever in
- * one ear — your head is small and sound goes round it.
+ * Continuous layers have no bearing at all and never go through a panner: a
+ * panner localises by direction, and shortening the offset does not shorten
+ * the direction. They are widened instead — see `widen`.
  */
-const CHORUS_BIAS = 0.1;
 const EVENT_BIAS = 0.34;
+
+/**
+ * The widener's delays, seconds. Long enough to decorrelate the two ears and
+ * short enough not to echo; each layer draws its own pair so no two share a
+ * comb.
+ */
+const WIDEN: readonly [number, number] = [0.009, 0.018];
+const WIDEN_LEVEL = 0.6;
 
 /**
  * How much of each channel is fed to the other, on this layer alone.
@@ -109,7 +110,7 @@ const EVENT_BIAS = 0.34;
  * a source still has a bearing and can never take over a side.
  */
 const SPREAD = 0.62;
-const SPREAD_HZ = 1400;
+const SPREAD_HZ = 3600;
 
 /** Decibels to a gain. The mix is stated in dB and applied here. */
 const gainOf = (db: number): number => Math.pow(10, db / 20);
@@ -202,8 +203,7 @@ interface Rack {
   wet: GainNode;
   bus: Bus;
   air: Layer[];
-  /** `offset` is from the listener, not from the world origin. See `update`. */
-  chorus: (Layer & { emitter: Emitter; offset: THREE.Vector3 })[];
+  chorus: (Layer & { nodes: AudioNode[] })[];
   pools: Map<string, Pool>;
   /** Audio-clock time each cast member and signal is next due. */
   due: number[];
@@ -396,12 +396,7 @@ export class AmbienceDirector {
       }
     }
     for (const layer of rack.air) layer.model.update?.(dt, this.engine, at);
-    for (const layer of rack.chorus) {
-      // Carried with the listener. Sited once at the world origin, a chorus is
-      // audible only in whichever zone happens to be built around it.
-      layer.emitter.moveTo(_point.copy(at).add(layer.offset));
-      layer.emitter.update(dt, collider, retestOcclusion);
-    }
+    for (const layer of rack.chorus) layer.model.update?.(dt, this.engine, at);
     const now = this.engine.context.currentTime;
     for (const pool of rack.pools.values()) {
       for (const voice of pool.voices) {
@@ -791,36 +786,14 @@ export class AmbienceDirector {
       const gain = context.createGain();
       gain.gain.value = 0;
       model.output.connect(gain);
-      const bearing = rack.rng() * Math.PI * 2;
-      const radius = FAR.radius[0] + rack.rng() * (FAR.radius[1] - FAR.radius[0]);
-      // An offset from the listener, held for the life of the rack. A vibe's
-      // chorus is a ring around you and travels with you; a source that belongs
-      // at a coordinate is the zone's own `SoundscapeSpec` and not this.
-      const offset = new THREE.Vector3(
-        Math.cos(bearing) * radius * CHORUS_BIAS,
-        layer.height ?? FAR.lift,
-        Math.sin(bearing) * radius * CHORUS_BIAS,
-      );
-      const emitter = new Emitter(this.engine, faded(model, gain), {
-        position: _point.copy(this.engine.listenerPosition).add(offset),
-        refDistance: ((FAR.radius[0] + FAR.radius[1]) / 2) * CHORUS_BIAS,
-        maxDistance: REACH,
-        rolloff: ROLLOFF,
-        reverb: 1,
-        importance: FAR.importance,
-        ignoreAbsorption: true,
-        ignoreOcclusion: true,
-        out: bus.in,
-        send: bus.send,
-      });
+      const nodes = widen(context, gain, bus, rack.rng);
       rack.chorus.push({
         model,
         gain,
         follow: layer.follow ?? [],
         base: layer.gain ?? 1,
         spec: layer,
-        emitter,
-        offset,
+        nodes,
       });
     }
 
@@ -855,8 +828,11 @@ export class AmbienceDirector {
     this.ticker.stop();
     for (const rack of this.racks.values()) {
       for (const layer of rack.air) layer.model.dispose();
-      // The emitter owns the wrapper, and the wrapper owns the model.
-      for (const layer of rack.chorus) layer.emitter.dispose();
+      for (const layer of rack.chorus) {
+        layer.model.dispose();
+        layer.gain.disconnect();
+        for (const node of layer.nodes) node.disconnect();
+      }
       for (const pool of rack.pools.values()) {
         for (const voice of pool.voices) voice.emitter.dispose();
       }
@@ -874,20 +850,27 @@ export class AmbienceDirector {
 }
 
 /**
- * A model behind its own fader, so a chorus layer can answer the conditions
- * before the emitter spatialises it. Forwards everything, because a foliage
- * layer that never has `update` called reads the wind exactly once.
+ * A mono bed into a field with no bearing. Each ear gets the signal plus a
+ * short delay of it; the delays differ and one is inverted, so the two ears
+ * are decorrelated and the sum is still the bed. The ear hears something all
+ * around it rather than a point, and there is no direction to turn toward.
  */
-function faded(model: SoundModel, gain: GainNode): SoundModel {
-  return {
-    output: gain,
-    update: (dt, engine, at) => model.update?.(dt, engine, at),
-    setActive: (active) => model.setActive?.(active),
-    dispose: () => {
-      model.dispose();
-      gain.disconnect();
-    },
-  };
+function widen(context: BaseAudioContext, from: GainNode, bus: Bus, rng: Rng): AudioNode[] {
+  const merge = context.createChannelMerger(2);
+  from.connect(merge, 0, 0);
+  from.connect(merge, 0, 1);
+  const nodes: AudioNode[] = [merge];
+  for (let side = 0; side < 2; side++) {
+    const delay = context.createDelay(0.05);
+    delay.delayTime.value = WIDEN[0] + rng() * (WIDEN[1] - WIDEN[0]);
+    const level = context.createGain();
+    level.gain.value = side === 0 ? WIDEN_LEVEL : -WIDEN_LEVEL;
+    from.connect(delay).connect(level).connect(merge, 0, side);
+    nodes.push(delay, level);
+  }
+  merge.connect(bus.in);
+  from.connect(bus.send);
+  return nodes;
 }
 
 /**
