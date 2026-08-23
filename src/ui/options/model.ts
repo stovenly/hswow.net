@@ -44,9 +44,7 @@ export interface Options {
   /**
    * How big a buffer the audio device is asked for. The one setting here that
    * does not apply live: a context's buffer size is fixed when it is opened, so
-   * this is read once at boot and the menu says so. Small is the lowest latency
-   * the device will give; large trades a few milliseconds for the headroom that
-   * stops audio breaking up while something else competes for the CPU.
+   * this is read once at boot.
    */
   audioBuffer: AudioBuffering;
 
@@ -346,22 +344,13 @@ export const CATEGORIES: readonly Category[] = [
       {
         kind: 'choice',
         key: 'groundcoverDensity',
-        label: 'groundcover',
+        label: 'groundcover density',
         choices: [
-          { value: 'off', label: 'off' },
           { value: 'low', label: 'low' },
           { value: 'medium', label: 'medium' },
           { value: 'high', label: 'high' },
           { value: 'ultra', label: 'ultra' },
         ],
-        note: (options) =>
-          ({
-            off: 'bare ground',
-            low: 'thin and worn',
-            medium: 'an ordinary field',
-            high: 'a thick field',
-            ultra: 'every blade there is',
-          })[options.groundcoverDensity],
       },
       {
         kind: 'slider',
@@ -422,13 +411,7 @@ export const CATEGORIES: readonly Category[] = [
           { value: 'small', label: 'small' },
           { value: 'large', label: 'large' },
         ],
-        // The only note in the menu that has to mention a reload. Said on both
-        // choices rather than only on the changed one, because somebody reading
-        // the row before touching it should already know what it will cost.
-        note: (options) =>
-          options.audioBuffer === 'small'
-            ? 'lowest delay; breaks up if the machine is busy — takes a reload'
-            : 'steady while the machine is busy, slightly more delay — takes a reload',
+        note: () => '(increasing this can help with crackling)',
       },
     ],
   },

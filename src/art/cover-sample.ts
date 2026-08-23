@@ -28,6 +28,9 @@ export const COVER_BLEND_ATTRIBUTE = 'coverBlend';
 /** How much of the ground's brightness survives under a stand of blades. Terrain paints it; the sampler divides it out. */
 export const COVER_FLOOR = 0.62;
 
+/** What the pool is sampled at, over the spec density. `COVER_TIERS` in `PostFX` draws a fraction of it, and ultra draws all of it. */
+export const COVER_POOL_SCALE = 1.3;
+
 /** Clump cell, metres. What stops a field reading as a lawn. */
 const CLUMP = 0.9;
 
@@ -240,7 +243,7 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
 
     const blades = spec.blades;
     if (blades && !walls) {
-      const n = Math.floor(area * blades.density + hat(f, 0, 17));
+      const n = Math.floor(area * blades.density * COVER_POOL_SCALE + hat(f, 0, 17));
       for (let i = 0; i < n; i++) {
         let r1 = hat(f, i, 29);
         let r2 = hat(f, i, 31);
@@ -344,7 +347,7 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
     for (let layer = 0; layer < propLayers.length; layer++) {
       const props = propLayers[layer];
       const salt = layer * 131;
-      const n = Math.floor(area * props.density + hat(f, salt, 71));
+      const n = Math.floor(area * props.density * COVER_POOL_SCALE + hat(f, salt, 71));
       for (let i = 0; i < n; i++) {
         let r1 = hat(f, i, 73 + salt);
         let r2 = hat(f, i, 79 + salt);

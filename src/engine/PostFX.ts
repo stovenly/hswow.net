@@ -24,6 +24,7 @@ import { fogUniforms } from './fog';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
+import { COVER_POOL_SCALE } from '../art/cover-sample';
 import { detailUniforms } from '../art/detail';
 import { finishUniforms } from '../art/finish';
 import { recipeUniforms } from '../art/recipes';
@@ -185,16 +186,15 @@ export function resolveSamples(enabled: boolean, wanted: number, max: number): n
   return samples < 2 ? 0 : samples;
 }
 
-/** The player's groundcover setting. Off is a tier, not a separate switch. */
-export type CoverDensity = 'off' | 'low' | 'medium' | 'high' | 'ultra';
+/** The player's groundcover setting. */
+export type CoverDensity = 'low' | 'medium' | 'high' | 'ultra';
 
-/** Fraction of the sampled pool each tier draws. The type table is authored at ultra. */
+/** Density each tier draws, over the type table's own. The pool is sampled at `COVER_POOL_SCALE`, so ultra draws all of it. */
 const COVER_TIERS: Record<CoverDensity, number> = {
-  off: 0,
-  low: 0.09,
-  medium: 0.2,
-  high: 0.3,
-  ultra: 1,
+  low: 0.25,
+  medium: 0.5,
+  high: 0.85,
+  ultra: COVER_POOL_SCALE,
 };
 
 /**
@@ -272,7 +272,7 @@ export class PostFX {
   private finished = true;
   /** Dev-only, `finished`'s companion. See `setRecipes`. */
   private recipes = true;
-  /** The player's groundcover tier, `off` included. See `setGroundcover`. */
+  /** The player's groundcover tier. See `setGroundcover`. */
   private groundcover: CoverDensity = 'high';
   /** Whether particles are drawn at all. The dev switch; the accessibility one removes weather only, in `art/particles`. */
   private particulate = true;
@@ -524,7 +524,6 @@ export class PostFX {
     this.apply();
   }
 
-  /** `off` is a tier and skips every cover draw outright. */
   setGroundcover(density: CoverDensity): void {
     this.groundcover = density;
     this.apply();
@@ -608,8 +607,7 @@ export class PostFX {
     recipeUniforms.uRecipeMotion.value = this.waves ? 1 : 0;
 
     setCoverDraw(
-      this.groundcover !== 'off',
-      COVER_TIERS[this.groundcover] * s.cover.density,
+      (COVER_TIERS[this.groundcover] / COVER_POOL_SCALE) * s.cover.density,
       s.cover.height,
       s.cover.width,
     );

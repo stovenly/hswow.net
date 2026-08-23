@@ -932,7 +932,6 @@ const propGeometry: Partial<Record<PropLayer['kind'], THREE.BufferGeometry>> = {
  */
 const live = new Set<THREE.Mesh>();
 
-let drawOn = true;
 let drawDensity = 1;
 
 /**
@@ -1020,18 +1019,17 @@ function refreshDraw(mesh: THREE.Mesh): void {
   const fraction =
     mesh.name === 'cover-blades' ? drawDensity : Math.sqrt(Math.max(drawDensity, 0));
   const count = Math.round(full * fraction);
-  mesh.visible = drawOn && count > 0;
+  mesh.visible = count > 0;
   if (poolFor(mesh).resident !== count) upload(mesh, count);
 }
 
 /**
- * Sets what the cover is drawn at. Off skips every draw outright. `density`
- * thins by drawing a prefix of each chunk's instances, which are shuffled at
- * build, so a prefix is an even scatter. Changing the tier re-uploads each
- * chunk: tens of milliseconds, once, on a settings change.
+ * Sets what the cover is drawn at. `density` thins by drawing a prefix of each
+ * chunk's instances, which are shuffled at build, so a prefix is an even
+ * scatter. Changing the tier re-uploads each chunk: tens of milliseconds, once,
+ * on a settings change.
  */
-export function setCoverDraw(on: boolean, density: number, height: number, width: number): void {
-  drawOn = on;
+export function setCoverDraw(density: number, height: number, width: number): void {
   drawDensity = Math.min(Math.max(density, 0), 1);
   coverUniforms.coverHeight.value = height;
   coverUniforms.coverWidth.value = width;

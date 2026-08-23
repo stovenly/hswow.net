@@ -452,7 +452,7 @@ if (dev.gui) {
   // the type table in world/ground.ts, which is authored in real units.
   const cover = dev.gui.addFolder('groundcover');
   cover
-    .add(options, 'groundcoverDensity', ['off', 'low', 'medium', 'high', 'ultra'])
+    .add(options, 'groundcoverDensity', ['low', 'medium', 'high', 'ultra'])
     .name('player setting')
     .listen()
     .onChange(settings.commit);
