@@ -22,7 +22,7 @@ import { thump } from '../dsp/impact';
  * parameter, and it is most of the difference between gravel and boulders.
  */
 
-export type Loose = 'grit' | 'gravel' | 'scree' | 'rubble' | 'ember' | 'feather';
+export type Loose = 'grit' | 'gravel' | 'scree' | 'rubble' | 'ember' | 'feather' | 'snow' | 'mast';
 
 interface Kind {
   /** Where a single piece resonates, Hz, and how much it insists on it. */
@@ -43,6 +43,9 @@ interface Kind {
   mass: number;
   /** How far the pitch drifts down as the big pieces arrive last, 0..1. */
   sorting: number;
+  /** How long one piece rings and how softly it starts, seconds. Hard by default. */
+  grain?: number;
+  attack?: number;
 }
 
 const KINDS: Record<Loose, Kind> = {
@@ -123,6 +126,35 @@ const KINDS: Record<Loose, Kind> = {
     mass: 0.06,
     sorting: 0.1,
   },
+  // A roof's worth letting go: soft, broad, no ring, and a weight under it.
+  snow: {
+    hz: 520,
+    q: 0.5,
+    voices: 3,
+    spread: 0.3,
+    rate: 160,
+    over: [0.7, 1.6],
+    tail: 1.2,
+    level: 0.05,
+    mass: 0.5,
+    sorting: 0.2,
+    grain: 0.02,
+    attack: 0.004,
+  },
+  // Nuts down through leaves onto ground: a few dry taps, widely spaced.
+  mast: {
+    hz: 1900,
+    q: 1.4,
+    voices: 3,
+    spread: 0.6,
+    rate: 14,
+    over: [0.6, 1.5],
+    tail: 1.6,
+    level: 0.12,
+    mass: 0,
+    sorting: 0.1,
+    grain: 0.008,
+  },
 };
 
 export interface FlowOptions {
@@ -159,6 +191,8 @@ export function createFlow(engine: AudioEngine, options: FlowOptions = {}): OneS
     level: kind.level,
     voices: kind.voices,
     spread: kind.spread,
+    grain: kind.grain,
+    attack: kind.attack,
   };
   const pieces: ParticleBed = createParticleBed(context, bed, output);
 

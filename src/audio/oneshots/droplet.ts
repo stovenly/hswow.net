@@ -29,7 +29,7 @@ import { excite } from '../dsp/impact';
  * tiny ones that carry the hiss. One bubble is a drip; forty is a splash.
  */
 
-export type Wet = 'drip' | 'rise' | 'plunk' | 'splash' | 'patter';
+export type Wet = 'drip' | 'rise' | 'plunk' | 'splash' | 'patter' | 'surge';
 
 interface Kind {
   /** Bubble radii, metres. 1 mm is 3.3 kHz; 6 mm is 540 Hz and fat. */
@@ -46,6 +46,8 @@ interface Kind {
   level: number;
   /** Bias in the size draw: below 0 favours small, above favours large. */
   bias: number;
+  /** Turbulence under the bubbles, 0..1. Only a body of water moving has any. */
+  wash?: number;
 }
 
 const KINDS: Record<Wet, Kind> = {
@@ -101,6 +103,18 @@ const KINDS: Record<Wet, Kind> = {
     level: 0.12,
     bias: -0.2,
   },
+  // A body of water arriving over a couple of seconds: a wave over rocks, a
+  // surge down a culvert. The wash carries it; the bubbles say it is water.
+  surge: {
+    radius: [0.0006, 0.014],
+    count: [50, 110],
+    over: 2.2,
+    cycles: 9,
+    film: 0.5,
+    level: 0.08,
+    bias: -0.3,
+    wash: 0.6,
+  },
 };
 
 export interface DropletOptions {
@@ -150,10 +164,14 @@ export function createDroplet(engine: AudioEngine, options: DropletOptions = {})
     cavity.connect(wet).connect(output);
   }
 
-  const into = (node: AudioNode): void => {
-    void node;
-  };
-  into(direct);
+  let wash: BiquadFilterNode | null = null;
+  if (kind.wash) {
+    wash = context.createBiquadFilter();
+    wash.type = 'bandpass';
+    wash.frequency.value = 1100 * tone;
+    wash.Q.value = 0.7;
+    wash.connect(direct);
+  }
 
   return {
     output,
@@ -161,6 +179,11 @@ export function createDroplet(engine: AudioEngine, options: DropletOptions = {})
     fire(at, force) {
       const count = Math.round(between(kind.count));
       const span = kind.over;
+
+      if (wash && kind.wash) {
+        // Slow in, slow out: the water is already moving when it gets here.
+        excite(context, noise.pink, wash, at, force * kind.wash, span * 0.5, span * 0.3);
+      }
 
       // The film tearing. Broadband, no pitch, and over in two milliseconds.
       if (kind.film > 0.02) {
@@ -193,6 +216,7 @@ export function createDroplet(engine: AudioEngine, options: DropletOptions = {})
 
     dispose() {
       cavity?.disconnect();
+      wash?.disconnect();
       direct.disconnect();
       output.disconnect();
     },

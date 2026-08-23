@@ -37,27 +37,50 @@ export type AmbienceVoice =
   | 'swift'
   | 'wagtail'
   | 'reedwarbler'
-  // Corvids and the harsh end.
-  // Doves, game and waders.
+  | 'nightingale'
+  // Open country: heard from everywhere in it and seen nowhere.
+  | 'curlew'
+  | 'lapwing'
+  | 'quail'
+  | 'snipe'
+  | 'plover'
   // Night.
   | 'bats'
-  // Kept animals.
-  // Insects.
-  // People.
-  // Things handled.
+  // Loose material and things far off.
   | 'thump'
   | 'grit'
+  | 'sand'
   | 'slip'
   | 'rabble'
   | 'slab'
   | 'rockfall'
+  | 'slide'
+  | 'mast'
+  | 'bough'
   | 'wings'
-  // Water and weather.
+  // Structures under strain, and struck far away.
+  | 'beam'
+  | 'timber'
+  | 'strain'
+  | 'girder'
+  | 'sheet'
+  | 'buffet'
+  | 'crack'
+  // Water.
   | 'drip'
+  | 'eaves'
   | 'patter'
-  // Signals and soundmarks.
-  | 'bell-church'
-  | 'crack';
+  | 'pool'
+  | 'rise'
+  | 'surge'
+  // Weather and the ground.
+  | 'thunder'
+  | 'rumble'
+  // Works.
+  | 'blowoff'
+  | 'horn'
+  // Soundmarks.
+  | 'bell-church';
 
 /** What a continuous layer answers to. */
 export type Driver =
@@ -95,6 +118,8 @@ export interface Window {
   season?: Span;
   /** Silent above this wind strength, 0..1. */
   shy?: number;
+  /** Wind strength span it needs, 0..1. Shutters, snow off a roof, a gust on a wall. */
+  wind?: Span;
   /** Rain amount tolerated, 0..1. */
   rain?: Span;
   /** Fog needed, 0..1. A foghorn in clear air is a foghorn nobody believes. */

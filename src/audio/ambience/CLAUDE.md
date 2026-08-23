@@ -10,7 +10,7 @@ being true, edit the line — do not append a correction.
 
 ## Files
 
-- `spec.ts` — the book's grammar: bands, tiers, windows, and the four strata.
+- `spec.ts` — the book's grammar: bands, windows, and the four strata.
 - `vibes.ts` — the book: one `AmbienceSpec` per kind of place.
 - `voices.ts` — who can speak, and what each one is built out of.
 - `conditions.ts` — what the world is doing, and how wide a window stands open.

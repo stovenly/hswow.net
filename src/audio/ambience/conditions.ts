@@ -108,6 +108,7 @@ export function openness(window: Window | undefined, now: Conditions): number {
 
   if (window.season) open *= withinPhase(window.season, now.season, 0.06);
   if (window.shy !== undefined) open *= 1 - smoothstep(window.shy - 0.12, window.shy, now.wind);
+  if (window.wind) open *= within(window.wind, now.wind, 0.1);
   if (window.rain) open *= within(window.rain, now.rain, 0.1);
   if (window.fog) open *= within(window.fog, now.fog, 0.12);
   if (window.warmth) open *= within(window.warmth, now.warmth, 2.5);

@@ -4,6 +4,10 @@ import { createCall, type CallShape, type Syllable } from '../oneshots/call';
 import { createStrike, type StrikeOptions } from '../oneshots/strike';
 import { createFlow, type FlowOptions } from '../oneshots/flow';
 import { createDroplet, type DropletOptions } from '../oneshots/droplet';
+import { createThunder, type ThunderOptions } from '../oneshots/thunder';
+import { createGroan, type GroanOptions } from '../oneshots/groan';
+import { createVent } from '../oneshots/vent';
+import { createHorn } from '../oneshots/horn';
 import type { AmbienceVoice, Band } from './spec';
 
 /**
@@ -21,15 +25,9 @@ import type { AmbienceVoice, Band } from './spec';
 
 export interface VoiceEntry {
   band: Band;
-  /**
-   * How prominent this voice is, in decibels against the ambience reference.
-   * Set from `DB` below; see the note there. Never set on the model.
-   */
+  /** Decibels against the ambience reference. Set from `DB` below, never on the model. */
   db: number;
-  /**
-   * Whether this is something breathing. Only the living hush — a clock does
-   * not stop ticking because a jay shouted, and a press does not either.
-   */
+  /** Whether this is something breathing. Only the living hush. */
   alive: boolean;
   build(engine: AudioEngine): OneShot;
 }
@@ -44,30 +42,20 @@ const s = (
 ): Syllable => ({ from, to, length, gap, ...extra });
 
 /**
- * Family normalisation. One number per synthesis family, whose only job is to
- * bring the families onto the same footing so that `fire(t, 1)` peaks in the
- * same place whichever one is speaking. **These are not the mix** — the mix is
- * `DB`, and nothing else may set a level.
- */
-const CALL_GAIN = 0.5;
-/**
  * Family normalisation, and the one thing that has to be true of these numbers:
  * **`fire(at, 1)` must peak in roughly the same place whichever family it is.**
  * `DB` is the mix and it is a plain multiplier on `force`, so a family whose
- * internals swallow that multiplier is a family the mix cannot reach.
- *
- * `flow` swallowed a factor of twenty. Its per-collision level lives inside the
- * particle bed at around 0.05, so a voice at −28 dB arrived at 0.0036 where a
- * bird at −24 arrived at 0.04 — twenty five decibels down, which is not quiet,
- * it is absent. That is why every loose-material voice played nothing.
- *
- * `thing` goes the other way: a modal bank in filter mode compensates for the
- * filter's bandwidth by multiplying by the square root of Q, and at the Q a
- * long ring needs that is a factor of ten on its own.
+ * internals swallow that multiplier is a family the mix cannot reach. These
+ * are not the mix.
  */
+const CALL_GAIN = 0.5;
 const THING_GAIN = 0.3;
 const FLOW_GAIN = 9;
 const DROPLET_GAIN = 3;
+const THUNDER_GAIN = 1.2;
+const GROAN_GAIN = 0.45;
+const VENT_GAIN = 0.6;
+const HORN_GAIN = 0.45;
 
 const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,
@@ -97,7 +85,54 @@ const loose = (band: Band, options: FlowOptions): VoiceEntry => ({
   build: (engine) => createFlow(engine, { ...options, gain: FLOW_GAIN }),
 });
 
+const low = (band: Band, options: ThunderOptions): VoiceEntry => ({
+  band,
+  db: 0,
+  alive: false,
+  build: (engine) => createThunder(engine, { ...options, gain: THUNDER_GAIN }),
+});
 
+const strained = (band: Band, options: GroanOptions): VoiceEntry => ({
+  band,
+  db: 0,
+  alive: false,
+  build: (engine) => createGroan(engine, { ...options, gain: GROAN_GAIN }),
+});
+
+/**
+ * Several one-shots fired as one event, each at its own offset and share.
+ * For things that are genuinely one happening with several sounds in it.
+ */
+const compose = (
+  band: Band,
+  parts: readonly { make: (engine: AudioEngine) => OneShot; delay: number; level: number }[],
+): VoiceEntry => ({
+  band,
+  db: 0,
+  alive: false,
+  build: (engine) => {
+    const output = engine.context.createGain();
+    const shots = parts.map((part) => {
+      const shot = part.make(engine);
+      shot.output.connect(output);
+      return { shot, delay: part.delay, level: part.level };
+    });
+    return {
+      output,
+      fire(at, force) {
+        let busy = 0;
+        for (const part of shots) {
+          busy = Math.max(busy, part.delay + part.shot.fire(at + part.delay, force * part.level));
+        }
+        return busy;
+      },
+      dispose() {
+        for (const part of shots) part.shot.dispose();
+        output.disconnect();
+      },
+    };
+  },
+});
 
 export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // --- songbirds ----------------------------------------------------------
@@ -109,8 +144,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     pitch: 3200,
     variance: 0.1,
     size: [0.93, 1.08],
-    // A few clear notes, then a run downhill. Its whole character is that no
-    // two phrases are the same length.
     phrase: [
       s(1, 1.06, [0.1, 0.16], [0.05, 0.09]),
       s(1.18, 1.02, [0.08, 0.13], [0.04, 0.07]),
@@ -118,9 +151,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
       s(0.86, 0.7, [0.05, 0.08], [0.02, 0.04], { trill: { hz: 22, cents: 90 } }),
     ],
     count: [3, 8],
-    // Its whole character is that no two phrases are the same, so it gets the
-    // widest repertoire in the book: a bright one that climbs and a thin sad
-    // one that does not.
     also: [
       [
         s(1.3, 1.36, [0.12, 0.19], [0.06, 0.11], { drive: 0.12 }),
@@ -139,8 +169,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     pitch: 2100,
     variance: 0.09,
     size: [0.94, 1.07],
-    // Fluted and unhurried, and it ends scratchy — the low drive at the front
-    // against the high drive at the back is the whole bird.
     phrase: [
       s(1, 1.12, [0.2, 0.3], [0.06, 0.12], { drive: 0.12 }),
       s(1.22, 1.05, [0.18, 0.28], [0.05, 0.1], { drive: 0.15 }),
@@ -148,7 +176,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
       s(1.4, 1.5, [0.07, 0.11], [0.03, 0.06], { drive: 0.6, level: 0.5 }),
     ],
     count: [3, 5],
-    // A second fluted idea, lower and slower, with the same scratchy sign-off.
     also: [
       [
         s(0.86, 0.94, [0.24, 0.36], [0.07, 0.14], { drive: 0.1 }),
@@ -166,15 +193,11 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     pitch: 2800,
     variance: 0.1,
     size: [0.95, 1.06],
-    // The signature: everything said two to four times before it moves on.
     phrase: [
       s(1, 1.1, [0.09, 0.14], [0.05, 0.08]),
       s(1.26, 1.18, [0.08, 0.12], [0.05, 0.08]),
     ],
     count: [1, 2],
-    // The bird with the largest real repertoire of any of them, and the one
-    // where a single phrase is most obviously a loop — because it says each
-    // one three times before moving on, so the repeat is already the hook.
     also: [
       [s(0.82, 0.86, [0.1, 0.15], [0.06, 0.1], { drive: 0.2 })],
       [
@@ -196,7 +219,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     pitch: 4300,
     variance: 0.06,
     size: [0.96, 1.05],
-    // Absurdly loud for its size, and it ends on a hard trill.
     phrase: [
       s(1, 1.08, [0.04, 0.06], [0.015, 0.03], { drive: 0.4 }),
       s(1.1, 0.96, [0.035, 0.055], [0.015, 0.03], { drive: 0.4 }),
@@ -222,7 +244,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     pitch: 3400,
     variance: 0.07,
     size: [0.95, 1.06],
-    // The accelerating descent, then the flourish that turns back up.
     phrase: [
       s(1.16, 1.12, [0.07, 0.09], [0.05, 0.07]),
       s(1.1, 1.06, [0.06, 0.08], [0.04, 0.055]),
@@ -333,7 +354,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 4000,
   }),
 
-  // The scream over the rooftops. Long, high and harsh, and it arrives moving.
   swift: sung('song', {
     pitch: 4500,
     size: [0.96, 1.05],
@@ -355,7 +375,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     formant: 3900,
   }),
 
-  // Rhythm and almost nothing else: a dry chatter that never settles on a tune.
   reedwarbler: sung('song', {
     pitch: 3000,
     size: [0.95, 1.06],
@@ -370,6 +389,132 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     fade: 0.995,
   }),
 
+  // Slow whistles that swell, then the hard "jug jug jug", then a long trill.
+  // Three ideas that share nothing, which is the bird.
+  nightingale: sung('song', {
+    pitch: 2700,
+    variance: 0.08,
+    size: [0.95, 1.06],
+    phrase: [
+      s(1, 1.02, [0.25, 0.4], [0.12, 0.2], { drive: 0.1, level: 0.55 }),
+      s(1, 1.02, [0.25, 0.4], [0.12, 0.2], { drive: 0.18, level: 0.75 }),
+      s(1, 1.04, [0.25, 0.4], [0.1, 0.18], { drive: 0.32 }),
+      s(1.02, 1.08, [0.22, 0.35], [0.3, 0.6], { drive: 0.5 }),
+    ],
+    also: [
+      [
+        s(0.62, 0.58, [0.05, 0.07], [0.05, 0.07], { drive: 0.75 }),
+        s(0.62, 0.58, [0.05, 0.07], [0.05, 0.07], { drive: 0.75 }),
+        s(0.62, 0.58, [0.05, 0.07], [0.05, 0.07], { drive: 0.75 }),
+        s(0.62, 0.58, [0.05, 0.07], [0.05, 0.07], { drive: 0.75 }),
+        s(0.62, 0.58, [0.05, 0.07], [0.05, 0.07], { drive: 0.75 }),
+        s(0.62, 0.58, [0.05, 0.07], [0.4, 0.8], { drive: 0.75 }),
+      ],
+      [s(1.1, 1.15, [0.5, 0.8], [0.3, 0.6], { drive: 0.45, trill: { hz: 18, cents: 160 } })],
+      [
+        s(1.3, 1.24, [0.06, 0.09], [0.03, 0.05], { drive: 0.4 }),
+        s(1.18, 1.12, [0.06, 0.09], [0.03, 0.05], { drive: 0.4 }),
+        s(1.06, 1, [0.06, 0.09], [0.03, 0.05], { drive: 0.4 }),
+        s(0.94, 0.88, [0.08, 0.12], [0.4, 0.8], { drive: 0.45 }),
+      ],
+    ],
+    formant: 3000,
+    fade: 1,
+  }),
+
+  // --- open country ---------------------------------------------------------
+  //
+  // None of these is ever seen. The call is the whole animal, and it comes
+  // from somewhere out in the grass every time.
+
+  // The long rising whistle, and the bubbling run that climbs and hurries.
+  curlew: sung('call', {
+    pitch: 1500,
+    variance: 0.08,
+    size: [0.95, 1.06],
+    phrase: [
+      s(0.78, 1.2, [0.3, 0.45], [0.15, 0.3], { drive: 0.25 }),
+      s(0.82, 1.26, [0.28, 0.4], [0.4, 0.9], { drive: 0.3 }),
+    ],
+    also: [
+      [
+        s(0.9, 1.05, [0.1, 0.14], [0.06, 0.09], { drive: 0.3, trill: { hz: 14, cents: 120 } }),
+        s(0.98, 1.12, [0.09, 0.12], [0.05, 0.07], { drive: 0.32, trill: { hz: 15, cents: 120 } }),
+        s(1.05, 1.2, [0.08, 0.11], [0.04, 0.06], { drive: 0.35, trill: { hz: 16, cents: 120 } }),
+        s(1.12, 1.3, [0.07, 0.1], [0.03, 0.05], { drive: 0.38, trill: { hz: 17, cents: 120 } }),
+        s(1.18, 1.36, [0.07, 0.1], [0.3, 0.8], { drive: 0.4, trill: { hz: 18, cents: 120 } }),
+      ],
+    ],
+    repeats: [1, 2],
+    between: [0.6, 1.4],
+    formant: 2000,
+    q: 1.2,
+  }),
+
+  // "Pee-wit": wheezy, and the display tumbles.
+  lapwing: sung('call', {
+    pitch: 2200,
+    variance: 0.08,
+    size: [0.95, 1.06],
+    phrase: [
+      s(0.85, 1.15, [0.12, 0.18], [0.06, 0.1], { drive: 0.55 }),
+      s(1.3, 0.95, [0.16, 0.24], [0.5, 1.2], { drive: 0.6 }),
+    ],
+    also: [
+      [
+        s(0.9, 1.2, [0.08, 0.12], [0.04, 0.06], { drive: 0.5 }),
+        s(1.25, 1.05, [0.07, 0.1], [0.04, 0.06], { drive: 0.5 }),
+        s(1.1, 1.35, [0.1, 0.15], [0.05, 0.08], { drive: 0.55 }),
+        s(1.4, 0.9, [0.2, 0.3], [0.6, 1.2], { drive: 0.65 }),
+      ],
+    ],
+    rasp: 0.35,
+    formant: 2500,
+    q: 1.2,
+  }),
+
+  // "Wet-my-lips", said from inside the crop, over and over, never seen.
+  quail: sung('song', {
+    pitch: 2600,
+    variance: 0.06,
+    size: [0.96, 1.05],
+    phrase: [
+      s(1, 1.05, [0.05, 0.07], [0.08, 0.11], { drive: 0.5 }),
+      s(0.95, 1, [0.04, 0.06], [0.06, 0.09], { drive: 0.45 }),
+      s(1.15, 1.25, [0.09, 0.13], [0.9, 1.8], { drive: 0.6 }),
+    ],
+    repeats: [2, 4],
+    between: [0.6, 1.4],
+    formant: 2900,
+    q: 1.3,
+  }),
+
+  // Drumming: tail feathers in a dive, not a voice. A throb that climbs in
+  // pitch and hurries, then falls away.
+  snipe: sung('throat', {
+    pitch: 380,
+    variance: 0.1,
+    size: [0.95, 1.06],
+    phrase: [
+      s(0.8, 1.15, [0.9, 1.4], [0.3, 0.6], { drive: 0.35, trill: { hz: 11, cents: 300 } }),
+      s(1.15, 0.85, [0.6, 0.9], [2, 4], { drive: 0.3, trill: { hz: 12, cents: 300 } }),
+    ],
+    rasp: 0.5,
+    formant: 600,
+    q: 0.8,
+  }),
+
+  // One mournful whistle across a moor.
+  plover: sung('call', {
+    pitch: 1900,
+    variance: 0.06,
+    size: [0.95, 1.06],
+    phrase: [s(0.92, 1.08, [0.25, 0.4], [1.5, 4], { drive: 0.2 })],
+    also: [[s(1.05, 0.9, [0.3, 0.45], [2, 4], { drive: 0.18 })]],
+    formant: 2300,
+    q: 1.3,
+  }),
+
   // Two notes, a falling minor third, and nothing else ever.
   bats: sung('air', {
     pitch: 7200,
@@ -382,31 +527,73 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
     q: 2,
   }),
 
-  // --- kept animals ---------------------------------------------------------
+  // --- struck far off ----------------------------------------------------------
 
   thump: thing('body', { material: 'oak', size: 0.4, striker: 0.2, ring: 0.7 }),
   slab: thing('body', { material: 'stone', size: 0.45, striker: 0.85 }),
   crack: thing('song', { material: 'pine', size: 2.2, striker: 1, ring: 0.35 }),
+  girder: thing('body', { material: 'iron', size: 0.3, striker: 0.95, ring: 1.6 }),
+  sheet: thing('body', { material: 'tin', size: 0.5, striker: 0.6, ring: 1.2 }),
+  // A gust arriving on a wall: the whole building moving, once.
+  buffet: thing('floor', { material: 'oak', size: 0.2, striker: 0.1, ring: 0.5 }),
+
+  // --- structures under strain --------------------------------------------------
+
+  beam: strained('body', { material: 'iron' }),
+  timber: strained('body', { material: 'timber' }),
+  strain: strained('floor', { material: 'rock' }),
 
   // --- loose material, which arrives over a span and keeps finding stragglers
   grit: loose('air', { kind: 'grit' }),
+  sand: loose('air', { kind: 'grit', tone: 1.25, amount: 0.7 }),
   slip: loose('throat', { kind: 'scree', amount: 0.7 }),
   rockfall: loose('body', { kind: 'rubble', amount: 1.3 }),
   wings: loose('call', { kind: 'feather' }),
   rabble: loose('throat', { kind: 'gravel' }),
+  slide: loose('body', { kind: 'snow' }),
+  mast: loose('air', { kind: 'mast', amount: 0.6 }),
+  // A limb coming down somewhere in the wood: the snap, the fall, the leaves.
+  bough: compose('body', [
+    { make: (engine) => createStrike(engine, { material: 'pine', size: 1.6, striker: 1, ring: 0.4, gain: THING_GAIN }), delay: 0, level: 1 },
+    { make: (engine) => createStrike(engine, { material: 'oak', size: 0.3, striker: 0.5, ring: 0.6, gain: THING_GAIN }), delay: 0.4, level: 0.9 },
+    { make: (engine) => createFlow(engine, { kind: 'feather', amount: 1.4, gain: FLOW_GAIN }), delay: 0.42, level: 0.5 },
+  ]),
 
   // --- water -----------------------------------------------------------------
 
   // The cavity is what makes a drip say how big the room is, so the ones that
   // fall indoors get one and the ones outdoors do not.
   drip: wet('song', { kind: 'drip', cavity: 130, room: 0.55 }),
+  eaves: wet('song', { kind: 'drip', tone: 1.25 }),
   patter: wet('air', { kind: 'patter' }),
+  pool: wet('throat', { kind: 'plunk', cavity: 55, room: 0.7 }),
+  rise: wet('call', { kind: 'rise' }),
+  surge: wet('throat', { kind: 'surge' }),
 
-  // --- signals and soundmarks -------------------------------------------------
+  // --- weather and the ground ----------------------------------------------------
+
+  thunder: low('floor', { kind: 'sky' }),
+  rumble: low('floor', { kind: 'earth' }),
+
+  // --- works ---------------------------------------------------------------------
+
+  blowoff: {
+    band: 'call',
+    db: 0,
+    alive: false,
+    build: (engine) => createVent(engine, { gain: VENT_GAIN }),
+  },
+  horn: {
+    band: 'throat',
+    db: 0,
+    alive: false,
+    build: (engine) => createHorn(engine, { gain: HORN_GAIN }),
+  },
+
+  // --- soundmarks -----------------------------------------------------------------
 
   // Bells are a shell whose partials are deliberately not harmonic, and a
-  // tower bell swings, so it also turns its mouth toward you and away. Neither
-  // is a struck bar. Standing in as long metal until they have their own model.
+  // tower bell swings. Standing in as long metal until they have a model.
   'bell-church': thing('body', { material: 'brass', size: 0.32, striker: 0.9, ring: 3.5 }),
 };
 
@@ -417,28 +604,29 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
  * this layer is ever allowed to be — a soundmark, heard on purpose, once an
  * hour. Everything else is below it, and most things are a long way below it.
  *
- * The rule this table exists to enforce: **no source may be startling.** A
- * songbird thirty metres off is not a foreground event and must not arrive like
- * one, however good the synthesis is. The tier trim in the director attenuates
- * further on top of this, and the declared value is a **ceiling** — the
- * per-event dice can only take a source below it, never above.
- *
- * Anything absent sits at the default for its stratum, which is -24.
+ * The declared value is a **ceiling**: the per-event dice can only take a
+ * source below it, never above. Anything absent sits at -24.
  */
 const DB: Partial<Record<AmbienceVoice, number>> = {
   // --- soundmarks: the loudest things here, and the rarest ----------------
   'bell-church': -6,
+  horn: -6,
 
   // --- signals: meant to be listened to -----------------------------------
+  thunder: -8,
   rockfall: -12,
-
-  // --- animals near enough to matter --------------------------------------
+  rumble: -14,
+  girder: -14,
+  bough: -16,
+  surge: -16,
+  sheet: -16,
+  blowoff: -16,
+  strain: -16,
 
   // --- songbirds ----------------------------------------------------------
   //
   // Down here on purpose. A wood full of birds is a *texture*: individually
-  // audible, never demanding. This is the block that was arriving as a
-  // foreground event and should not have been.
+  // audible, never demanding.
   blackbird: -23,
   songthrush: -23,
   robin: -24,
@@ -455,22 +643,39 @@ const DB: Partial<Record<AmbienceVoice, number>> = {
   swift: -22,
   wagtail: -26,
   reedwarbler: -25,
+  nightingale: -23,
   'wren-scold': -24,
 
-  // --- people -------------------------------------------------------------
+  // --- open country -------------------------------------------------------
+  curlew: -22,
+  lapwing: -23,
+  quail: -24,
+  snipe: -22,
+  plover: -24,
 
-  // --- things handled -----------------------------------------------------
+  // --- structures ---------------------------------------------------------
+  beam: -18,
+  timber: -24,
+  buffet: -18,
+  crack: -26,
+
+  // --- loose material -----------------------------------------------------
   thump: -20,
   grit: -28,
+  sand: -28,
   slip: -22,
   rabble: -23,
   slab: -19,
   wings: -22,
-  crack: -26,
+  slide: -20,
+  mast: -28,
 
   // --- water --------------------------------------------------------------
   drip: -22,
+  eaves: -24,
   patter: -27,
+  pool: -22,
+  rise: -25,
 
   // --- the small and the far ----------------------------------------------
   bats: -22,

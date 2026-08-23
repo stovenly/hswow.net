@@ -29,7 +29,7 @@ import { excite, thump } from '../dsp/impact';
  * nothing alike.
  */
 
-export type Material = 'oak' | 'pine' | 'iron' | 'brass' | 'stone' | 'clay' | 'glass';
+export type Material = 'oak' | 'pine' | 'iron' | 'brass' | 'stone' | 'clay' | 'glass' | 'tin';
 
 interface Stuff {
   /** Mode ratios. Wood and stone are dense and irregular; metal is sparse. */
@@ -110,6 +110,16 @@ const STUFF: Record<Material, Stuff> = {
     damping: 0.82,
     hardness: 1,
     weight: 0.18,
+  },
+  // A sheet: dense plate ratios, none of them a small integer, and it booms
+  // rather than rings.
+  tin: {
+    ratios: [1, 1.59, 2.14, 2.65, 3.31, 4.07],
+    hz: 170,
+    decay: 0.8,
+    damping: 0.8,
+    hardness: 0.6,
+    weight: 0.3,
   },
 };
 
