@@ -32,6 +32,12 @@ export interface BustleOptions {
   distance?: number;
   /** The roll of things being moved: carts, barrows, feet on stone. 0..1. */
   roll?: number;
+  /**
+   * What the place is made of, 0..1. Zero is a village — wood, pot and stone,
+   * broad and dead. One is a works: everything higher, harder and ringing,
+   * because a shop floor is steel on steel and concrete under it.
+   */
+  metal?: number;
   /** How busy it is, 0..1. Live. */
   busy?: number;
 }
@@ -59,6 +65,7 @@ export function createBustle(engine: AudioEngine, options: BustleOptions = {}): 
 
   const rate = options.rate ?? 12;
   const roll = options.roll ?? 0.5;
+  const metal = options.metal ?? 0;
 
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.12;
@@ -74,8 +81,10 @@ export function createBustle(engine: AudioEngine, options: BustleOptions = {}): 
   const bands = MATERIALS.map((material) => {
     const band = context.createBiquadFilter();
     band.type = 'bandpass';
-    band.frequency.value = material.hz;
-    band.Q.value = material.q;
+    // Steel is higher than timber and insists on its note far harder, which is
+    // the whole difference between a yard of crates and a shop floor.
+    band.frequency.value = material.hz * (1 + metal * 1.6);
+    band.Q.value = material.q * (1 + metal * 2.4);
     const level = context.createGain();
     level.gain.value = material.weight;
     band.connect(level).connect(far);

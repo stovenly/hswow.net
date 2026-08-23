@@ -65,13 +65,18 @@ hiss = no.noise : fi.bandpass(1, 700.0, 3200.0) : *(draught * draught * 0.035);
  */
 mode(ratio, phase, rate, weight, x) = loop(x) * weight
 with {
-  wobble = no.lfnoise(rate) * drift * 0.035;
+  // Small. This is geology breathing, not vibrato: past about a percent the
+  // drift is audible as movement rather than as space.
+  wobble = no.lfnoise(rate) * drift * 0.012;
   hz = size * ratio * (1.0 + wobble);
   dlen = max(8.0, min(MAXD - 16.0, ma.SR / max(hz, 12.0)));
   // Longer at the bottom and much shorter at the top, which is what a rough
   // rock surface does — it scatters the treble away and reflects the bass.
   damping = fi.lowpass(1, 220.0 + hard * 1400.0);
-  fb = 0.9 + hard * 0.09;
+  // Well under the point where a loop this short stops being a resonance and
+  // starts being a comb filter with a note. Above about 0.95 the five of them
+  // ring hard enough to fuse into a pitch, and a drifting pitch is a flanger.
+  fb = 0.78 + hard * 0.14;
   loop(s) = s : (+ : de.fdelay4(MAXD, dlen) : damping) ~ *(fb);
   // `phase` only exists to decorrelate the noise sources; it is not audible.
   ignore = phase;

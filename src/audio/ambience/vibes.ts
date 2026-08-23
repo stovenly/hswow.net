@@ -17,14 +17,12 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     { model: 'air', id: 'air', options: { gain: 0.15, tone: 3000, shelter: 0.45, aperture: 0.25, roar: 0.5, rush: 1.0, hiss: 0.6 }, follow: [{ by: 'wind', span: [0.5, 1.2] }] },
   ],
   chorus: [
-    // The village working, out of sight and with nobody talking. This is the
     // continuous middle a settlement needs: without it the place is the air
     // and then a bucket, and nothing in between.
     { model: 'bustle', options: { rate: 7, distance: 700, roll: 0.4, busy: 0.5, gain: 0.09 }, follow: [{ by: 'night', span: [1, 0.1] }] },
     // Gardens and a hedge, near enough that you hear leaves rather than hush.
     { model: 'hedge', options: { density: 190, tone: 1.15, woody: 0.45, gain: 0.08 } },
     { model: 'hedge', height: 4, options: { density: 240, tone: 0.85, woody: 0.3, gain: 0.07 } },
-    // The chimney. Not a pipe: it moans in slow swells because the pressure at
   ],
   cast: [
     { voice: 'blackbird', every: [22, 50], height: 7, when: { sun: [-7, 12], wakes: 50, shy: 0.65 } },
@@ -35,14 +33,8 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     { voice: 'dog', every: [40, 110], answers: 0.6 },
     { voice: 'cow', every: [70, 180], when: { sun: [-8, 30] } },
     { voice: 'hen', every: [30, 90], when: { sun: [0, 90] } },
-    // The well, and it is the one sound that says what time of day it is
     // without any gate: a pail goes down empty and comes up full, and the air
     // in it climbs a fifth on the way.
-    { voice: 'pail-fill', every: [90, 240], when: { sun: [-4, 90] } },
-    { voice: 'pail', every: [70, 190], when: { sun: [-4, 90] } },
-    { voice: 'trough', every: [140, 380], when: { sun: [-2, 90] } },
-    { voice: 'churn', every: [110, 300], when: { sun: [2, 90] } },
-    { voice: 'whistle', every: [90, 260], when: { sun: [-4, 25] } },
     { voice: 'owl', every: [70, 200], height: 10, answers: 0.7, answer: 'owl-answer', when: { sun: [-90, -5] } },
   ],
   signals: [
@@ -57,17 +49,11 @@ export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
     { model: 'air', id: 'air', options: { gain: 0.11, tone: 2800, shelter: 0.55, aperture: 0.2, roar: 0.5, rush: 1.0, hiss: 0.5 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
   ],
   chorus: [
-    // The square. Crates, hooves, wheels, shutters — a great many contacts too
     // far off to pick apart, which is what a market is once the voices are out.
     { model: 'bustle', options: { rate: 24, distance: 1000, roll: 0.75, busy: 0.85, gain: 0.14 }, follow: [{ by: 'night', span: [1, 0.05] }, { by: 'rain', span: [1, 0.4] }] },
     { model: 'hedge', options: { density: 130, tone: 1.3, woody: 0.5, gain: 0.055 } },
   ],
   cast: [
-    { voice: 'pot', every: [18, 44], when: { sun: [-2, 90] } },
-    { voice: 'jar', every: [26, 65], when: { sun: [-2, 90] } },
-    { voice: 'pail-pour', every: [45, 120], when: { sun: [-2, 90] } },
-    { voice: 'churn', every: [50, 140], when: { sun: [-2, 90] } },
-    { voice: 'coins', every: [30, 80], when: { sun: [-2, 90] } },
     { voice: 'hen', every: [22, 60] },
     { voice: 'woodpigeon', every: [30, 75], height: 6, when: { sun: [-2, 90] } },
     { voice: 'wings', every: [40, 120], height: 7 },
@@ -75,7 +61,6 @@ export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
     { voice: 'dog', every: [50, 140] },
   ],
   signals: [
-    { voice: 'bell-hand', every: [220, 600], floor: 180, when: { sun: [2, 90] } },
     { voice: 'bell-church', every: [0, 0], height: 18, floor: 0, clock: 'hour', level: 0.7 },
   ],
   activity: 0.85,
@@ -84,25 +69,17 @@ export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
 
 export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
   air: [
-    // A room, not a field. Its keynote is the room: a small soft hollow space
     // with almost nothing in it. The weather is outside, and the only place it
     // is allowed in is the chimney and the window, both of which are below.
     { model: 'cavern', id: 'room', options: { size: 155, hard: 0.22, draught: 0.12, drift: 0.1, floor: 0.22, gain: 0.09 } },
     { model: 'rain', id: 'rain', options: { gain: 0.06, intensity: 0, surface: 'stone', articulation: 0.5 } },
   ],
   chorus: [
-    // Indoors the flue is nearly all draw and hardly any buffet: a lit hearth
-    // pulls whether or not it is blowing, and the wind is outside. The
-    // exposure is low enough that the moan only arrives in a real blow, which
   ],
   cast: [
-    { voice: 'embers', every: [18, 55], height: 0.3 },
     { voice: 'fly', every: [30, 90], height: 1.5, when: { season: [0.35, 0.72], warmth: [14, 40], sun: [0, 90] } },
     { voice: 'mouse', every: [60, 180], height: 0.1, when: { sun: [-90, -3] } },
-    { voice: 'hum', every: [90, 260], level: 0.7 },
     { voice: 'wood', every: [70, 200], level: 0.6 },
-    { voice: 'pot', every: [80, 220], level: 0.5 },
-    { voice: 'latch', every: [120, 340], level: 0.5 },
   ],
   signals: [{ voice: 'bell-shop', every: [0, 0], floor: 0, clock: 'hour', level: 0.45 }],
   activity: 0.3,
@@ -138,7 +115,6 @@ export const FARM_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     { model: 'hedge', options: { density: 260, tone: 0.95, woody: 0.4, gain: 0.075 } },
-    // The windpump: it has no engine, only the weather.
     // The field's own insects. Their rate is the temperature, so a cold night
     // is quiet for a reason nobody has to be told.
     { model: 'insect', height: 0.15, options: { kind: 'cricket', voices: 4, gain: 0.085 }, follow: [{ by: 'night', span: [0.35, 1] }], when: { season: [0.32, 0.82] } },
@@ -153,13 +129,10 @@ export const FARM_AMBIENCE: AmbienceSpec = {
     { voice: 'dog', every: [35, 100], answers: 0.5, when: { sun: [-3, 90] } },
     { voice: 'swallow', every: [16, 40], height: 6, passes: { over: 40, seconds: [1.2, 2.4] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
     { voice: 'skylark', every: [45, 130], height: 40, when: { season: [0.3, 0.72], sun: [6, 90], shy: 0.6 } },
-    { voice: 'whetstone', every: [70, 200], when: { sun: [2, 90] } },
-    { voice: 'whistle', every: [110, 300], level: 0.7, when: { sun: [0, 90] } },
     { voice: 'wood', every: [40, 110], when: { sun: [-2, 90] } },
     { voice: 'owl', every: [90, 240], height: 9, answers: 0.6, answer: 'owl-answer', when: { sun: [-90, -5] } },
   ],
   signals: [
-    // Geese. The best "somebody is coming" sound there is, and it stops the
     // yard dead when it goes up.
     { voice: 'goose', every: [280, 900], floor: 220, hushes: true, level: 1.1 },
   ],
@@ -173,7 +146,6 @@ export const FOREST_A_AMBIENCE: AmbienceSpec = {
     { model: 'foliage', options: { density: 280, tone: 0.8, gain: 0.08, articulation: 0.2, restlessness: 0.12 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
   ],
   chorus: [
-    // Three canopies at spread positions, so one gust crosses the wood in the
     // order you would watch it — the gust field already lags with distance.
     { model: 'foliage', height: 9, options: { density: 260, tone: 0.78, gain: 0.14, articulation: 0.2 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
     { model: 'foliage', height: 11, options: { density: 240, tone: 0.86, gain: 0.13, articulation: 0.22 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
@@ -211,7 +183,6 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     { model: 'foliage', height: 12, options: { density: 300, tone: 1.25, gain: 0.12, articulation: 0.14, restlessness: 0.25 }, follow: [{ by: 'wind', span: [0.3, 1] }] },
-    // Trunks leaning on each other. Already in the kit, and one of the best
     // things in it.
     { model: 'friction', height: 5, options: { force: 0.55, pitch: 96, decay: 1.1, bright: 0.25, roughness: 0.55, gain: 0.24, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
     { model: 'water', options: { flow: 'stream', gain: 0.1, tone: 0.45 } },
@@ -306,7 +277,6 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
     { model: 'water', options: { flow: 'fountain', gain: 0.1, tone: 0.9 } },
     // Reeds: dry, papery, and nothing else in the book sounds like them.
     { model: 'foliage', height: 1.4, options: { density: 170, tone: 2.2, gain: 0.08, articulation: 0.45 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
-    // A pond of frogs, and the only thing in the book that entrains: it pulls
     // into step over a few seconds, holds, and falls apart again.
     {
       model: 'flock',
@@ -354,9 +324,7 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_AMBIENCE: AmbienceSpec = {
   air: [
-    // No wind bed. You are inside a hill: the weather is somewhere above the
     // rock and the only thing it does down here is move the air through the
-    // passages, which is the chamber's own `draught` and nothing else.
     // The chamber itself. Not a pipe: a cave has no note, it has several broad
     // irrational resonances that wander as the air moves through it.
     { model: 'cavern', id: 'room', options: { size: 42, hard: 0.78, drift: 0.55, floor: 0.6, gain: 0.2 } },
@@ -385,22 +353,13 @@ export const CAVE_2_AMBIENCE: AmbienceSpec = {
     { model: 'cavern', id: 'room', options: { size: 62, hard: 0.62, drift: 0.4, floor: 0.45, gain: 0.16 } },
   ],
   chorus: [
-    // One thing, like the cave above it. What makes this vibe different is the
     // traces of somebody, not a second layer of geology.
     { model: 'cavern', options: { size: 96, hard: 0.5, draught: 0.25, drift: 0.3, floor: 0.3, gain: 0.09 } },
   ],
   cast: [
     { voice: 'drip', every: [5.9, 5.9], rhythm: 'periodic', height: 4, level: 0.8 },
     { voice: 'drip', every: [8.3, 8.3], rhythm: 'periodic', height: 5, level: 0.6 },
-    { voice: 'embers', every: [40, 120], height: 0.3 },
     { voice: 'grit', every: [70, 210], height: 3, level: 0.6 },
-    { voice: 'pot', every: [110, 300], level: 0.6 },
-  ],
-  signals: [
-    // One throat, held, in a register the score's monks never occupy — and not
-    // in their key.
-    { voice: 'hum', every: [180, 540], floor: 150, level: 0.8 },
-    { voice: 'bowl', every: [260, 800], floor: 200 },
   ],
   activity: 0.3,
   seed: 160,
@@ -431,22 +390,22 @@ export const CAVE_DARK_AMBIENCE: AmbienceSpec = {
 export const FACTORY_1_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.05, tone: 1600, shelter: 0.85, aperture: 0.1, roar: 0.6, rush: 0.8, hiss: 0.25 } },
-    // The plant, felt before it is heard. Noise resonating in metal with the
+    // The plant, felt before it is heard: noise resonating in metal with the
     // saturation inside the loop, so it grinds and wanders rather than droning.
     { model: 'plant', id: 'plant', options: { rpm: 340, size: 74, metal: 0.55, clank: 0.35, wear: 0.5, load: 0.5, duty: 0.5, gain: 0.2 } },
   ],
   chorus: [
+    // The floor working, and none of it resolvable. Every press, relay and
+    // valve in here stands somewhere and carries its own sound; what a shop
+    // floor gives you from *anywhere* in it is the plant, the extraction, and
+    // a great deal of steel being handled out of sight.
+    { model: 'bustle', options: { rate: 16, distance: 1400, roll: 0.6, metal: 0.9, busy: 0.7, gain: 0.11 } },
   ],
   cast: [
-    { voice: 'metal', every: [20, 55] },
-    { voice: 'relay', every: [9, 26], height: 1.6 },
-    { voice: 'contactor', every: [60, 180] },
-    { voice: 'tick', every: [1.7, 1.7], height: 1.2, level: 0.5 },
-    { voice: 'steam', every: [50, 160], height: 2 },
-  ],
-  signals: [
-    // Unintelligible on purpose: the words never arrive and the room does.
-    { voice: 'klaxon', every: [0, 0], height: 6, floor: 0, clock: 'hour', level: 0.8 },
+    // Loud, far off, and from no particular direction: a beam letting go, a
+    // load dropped at the other end of the building.
+    { voice: 'slab', every: [40, 130], level: 0.8 },
+    { voice: 'steam', every: [50, 160], level: 0.7 },
   ],
   activity: 0.75,
   seed: 161,
@@ -458,16 +417,15 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 260, size: 58, metal: 0.75, clank: 0.6, wear: 0.6, load: 0.75, duty: 0.6, gain: 0.26 } },
   ],
   chorus: [
+    // The loud room. Denser and closer than the plant floor, and still nothing
+    // in it you could walk over to.
+    { model: 'bustle', options: { rate: 30, distance: 1900, roll: 0.8, metal: 1, busy: 0.9, gain: 0.15 } },
   ],
   cast: [
-    // Deliberately off the score's grid: a press that locked to the kit would
-    // read as a doubled metronome.
-    { voice: 'press', every: [2.9, 2.9], level: 0.9 },
-    { voice: 'metal', every: [10, 26] },
-    { voice: 'contactor', every: [30, 90] },
-    { voice: 'steam', every: [30, 90], height: 2 },
+    { voice: 'slab', every: [22, 70], level: 0.9 },
+    { voice: 'steam', every: [30, 90], level: 0.8 },
+    { voice: 'rockfall', every: [90, 300], level: 0.6 },
   ],
-  signals: [{ voice: 'klaxon', every: [280, 900], height: 5, floor: 220 }],
   activity: 0.9,
   seed: 159,
 };
@@ -488,19 +446,17 @@ export const SEWER_1_AMBIENCE: AmbienceSpec = {
     { voice: 'rat', every: [24, 70], height: 0.1 },
     { voice: 'grit', every: [50, 150], level: 0.6 },
   ],
-  signals: [
-    // The street, through a grating, and it is the only daylight in the place.
-    { voice: 'metal', every: [180, 520], height: 7, floor: 140, level: 1.1 },
-  ],
   activity: 0.4,
   seed: 158,
 };
 
 export const SEWER_2_AMBIENCE: AmbienceSpec = {
   air: [
-    // A maintenance chamber: small, hard and close, with plant behind a wall.
-    { model: 'cavern', id: 'room', options: { size: 128, hard: 0.7, drift: 0.15, floor: 0.3, gain: 0.12 } },
-    { model: 'plant', id: 'plant', options: { rpm: 420, size: 180, metal: 0.5, clank: 0.05, wear: 0.75, load: 0.35, duty: 0.35, gain: 0.09 } },
+    // A maintenance chamber: small, hard, close and wet. No machinery — a pump
+    // is a pump, it stands somewhere, and at four hundred revolutions a minute
+    // its once-per-turn knock is seven a second, which is a helicopter.
+    { model: 'cavern', id: 'room', options: { size: 128, hard: 0.55, draught: 0.2, drift: 0.1, floor: 0.28, gain: 0.12 } },
+    { model: 'water', id: 'flow', options: { flow: 'cistern', gain: 0.13, tone: 0.55 } },
   ],
   chorus: [
     { model: 'water', height: 0.2, options: { flow: 'cistern', gain: 0.12, tone: 0.7 } },
@@ -509,13 +465,6 @@ export const SEWER_2_AMBIENCE: AmbienceSpec = {
     { voice: 'drip', every: [2.3, 2.3], height: 2.2 },
     { voice: 'drip', every: [4.7, 4.7], height: 2.8, level: 0.7 },
     { voice: 'rat', every: [18, 55], height: 0.1 },
-    { voice: 'relay', every: [7, 20], height: 1.9, level: 0.7 },
-    { voice: 'hinge', every: [70, 220] },
-    { voice: 'metal', every: [50, 150], level: 0.7 },
-  ],
-  signals: [
-    // Water hammer: one blow that travels the whole run.
-    { voice: 'contactor', every: [140, 440], floor: 110, level: 1.2 },
   ],
   activity: 0.4,
   seed: 157,
@@ -526,7 +475,6 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
     { model: 'air', id: 'air', options: { gain: 0.2, tone: 4200, shelter: 0.05, aperture: 0.85, roar: 0.75, rush: 1.0, hiss: 1.0 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
   ],
   chorus: [
-    // Loose corrugated sheet. The defining sound of the place, and it exists
     // only in wind — including the crack when a panel lets go.
     { model: 'plate', height: 1.5, options: { pitch: 88, decay: 2.2, bright: 0.75, onset: 0.3, snap: 0.4, gain: 0.24 } },
     { model: 'plate', height: 2.5, options: { pitch: 148, decay: 1.5, bright: 0.85, onset: 0.36, snap: 0.3, gain: 0.19 } },
@@ -536,7 +484,6 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
     { model: 'tick', height: 1.4, options: { every: 0.8, pitch: 900, decay: 0.16, swing: 0.1, cooling: 320, gain: 0.06 }, when: { sun: [-8, 9] } },
   ],
   cast: [
-    { voice: 'metal', every: [24, 70] },
     { voice: 'rat', every: [40, 120], height: 0.1 },
     { voice: 'dog', every: [90, 260] },
     { voice: 'grit', every: [50, 150], level: 0.7 },
@@ -552,7 +499,6 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
 export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.13, tone: 3800, shelter: 0.1, aperture: 0.8, roar: 0.6, rush: 1.0, hiss: 0.95 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
-    // Machines standing out in the open, several of them, none of them near.
     // Not a transformer: there is nothing to hum, only things that turn.
     { model: 'plant', id: 'plant', options: { rpm: 190, size: 118, metal: 0.5, clank: 0.45, wear: 0.6, load: 0.4, duty: 0.6, gain: 0.16 } },
   ],
@@ -561,12 +507,9 @@ export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
     { model: 'wire', height: 1.8, options: { diameter: 0.003, strands: 5, gain: 0.085 } },
   ],
   cast: [
-    { voice: 'relay', every: [6, 18], height: 1.7 },
-    { voice: 'contactor', every: [70, 220] },
     { voice: 'sparrow', every: [26, 75], height: 4, when: { sun: [0, 90] } },
     { voice: 'wagtail', every: [50, 150], height: 3, when: { sun: [2, 90] } },
     { voice: 'wasp', every: [30, 90], height: 1.5, when: { season: [0.4, 0.76], warmth: [16, 40], sun: [4, 90] } },
-    { voice: 'metal', every: [60, 180], level: 0.7 },
   ],
   signals: [
     { voice: 'crack', every: [40, 140], height: 4, floor: 25, level: 1.2, when: { rain: [0.15, 1] } },
@@ -578,7 +521,6 @@ export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
 export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.17, tone: 4000, shelter: 0.08, aperture: 0.75, roar: 0.6, rush: 1.0, hiss: 1.0 }, follow: [{ by: 'wind', span: [0.35, 1.3] }] },
-    // The same yard with the power off: the machines are still there and none
     // of them is turning, so all that is left is what the weather does to them.
     { model: 'plant', id: 'plant', options: { rpm: 22, size: 142, metal: 0.75, clank: 0.7, wear: 0.9, load: 0.12, duty: 0.25, gain: 0.1 } },
   ],
@@ -590,11 +532,8 @@ export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
   cast: [
     { voice: 'sparrow', every: [22, 65], height: 3, when: { sun: [0, 90] } },
     { voice: 'linnet', every: [40, 120], height: 2.5, when: { season: [0.3, 0.74], sun: [2, 90] } },
-    { voice: 'paper', every: [30, 90], height: 0.2 },
     { voice: 'rat', every: [50, 150], height: 0.1 },
     { voice: 'grasshopper', every: [10, 30], height: 0.2, when: { warmth: [17, 38], sun: [6, 90], season: [0.38, 0.78] } },
-    { voice: 'stone', every: [70, 220], level: 0.7 },
-    { voice: 'hinge', every: [60, 190] },
   ],
   signals: [{ voice: 'metal', every: [150, 460], floor: 120, level: 1.1 }],
   activity: 0.4,
@@ -605,7 +544,6 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
   air: [
     // The strongest wind in the book: nothing between here and the water.
     { model: 'air', id: 'air', options: { gain: 0.24, tone: 4400, shelter: 0.0, aperture: 0.4, roar: 0.9, rush: 1.0, hiss: 1.1 }, follow: [{ by: 'wind', span: [0.4, 1.35] }] },
-    // Stand-up, break, and the draw back over the shingle. A cycle, which is
     // the whole difference between a shore and a waterfall.
     { model: 'surf', id: 'surf', options: { gain: 0.26, shingle: 0.85, period: [8, 14] } },
   ],
@@ -624,7 +562,6 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
     { voice: 'grit', every: [26, 75], height: 0.1, level: 0.8 },
   ],
   signals: [
-    // Rung by the swell rather than by anybody, which is what makes it the
     // soundmark rather than a bell.
     { voice: 'bell-buoy', every: [26, 44], height: 1, floor: 20, level: 0.8 },
     { voice: 'foghorn', every: [70, 130], height: 3, floor: 55, when: { fog: [0.3, 1] } },
@@ -641,7 +578,6 @@ export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
   chorus: [
     { model: 'foliage', height: 0.9, options: { density: 170, tone: 1.6, gain: 0.1, articulation: 0.38 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     { model: 'foliage', height: 0.6, options: { density: 200, tone: 1.3, gain: 0.08, articulation: 0.3 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
-    // A fence wire singing. It pitches up as the gust arrives, because vortex
     // shedding does.
     { model: 'wire', height: 1.4, options: { diameter: 0.004, strands: 3, gain: 0.075 } },
     { model: 'insect', height: 0.2, options: { kind: 'grasshopper', voices: 4, gain: 0.055 }, when: { sun: [4, 90], season: [0.36, 0.8] } },
@@ -656,7 +592,6 @@ export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
     { voice: 'dog', every: [110, 320] },
   ],
   signals: [
-    // Gorse pods going off in the heat. Real, and nobody has ever put it in a
     // game.
     { voice: 'crack', every: [14, 40], height: 1, floor: 6, level: 0.7, when: { warmth: [20, 40], sun: [15, 90], rain: [0, 0.05] } },
     // The stonechat: two stones tapped together, and instantly identifiable.

@@ -92,8 +92,23 @@ const FAR = {
  * the edge of the field is a source in one ear, and nothing outdoors is ever in
  * one ear — your head is small and sound goes round it.
  */
-const CHORUS_BIAS = 0.12;
-const EVENT_BIAS = 0.4;
+const CHORUS_BIAS = 0.1;
+const EVENT_BIAS = 0.34;
+
+/**
+ * How much of each channel is fed to the other, on this layer alone.
+ *
+ * The master is already crossfed, which stops anything reaching one ear and not
+ * the other. This is stronger, and it is stronger on purpose: **global ambience
+ * must never have a close position that dominates one side.** A placed source
+ * has a location and is allowed to insist on it; this layer is what the whole
+ * zone sounds like, and a whole zone does not come from your left.
+ *
+ * At this depth the two ears are never more than about four decibels apart, so
+ * a source still has a bearing and can never take over a side.
+ */
+const SPREAD = 0.62;
+const SPREAD_HZ = 1400;
 
 /** Decibels to a gain. The mix is stated in dB and applied here. */
 const gainOf = (db: number): number => Math.pow(10, db / 20);
@@ -249,7 +264,10 @@ export class AmbienceDirector {
     ceiling.release.value = 0.25;
 
     this.out = context.createGain();
-    this.out.connect(ceiling).connect(engine.dry);
+    this.out.connect(ceiling);
+    const spread = diffuse(context);
+    ceiling.connect(spread.input);
+    spread.output.connect(engine.dry);
     this.limiter = ceiling;
     this.wetOut = context.createGain();
     this.wetOut.connect(engine.send);
@@ -843,6 +861,37 @@ function faded(model: SoundModel, gain: GainNode): SoundModel {
       gain.disconnect();
     },
   };
+}
+
+/**
+ * A crossfeed matrix: each channel arrives in the other ear a fraction of a
+ * millisecond later, dulled. See `SPREAD`.
+ */
+function diffuse(context: BaseAudioContext): { input: GainNode; output: GainNode } {
+  const input = context.createGain();
+  const output = context.createGain();
+  const split = context.createChannelSplitter(2);
+  const merge = context.createChannelMerger(2);
+
+  input.connect(split);
+  split.connect(merge, 0, 0);
+  split.connect(merge, 1, 1);
+
+  for (let side = 0; side < 2; side++) {
+    const delay = context.createDelay(0.01);
+    delay.delayTime.value = 0.00031;
+    const shadow = context.createBiquadFilter();
+    shadow.type = 'lowpass';
+    shadow.frequency.value = SPREAD_HZ;
+    shadow.Q.value = 0.5;
+    const level = context.createGain();
+    level.gain.value = SPREAD;
+    split.connect(delay, side).connect(shadow).connect(level);
+    level.connect(merge, 0, side === 0 ? 1 : 0);
+  }
+
+  merge.connect(output);
+  return { input, output };
 }
 
 const _point = new THREE.Vector3();
