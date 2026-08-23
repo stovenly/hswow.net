@@ -11,8 +11,9 @@ import type { InsectModel } from '../models/insect';
 import type { ElectricModel } from '../models/electric';
 import type { SurfModel } from '../models/surf';
 import { VOICES } from './voices';
-import { ambienceFor, VIBES, VIBE_NAMES, type VibeChoice, type VibeName } from '../vibes';
+import { ambienceFor, VIBES, type VibeChoice, type VibeName } from '../vibes';
 import { CLEAR, night, openness, weatherDamp, type Conditions } from './conditions';
+import { QUIET } from './spec';
 import type {
   AirLayer,
   Band,
@@ -221,6 +222,8 @@ export class AmbienceDirector {
   private readonly racks = new Map<AmbienceSpec, Rack>();
   private rack: Rack | null = null;
   private spec: AmbienceSpec | null = null;
+  /** The dev panel's own rack. See `say`. */
+  private audition: Rack | null = null;
 
   private readonly ticker: Ticker;
   private conditions: Conditions = { ...CLEAR };
@@ -345,13 +348,21 @@ export class AmbienceDirector {
    * hearings.
    */
   say(voice: AmbienceVoice): void {
-    // Falls back to the first vibe in the book rather than doing nothing: no
-    // zone declares an ambience yet, so without this the button is silent until
-    // somebody happens to pick a vibe first, which is not discoverable.
-    if (!this.rack) this.select(VIBES[VIBE_NAMES[0]].ambience);
-    const rack = this.rack;
-    if (!rack) return;
-    this.speak(rack, { voice, every: [1, 1] }, this.engine.context.currentTime + 0.08, voice, true);
+    // Its own rack, with no air, no chorus and no cast — just the treatment
+    // chain and somewhere to put a throat. Borrowing a vibe's rack meant
+    // starting that whole vibe to get at its bus, so the button played a place
+    // rather than the one voice it was asked for.
+    if (!this.audition) {
+      this.audition = this.rackFor(QUIET);
+      this.fade(this.audition, 1, 0.05);
+    }
+    this.speak(
+      this.audition,
+      { voice, every: [1, 1] },
+      this.engine.context.currentTime + 0.08,
+      voice,
+      true,
+    );
   }
 
   /** Silences the whole layer without tearing it down. */
@@ -368,8 +379,22 @@ export class AmbienceDirector {
    */
   update(dt: number, collider: Collider, retestOcclusion: boolean): void {
     const rack = this.rack;
-    if (!rack) return;
+    if (!rack) {
+      if (this.audition) {
+        for (const pool of this.audition.pools.values()) {
+          for (const voice of pool.voices) voice.emitter.update(dt, collider, retestOcclusion);
+        }
+      }
+      return;
+    }
     const at = this.engine.listenerPosition;
+    // The audition rack has no layers, only throats, and they still want their
+    // spatial chain ticked.
+    if (this.audition) {
+      for (const pool of this.audition.pools.values()) {
+        for (const voice of pool.voices) voice.emitter.update(dt, collider, retestOcclusion);
+      }
+    }
     for (const layer of rack.air) layer.model.update?.(dt, this.engine, at);
     for (const layer of rack.chorus) {
       // Carried with the listener. Sited once at the world origin, a chorus is
@@ -841,6 +866,8 @@ export class AmbienceDirector {
     }
     this.racks.clear();
     this.rack = null;
+    // Built through `rackFor`, so it was disposed with the rest above.
+    this.audition = null;
     this.out.disconnect();
     this.wetOut.disconnect();
   }
