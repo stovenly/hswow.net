@@ -22,11 +22,9 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     // and then a bucket, and nothing in between.
     { model: 'bustle', options: { rate: 7, distance: 700, roll: 0.4, busy: 0.5, gain: 0.09 }, follow: [{ by: 'night', span: [1, 0.1] }] },
     // Gardens and a hedge, near enough that you hear leaves rather than hush.
-    { model: 'hedge', options: { density: 190, tone: 1.15, woody: 0.45, gain: 0.16 } },
-    { model: 'hedge', height: 4, options: { density: 240, tone: 0.85, woody: 0.3, gain: 0.14 } },
+    { model: 'hedge', options: { density: 190, tone: 1.15, woody: 0.45, gain: 0.08 } },
+    { model: 'hedge', height: 4, options: { density: 240, tone: 0.85, woody: 0.3, gain: 0.07 } },
     // The chimney. Not a pipe: it moans in slow swells because the pressure at
-    // the top of a flue lags the gust that causes it.
-    { model: 'flue', height: 6, options: { size: 84, draw: 0.55, exposure: 0.7, sooted: 0.5, gain: 0.15 } },
   ],
   cast: [
     { voice: 'blackbird', every: [22, 50], height: 7, when: { sun: [-7, 12], wakes: 50, shy: 0.65 } },
@@ -62,8 +60,7 @@ export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
     // The square. Crates, hooves, wheels, shutters — a great many contacts too
     // far off to pick apart, which is what a market is once the voices are out.
     { model: 'bustle', options: { rate: 24, distance: 1000, roll: 0.75, busy: 0.85, gain: 0.14 }, follow: [{ by: 'night', span: [1, 0.05] }, { by: 'rain', span: [1, 0.4] }] },
-    { model: 'hedge', options: { density: 130, tone: 1.3, woody: 0.5, gain: 0.11 } },
-    { model: 'flue', height: 5, options: { size: 105, draw: 0.35, exposure: 0.5, sooted: 0.6, gain: 0.1 } },
+    { model: 'hedge', options: { density: 130, tone: 1.3, woody: 0.5, gain: 0.055 } },
   ],
   cast: [
     { voice: 'pot', every: [18, 44], when: { sun: [-2, 90] } },
@@ -94,13 +91,9 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
     { model: 'rain', id: 'rain', options: { gain: 0.06, intensity: 0, surface: 'stone', articulation: 0.5 } },
   ],
   chorus: [
-    { model: 'fire', height: 0.4, options: { gain: 0.34, intensity: 0.55, tone: 0.9, crackle: 0.6, draught: 0.15 } },
     // Indoors the flue is nearly all draw and hardly any buffet: a lit hearth
     // pulls whether or not it is blowing, and the wind is outside. The
     // exposure is low enough that the moan only arrives in a real blow, which
-    // is the only time you would hear one through a wall anyway.
-    { model: 'flue', height: 4, options: { size: 72, draw: 0.85, exposure: 0.18, sooted: 0.5, gain: 0.14 } },
-    { model: 'tick', height: 1.7, options: { every: 1.05, pitch: 2100, decay: 0.07, swing: 0.4, gain: 0.055 } },
   ],
   cast: [
     { voice: 'embers', every: [18, 55], height: 0.3 },
@@ -119,26 +112,14 @@ export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
 export const VILLAGE_INTERIOR_2_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'cavern', id: 'room', options: { size: 178, hard: 0.3, draught: 0.1, drift: 0.08, floor: 0.18, gain: 0.08 } },
-  ],
-  chorus: [
-    { model: 'fire', height: 0.5, options: { gain: 0.2, intensity: 0.3, tone: 1.1, crackle: 0.4, draught: 0.08 } },
-    // Three clocks at coprime periods, so they never fall into step. The
-    // shop's whole character, and it costs three layers.
-    { model: 'tick', height: 1.8, options: { every: 1.03, pitch: 2600, decay: 0.05, swing: 0.4, gain: 0.05 } },
-    { model: 'tick', height: 1.4, options: { every: 1.19, pitch: 1900, decay: 0.08, swing: 0.3, gain: 0.04 } },
-    { model: 'tick', height: 2.1, options: { every: 1.31, pitch: 3300, decay: 0.04, swing: 0.5, gain: 0.03 } },
+    { model: 'rain', id: 'rain', options: { gain: 0.05, intensity: 0, surface: 'canopy', articulation: 0.3 } },
   ],
   cast: [
-    { voice: 'paper', every: [40, 120] },
-    { voice: 'coins', every: [55, 160] },
-    { voice: 'pot', every: [70, 200], level: 0.6 },
+    // A smaller frame than the hearth room's, so it talks more and says less.
+    { voice: 'wood', every: [50, 160], level: 0.42 },
+    { voice: 'crack', every: [90, 260], level: 0.35, when: { sun: [-9, 8] } },
+    { voice: 'mouse', every: [60, 190], height: 0.1, when: { sun: [-90, -3] } },
     { voice: 'fly', every: [40, 120], height: 1.6, when: { season: [0.35, 0.72], warmth: [14, 40] } },
-    { voice: 'mouse', every: [80, 240], height: 0.1, when: { sun: [-90, -3] } },
-  ],
-  signals: [
-    // The bell over the door — deliberately not the `chimes` the score gives
-    // this vibe for its melody.
-    { voice: 'bell-shop', every: [150, 420], floor: 90 },
   ],
   activity: 0.3,
   seed: 168,
@@ -156,37 +137,11 @@ export const FARM_AMBIENCE: AmbienceSpec = {
     },
   ],
   chorus: [
-    { model: 'hedge', options: { density: 260, tone: 0.95, woody: 0.4, gain: 0.15 } },
+    { model: 'hedge', options: { density: 260, tone: 0.95, woody: 0.4, gain: 0.075 } },
     // The windpump: it has no engine, only the weather.
-    { model: 'machine', height: 5, options: { rpm: 34, fundamental: 46, gain: 0.2, wear: 0.6, clank: 0.5 }, follow: [{ by: 'wind', span: [0.05, 1] }] },
-    { model: 'friction', height: 2, options: { force: 0.35, pitch: 240, decay: 0.5, bright: 0.5, roughness: 0.7, gain: 0.14, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
     // The field's own insects. Their rate is the temperature, so a cold night
     // is quiet for a reason nobody has to be told.
     { model: 'insect', height: 0.15, options: { kind: 'cricket', voices: 4, gain: 0.085 }, follow: [{ by: 'night', span: [0.35, 1] }], when: { season: [0.32, 0.82] } },
-    // The hive, and only in the heat.
-    // A hive: hundreds of wingbeats, none of them in step. The flock model
-    // with a bee's wing tone, which is what it actually is.
-    {
-      model: 'flock',
-      height: 1.2,
-      options: {
-        shape: {
-          pitch: 215,
-          variance: 0.1,
-          phrase: [{ from: 1, to: 0.97, length: [0.9, 2.4], gap: [0.05, 0.3], drive: 0.7, trill: { hz: 5.5, cents: 60 } }],
-          count: [1, 2],
-          rasp: 0.25,
-          formant: 640,
-          q: 2.4,
-        },
-        voices: 5,
-        density: 0.9,
-        variety: 0.45,
-        distance: 1400,
-        gain: 0.055,
-      },
-      when: { season: [0.32, 0.74], warmth: [16, 40], sun: [4, 90] },
-    },
   ],
   cast: [
     { voice: 'cow', every: [30, 80], answers: 0.4 },
@@ -215,14 +170,14 @@ export const FARM_AMBIENCE: AmbienceSpec = {
 export const FOREST_A_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.12, tone: 3100, shelter: 0.5, aperture: 0.2, roar: 0.55, rush: 1.0, hiss: 0.75 }, follow: [{ by: 'wind', span: [0.35, 1.2] }] },
-    { model: 'foliage', options: { density: 280, tone: 0.8, gain: 0.16, articulation: 0.2, restlessness: 0.12 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
+    { model: 'foliage', options: { density: 280, tone: 0.8, gain: 0.08, articulation: 0.2, restlessness: 0.12 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
   ],
   chorus: [
     // Three canopies at spread positions, so one gust crosses the wood in the
     // order you would watch it — the gust field already lags with distance.
-    { model: 'foliage', height: 9, options: { density: 260, tone: 0.78, gain: 0.28, articulation: 0.2 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
-    { model: 'foliage', height: 11, options: { density: 240, tone: 0.86, gain: 0.26, articulation: 0.22 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
-    { model: 'foliage', height: 13, options: { density: 200, tone: 0.7, gain: 0.24, articulation: 0.16 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
+    { model: 'foliage', height: 9, options: { density: 260, tone: 0.78, gain: 0.14, articulation: 0.2 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
+    { model: 'foliage', height: 11, options: { density: 240, tone: 0.86, gain: 0.13, articulation: 0.22 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
+    { model: 'foliage', height: 13, options: { density: 200, tone: 0.7, gain: 0.12, articulation: 0.16 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
   ],
   cast: [
     { voice: 'songthrush', every: [20, 46], height: 9, when: { sun: [-9, 24], wakes: 47, shy: 0.6 } },
@@ -252,10 +207,10 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.14, tone: 2400, shelter: 0.62, aperture: 0.15, roar: 0.7, rush: 1.0, hiss: 0.6 }, follow: [{ by: 'wind', span: [0.4, 1.2] }] },
     // Conifer: steadier and higher than broadleaf, and it never quite stops.
-    { model: 'foliage', options: { density: 340, tone: 1.35, gain: 0.15, articulation: 0.12, restlessness: 0.32 }, follow: [{ by: 'wind', span: [0.35, 1] }] },
+    { model: 'foliage', options: { density: 340, tone: 1.35, gain: 0.075, articulation: 0.12, restlessness: 0.32 }, follow: [{ by: 'wind', span: [0.35, 1] }] },
   ],
   chorus: [
-    { model: 'foliage', height: 12, options: { density: 300, tone: 1.25, gain: 0.24, articulation: 0.14, restlessness: 0.25 }, follow: [{ by: 'wind', span: [0.3, 1] }] },
+    { model: 'foliage', height: 12, options: { density: 300, tone: 1.25, gain: 0.12, articulation: 0.14, restlessness: 0.25 }, follow: [{ by: 'wind', span: [0.3, 1] }] },
     // Trunks leaning on each other. Already in the kit, and one of the best
     // things in it.
     { model: 'friction', height: 5, options: { force: 0.55, pitch: 96, decay: 1.1, bright: 0.25, roughness: 0.55, gain: 0.24, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
@@ -285,11 +240,11 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
 export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.15, tone: 3300, shelter: 0.38, aperture: 0.25, roar: 0.55, rush: 1.0, hiss: 0.8 }, follow: [{ by: 'wind', span: [0.4, 1.25] }] },
-    { model: 'foliage', options: { density: 200, tone: 1.1, gain: 0.12, articulation: 0.24 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
+    { model: 'foliage', options: { density: 200, tone: 1.1, gain: 0.06, articulation: 0.24 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
   ],
   chorus: [
-    { model: 'foliage', height: 1.6, options: { density: 150, tone: 1.5, gain: 0.22, articulation: 0.34 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
-    { model: 'foliage', height: 8, options: { density: 220, tone: 0.8, gain: 0.2, articulation: 0.16 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
+    { model: 'foliage', height: 1.6, options: { density: 150, tone: 1.5, gain: 0.11, articulation: 0.34 }, follow: [{ by: 'wind', span: [0.2, 1] }] },
+    { model: 'foliage', height: 8, options: { density: 220, tone: 0.8, gain: 0.1, articulation: 0.16 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     { model: 'water', options: { flow: 'brook', gain: 0.12, tone: 1 } },
     { model: 'insect', height: 0.2, options: { kind: 'grasshopper', voices: 4, gain: 0.06 }, when: { sun: [4, 90], season: [0.36, 0.8] } },
   ],
@@ -317,12 +272,11 @@ export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
 export const FOREST_PATH_B_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.1, tone: 2200, shelter: 0.7, aperture: 0.12, roar: 0.6, rush: 0.9, hiss: 0.45 }, follow: [{ by: 'wind', span: [0.5, 1.1] }] },
-    { model: 'foliage', options: { density: 260, tone: 0.65, gain: 0.15, articulation: 0.16, restlessness: 0.14 }, follow: [{ by: 'wind', span: [0.3, 1] }] },
+    { model: 'foliage', options: { density: 260, tone: 0.65, gain: 0.075, articulation: 0.16, restlessness: 0.14 }, follow: [{ by: 'wind', span: [0.3, 1] }] },
   ],
   chorus: [
-    { model: 'foliage', height: 1.2, options: { density: 180, tone: 0.9, gain: 0.24, articulation: 0.3 }, follow: [{ by: 'wind', span: [0.25, 1] }] },
+    { model: 'foliage', height: 1.2, options: { density: 180, tone: 0.9, gain: 0.12, articulation: 0.3 }, follow: [{ by: 'wind', span: [0.25, 1] }] },
     { model: 'water', height: 0.2, options: { flow: 'cistern', gain: 0.12, tone: 0.8 } },
-    { model: 'friction', height: 4, options: { force: 0.4, pitch: 120, decay: 0.9, bright: 0.3, roughness: 0.6, gain: 0.18, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
   ],
   cast: [
     // The drip outlives the shower by a long way, and that is the whole point.
@@ -351,8 +305,7 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
     { model: 'water', height: 0.1, options: { flow: 'brook', gain: 0.18, tone: 1.1 } },
     { model: 'water', options: { flow: 'fountain', gain: 0.1, tone: 0.9 } },
     // Reeds: dry, papery, and nothing else in the book sounds like them.
-    { model: 'foliage', height: 1.4, options: { density: 170, tone: 2.2, gain: 0.16, articulation: 0.45 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
-    { model: 'friction', height: 0.6, options: { force: 0.3, pitch: 150, decay: 0.7, bright: 0.35, roughness: 0.5, gain: 0.13, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
+    { model: 'foliage', height: 1.4, options: { density: 170, tone: 2.2, gain: 0.08, articulation: 0.45 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     // A pond of frogs, and the only thing in the book that entrains: it pulls
     // into step over a few seconds, holds, and falls apart again.
     {
@@ -483,9 +436,6 @@ export const FACTORY_1_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 340, size: 74, metal: 0.55, clank: 0.35, wear: 0.5, load: 0.5, duty: 0.5, gain: 0.2 } },
   ],
   chorus: [
-    { model: 'plant', height: 2, options: { rpm: 96, size: 120, metal: 0.7, clank: 0.8, wear: 0.55, load: 0.4, duty: 0.7, gain: 0.18 } },
-    { model: 'friction', height: 1.5, options: { force: 0.45, pitch: 180, decay: 0.4, bright: 0.55, roughness: 0.75, gain: 0.16, motion: 'steady', speed: 0.4 } },
-    { model: 'plant', height: 3, options: { rpm: 520, size: 165, metal: 0.4, clank: 0.05, wear: 0.7, load: 0.3, duty: 0.4, gain: 0.11 } },
   ],
   cast: [
     { voice: 'metal', every: [20, 55] },
@@ -508,9 +458,6 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 260, size: 58, metal: 0.75, clank: 0.6, wear: 0.6, load: 0.75, duty: 0.6, gain: 0.26 } },
   ],
   chorus: [
-    { model: 'plant', height: 1.5, options: { rpm: 140, size: 96, metal: 0.85, clank: 0.9, wear: 0.6, load: 0.7, duty: 0.55, gain: 0.22 } },
-    { model: 'fire', height: 1, options: { gain: 0.3, intensity: 0.95, tone: 0.7, crackle: 0.25, draught: 0.05 } },
-    { model: 'friction', height: 1.2, options: { force: 0.75, pitch: 420, decay: 0.25, bright: 0.9, roughness: 0.85, gain: 0.2, motion: 'steady', speed: 0.75 } },
   ],
   cast: [
     // Deliberately off the score's grid: a press that locked to the kit would
@@ -556,7 +503,6 @@ export const SEWER_2_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 420, size: 180, metal: 0.5, clank: 0.05, wear: 0.75, load: 0.35, duty: 0.35, gain: 0.09 } },
   ],
   chorus: [
-    { model: 'machine', height: 0.8, options: { rpm: 88, fundamental: 58, gain: 0.16, wear: 0.6, clank: 0.5 } },
     { model: 'water', height: 0.2, options: { flow: 'cistern', gain: 0.12, tone: 0.7 } },
   ],
   cast: [
@@ -611,7 +557,6 @@ export const SUBSTATION_1_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 190, size: 118, metal: 0.5, clank: 0.45, wear: 0.6, load: 0.4, duty: 0.6, gain: 0.16 } },
   ],
   chorus: [
-    { model: 'plant', height: 2, options: { rpm: 680, size: 96, metal: 0.65, clank: 0.15, wear: 0.65, load: 0.35, duty: 0.5, gain: 0.11 } },
     // The fence singing up in a gust: f is about 0.2 U over d.
     { model: 'wire', height: 1.8, options: { diameter: 0.003, strands: 5, gain: 0.085 } },
   ],
@@ -639,9 +584,8 @@ export const SUBSTATION_2_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     // A fan with no power, turned by the weather and nothing else.
-    { model: 'machine', height: 2, options: { rpm: 20, fundamental: 74, gain: 0.16, wear: 0.85, clank: 0.6 }, follow: [{ by: 'wind', span: [0, 1] }] },
     { model: 'plate', height: 2, options: { pitch: 165, decay: 1.2, bright: 0.85, onset: 0.34, snap: 0.35, gain: 0.17 } },
-    { model: 'foliage', height: 0.6, options: { density: 130, tone: 1.9, gain: 0.14, articulation: 0.42 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
+    { model: 'foliage', height: 0.6, options: { density: 130, tone: 1.9, gain: 0.07, articulation: 0.42 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
   ],
   cast: [
     { voice: 'sparrow', every: [22, 65], height: 3, when: { sun: [0, 90] } },
@@ -667,8 +611,7 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     { model: 'water', height: 0, options: { flow: 'brook', gain: 0.14, tone: 0.6 } },
-    { model: 'foliage', height: 0.8, options: { density: 150, tone: 2, gain: 0.13, articulation: 0.44 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
-    { model: 'friction', height: 2.4, options: { force: 0.3, pitch: 210, decay: 0.8, bright: 0.6, roughness: 0.6, gain: 0.12, motion: 'weather' }, follow: [{ by: 'gust', span: [0, 1] }] },
+    { model: 'foliage', height: 0.8, options: { density: 150, tone: 2, gain: 0.065, articulation: 0.44 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
   ],
   cast: [
     { voice: 'gull', every: [16, 44], height: 12, answers: 0.5, when: { sun: [-4, 90] } },
@@ -696,8 +639,8 @@ export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
     { model: 'surf', id: 'surf', options: { gain: 0.13, shingle: 0.7, period: [9, 15], tone: 0.6 } },
   ],
   chorus: [
-    { model: 'foliage', height: 0.9, options: { density: 170, tone: 1.6, gain: 0.2, articulation: 0.38 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
-    { model: 'foliage', height: 0.6, options: { density: 200, tone: 1.3, gain: 0.16, articulation: 0.3 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
+    { model: 'foliage', height: 0.9, options: { density: 170, tone: 1.6, gain: 0.1, articulation: 0.38 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
+    { model: 'foliage', height: 0.6, options: { density: 200, tone: 1.3, gain: 0.08, articulation: 0.3 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
     // A fence wire singing. It pitches up as the gust arrives, because vortex
     // shedding does.
     { model: 'wire', height: 1.4, options: { diameter: 0.004, strands: 3, gain: 0.075 } },

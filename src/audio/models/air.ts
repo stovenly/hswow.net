@@ -87,6 +87,18 @@ const WHISTLE_MAX_Q = 10;
  */
 const MAX_PAN = 0.75;
 
+/**
+ * A flat trim over the whole keynote.
+ *
+ * The air was dominating every place it was in — a wood is leaves and birds
+ * with wind *behind* them, not wind with a wood somewhere in it, and the same
+ * is true of a lane, a shore and a yard. This is one number rather than a pass
+ * over fifteen vibes because the book's gains are already balanced against each
+ * other and only wanted moving as a group; editing them one at a time is how
+ * they stop agreeing.
+ */
+const TRIM = 0.5;
+
 interface Layer {
   /** Two voices, panned apart. The whole reason this file is not `wind.ts`. */
   voices: NoiseVoice[];
@@ -113,7 +125,7 @@ export function createAir(engine: AudioEngine, options: AirOptions = {}): AirMod
   const floorLevel = options.floor ?? 0.12;
 
   const output = context.createGain();
-  output.gain.value = options.gain ?? 0.2;
+  output.gain.value = (options.gain ?? 0.2) * TRIM;
 
   // One lowpass over everything, so the tone control shapes the four layers
   // together rather than each of them fighting the others.

@@ -33,9 +33,25 @@ Schafer's, and they are the ambience equivalent of drone, texture and melody:
 opposite: a place that falls silent has died. Scarcity lives one stratum up —
 signals are rare and soundmarks are rarer than signals.
 
-**Nothing here knows where anything is.** The director sites its own sources in
-a ring around the listener. A zone that wants a sound at a coordinate declares
-it in its own `SoundscapeSpec`; that is the split, and it is sharp.
+**Nothing here is an object.** This layer is what a whole place sounds like
+from anywhere in it, from every side. A chimney, a hearth, a clock, a windpump,
+a beehive and a moored boat are all things you could walk up to and point at,
+and every one of them belongs to the zone that placed it — `SoundscapeSpec`,
+beside the geometry.
+
+The test is whether you could walk round it. The vegetation of a wood, the
+sheet metal a scrapyard is made of, the plant behind a factory wall and the
+frame of a house all pass: they are everywhere, they come off every surface
+between, and nobody can point at them. A single hedge, a single machine and a
+single fire do not.
+
+**Everything here is far**, for the same reason. There is no near and no middle
+distance — a source close enough to be either is a source that belongs to a
+place. Continuous layers are diffuse and only brief events carry a bearing,
+because nobody localises a hum and everybody turns toward a shout.
+
+**Nobody talks.** A voice is a person and a person is somebody you can walk up
+to. Speech is the creature system's; what is left here is wordless.
 
 **The band is a fact about the voice**, so it lives in `voices.ts` and not in
 the cast. A robin occupies the same niche whichever wood it is in.
