@@ -397,7 +397,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // tower bell swings, so it also turns its mouth toward you and away. Neither
   // is a struck bar. Standing in as long metal until they have their own model.
   'bell-church': thing('body', { material: 'brass', size: 0.32, striker: 0.9, ring: 3.5 }),
-  'bell-buoy': thing('body', { material: 'brass', size: 0.6, striker: 0.75, ring: 2.4 }),
 };
 
 /**
@@ -418,7 +417,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 const DB: Partial<Record<AmbienceVoice, number>> = {
   // --- soundmarks: the loudest things here, and the rarest ----------------
   'bell-church': -6,
-  'bell-buoy': -10,
 
   // --- signals: meant to be listened to -----------------------------------
   rockfall: -12,

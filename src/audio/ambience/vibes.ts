@@ -454,10 +454,6 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
   cast: [
     { voice: 'grit', every: [26, 75], height: 0.1, level: 0.8 },
   ],
-  signals: [
-    // soundmark rather than a bell.
-    { voice: 'bell-buoy', every: [26, 44], height: 1, floor: 20, level: 0.8 },
-  ],
   activity: 0.6,
   seed: 169,
 };

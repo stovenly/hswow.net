@@ -53,6 +53,14 @@ because nobody localises a hum and everybody turns toward a shout.
 **Nobody talks.** A voice is a person and a person is somebody you can walk up
 to. Speech is the creature system's; what is left here is wordless.
 
+**The world decides what is in the book, not the literature.** Soundscape
+writing has a canon — every coast has a foghorn, every room has a clock, every
+plant has a tannoy — and filling those rows put a nineteenth-century
+compressed-air signal on a shore and a Renaissance escapement in a thatched
+house. Both arrived because a table had a gap in it and the reading offered
+something to put there. Ask what this place has, then find the model; never the
+other way round.
+
 **The band is a fact about the voice**, so it lives in `voices.ts` and not in
 the cast. A robin occupies the same niche whichever wood it is in.
 
