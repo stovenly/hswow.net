@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
-import { PortalGraph, type PortalDefinition, type PortalSide } from './Portal';
+import { PortalGraph, arrivalFor, type PortalDefinition, type PortalSide } from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
 import { noteById, type Note } from '../content/notes';
@@ -954,11 +954,26 @@ export class ZoneManager {
     this.transitioning = true;
     this.options.reticle.set(null);
 
+    // With nowhere named, arrive where a door would put you rather than on the
+    // zone's `spawn`. A spawn is the boot placement and several zones author it
+    // looking *at* their door, which is correct for a first frame that wants to
+    // show you the way out and wrong for a jump, where it lands you facing a
+    // wall. Walking in and jumping in now agree.
+    const landing = at ?? this.doorArrival(id);
     await this.options.fade.cover(async () => {
-      await this.enter(id, at);
+      await this.enter(id, landing);
     });
 
     this.transitioning = false;
+  }
+
+  /**
+   * Where the first door into a zone lands you, if it has one. Deterministic:
+   * the same door every time, so a jump is repeatable.
+   */
+  private doorArrival(id: ZoneId): Placement | undefined {
+    const side = this.portals.in(id)[0];
+    return side ? arrivalFor(side.end) : undefined;
   }
 
   /** Puts the player back on the current zone's spawn. */

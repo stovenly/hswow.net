@@ -517,9 +517,11 @@ export function vistaShowcaseDoor(): PortalEnd {
   return {
     zone: ZONE_VISTA_SHOWCASE,
     position: onGround(0, DOOR_Z),
-    // Facing -Z, into the room, so the arrival looks straight down the judged
-    // lane and out over the band.
-    yaw: Math.PI,
+    // Facing +Z, which is where the room is: the door stands ten metres in from
+    // the -Z boundary, so -Z is the edge and an arrival looking that way is an
+    // arrival nose to the invisible wall. `arrivalFor` adds a half turn, so
+    // this puts you inside the level looking up it.
+    yaw: 0,
     material: 'timber',
     seed: 6712,
   };
