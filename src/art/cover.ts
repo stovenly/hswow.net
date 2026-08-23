@@ -16,6 +16,7 @@ import { COVER_LAYER } from '../layers';
 export {
   COVER_ATTRIBUTE,
   COVER_BLEND_ATTRIBUTE,
+  COVER_FLOOR,
   PROP_TURN,
   WALL_LIFT,
 } from './cover-sample';
@@ -165,10 +166,12 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         tip += windDir * (gust * breathe * iWild.z * len * 0.9);
         tip += vec2(-windDir.y, windDir.x) * (flutter * gust * iWild.z * len * 0.25);
 
-        // Blades part around the player's feet.
+        // Only cover tall enough to stand in the view parts around the player.
         vec2 fromPlayer = worldRoot.xz - coverPlayer.xz;
         float treadD = length(fromPlayer);
-        float tread = (1.0 - smoothstep(0.15, 0.85, treadD))
+        float tall = smoothstep(0.4, 0.6, len);
+        float tread = tall
+                    * (1.0 - smoothstep(0.12, 0.85, treadD))
                     * (1.0 - smoothstep(1.0, 1.6, abs(worldRoot.y - coverPlayer.y)));
         if (tread > 0.0 && treadD > 0.001) tip += (fromPlayer / treadD) * (tread * len * 0.9);
 
@@ -183,6 +186,9 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
           ? normalize(vec2(-flatCam.y, flatCam.x))
           : vec2(face.y, -face.x);
         float halfW = 0.5 * iShape.y * coverWidth * (1.0 - iShape.w * t);
+        // A vertical ribbon is a line from above: fatten it as the view steepens.
+        float steep = smoothstep(0.5, 1.0, toCam.y / max(length(toCam), 0.001));
+        halfW *= 1.0 + 1.5 * steep;
         halfW = max(halfW, 0.5 * coverPixel * length(toCam));
 
         vec3 disp = vec3(tip.x, 0.0, tip.y) * (t * t)
@@ -308,6 +314,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
         float treadD = length(fromPlayer);
         float tread = (1.0 - smoothstep(0.15, 0.9, treadD))
                     * (1.0 - smoothstep(1.0, 1.8, abs(worldRoot.y - coverPlayer.y)));
+        tread *= smoothstep(0.4, 0.6, reach);
         if (tread > 0.0 && treadD > 0.001) push += (fromPlayer / treadD) * (tread * reach * 0.55);
         p.xz += push;
 

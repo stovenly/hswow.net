@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { FIELD_ATTRIBUTE, finish } from '../art/assemble';
-import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE } from '../art/cover';
+import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE, COVER_FLOOR } from '../art/cover';
 import { shade } from '../art/palette';
 import {
   GROUND,
   COVER,
   COVER_ORDER,
+  COVER_TYPES,
+  type CoverType,
   patchAt,
   coverPatchAt,
   coverPatchWinner,
@@ -568,10 +570,10 @@ export class Terrain {
     const normal = new THREE.Vector3();
     const color = new THREE.Color();
 
-    const emit = (p: THREE.Vector3, n: THREE.Vector3): void => {
+    const emit = (p: THREE.Vector3, n: THREE.Vector3, floor: number): void => {
       positions.push(p.x, p.y, p.z);
       normals.push(n.x, n.y, n.z);
-      colors.push(color.r, color.g, color.b);
+      colors.push(color.r * floor, color.g * floor, color.b * floor);
     };
 
     for (let row = 0; row < cells; row++) {
@@ -632,21 +634,17 @@ export class Terrain {
               // they interpolate — cover runs out onto bare ground over a couple of
               // metres, and two grown types interleave rather than thinning to a gap.
               const cover = this.faceCover(name, midX, midZ);
+              const grows = (COVER_TYPES[COVER_ORDER[cover]] as CoverType).blades !== undefined;
               for (const corner of [a, b, c]) {
                 const [feather, neighbor, blend] = this.coverEdge(cover, corner.x, corner.z);
-                covers.push(
-                  cover,
-                  // Thinned toward the level's edge, where the skirt takes over
-                  // and nothing grows. See `TerrainOptions.edgeFade`.
-                  feather * this.edgeDensity(corner.x, corner.z),
-                  coverSwell(corner.x, corner.z),
-                  coverThickness(corner.x, corner.z),
-                );
+                // Thinned toward the level's edge, where the skirt takes over
+                // and nothing grows. See `TerrainOptions.edgeFade`.
+                const stand = feather * this.edgeDensity(corner.x, corner.z);
+                covers.push(cover, stand, coverSwell(corner.x, corner.z), coverThickness(corner.x, corner.z));
                 blends.push(neighbor, blend);
+                // The floor under a stand of blades is in their shade. The sampler divides this back out of the tint it reads.
+                emit(corner, normal, grows ? 1 - (1 - COVER_FLOOR) * stand : 1);
               }
-              emit(a, normal);
-              emit(b, normal);
-              emit(c, normal);
             }
           }
         }

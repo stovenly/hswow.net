@@ -25,6 +25,9 @@ export const COVER_ATTRIBUTE = 'cover';
 /** `vec2` per terrain vertex: neighbouring type index, how much of it to mix in. */
 export const COVER_BLEND_ATTRIBUTE = 'coverBlend';
 
+/** How much of the ground's brightness survives under a stand of blades. Terrain paints it; the sampler divides it out. */
+export const COVER_FLOOR = 0.62;
+
 /** Clump cell, metres. What stops a field reading as a lawn. */
 const CLUMP = 0.9;
 
@@ -186,6 +189,9 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
 
     if (colors) faceTint.setRGB(colors.getX(i0), colors.getY(i0), colors.getZ(i0));
     else faceTint.setRGB(1, 1, 1);
+    if (painted && spec.blades) {
+      faceTint.multiplyScalar(1 / (1 - (1 - COVER_FLOOR) * painted.getY(i0)));
+    }
 
     // Per-corner feather and the two broad fields.
     let f0 = 1;
