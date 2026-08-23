@@ -204,6 +204,8 @@ export interface AmbienceSpec {
   activity: number;
   /** Bands kept thin whatever the score is doing, on top of what it claims. */
   yield?: readonly Band[];
+  /** The whole vibe's fader, 0..1. For a place that reads loud against the rest of the book. */
+  trim?: number;
   /** The place's own dice: siting, cycle phases and rotations re-roll here. */
   seed: number;
 }

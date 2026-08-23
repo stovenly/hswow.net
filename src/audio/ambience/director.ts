@@ -803,9 +803,10 @@ export class AmbienceDirector {
 
   private fade(rack: Rack, to: number, seconds: number): void {
     const now = this.engine.context.currentTime;
+    const level = to * (rack.spec.trim ?? 1);
     for (const gain of [rack.dry, rack.wet]) {
       gain.gain.cancelScheduledValues(now);
-      gain.gain.setTargetAtTime(to, now, seconds / 3);
+      gain.gain.setTargetAtTime(level, now, seconds / 3);
     }
   }
 

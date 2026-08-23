@@ -776,6 +776,7 @@ export const PLAINS_1_AMBIENCE: AmbienceSpec = {
   ],
   signals: [thunder()],
   activity: 0.65,
+  trim: 0.7,
   seed: 171,
 };
 
@@ -807,5 +808,6 @@ export const PLAINS_2_AMBIENCE: AmbienceSpec = {
   ],
   signals: [thunder()],
   activity: 0.5,
+  trim: 0.85,
   seed: 172,
 };
