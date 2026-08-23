@@ -17,7 +17,6 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     { model: 'air', id: 'air', options: { gain: 0.15, tone: 3000, shelter: 0.45, aperture: 0.25, roar: 0.5, rush: 1.0, hiss: 0.6 }, follow: [{ by: 'wind', span: [0.5, 1.2] }] },
   ],
   chorus: [
-    // continuous middle a settlement needs: without it the place is the air
     // and then a bucket, and nothing in between.
     { model: 'bustle', options: { rate: 7, distance: 700, roll: 0.4, busy: 0.5, gain: 0.09 }, follow: [{ by: 'night', span: [1, 0.1] }] },
     // Gardens and a hedge, near enough that you hear leaves rather than hush.
@@ -29,13 +28,7 @@ export const VILLAGE_1_AMBIENCE: AmbienceSpec = {
     { voice: 'robin', every: [26, 60], height: 3, when: { sun: [-9, 20], wakes: 45, shy: 0.6 } },
     { voice: 'sparrow', every: [14, 34], height: 3, when: { sun: [-1, 90], shy: 0.7 } },
     { voice: 'swift', every: [12, 30], height: 16, passes: { over: 60, seconds: [1.6, 3] }, when: { sun: [2, 40], season: [0.38, 0.68] } },
-    { voice: 'rook', every: [30, 80], height: 22, passes: { over: 120, seconds: [4, 8] }, when: { sun: [-6, 8], season: [0.72, 0.34] } },
-    { voice: 'dog', every: [40, 110], answers: 0.6 },
-    { voice: 'cow', every: [70, 180], when: { sun: [-8, 30] } },
-    { voice: 'hen', every: [30, 90], when: { sun: [0, 90] } },
     // without any gate: a pail goes down empty and comes up full, and the air
-    // in it climbs a fifth on the way.
-    { voice: 'owl', every: [70, 200], height: 10, answers: 0.7, answer: 'owl-answer', when: { sun: [-90, -5] } },
   ],
   signals: [
     { voice: 'bell-church', every: [0, 0], height: 18, floor: 0, clock: 'hour', level: 0.9 },
@@ -54,11 +47,8 @@ export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
     { model: 'hedge', options: { density: 130, tone: 1.3, woody: 0.5, gain: 0.055 } },
   ],
   cast: [
-    { voice: 'hen', every: [22, 60] },
-    { voice: 'woodpigeon', every: [30, 75], height: 6, when: { sun: [-2, 90] } },
     { voice: 'wings', every: [40, 120], height: 7 },
     { voice: 'sparrow', every: [16, 40], height: 4, when: { sun: [-2, 90] } },
-    { voice: 'dog', every: [50, 140] },
   ],
   signals: [
     { voice: 'bell-church', every: [0, 0], height: 18, floor: 0, clock: 'hour', level: 0.7 },
@@ -69,12 +59,9 @@ export const VILLAGE_2_AMBIENCE: AmbienceSpec = {
 
 export const VILLAGE_INTERIOR_1_AMBIENCE: AmbienceSpec = {
   air: [
-    // with almost nothing in it. The weather is outside, and the only place it
     // is allowed in is the chimney and the window, both of which are below.
     { model: 'cavern', id: 'room', options: { size: 155, hard: 0.22, draught: 0.12, drift: 0.1, floor: 0.22, gain: 0.09 } },
     { model: 'rain', id: 'rain', options: { gain: 0.06, intensity: 0, surface: 'stone', articulation: 0.5 } },
-  ],
-  chorus: [
   ],
   cast: [
     { voice: 'fly', every: [30, 90], height: 1.5, when: { season: [0.35, 0.72], warmth: [14, 40], sun: [0, 90] } },
@@ -115,26 +102,12 @@ export const FARM_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     { model: 'hedge', options: { density: 260, tone: 0.95, woody: 0.4, gain: 0.075 } },
-    // The field's own insects. Their rate is the temperature, so a cold night
     // is quiet for a reason nobody has to be told.
     { model: 'insect', height: 0.15, options: { kind: 'cricket', voices: 4, gain: 0.085 }, follow: [{ by: 'night', span: [0.35, 1] }], when: { season: [0.32, 0.82] } },
   ],
   cast: [
-    { voice: 'cow', every: [30, 80], answers: 0.4 },
-    { voice: 'sheep', every: [24, 70], answers: 0.5 },
-    { voice: 'pig', every: [40, 110] },
-    { voice: 'hen', every: [16, 44] },
-    { voice: 'cockerel', every: [60, 180], when: { sun: [-8, 90], wakes: 20 } },
-    { voice: 'horse', every: [90, 240] },
-    { voice: 'dog', every: [35, 100], answers: 0.5, when: { sun: [-3, 90] } },
     { voice: 'swallow', every: [16, 40], height: 6, passes: { over: 40, seconds: [1.2, 2.4] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
-    { voice: 'skylark', every: [45, 130], height: 40, when: { season: [0.3, 0.72], sun: [6, 90], shy: 0.6 } },
     { voice: 'wood', every: [40, 110], when: { sun: [-2, 90] } },
-    { voice: 'owl', every: [90, 240], height: 9, answers: 0.6, answer: 'owl-answer', when: { sun: [-90, -5] } },
-  ],
-  signals: [
-    // yard dead when it goes up.
-    { voice: 'goose', every: [280, 900], floor: 220, hushes: true, level: 1.1 },
   ],
   activity: 0.7,
   seed: 149,
@@ -159,17 +132,9 @@ export const FOREST_A_AMBIENCE: AmbienceSpec = {
     { voice: 'chaffinch', every: [26, 65], height: 7, when: { sun: [-2, 50], wakes: 10, shy: 0.6 } },
     { voice: 'greattit', every: [28, 70], height: 6, when: { sun: [-1, 60], wakes: 8, shy: 0.6 } },
     { voice: 'blackcap', every: [34, 90], height: 7, when: { season: [0.3, 0.7], sun: [-4, 60], shy: 0.55 } },
-    { voice: 'woodpigeon', every: [40, 100], height: 8, when: { sun: [-2, 90] } },
-    { voice: 'cuckoo', every: [60, 170], height: 12, when: { season: [0.34, 0.56], sun: [0, 90] } },
-    { voice: 'woodpecker', every: [70, 200], height: 8, when: { season: [0.2, 0.55], sun: [0, 90] } },
     { voice: 'wings', every: [50, 150], height: 7 },
     { voice: 'bee', every: [20, 60], height: 1.2, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
     { voice: 'midge', every: [12, 34], height: 1.7, when: { warmth: [13, 40], sun: [-6, 8], season: [0.35, 0.8] } },
-    { voice: 'deer', every: [140, 400], when: { sun: [-90, 2] } },
-  ],
-  signals: [
-    // The jay silences the wood, which is exactly what a jay is for.
-    { voice: 'jay', every: [150, 480], height: 9, floor: 100, hushes: true },
   ],
   activity: 0.8,
   seed: 150,
@@ -188,21 +153,13 @@ export const FOREST_B_AMBIENCE: AmbienceSpec = {
     { model: 'water', options: { flow: 'stream', gain: 0.1, tone: 0.45 } },
   ],
   cast: [
-    { voice: 'woodpigeon', every: [35, 90], height: 10, when: { sun: [-2, 90] } },
-    { voice: 'raven', every: [60, 170], height: 14, answers: 0.4, when: { sun: [-2, 90] } },
     { voice: 'wren', every: [45, 130], height: 1.2, when: { sun: [-2, 40], shy: 0.5 } },
-    { voice: 'nightjar', every: [40, 120], height: 2, when: { season: [0.36, 0.66], sun: [-8, 0] } },
-    { voice: 'woodcock', every: [90, 260], height: 16, when: { season: [0.28, 0.6], sun: [-7, 2] } },
     { voice: 'fox', every: [120, 380], when: { sun: [-90, -6], season: [0.78, 0.28] } },
     { voice: 'stag', every: [160, 460], when: { season: [0.66, 0.84], sun: [-90, 4] } },
     { voice: 'bats', every: [14, 40], height: 5, when: { sun: [-9, -1], warmth: [8, 40] } },
     { voice: 'midge', every: [16, 44], height: 1.7, when: { warmth: [12, 40], sun: [-7, 6] } },
     { voice: 'crack', every: [70, 220], height: 1, level: 0.8 },
     { voice: 'slab', every: [220, 700], level: 0.6 },
-  ],
-  signals: [
-    // The hoot, and a second bird answering with something else entirely.
-    { voice: 'owl', every: [90, 260], height: 11, floor: 60, answers: 0.85, answer: 'owl-answer', when: { sun: [-90, -4] } },
   ],
   activity: 0.45,
   seed: 151,
@@ -225,16 +182,10 @@ export const FOREST_PATH_A_AMBIENCE: AmbienceSpec = {
     { voice: 'chaffinch', every: [30, 78], height: 6, when: { sun: [-2, 60], wakes: 10, shy: 0.6 } },
     { voice: 'robin', every: [30, 80], height: 2, when: { sun: [-9, 30], wakes: 45, shy: 0.6 } },
     { voice: 'greattit', every: [34, 90], height: 5, when: { sun: [-1, 60], shy: 0.6 } },
-    { voice: 'woodpigeon', every: [45, 120], height: 8, when: { sun: [-2, 90] } },
     { voice: 'rabbit', every: [50, 150], height: 0.1, when: { sun: [-9, 12] } },
     { voice: 'bee', every: [22, 60], height: 1.1, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
-    { voice: 'dog', every: [90, 260] },
     { voice: 'wood', every: [80, 240], level: 0.7 },
     { voice: 'bell-church', every: [0, 0], height: 20, level: 0.4 },
-  ],
-  signals: [
-    // A pheasant going up under your feet. The one genuine fright in the book.
-    { voice: 'pheasant', every: [200, 600], height: 1, floor: 150, hushes: true },
   ],
   activity: 0.65,
   seed: 152,
@@ -260,9 +211,7 @@ export const FOREST_PATH_B_AMBIENCE: AmbienceSpec = {
     { voice: 'grit', every: [40, 120], height: 0.1, level: 0.6 },
     { voice: 'toad', every: [50, 150], height: 0.1, when: { warmth: [10, 30], sun: [-90, 2], season: [0.24, 0.6] } },
     { voice: 'midge', every: [10, 28], height: 1.7, when: { warmth: [12, 40], sun: [-7, 8] } },
-    { voice: 'crow', every: [70, 220], height: 12 },
   ],
-  signals: [{ voice: 'jay', every: [180, 540], height: 7, floor: 140, hushes: true, level: 0.8 }],
   activity: 0.5,
   seed: 153,
 };
@@ -302,9 +251,6 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
     },
   ],
   cast: [
-    { voice: 'duck', every: [22, 60], height: 0.4, answers: 0.4 },
-    { voice: 'moorhen', every: [30, 85], height: 0.4 },
-    { voice: 'heron', every: [90, 260], height: 5 },
     { voice: 'reedwarbler', every: [26, 70], height: 1.4, when: { season: [0.32, 0.68], sun: [-2, 90] } },
     { voice: 'kingfisher', every: [120, 340], height: 1.2, when: { sun: [2, 90] } },
     { voice: 'wagtail', every: [35, 95], height: 0.6, when: { sun: [0, 90] } },
@@ -312,7 +258,6 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
     { voice: 'dragonfly', every: [20, 55], height: 1.2, when: { warmth: [17, 38], sun: [8, 90], season: [0.38, 0.76] } },
     { voice: 'curlew', every: [70, 200], height: 6, when: { sun: [-8, 14] } },
     { voice: 'swallow', every: [18, 48], height: 3, passes: { over: 40, seconds: [1.1, 2.2] }, when: { season: [0.35, 0.72], sun: [0, 90] } },
-    { voice: 'owl', every: [100, 300], height: 8, when: { sun: [-90, -5] } },
   ],
   signals: [
     // A swan going over: a slow periodic throb, and nothing else makes it.
@@ -324,7 +269,6 @@ export const RIVERSIDE_AMBIENCE: AmbienceSpec = {
 
 export const CAVE_AMBIENCE: AmbienceSpec = {
   air: [
-    // rock and the only thing it does down here is move the air through the
     // The chamber itself. Not a pipe: a cave has no note, it has several broad
     // irrational resonances that wander as the air moves through it.
     { model: 'cavern', id: 'room', options: { size: 42, hard: 0.78, drift: 0.55, floor: 0.6, gain: 0.2 } },
@@ -390,19 +334,15 @@ export const CAVE_DARK_AMBIENCE: AmbienceSpec = {
 export const FACTORY_1_AMBIENCE: AmbienceSpec = {
   air: [
     { model: 'air', id: 'air', options: { gain: 0.05, tone: 1600, shelter: 0.85, aperture: 0.1, roar: 0.6, rush: 0.8, hiss: 0.25 } },
-    // The plant, felt before it is heard: noise resonating in metal with the
     // saturation inside the loop, so it grinds and wanders rather than droning.
     { model: 'plant', id: 'plant', options: { rpm: 340, size: 74, metal: 0.55, clank: 0.35, wear: 0.5, load: 0.5, duty: 0.5, gain: 0.2 } },
   ],
   chorus: [
-    // The floor working, and none of it resolvable. Every press, relay and
     // valve in here stands somewhere and carries its own sound; what a shop
-    // floor gives you from *anywhere* in it is the plant, the extraction, and
     // a great deal of steel being handled out of sight.
     { model: 'bustle', options: { rate: 16, distance: 1400, roll: 0.6, metal: 0.9, busy: 0.7, gain: 0.11 } },
   ],
   cast: [
-    // Loud, far off, and from no particular direction: a beam letting go, a
     // load dropped at the other end of the building.
     { voice: 'slab', every: [40, 130], level: 0.8 },
     { voice: 'steam', every: [50, 160], level: 0.7 },
@@ -417,7 +357,6 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
     { model: 'plant', id: 'plant', options: { rpm: 260, size: 58, metal: 0.75, clank: 0.6, wear: 0.6, load: 0.75, duty: 0.6, gain: 0.26 } },
   ],
   chorus: [
-    // The loud room. Denser and closer than the plant floor, and still nothing
     // in it you could walk over to.
     { model: 'bustle', options: { rate: 30, distance: 1900, roll: 0.8, metal: 1, busy: 0.9, gain: 0.15 } },
   ],
@@ -452,7 +391,6 @@ export const SEWER_1_AMBIENCE: AmbienceSpec = {
 
 export const SEWER_2_AMBIENCE: AmbienceSpec = {
   air: [
-    // A maintenance chamber: small, hard, close and wet. No machinery — a pump
     // is a pump, it stands somewhere, and at four hundred revolutions a minute
     // its once-per-turn knock is seven a second, which is a helicopter.
     { model: 'cavern', id: 'room', options: { size: 128, hard: 0.55, draught: 0.2, drift: 0.1, floor: 0.28, gain: 0.12 } },
@@ -485,7 +423,6 @@ export const SCRAPYARD_AMBIENCE: AmbienceSpec = {
   ],
   cast: [
     { voice: 'rat', every: [40, 120], height: 0.1 },
-    { voice: 'dog', every: [90, 260] },
     { voice: 'grit', every: [50, 150], level: 0.7 },
   ],
   signals: [
@@ -552,11 +489,9 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
     { model: 'foliage', height: 0.8, options: { density: 150, tone: 2, gain: 0.065, articulation: 0.44 }, follow: [{ by: 'wind', span: [0.15, 1] }] },
   ],
   cast: [
-    { voice: 'gull', every: [16, 44], height: 12, answers: 0.5, when: { sun: [-4, 90] } },
     { voice: 'kittiwake', every: [26, 70], height: 16, when: { sun: [-2, 90] } },
     { voice: 'oystercatcher', every: [34, 95], height: 2, when: { sun: [-4, 90] } },
     { voice: 'curlew', every: [50, 150], height: 5, when: { season: [0.72, 0.32] } },
-    { voice: 'raven', every: [90, 260], height: 20, when: { sun: [0, 90] } },
     { voice: 'seal', every: [160, 480], height: 0 },
     { voice: 'splash', every: [30, 90], height: 0 },
     { voice: 'grit', every: [26, 75], height: 0.1, level: 0.8 },
@@ -583,13 +518,9 @@ export const BEACH_PATH_AMBIENCE: AmbienceSpec = {
     { model: 'insect', height: 0.2, options: { kind: 'grasshopper', voices: 4, gain: 0.055 }, when: { sun: [4, 90], season: [0.36, 0.8] } },
   ],
   cast: [
-    { voice: 'skylark', every: [34, 95], height: 38, when: { season: [0.3, 0.72], sun: [6, 90], shy: 0.6 } },
-    { voice: 'meadowpipit', every: [26, 70], height: 1.5, when: { sun: [0, 90] } },
     { voice: 'linnet', every: [34, 95], height: 1.2, when: { season: [0.3, 0.74], sun: [2, 90] } },
-    { voice: 'gull', every: [40, 120], height: 16, when: { sun: [-2, 90] } },
     { voice: 'rabbit', every: [50, 150], height: 0.1, when: { sun: [-9, 12] } },
     { voice: 'bee', every: [26, 75], height: 1, when: { warmth: [15, 40], sun: [6, 90], season: [0.3, 0.76] } },
-    { voice: 'dog', every: [110, 320] },
   ],
   signals: [
     // game.
