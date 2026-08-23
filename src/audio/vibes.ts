@@ -60,6 +60,8 @@ export const VIBES = {
   },
   beach: { music: music.BEACH_VIBE, ambience: ambience.BEACH_AMBIENCE },
   'beach path': { music: music.BEACH_PATH_VIBE, ambience: ambience.BEACH_PATH_AMBIENCE },
+  'plains 1': { music: music.PLAINS_1_VIBE, ambience: ambience.PLAINS_1_AMBIENCE },
+  'plains 2': { music: music.PLAINS_2_VIBE, ambience: ambience.PLAINS_2_AMBIENCE },
 } as const satisfies Record<string, Vibe>;
 
 export type VibeName = keyof typeof VIBES;

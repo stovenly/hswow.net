@@ -859,6 +859,42 @@ that resolves*, not tension with a monster in it.
 | gulls inland, a distant dog | cast | §8.1 / `animal` | call / throat | day |
 | rabbits | cast | `thump` | body | dusk |
 
+### plains 1 — the open grassland in summer
+
+| source | stratum | made from | band | gate |
+|---|---|---|---|---|
+| open air, no shelter at all | keynote | `air` | — | wind |
+| the grass, the whole plain of it | keynote + chorus | `foliage` high and dry, two heights | air | wind |
+| grasshoppers by day, crickets by night | chorus | `insect` | song | warm, summer |
+| **quail — "wet-my-lips", from inside the crop, never seen** | cast | §8.1 three notes, repeated | song | summer, day and night |
+| lapwing tumbling | cast | §8.1 wheezy two-note, as a pass | call | spring, day |
+| curlew | cast | §8.1 rising whistle and the bubbling run | call | spring–summer |
+| linnet | cast | §8.1 | song | summer, day |
+| swallows low over the grass, swifts high | cast | §8.1 as passes | song | summer, day |
+| a covey going up | cast | `flow` feather | call | always |
+| dust in a gust | cast | `flow` grit, fine | air | wind |
+| bats | cast | §8.1 | air | dusk, warm |
+| **thunder** | signal | `thunder` sky | floor | rain |
+
+### plains 2 — the moor
+
+| source | stratum | made from | band | gate |
+|---|---|---|---|---|
+| the strongest air after the beach | keynote | `air` | — | wind |
+| heather | keynote | `foliage` low and woody, restless | air | wind |
+| gorse and the grass between | chorus | `hedge` woody, `foliage` | air | wind |
+| **curlew** | cast | §8.1 | call | spring–summer |
+| golden plover — one mournful whistle | cast | §8.1 one pure note | call | spring–summer |
+| **snipe drumming** — tail feathers in a dive, a throb that climbs and hurries | cast | §8.1 low, trilled, breathy | throat | dusk and dawn, spring |
+| lapwing, stonechat, linnet | cast | §8.1 | call / song | season, day |
+| a covey going up; dust in a gust | cast | `flow` | call / air | always; wind |
+| bats | cast | §8.1 | air | dusk, warm |
+| **thunder** | signal | `thunder` sky | floor | rain |
+
+The book in `src/audio/ambience/vibes.ts` is the authority on what each vibe
+runs now; the tables above are the research pass it was built from, and several
+rows in them were cut when the placed-object rule was applied.
+
 ---
 
 ## 8. Where the current kit falls short

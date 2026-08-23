@@ -730,3 +730,61 @@ export const BEACH_PATH_VIBE: MusicSpec = {
   pulse: [56, 66],
   seed: 69,
 };
+
+/**
+ * The open grassland: wide, warm, and pulse-free — the horizon is the only
+ * thing moving. Strata two octaves apart, a long-held chord, and a tune that
+ * mostly does not finish.
+ */
+export const PLAINS_1_VIBE: MusicSpec = {
+  root: 138.59, // C#3
+  mode: 'pentatonic-major',
+  palette: {
+    drone: 'strings',
+    texture: 'harp',
+    melody: 'flute',
+    altTexture: 'guitar',
+    altMelody: 'ocarina',
+  },
+  character: {
+    textureOctave: 12,
+    melodyOctave: 24,
+    gait: [],
+    chordBars: 3,
+    phraseRest: [12, 24],
+    fragment: 0.45,
+    form: 'speac',
+    level: 1,
+    droneLevel: 1,
+  },
+  density: 0.7,
+  pulse: null,
+  seed: 70,
+};
+
+/** The moor: the same emptiness, colder. A bow on the wind and a fiddle far off. */
+export const PLAINS_2_VIBE: MusicSpec = {
+  root: 207.65, // G#3
+  mode: 'kumoi',
+  palette: {
+    drone: 'viol',
+    texture: 'dulcimer',
+    melody: 'fiddle',
+    altTexture: 'harp',
+    altMelody: 'flute',
+  },
+  character: {
+    textureOctave: 0,
+    melodyOctave: 12,
+    gait: [],
+    chordBars: 2,
+    phraseRest: [14, 26],
+    fragment: 0.5,
+    form: 'speac',
+    level: 0.95,
+    droneLevel: 0.85,
+  },
+  density: 0.6,
+  pulse: null,
+  seed: 71,
+};
