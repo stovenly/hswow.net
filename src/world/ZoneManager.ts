@@ -316,6 +316,14 @@ export class ZoneManager {
   }
 
   /**
+   * Points the fill somewhere else for a frame. `aimKeyLight` puts it back
+   * opposite the key on the next one, so this needs no releasing.
+   */
+  aimFill(direction: THREE.Vector3): void {
+    this.lights.fill.position.copy(direction).normalize().multiplyScalar(60);
+  }
+
+  /**
    * The atmosphere over the zone's own declaration. The zone says how bright
    * this place is relative to open daylight; the atmosphere says what open
    * daylight currently is. Interiors keep their own rig, which is what makes a

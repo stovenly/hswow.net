@@ -4,6 +4,7 @@ import type { ParticleSpec } from '../art/particles';
 import type { SurfaceName } from '../audio/models/footsteps';
 import type { RainSurface } from '../audio/models/rain';
 import { DECK_LEVELS, GENERA, type DeckLevel, type GenusName } from '../art/glsl/clouds';
+import type { StrikeBias } from './lightning';
 
 
 /**
@@ -21,6 +22,10 @@ export interface AirBias {
   /** Multipliers on the zone's own distances at full amount. */
   near?: number;
   far?: number;
+  /** Multiplier on the zone's fog ramp at full amount. Under 1 the haze builds from `near` on; over 1 it holds clear and then walls up. */
+  curve?: number;
+  /** Multiplier on the most the haze may hide above the horizon, at full amount. */
+  ceiling?: number;
   /**
    * How much light the haze takes out, 0..1. Separate from the colour, because
    * the colour is applied as hue and chroma alone — which is what stops a pale
@@ -98,6 +103,8 @@ export interface WeatherKind {
   readonly pace: number;
   /** Season weighting, given the year phase 0..1 with 0 at midwinter. */
   readonly season?: (phase: number) => number;
+  /** Time-of-day weighting, given the day phase 0..1 with 0 at midnight. */
+  readonly daily?: (hour: number) => number;
   /**
    * Driven by the shared precipitation draw and its temperature split rather
    * than by a field of its own, so it can never rain and snow at once.
@@ -119,6 +126,11 @@ export interface WeatherKind {
   readonly ground?: GroundBias;
   /** How much it stiffens the wind at full amount. Negative settles it. */
   readonly blow?: number;
+  /**
+   * What it throws, and how often. Declaring this also gates the kind on the
+   * moisture the climate has already sampled — see `sample`.
+   */
+  readonly strike?: StrikeBias;
 }
 
 export interface ClimateSettings {
@@ -203,6 +215,10 @@ function clampSigned(value: number): number {
 const SUMMER = (phase: number): number => 0.5 - Math.cos(phase * Math.PI * 2) * 0.5;
 const WINTER = (phase: number): number => 1 - SUMMER(phase);
 
+/** The convective day: nothing at dawn, most of it mid-afternoon, gone by dusk. */
+export const CONVECTION = (hour: number): number =>
+  Math.max(0, Math.sin(((hour - 0.28) / 0.56) * Math.PI));
+
 /** Metres of the camera-carried box precipitation falls inside. */
 const FALL_BOX = new THREE.Vector3(26, 18, 26);
 
@@ -279,7 +295,7 @@ export const WEATHER_KINDS: WeatherKind[] = [
     onset: 0.62,
     pace: 0.4,
     season: (phase) => 0.4 + WINTER(phase) * 0.6,
-    air: { colour: 0xc6cdd4, colourMix: 0.85, near: 0.25, far: 0.16 },
+    air: { colour: 0xc6cdd4, colourMix: 0.85, near: 0.25, far: 0.16, curve: 0.4 },
     sky: [['stratus', 0.8]],
     blow: -0.4,
   },
@@ -293,10 +309,27 @@ export const WEATHER_KINDS: WeatherKind[] = [
     // past that is one colour. It stays rare — the draw has to clear a high
     // onset and then find a thick patch of the field — and once places carry
     // their own region rows it will be rare *everywhere but the factory*.
-    air: { colour: 0x9c8c6c, colourMix: 0.9, near: 0.12, far: 0.07, darken: 0.45 },
+    air: { colour: 0x9c8c6c, colourMix: 0.9, near: 0.12, far: 0.07, curve: 0.7, darken: 0.45 },
     tones: SMOG_TONES,
     sky: [['altostratus', 0.9]],
     blow: -0.5,
+  },
+  {
+    name: 'storm',
+    onset: 0.74,
+    pace: 0.9,
+    season: (phase) => 0.15 + SUMMER(phase) * 0.85,
+    daily: (hour) => 0.2 + CONVECTION(hour) * 0.8,
+    air: { colour: 0x6a6f7a, colourMix: 0.35, far: 0.7, darken: 0.25 },
+    // The tower is not a deck, so the cell is the heaped low one and the anvil
+    // is its ice in the high slot.
+    sky: [
+      ['cumulonimbus', 1],
+      ['cirrostratus', 0.55],
+    ],
+    ground: { wind: 0.5 },
+    blow: 0.5,
+    strike: { rate: 5 },
   },
 ];
 
@@ -650,9 +683,21 @@ export class Climate {
         amount = precipitation * (kind.precipitation === 'cold' ? cold : 1 - cold);
       } else {
         const level = slowField(days * kind.pace, 53.9 * (i + 1));
-        const bias = kind.season ? kind.season(phase) : 1;
+        const bias = (kind.season ? kind.season(phase) : 1)
+          * (kind.daily ? kind.daily(this.timeOfDay) : 1);
         const here = smoothstep(0.3, 0.8, noise2(u * 1.4 + i * 11.3, v * 1.4 - i * 7.1));
         amount = smoothstep(kind.onset, kind.onset + 0.12, level * bias) * here;
+      }
+      // Anything that throws lightning needs water in the air, and the same
+      // field six hours either side already says whether there is any: dry
+      // lightning ahead of the rain and a storm outliving the shower behind it
+      // both fall out of taking the largest of the three.
+      if (kind.strike) {
+        amount *= smoothstep(
+          0.12,
+          0.45,
+          Math.max(precipitation, this.precipitationSoon, this.precipitationPast),
+        );
       }
       this.amounts.set(kind.name, clamp01(amount));
     }
@@ -703,10 +748,8 @@ export function planSky(climate: Climate, out: DeckTarget[]): void {
   // the sky empties out entirely between the morning and the afternoon.
   put('stratocumulus', smoothstep(0.42, 0.78, slowField(day * 0.5, 61.2)) * 0.8);
 
-  // Diurnal cumulus over the top of it: nothing at dawn, most of it
-  // mid-afternoon, gone by dusk. Convective, so it wants a warm day.
-  const convection = Math.max(0, Math.sin(((hour - 0.28) / 0.56) * Math.PI));
-  put('cumulus', convection * (0.45 + summer * 0.45) * (1 - here));
+  // Diurnal cumulus over the top of it. Convective, so it wants a warm day.
+  put('cumulus', CONVECTION(hour) * (0.45 + summer * 0.45) * (1 - here));
 
   // Valley stratus: still, damp and only around dawn.
   const settled = 1 - climate.wind.settings.windSpeed;

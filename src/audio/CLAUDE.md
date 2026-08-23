@@ -40,6 +40,10 @@ does nothing. Nothing in `content/` imports an engine module.
 **Built once, silenced often.** A soundscape is not torn down at a doorway.
 `setActive(false)` disconnects; only disposing the zone disposes the sound.
 
+**A one-shot need not belong to a zone.** `oneshots/peal.ts` is owned by the
+weather rig and scheduled by geometry rather than by a `Scatter`: the same storm
+has to sound the same in every vibe, including a zone whose ambience is `QUIET`.
+
 **Virtual means disconnected**, not turned down. A silent source still has its
 filters and panner processed every quantum.
 

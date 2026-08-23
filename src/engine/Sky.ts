@@ -143,6 +143,14 @@ export const skyUniforms = {
   uSunIntensity: { value: 1 },
   /** Broad scattered warmth on the sun's side. See `skyGradient`. */
   uWarmth: { value: 0.3 },
+  /**
+   * Lightning, added flat to every band of the sky. In `skyBand`, so the dome,
+   * the aerial perspective, every lit fragment and the water all take it from
+   * one add and cannot disagree along the horizon.
+   */
+  uFlashAir: { value: new THREE.Color(0, 0, 0) },
+  /** Toward the strike in xyz, how hard it lights a deck in w. Dome only. */
+  uFlashGlow: { value: new THREE.Vector4(0, 1, 0, 0) },
 };
 
 /**
@@ -173,6 +181,7 @@ export const SKY_GRADIENT_GLSL = /* glsl */ `
   uniform vec3 uSunColor;
   uniform float uSunIntensity;
   uniform float uWarmth;
+  uniform vec3 uFlashAir;
 
   /** Horizon to zenith going up, horizon to ground going down, warm toward the sun. */
   vec3 skyBand(vec3 direction, float up, float down) {
@@ -186,7 +195,7 @@ export const SKY_GRADIENT_GLSL = /* glsl */ `
     // both bands, so the dome and the air warm together and distant land does
     // not part company with the sky behind it every time you look west.
     float toSun = max(dot(direction, normalize(uSunDirection)), 0.0);
-    return mix(colour, uSunColor, uWarmth * uSunIntensity * pow(toSun, 5.0));
+    return mix(colour, uSunColor, uWarmth * uSunIntensity * pow(toSun, 5.0)) + uFlashAir;
   }
 
   /** What the dome draws. */
@@ -684,6 +693,16 @@ export class Sky {
     (u.uGround.value as THREE.Color).copy(ground);
     (u.uSunColor.value as THREE.Color).copy(sun);
     u.uWarmth.value = warmth;
+  }
+
+  /**
+   * The flash: what every band of sky has added to it, and the structured term
+   * that lights the deck the bolt is inside. `toward` points at the strike.
+   */
+  setFlash(air: THREE.Color, toward: THREE.Vector3, glow: number): void {
+    const u = this.material.uniforms;
+    (u.uFlashAir.value as THREE.Color).copy(air);
+    (u.uFlashGlow.value as THREE.Vector4).set(toward.x, toward.y, toward.z, glow);
   }
 
   /** Which light the decks are shaded by, and how hard. See `uSkyLight`. */

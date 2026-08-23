@@ -44,6 +44,16 @@ it sounds like, and how wet the stones are. It integrates the wet and lying
 values itself — rain soaks a surface in about half a minute and takes minutes to
 leave it, so the gloss outlives the shower.
 
+`lightning.ts` is the one discrete thing in the climate. A strike is drawn from
+a hash of a four-second bucket of the sky clock rather than stored, so two zones
+see the same bolts, scrubbing the clock scrubs them, and there is nothing to
+serialise. A row of `WEATHER_KINDS` throws lightning by declaring `strike`, which
+also gates it on the moisture the climate has already sampled. The flash enters
+the world in one place — `skyBand` — which is what makes the dome, the fog, every
+lit surface and the water light up together; the channel is `art/bolt.ts`, and
+the peal is a `WeatherRig`-owned one-shot that *causes* the ambience director's
+hush rather than being subject to it.
+
 `skymap.ts` bakes one orthographic pass straight down over each zone as it is
 built. The finish stage reads it to tell a roof from the ground under its eave.
 

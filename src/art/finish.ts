@@ -438,6 +438,8 @@ export function applyFinish(material: THREE.Material, mask: number): void {
         float finishGlint = 0.0;
         float finishAniso = 0.0;
         vec3 finishF0 = vec3(0.0);
+        // 1 where the vertex declared no finish and the stage runs only because it is wet.
+        float finishBare = 0.0;
         vec3 finishSheenColour = vec3(0.0);
         /** How strongly this surface colours what it reflects, 0..1. */
         float finishTintDepth = 0.0;
@@ -825,16 +827,15 @@ ${aniso ? /* glsl */ `
           vec3 film = finishFilm(filmNV, ${anyRecipe ? 'recipeFilm(finishFilmThickness())' : 'finishFilmThickness()'});
           ${slot('film', 10)}
           vec3 tint = mix(vec3(1.0), film, vFinish.w * finishStrength * recipeFilmMix);
-` : ''}          finishF0 = mix(vec3(0.05), material.diffuseColor, finishMetal) * finishStrength${film ? ' * tint' : ''};
+` : ''}          // Bare ground has no reflectance of its own: what it gets, the rain brings, in proportion.
+          finishBare = 1.0 - step(0.001, vFinish.y);
+          finishF0 = mix(vec3(0.05), material.diffuseColor, finishMetal)
+            * (finishStrength * mix(1.0, finishWet, finishBare))${film ? ' * tint' : ''};
           ${slot('surface', 10)}
           if (finishCrust > 0.0) {
             finishRough = mix(finishRough, 0.82, finishCrust);
             finishSheen *= 1.0 - finishCrust;
           }
-          // Bare, and wet: the finish stage is only running here because of
-          // the weather. Wide lobe, flat reflection, and the wetness read
-          // carried by the darkening and the grazing fresnel instead.
-          float finishBare = 1.0 - step(0.001, vFinish.y);
           finishSmooth = finishWet * finishBare;
           {
             vec3 toEye = inverseTransformDirection(normalize(vViewPosition), viewMatrix);
@@ -917,7 +918,8 @@ ${aniso ? /* glsl */ `
           // than most of a frame ever gets — half the sky laid over every
           // surface is not a wet surface, it is a filter, and it is what was
           // turning wet roofs grey while the ground beside them stayed green.
-          envF = mix(envF, vec3(mix(0.015, 0.035, finishGraze)), finishWet);
+          vec3 finishWater = vec3(mix(0.015, 0.035, finishGraze));
+          envF = mix(mix(envF, finishWater, finishWet), finishWater * finishWet, finishBare);
           // Scaled by the same (1 − sheen) the direct lobe is: a velvet
           // reflecting the sky would be a velvet-coloured mirror.
           reflectedLight.indirectSpecular +=

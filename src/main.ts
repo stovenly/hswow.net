@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Viewport } from './engine/Viewport';
 import { Loop } from './engine/Loop';
 import { PostFX } from './engine/PostFX';
-import { useAerialFog } from './engine/fog';
+import { fogUniforms, useAerialFog } from './engine/fog';
 import { Input, isTouchDevice } from './engine/Input';
 import { Collider } from './player/Collider';
 import { Controller } from './player/Controller';
@@ -184,6 +184,13 @@ const deckHold: Record<string, { genus: string; amount: number }> = {
 
 /** The panel's moon slider, and whether it is driving or reporting. */
 const moonHold = { on: false, phase: 0.5 };
+
+/** What the last strike was, and how far off its peal still is. */
+const strikeReadout = { lightning: 'none' };
+/** The fog the zone and the weather settled on this frame, for the climate panel. */
+const fogReadout = { fog: '' };
+/** The fog folder's distances: reporting the zone's, or holding over them. */
+const fogHold = { on: false, near: 25, far: 140 };
 
 /** The panel's weather sliders, and whether they are driving or reporting. */
 const weatherHold = { on: false };
@@ -540,8 +547,19 @@ if (dev.gui) {
   const fogFolder = dev.gui.addFolder('fog').close();
   fogFolder.add(r, 'linkFogToSky').name('match horizon').onChange(refresh);
   fogFolder.addColor(r, 'fogColor').onChange(refresh);
-  fogFolder.add(r, 'fogNear', 0, 200, 1).onChange(refresh);
-  fogFolder.add(r, 'fogFar', 0, 400, 1).onChange(refresh);
+  // Off, the distances read back what the zone set. On, they are the fog,
+  // until released.
+  fogFolder
+    .add(fogHold, 'on')
+    .name('hold the zone fog')
+    .listen()
+    .onChange((on: boolean) => postfx.holdFog(on ? fogHold : null));
+  const holdFogNow = (): void => {
+    fogHold.on = true;
+    postfx.holdFog(fogHold);
+  };
+  fogFolder.add(fogHold, 'near', 0, 200, 1).listen().onChange(holdFogNow);
+  fogFolder.add(fogHold, 'far', 0, 400, 1).listen().onChange(holdFogNow);
   // Aerial perspective — see `engine/fog.ts`. `sky colour` at 0 and `thins
   // above` at its ceiling is flat distance fog, exactly, which is the honest
   // A/B for whether any of it is an improvement.
@@ -713,6 +731,25 @@ if (dev.gui) {
         weatherHold.on = true;
         climate.force(kind.name, value);
       });
+  }
+
+  climateFolder.add(strikeReadout, 'lightning').name('last strike').listen().disable();
+
+  // What each kind does to the zone's fog, live, so a day can be tuned with
+  // the weather held and the numbers carried back into `climate.ts`.
+  climateFolder.add(fogReadout, 'fog').name('fog now').listen().disable();
+  for (const kind of WEATHER_KINDS) {
+    const air = kind.air;
+    if (!air) continue;
+    air.near ??= 1;
+    air.far ??= 1;
+    air.curve ??= 1;
+    air.ceiling ??= 1;
+    const airFolder = climateFolder.addFolder(`${kind.name} air`).close();
+    airFolder.add(air, 'near', 0, 1, 0.01).name('near ×');
+    airFolder.add(air, 'far', 0, 1, 0.01).name('far ×');
+    airFolder.add(air, 'curve', 0.1, 3, 0.05).name('curve ×');
+    airFolder.add(air, 'ceiling', 0.3, 1, 0.01).name('most it can hide ×');
   }
 
   // A kind with a palette gets a picker: what smog is made of is not a
@@ -1158,6 +1195,13 @@ if (dev.gui) {
     if (!weatherHold.on) {
       for (const kind of WEATHER_KINDS) weatherLevels[kind.name] = climate.amountOf(kind.name);
     }
+    strikeReadout.lightning = weather.storming;
+    if (!fogHold.on) Object.assign(fogHold, postfx.zoneFog());
+    {
+      const fog = viewport.scene.fog as THREE.Fog;
+      fogReadout.fog = `${fog.near.toFixed(1)}–${fog.far.toFixed(1)} m, curve ${
+        fogUniforms.uFogRamp.value.toFixed(2)}, hides ${fogUniforms.uFogCeiling.value.toFixed(2)}`;
+    }
     readout.machine = zones.sound?.find<MachineModel>('mill')?.phase ?? '—';
     readout.music = zones.music?.status ?? '—';
     readout.ambience = zones.ambience?.status ?? '—';
@@ -1244,7 +1288,7 @@ loop.add((rawDt, rawElapsed) => {
   // After the wind has been stepped and shipped, and before anything is drawn:
   // the sun moves, so the light rig, the dome and the shadow camera are all
   // per-frame now. Nothing here may bake.
-  weather.update(dt, postfx, zones, audio, viewport.camera.position);
+  weather.update(dt, postfx, zones, audio, viewport.camera);
   // After the wind for the same reason again: each cloth samples the same
   // field the trees just bent to, so a gust arrives at the flag and the tree
   // beside it on the same frame.

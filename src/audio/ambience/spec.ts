@@ -89,6 +89,7 @@ export type Driver =
   | 'rain'
   | 'snow'
   | 'fog'
+  | 'storm'
   | 'night'
   | 'warmth'
   | 'activity';
@@ -122,10 +123,12 @@ export interface Window {
   wind?: Span;
   /** Rain amount tolerated, 0..1. */
   rain?: Span;
+  /** Storm amount tolerated, 0..1. */
+  storm?: Span;
   /** Fog needed, 0..1. A foghorn in clear air is a foghorn nobody believes. */
   fog?: Span;
   /** Speaks only once the weather has stopped — eaves, gutters, a wet wood. */
-  after?: 'rain' | 'snow';
+  after?: 'rain' | 'snow' | 'storm';
   /** Degrees C. Below the floor it does not sound at all. */
   warmth?: Span;
   /** Needs at least this much of the disc lit, 0..1. */

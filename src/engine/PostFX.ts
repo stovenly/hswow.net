@@ -24,6 +24,7 @@ import { fogUniforms } from './fog';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
+import { BOLT_MATERIAL } from '../art/bolt';
 import { COVER_POOL_SCALE } from '../art/cover-sample';
 import { detailUniforms } from '../art/detail';
 import { finishUniforms } from '../art/finish';
@@ -31,8 +32,7 @@ import { recipeUniforms } from '../art/recipes';
 import type { Viewport } from './Viewport';
 
 // The render pipeline: one PixelStage renders at chunky resolution, runs the
-// screen-space effects there, then upscales with the edge lines, sRGB, dither
-// and quantize. Every parameter persists to localStorage.
+// screen-space effects there, then upscales with sRGB, dither and quantize. Every parameter persists to localStorage.
 
 const PRESET = 'render';
 
@@ -161,6 +161,7 @@ const QUANTIZE_CODE: Record<QuantizeMode, number> = { off: 0, levels: 1 };
  * finish before the cut, or geometry vanishes in mid-air while plainly visible.
  */
 export const FOG_HEADROOM = 0.9;
+const CLEAR_FOG: WeatherFog = { near: 1, far: 1, curve: 1, ceiling: 1 };
 const FOG_RISE = 0.6;
 
 /** The view distance at which the option stops being a distance and falls back to the camera's own far plane. */
@@ -196,6 +197,14 @@ const COVER_TIERS: Record<CoverDensity, number> = {
   high: 0.85,
   ultra: COVER_POOL_SCALE,
 };
+
+/** What the weather multiplies a zone's fog by. All 1 in clear air. */
+export interface WeatherFog {
+  near: number;
+  far: number;
+  curve: number;
+  ceiling: number;
+}
 
 /**
  * The part of the look that belongs to a place rather than to the game, applied
@@ -244,8 +253,8 @@ export class PostFX {
   private skyWarmth = 0.3;
   private readonly weatherAir = new THREE.Color(0xffffff);
   private weatherMix = 0;
-  private weatherNear = 1;
-  private weatherFar = 1;
+  private readonly weatherFog: WeatherFog = { near: 1, far: 1, curve: 1, ceiling: 1 };
+  private fogHold: { near: number; far: number } | null = null;
   /** Whether anything is falling. The pass costs a scene walk either way. */
   private weatherParticles = false;
   private shadowScale = 1;
@@ -316,16 +325,16 @@ export class PostFX {
     if (!(this.settings.quantize in QUANTIZE_CODE)) this.settings.quantize = 'levels';
 
     viewport.scene.add(this.sky.mesh);
-    this.hideGlowFromEdges(viewport.scene);
+    this.hideGlowFromNormals(viewport.scene);
 
     this.pixelStage = new PixelStage(1, viewport.scene, viewport.camera);
     this.gpu = new GpuClock(viewport.renderer);
     this.pixelStage.clock = this.gpu;
     // The whole chain, so its upscale goes to the default framebuffer.
     this.pixelStage.renderToScreen = true;
-    // The edge detector re-renders the scene with `MeshNormalMaterial` as
-    // `scene.overrideMaterial`, which bypasses the wind displacement — so a
-    // swaying plant would be outlined at the position it had standing still.
+    // The normal pass re-renders the scene with `MeshNormalMaterial` as
+    // `scene.overrideMaterial`, which bypasses the wind displacement — so the
+    // occlusion would read a swaying plant where it stood in still air.
     applySway(this.pixelStage.normalMaterial);
     // The same for the glitch stage's vertex displacement.
     applyGlitchDisplacement(this.pixelStage.normalMaterial);
@@ -367,6 +376,20 @@ export class PostFX {
 
     this.resize();
     this.apply();
+  }
+
+  /** Dev-only: the fog distances the zone would have set, before the weather. */
+  zoneFog(): { near: number; far: number } {
+    return {
+      near: this.air?.fogNear ?? this.settings.fogNear,
+      far: this.air?.fogFar ?? this.settings.fogFar,
+    };
+  }
+
+  /** Dev-only: fog distances held over the zone's own. Null releases. */
+  holdFog(hold: { near: number; far: number } | null): void {
+    this.fogHold = hold;
+    this.applyFog();
   }
 
   /** Null falls back to the tuned settings. Applied immediately: this runs at full black during a transition. */
@@ -424,6 +447,10 @@ export class PostFX {
     this.sky.setSkyLight(direction, strength);
   }
 
+  setFlash(air: THREE.Color, toward: THREE.Vector3, glow: number): void {
+    this.sky.setFlash(air, toward, glow);
+  }
+
   setPhenomena(belt: number, halo: number, bow: number, shadowTop: number): void {
     this.sky.setPhenomena(belt, halo, bow, shadowTop);
   }
@@ -451,11 +478,10 @@ export class PostFX {
    * as `ZoneAir` is over `RenderSettings`: a shower must not overwrite what the
    * place is.
    */
-  setWeatherAir(colour: THREE.Color, mix: number, near: number, far: number): void {
+  setWeatherAir(colour: THREE.Color, mix: number, fog: WeatherFog): void {
     this.weatherAir.copy(colour);
     this.weatherMix = mix;
-    this.weatherNear = near;
-    this.weatherFar = far;
+    Object.assign(this.weatherFog, fog);
     this.applyFog();
   }
 
@@ -464,7 +490,7 @@ export class PostFX {
     this.apply();
   }
 
-  /** Drops the chunky pixels to one device pixel. The edge detection stays. */
+  /** Drops the chunky pixels to one device pixel. The rest of the chain stays. */
   setPixelation(enabled: boolean): void {
     this.pixelate = enabled;
     this.apply();
@@ -673,30 +699,33 @@ export class PostFX {
 
     // Clamped under the far plane, never extended: a cut with no fade in front
     // of it is geometry disappearing in mid-air.
-    const near = (this.air?.fogNear ?? s.fogNear) * (outdoors ? this.weatherNear : 1);
-    const distance = (this.air?.fogFar ?? s.fogFar) * (outdoors ? this.weatherFar : 1);
+    const w = outdoors ? this.weatherFog : CLEAR_FOG;
+    const zone = this.fogHold ?? this.zoneFog();
+    const near = zone.near * w.near;
+    const distance = zone.far * w.far;
     const range = clampFog(near, distance, far);
     fog.near = range.near;
     fog.far = range.far;
 
     fogUniforms.uFogHeight.value = s.fogHeight;
     fogUniforms.uFogSky.value = outdoors ? s.fogSky : 0;
-    fogUniforms.uFogRamp.value = s.fogRamp;
+    fogUniforms.uFogRamp.value = s.fogRamp * w.curve;
     // The ceiling is a fact about outdoor air.
-    fogUniforms.uFogCeiling.value = outdoors ? s.fogCeiling : 1;
+    fogUniforms.uFogCeiling.value = outdoors ? Math.min(1, s.fogCeiling * w.ceiling) : 1;
     // The clear colour shows where nothing was drawn; with the dome off that
     // is every pixel the geometry does not cover.
     this.viewport.renderer.setClearColor(fog.color, 1);
     // After the air has had its say, so an interior's short fog shortens the AO.
-    this.gtao.setFog(fog.near, fog.far);
+    this.gtao.setFog(fog.near, fog.far, fogUniforms.uFogRamp.value);
   }
 
   /**
-   * Keeps glow and groundcover out of the edge detector. The normal pass has no
-   * concept of transparency, and cover builds its blades in its own vertex
-   * shader, so both come back wrong. `overrideMaterial` being set identifies it.
+   * Keeps glow and groundcover out of the normal pass, which is what the
+   * ambient occlusion reads. It has no concept of transparency, and cover
+   * builds its blades in its own vertex shader, so both come back wrong.
+   * `overrideMaterial` being set identifies the pass.
    */
-  private hideGlowFromEdges(scene: THREE.Scene): void {
+  private hideGlowFromNormals(scene: THREE.Scene): void {
     scene.onBeforeRender = (_renderer, rendered) => {
       const colourPass = (rendered as THREE.Scene).overrideMaterial === null;
       GLOW_MATERIAL.visible = colourPass;
@@ -704,6 +733,7 @@ export class PostFX {
       TEXT_GLOW_ADDITIVE.visible = colourPass;
       COVER_MATERIAL.visible = colourPass;
       TUFT_MATERIAL.visible = colourPass;
+      BOLT_MATERIAL.visible = colourPass;
     };
   }
 

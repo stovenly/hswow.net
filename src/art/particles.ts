@@ -289,8 +289,8 @@ const PARTICLE_VERTEX = /* glsl */ `
 
   if (motion < 0.5 || motion > 2.5) {
     // fall, and tumble, which is fall with a spin on it.
-    float top = centre.y + box.y * 0.5;
-    pos.y = top - mod(iOrigin.y + t * iShape.y, max(box.y, 0.01));
+    // Off the world-anchored age, so the box can rise with a jump and the flakes stay put.
+    pos.y = centre.y + box.y * 0.5 - age * iShape.y;
     // Wrapped *after* the drift, so a gust carries the field rather than
     // sliding it out of its own box.
     //
@@ -309,15 +309,8 @@ const PARTICLE_VERTEX = /* glsl */ `
     vec3 q = abs(pos - centre) / max(box * 0.5, vec3(0.01));
     alpha *= 1.0 - smoothstep(0.82, 1.0, max(max(q.x, q.y), q.z));
 
-    // Thinned right at the eye. A drop a hand's width from your face covers as
-    // much screen as a cloud and arrives as an insect rather than as weather;
-    // what reads as rain is the depth of it, not the nearest few.
-    // The nearest drops are also the ones that sweep hardest across the view
-    // when the player moves — a drop two metres off crosses the whole screen
-    // at walking pace. Holding the field back a few metres is most of what
-    // makes rain read as weather standing still rather than as something
-    // reacting to you.
-    if (weather) alpha *= smoothstep(3.5, 11.0, distance(pos, cameraPosition));
+    // Thinned within arm's reach only: a drop at your face is an insect, not weather.
+    if (weather) alpha *= smoothstep(0.15, 0.7, distance(pos, cameraPosition));
   } else if (motion < 1.5) {
     // ballistic: a spark leaving an anvil, spray off a weir.
     vec3 g = vec3(0.0, -iField.x, 0.0);
@@ -381,17 +374,20 @@ const PARTICLE_VERTEX = /* glsl */ `
     vec3 back = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
     vec3 velView = vec3(dot(right, vel), dot(up, vel), dot(back, vel));
 
-    // A streak is the travel you can see, not the travel there is: the length
-    // comes off the velocity's on-screen component, which is the only part a
-    // shutter integrates into a smear. It reaches zero looking straight up a
-    // fall, where the drop becomes the dot it should be.
-    float speedOnScreen = length(velView.xy);
+    // The streak is the travel itself, in the world, and the projection decides
+    // what is seen of it: a drop off-centre leans toward the vanishing point
+    // with everything else that falls, and one seen end-on is a dot.
+    vec3 posView = vec3(dot(right, toCam), dot(up, toCam), dot(back, toCam));
+    // Screen direction of the velocity at this depth, for the width to lie across.
+    vec2 alongScreen = velView.xy * (-posView.z) + posView.xy * velView.z;
     vec2 along = vec2(0.0, 1.0);
-    if (speedOnScreen > 0.0001) along = velView.xy / speedOnScreen;
-    float halfL = max(halfW, 0.5 * speedOnScreen * uShutter * live);
+    float alongLen = length(alongScreen);
+    if (alongLen > 0.0001) along = alongScreen / alongLen;
     vec2 across2 = vec2(-along.y, along.x);
-    vec2 offset = across2 * (position.x * 2.0 * halfW) + along * (position.y * 2.0 * halfL);
-    transformed = pos + right * offset.x + up * offset.y;
+    // A pixel's worth of footprint each way, so an end-on streak still draws.
+    vec2 offset = (across2 * position.x + along * position.y) * (2.0 * halfW);
+    transformed = pos + right * offset.x + up * offset.y
+      + vel * (position.y * uShutter * live);
   }
 
   vParticle = vec4(iColour.rgb * (weather ? uWeatherTint : 1.0), alpha * iColour.a);

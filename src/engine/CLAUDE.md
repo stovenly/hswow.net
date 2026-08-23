@@ -11,12 +11,12 @@ being true, edit the line — do not append a correction.
 
 ```
 scene ─► PixelStage ─────────────────────────────────────────────► screen
-         chunky pixels, edge lines,          upscale, sRGB,
+         chunky pixels,                      upscale, sRGB,
          [effect slot]                       dither, quantize
 ```
 
 `PixelStage` is the only pass. It renders at chunky resolution, runs the effect
-slot there, and upscales with the edge lines — and the upscale is the **only**
+slot there, and upscales — and the upscale is the **only**
 step in the pipeline that runs at device resolution, so the sRGB encode, the
 halftone and the quantizer all live in its one shader (`RetroShader`). The
 order inside it is load-bearing: sRGB first, because spacing quantization steps
@@ -78,8 +78,8 @@ across frames. Knowing the clock is allowed; keeping a history is not.
 a frame and nothing moves between the calls. `PostFX.render` does each once.
 
 Anything that draws the scene has to agree about **where** the scene is: the
-surface material, the shadow depth material, and the normal override the edge
-detector reads all take the same displacement patches.
+surface material, the shadow depth material, and the normal override the
+ambient occlusion reads all take the same displacement patches.
 
 `RenderSettings` is the look and persists to localStorage; `ZoneAir` is the
 place and is applied on top, so walking through a door never overwrites tuning.

@@ -157,8 +157,8 @@ export class BloomEffect implements PixelEffect {
 
     renderer.setRenderTarget(this.emitters);
     // **Colour only.** An automatic clear would take the depth buffer with it,
-    // and that buffer is the scene's — the upscale still has edge lines to draw
-    // from it, and the fog volumes have already marched against it.
+    // and that buffer is the scene's — the fog volumes have already marched
+    // against it.
     renderer.autoClear = false;
     renderer.setClearColor(0x000000, 1);
     renderer.clearColor();

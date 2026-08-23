@@ -13,7 +13,8 @@ export type GenusName =
   | 'stratocumulus'
   | 'cumulus'
   | 'stratus'
-  | 'nimbostratus';
+  | 'nimbostratus'
+  | 'cumulonimbus';
 
 /** Which of the three slots a genus occupies. One genus per slot at a time. */
 export type DeckLevel = 'high' | 'mid' | 'low';
@@ -239,6 +240,23 @@ export const GENERA: Record<GenusName, Genus> = {
     ripple: 0,
     grey: 0.72,
   },
+  // A deck is a projection onto one height and has no tower in it, so this is
+  // the underside; the anvil's ice goes in the high slot as cirrostratus.
+  cumulonimbus: {
+    level: 'low',
+    height: 0.8,
+    form: 'heap',
+    element: 2.4,
+    cover: 0.97,
+    softness: 0.5,
+    opacity: 1,
+    stretch: 1.2,
+    shade: 0.62,
+    glow: 0.12,
+    base: 0.62,
+    ripple: 0,
+    grey: 0.66,
+  },
 };
 
 export const DECK_LEVELS: readonly DeckLevel[] = ['high', 'mid', 'low'];
@@ -327,6 +345,8 @@ export const CLOUDS_GLSL = /* glsl */ `
    */
   uniform vec2 uCloudWind;
   uniform float uCloudTime;
+  /** Toward the strike in xyz, how hard it lights a deck in w. Dome only. */
+  uniform vec4 uFlashGlow;
   /** Total sky covered, and the one colour the cheap path paints it. */
   uniform float uSkyCover;
   uniform vec3 uSkyCloudColour;
@@ -540,10 +560,14 @@ export const CLOUDS_GLSL = /* glsl */ `
       // How fast the ray climbs: a low sun crawls along under the deck and
       // shadows it right across, a high one is out of it in one step.
       float rise = 0.1 + max(uSkyLight.y, 0.0) * 0.5;
+      // Soft in field units, not a step: a hard comparison posterises the
+      // shade into bands whose edges are the noise's own contours, and a low
+      // deck magnifies those contours into slabs across the whole sky.
       float buried = 0.0;
       for (int i = 1; i <= 4; i++) {
         float climbed = base + float(i) * rise * 0.25;
-        buried += step(climbed, cloudForm(p + toward * float(i), form.y, w, curl));
+        float over = cloudForm(p + toward * float(i), form.y, w, curl);
+        buried += smoothstep(climbed - 0.08, climbed + 0.08, over);
       }
       colour = mix(colour, dark, buried * 0.25 * light.x);
 
@@ -568,6 +592,14 @@ export const CLOUDS_GLSL = /* glsl */ `
     // that says how high it is with nothing drawn in perspective.
     if (form.z > 0.0) {
       colour = mix(colour, dark, form.z * (1.0 - smoothstep(0.12, 0.55, direction.y)));
+    }
+
+    // Lit from inside, on the strike's side of the sky. Added to the deck's
+    // own colour before the haze, so a distant flash hazes with the deck it is
+    // in rather than sitting in front of it.
+    if (uFlashGlow.w > 0.0) {
+      float toward = max(dot(direction, uFlashGlow.xyz), 0.0);
+      colour += lit * uFlashGlow.w * (0.18 + 0.82 * toward * toward);
     }
 
     // Aerial perspective, into the same colour the land fades into. A deck at

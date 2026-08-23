@@ -3,6 +3,7 @@ import { DEFAULT_AUDIO } from '../../audio/AudioEngine';
 import { setSwayOption } from '../../art/sway';
 import { setClothSimulation } from '../../engine/ClothActivity';
 import { setPrecipitation } from '../../art/particles';
+import { setLightning } from '../../world/lightning';
 import { effective, type Options } from './model';
 import { setDyslexicFont } from './font';
 import type { AudioEngine } from '../../audio/AudioEngine';
@@ -137,6 +138,7 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   // value rather than the effective one — reduced motion does not gate it.
   setClothSimulation(stored.clothSim);
   setPrecipitation(options.precipitation);
+  setLightning(options.lightning);
   postfx.setWaterMotion(options.waterMotion);
   tuning.bobScale = options.headBob ? 1 : 0;
   setDyslexicFont(options.dyslexicFont);

@@ -472,6 +472,8 @@ export class AmbienceDirector {
         return now.snow;
       case 'fog':
         return now.fog;
+      case 'storm':
+        return now.storm;
       case 'night':
         return night(now);
       case 'warmth':

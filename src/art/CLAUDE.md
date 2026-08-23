@@ -17,6 +17,7 @@ being true, edit the line — do not append a correction.
 - `masonry.ts`, `building.ts` — the stone and the timber vocabularies.
 - `loft.ts`, `sheet.ts`, `rod.ts`, `blob.ts`, `whorl.ts` — shape primitives.
 - `cover.ts`, `particles.ts`, `sparkle.ts` — instanced fields, one draw each.
+- `bolt.ts` — the lightning channel: one ribbon mesh, rewritten per strike.
 - `finish.ts`, `weathering.ts`, `detail.ts`, `glitch.ts`, `horror.ts` — shader
   stages, in the order they wrap.
 - `flex.ts`, `clutter.ts`, `underfoot.ts`, `fabrics.ts` — per-species tables.

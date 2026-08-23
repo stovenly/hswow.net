@@ -28,6 +28,8 @@ export interface Conditions {
   rain: number;
   snow: number;
   fog: number;
+  /** How hard it is thundering, 0..1. The cell, not the individual bolt. */
+  storm: number;
   /** How wet and how snowed-over the ground is, 0..1. Both lag the weather. */
   wet: number;
   lying: number;
@@ -53,6 +55,7 @@ export const CLEAR: Conditions = {
   rain: 0,
   snow: 0,
   fog: 0,
+  storm: 0,
   wet: 0,
   lying: 0,
   wind: 0.4,
@@ -110,6 +113,7 @@ export function openness(window: Window | undefined, now: Conditions): number {
   if (window.shy !== undefined) open *= 1 - smoothstep(window.shy - 0.12, window.shy, now.wind);
   if (window.wind) open *= within(window.wind, now.wind, 0.1);
   if (window.rain) open *= within(window.rain, now.rain, 0.1);
+  if (window.storm) open *= within(window.storm, now.storm, 0.1);
   if (window.fog) open *= within(window.fog, now.fog, 0.12);
   if (window.warmth) open *= within(window.warmth, now.warmth, 2.5);
   if (window.moon !== undefined) open *= smoothstep(window.moon - 0.2, window.moon, now.moon);
@@ -119,6 +123,7 @@ export function openness(window: Window | undefined, now: Conditions): number {
   // been rained on. `wet` lags the weather, so this outlives the shower.
   if (window.after === 'rain') open *= now.wet * (1 - smoothstep(0.02, 0.12, now.rain));
   if (window.after === 'snow') open *= now.lying * (1 - smoothstep(0.02, 0.12, now.snow));
+  if (window.after === 'storm') open *= now.wet * (1 - smoothstep(0.02, 0.12, now.storm));
 
   return clamp01(open);
 }

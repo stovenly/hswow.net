@@ -14,9 +14,12 @@ import { setCoverWeather } from '../art/cover';
 import { setGlowLevel } from '../art/glow';
 import { setZoneWind } from '../art/sway';
 import { createRain, type RainModel, type RainSurface } from '../audio/models/rain';
+import { BUCKET, drawStrike, flashOf, skyClock, type Strike } from './lightning';
+import { createBolt, type Bolt } from '../art/bolt';
+import { createPeal, type Peal } from '../audio/oneshots/peal';
 import type { Conditions } from '../audio/ambience/conditions';
 import type { AudioEngine } from '../audio/AudioEngine';
-import type { PostFX } from '../engine/PostFX';
+import type { PostFX, WeatherFog } from '../engine/PostFX';
 import type { ZoneManager } from './ZoneManager';
 import type { SurfaceName } from '../audio/models/footsteps';
 
@@ -53,6 +56,32 @@ const DECK_EASE = 14;
  */
 const HELD_SNAP = 2.5;
 
+/**
+ * Seconds after a stroke train inside which another strike gets one stroke and
+ * no train. The unconditional half of the photosensitivity guard: two strikes
+ * drawn into overlapping buckets must not compound into a longer flicker than
+ * one bolt makes.
+ */
+const TRAIN_FLOOR = 1.2;
+
+/** Buckets caught up in one frame before the schedule is simply moved. */
+const CATCH_UP = 3;
+
+/** Seconds a peal is scheduled ahead of its arrival. */
+const LOOKAHEAD = 0.2;
+
+/**
+ * Seconds a peal keeps being re-panned after it fires. A roll lasts ten
+ * seconds and the player will turn during it.
+ */
+const ROLLING = 14;
+
+/** What lightning is the colour of, before the row's own peak scales it. */
+const FLASH_TINT = new THREE.Color().setHex(0xc9dcff, THREE.SRGBColorSpace);
+
+/** How much sky a flash of 1 adds. Above about 1.4 the frame is white. */
+const FLASH_AIR = 0.7;
+
 export class WeatherRig {
   readonly climate: Climate;
   readonly air = createAtmosphere();
@@ -86,10 +115,37 @@ export class WeatherRig {
    */
   private cloudClock = 0;
   private lastDay = 0;
+  /** Seconds of real time. What the flash is a function of. */
+  private clock = 0;
+  /** The last bucket the strike schedule has drawn. */
+  private lastBucket = -1;
+  /** Strikes still flashing, and the clock each began at. */
+  private readonly live: { strike: Strike; at: number }[] = [];
+  /** When the last stroke train began. See `TRAIN_FLOOR`. */
+  private lastTrain = -99;
+  private flash = 0;
+  private readonly flashToward = new THREE.Vector3(0, 1, 0);
+  /** Drawn this frame, and not yet given a channel or a peal. */
+  private readonly fresh: Strike[] = [];
+  private bolt: Bolt | null = null;
+  /** Whichever strike the channel is drawing, and when it fell. */
+  private channel: Strike | null = null;
+  private channelAt = 0;
+  private peal: Peal | null = null;
+  private pealSend: GainNode | null = null;
+  /**
+   * Peals on their way. The one piece of live state a strike leaves: a sound
+   * forty seconds late has to wait somewhere, and whether you are indoors has
+   * to be answered when it arrives rather than when the bolt fell.
+   */
+  private readonly pending: { strike: Strike; due: number }[] = [];
+  private rolling: Strike | null = null;
+  private rollingUntil = 0;
+  private struck = 'none';
   private readonly airColour = new THREE.Color();
   private airMix = 0;
-  private airNear = 1;
-  private airFar = 1;
+  /** Multipliers on the zone's fog, blended across every running kind. */
+  private readonly airFog: WeatherFog = { near: 1, far: 1, curve: 1, ceiling: 1 };
   private airDarken = 0;
 
   constructor(climate: Climate, scene: THREE.Scene) {
@@ -101,11 +157,16 @@ export class WeatherRig {
     scene.add(this.root);
   }
 
-  /** Whichever kind is falling hardest, or null. Decides the footstep surface and the bed. */
-  private heaviest(): { kind: WeatherKind; amount: number } | null {
+  /**
+   * The heaviest kind that declares the thing being asked for. Asked flat, a
+   * storm outweighs the rain under it and declares no surface, which would take
+   * the mud out from under the heaviest rain of the year.
+   */
+  private heaviest(declares: (kind: WeatherKind) => unknown): { kind: WeatherKind; amount: number } | null {
     let best: WeatherKind | null = null;
     let amount = 0;
     for (const kind of WEATHER_KINDS) {
+      if (!declares(kind)) continue;
       const value = this.climate.amountOf(kind.name);
       if (value > amount) {
         best = kind;
@@ -115,10 +176,19 @@ export class WeatherRig {
     return best ? { kind: best, amount } : null;
   }
 
+  /**
+   * The last strike and how long its peal still has to travel, for the panel.
+   * The delay is the one number a player can check against the range.
+   */
+  get storming(): string {
+    const peal = this.pending[0];
+    return peal ? `${this.struck}, peal in ${(peal.due - this.clock).toFixed(1)}s` : this.struck;
+  }
+
   /** The floor underfoot while something is lying on it, or null for the zone's own. */
   get surface(): SurfaceName | null {
     if (this.lying > 0.35) return 'snow';
-    const heavy = this.heaviest();
+    const heavy = this.heaviest((kind) => kind.ground?.surface);
     if (heavy && heavy.amount > 0.25 && heavy.kind.ground?.surface) return heavy.kind.ground.surface;
     return null;
   }
@@ -128,9 +198,10 @@ export class WeatherRig {
     postfx: PostFX,
     zones: ZoneManager,
     audio: AudioEngine,
-    listener: THREE.Vector3,
+    camera: THREE.Camera,
   ): void {
     const climate = this.climate;
+    const listener = camera.position;
     const zone = zones.current;
     const outdoors = zone?.environment.sky ?? true;
     // Set before the sample, not after: a zone with no map coordinate stands
@@ -144,15 +215,17 @@ export class WeatherRig {
     const moved = (climate.elapsedDays - this.lastDay) * 86400;
     this.lastDay = climate.elapsedDays;
     this.cloudClock += Math.max(0, Math.min(moved / 60, 600));
+    this.applyStrikes(dt);
 
     this.readAir();
     this.applyLight(postfx, zones);
     this.applySky(postfx, dt);
-    postfx.setWeatherAir(this.airColour, this.airMix, this.airNear, this.airFar);
+    postfx.setWeatherAir(this.airColour, this.airMix, this.airFog);
     this.postfx = postfx;
     this.applySurfaces(dt, outdoors, zone?.environment.wind ?? 1);
     this.applyFalling(postfx, outdoors, dt);
     this.applySound(dt, audio, zones, listener, outdoors);
+    this.applyStorm(audio, zones, camera, outdoors);
     this.applyAmbience(zones, listener, outdoors);
   }
 
@@ -204,6 +277,17 @@ export class WeatherRig {
       }
     }
 
+    // The flash, after the overcast has had its say — a storm is heavily
+    // covered, and a bolt has to beat what that took out of the light.
+    if (this.flash > 0) {
+      this.air.ambientScale *= 1 + this.flash * 1.8;
+      tintToward(this.air.ambientSky, FLASH_TINT, Math.min(0.9, this.flash * 0.7));
+      this.air.fillScale *= 1 + this.flash * 3;
+      tintToward(this.air.fillColour, FLASH_TINT, Math.min(0.9, this.flash * 0.7));
+    }
+    FLASH_ADD.copy(FLASH_TINT).multiplyScalar(Math.min(this.flash * FLASH_AIR, 3));
+    postfx.setFlash(FLASH_ADD, this.flashToward, Math.min(this.flash * 0.55, 2));
+
     postfx.aimSun(climate.sunDirection);
     postfx.setAir(this.air.horizon, this.air.zenith, this.air.ground, this.air.sunDisc, this.air.warmth);
     // Up is up. The moon is drawn whenever it clears the horizon, whatever the
@@ -233,6 +317,11 @@ export class WeatherRig {
     // itself is the light, and the key is only shaping it.
     const phase = 0.25 + climate.moonLight * 0.75;
     zones.aimKeyLight(this.key, (moonlit ? 0.45 * phase : 1) * clear * clear);
+    // The key is not moved: a strike lasts three to eight frames, and swinging
+    // the shadow camera and putting it back is a change of direction the eye
+    // has no time to read and the shadow map every reason to alias on. The
+    // fill casts nothing, so it can be thrown at the bolt for free.
+    if (this.flash > 0) zones.aimFill(this.flashToward);
     // The decks take the same key. A cloud shaded by a sun that has set carries
     // a lit side and a silvered rim aimed at nothing.
     postfx.setSkyLight(this.key, moonlit ? 0.5 * climate.moonLight : 1);
@@ -242,6 +331,152 @@ export class WeatherRig {
     // than on the clock, so a winter afternoon lights itself early.
     const dusk = Math.max(0, Math.min(1, (4 - climate.sunElevation) / 10));
     setGlowLevel(dusk * dusk * (3 - 2 * dusk));
+  }
+
+  /**
+   * Draws the strikes whose buckets have gone by, and works out how bright the
+   * sky is right now. Sampled at the current time rather than stepped: `dt` is
+   * clamped to 0.1 s and the frame rate can be capped to 30, and a 150 ms flash
+   * cannot survive being walked frame by frame.
+   */
+  private applyStrikes(dt: number): void {
+    this.clock += dt;
+    const bucket = Math.floor(skyClock(this.climate) / BUCKET);
+    // A scrub of the clock moves the schedule rather than firing every bucket
+    // it passed over.
+    if (this.lastBucket < 0 || Math.abs(bucket - this.lastBucket) > CATCH_UP) {
+      this.lastBucket = bucket - 1;
+    }
+    for (let n = this.lastBucket + 1; n <= bucket; n++) {
+      const strike = drawStrike(this.climate, n, this.clock - this.lastTrain < TRAIN_FLOOR);
+      if (!strike) continue;
+      this.lastTrain = this.clock;
+      this.live.push({ strike, at: this.clock });
+      this.fresh.push(strike);
+      this.struck = `${strike.row.name} ${strike.range.toFixed(1)} km`;
+    }
+    this.lastBucket = bucket;
+
+    this.flash = 0;
+    let brightest = 0;
+    for (let i = this.live.length - 1; i >= 0; i--) {
+      const entry = this.live[i];
+      const since = this.clock - entry.at;
+      if (since > entry.strike.life) {
+        this.live.splice(i, 1);
+        continue;
+      }
+      const light = flashOf(entry.strike, since);
+      this.flash += light;
+      if (light > brightest) {
+        brightest = light;
+        this.flashToward.copy(entry.strike.toward);
+      }
+    }
+  }
+
+  /**
+   * What a strike sets off besides the light: the channel it draws, and the
+   * peal it will be heard as.
+   */
+  private applyStorm(
+    audio: AudioEngine,
+    zones: ZoneManager,
+    camera: THREE.Camera,
+    outdoors: boolean,
+  ): void {
+    for (const strike of this.fresh) {
+      if (strike.row.channel !== 'none') this.showChannel(strike);
+      if (!strike.row.thunder) continue;
+      // Three seconds a kilometre, off a temperature the climate already
+      // models, so thunder is genuinely slower on a cold night.
+      const speed = 331.3 + 0.606 * this.climate.temperature;
+      this.pending.push({ strike, due: this.clock + (strike.range * 1000) / speed });
+    }
+    this.fresh.length = 0;
+
+    if (this.bolt) {
+      const since = this.channel ? this.clock - this.channelAt : 0;
+      if (this.channel && since > this.channel.life) this.channel = null;
+      const light = this.channel ? flashOf(this.channel, since) : 0;
+      this.bolt.setBrightness(outdoors ? Math.min(light * 1.2, 1) : 0);
+      if (this.bolt.mesh.visible) this.bolt.mesh.position.copy(camera.position);
+    }
+
+    for (let i = this.pending.length - 1; i >= 0; i--) {
+      const entry = this.pending[i];
+      if (entry.due - this.clock > LOOKAHEAD) continue;
+      this.pending.splice(i, 1);
+      const peal = this.ensurePeal(audio);
+      if (!peal) continue;
+      const delay = Math.max(entry.due - this.clock, 0);
+      // Worth subtracting on a strike close enough for the delay to be short.
+      // At forty seconds it is noise.
+      const latency = delay < 0.5 ? audio.context.outputLatency || 0 : 0;
+      peal.aim({
+        range: entry.strike.range,
+        spread: entry.strike.row.spread,
+        crack: entry.strike.row.crack,
+        speed: 331.3 + 0.606 * this.climate.temperature,
+        seed: entry.strike.seed,
+      });
+      peal.setIndoors(!outdoors);
+      peal.setPan(this.panFor(entry.strike, camera));
+      peal.fire(audio.context.currentTime + Math.max(delay - latency, 0.02), 0.9);
+      // One call per peal, never per stroke, and at the peal rather than at the
+      // bolt: the wood goes quiet when it hears the clap. Thunder is geophony,
+      // so it causes the hush rather than taking part in it.
+      zones.ambience?.hush();
+      this.rolling = entry.strike;
+      this.rollingUntil = this.clock + ROLLING;
+    }
+
+    if (this.peal && this.rolling) {
+      if (this.clock > this.rollingUntil) this.rolling = null;
+      else this.peal.setPan(this.panFor(this.rolling, camera));
+    }
+  }
+
+  /** Where the peal sits across the ears. Shallow, and shallower with distance. */
+  private panFor(strike: Strike, camera: THREE.Camera): number {
+    camera.getWorldDirection(FORWARD);
+    // right = forward cross up, which for a camera looking down -Z is +X.
+    RIGHT.crossVectors(FORWARD, UP).normalize();
+    const side = Math.cos(strike.bearing) * RIGHT.x + Math.sin(strike.bearing) * RIGHT.z;
+    return side * 0.65 * Math.exp(-strike.range / 8);
+  }
+
+  private showChannel(strike: Strike): void {
+    if (!this.bolt) {
+      this.bolt = createBolt();
+      this.root.add(this.bolt.mesh);
+    }
+    this.bolt.strike({
+      toward: strike.toward,
+      range: strike.range,
+      height: GENERA.cumulonimbus.height * 1000,
+      channel: strike.row.channel === 'crawl' ? 'crawl' : 'fork',
+      wander: strike.row.wander,
+      width: strike.row.width,
+      seed: strike.seed,
+    });
+    this.channel = strike;
+    this.channelAt = this.clock;
+  }
+
+  private ensurePeal(audio: AudioEngine): Peal | null {
+    if (this.peal) return this.peal;
+    if (!audio.noise || !audio.started) return null;
+    const peal = createPeal(audio, { gain: 0.55 });
+    peal.output.connect(audio.weatherBus);
+    // And to the room, because a hall's tail on a thunderclap is what a
+    // thunderclap indoors is.
+    const send = audio.context.createGain();
+    send.gain.value = 0.35;
+    peal.output.connect(send).connect(audio.send);
+    this.peal = peal;
+    this.pealSend = send;
+    return peal;
   }
 
   private applySky(postfx: PostFX, dt: number): void {
@@ -359,8 +594,8 @@ export class WeatherRig {
   private readAir(): void {
     this.airColour.setRGB(0, 0, 0);
     this.airMix = 0;
-    this.airNear = 1;
-    this.airFar = 1;
+    const fog = this.airFog;
+    fog.near = fog.far = fog.curve = fog.ceiling = 1;
     this.airDarken = 0;
     for (const kind of WEATHER_KINDS) {
       const amount = this.climate.amountOf(kind.name);
@@ -375,8 +610,10 @@ export class WeatherRig {
         );
         this.airMix += weight;
       }
-      this.airNear *= 1 - (1 - (kind.air.near ?? 1)) * amount;
-      this.airFar *= 1 - (1 - (kind.air.far ?? 1)) * amount;
+      fog.near *= 1 - (1 - (kind.air.near ?? 1)) * amount;
+      fog.far *= 1 - (1 - (kind.air.far ?? 1)) * amount;
+      fog.curve *= 1 - (1 - (kind.air.curve ?? 1)) * amount;
+      fog.ceiling *= 1 - (1 - (kind.air.ceiling ?? 1)) * amount;
       this.airDarken = Math.max(this.airDarken, (kind.air.darken ?? 0) * amount);
     }
     if (this.airMix > 0) this.airColour.multiplyScalar(1 / this.airMix);
@@ -504,6 +741,7 @@ export class WeatherRig {
     CONDITIONS.rain = climate.amountOf('rain');
     CONDITIONS.snow = climate.amountOf('snow');
     CONDITIONS.fog = climate.amountOf('fog');
+    CONDITIONS.storm = climate.amountOf('storm');
     CONDITIONS.wet = this.wet;
     CONDITIONS.lying = this.lying;
     CONDITIONS.wind = wind.strengthAt(listener.x, listener.z);
@@ -588,6 +826,10 @@ export class WeatherRig {
     this.systems.clear();
     this.root.parent?.remove(this.root);
     this.rain?.dispose();
+    this.bolt?.dispose();
+    this.peal?.dispose();
+    this.pealSend?.disconnect();
+    this.pending.length = 0;
   }
 }
 
@@ -604,6 +846,7 @@ const CONDITIONS: Conditions = {
   rain: 0,
   snow: 0,
   fog: 0,
+  storm: 0,
   wet: 0,
   lying: 0,
   wind: 0.4,
@@ -614,6 +857,10 @@ const CONDITIONS: Conditions = {
 
 const AIR_ONE = new THREE.Color();
 const COVER_SKY = new THREE.Color();
+const FLASH_ADD = new THREE.Color();
+const FORWARD = new THREE.Vector3();
+const RIGHT = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 
 function hashName(name: string): number {
   let value = 0x811c9dc5;

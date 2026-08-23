@@ -38,6 +38,7 @@ export class GTAOEffect implements PixelEffect {
 
   private fogNear = 25;
   private fogFar = 140;
+  private fogRamp = 1.5;
 
   constructor() {
     const target = (): THREE.WebGLRenderTarget => {
@@ -56,9 +57,10 @@ export class GTAOEffect implements PixelEffect {
   }
 
   /** The fog the composite fades against. Pushed from `PostFX.apply`. */
-  setFog(near: number, far: number): void {
+  setFog(near: number, far: number, ramp: number): void {
     this.fogNear = near;
     this.fogFar = far;
+    this.fogRamp = ramp;
   }
 
   setSize(width: number, height: number): void {
@@ -115,10 +117,10 @@ export class GTAOEffect implements PixelEffect {
     composite.tDiffuse.value = context.colour;
     composite.tAO.value = this.aoTarget.texture;
     composite.tDepth.value = context.depth;
-    composite.uNear.value = camera.near;
-    composite.uFar.value = camera.far;
+    composite.uProjInverse.value = camera.projectionMatrixInverse;
     composite.uFogNear.value = this.fogNear;
     composite.uFogFar.value = this.fogFar;
+    composite.uFogRamp.value = this.fogRamp;
     composite.uStrength.value = this.strength;
     renderer.setRenderTarget(context.write);
     this.quad.material = this.compositeMaterial;
@@ -357,10 +359,10 @@ function createCompositeMaterial(): THREE.ShaderMaterial {
       tDiffuse: { value: null },
       tAO: { value: null },
       tDepth: { value: null },
-      uNear: { value: 0.1 },
-      uFar: { value: 500 },
+      uProjInverse: { value: new THREE.Matrix4() },
       uFogNear: { value: 25 },
       uFogFar: { value: 140 },
+      uFogRamp: { value: 1.5 },
       uStrength: { value: 1 },
     },
     vertexShader: FULLSCREEN_VERTEX,
@@ -368,10 +370,10 @@ function createCompositeMaterial(): THREE.ShaderMaterial {
       uniform sampler2D tDiffuse;
       uniform sampler2D tAO;
       uniform sampler2D tDepth;
-      uniform float uNear;
-      uniform float uFar;
+      uniform mat4 uProjInverse;
       uniform float uFogNear;
       uniform float uFogFar;
+      uniform float uFogRamp;
       uniform float uStrength;
       varying vec2 vUv;
 
@@ -379,12 +381,12 @@ function createCompositeMaterial(): THREE.ShaderMaterial {
         vec4 colour = texture2D(tDiffuse, vUv);
         float ao = texture2D(tAO, vUv).r;
 
-        // The same fog the materials applied — smoothstep, exactly as three's linear
-        // fog chunk computes it, because AO multiplied on after fog would darken the
-        // haze itself.
+        // The same fog the materials applied: radial from the eye, and on the
+        // same ramp, or AO outlives the haze at the sides of the frame.
         float d = texture2D(tDepth, vUv).r;
-        float dist = -(uNear * uFar) / ((uFar - uNear) * d - uFar);
-        float fogAmount = smoothstep(uFogNear, uFogFar, dist);
+        vec4 p = uProjInverse * vec4(vUv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+        float dist = length(p.xyz / p.w);
+        float fogAmount = pow(smoothstep(uFogNear, uFogFar, dist), max(uFogRamp, 0.1));
 
         colour.rgb *= mix(1.0, ao, uStrength * (1.0 - fogAmount));
         gl_FragColor = colour;

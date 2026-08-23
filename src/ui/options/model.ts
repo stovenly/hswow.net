@@ -143,6 +143,17 @@ export interface Options {
    * local, and looked at rather than looked through.
    */
   precipitation: boolean;
+  /**
+   * The lightning flicker.
+   *
+   * A stroke train is a full-frame luminance transient at 15-20 Hz from
+   * near-black to near-white, which is the pattern that causes seizures and is
+   * the strongest such thing in the game. Off, the storm stays: one stroke
+   * rather than a train, a quarter-second ramp rather than fifteen
+   * milliseconds, a hard ceiling well short of white, and the channel and the
+   * thunder untouched.
+   */
+  lightning: boolean;
   /** The field of view widening while sprinting. */
   sprintZoom: boolean;
   colorblind: ColorblindMode;
@@ -194,6 +205,7 @@ export const DEFAULT_OPTIONS: Options = {
   waterMotion: true,
   headBob: true,
   precipitation: true,
+  lightning: true,
   sprintZoom: true,
   colorblind: 'off',
   colorblindStrength: 100,
@@ -220,6 +232,7 @@ export function effective(options: Options): Options {
     waterMotion: options.waterMotion && motion,
     headBob: options.headBob && motion,
     precipitation: options.precipitation && motion,
+    lightning: options.lightning && motion,
     sprintZoom: options.sprintZoom && motion,
   };
 }
@@ -480,6 +493,18 @@ export const CATEGORIES: readonly Category[] = [
             : options.precipitation
               ? null
               : 'snow and rain removed, not stilled',
+      },
+      {
+        kind: 'toggle',
+        key: 'lightning',
+        label: 'lightning flicker',
+        enabledWhen: motionAllowed,
+        note: (options) =>
+          options.reducedMotion
+            ? 'held by reduced motion'
+            : options.lightning
+              ? null
+              : 'one slow stroke, never a train',
       },
       {
         kind: 'toggle',
