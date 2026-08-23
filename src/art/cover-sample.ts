@@ -50,6 +50,16 @@ export const PROP_GLOW: Record<PropLayer['kind'], number> = {
   raceme: 0.35,
 };
 
+/** Which kinds thin with distance. A plume is the point of its field at any range, and wall cover keeps its look from far off. */
+export const PROP_LOD: Record<PropLayer['kind'], boolean> = {
+  plume: false,
+  bloom: true,
+  leaf: true,
+  ivy: false,
+  posy: false,
+  raceme: false,
+};
+
 /**
  * Which kinds spin freely in the wall plane. A crawl points any way; a
  * raceme hangs, and must keep hanging.
@@ -102,6 +112,8 @@ export interface PropChunk {
   tint: number[];
   normal: number[];
   roll: number[];
+  /** Square metres one prop of its layer accounts for in the full pool. Zero where the kind never thins. */
+  area: number[];
 }
 
 export interface CoverSample {
@@ -333,7 +345,8 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
           0.8 - 0.5 * mound,
         );
         chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
-        chunk.wild.push(h1 * 6.2831, h4 * 31, layer.give, 0);
+        // w: square metres this blade accounts for in the full pool. The LOD reads it.
+        chunk.wild.push(h1 * 6.2831, h4 * 31, layer.give, 1 / (layer.density * COVER_POOL_SCALE));
         chunk.normal.push(normal.x, normal.y, normal.z);
         sample.bladeCount++;
       }
@@ -375,7 +388,7 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
         const key = `${props.kind}:${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
         let chunk = sample.props.get(key);
         if (!chunk) {
-          chunk = { kind: props.kind, place: [], prop: [], tint: [], normal: [], roll: [] };
+          chunk = { kind: props.kind, place: [], prop: [], tint: [], normal: [], roll: [], area: [] };
           sample.props.set(key, chunk);
         }
         // Wall props sit just off their face and yaw to it, give or take;
@@ -394,6 +407,7 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
         chunk.roll.push(
           walls && PROP_ROLLS[props.kind] ? hat(f, i, 107 + salt) * Math.PI * 2 : 0,
         );
+        chunk.area.push(PROP_LOD[props.kind] ? 1 / (props.density * COVER_POOL_SCALE) : 0);
         sample.propCount++;
       }
     }
@@ -422,6 +436,7 @@ export interface CoverChunks {
     tint: Float32Array;
     normal: Float32Array;
     roll: Float32Array;
+    area: Float32Array;
   }[];
   maxLen: number;
 }
@@ -433,7 +448,10 @@ export function buffersOf(chunks: CoverChunks): ArrayBufferLike[] {
     out.push(chunk.place.buffer, chunk.shape.buffer, chunk.tint.buffer, chunk.wild.buffer, chunk.normal.buffer);
   }
   for (const chunk of chunks.props) {
-    out.push(chunk.place.buffer, chunk.prop.buffer, chunk.tint.buffer, chunk.normal.buffer, chunk.roll.buffer);
+    out.push(
+      chunk.place.buffer, chunk.prop.buffer, chunk.tint.buffer, chunk.normal.buffer,
+      chunk.roll.buffer, chunk.area.buffer,
+    );
   }
   return out;
 }
@@ -455,6 +473,7 @@ export function packSample(sample: CoverSample): CoverChunks {
       tint: new Float32Array(chunk.tint),
       normal: new Float32Array(chunk.normal),
       roll: new Float32Array(chunk.roll),
+      area: new Float32Array(chunk.area),
     })),
     maxLen: sample.maxLen,
   };

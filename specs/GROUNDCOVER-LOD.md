@@ -3,10 +3,11 @@
 Distance LOD for the instanced cover: fewer blades the further away they stand,
 with no seam anywhere, and with the far field still ruffling in the wind.
 
-Nothing here is built. Every claim about the existing system below was read out
-of `art/cover.ts`, `art/cover-sample.ts`, `engine/PixelStage.ts` and
-`world/ground.ts` as they stand today. Working names throughout; every number is
-a placeholder for the render preset and is yours to move.
+Both phases are built, in `art/cover.ts` and `art/cover-sample.ts`. The knobs
+live in the render preset under `cover.lod` and the debug panel's
+`groundcover › distance` folder; every number is a placeholder and is yours to
+move. The section *What exists* describes the system the LOD was designed
+against.
 
 **The short version.** The cost is vertices: nine per blade, for every blade in
 every chunk the frustum keeps, drawn twice a frame. At 60 m a blade is a one-by-

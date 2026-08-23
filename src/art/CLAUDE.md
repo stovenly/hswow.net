@@ -53,6 +53,14 @@ resemble only what can be collided with or stepped on — a tree's trunk, not it
 leaves; a door's leaf, not its hinges. Say it with `MeshBuilder.solid = false`,
 or keep the decoration in a child mesh flagged `userData.noCollide`.
 
+**Groundcover thins per blade, never per pixel or per chunk.** Each instance
+carries its own keep distance (`iKeep = sqrt(area / rank)` after the shuffle)
+and sprouts out of the ground over the last fraction of it; a chunk's
+`instanceCount` is only a cap that tracks the same curve from its sphere. A
+per-pixel blend draws a ring and a per-chunk step draws the 24 m grid. Past
+`swapAt` a blade is drawn by its chunk's one-triangle mesh instead of its
+ribbon, hashed per blade; the base geometry's `position.z` says which is which.
+
 **No two layers may share a plane.** Two faces at one depth is a z-fight the
 depth buffer cannot resolve at any distance; depth is made by stacking outward.
 

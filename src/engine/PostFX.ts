@@ -23,7 +23,7 @@ import { Sky, DEFAULT_SKY, type SkySettings, type DeckState } from './Sky';
 import { fogUniforms } from './fog';
 import { loadPreset, savePreset, clearPreset } from '../debug/presets';
 import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
-import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw } from '../art/cover';
+import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw, setCoverLod, type CoverLod } from '../art/cover';
 import { BOLT_MATERIAL } from '../art/bolt';
 import { COVER_POOL_SCALE } from '../art/cover-sample';
 import { detailUniforms } from '../art/detail';
@@ -80,7 +80,7 @@ export interface RenderSettings {
   glass: { refraction: number };
 
   /** Multipliers over the groundcover type table. `density` is the fraction of sampled blades drawn, 0..1. */
-  cover: { density: number; height: number; width: number };
+  cover: { density: number; height: number; width: number; lod: CoverLod };
 
   /**
    * Multipliers over the particle system table. `density` is a prefix of the
@@ -134,7 +134,12 @@ export const DEFAULT_RENDER: RenderSettings = {
   glass: { refraction: 1 },
 
   // Unity: the type table is authored in real metres and blades per square metre.
-  cover: { density: 1, height: 1, width: 1 },
+  cover: {
+    density: 1,
+    height: 1,
+    width: 1,
+    lod: { blades: 1.5, grazing: 1, sprout: 0.12, sheen: 0.18, swapAt: 25 },
+  },
 
   // A sixtieth of a second: a shutter near the frame time.
   particles: { density: 1, size: 1, shutter: 1 / 60 },
@@ -316,8 +321,12 @@ export class PostFX {
       // A preset from the shell-era cover stored different keys with different units.
       cover:
         saved.cover && !('shells' in saved.cover)
-          ? { ...DEFAULT_RENDER.cover, ...saved.cover }
-          : { ...DEFAULT_RENDER.cover },
+          ? {
+              ...DEFAULT_RENDER.cover,
+              ...saved.cover,
+              lod: { ...DEFAULT_RENDER.cover.lod, ...saved.cover.lod },
+            }
+          : { ...DEFAULT_RENDER.cover, lod: { ...DEFAULT_RENDER.cover.lod } },
       particles: { ...DEFAULT_RENDER.particles, ...saved.particles },
       detail: { ...DEFAULT_RENDER.detail, ...saved.detail },
     };
@@ -637,6 +646,7 @@ export class PostFX {
       s.cover.height,
       s.cover.width,
     );
+    setCoverLod(s.cover.lod);
 
     detailUniforms.uDetailStart.value = s.detail.start;
     detailUniforms.uDetailSpan.value = s.detail.span;

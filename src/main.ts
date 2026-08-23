@@ -466,6 +466,13 @@ if (dev.gui) {
   cover.add(r.cover, 'density', 0, 1, 0.05).name('fraction drawn').onChange(refresh);
   cover.add(r.cover, 'height', 0.25, 2, 0.05).onChange(refresh);
   cover.add(r.cover, 'width', 0.25, 3, 0.05).onChange(refresh);
+  // Distance LOD. Per blade and stochastic, never per pixel — see `art/cover.ts`.
+  const lod = cover.addFolder('distance');
+  lod.add(r.cover.lod, 'blades', 0.25, 8, 0.05).name('blades per pixel').onChange(refresh);
+  lod.add(r.cover.lod, 'grazing', 0, 1, 0.05).name('by view angle').onChange(refresh);
+  lod.add(r.cover.lod, 'sprout', 0, 0.6, 0.01).name('sprout band').onChange(refresh);
+  lod.add(r.cover.lod, 'sheen', -0.6, 0.6, 0.01).name('far wind sheen').onChange(refresh);
+  lod.add(r.cover.lod, 'swapAt', 0, 80, 1).name('one triangle past (m)').onChange(refresh);
 
   // No player video option here on purpose — snow in a snowy zone is the place,
   // like a pond or a mist pool (PARTICLES.md §8). What the player does get is
