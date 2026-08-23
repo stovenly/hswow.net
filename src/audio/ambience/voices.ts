@@ -50,9 +50,13 @@ const s = (
  * `DB`, and nothing else may set a level.
  */
 const CALL_GAIN = 0.5;
-const THING_GAIN = 0.45;
-const FLOW_GAIN = 0.45;
-const DROPLET_GAIN = 0.5;
+// Impulsive families need far more amplitude than sustained ones for the same
+// loudness: a two-millisecond transient at a given peak is nowhere near as loud
+// as a two-hundred-millisecond tone at the same peak. These are normalisation,
+// not the mix — `DB` is still the only place a level is decided.
+const THING_GAIN = 0.9;
+const FLOW_GAIN = 1.8;
+const DROPLET_GAIN = 1.5;
 
 const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,
@@ -394,15 +398,6 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // is a struck bar. Standing in as long metal until they have their own model.
   'bell-church': thing('body', { material: 'brass', size: 0.32, striker: 0.9, ring: 3.5 }),
   'bell-buoy': thing('body', { material: 'brass', size: 0.6, striker: 0.75, ring: 2.4 }),
-  foghorn: sung('body', {
-    pitch: 120,
-    variance: 0.01,
-    phrase: [s(1, 0.98, [2.4, 3.2], [8, 14], { drive: 0.7 })],
-    rasp: 0.1,
-    formant: 260,
-    q: 2.6,
-  }, false),
-
 };
 
 /**
@@ -424,7 +419,6 @@ const DB: Partial<Record<AmbienceVoice, number>> = {
   // --- soundmarks: the loudest things here, and the rarest ----------------
   'bell-church': -6,
   'bell-buoy': -10,
-  foghorn: -8,
 
   // --- signals: meant to be listened to -----------------------------------
   rockfall: -12,

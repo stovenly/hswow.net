@@ -84,7 +84,10 @@ export function createBustle(engine: AudioEngine, options: BustleOptions = {}): 
     // Steel is higher than timber and insists on its note far harder, which is
     // the whole difference between a yard of crates and a shop floor.
     band.frequency.value = material.hz * (1 + metal * 1.6);
-    band.Q.value = material.q * (1 + metal * 2.4);
+    // Sharper than timber, but not by much: past about a Q of five each
+    // contact rings long enough to stay a separate event, and a stream of
+    // separate events at any rate is a slapping noise rather than a place.
+    band.Q.value = material.q * (1 + metal * 1.1);
     const level = context.createGain();
     level.gain.value = material.weight;
     band.connect(level).connect(far);
@@ -113,8 +116,11 @@ export function createBustle(engine: AudioEngine, options: BustleOptions = {}): 
     // Individually almost nothing, and that is the point: the moment one of
     // these can be picked out it has become an event rather than a place.
     const which = Math.floor(Math.random() * bands.length);
-    const force = 0.02 + Math.random() * 0.07;
-    const hardness = 0.001 + Math.random() * 0.006;
+    // A wide level range is most of what stops a field of contacts reading as
+    // a machine: nearly all of them should be under the threshold of being
+    // noticed at all, with the occasional one that is not.
+    const force = 0.008 + Math.random() * Math.random() * 0.1;
+    const hardness = 0.002 + Math.random() * 0.008;
     excite(context, noise.white, bands[which], at, force, hardness, hardness * 0.4);
   };
 

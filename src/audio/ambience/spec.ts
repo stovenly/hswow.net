@@ -58,7 +58,6 @@ export type AmbienceVoice =
   // Signals and soundmarks.
   | 'bell-church'
   | 'bell-buoy'
-  | 'foghorn'
   | 'crack';
 
 /** What a continuous layer answers to. */

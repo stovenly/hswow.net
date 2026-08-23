@@ -60,7 +60,9 @@ export function createPlate(engine: AudioEngine, options: PlateOptions = {}): So
     decay: decay * Math.pow(0.78, i),
     level: Math.pow(bright, i * 0.55) / (1 + i * 0.35),
   }));
-  const bank: ModalBank = createModalBank(context, modes, output, { ring: 'excitation' });
+  // See `strike.ts`: a gust excites a plate with a contact, so the ring has to
+  // live in the filter or there is no ring.
+  const bank: ModalBank = createModalBank(context, modes, output, { ring: 'filter' });
 
   const clock: EventClock = createEventClock(context);
   const gap = poissonGap(0.4);

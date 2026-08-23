@@ -313,7 +313,7 @@ export const FACTORY_1_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     // a great deal of steel being handled out of sight.
-    { model: 'bustle', options: { rate: 16, distance: 1400, roll: 0.6, metal: 0.9, busy: 0.7, gain: 0.11 } },
+    { model: 'bustle', options: { rate: 5, distance: 900, roll: 0.7, metal: 0.8, busy: 0.7, gain: 0.11 } },
   ],
   cast: [
     // load dropped at the other end of the building.
@@ -330,7 +330,7 @@ export const FACTORY_2_AMBIENCE: AmbienceSpec = {
   ],
   chorus: [
     // in it you could walk over to.
-    { model: 'bustle', options: { rate: 30, distance: 1900, roll: 0.8, metal: 1, busy: 0.9, gain: 0.15 } },
+    { model: 'bustle', options: { rate: 8, distance: 1200, roll: 0.9, metal: 0.9, busy: 0.9, gain: 0.15 } },
   ],
   cast: [
     { voice: 'slab', every: [22, 70], level: 0.9 },
@@ -457,7 +457,6 @@ export const BEACH_AMBIENCE: AmbienceSpec = {
   signals: [
     // soundmark rather than a bell.
     { voice: 'bell-buoy', every: [26, 44], height: 1, floor: 20, level: 0.8 },
-    { voice: 'foghorn', every: [70, 130], height: 3, floor: 55, when: { fog: [0.3, 1] } },
   ],
   activity: 0.6,
   seed: 169,

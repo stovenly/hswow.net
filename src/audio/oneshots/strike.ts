@@ -169,7 +169,12 @@ export function createStrike(engine: AudioEngine, options: StrikeOptions = {}): 
     decay: stuff.decay * Math.pow(stuff.damping, i) * ring,
     level: 1 / (1 + i * 0.5),
   }));
-  const bank = createModalBank(context, modes, radiation, { ring: 'excitation' });
+  // **`'filter'`, not `'excitation'`.** In excitation mode Q is capped at 14 —
+  // it is colour, not ring — and the decay is expected to arrive in the
+  // envelope that drives it. What drives this is a contact, which is a couple
+  // of milliseconds long by definition, so the modes were being tapped and
+  // never rung: every struck body in the book was an inaudible click.
+  const bank = createModalBank(context, modes, radiation, { ring: 'filter' });
 
   let sweep = 0;
 
