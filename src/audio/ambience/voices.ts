@@ -50,13 +50,24 @@ const s = (
  * `DB`, and nothing else may set a level.
  */
 const CALL_GAIN = 0.5;
-// Impulsive families need far more amplitude than sustained ones for the same
-// loudness: a two-millisecond transient at a given peak is nowhere near as loud
-// as a two-hundred-millisecond tone at the same peak. These are normalisation,
-// not the mix — `DB` is still the only place a level is decided.
-const THING_GAIN = 0.9;
-const FLOW_GAIN = 1.8;
-const DROPLET_GAIN = 1.5;
+/**
+ * Family normalisation, and the one thing that has to be true of these numbers:
+ * **`fire(at, 1)` must peak in roughly the same place whichever family it is.**
+ * `DB` is the mix and it is a plain multiplier on `force`, so a family whose
+ * internals swallow that multiplier is a family the mix cannot reach.
+ *
+ * `flow` swallowed a factor of twenty. Its per-collision level lives inside the
+ * particle bed at around 0.05, so a voice at −28 dB arrived at 0.0036 where a
+ * bird at −24 arrived at 0.04 — twenty five decibels down, which is not quiet,
+ * it is absent. That is why every loose-material voice played nothing.
+ *
+ * `thing` goes the other way: a modal bank in filter mode compensates for the
+ * filter's bandwidth by multiplying by the square root of Q, and at the Q a
+ * long ring needs that is a factor of ten on its own.
+ */
+const THING_GAIN = 0.3;
+const FLOW_GAIN = 9;
+const DROPLET_GAIN = 3;
 
 const sung = (band: Band, shape: CallShape, alive = true, tone = 1): VoiceEntry => ({
   band,

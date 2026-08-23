@@ -174,7 +174,10 @@ export function createStrike(engine: AudioEngine, options: StrikeOptions = {}): 
   // envelope that drives it. What drives this is a contact, which is a couple
   // of milliseconds long by definition, so the modes were being tapped and
   // never rung: every struck body in the book was an inaudible click.
-  const bank = createModalBank(context, modes, radiation, { ring: 'filter' });
+  // `maxQ` well under the default 220: the bank multiplies by the square root of
+  // Q to compensate for bandwidth, so an uncapped Q is a level control nobody
+  // declared. Sixty is long enough to ring and cheap enough to stay predictable.
+  const bank = createModalBank(context, modes, radiation, { ring: 'filter', maxQ: 60 });
 
   let sweep = 0;
 

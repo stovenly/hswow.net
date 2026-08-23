@@ -72,7 +72,7 @@ const FAR = {
   /** Metres above the listener, by default. */
   lift: 5,
   level: 0.32,
-  tone: 2600,
+  tone: 5200,
   reverb: 0.9,
   importance: 0.6,
 };
