@@ -111,6 +111,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   robin: sung('song', {
     pitch: 3200,
     variance: 0.1,
+    size: [0.93, 1.08],
     // A few clear notes, then a run downhill. Its whole character is that no
     // two phrases are the same length.
     phrase: [
@@ -120,12 +121,27 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
       s(0.86, 0.7, [0.05, 0.08], [0.02, 0.04], { trill: { hz: 22, cents: 90 } }),
     ],
     count: [3, 8],
+    // Its whole character is that no two phrases are the same, so it gets the
+    // widest repertoire in the book: a bright one that climbs and a thin sad
+    // one that does not.
+    also: [
+      [
+        s(1.3, 1.36, [0.12, 0.19], [0.06, 0.11], { drive: 0.12 }),
+        s(1.42, 1.2, [0.09, 0.14], [0.05, 0.09], { drive: 0.15 }),
+        s(1.5, 1.62, [0.07, 0.11], [0.04, 0.07], { drive: 0.2 }),
+      ],
+      [
+        s(0.86, 0.8, [0.14, 0.22], [0.09, 0.16], { drive: 0.08 }),
+        s(0.78, 0.72, [0.16, 0.26], [0.5, 1.1], { drive: 0.08 }),
+      ],
+    ],
     formant: 3600,
   }),
 
   blackbird: sung('song', {
     pitch: 2100,
     variance: 0.09,
+    size: [0.94, 1.07],
     // Fluted and unhurried, and it ends scratchy — the low drive at the front
     // against the high drive at the back is the whole bird.
     phrase: [
@@ -135,6 +151,14 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
       s(1.4, 1.5, [0.07, 0.11], [0.03, 0.06], { drive: 0.6, level: 0.5 }),
     ],
     count: [3, 5],
+    // A second fluted idea, lower and slower, with the same scratchy sign-off.
+    also: [
+      [
+        s(0.86, 0.94, [0.24, 0.36], [0.07, 0.14], { drive: 0.1 }),
+        s(1.02, 0.88, [0.22, 0.32], [0.06, 0.12], { drive: 0.13 }),
+        s(1.16, 1.24, [0.06, 0.1], [0.04, 0.07], { drive: 0.6, level: 0.45 }),
+      ],
+    ],
     between: [1.4, 3.2],
     repeats: [1, 2],
     formant: 2400,
@@ -144,12 +168,28 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   songthrush: sung('song', {
     pitch: 2800,
     variance: 0.1,
+    size: [0.95, 1.06],
     // The signature: everything said two to four times before it moves on.
     phrase: [
       s(1, 1.1, [0.09, 0.14], [0.05, 0.08]),
       s(1.26, 1.18, [0.08, 0.12], [0.05, 0.08]),
     ],
     count: [1, 2],
+    // The bird with the largest real repertoire of any of them, and the one
+    // where a single phrase is most obviously a loop — because it says each
+    // one three times before moving on, so the repeat is already the hook.
+    also: [
+      [s(0.82, 0.86, [0.1, 0.15], [0.06, 0.1], { drive: 0.2 })],
+      [
+        s(1.44, 1.3, [0.07, 0.11], [0.04, 0.07], { drive: 0.35 }),
+        s(1.18, 1.24, [0.06, 0.1], [0.05, 0.08], { drive: 0.3 }),
+      ],
+      [s(1, 1.62, [0.12, 0.18], [0.07, 0.12], { drive: 0.25 })],
+      [
+        s(0.66, 0.7, [0.13, 0.2], [0.06, 0.1], { drive: 0.15 }),
+        s(0.74, 0.68, [0.11, 0.17], [0.06, 0.1], { drive: 0.18 }),
+      ],
+    ],
     repeats: [2, 4],
     between: [0.18, 0.32],
     formant: 3200,
@@ -158,6 +198,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   wren: sung('song', {
     pitch: 4300,
     variance: 0.06,
+    size: [0.96, 1.05],
     // Absurdly loud for its size, and it ends on a hard trill.
     phrase: [
       s(1, 1.08, [0.04, 0.06], [0.015, 0.03], { drive: 0.4 }),
@@ -183,6 +224,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   chaffinch: sung('song', {
     pitch: 3400,
     variance: 0.07,
+    size: [0.95, 1.06],
     // The accelerating descent, then the flourish that turns back up.
     phrase: [
       s(1.16, 1.12, [0.07, 0.09], [0.05, 0.07]),
@@ -196,6 +238,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   greattit: sung('song', {
     pitch: 3900,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 1, [0.11, 0.15], [0.04, 0.06], { drive: 0.2 }),
       s(0.79, 0.79, [0.11, 0.15], [0.1, 0.16], { drive: 0.2 }),
@@ -208,6 +251,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   blackcap: sung('song', {
     pitch: 2900,
+    size: [0.95, 1.06],
     phrase: [
       s(0.9, 1.05, [0.05, 0.09], [0.02, 0.04], { drive: 0.3 }),
       s(1.12, 0.96, [0.05, 0.08], [0.02, 0.04], { drive: 0.3 }),
@@ -219,6 +263,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   skylark: sung('song', {
     pitch: 4000,
+    size: [0.96, 1.05],
     variance: 0.05,
     // The one bird that does not stop. Sustained, high, and it hangs there.
     phrase: [
@@ -233,6 +278,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   yellowhammer: sung('song', {
     pitch: 4400,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 1, [0.045, 0.06], [0.045, 0.07], { drive: 0.3 }),
       s(1, 1, [0.045, 0.06], [0.045, 0.07], { drive: 0.3 }),
@@ -246,6 +292,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   whitethroat: sung('song', {
     pitch: 3300,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 0.92, [0.04, 0.07], [0.02, 0.04], { drive: 0.5 }),
       s(1.14, 1.02, [0.04, 0.07], [0.02, 0.04], { drive: 0.5 }),
@@ -259,6 +306,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // Two stones tapped together, and that is the entire bird.
   stonechat: sung('song', {
     pitch: 3600,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 0.98, [0.012, 0.018], [0.07, 0.11], { drive: 0.9 }),
       s(1, 0.98, [0.012, 0.018], [0.5, 1.6], { drive: 0.9 }),
@@ -270,6 +318,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   meadowpipit: sung('song', {
     pitch: 4600,
+    size: [0.95, 1.06],
     phrase: [s(1, 0.985, [0.03, 0.045], [0.045, 0.075], { drive: 0.25 })],
     count: [6, 14],
     formant: 4600,
@@ -278,6 +327,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   linnet: sung('song', {
     pitch: 3500,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 1.12, [0.035, 0.055], [0.02, 0.04], { drive: 0.3 }),
       s(1.2, 1, [0.03, 0.05], [0.02, 0.045], { drive: 0.3 }),
@@ -289,6 +339,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   sparrow: sung('song', {
     pitch: 3200,
+    size: [0.92, 1.09],
     variance: 0.14,
     phrase: [s(1, 0.94, [0.05, 0.08], [0.12, 0.26], { drive: 0.45 })],
     count: [2, 5],
@@ -298,6 +349,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   swallow: sung('song', {
     pitch: 4200,
+    size: [0.95, 1.05],
     phrase: [
       s(1, 1.15, [0.025, 0.04], [0.015, 0.03], { drive: 0.35 }),
       s(1.1, 0.9, [0.025, 0.04], [0.015, 0.03], { drive: 0.35 }),
@@ -311,6 +363,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // The scream over the rooftops. Long, high and harsh, and it arrives moving.
   swift: sung('song', {
     pitch: 4500,
+    size: [0.96, 1.05],
     variance: 0.05,
     phrase: [s(1, 1.06, [0.35, 0.7], [0.12, 0.3], { drive: 0.75, trill: { hz: 60, cents: 60 } })],
     count: [1, 3],
@@ -321,6 +374,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   wagtail: sung('song', {
     pitch: 4000,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 1.1, [0.03, 0.045], [0.05, 0.08], { drive: 0.4 }),
       s(1.06, 0.96, [0.03, 0.045], [0.4, 1.2], { drive: 0.4 }),
@@ -331,6 +385,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // Rhythm and almost nothing else: a dry chatter that never settles on a tune.
   reedwarbler: sung('song', {
     pitch: 3000,
+    size: [0.95, 1.06],
     phrase: [
       s(1, 0.96, [0.05, 0.08], [0.05, 0.1], { drive: 0.5 }),
       s(1.18, 1.18, [0.03, 0.05], [0.03, 0.07], { drive: 0.55 }),
@@ -368,6 +423,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   jay: sung('call', {
     pitch: 1400,
+    size: [0.9, 1.11],
     variance: 0.08,
     phrase: [s(1, 0.86, [0.3, 0.45], [0.24, 0.4], { drive: 0.95 })],
     count: [2, 3],
@@ -378,6 +434,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   raven: sung('throat', {
     pitch: 500,
+    size: [0.88, 1.13],
     variance: 0.07,
     // Three descending knocks, and the drop between them is the bird.
     phrase: [
@@ -392,6 +449,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   rook: sung('throat', {
     pitch: 900,
+    size: [0.9, 1.11],
     variance: 0.12,
     phrase: [s(1, 0.9, [0.18, 0.28], [0.22, 0.4], { drive: 0.85 })],
     count: [2, 4],
@@ -401,6 +459,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   crow: sung('throat', {
     pitch: 800,
+    size: [0.9, 1.11],
     variance: 0.1,
     phrase: [s(1, 0.93, [0.16, 0.24], [0.2, 0.32], { drive: 0.9 })],
     count: [3, 4],
@@ -410,6 +469,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   magpie: sung('call', {
     pitch: 1600,
+    size: [0.92, 1.09],
     phrase: [s(1, 0.95, [0.45, 0.75], [0.5, 1.4], { drive: 0.9, trill: { hz: 26, cents: 200 } })],
     count: [1, 2],
     rasp: 0.65,
@@ -422,6 +482,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // Five notes, endlessly, and the third is the long one.
   woodpigeon: sung('body', {
     pitch: 480,
+    size: [0.93, 1.08],
     variance: 0.04,
     phrase: [
       s(1, 1.04, [0.14, 0.18], [0.06, 0.09], { drive: 0.06 }),
@@ -439,6 +500,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   pheasant: sung('call', {
     pitch: 900,
+    size: [0.9, 1.12],
     variance: 0.06,
     phrase: [
       s(1, 0.88, [0.12, 0.16], [0.06, 0.09], { drive: 1 }),
@@ -474,6 +536,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // The bubbling call: an accelerating trill that climbs the whole way.
   curlew: sung('song', {
     pitch: 1500,
+    size: [0.93, 1.08],
     variance: 0.05,
     phrase: [
       s(1, 1.5, [0.5, 0.7], [0.05, 0.09], { drive: 0.14 }),
@@ -488,6 +551,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   oystercatcher: sung('song', {
     pitch: 3000,
+    size: [0.94, 1.07],
     phrase: [s(1, 1.02, [0.05, 0.07], [0.06, 0.11], { drive: 0.45 })],
     count: [5, 12],
     formant: 3200,
@@ -505,6 +569,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   duck: sung('call', {
     pitch: 900,
+    size: [0.9, 1.12],
     variance: 0.09,
     // The descending series is the female; each one lower than the last.
     phrase: [
@@ -528,6 +593,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // The long wailing series. The most beach sound there is.
   gull: sung('call', {
     pitch: 1600,
+    size: [0.88, 1.14],
     variance: 0.07,
     phrase: [
       s(0.86, 1.18, [0.24, 0.34], [0.14, 0.22], { drive: 0.5, bend: { at: 0.3, to: 1.24 } }),
@@ -543,6 +609,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   kittiwake: sung('song', {
     pitch: 2200,
+    size: [0.92, 1.09],
     phrase: [
       s(1, 1.08, [0.12, 0.17], [0.05, 0.08], { drive: 0.5 }),
       s(0.86, 0.86, [0.1, 0.14], [0.05, 0.08], { drive: 0.5 }),
@@ -559,6 +626,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // The hoot: a note, a gap, then the long tremulous one.
   owl: sung('body', {
     pitch: 480,
+    size: [0.92, 1.09],
     variance: 0.04,
     phrase: [
       s(1, 0.97, [0.35, 0.5], [0.35, 0.6], { drive: 0.05 }),
@@ -573,6 +641,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   // The other bird answering. A different call entirely, which is the point.
   'owl-answer': sung('call', {
     pitch: 1300,
+    size: [0.92, 1.09],
     variance: 0.05,
     phrase: [s(1, 1.35, [0.16, 0.24], [0.8, 2], { drive: 0.5 })],
     rasp: 0.35,
@@ -597,6 +666,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   bats: sung('air', {
     pitch: 7200,
+    size: [0.85, 1.18],
     variance: 0.2,
     phrase: [s(1, 0.9, [0.006, 0.012], [0.02, 0.09], { drive: 0.7 })],
     count: [4, 14],
@@ -607,22 +677,23 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   // --- kept animals ---------------------------------------------------------
 
-  dog: beast('throat', { kind: 'dog' }),
-  cow: beast('body', { kind: 'cow' }),
-  sheep: beast('throat', { kind: 'sheep' }),
-  pig: beast('throat', { kind: 'pig' }),
-  hen: beast('call', { kind: 'fowl' }),
+  dog: beast('throat', { kind: 'dog', size: [0.82, 1.2] }),
+  cow: beast('body', { kind: 'cow', size: [0.9, 1.1] }),
+  sheep: beast('throat', { kind: 'sheep', size: [0.88, 1.14] }),
+  pig: beast('throat', { kind: 'pig', size: [0.88, 1.14] }),
+  hen: beast('call', { kind: 'fowl', size: [0.92, 1.09] }),
   // Bigger throat than a hen and driven harder.
-  cockerel: beast('call', { kind: 'fowl', tone: 0.78, rasp: 0.15 }),
-  goose: beast('call', { kind: 'fowl', tone: 0.55, rasp: 0.25, chaos: 0.2 }),
+  cockerel: beast('call', { kind: 'fowl', tone: 0.78, rasp: 0.15 , size: [0.94, 1.07] }),
+  goose: beast('call', { kind: 'fowl', tone: 0.55, rasp: 0.25, chaos: 0.2 , size: [0.93, 1.08] }),
   // A long tract, and the vibrato does the rest.
-  horse: beast('throat', { kind: 'sheep', tone: 0.62, rasp: 0.3, chaos: 0.2 }),
-  deer: beast('throat', { kind: 'dog', tone: 0.7, rasp: 0.2 }),
+  horse: beast('throat', { kind: 'sheep', tone: 0.62, rasp: 0.3, chaos: 0.2 , size: [0.9, 1.11] }),
+  deer: beast('throat', { kind: 'dog', tone: 0.7, rasp: 0.2 , size: [0.92, 1.09] }),
   fox: beast('call', { kind: 'fox' }),
-  stag: beast('body', { kind: 'stag' }),
-  seal: beast('body', { kind: 'cow', tone: 0.85, rasp: 0.35, chaos: 0.3 }),
+  stag: beast('body', { kind: 'stag', size: [0.92, 1.09] }),
+  seal: beast('body', { kind: 'cow', tone: 0.85, rasp: 0.35, chaos: 0.3 , size: [0.9, 1.12] }),
   rat: sung('air', {
     pitch: 5200,
+    size: [0.88, 1.14],
     variance: 0.18,
     phrase: [s(1, 1.3, [0.02, 0.04], [0.05, 0.12], { drive: 0.6 })],
     count: [2, 6],
@@ -631,6 +702,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
   }),
   mouse: sung('air', {
     pitch: 6800,
+    size: [0.88, 1.14],
     variance: 0.15,
     phrase: [s(1, 1.2, [0.012, 0.025], [0.04, 0.1], { drive: 0.5 })],
     count: [2, 5],
@@ -667,6 +739,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   bee: sung('throat', {
     pitch: 220,
+    size: [0.9, 1.12],
     variance: 0.08,
     phrase: [s(1, 0.96, [0.8, 2.2], [0.3, 1.2], { drive: 0.75, trill: { hz: 5, cents: 55 } })],
     count: [1, 3],
@@ -677,6 +750,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   wasp: sung('throat', {
     pitch: 260,
+    size: [0.9, 1.12],
     variance: 0.1,
     phrase: [s(1, 1.06, [0.5, 1.4], [0.4, 1.4], { drive: 0.85, trill: { hz: 7, cents: 90 } })],
     rasp: 0.3,
@@ -686,6 +760,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   fly: sung('call', {
     pitch: 420,
+    size: [0.85, 1.18],
     variance: 0.14,
     phrase: [s(1, 1.15, [0.25, 0.9], [0.15, 0.6], { drive: 0.8, trill: { hz: 11, cents: 140 } })],
     count: [2, 5],
@@ -696,6 +771,7 @@ export const VOICES: Record<AmbienceVoice, VoiceEntry> = {
 
   midge: sung('air', {
     pitch: 720,
+    size: [0.85, 1.2],
     variance: 0.1,
     phrase: [s(1, 1.1, [0.4, 1.2], [0.4, 1.4], { drive: 0.55, trill: { hz: 9, cents: 120 } })],
     formant: 2200,

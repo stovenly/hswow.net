@@ -45,8 +45,26 @@ export interface CallShape {
   pitch: number;
   /** Spread between one call and the next, as a fraction either way. */
   variance?: number;
-  /** The syllables, in order. Taken `count` at a time from the front. */
+  /**
+   * How much the *body* varies between one individual and the next, as
+   * multipliers on the whole tract. Drawn per call.
+   *
+   * This is the axis with the most variety in it and it is why one entry can
+   * cover a population rather than a specimen: size moves the tract and the
+   * pitch together, which is the difference the ear actually uses to tell two
+   * of the same species apart. `[0.92, 1.09]` is a wood's worth of robins.
+   */
+  size?: Span;
+  /** The signature phrase. Taken `count` at a time from the front. */
   phrase: readonly Syllable[];
+  /**
+   * The rest of the repertoire, drawn from evenly with `phrase`.
+   *
+   * A song thrush knows dozens and a great tit knows a handful; a bird that
+   * knows one is a car alarm. This is the difference between hearing *a* bird
+   * and hearing *that bird again*, and it costs a table row rather than a model.
+   */
+  also?: readonly (readonly Syllable[])[];
   /** How many of the phrase's syllables this call uses. */
   count?: Span;
   /** Times the whole thing is said. A song thrush is [2, 4]. */
@@ -101,6 +119,7 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   if (!noise) throw new Error('call built before the noise buffers were ready');
 
   const shape = options.shape;
+  /** The voice's own size. A call draws its individual around this. */
   const tone = options.tone ?? 1;
   const rasp = shape.rasp ?? 0;
 
@@ -113,16 +132,21 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   level.gain.value = 0;
   level.connect(output);
 
-  const first = (shape.formant ?? shape.pitch * 1.6) * tone;
+  // The tract is **set per call, not per throat.** Baking the size in at
+  // construction is what forces a second registry entry for every size of the
+  // same creature; setting it at fire time lets one entry be a population.
+  const firstBase = shape.formant ?? shape.pitch * 1.6;
+  const secondBase = shape.formant2 ?? firstBase * 2.35;
+
   const tract = context.createBiquadFilter();
   tract.type = 'bandpass';
-  tract.frequency.value = first;
+  tract.frequency.value = firstBase * tone;
   tract.Q.value = shape.q ?? 1.1;
   tract.connect(level);
 
   const cavity = context.createBiquadFilter();
   cavity.type = 'bandpass';
-  cavity.frequency.value = (shape.formant2 ?? first * 2.35) * (shape.formant2 ? tone : 1);
+  cavity.frequency.value = secondBase * tone;
   cavity.Q.value = (shape.q ?? 1.1) * 1.4;
   const cavityGain = context.createGain();
   cavityGain.gain.value = 0.45;
@@ -152,6 +176,9 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
   let bendCents = 0;
   let bendOver = 0;
   let bendFrom = 0;
+
+  /** The size drawn for the call in flight. See `CallShape.size`. */
+  let body = tone;
 
   const syllable = (at: number, unit: Syllable, base: number, force: number): number => {
     const length = between(unit.length);
@@ -206,12 +233,13 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
     blow.gain.linearRampToValueAtTime(blown * 0.25, at + length);
     osc.connect(blow).connect(labia);
 
-    // The beak, opening with effort.
-    const open = BEAK_SHUT + BEAK_OPEN * drive;
-    beak.frequency.setValueAtTime(BEAK_SHUT, at);
+    // The beak, opening with effort — and a smaller bird has a smaller one.
+    const shut = BEAK_SHUT * body;
+    const open = shut + BEAK_OPEN * body * drive;
+    beak.frequency.setValueAtTime(shut, at);
     beak.frequency.linearRampToValueAtTime(open, at + rise);
     beak.frequency.setValueAtTime(open, hold);
-    beak.frequency.linearRampToValueAtTime(BEAK_SHUT, at + length);
+    beak.frequency.linearRampToValueAtTime(shut, at + length);
 
     level.gain.setValueAtTime(0, at);
     level.gain.linearRampToValueAtTime(peak, at + rise);
@@ -260,15 +288,24 @@ export function createCall(engine: AudioEngine, options: CallOptions): OneShot {
       // One pitch for the whole call. Re-rolling per syllable is the commonest
       // way a procedural bird turns into a set of unrelated beeps.
       const variance = shape.variance ?? 0.08;
-      const base = shape.pitch * tone * (1 + (Math.random() * 2 - 1) * variance);
-      const count = shape.count ? Math.round(between(shape.count)) : shape.phrase.length;
+      // One individual, drawn now: the tract and the pitch move together,
+      // because that is what size does.
+      body = tone * (shape.size ? between(shape.size) : 1);
+      tract.frequency.setValueAtTime(firstBase * body, at);
+      cavity.frequency.setValueAtTime(secondBase * body, at);
+
+      const base = shape.pitch * body * (1 + (Math.random() * 2 - 1) * variance);
+      // One phrase out of the repertoire, and the whole call is said in it.
+      const book = shape.also ? [shape.phrase, ...shape.also] : [shape.phrase];
+      const phrase = book[Math.floor(Math.random() * book.length)];
+      const count = shape.count ? Math.round(between(shape.count)) : phrase.length;
       const says = shape.repeats ? Math.round(between(shape.repeats)) : 1;
       const fade = shape.fade ?? 0.94;
 
       let cursor = at;
       for (let repeat = 0; repeat < says; repeat++) {
         for (let i = 0; i < count; i++) {
-          const unit = shape.phrase[i % shape.phrase.length];
+          const unit = phrase[i % phrase.length];
           cursor += syllable(cursor, unit, base, force * Math.pow(fade, i));
         }
         if (repeat < says - 1) cursor += shape.between ? between(shape.between) : 0.3;

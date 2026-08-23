@@ -275,6 +275,13 @@ export interface BeastOptions {
   rasp?: number;
   /** Extra roughness on top of what the kind already has, 0..1. */
   chaos?: number;
+  /**
+   * How much the body varies between one animal and the next, as multipliers
+   * on `tone`. Drawn per call, so one entry is a herd rather than a specimen —
+   * size is the difference the ear uses first, and it moves the tract and the
+   * pitch together.
+   */
+  size?: readonly [number, number];
 }
 
 /** Soft saturation. See the file header, point 1. */
@@ -310,8 +317,11 @@ export function createBeast(engine: AudioEngine, options: BeastOptions = {}): On
   const output = context.createGain();
   output.gain.value = options.gain ?? 0.6;
 
-  const open = scale(call.open, tone);
-  const close = scale(call.close, tone);
+  const spread = options.size;
+  // Shaped per call rather than per throat: baking the size in is what forces
+  // a second entry for every size of the same animal.
+  let open = scale(call.open, tone);
+  let close = scale(call.close, tone);
   const bank = createFormantBank(context, open, output);
 
   // The larynx. Everything voiced goes through the curve; breath and the
@@ -442,9 +452,12 @@ export function createBeast(engine: AudioEngine, options: BeastOptions = {}): On
     fire(at, force) {
       sweep = at;
       const count = Math.round(between(call.syllables));
-      // One pitch for the whole call, varied between calls. Animals do not
-      // change size between syllables.
-      const pitch = call.f0[0] * tone * (1 + (Math.random() * 2 - 1) * call.variance);
+      // One animal, drawn now. Tract and pitch move together, because that is
+      // what size is; nothing changes size between syllables.
+      const body = tone * (spread ? between(spread) : 1);
+      open = scale(call.open, body);
+      close = scale(call.close, body);
+      const pitch = call.f0[0] * body * (1 + (Math.random() * 2 - 1) * call.variance);
 
       let cursor = at;
       syllables.length = 0;
