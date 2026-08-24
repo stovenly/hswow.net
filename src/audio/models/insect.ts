@@ -190,8 +190,12 @@ export function createInsect(engine: AudioEngine, options: InsectOptions = {}): 
   };
 
   const chirp = (singer: Singer, at: number): void => {
-    const pulses =
+    const rolled =
       kind.pulses[0] + Math.floor(Math.random() * (kind.pulses[1] - kind.pulses[0] + 1));
+    // One singer's pulses share a gate, so a chirp has to finish before the
+    // next begins. `gap.rate` is seconds per chirp; the margin covers its jitter.
+    const room = Math.floor((singer.gap.rate * 0.8) / kind.step);
+    const pulses = Math.max(1, Math.min(rolled, room));
     let cursor = at;
     for (let i = 0; i < pulses; i++) {
       const edge = kind.pulse * 0.3;

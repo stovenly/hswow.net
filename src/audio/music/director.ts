@@ -44,6 +44,7 @@ import { ritardCurve, phraseArch, SECTION_END_V, FINAL_V } from './tempo';
 import type { Instrument } from './instruments/voice';
 import { buildVoice } from './instruments/build';
 import { createKick, createSnare, createHat } from './instruments/drums';
+import { vibeOf } from '../vibes';
 
 /**
  * The director — a scarcity system before it is a music system.
@@ -398,7 +399,11 @@ export class MusicDirector {
   /** Set by a border crossed mid-piece; spent by the next downbeat. */
   private entering = false;
 
-  /** 0 day, 1 night. Stubbed — nothing feeds it until the day/night cycle exists. */
+  /** What the world is doing now, 0 day to 1 night. Fed by `WeatherRig`. */
+  private nightNow = 0;
+  /** The panel's override, or null for the world's. */
+  private nightHeld: number | null = null;
+  /** What this piece is being played at. Held, so a piece cannot change halfway. */
   private night = 0;
 
   constructor(engine: AudioEngine) {
@@ -491,11 +496,19 @@ export class MusicDirector {
    * Day/night input. Night inverts instead of reducing: same seeds, same
    * motifs, the other half of the vocabulary — the alternates become the usual
    * draw, the registers flip, some answers go unsaid, the drone breathes out
-   * more, and the touch softens a little. Stubbed until a day/night cycle
-   * exists to feed it.
+   * more, and the touch softens a little.
+   *
+   * Taken up at the next piece, never inside one: some of this is read per bar
+   * and some is rolled once in `startPiece`, so a piece that crossed would
+   * halve its figure while keeping its daytime palette.
    */
   setNight(night: number): void {
-    this.night = Math.min(Math.max(night, 0), 1);
+    this.nightNow = Math.min(Math.max(night, 0), 1);
+  }
+
+  /** Holds night at a value, or hands it back to the world with null. */
+  holdNight(night: number | null): void {
+    this.nightHeld = night === null ? null : Math.min(Math.max(night, 0), 1);
   }
 
   /**
@@ -542,15 +555,16 @@ export class MusicDirector {
   /** For the debug readout: what the machine thinks it is doing. */
   get status(): string {
     if (!this.spec) return 'unscored';
+    const vibe = vibeOf(this.spec) ?? 'held';
     const now = this.engine.context.currentTime;
-    if (!this.playing) return `resting ${Math.max(0, this.nextPiece - now).toFixed(0)}s`;
+    if (!this.playing) return `${vibe} · resting ${Math.max(0, this.nextPiece - now).toFixed(0)}s`;
     const layers = ['drone'];
     if (this.textureActive) layers.push('texture');
     if (this.drumsActive) layers.push('drums');
     if (this.melodyActive) layers.push('melody');
     const section = this.sections[this.sectionAt];
     const remaining = Math.max(0, this.pieceStart + this.pieceSpan - now);
-    return `${layers.join('+')} ${section?.kind ?? '?'}${this.sectionAt} ${remaining.toFixed(0)}s`;
+    return `${vibe} · ${layers.join('+')} ${section?.kind ?? '?'}${this.sectionAt} ${remaining.toFixed(0)}s`;
   }
 
   dispose(): void {
@@ -647,6 +661,8 @@ export class MusicDirector {
     // as the tempo commits and the cadence has something over it.
     this.closingBar = Math.max(this.melodyFromBar, this.totalBars - FINAL_BARS);
     this.closed = false;
+
+    this.night = this.nightHeld ?? this.nightNow;
 
     // Per-piece orchestration: the alternates get a turn by seedless dice.
     // At night the dice flip — the other hands become the usual draw and the

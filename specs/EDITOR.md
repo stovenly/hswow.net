@@ -1,506 +1,922 @@
-# Zone files, and the editor that edits them — spec
+# The editor — spec
 
-**Not built.** This is the plan for making zones data instead of code, and then for editing
-that data in the running game. Nothing here exists yet; the file names, key names and slugs
-throughout are provisional — naming is the repo owner's. MASTER-SPEC.md reserves the destinations
-already: `src/content/` ("data only — zones, npcs, topics, quests, items, notes") and
-`src/editor/` ("world editor, Phase 11"), with the note that content files hold no engine
-imports. This document says what goes in them and in what order the work runs.
+**Not built.** This replaces the earlier version of this document, which was written before
+weather, vista, life, streaming and the debug levels existed and argued for an in-game
+`?editor` mode. The brief has changed: the editor is a separate authoring tool, internal only,
+that has to reach *everything* a zone contains and has to keep reaching it as systems are
+added. Every name, key, slug and key binding below is provisional — naming is the repo owner's.
 
-The trigger for writing it is the one MASTER-SPEC.md's Phase 11 deferral told us to watch for:
-*"wanting to nudge one prop at a time, or authoring a zone that is mostly hand-placed set
-pieces rather than rules."* The long-term intent is hand-placed zones authored by a person,
-and that intent has now been stated. The deferral has expired.
+Two things are being specified, and the order between them is fixed:
 
-## Why the format comes before the editor
+1. **The zone document** — a data format that replaces `ZoneDefinition.build()`. The editor
+   edits this and nothing else. Without it there is nothing to save.
+2. **The editor** — a second page in this repo that boots the real engine, loads documents,
+   shows the result through the real render pipeline, and writes documents back to disk
+   through the dev server.
 
-The editor is the visible half, but it is the second half, and not only for sequencing
-reasons:
+Under the house rules, this document contains no checks section. The render is the ground
+truth; the editor's job is to put the truth in front of you fast, not to measure it.
 
-- **An editor edits *something*.** Today a zone is a TypeScript `build()` function.
-  No tool can round-trip edits into hand-written code; the moment a gizmo moves a prop,
-  the prop's position has to live in a document the tool can write back. The format is
-  the editor's save file, so it has to exist first.
-- **Picking needs a source of truth.** When you click a crate, the editor must answer
-  "which *entry* is this?" — not "which mesh". A data-driven builder can tag every mesh it
-  makes with the document entry that asked for it (`userData.entry`), and picking becomes a
-  table lookup. A code-built zone cannot answer that question at all; there is no way to
-  raycast your way back to line 1042 of `countryside.ts`.
-- **Most of the machine already treats zones as data.** `ZoneDefinition` is pure data except
-  for `build()`. `PortalDefinition` is pure data today. Doors, groundcover, shadows and
-  clutter tagging are applied by `ZoneManager.prepare`, not by `build()`. `Zone.ts` called
-  this shot: *"a `ZoneDefinition` is a description... That distinction is what will let
-  Phase 6 or a JSON file produce zones without any of this changing."* The format replaces
-  exactly one function.
+---
 
-## What the document is: verbs, not meshes
+## 1. Stack
 
-The file stores what the authoring vocabulary *says*, never what the scene graph *contains*.
-A prop is a builder name, a seed and a placement — the builder contract has promised this
-from the start ("a prop is a name and a number, and the same number always gives back the
-same object"; "Placement data stores this, not geometry"). A fence is a polyline. A scatter
-is a rule. The world is derived from the document on every build, and determinism is already
-a checked invariant (`a released zone rebuilds identically`), so the derivation is safe to
-repeat forever.
+### The brief, and where it is amended
 
-The alternative — serializing placed transforms per instance, Bethesda-style — is rejected.
-It would turn a six-line scatter into four hundred rows, destroy diffability, and quietly
-break the seeded-draw invariant that lets an exclusion zone be added without reshuffling
-everything already placed. Rules stay rules; the editor edits the rule and watches the
-result.
+The brief asks for a local HTML file that renders "very similarly", a lightweight local server
+for file access, and free flight with a drop-in player. The shape is right. Three amendments:
 
-## The zone document
+**Not similar — identical.** The editor page imports the same `PostFX`, `ZoneManager`,
+`WeatherRig`, `Controller`, `Collider`, `LifeActivity` and audio engine the game does, and
+builds zones the same way. Judging placement through an approximation of the pipeline is the
+one thing the previous spec got unambiguously right: fog, groundcover, the moving sun, wind on
+foliage and window light all change what a placement reads as, and none of them can be
+approximated. So the editor is not a viewer with the game's look — it *is* the game, with the
+authoring layer around it and a different entry point.
 
-One file per zone in `src/content/zones/`. Sketch of the grammar, exterior first:
+**Not a file — a second Vite entry.** A `file://` page cannot write to disk, cannot run module
+workers (groundcover samples in one), and cannot use `import.meta.glob` (the builder registry).
+The dev server is already running whenever anyone works on this project. So: `editor.html` at
+the repo root beside `index.html`, `src/editor/main.ts` as its script, served at
+`/editor.html` by `npm run dev`. It is never built into `docs/` — the game's build config lists
+only `index.html` as an input.
+
+**Not a second server — the one already there.** `vite.config.ts` already carries a plugin
+with `configureServer` (the reload suppressor). The save endpoint is a second middleware in the
+same file, on the same origin, with no CORS, no port, no extra process. A separate Node
+server would duplicate the file watching Vite already does and put the editor and its save
+path on two origins for no gain. Electron and Tauri are rejected for the same reason plus a
+toolchain.
+
+### What the game gives up to make this possible
+
+`src/main.ts` is 1,370 lines of boot sequence with the dev panel inlined. The editor needs
+that boot sequence too, and it must not be copied. So the first job is a refactor with no
+behaviour change:
+
+- `src/app/boot.ts` — `createApp({ canvas, overlay, world })` runs the ordered boot
+  (`useAerialFog` before any material compiles, `patchArtMaterial` before `PostFX`, the
+  loader steps, `ZoneManager`, `AudioEngine`, `Climate`, `WeatherRig`, the frame loop) and
+  returns the handles. `index.html` calls it with `createTestWorld`; `editor.html` calls it
+  with the same world plus every document zone and then wraps it.
+- `src/app/devPanel.ts` — the lil-gui folders lifted out of `main.ts` as
+  `installDevPanel(gui, app)`. The editor mounts the same folders under its own **Look** and
+  **Climate** tabs, so every tuning knob that exists in the game exists in the editor with no
+  second implementation.
+
+Nothing about the game changes for the player.
+
+### UI toolkit
+
+- **lil-gui** for every form. It already does numbers, ranges, colours, dropdowns, booleans,
+  buttons and folders, and a schema→controller mapping is trivial. The inspector, the zone
+  panel, the environment panel and the look/climate tabs are lil-gui.
+- **Plain DOM** for the four things lil-gui cannot do: the outliner (a tree with selection,
+  drag reorder, visibility and lock), the palette (a searchable grid of thumbnails), the
+  toolbar, and the status line. No framework.
+- **`TransformControls`** from `three/examples/jsm` for the gizmo. It gives the XYZ arrows,
+  rotation rings and scale handles, local/world space, per-axis constraint and snapping, and
+  emits drag start/change/end. It moves an `Object3D`; the editor listens and writes the
+  document. It is not extended — the collision-aware movement below is done in the drag
+  handler, not inside the control.
+- **Thumbnails** come from the galleries: a hidden render target draws each builder at seed 1
+  once per session, on demand, cached in memory. No image files in the repo.
+
+---
+
+## 2. The zone document
+
+One JSON file per zone in `projects/<id>/content/zones/<zone>.json`, plus one `content/world.json` per project
+holding the portal graph. Documents are read by an interpreter in the game and written by the
+editor. The editor is the way zones are authored; the file is its save format, and it is
+not a goal that anyone opens it in a text editor. The writer is still deterministic (stable
+key order, rounded numbers) so that git history stays small and a rebuild of an untouched
+zone is byte-identical.
+
+### Verbs, not meshes
+
+The file stores what the authoring vocabulary *says*, never what the scene graph contains. A
+prop is a builder name, a seed and a placement. A fence is a polyline. A scatter is a rule.
+The world is derived on every build, and builders are seeded, so the derivation is repeatable
+forever. Serialising placed instances back out of a scatter is rejected for the same reasons
+as before: it turns six lines into four hundred, and it breaks the invariant that adding an
+exclusion never reshuffles what was already placed.
+
+### Header
 
 ```jsonc
 {
-  "id": "countryside-exterior",
-  "name": "Countryside Exterior Demo",
+  "id": "countryside-village",
+  "name": "Countryside Village Demo",
   "group": "countryside",
-  "environment": { "base": "outdoor", "fogNear": 30, "fogFar": 190, "footstepReverb": 0.5 },
-  "soundscape": { /* SoundscapeSpec — already JSON-shaped data */ },
-  "spawn": { "at": [0, 28], "yaw": "south" },
-  "terrain": {
-    "size": 96,
-    "landforms": [ { "kind": "hill", "at": [30, -20], "radius": 22, "height": 5 } ],
-    "patches":   [ { "kind": "path", "through": [[0, 34], [0, 8]], "width": 2.6, "material": "dirt" } ],
-    "detail":    [ { "at": [0, 8], "radius": 26, "level": 2 } ]
-  },
-  "regions": {
-    "keepClear":     [ [0, 8, 7] ],
-    "keepClearSoft": [ [0, 8, 10] ]
-  },
-  "layers": [
-    {
-      "name": "base",
-      "entries": [
-        { "prop": "hut", "seed": 21, "at": [-14, 10], "yaw": 0.8, "ref": "millers-house" },
-        { "prop": "signboard", "seed": 7, "at": [2, 30], "yaw": 0, "options": { "text": "…" } },
-        { "run": "fence", "seed": 12, "points": [[4, 8], [14, 8], [14, 18]] },
-        { "scatter": "oak", "seed": 9, "count": 14, "within": [[-48, -48], [48, 48]],
-          "maxSlope": 30, "avoid": "keepClear", "scale": [0.9, 1.3] }
-      ]
-    }
-  ]
+  "place": { "at": [0, 0], "altitude": 0 },       // km, m — presence puts the zone under the weather
+  "environment": { "base": "outdoor", "fogNear": 70, "fogFar": 320, "firstPersonReverb": 0.5,
+                   "vibe": "village 1", "bearing": 0 },
+  "spawn": { "at": [0, 19], "yaw": "south" },
+  "floor": -20,
+  "soundscape": { "bed": [ … ], "emitters": [ … ], "scatter": [ … ] },
+  "terrain": { … },       // exterior
+  "skirt": { … },         // exterior, optional
+  "shell": { … },         // interior
+  "regions": { … },
+  "layers": [ … ]
 }
 ```
 
-And an interior:
+- `environment.base` names a preset registered in code (`outdoor`, `indoor`, and any named
+  constant a zone group shares — the cottage environment becomes `countryside-house`). The
+  rest of the block is overrides spread onto it, which is exactly what every zone already does
+  with `OUTDOOR_ENVIRONMENT`. Presets stay code; the choice and the deltas are data.
+- `soundscape` is `SoundscapeSpec` verbatim. It is already JSON-shaped and discriminated on
+  `model`, so a typo is a load error. The one addition: an emitter's `at` may be
+  `{ "ref": "smithy-forge", "lift": 1.1 }` instead of a coordinate, and the interpreter
+  measures the anchor off the built entry — this replaces the shared-constant convention
+  (`SMITHY.forge`, `FORGE_FIRE_HEIGHT`) with the same guarantee that a sound cannot drift from
+  its object.
+- `terrain` is `TerrainOptions` verbatim: `size`, `resolution`, `landforms`, `detail`,
+  `patches`, `cover`, `rockAngle`, `base`, `edgeFade`. The interpreter constructs the
+  `Terrain` and derives `groundAt` and `surfaceAt` from it. No `terrain` block means a flat
+  floor at 0 (`flatGround`, with its options under `floor`).
+- `skirt` is `SkirtOptions` minus the `terrain` reference, which the interpreter supplies.
+- `shell` is `InteriorOptions` verbatim to begin with (`width`, `depth`, `height`, `seed`,
+  `style` naming `house` or `works`, `planks`, `beams`, `thickness`) and grows into the room
+  graph in §2.7.
+- `regions` holds named lists of `PatchShape[]` (`keepClear`, `keepClearSoft`, `outline`,
+  `keepOut` — whatever the zone needs) so scatters, dressing and the vista ring can name a
+  region instead of repeating circles. Drawn on the ground in the editor.
+- `spawn.at` follows the placement rule below. `yaw` accepts radians or a compass word.
+
+### Placement, shared by every placed entry
 
 ```jsonc
-{
-  "id": "countryside-cottage",
-  "name": "Countryside Cottage Demo",
-  "group": "countryside",
-  "environment": { "base": "cottage" },
-  "shell": { "width": 8, "depth": 6.5, "height": 3, "style": "house", "planks": true, "beams": 3 },
-  "layers": [
-    { "name": "base", "entries": [
-      { "prop": "table",  "seed": 3, "at": [1.2, 0, -1.4], "yaw": 0.4, "ref": "table" },
-      { "prop": "candle", "seed": 5, "at": [1.3, -1.2], "on": "table" }
-    ] }
-  ]
+"at": [x, z]              // ground-settled: y from the terrain (or the shell floor)
+"at": [x, y, z]           // absolute
+"on": "table-3"           // stood on the top of the entry with that id, measured after it is built
+"yaw": 0.8                // radians or compass word; the common case
+"rotation": [p, y, r]     // YXZ about the foot, when pitch or roll is needed
+"scale": 1.2              // the builder contract's uniform scale
+"stretch": [1, 1.4, 1]    // per-axis, applied to the finished mesh; loud on purpose
+```
+
+`on` is how a candle stands on a seed-varied table: build the base, read its top, stand this
+on it. Order within a layer is document order, so the referent exists when it is needed.
+
+### Ids and refs
+
+Every entry has an `id`, minted once by the editor as a short slug from the builder name and a
+counter (`oak-14`, `table-3`), unique within the zone, never re-minted on edit. Ids are what
+`on`, emitter anchors, portal `doorOf` ends and — later — quest scripts and the player-state
+override layer point at. MASTER-SPEC's outstanding "override layer and stable ids" item is
+answered by this field: anything the player changes about a zone is data keyed to an entry id
+and replayed on rebuild. A hand-written document may leave `id` off entries nothing refers to;
+the editor fills them in on first save.
+
+### 2.1 Entry kinds
+
+Each entry has exactly one kind key. The list is closed per release and open across releases;
+adding a kind is one registration (§6). Every kind is stated with what it maps onto in code
+today.
+
+**Objects**
+
+| kind | payload | maps to |
+|---|---|---|
+| `prop` | builder name, `seed`, placement, `options` (the builder's own `BuilderWith` extras: `text`, `sections`, `height`, `curtains`, `shadows`), `solid` override, `label`, `text` (a note id) | `builder.build(...)` + `place` / `markCollidable` / `markLabelled` / `markReadable` |
+| `creature` | builder name (`figure`, `dog`, `bovine`, `ovine`, `porcine`, `poultry`), `seed`, placement, `roam`, `folk`, `face` | `figure.build({ seed, roam, folk, face })` placed like a prop; `Creature` reads home and yaw off the transform |
+| `run` | builder name (`fence`, `stone-wall`), `seed`, `points: [[x,z],…]` | `laid` with corner chaining from returned endpoints; `run` seed shared along the line |
+| `chain` | `seed`, `start`, `edges: [{ to, kind }]`, `close: "hedge"` | `layChain` + `layHedge`: piers at stone corners, posts at timber ones, hedge over the closing gap |
+| `scatter` | builder name, `seed`, `count`, `within`, `from`, `maxSlope`, `minHeight`, `maxHeight`, `avoid` (a region name or circles), `inset`, `scale` | the exterior `scatter()`; rejected draws still consume their roll |
+| `barrier` | `from`, `to`, `height` — or `at`, `size`, `yaw` | the invisible collision slab; never drawn, shown by the editor |
+| `prefab` | prefab name, placement, `seed` | a composed set of entries saved under the project's `content/prefabs/`, expanded in place with ids prefixed by this entry's; seeds inside are offset by this entry's seed so two of the same prefab differ |
+| `ground` | `shape: PatchShape[]`, `y` (or `at` + `size` for a plain slab), `material: GroundName`, `cover`, `thickness` | an authored ground mesh: a flat polygon or box with `userData.ground`, collidable, `underfoot` from the material table — a plateau, a bridge deck, a cellar floor, a pond bed |
+
+Any `prop` or `ground` may also carry:
+
+- `underfoot: SurfaceName` — overrides the footstep surface for that mesh's triangles (a
+  plank walk over mire sounds like timber);
+- `cover: CoverName` — grows groundcover on the mesh; the wall types (`ivy`, `rose`,
+  `wisteria`) only exist this way;
+- `ground: true` on a prop — treated as ground by `prepare()`: receives shadow, casts none,
+  grows cover from its `cover` field.
+
+**Environment**
+
+| kind | payload | maps to |
+|---|---|---|
+| `water` | `at`, `width`, `depth`, `chop`, `flow: [x,z]`, `segment` | `waterPlane` — colour is global and not per body; the bed is terrain or a `prop` |
+| `particles` | placement, `spec: ParticleSpec` minus geometry (`shape` is `billboard` or a named shape), `seed` | `createParticles(spec, seed)` positioned as a mesh |
+| `fogVolume` | `shape`, `center`, `size`, `density`, `tint`, `softness`, `noiseScale`, `turbulence`, `drift` | `ZoneDefinition.fogVolumes[]`; 8 live at once |
+| `glitch` / `horror` | `shape`, `center`, `size`, `strength`, `seed`, `tempo`, `weights`, `grounded` | `ZoneDefinition.glitches[]` / `horrors[]`; or, with `"on": id`, `markGlitched` / `markHaunted` on that entry |
+| `sound` | `EmitterSpec` (model, options, `at` or `{ ref, lift }`, distances, reverb, importance) | `soundscape.emitters[]` — kept in the document's `soundscape` block, but the editor places and selects it like any entry |
+| `soundScatter` | `ScatterSpec` (`sound`, `at`, `spread`, `every`, `rhythm`, `force`, `voices`) | `soundscape.scatter[]` |
+
+**Vista**
+
+| kind | payload | maps to |
+|---|---|---|
+| `vistaRing` | `seed`, `band`, `keepOut` (region name or `dilate: metres`), `place: VistaProp[]`, `scatter: VistaScatter[]`, `chunk` | `vistaRing({ skirt, … })`; merged chunks keep the range table, so props stay pickable |
+| `dressing` | `seed`, `band`, `solidWithin`, `kinds: DressingKind[]` | `edgeDressing` |
+
+Lights are not a kind. A light belongs to the prop that carries it (`streetlamp`, `candle`,
+`lantern`, `fireplace`), so placing the prop places the light, and the census rules — at most
+8 point and 2 spot lights per zone, flames vary intensity never visibility — are the prop's to
+keep. The editor shows the running census in the status line and goes red past the top tier.
+
+Doors are not a kind. The manager builds them from `world.json`.
+
+Groundcover is not a kind. It grows from terrain paint (`terrain.cover`), from the material
+table, and from `cover` on a prop that wants ivy up a wall — that last one is a `prop` field.
+
+Sparkles, clutter tags, shadows, collision, light padding and matrix freezing are all
+`prepare()`'s work and never appear in a document.
+
+### 2.2 Weather, and what "set weather for a zone" means
+
+Weather is global by decision (CLIMATE.md): it is the same day everywhere, sampled at a
+world coordinate and a world time, and *a zone modifies what it samples and never overrides
+it*. The document therefore carries the three things a zone really controls:
+
+- `place` — where on the map it is, and how high, which is what decides whether it is raining
+  here, and whether that rain is snow;
+- `environment.wind` — the zone's multiplier over the weather's wind;
+- `environment.sky` — indoors or out, which gates precipitation, wetness and the rain bed.
+
+Everything else on the editor's **Weather** tab — holding a kind at an amount, pinning a
+cloud deck, scrubbing the clock, freezing it — is the existing climate dev panel, and is
+*session-only preview*. It is how you look at your zone in a storm at dusk; it is not saved,
+and the tab says so in its title.
+
+If a zone ever needs authored weather ("it is always foggy in the crypt"), that is a decision
+to reverse CLIMATE.md, and the format is ready for it: an `environment.weather` block of
+`{ kind: amount }` holds, evaluated as a floor over the sample. It is listed under §10 as your
+call, and it is not built until you make it.
+
+### 2.3 Layers and conditions
+
+Entries live in named layers. A zone with no conditional content has one layer. `when`
+grammar as before — `{ flag }`, `{ quest, stage: { min } }`, `not` / `all` / `any` — on a
+layer or an entry, evaluated at build time against a `WorldState` that is a dev-panel stub
+until the quest system exists. The convention stands: the moment two entries share a
+condition it is a layer. The editor's layer list has a preview dropdown that forces `when`
+results, and hide/isolate per layer, which is inspection state and not saved.
+
+### 2.4 Portals — `world.json`
+
+```jsonc
+{ "portals": [
+  { "id": "cottage-door",
+    "a": { "zone": "countryside-village", "doorOf": "hut-1" },
+    "b": { "zone": "countryside-cottage", "wall": "-z" },
+    "seed": 8811, "material": "timber" }
+] }
+```
+
+- `doorOf: id` stands the end at the door anchor of a placed building: build it, read
+  `userData.doorways[0]`, apply `doorwayFront(…, DOOR_PROUD)` and the building's yaw. This is
+  `houseDoorEnd` as data, and it is why `DOOR_PROUD` finally lives in one place.
+- `wall: "-z"` puts the end in a shell wall at `-depth/2 + DOOR_PROUD`, facing in.
+- `at` / `yaw` stays for freestanding portals (the arch), `arrival` stays as the rare override.
+
+A portal is a fact about a pair of zones, so it lives in neither.
+
+### 2.5 The interpreter
+
+`src/world/document.ts`: `zoneFromDocument(doc): ZoneDefinition` and
+`portalsFromManifest(manifest): PortalDefinition[]`. It resolves builder names through
+`art/registry`'s `builderByName`, which already exists; content is Vite-only (§4) so the
+registry's `import.meta.glob` is no longer a reason to keep a second import table.
+The four private copies of `place`/`topOf`/`laid`/`scatter` collapse into
+`src/world/placement.ts` as part of this.
+
+Every mesh an entry produces is tagged `userData.entry = { zone, id }`; a merged chunk
+carries a sorted range table with the same field per range. The game ignores it. The editor
+is built on it.
+
+The one change to the art kit contract: `BuilderWith` options exist only as types. Extended
+builders gain a small runtime schema — `options: { text: 'string', sections: ['int', 1, 8] }`
+— that the inspector renders from and the interpreter validates against. Builders without
+extras need nothing.
+
+### 2.6 Terrain: landforms, sculpt and paint
+
+Terrain today is `heightAt = Σ landforms`, authored and never noise, and the landform list is
+the thing the editor was always going to drag handles on. Sculpting does not fit that: a
+brush stroke is not a rule with a seed, and a hundred of them replayed on every build is a
+recording, not a derivation. So the terrain block gains one raster layer
+each for height and paint, and the rule for the whole block becomes: **shapes for what is
+deliberate, rasters for what is sculpted, and the two compose.**
+
+```jsonc
+"terrain": {
+  "size": 114, "resolution": 3, "base": "turf",
+  "landforms": [ … ],                        // large forms, as now
+  "sculpt":  { "file": "countryside-village.height.r32", "resolution": 1 },
+  "paint":   { "file": "countryside-village.paint.u8",   "resolution": 1 },
+  "coverPaint": { "file": "countryside-village.cover.u8", "resolution": 1 },
+  "patches": [ … ], "cover": [ … ],          // shapes, as now
+  "detail": [ … ], "edgeFade": { … }
 }
 ```
 
-Reading rules, each pinned to a fact about the code as it stands:
+- **Height** is `landforms + sculpt`, sampled bilinearly from a float32 grid centred on the
+  origin at its own resolution (which may be finer than the mesh's, and the mesh's own
+  `detail` rings decide what is visible). Landforms stay the way to say "a hill here, 18 m
+  across"; the brush is how you raise the bank a little where the path meets the lane.
+- **Material** is `base → paint raster → patches`, later wins; a cell of 0 in the raster is
+  unpainted. Shapes still win, because a path is a decision and paint is a gesture. The
+  slope-beats-paint rule (`rockAngle`) is unchanged.
+- **Cover** composes the same way with the same three sources.
+- Rasters are **sidecar binary files** beside the document, raw little-endian, named by the
+  document, loaded through a static `?url` import in the content index. A 114 m zone at 1 m
+  is 13 k floats; keeping that out of the JSON keeps the parse cheap and the git objects
+  small, and nothing else turns on it.
+- A zone with no raster files has no rasters. The three homes never get them.
 
-- **`environment.base` names a preset registered in code**, and the rest of the block is
-  overrides spread onto it — exactly how every zone already spreads `OUTDOOR_ENVIRONMENT`
-  or a shared interior constant. Presets stay code (they are tuning, argued for at length
-  in comments); the *choice* of preset and the per-place deltas are data.
-- **`at` with two numbers is a ground placement, with three it is absolute.** Two numbers
-  settle onto the terrain (the exterior `place()`), three are explicit XYZ (the interior
-  `place()`). That covers both of the two placement vocabularies that exist today, which
-  are currently four private copies of the same helpers across four files. Building the
-  interpreter is also the moment those collapse into one shared `src/world/placement.ts`.
-- **`on: ref` stacks by measurement.** The interior files stand candles on seed-varied
-  tables by reading `topOf(mesh)` from the built mesh, because the table's height is not
-  knowable before it is built. The document says the same thing referentially: build the
-  entry named `table`, measure it, stand this on it. Order within a layer is document order,
-  so the referent always exists by the time it is needed.
-- **`terrain` is the `TerrainOptions` literal, verbatim.** The landform list is already
-  "the same list a Phase 6 editor would drag around" — terrain.ts says so in its header.
-  Nothing to invent; the interpreter constructs a `Terrain` from it and derives `groundAt`
-  and `surfaceAt`, the two `ZoneDefinition` fields that are functions today. No terrain
-  section means flat at 0, which is every other zone.
-- **`shell` starts as `InteriorOptions`, verbatim**, with `style` naming a registered
-  `InteriorStyle` — and grows into the room graph ("Interior shells beyond the box",
-  below). A one-room shell with no joins is exactly today's box, so the simple case never
-  pays for the general one.
-- **Runs and scatters carry their existing signatures.** `run` is the `laid` family —
-  polyline in, pieces out, corner-chaining from returned endpoints handled inside the
-  interpreter. `scatter` is the existing options record with `avoid` allowed to name a
-  shared region list instead of repeating circles.
-- **`options` passes through to `BuilderWith` extras** — signboard text, fence sections,
-  column heights. The builder validates its own options, as it does now.
-- **Yaw accepts radians or a compass word.** `"south"` beats `3.14159` in a file a person
-  edits by hand, and the editor writes radians when precision matters.
-- **The full transform is available, and the short form is the common case.** `yaw` alone
-  covers most props. `rotation: [pitch, yaw, roll]` (YXZ, the order `lean` already uses,
-  tilting about the foot so the origin stays on the ground where the checks look for it)
-  covers the leaning post and the toppled crate. `scale` is the builder contract's uniform
-  scale. Per-axis stretch is deliberately a separate, louder key (`stretch: [x, y, z]`,
-  applied to the finished mesh) because it leaves the builder's `radius` spacing hint and
-  proportions behind — legal, but the document should show where it happened.
+Sculpting is exterior-only, on the heightfield. Interiors have a shell floor; where an
+interior wants shaped ground (a cave floor) that is the `roughen` style on the room graph or
+a `ground` entry, not a second heightfield.
 
-What the document never contains: door meshes (the manager builds those), groundcover
-placement (grown from the ground, never placed), shadows, clutter tags, collision — all of
-it is `prepare()`'s work already, and the format inherits that cleanliness for free.
+Ground that is not the heightfield — a plateau slab, a bridge deck, a cellar floor, a pond
+bed under a `water` plane — is a `ground` entry (§2.1). It is a mesh with `userData.ground`,
+collidable, footsteps from its material, and it grows cover if asked. It is not sculptable;
+it is placed and shaped like any other entry.
 
-## Interior shells beyond the box
+### 2.7 Interior shells beyond the box
 
-`buildInterior` is one sealed rectangular room with style knobs. That was the right size
-for proving thresholds; it cannot make an L-shaped tavern, a loft over a workshop, a cellar
-stair, or a corridor between rooms. Interiors that want to break the mold need a hardier
-kit, and the shell grammar is where it lands.
+`buildInterior` is one sealed rectangular room. The shell grammar grows into a room graph —
+rooms with their own floor level, height and style; joins (`doorway`, `arch`, `open`,
+`stair`) cut where two rooms share a wall; wall features (`window`, `hearth`) — built by one
+builder that unions rooms, cuts joins and stays watertight by construction. One room with no
+joins is today's box, so the simple case never pays for the general one. A `roughen` style
+displaces the inner surface into cave or crypt without touching topology. Kit-piece modular
+building is rejected: it makes sealing an authoring problem and puts hairline seams exactly
+where flat shading cannot hide them. This is a builder and lands on its own schedule; the
+editor gets forms for it when it exists.
 
-Three ways to build one, and the choice matters more than any other in this document:
+---
 
-**A — the room graph (recommended).** A shell is a set of rooms — rectangular footprints,
-each with its own floor level, ceiling height and style — plus *joins*: openings cut where
-two rooms share a wall (doorway, arch, open span, stair), plus *features* on walls
-(windows, hearth recesses). The builder unions the rooms, cuts the joins, builds the stair
-geometry, and guarantees the result watertight, exactly as the box does today.
+## 3. The editor
 
-```jsonc
-"shell": {
-  "style": "house",
-  "rooms": [
-    { "id": "hall",   "at": [0, 0],    "size": [8, 6.5], "height": 3 },
-    { "id": "snug",   "at": [7, 1.5],  "size": [4, 3.5], "height": 2.4 },
-    { "id": "cellar", "at": [1, 0],    "size": [4, 4],   "floor": -2.6, "height": 2.2, "style": "works" }
-  ],
-  "joins": [
-    { "between": ["hall", "snug"],   "kind": "arch", "at": 0.5 },
-    { "between": ["hall", "cellar"], "kind": "stair" }
-  ],
-  "features": [
-    { "room": "hall", "wall": "+x", "kind": "window", "at": 0.3 }
-  ]
-}
+### 3.1 Modes
+
+**Fly.** A free camera with six-axis movement, free look on right-drag or pointer lock, speed
+on scroll, shift to sprint, and no capsule. Under the hood it is the game `Controller` with
+`noclip` on, so its position is the same kind of number the player's is. Vista parallax is
+frozen while flying (`freezeVista`), or the band slides under the prop you are placing.
+Session-only state: camera position, speed, bookmarks.
+
+**Play.** One key drops the capsule at the camera's feet — raycast down against the collider,
+settle with the usual clearance — with `noclip` off, life awake, audio running, weather live.
+You walk, jump, open doors, read notes, cross into neighbouring zones. The same key returns to
+Fly with the camera at the player's eye, and if you crossed zones the editor follows and
+opens the zone you ended in. Nothing about Play is special-cased: it is the game loop with the
+editor's panels still on screen.
+
+**Top.** An orthographic view straight down, with the same tools. It is where paths, patches,
+regions, runs and landforms are drawn, because they are all XZ shapes and a perspective view
+lies about them. Toggle key; the last perspective camera is restored on leaving.
+
+### 3.2 Selection
+
+Click picks by raycast against the zone root; the hit's `userData.entry` (or its chunk's range
+table by `faceIndex`) names the entry. Shift-click extends, ctrl-click toggles, drag on empty
+ground box-selects in Top view. The outliner mirrors selection both ways. Escape clears.
+
+Selected entries draw an outline through the existing effect mask layer; hovered entries draw
+a fainter one. Non-mesh entries — sounds, volumes, scatter rules, regions, spawn, portal ends —
+get editor-only gizmo meshes (spheres, boxes, rings, flags) that exist only in the editor
+scene and are picked the same way. They are on a layer PostFX never sees, so they do not
+bloom or fog.
+
+### 3.3 Transform tools
+
+Move, rotate, scale, on `W` `E` `R` as everywhere. `TransformControls` shows the handles;
+`X` `Y` `Z` constrain to an axis, `L` toggles local/world space, holding `ctrl` snaps
+(0.1 m, 5°, 0.05), and the snap values are on the toolbar.
+
+Move has three collision behaviours, on a toolbar toggle and a key:
+
+- **Free.** The gizmo moves the object; things may interpenetrate. The default for interiors,
+  where a candle is *meant* to sit inside a table's bounding box.
+- **Contact.** The object's collision extent (a box from its geometry, or the builder's
+  `radius` as a cylinder for foliage) is swept along the drag against the zone collider, with
+  the selection's own triangles excluded, and stops at the first contact plus 2 mm. Dragging a
+  crate into a wall stops it against the wall; dragging it up out of the floor is free. This is
+  the "bump objects up to each other" toggle.
+- **Ground.** Y is not yours: the object rides the terrain (or the shell floor) under it and
+  the gizmo shows only the two horizontal arrows. The default for exterior props, and it is
+  what writes a two-number `at`.
+
+Drop (`End`) settles the selection onto whatever is beneath it by collider raycast. If the
+hit belongs to an entry, the document gets `on: that-id` (the editor mints the id if the base
+has none); if it is terrain, a two-number `at`; otherwise absolute. Drop is what stacks a
+candle on a table without typing anything.
+
+Rotate defaults to yaw about the foot. Pitch and roll are on the gizmo's other rings and
+write `rotation`. Scale writes the uniform `scale`; per-axis stretch is a separate tool (`T`)
+so it stays loud in the document.
+
+Duplicate (`ctrl-D`) copies the selection offset by one radius and re-rolls the copy's seed
+only — the original keeps its seed, always. Copy, paste and paste-in-place work across zones;
+pasted entries get fresh ids and keep their seeds.
+
+Snap to entry (`S`, then pick): moves the selection so its origin sits on the picked entry's,
+optionally matching yaw; with an axis held it instead slides along that axis until the two
+collision extents touch.
+
+During a drag the built mesh is moved directly for feedback. On drag end the document is
+mutated and the rebuild loop runs (§3.10).
+
+### 3.4 Placing things
+
+The palette lists every builder by `CATEGORY_ORDER`, searchable, with thumbnails, plus tabs
+for the non-builder kinds: creatures, sounds (every soundscape model, and one-shot scatters),
+volumes (fog, glitch, horror), water, particles, barriers, and vista. Pick something, click
+the ground, it stands there with a fresh seed that is kept forever. Click-drag before release
+sets yaw. Holding the palette item and clicking repeatedly places several.
+
+Creatures place like props and show their `roam` radius as a ring while selected.
+
+Sounds place at the click point lifted 1 m, and show `refDistance` and `maxDistance` as two
+spheres while selected, with `every`/`spread` as a box for one-shot scatters. Mute-others
+(`M`) solos the selected emitter through `Soundscape.setSolo`.
+
+Volumes place as a unit sphere or box and are sized with the scale tool.
+
+Water places as a plane at the click height; `width`/`depth` are the scale handles.
+
+### 3.5 Shapes on the ground
+
+Runs, chains, paths, fields, blots, regions, landform footprints and the vista keep-out are all
+XZ shapes, and they share one tool set:
+
+- **Polyline** (`P` in Top view): click vertices, enter to finish, click a segment to insert a
+  vertex, drag a vertex to move it, delete to remove. Used for `run.points`, `chain.edges`,
+  `path.through`, `scarp`/`channel`, and the level outline.
+- **Circle**: drag centre, scroll radius. `blot`, `hill`, `basin`, terrace, region circles,
+  scatter `within`.
+- **Rectangle**: drag corners. `field`, the box forms of barriers and volumes.
+
+A chain edge's kind (`wall`/`fence`) is toggled per edge in the inspector; the pier/post rule
+at corners is the builder's and is not exposed.
+
+Landforms rebuild the terrain live while a handle is dragged — the heightfield alone is quick —
+and the groundcover regrows on release, because sampling is what costs.
+
+### 3.6 Terraforming
+
+A brush tool set (`B`), usable in Fly and Top, working on the exterior heightfield. Every
+brush has radius (scroll), strength, and a falloff curve (`smooth`, `linear`, `flat`),
+shown as a ring projected onto the ground under the cursor with its falloff as a second ring.
+Strokes write the sculpt raster; the landforms underneath are untouched, so a hill can still
+be dragged after its flank has been shaped.
+
+Brushes, each a per-cell operation on the raster inside the ring, weighted by falloff:
+
+- **Raise / lower** — add ±strength per second. Shift inverts.
+- **Smooth** — move each cell toward the mean of its neighbours.
+- **Flatten** — move toward the height under the cursor at stroke start (ctrl: toward a typed
+  level). What makes a building plot.
+- **Set** — write the level, no blending. Terracing by hand.
+- **Ramp** — two clicks; a linear gradient between their heights along the segment, width
+  from the brush. Paths up a bank.
+- **Roughen** — hand-placed noise at the brush's own seed and a typed scale. It is still
+  authored: it goes where you put it and nowhere else.
+- **Erase** — return cells to `landforms` only.
+
+During a stroke the terrain mesh's vertices are re-evaluated from `heightAt` every frame
+(they lie on a known grid, so it is a pass over a few thousand vertices, normals recomputed)
+and the groundcover is hidden. On mouse-up the raster is committed as one undo step, the
+collider is rebuilt, and cover regrows debounced. Props on the ground ride it: every entry
+with a two-number `at` is re-settled after a stroke, which is the same rule as everywhere
+else and is why ground-settled placement is the default outdoors.
+
+**Paint** uses the same brushes with a material or cover picked from a swatch row (the
+`GROUND` and `COVER_TYPES` tables, the same names the patches use). Two brushes: **paint**
+and **erase**. Paint strokes write the paint or cover raster; shapes are drawn with the shape
+tools and stay shapes. A cover swatch also offers `edge: hard`, which for a stroke means no
+feather at its border.
+
+The raster's own resolution is set on the terrain panel and can be changed; existing data is
+resampled once, and the editor says so. A new exterior starts with no rasters and gets them
+on the first stroke.
+
+A new exterior creates a `terrain` block (size, resolution, base material) with a flat floor
+and no rasters, and gets them on the first stroke. Landforms and the brush are both always
+available; a landform keeps a handle you can drag later, a stroke is just ground.
+
+### 3.7 The inspector
+
+Every field of the selected entry, as controls generated from the kind's schema: placement,
+seed (a re-roll button and a number field — changing a selected entry's seed is intentional
+churn), builder options from the runtime schema, `label`, `text` as a searchable dropdown
+over the project's `content/notes`, `solid`, layer, `when`. Multi-selection shows the shared fields and
+applies edits to all.
+
+Scatter rules show their instances highlighted while selected, and every knob rebuilds live.
+
+The zone panel (no selection) is the header: name, group, `place`, spawn, floor, and the whole
+environment block as controls — every field of `ZoneEnvironment`, with `base` as a dropdown
+and only the overrides written. These are the same knobs the dev panel's `light`/`fog`/`audio`
+folders expose, and the difference is that these ones save.
+
+The terrain panel is `TerrainOptions` as forms: size, resolution, base, landform list with
+add/remove/reorder, patch and cover shape lists, detail rings, edge fade, and the raster
+block — resolution, which rasters exist, a clear button for each. A `ground` entry's
+inspector has its shape, height, material, cover and thickness; a prop's has `underfoot`,
+`cover` and `ground` under an *as ground* fold. The skirt, vista ring and dressing have
+theirs. The shell panel is `InteriorOptions` now and the room graph later.
+
+The soundscape's beds — non-positional — sit on the zone panel too.
+
+### 3.8 The outliner
+
+A tree: zone → layers → entries, named by id, with kind icons. Click selects, double-click
+frames the camera on it, drag reorders (which matters — document order is build order and
+`on` depends on it), eye toggles visibility, lock prevents picking. Visibility and lock are
+session-only. A filter box narrows by kind or name.
+
+### 3.9 Portals
+
+Two-click wiring with the portal tool. Door sites highlight on hover:
+
+- a placed building with doorways — snaps to the doorway's foot, `DOOR_PROUD` out, facing
+  outward; writes `doorOf: id`;
+- a shell wall — snaps to the wall's centre at floor level, facing in; writes `wall: "-z"`;
+- ground or a barrier — a freestanding door; writes `at`/`yaw`, yaw from the click-drag.
+
+The first click starts a *pending portal*, which survives switching zones. The second click,
+in any zone, writes one entry to `world.json` with a seed rolled once and kept; both zones
+rebuild, and the door meshes appear because the manager builds them from the graph. The
+portal's inspector has material (`timber`/`iron`/`plank`), the optional label, and the rare
+explicit `arrival`.
+
+Two shortcuts on the pending state: **to a new interior** creates an interior zone from the
+template, opens it and pre-selects its `-z` wall, since a door on a house wanting a room
+behind it is the common case; and the zone tab expands each zone into its door sites
+(doorway-bearing buildings, shell walls) so the second end can be picked from a list without
+leaving the first zone.
+
+While a portal end is selected the derived arrival marker is drawn as a capsule standing
+where you would land, so a door whose arrival is in a hedge is visible before anyone walks
+through it.
+
+### 3.10 The rebuild loop
+
+Every commit is document → world, never the other way.
+
+1. The document is mutated and a snapshot pushed on the undo stack.
+2. If the change touched exactly one single-mesh entry (prop, creature, volume, sound,
+   barrier, water, particles), that entry's built object is disposed and rebuilt alone, the
+   collider for the zone is rebuilt, and the activities that collected from it (`LifeActivity`,
+   `LightActivity`, `WindowLight`, `ClothActivity`, glitch, horror) re-collect for the zone.
+3. Anything else — a scatter knob, a run point, terrain, the shell, a layer condition — rebuilds
+   the whole zone through the eviction path: `dispose`, `collider.invalidate`, clear `doored`
+   and the per-zone maps, `unbind` the portal sides, release every activity, drop the
+   soundscape if the soundscape changed, then `prepare` and re-add. `ensureLoaded` is awaited
+   first as it must be. Full rebuilds are debounced (~250 ms after the last change) and show a
+   spinner in the status line rather than the game's loading screen; the camera does not move.
+4. Water, particles and glass presence are re-observed after any rebuild, since they are
+   observed rather than declared.
+
+Materials are never disposed — they are shared across zones.
+
+Undo and redo are the snapshot stack, which is cheap because a document is small. The stack
+is session-only.
+
+### 3.11 Saving
+
+Autosave: every commit schedules a write ~1 s later; a dirty dot on the zone tab shows the
+gap. `ctrl-S` writes now. There is no "revert" beyond undo and git.
+
+The middleware, in `vite.config.ts` beside the reload suppressor:
+
+- `GET  /__editor/zones` — ids and mtimes.
+- `GET  /__editor/zones/:id`, `GET /__editor/zones/:id/:layer`, `GET /__editor/world`.
+- `PUT  /__editor/zones/:id`, `PUT /__editor/zones/:id/:layer` (raw bytes), `PUT
+  /__editor/world` — the request carries the mtime the file was loaded at. The server writes
+  to a temp file and renames; if the file on disk is newer than the client's mtime (a second
+  editor tab, a git checkout), it refuses with 409 and the client offers reload-theirs or
+  overwrite.
+- `POST /__editor/zones/:id/rename` — files and `world.json` together.
+- `DELETE /__editor/zones/:id` — document, sidecars, and its portals.
+
+Writes land under `projects/`, which is inside Vite's watch root. The existing suppressor
+already turns a change into a banner instead of a reload, and the middleware marks its own
+writes so the banner does not count them. Only `serve` registers any of this; the built game
+has no such routes.
+
+### 3.12 Zones
+
+The zone tab lists every registered zone — document zones editable, code zones (galleries,
+showcases, the proving ground, the rigs) openable in Fly and Play but with nothing to select.
+New zone offers two templates, exterior (flat floor, outdoor environment, a spawn) and
+interior (a box shell, indoor environment, a spawn), and asks for id, name and group.
+Duplicate copies a document under a new id. Delete asks once.
+
+Switching zones goes through `ZoneManager.travel` with the loader hidden, and the camera is
+placed at the spawn looking along its yaw.
+
+### 3.13 Visualisers
+
+All session-only, all on the View menu, most on by default:
+
+- barriers (`showBarriers`, already built), spawn flag, portal ends and their arrival
+  capsules, sound radii, volume shells, creature roam rings, regions as ground rings, the
+  level outline and vista keep-out, `apparent` labels on vista props, keep-clear circles as
+  dashed rings, a 1 m ground grid in Top view, the light census, and the triangle count from
+  the collider.
+- a placement ruler (`ctrl`-drag between two points, metres in the status line).
+- camera bookmarks (`ctrl-1..9` to set, `1..9` to jump), session-only.
+
+### 3.14 Borrowed from the Creation Kit
+
+The design already mirrors the Kit's shape — base object and reference are builder and
+entry, Cell View is the outliner, the Object Window is the palette, enable-parent is a
+layer with `when`, markers are entries. Beyond that, the practices worth taking:
+
+- **Pick in view.** Every ref-valued field — `on`, `doorOf`, an emitter's anchor, a patrol
+  point, a prefab origin — has a crosshair button beside its dropdown that picks the entry by
+  clicking it.
+- **Prefabs.** Select entries, pick one as the origin, save as a prefab; it lands in the
+  palette and places as one entry. Editing a prefab is opening it as its own small zone.
+- **Favourites and randomised placement.** A pinned list in the palette, with per-item yaw
+  and scale ranges rolled from each placed entry's seed. A **prop brush** drags favourites
+  out at a spacing, one kept seed per entry — manual scatter, for where a rule would be wrong.
+- **Orbit.** Shift-drag orbits the camera round the selection; `.` frames it. Fly is for
+  placing, orbit is for looking at one thing.
+- **Isolate by kind.** A view filter that shows only sounds, only volumes, only barriers, or
+  only markers, the way hiding every reference shows the room markers.
+- **Open in gallery.** From the inspector, jump to the builder's gallery row with the
+  selection's seed marked — the Kit's *Edit Base*.
+- **Translucent** as the middle state of hide, so a wall can be seen through while placing
+  behind it.
+
+Left behind on purpose: room bounds, portals and occlusion planes (residency is by door);
+navmesh (creatures roam by radius with obstacle push-out, and if pathing is ever needed it is
+generated from the collider, never drawn); persistence flags, ownership and plugin layering.
+
+### 3.15 Keys, provisional
+
+`W E R T` tools · `B` brush · `Q` select · `X Y Z` axis · `L` space · `G` ground / `C` contact / `F` free ·
+`End` drop · `Tab` play · `Home` top view · `ctrl-D` duplicate · `Del` delete · `ctrl-Z` /
+`ctrl-shift-Z` · `ctrl-S` · `H` hide selection / `alt-H` unhide all · `.` frame selection ·
+`M` solo sound · `S` snap to entry · `ctrl-C`/`ctrl-V`/`ctrl-shift-V` copy, paste, paste in place.
+The fly camera uses the game's movement keys; shift-drag orbits.
+
+---
+
+## 4. Loading documents in the game
+
+the project's content index finds every document with `import.meta.glob('./zones/*.json',
+{ eager: true })`, and every sidecar with a `?url` glob, and exports the zones and the portal
+graph. Dropping a file into a project's `content/zones/` is all it takes for a zone to exist in the
+game; nothing is registered by hand, which is what lets the editor create a zone without
+anyone touching code. `boot.ts` concatenates document zones and portals with
+`createTestWorld`'s.
+
+This makes content Vite-only, like the builder registry already is. The headless esbuild
+path was only ever for the check harnesses, which are not run.
+
+Documents large enough to want code-splitting get `load` in the interpreter — the glob is
+lazy for their bodies and eager for a small header — which is the split
+`countryside-homes.ts` already makes by hand. Whether a zone is split is a flag on the
+document, set from the zone panel.
+
+The registry cannot tell a document zone from a code zone and does not need to.
+
+### Storage layout
+
+```
+projects/<id>/content/
+  world.json                          the portal graph, every door, both ends
+  zones/
+    <id>.json                         one document per zone, named by its id
+    <id>.height.r32                   sculpt raster, only if the zone has one
+    <id>.paint.u8                     material paint raster
+    <id>.cover.u8                     cover paint raster
 ```
 
-Why this one: **the seal check stays a proof.** `check:world` fires 600 rays out of every
-interior and none may escape; with a builder that seals by construction, that check
-verifies the builder once and every document inherits the guarantee. It also stays
-readable as a place — three rooms and two joins *is* the floor plan — and it degrades to
-the current grammar (one room, no joins, is today's box).
+The id is the file name. Renaming a zone in the editor renames the files and rewrites every
+reference in `world.json`. Deleting removes the document, its sidecars, and every portal that
+names it.
 
-**B — kit pieces (rejected).** Bethesda-style modular wall/corner/floor/stair segments,
-snapped to a grid in the editor. Maximal freedom, and the wrong trade everywhere else:
-watertightness becomes an authoring problem instead of a builder guarantee, so the seal
-check degrades from proof to lint that fires after every editing session; hairline seams
-between pieces are exactly what flat-shaded untextured geometry cannot hide; and it cuts
-against the house rule that a builder hands over one complete connected thing.
+### The schism
 
-**C — surface styles on a sealed shell (not an alternative — a layer on A).** The rock
-recipe — displace vertices along normals — applies to a shell's inner surface as well as
-it does to an icosahedron. A `roughen` style on a room graph turns the same sealed
-geometry into a cave, a crypt, a dug cellar, with the seal untouched because displacement
-moves vertices, never topology. This is how interiors escape *boxiness* without escaping
-the box guarantee, and it should be a style field, not a different system.
+Today every traversable zone is code under `src/debug/`. The migration set is the content-like
+ones: the countryside village, its three homes, the villager hut and the factory, and the demo
+hall that links them. They become documents, their `build` functions are deleted once the
+render matches, and from then on they are edited in the editor. Galleries, prop halls,
+showcases, the proving ground and the eviction chains stay code — they are fixtures derived
+from the builder list or rigs that argue with the systems they exercise, and a document of a
+gallery would be a stale copy of the registry. They open in the editor as view-only.
 
-Multi-storey falls out of the room graph: an upper room is a room with a raised `floor`,
-a stair join reaches it, and its floor slab is the lower room's ceiling where footprints
-overlap. What stays out of scope for the shell kit: exteriors of buildings (those are prop
-builders like `hut`), and free non-rectangular footprints — if a real interior eventually
-needs a curved wall, that is a new room kind added then, not speculative geometry now.
+Whether the proving-ground hub joins the migration set is your call (§10); it is the one zone
+that is half rig, half place.
 
-## Portals: one manifest, ends by reference
+---
 
-Portals go in one file — `src/content/world.json` — not in zone files. A portal is a fact
-about a *pair* of zones; splitting its two ends across two files invites the orphan-half
-bug, and the existing code pattern (the hub passes its end into the far zone's factory,
-stated three times over as "a hall knows what hangs off it and nothing about the world
-outside its door") already treats the link as something neither zone owns alone.
+## 5. Engine and projects
 
-```jsonc
-{
-  "portals": [
-    {
-      "id": "millers-door",
-      "a": { "zone": "countryside-exterior", "doorOf": "millers-house" },
-      "b": { "zone": "countryside-cottage", "wall": "-z" },
-      "seed": 21
-    }
-  ]
-}
+The repo is one engine and many projects, and the editor is the thing that starts a project.
+
+```
+hswow.net/
+  src/                    the engine: art, audio, engine, world, life, player, ui, app, editor
+  editor.html
+  index.html              the game page; which project it runs is decided at build time
+  projects/
+    debug/                everything under src/debug today, plus its content
+      project.json
+      content/            zones/, world.json, notes, npcs, …, sidecar rasters
+      code/               zones that stay code (galleries, showcases, rigs), presets, extra builders
+      public/             copied verbatim into the build: CNAME, favicon
+    <game>/
+      project.json
+      content/
+      public/
+  docs/                   ignored by git; one clone of a site repo per project
+    debug/
+    <game>/
 ```
 
-Two derivations replace hand-typed coordinates, both preserving the code's
-measured-not-computed discipline:
+**A project is a folder.** `project.json` holds the id, the title, the entry zone, the zone
+group order, and whether the dev panel and `?debug` exist in its build. `content/` is the
+editor's territory (§4's layout, one level down). `code/` is optional and exports
+`ZoneDefinition`s, environment presets and builders the engine registers alongside its own;
+the debug project uses it for everything that stays code, a new game may never need it.
+`public/` replaces the repo-level `public/`, so each site carries its own `CNAME`.
 
-- **`doorOf: ref`** — the end stands at the door anchor of a placed building. This is
-  `houseDoorEnd` as data: build the hut (the zone build does anyway), read
-  `userData.doorAnchor`, done. The door cannot drift off its building because it was never
-  stored separately — the same argument `Portal.ts` makes for derived arrival markers.
-- **`wall: "-z"`** — the end sits in an interior shell wall at `-depth/2 + DOOR_PROUD`.
-  That formula is currently copy-pasted with `DOOR_PROUD = 0.07` into five files; the
-  interpreter becomes the one place it lives.
+**Direction of dependency.** Projects import the engine (`@engine/*`); the engine never
+imports a project. The three places it does today — `Input.ts` reading `debug/flags`,
+`PostFX.ts` reading `debug/presets`, `Creature.ts` reading `debug/VoiceLabel` — are engine
+dev utilities that happen to live in the debug folder, and they move to `src/dev/` in the
+same commit that creates `projects/debug/`.
 
-Explicit `at`/`yaw` stays available for the countryside-gate case (a freestanding portal
-between two exteriors), and `arrival` stays available as the same rare override it is now.
+**How a build knows its project.** A Vite plugin exposes `virtual:project`. In `serve` it
+lists every folder under `projects/` and the page picks one with `?project=<id>` (the editor
+has a project switcher that does the same); in `build` it contains exactly the one named by
+`vite build --mode <id>`, and `outDir` is `docs/<id>`, `publicDir` is that project's
+`public/`, and the builder registry's glob includes that project's `code/builders/`. Content
+globs are generated into the virtual module with the concrete path, so nothing in the engine
+spells a project name. `base` stays `./`.
 
-## Refs, conditions and state — designing the hooks without building the systems
+**Where the built sites live.** `docs/` is git-ignored in the engine repo. Each
+`docs/<id>` is a clone of that project's own site repo, made once by hand
+(`git clone <site-repo> docs/<id>`), and `npm run deploy -- <id>` builds into it, commits
+and pushes. The engine repo therefore stops carrying any built output at all — it only ever
+did because Pages needed it — and each game is hosted from its own repo with its own Pages
+settings, domain and history. Submodules were considered and rejected: they would make the
+engine repo record every site commit, which is noise, and add the submodule workflow for no
+information anyone needs.
 
-This is the Bethesda borrowing, taken at the level of the *convention*, not the tooling.
+**Starting a project.** The editor's project switcher has *New*: id and title, and it writes
+`project.json`, an empty `content/` with one exterior zone as the entry, and a `public/` with
+a placeholder favicon. The middleware routes gain a project segment
+(`/__editor/projects/:project/zones/:id` …) and `docs/<id>` is left for the one-time clone.
 
-**Refs.** Any entry may declare `"ref": "slug"`, unique within its zone,
-zone-qualified globally (`countryside-exterior/millers-house`). Only things that need
-referring to declare one: portal `doorOf` targets, `on` stacking bases, soundscape emitters
-anchored to props (`"at": { "ref": "smithy-forge", "lift": 1.1 }` — replacing today's
-shared-constant convention with the same guarantee that neither can move without the
-other), and eventually quest scripts. Everything else stays anonymous.
+**What this does to the existing site.** hswow.net is served from this repo's `docs/`
+today. After the split it is served from whichever project's site repo carries the `CNAME` —
+the debug project is the natural first owner, since it is what is there now. The engine
+repo's Pages setting is turned off.
 
-**Conditions.** Entries and layers may carry `when`, in the grammar MASTER-SPEC.md's dialogue
-model already commits to — quest stage, flag — with the three combinators:
+The `check:*` scripts and `tools/` are debug-project concerns and move with it; nothing in
+the engine build depends on them.
 
-```jsonc
-"when": { "quest": "the-fire", "stage": { "min": 40 } }
-"when": { "flag": "gate-opened" }
-"when": { "not": { … } }   "when": { "all": [ … ] }   "when": { "any": [ … ] }
+---
+
+## 6. Extending it
+
+The editor is built so that a new kind of thing costs one file:
+
+```ts
+registerEntryKind({
+  kind: 'item',
+  schema: { …fields the inspector renders… },
+  build(entry, ctx): THREE.Object3D | null,    // ctx: terrain, shell, rng, resolve(id)
+  gizmo?(entry): THREE.Object3D,                // for kinds with no mesh of their own
+  palette?: { tab: 'objects', list: () => names },
+});
 ```
 
-**Layers are the unit of change, not props.** "Finish the quest and the town is burned" is
-not forty props each carrying a condition; it is a `village` layer whose `when` is the
-negation of a `village-burned` layer's. Per-entry `when` is allowed but the convention is
-to reach for a layer the moment two entries share a condition. This keeps the common case —
-a zone with no conditions at all — a document with one unnamed layer, costing nothing.
+The interpreter, the inspector, the palette, the outliner icons and the pick path all read
+this table. Nothing else in the editor knows the list of kinds.
 
-**Evaluation is at build time, on entry.** One zone is resident at a time, rebuilds are
-proven identical and cheap, and the residency walk already disposes and rebuilds zones
-constantly — so conditional state needs no live patching. A flag flipped while standing in
-the affected zone takes effect on next entry, and if a quest moment ever needs the world to
-change *while you watch*, that is a scripted event, not the format's job.
+What is expected to arrive, and where it lands:
 
-**Until Phase 8 exists, conditions read a stub.** Quests, flags and saves are Phase 8/9 and
-not started; per house rule, that costs a sentence, not a gate. The interpreter evaluates
-`when` against a `WorldState` object that is, for now, a set of dev-panel toggles — which
-is also precisely the test rig the burned-town layer needs: flip the flag, re-enter, see
-the other town.
+- **Items and inventory** — an `item` kind, placed like a prop and pointing at
+  the project's `content/items/` by id. Picked-up state is the override layer keyed by entry id, not a
+  document change.
+- **NPC identity** — `creature` gains `npc: "miller"` pointing at the project's `content/npcs/`; patrol
+  paths are a polyline on the entry, drawn with the shape tools.
+- **Trigger volumes** — a `trigger` kind with a shape and an action list, using the volume
+  gizmo. There is no trigger system yet; the kind waits for it.
+- **Player saves** — untouched. Autosave is player state in localStorage and never writes a
+  document.
+- **Photo mode, if ever** — Fly is already the game's controller with `noclip`; whether the
+  player gets it is fiction, not engineering.
+- **Project tuning** — the engine tables that are records in code today: environment
+  presets, climate settings and weather kind rows, ground materials and cover types, player
+  tuning, vibes, interior styles, flame and lightning specs. `project.json` grows `climate`
+  and `player`; `content/presets.json` holds the rest; a Tuning tab edits them and saves. The
+  weather kinds' `season`/`daily` callbacks become named curves when this lands.
+- **Notes and text** — a library pane over the project's `content/notes` (and, later,
+  `content/npcs`): list, edit body, show where each is bound. A second document type on the
+  same middleware; the inspector's `text` dropdown already reads it.
+- **Shaped water** — `waterPlane` takes callbacks for `chop` and `flow`, which data cannot
+  carry, so the `water` entry is a rectangle with constants. A polygon outline and named
+  swell curves are an engine change for when a pond needs a shape.
 
-**The delineation, in one line each.** The zone file knows where a body stands; the
-character file knows who they are. So: `content/zones/` — places, layers, refs.
-`content/world.json` — the portal graph. `content/npcs/` — greeting, topics, rebuffs, per
-MASTER-SPEC.md's existing data model; a zone places `{ "npc": "miller", "figureSeed": 3, "at": …,
-"patrol": [...] }` and the id joins the two. `content/quests/` — stages and the flags they
-set. `content/notes/` — readable text, teaching keywords. Zone documents point *into*
-these by id and never contain them; `check:world` grows a cross-reference pass so a
-dangling id is a failed check, not a silent nothing.
+---
 
-## What never migrates
+## 7. Shape of the work
 
-Two kinds of zone coexist indefinitely, because both are just `ZoneDefinition`s and the
-registry cannot tell them apart. The proving ground, the movement gym, all ten galleries,
-the prop halls and the showcases stay code: they are fixtures *derived from the registry*
-(a gallery is a function of the builder list — as a document it would be a stale copy of
-one), and several are test rigs whose geometry argues with the systems they exercise. The
-migration set is exactly the four content-like zones: `countryside-exterior` and the three
-homes. Everything after that is new content, born as data.
+1. **Boot refactor.** `src/app/boot.ts` and `devPanel.ts` extracted from `main.ts`; the game
+   is unchanged. `editor.html` and `src/editor/main.ts` boot the same app and show an empty
+   panel. Fly and Play work against the existing code zones. This alone is already a better
+   way to look at a zone than the game is.
+2. **Projects.** `src/debug/` becomes `projects/debug/code/`, the three engine→debug imports
+   move to `src/dev/`, `virtual:project`, `--mode` builds into `docs/<id>`, `docs/` ignored,
+   the deploy script, the debug site's own repo cloned into `docs/debug` and hswow.net
+   pointed at it. The game is still unchanged for the player.
+3. **Format and interpreter.** Types, `zoneFromDocument`, `portalsFromManifest`,
+   `placement.ts`, `userData.entry` tagging, the runtime option
+   schema on extended builders. Content directory wired into boot. A one-room test document
+   proves the loop.
+4. **Migrate the three homes.** Small, interior-only, exercises shell, props, `on`,
+   creatures, `wall` portal ends.
+5. **Editor: select, transform, save.** Picking, gizmo, the three move behaviours, drop,
+   snap to entry, inspector for `prop`/`creature` with pick-in-view on ref fields, orbit
+   camera, undo, the middleware, autosave. Retires "nudge one prop at a time".
+6. **Editor: place.** Palette with favourites and randomised placement, prop brush,
+   thumbnails, open-in-gallery, duplicate, copy/paste across zones, delete, outliner,
+   prefabs, zone panel with the environment block, new/duplicate/delete zone.
+7. **Migrate the village.** Terrain, skirt, runs, chains, scatters, regions, `doorOf`,
+   anchored emitters, vista ring, dressing, barriers. Everything the grammar claims, proven on
+   the only real exterior. Then the hut, the factory and the demo hall.
+8. **Editor: shapes and everything else.** Top view, polyline/circle/rectangle tools,
+   landform handles, terrain and skirt panels, sounds, volumes, water, particles, vista and
+   dressing panels, `ground` entries, portal wiring, visualisers, isolate-by-kind view.
+9. **Terraforming.** The raster layers in `Terrain` (height, paint, cover), sidecar loading,
+   the brush set, live vertex re-evaluation during strokes, paint swatches. Independent of 8
+   apart from the terrain panel.
+10. **Layers, `when`, and the state stub.**
+11. **The room-graph shell kit**, on its own schedule, with forms following.
+12. **New kinds as their systems arrive.**
 
-## The interpreter
+Steps 1–6 are a usable editor. Nothing in 7–12 blocks using it.
 
-`src/world/document.ts` (or wherever it lands): `zoneFromDocument(doc): ZoneDefinition` and
-`portalsFromManifest(manifest): PortalDefinition[]`. Registration in `main.ts` changes by
-two lines — the arrays from `createTestWorld` are concatenated with the arrays from
-content. Builders resolve by name through an explicit import table in the interpreter, not
-through `art/registry` — the registry is `import.meta.glob` and Vite-only, and `check:world`
-reaches zones through esbuild; the galleries already solve this the same way.
+---
 
-During build, every mesh an entry produces is tagged `userData.entry = { zone, layer,
-index, ref? }`. The game ignores it; the editor is built on it; the checks use it to say
-*which document line* put a prop underground.
+## 8. Ways to get it wrong
 
-## The editor
+- **Serialising the scene back.** The document is upstream of the world, one direction. There
+  is no "export current scene".
+- **Re-rolling seeds.** Moving keeps the seed; duplicating re-rolls only the copy; nothing
+  reshuffles what it did not touch.
+- **A second renderer.** The moment the editor draws anything the game would draw differently,
+  its judgement is worthless. Editor-only gizmos live on a layer the pipeline ignores; the
+  world is drawn by the pipeline or not at all.
+- **Growing lil-gui into an editor UI.** It is a form library. The tree, the palette and the
+  toolbar are DOM, and the line stays where it is.
+- **Editor-only fields.** If a control changes what you see, it wrote a document field. If it
+  did not, it is on the View menu and marked session-only. There is no third category.
+- **Per-zone weather by the back door.** A preview hold is a preview hold. Saved weather is a
+  decision (§10), not a convenience.
+- **Writing checks for it.** No schema validator script, no geometry probe, no migration
+  counter. Open the zone and look.
 
-Dev-only, in the running game, behind `?editor`. Not a separate app: the entire value of
-editing in-engine is that the render pipeline, fog, groundcover and light are the real
-ones — judging placement through anything else violates the screenshot-before-tuning rule
-by construction. lil-gui is already resident for panels; the same skeleton serves.
+---
 
-The loop that makes it an editor rather than a viewer:
+## 9. Cost, stated once
 
-1. **Edit** — a change mutates the in-memory document (never the scene).
-2. **Rebuild** — the resident zone disposes and rebuilds from the document, in place.
-   This is the existing eviction path; it is proven leak-free across 60 crossings and
-   identical across rebuilds. On a 96 m zone the cost is a loading-bar blink, and it is
-   honest: what you see is a from-scratch derivation, exactly what the next boot shows.
-3. **Save** — POST the document to a Vite dev-server middleware that writes the JSON into
-   `src/content/zones/`. Git is the undo of last resort; the in-session undo is a snapshot
-   stack of the document, which is small enough to snapshot on every mutation.
+The boot refactor is the only large piece of plumbing and it is owed anyway. The interpreter
+is a few hundred lines because every option record it consumes is already data. The
+middleware is under a hundred. The editor proper is a few thousand lines of DOM and glue over
+`TransformControls` and lil-gui. The migrations are the slow part, and they are slow for the
+right reason — every coordinate in `countryside-village.ts` gets looked at as it moves.
 
-Everything the editor can touch is saved, by construction: a control that changes what you
-see is a control that wrote a document field, and the document is the save file. What stays
-session-only is deliberate and short — the fly camera's position, the undo stack, and the
-layer-preview toggles, which are inspection state rather than world truth. One wrinkle for
-step 1: saving writes into `src/`, so Vite's watcher fires, and the save path has to ride
-the same reload suppression `HotReload` already does for edits — a save that reloads the
-page and drops you at spawn would make saving feel like dying.
+---
 
-Staged, each stage usable alone:
+## 10. Decisions that are yours
 
-**Stage E1 — inspect and edit anything selected.** Fly camera with full six-axis movement
-and free look (detach from the capsule, noclip; the controller keeps its state so leaving
-editor mode drops you back where you stood). Pick via the existing raycast machinery
-against `userData.entry`. The inspector panel exposes *every* field of the selected entry
-as a control: XYZ position, pitch/yaw/roll, uniform scale and per-axis stretch, the seed
-(a re-roll button and a slider — changing a selected entry's seed is intentional churn),
-and the builder's own options as typed controls. That last one forces the spec's only
-change to the art kit contract: `BuilderWith` options exist only as TypeScript types,
-which are gone at runtime, so extended builders gain a small runtime schema (field name,
-kind, range) the editor renders controls from and `check:art` validates against the type.
-This stage alone retires "wanting to nudge one prop at a time."
-
-**Stage E2 — place and remove.** A palette listing every known builder by
-`CATEGORY_ORDER`, searchable, with the gallery as its permanent visual reference (the
-Vite-only registry is fine here — the editor is Vite-only by nature). Click ground to
-place at the hit point; new entries roll a seed and it is *kept*, never re-rolled on later
-edits — seed churn on an *untouched* entry is a visible world change and the determinism
-checks make it a loud one. Delete, duplicate, drag along the ground plane.
-
-**Stage E3 — the menus for everything that isn't a prop.** The zone's whole environment
-block as a panel: fog, sun, fill, ambient, wind, room acoustics, surface, soundscape
-gains — the same knobs the dev panel already exposes for tuning, but writing into the
-document instead of evaporating. Sky properties sit here too, and grow as the sky does.
-Note that the *air* has grown a set of its own since this was written — VISTA.md's
-`airCurve`, `fogRamp` and `fogCeiling` are a look rather than a place, so they belong with
-the preset and not in the zone's environment block; `fogNear`/`fogFar` remain per zone. Interior shell editing as forms over the room graph — add a room, drag its
-footprint, pick a join kind. Landform handles (drag a hill's centre, scroll its radius —
-editing the list terrain.ts always said an editor would drag around). Patch and region
-shapes drawn on the ground. Run polylines with corner dragging. Scatter rules edited as
-forms, with the rule's instances highlighted while selected. Portal wiring by clicking two
-door sites. Emitter placement with audible-radius spheres — the thing Phase 6 proved is
-miserable to type.
-
-**Stage E4 — when the systems exist.** NPC spawns and patrol paths (Phase 7), trigger
-volumes, layer preview (a dropdown that forces `when` results, driving the same stub the
-dev panel exposes). None of this blocks E1–E3.
-
-## Checks
-
-The existing suite is the editor's safety net and needs almost nothing new — `check:world`
-never cared where a `ZoneDefinition` came from, so every arrival, seal, leak, slope and
-residency assertion applies to data zones unchanged. New assertions, all cheap:
-
-- Every document validates against the schema; unknown keys are errors, not warnings.
-- Every `prop`/`run`/`scatter` names a builder the interpreter knows.
-- Refs are unique per zone; every `on`, `doorOf`, emitter anchor and manifest end resolves.
-- Every `when` references a quest or flag declared in content (against the stub manifest
-  until Phase 8).
-- Migration one-off: the data-built countryside matches the code-built one in triangle and
-  mesh counts before the code version is deleted.
-- Layer extremes both pass: each zone is built with all conditions false and all true, and
-  the seal/arrival/floor checks run on both worlds.
-
-## Ways to get it wrong
-
-- **Serializing the scene back.** The document is upstream of the world, one direction,
-  forever. An "export current scene" feature is the first step toward two sources of truth.
-- **Re-rolling seeds on edit.** Moving a prop keeps its seed; re-saving an untouched
-  scatter keeps its draws. Any editor operation that reshuffles what it didn't touch turns
-  a one-prop nudge into a whole-zone diff and a visibly different world.
-- **Per-prop conditions everywhere.** The moment two entries share a `when`, it is a layer.
-  Condition sprawl is how a format stops being readable as a place.
-- **Building the editor first.** Every hour spent on gizmos before the format exists is
-  spent editing something that cannot be saved.
-- **Letting the editor become the only author.** The files stay hand-editable and diffable;
-  the editor is a faster hand, not a gatekeeper. If a document stops being something a
-  person would write, the grammar has failed, not the person.
-
-## Shape of the work
-
-1. **Schema and interpreter.** Types for the document, `zoneFromDocument`,
-   `portalsFromManifest`, the shared placement module extracted from the four private
-   copies. No content yet; a unit-sized test document proves the loop.
-2. **Migrate the three homes.** Small, interior-only, exercises shell/props/`on`/portal
-   `wall` ends. Delete their code once counts match.
-3. **Migrate the countryside.** The hard one — terrain, runs, scatters, regions, `doorOf`,
-   emitter anchors. Everything the grammar claims, proven on the only real exterior.
-4. **Refs, layers, `when`, and the dev-panel state stub.** The burned-town rig works
-   end to end with no quest system in sight.
-5. **Editor E1**, then **E2**, then **E3** — each shippable alone, each on the same
-   document loop.
-6. **The room-graph shell kit.** Independent of the editor stages — it is a builder, so it
-   can land any time after step 1 and be authored as raw JSON before E3 gives it forms.
-   The migrated homes stay one-room boxes; the first multi-room interior is new content
-   and proves the kit. The seal and leak checks apply unchanged, which is the point.
-7. **E4 rides on Phases 7/8** and is those phases' business to schedule.
-
-Vista is one more entry kind — `{ "vistaRing": { … } }` — and VISTA.md has now landed, so
-what follows is what it actually left behind rather than what it was expected to.
-
-**The expensive half is already paid.** The band merges fifty props into one chunk, so a
-chunk cannot carry a single `userData.entry` — and that is a fact about merging, not about
-vista: every merged system after this one hits the same wall, and none of them can fix it
-after the fact, because once the buffers are concatenated nothing can tell which triangle
-belonged to which prop. `vistaRing` therefore records `{ start, count, name, seed }` per
-prop while it concatenates, and `vistaPropAt` binary-searches a raycast's `faceIndex`
-through it. The tagging rule above stands widened — **a mesh carries either one entry or a
-sorted range table** — and the editor's remaining job is to add an `entry` field to that
-record and read it. That is an afternoon, and nothing about it gets harder by waiting.
-
-**The placer's options are pure data, and were built that way deliberately.** There is not
-one function type in `VistaProp`, `VistaScatter` or `VistaRingOptions` — numbers, tuples,
-named shapes, and two object references (`MeshBuilder`, `Skirt`) that a loader constructs
-from a name and a table. `scatter()`'s `avoid`/`maxSlope` predicate idiom would have made
-the ring unserialisable forever; it was kept out.
-
-Three corrections to what this document previously assumed:
-
-- **Vista entries are not polar.** They were going to be bearing/distance/apparent-size,
-  which is a form the inspector would have needed beside the XYZ one. They are not: a prop
-  is a world position, and everything else about the band — the inner and outer edges, each
-  kind's own band, the keep-out, and `apparent` — is a **distance measured out from the
-  level's outline**. One unit, one extra field, no second form. That is also what makes an
-  L-shaped or S-shaped level cost nothing: the distance field bends with the outline.
-- **There are no parallax tiers.** Parallax is per object: a prop states how far it should
-  *read* (`apparent`) and its `k` is derived. Merged means still, individual means moving,
-  so a moving prop is its own mesh and carries an ordinary single entry — the range table
-  is only ever needed for the still band. E1's fly camera still wants the freeze toggle
-  (`ZoneManager.freezeVista`, already built and already in the dev panel), or moving the
-  camera slides the world under the prop being placed.
-- **There is no sky ridge.** Band 3 was built as a shader feature in the dome and then
-  removed; a skyline, if one is wanted, will be low-poly geometry like everything else. No
-  environment fields, no inspector form.
-
-Two things E3's shape tools acquire as consumers rather than as new work: the **level
-outline** and the **parallax keep-out** are both `PatchShape[]`, the same vocabulary ground
-materials and cover are already painted in, so "patch and region shapes drawn on the
-ground" covers all four. The keep-out is worth calling out because it is the one shape a
-human genuinely has to draw — for a compact level it is the outline dilated by whatever
-the still band reaches and `dilateOutline` does it, but the interesting case is a shape no
-dilation produces, like the cup between the arms of a Y-shaped level.
-
-Finally, an authoring rule rather than a feature: **vista placement is assumed to be in
-good faith, and there is no guard.** Two props that read as equally distant but carry very
-different `apparent` values will drift against each other and look wrong. That is a thing
-for the editor to make *visible* — showing `apparent` on selection, or drawing the
-keep-out while a vista entry is selected — and deliberately not a thing for the placer to
-police.
-
-Readables (READABLES.md) cost this document less, and something different: not a change to
-how entries are tagged, but a **second document type to edit**. A note lives in
-`content/notes/` and is not an entry, so it cannot be reached from the inspector — it needs a
-library pane beside E3's environment forms, listing every note, editing its body, and showing
-where each is bound. The entry side is one field: `text`, a searchable dropdown over that
-library, plus *clear*, which is what keeps the prop and the words independently editable.
-Two smaller notes: the game's reading screen *is* the editor's preview, because pagination is
-measured against the real box and an approximation would be wrong exactly where it matters;
-and `check:world`'s cross-reference pass grows a `text → note` arm, with prose that is
-written but placed nowhere as a warning rather than a failure.
-
-## Decisions that are yours
-
-- **Names throughout**: this file's own name, `content/` layout, key names, `ref` slugs,
-  room and join kind names in the shell grammar.
-- **The shell kit choice.** The room graph is the recommendation and B's rejection is
-  argued above, but it forecloses free-form modular building — worth an explicit yes.
-- **JSON dialect.** Plain JSON is the safe machine-round-trip choice but has no comments;
-  this repo prizes marginalia. Options: JSON5 (comments, but editor round-trips destroy
-  them anyway), or plain JSON plus an optional `"note"` field the editor preserves
-  verbatim. Recommendation: plain JSON + `note`, and prose lives in docs.
-- **Portal manifest granularity**: one `world.json`, or one manifest per zone group.
-- **Whether E1's fly camera doubles as a player-facing photo mode later** — engineering
-  says free, fiction says maybe not.
+- **Names throughout** — the page name, `projects/` layout, every key, kind and slug, id
+  slug style, key bindings.
+- **Saved per-zone weather.** The format can hold it; CLIMATE.md says not to. Yes or no.
+- **The migration set.** The six content zones is the recommendation; the proving-ground hub
+  is the borderline case.
+- **The shell kit.** Room graph is recommended and kit pieces are rejected above; worth an
+  explicit yes because it forecloses free-form building.
+- **Move default.** Ground for exteriors, Free for interiors, is the recommendation; Contact as
+  the default everywhere is defensible.
+- **Rasters as sidecars or in the JSON.** Sidecars are recommended for size; one file per
+  zone is simpler to move around.
+- **Paint order.** Shapes over paint is recommended (a path is a decision); the reverse is
+  what most terrain editors do.
+- **Prefab granularity** — whether a prefab may contain prefabs, and where the line sits
+  between a prefab and a builder that should exist instead.
+- **Which project owns hswow.net** after the split — debug is the recommendation.
+- **Site repo naming and whether `docs/` stays the clone location** or moves out of the
+  engine tree entirely.
+- **Whether the editor's dev-panel tabs replace `?debug` in the game** once they exist in two
+  places, or the game keeps its own.

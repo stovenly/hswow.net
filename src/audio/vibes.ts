@@ -108,6 +108,21 @@ export function ambienceFor(
   return VIBES[named[roll(zoneId, day) % named.length]].ambience;
 }
 
+/**
+ * Which vibe a spec came out of, for readouts. Looked up by identity, which is
+ * already what rack identity is in both directors — so a spec held from the
+ * panel names itself as readily as one a zone asked for.
+ */
+export function vibeOf(spec: object | null | undefined): VibeName | null {
+  return spec ? (OWNERS.get(spec) ?? null) : null;
+}
+
+const OWNERS = new Map<object, VibeName>();
+for (const name of VIBE_NAMES) {
+  OWNERS.set(VIBES[name].music, name);
+  OWNERS.set(VIBES[name].ambience, name);
+}
+
 function roll(zoneId: string, day: number): number {
   let value = 0x811c9dc5;
   for (let i = 0; i < zoneId.length; i++) {

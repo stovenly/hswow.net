@@ -121,7 +121,11 @@ export function createMonoPool(
       // away through the last stretch, then the close. A following note
       // cancels this; nothing follows and it *is* the phrase end.
       const settle = Math.max(n.at + options.attack, end - Math.min(0.45, duration * 0.35));
-      g.setTargetAtTime(peak * 0.55, settle, 0.15);
+      // A note shorter than its own attack has no room for one, and writing it
+      // anyway lands it after the close: the timeline runs in time order, so
+      // the decrescendo would be the last event on a player that never stops
+      // and would hold it open at 55 % of peak for good.
+      if (settle < end) g.setTargetAtTime(peak * 0.55, settle, 0.15);
       g.setTargetAtTime(0, end, options.release / 3);
       player.voice.taper(end, options.release);
 

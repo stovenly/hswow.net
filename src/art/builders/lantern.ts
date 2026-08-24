@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import type { MeshBuilder } from '../types';
+import type { BuilderWith } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
 import { rollActivity, LANTERN } from '../activity';
 import { PALETTE, shade } from '../palette';
-import { flameGlow, rollFlame, FLAME_DECAY } from '../flame';
+import { castFlame, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
 
 // A carried lantern: a flame in a box, with a ring to lift it by — brighter than
 // a candle, dimmer than a street lamp, and built to be looked at from every side.
@@ -22,12 +22,12 @@ const LIGHT_INTENSITY = 5;
 /** Hard cutoff — past this it contributes nothing and costs nothing. See the candle for why the intensity rises by 2.4 rather than 2 to buy twice the reach. */
 const LIGHT_RANGE = 18;
 
-export const lantern: MeshBuilder = {
+export const lantern: BuilderWith<FlameOptions> = {
   name: 'lantern',
   category: 'objects',
   radius: 0.28,
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, shadows = false } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
     const glow: Part[] = [];
@@ -162,7 +162,7 @@ export const lantern: MeshBuilder = {
     );
     // On the axis, so the facing rotation does not move it.
     light.position.set(0, wick * scale, 0);
-    light.castShadow = false;
+    if (shadows) castFlame(light, LIGHT_RANGE * scale);
     mesh.add(light);
 
     // What it is doing over time, which drives both the light and the flame.

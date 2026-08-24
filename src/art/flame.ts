@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Part } from './assemble';
 import type { Rng } from './random';
+import type { BuildOptions } from './types';
 
 /**
  * What a small flame looks like, and how bright it is. Shared by everything that
@@ -58,6 +59,42 @@ export function rollFlame(rng: Rng): Flame {
  * has somewhere to go between next to it and not next to it.
  */
 export const FLAME_DECAY = 1.25;
+
+/**
+ * What a flame-carrying prop takes beyond seed and scale.
+ *
+ * A point light's shadow is a cube — six depth passes of everything in range,
+ * and a 4 x 2 atlas of them, 33 MB, that three never gives back once it has
+ * allocated it — so this is off everywhere until a placer asks. Worth asking for in a small room that is meant
+ * to be moody and nowhere else: a hall with six lanterns in it would pay thirty
+ * six passes for shadows nobody is standing close enough to read.
+ */
+export interface FlameOptions extends BuildOptions {
+  shadows?: boolean;
+}
+
+/**
+ * Points a flame's own light at the room. `range` is the light's, so the depth
+ * range matches what it actually reaches and the little bias it needs is little.
+ */
+export function castFlame(light: THREE.PointLight, range: number): void {
+  light.castShadow = true;
+  // Marks it for the global shadow switch, which has to be able to find it.
+  light.userData.casts = true;
+  // Per cube face, and a cube face is a right angle: 1024 is a fifth of a degree
+  // a texel, or a centimetre across a small room.
+  light.shadow.mapSize.set(1024, 1024);
+  light.shadow.camera.near = 0.08;
+  light.shadow.camera.far = range;
+  light.shadow.bias = -0.002;
+  // A flame sits centimetres from what it lights, where a flat bias either
+  // leaks or detaches. Along the normal instead, which does neither.
+  light.shadow.normalBias = 0.03;
+  // Texels of spread on the point light's own 20-tap filter, which is the one
+  // thing `PCFSoftShadowMap` does not reach — its wider kernel is for the
+  // directional path, and a cube shadow takes the fixed one whatever the type.
+  light.shadow.radius = 3;
+}
 
 /**
  * Glow geometry for one flame: a bright core inside a wide, faint halo. The core

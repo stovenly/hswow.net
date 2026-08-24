@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import GUI from 'lil-gui';
 import type { App } from '../app/boot';
 import { installDevPanel } from '../app/devPanel';
+import { projectIds } from '../app/loadProject';
 import { Chrome, type Toggle } from './chrome';
 import { Keys } from './keys';
 
@@ -31,6 +32,16 @@ export class Editor {
     this.gui = new GUI({ title: 'hswow editor' });
     this.gui.domElement.style.setProperty('--width', '300px');
     installDevPanel(this.gui, app);
+
+    const projects = this.chrome.group();
+    const ids = projectIds();
+    const switcher = this.chrome.select(projects, ids, (value) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('project', value);
+      window.location.href = url.toString();
+    });
+    switcher.value = app.project.id;
+    switcher.title = 'project';
 
     const modes = this.chrome.group();
     this.modeToggles = {

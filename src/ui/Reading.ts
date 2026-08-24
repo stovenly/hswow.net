@@ -1,5 +1,5 @@
 import { onFontChange, offFontChange } from './options/font';
-import type { Note } from '../content/notes';
+import type { Note } from '../world/notes';
 
 /**
  * The reading screen — the first interface the game has that is *in* the game

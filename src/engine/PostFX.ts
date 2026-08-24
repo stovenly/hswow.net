@@ -21,8 +21,8 @@ import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings, type DeckState } from './Sky';
 import { fogUniforms } from './fog';
-import { loadPreset, savePreset, clearPreset } from '../debug/presets';
-import { GLOW_MATERIAL, TEXT_GLOW_ADDITIVE, TEXT_GLOW_MATERIAL } from '../art/glow';
+import { loadPreset, savePreset, clearPreset } from '../dev/presets';
+import { setGlowVisible } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw, setCoverLod, type CoverLod } from '../art/cover';
 import { BOLT_MATERIAL } from '../art/bolt';
 import { COVER_POOL_SCALE } from '../art/cover-sample';
@@ -738,9 +738,9 @@ export class PostFX {
   private hideGlowFromNormals(scene: THREE.Scene): void {
     scene.onBeforeRender = (_renderer, rendered) => {
       const colourPass = (rendered as THREE.Scene).overrideMaterial === null;
-      GLOW_MATERIAL.visible = colourPass;
-      TEXT_GLOW_MATERIAL.visible = colourPass;
-      TEXT_GLOW_ADDITIVE.visible = colourPass;
+      // Every glow, the per-prop copies included: a window's beam left in the
+      // normal pass occludes as if it were a solid box.
+      setGlowVisible(colourPass);
       COVER_MATERIAL.visible = colourPass;
       TUFT_MATERIAL.visible = colourPass;
       BOLT_MATERIAL.visible = colourPass;
@@ -826,9 +826,7 @@ export class PostFX {
   dispose(): void {
     // Left set, the hook would keep flipping a shared material for a dead pipeline.
     this.viewport.scene.onBeforeRender = () => {};
-    GLOW_MATERIAL.visible = true;
-    TEXT_GLOW_MATERIAL.visible = true;
-    TEXT_GLOW_ADDITIVE.visible = true;
+    setGlowVisible(true);
     this.viewport.scene.remove(this.sky.mesh);
     this.sky.dispose();
     this.pixelStage.dispose();

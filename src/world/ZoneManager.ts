@@ -3,12 +3,14 @@ import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, arrivalFor, type PortalDefinition, type PortalSide } from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
 import { labelOf, type Interaction } from './Interaction';
-import { noteById, type Note } from '../content/notes';
+import { noteById, type Note } from './notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
 import { LightActivity } from '../engine/LightActivity';
+import { WindowLight } from '../engine/WindowLight';
+import type { Daylight } from '../engine/daylight';
 import { ClothActivity } from '../engine/ClothActivity';
 import { LifeActivity } from '../engine/LifeActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
@@ -183,6 +185,10 @@ export class ZoneManager {
   private readonly parallax = new Map<ZoneId, VistaParallax[]>();
   /** Collision geometry that is never drawn, per zone. See `showBarriers`. */
   private readonly barriers = new Map<ZoneId, THREE.Mesh[]>();
+  /** Lights a builder asked to cast, per zone. See `setShadows`. */
+  private readonly casters = new Map<ZoneId, THREE.Light[]>();
+  /** What the render preset last said. A zone built later has to arrive at it. */
+  private shadowed = false;
   private barriersShown = false;
   /** Holds every moving vista prop where it was placed. Session-only inspection state. */
   freezeVista = false;
@@ -208,6 +214,8 @@ export class ZoneManager {
   private readonly particled = new Set<ZoneId>();
   /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
   private readonly activity = new LightActivity();
+  /** Every window in every built zone that states a bearing. See `WindowLight`. */
+  private readonly windows = new WindowLight();
   /** Every simulated cloth in every built zone. See `ClothActivity`. */
   private readonly cloth = new ClothActivity();
   private readonly life = new LifeActivity();
@@ -326,12 +334,24 @@ export class ZoneManager {
   /**
    * The atmosphere over the zone's own declaration. The zone says how bright
    * this place is relative to open daylight; the atmosphere says what open
-   * daylight currently is. Interiors keep their own rig, which is what makes a
-   * lit room at night read as a lit room.
+   * daylight currently is.
+   *
+   * `indoors` is what a room's base light is worth at this hour, 0..1. A room
+   * gets that and nothing else: its base light exists to make the place
+   * visible, and a directional light doing that job is a sun the room cannot
+   * see — it swings a bright wall across the floor as the clock moves and
+   * agrees with nothing coming through the window. What has direction in here
+   * is the windows and the lamps.
    */
-  applyLightRig(rig: LightRig): void {
+  applyLightRig(rig: LightRig, indoors: number): void {
     const env = this.current?.environment;
-    if (!env || !env.sky) return;
+    if (!env) return;
+    if (!env.sky) {
+      this.lights.sun.intensity = 0;
+      this.lights.fill.intensity = 0;
+      this.lights.ambient.intensity = env.ambientIntensity * indoors;
+      return;
+    }
     this.lights.sun.intensity = env.sunIntensity * rig.sunScale;
     this.lights.sun.color.copy(rig.sunColour);
     this.lights.fill.intensity = env.fillIntensity * rig.fillScale;
@@ -343,11 +363,20 @@ export class ZoneManager {
 
   /** Turns cast shadows on or off for the whole game. Shadows are a look, and belong with the render preset rather than with a place. */
   setShadows(enabled: boolean): void {
+    this.shadowed = enabled;
     const sun = this.lights.sun;
     sun.castShadow = enabled;
     // Three allocates the shadow map on first use and never gives it back: over
     // a hundred megabytes resident for a setting that is switched off.
     if (!enabled) sun.shadow.dispose();
+    // And the flames a placer asked to cast. A point light's is a cube of six,
+    // so the same argument applies harder.
+    for (const lights of this.casters.values()) {
+      for (const light of lights) {
+        light.castShadow = enabled;
+        if (!enabled) light.shadow?.dispose();
+      }
+    }
   }
 
   register(definition: ZoneDefinition): Zone {
@@ -431,8 +460,10 @@ export class ZoneManager {
       this.clutter.delete(zone.id);
       this.parallax.delete(zone.id);
       this.barriers.delete(zone.id);
+      this.casters.delete(zone.id);
       this.particled.delete(zone.id);
       this.activity.release(zone.id);
+      this.windows.release(zone.id);
       this.cloth.release(zone.id);
       this.life.release(zone.id);
       this.glitch.release(zone.id);
@@ -710,6 +741,7 @@ export class ZoneManager {
     const clutter: THREE.Mesh[] = [];
     const parallax: VistaParallax[] = [];
     const barriers: THREE.Mesh[] = [];
+    const casters: THREE.Light[] = [];
     let particles = false;
     let points = 0;
     let spots = 0;
@@ -721,6 +753,11 @@ export class ZoneManager {
         object.layers.enable(PARTICLE_LAYER);
         if (object instanceof THREE.PointLight) points++;
         if (object instanceof THREE.SpotLight) spots++;
+        // A flame that asked to cast, which the preset can still overrule.
+        if (object.userData.casts === true) {
+          object.castShadow = this.shadowed;
+          casters.push(object);
+        }
       }
       // The vista's parallax, which rides a group rather than a mesh — so this
       // has to be asked before the mesh guard below. See `slideVista`.
@@ -794,8 +831,10 @@ export class ZoneManager {
     for (const controller of parallax) controller.thaw();
     this.parallax.set(zone.id, parallax);
     this.barriers.set(zone.id, barriers);
+    this.casters.set(zone.id, casters);
     if (particles) this.particled.add(zone.id);
     this.activity.collect(zone.id, root);
+    this.windows.collect(zone.id, root, zone.environment.bearing);
     this.cloth.collect(zone.id, root);
     this.life.collect(zone.id, root);
     // Both attachment routes in one call: the definition's free-standing
@@ -1007,10 +1046,20 @@ export class ZoneManager {
     this.clutter.clear();
     this.particled.clear();
     this.activity.clear();
+    this.windows.clear();
     this.cloth.clear();
     this.life.clear();
     this.glitch.clear();
     this.horror.clear();
+  }
+
+  /**
+   * Swings the active zone's windows with the sky. Driven on arrival of the
+   * sample rather than on the frame loop, so a window is aimed at the hour the
+   * rig has just worked out and not the one before it.
+   */
+  applyDaylight(daylight: Daylight): void {
+    this.windows.update(this.active?.id ?? null, daylight, this.options.player.camera.position);
   }
 
   /** Steps the active zone's cloths. Called after the wind ships, so cloth and trees answer the same frame's weather. */

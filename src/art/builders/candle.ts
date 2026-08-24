@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import type { MeshBuilder } from '../types';
+import type { BuilderWith } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { finishGlow } from '../glow';
 import { createRng } from '../random';
 import { rollActivity, CANDLE } from '../activity';
 import { PALETTE, shade } from '../palette';
-import { flameGlow, rollFlame, FLAME_DECAY } from '../flame';
+import { castFlame, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
 
 // A candle on a dish, sometimes several, sometimes on a stick — the small light,
 // about one candela. Returns a `PointLight` at the flame and additive glow
@@ -26,12 +26,12 @@ const LIGHT_INTENSITY = 2.15;
  */
 const LIGHT_RANGE = 14;
 
-export const candle: MeshBuilder = {
+export const candle: BuilderWith<FlameOptions> = {
   name: 'candle',
   category: 'objects',
   radius: 0.3,
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, shadows = false } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
     // One glow mesh per flame rather than one for the prop — see below.
@@ -183,7 +183,7 @@ export const candle: MeshBuilder = {
       LIGHT_RANGE * scale,
       FLAME_DECAY,
     );
-    light.castShadow = false;
+    if (shadows) castFlame(light, LIGHT_RANGE * scale);
     place(light, lightAt.x, lightAt.y, lightAt.z);
 
     // What it is doing over time, which drives both the light and the flame.

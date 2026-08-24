@@ -5,8 +5,7 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import { Emitter } from '../audio/Emitter';
 import { buildOneShot, type OneShot } from '../audio/Scatter';
 import { createVoice, voiceState, type Voice, type Utterance } from '../audio/voice/Voice';
-import { flags } from '../debug/flags';
-import { VoiceLabel } from '../debug/VoiceLabel';
+import { VoiceLabel, voiceLabels } from '../dev/VoiceLabel';
 import { Pose, applyPose, approach, angleTo, smooth, clamp01, envelope } from './pose';
 import { Spring, damp } from './spring';
 import { Legs } from './legs';
@@ -737,7 +736,7 @@ export class Creature {
       });
     }
     this.said = this.voice.babble(kind, world.audio.context.currentTime + 0.05);
-    if (flags.debug) {
+    if (voiceLabels.on) {
       this.label ??= new VoiceLabel(this.mesh, this.spec.headHeight + 0.55);
       // Says which lect it is speaking and which named voice if any, and says
       // MUTE where a throat failed to build — otherwise a silent villager reads

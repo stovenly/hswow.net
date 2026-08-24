@@ -52,6 +52,16 @@ export interface ZoneEnvironment {
    * An exposed field blows harder than a sheltered yard. Default 1.
    */
   wind?: number;
+  /**
+   * Degrees this zone's +Z is turned from world +Z. Interiors are their own
+   * zones authored about their own origin, so nothing otherwise connects a
+   * room's north to the building's, and one number here orients every window
+   * in it against the sun.
+   *
+   * Absent is the opt-out: a zone that has not said which way it faces keeps
+   * its windows exactly as they were built.
+   */
+  bearing?: number;
   /** Which impulse response the reverb crossfades to. */
   room: RoomName;
   /** What the floor is made of, for footsteps. */
@@ -415,6 +425,11 @@ export class Zone {
         object instanceof THREE.Points
       ) {
         object.geometry.dispose();
+        // Almost every material in the world is a shared module-level one and
+        // must survive this. A per-instance clone says so — see `cloneGlow`.
+        for (const material of [object.material].flat()) {
+          if (material.userData.owned) material.dispose();
+        }
       }
     });
     this.group.clear();

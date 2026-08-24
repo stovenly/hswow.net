@@ -11,7 +11,7 @@ import type { InsectModel } from '../models/insect';
 import type { ElectricModel } from '../models/electric';
 import type { SurfModel } from '../models/surf';
 import { VOICES } from './voices';
-import { ambienceFor, VIBES, type VibeChoice, type VibeName } from '../vibes';
+import { ambienceFor, vibeOf, VIBES, type VibeChoice, type VibeName } from '../vibes';
 import { CLEAR, night, openness, weatherDamp, type Conditions } from './conditions';
 import { QUIET } from './spec';
 import type {
@@ -815,6 +815,7 @@ export class AmbienceDirector {
   /** For the debug readout. */
   get status(): string {
     if (!this.spec) return 'no vibe';
+    const vibe = vibeOf(this.spec) ?? 'held';
     const voices = this.rack
       ? [...this.rack.pools.values()].reduce((n, pool) => n + pool.voices.length, 0)
       : 0;
@@ -823,8 +824,8 @@ export class AmbienceDirector {
     // anything past a couple of decibels means the book is fighting itself.
     const held = this.limiter.reduction;
     const duck = held < -0.2 ? ` · -${(-held).toFixed(1)}dB` : '';
-    if (now < this.hushUntil) return `hushed ${(this.hushUntil - now).toFixed(0)}s`;
-    return `live ${this.live.toFixed(2)} · ${voices} throats${duck}`;
+    if (now < this.hushUntil) return `${vibe} · hushed ${(this.hushUntil - now).toFixed(0)}s`;
+    return `${vibe} · ${this.live.toFixed(2)} live · ${voices} throats${duck}`;
   }
 
   dispose(): void {

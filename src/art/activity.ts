@@ -43,6 +43,18 @@ export interface ActivitySpec {
   readonly floor: number;
   /** How much of the swing the source's own glow geometry takes, 0..1. */
   readonly glow: number;
+  /**
+   * Metres the flame leans, either side. This is the room's air pushing it
+   * about and not the flame's own business, so an exposed wick takes more of it
+   * than one behind glass. Absent means the source does not move.
+   */
+  readonly sway?: number;
+  /**
+   * Metres it stands taller at its brightest. A diffusion flame that has
+   * stretched is both longer and more luminous — one event, not two — so this
+   * is taken from the level rather than given a signal of its own.
+   */
+  readonly rise?: number;
 }
 
 /** One event, in a caller-owned buffer. See `eventsIn`. */
@@ -181,6 +193,38 @@ export function eventsIn(
   return count;
 }
 
+/**
+ * How fast room air moves a flame: slower than anything in a level band, since
+ * this is a draught crossing the room rather than the plume's own instability.
+ * One table for every flame in the kit — what differs between a candle and a
+ * lantern is how exposed the wick is, which is the spec's `sway`, not the rate
+ * at which the air moves.
+ */
+const DRIFT: readonly ActivityBand[] = [
+  { hz: 0.9, depth: 0.62 },
+  { hz: 0.24, depth: 0.5 },
+];
+
+/**
+ * Where the flame leans at `t`, as a fraction of the source's `sway`. Two axes,
+ * written to `out[0]` and `out[1]`, each with its own rate and phase off the
+ * seed — a row of candles all leaning together is the failure this exists to
+ * avoid, and it is the one a shared rate produces.
+ *
+ * A pure function of `t` like everything else here, so it can be seeked.
+ */
+export function sampleDrift(source: ActivitySource, t: number, out: Float32Array): void {
+  for (let axis = 0; axis < 2; axis++) {
+    let lean = 0;
+    for (let i = 0; i < DRIFT.length; i++) {
+      const seed = source.seed ^ Math.imul(axis * 31 + i + 1, 0x6b43a9b5);
+      const rate = DRIFT[i].hz * (0.8 + hash(seed, 3) * 0.4);
+      lean += DRIFT[i].depth * noise(seed, t * rate + hash(seed, 5) * 1024);
+    }
+    out[axis] = lean;
+  }
+}
+
 const scratch: ActivityEvent[] = [];
 
 /** Linear attack, exponential tail. Its integral is `attack / 2 + decay`. */
@@ -230,6 +274,11 @@ export const CANDLE: ActivitySpec = {
   events: { hz: 0.35, strength: 0.5, attack: 0.03, decay: 0.18, spit: 0.12, spitScale: 2.2 },
   floor: 0.35,
   glow: 0.55,
+  // A candle flame is four centimetres tall and its tip covers a few
+  // millimetres of that in ordinary room air. Read off a shadow two metres
+  // away, a few millimetres is nothing, so this is a shade more than life.
+  sway: 0.012,
+  rise: 0.01,
 };
 
 /** The same flame behind glass: half the depth, and the fast content gone. */
@@ -240,6 +289,10 @@ export const LANTERN: ActivitySpec = {
   ],
   floor: 0.6,
   glow: 0.5,
+  // The glass is a chimney: it steadies the draught out of the flame almost
+  // entirely, and leaves the plume's own stretch, which is the vertical half.
+  sway: 0.004,
+  rise: 0.009,
 };
 
 /** Out in the weather. Slow, deep, and it flares when something catches it. */

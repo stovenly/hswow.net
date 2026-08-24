@@ -8,14 +8,12 @@ import { Input, isTouchDevice } from '../engine/Input';
 import { Collider } from '../player/Collider';
 import { Controller } from '../player/Controller';
 import { TouchControls } from '../ui/TouchControls';
-import { ProvingGround } from '../debug/ProvingGround';
 import { Footsteps } from '../audio/models/footsteps';
 import { AudioEngine } from '../audio/AudioEngine';
-import { createDevTools, type DevTools } from '../debug/DevPanel';
-import { Identify } from '../debug/Identify';
+import { createDevTools, type DevTools } from '../dev/DevPanel';
+import { Identify } from '../dev/Identify';
 import { ZoneManager } from '../world/ZoneManager';
-import type { ZoneDefinition, ZoneId } from '../world/Zone';
-import type { PortalDefinition } from '../world/Portal';
+import type { Project } from './project';
 import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction } from '../world/Interaction';
@@ -24,7 +22,7 @@ import { Crosshair } from '../ui/Crosshair';
 import { patchArtMaterial, updateWind } from '../art/sway';
 import { updateCover } from '../art/cover';
 import { updateParticles } from '../art/particles';
-import { installReloadBanner } from '../debug/HotReload';
+import { installReloadBanner } from '../dev/HotReload';
 import { Loader } from '../ui/Loader';
 import {
   audioLatencyHint,
@@ -41,20 +39,10 @@ import { PerformanceHud } from '../ui/Performance';
  * neither holds a private copy of the ordering it depends on.
  */
 
-/** What a page hands the boot: which zones exist, and where the player starts. */
-export interface WorldSource {
-  world(provingGround: ProvingGround): { zones: ZoneDefinition[]; portals: PortalDefinition[] };
-  entry: ZoneId;
-  /** Built behind the loading screen, before the first frame. */
-  prebuild?: readonly ZoneId[];
-  /** Shader-compiled in the background once the loop is running. */
-  precompile?: readonly ZoneId[];
-}
-
 export interface AppOptions {
   canvas: HTMLCanvasElement;
   overlay: HTMLElement;
-  source: WorldSource;
+  project: Project;
 }
 
 export interface App {
@@ -73,7 +61,7 @@ export interface App {
   readonly reading: Reading;
   readonly identify: Identify;
   readonly dev: DevTools;
-  readonly provingGround: ProvingGround;
+  readonly project: Project;
   /** Null until the audio has finished rendering its buffers. */
   readonly footsteps: Footsteps | null;
   /** Elapsed seconds the loop last saw, frozen while `identify` is up. */
@@ -82,7 +70,7 @@ export interface App {
   start(): Promise<void>;
 }
 
-export async function createApp({ canvas, overlay, source }: AppOptions): Promise<App> {
+export async function createApp({ canvas, overlay, project }: AppOptions): Promise<App> {
   const viewport = new Viewport(canvas);
   const loop = new Loop();
   const dev = createDevTools();
@@ -124,11 +112,6 @@ export async function createApp({ canvas, overlay, source }: AppOptions): Promis
   // second of work, and a second of blank page looks like a fault.
   const loader = new Loader(document.body);
 
-  const provingGround = await loader.step(
-    'shaping the ground',
-    0.12,
-    () => new ProvingGround(),
-  );
 
   // --- zones ------------------------------------------------------------------
   // Nothing is added to the scene or to the collider here. `ZoneManager.enter`
@@ -150,7 +133,7 @@ export async function createApp({ canvas, overlay, source }: AppOptions): Promis
   // preferences on one machine. Separate store, separate lifetime.
   const options = loadOptions();
 
-  const world = source.world(provingGround);
+  const world = (await project.world?.(loader)) ?? { zones: [], portals: [] };
   for (const definition of world.zones) zones.register(definition);
   // Linked after every zone is registered — a portal to an unregistered zone
   // throws here rather than when somebody opens the door.
@@ -166,13 +149,13 @@ export async function createApp({ canvas, overlay, source }: AppOptions): Promis
   zones.setShadows(options.shadows);
   postfx.aimSun(zones.sunDirection);
 
-  await loader.step('settling the world', 0.6, () => zones.enter(source.entry));
+  await loader.step('settling the world', 0.6, () => zones.enter(project.entry));
 
   // Built now rather than on first entry. A zone this size takes longer to raise
   // than the transition fade is black for, so paying it here keeps the doorway
   // instant, and the collider caches it. Its shader compile is NOT here: that
   // fires in the background after boot, below.
-  for (const id of source.prebuild ?? []) {
+  for (const id of project.prebuild ?? []) {
     await loader.step('raising the countryside', 0.78, () => zones.prebuild(id));
   }
 
@@ -395,7 +378,7 @@ export async function createApp({ canvas, overlay, source }: AppOptions): Promis
     // Unawaited on purpose: the countryside's programs compile on driver threads
     // while the player stands at spawn. Reaching its door first just means the
     // entry awaits the remainder behind the fade.
-    for (const id of source.precompile ?? []) void zones.precompile(id);
+    for (const id of project.precompile ?? []) void zones.precompile(id);
   };
 
   return {
@@ -414,7 +397,7 @@ export async function createApp({ canvas, overlay, source }: AppOptions): Promis
     reading,
     identify,
     dev,
-    provingGround,
+    project,
     get footsteps() {
       return footsteps;
     },

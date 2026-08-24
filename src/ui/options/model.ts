@@ -1,5 +1,5 @@
 import { DEFAULT_TUNING, type FovScaling } from '../../player/Controller';
-import { loadPreset, savePreset, clearPreset } from '../../debug/presets';
+import { loadPreset, savePreset, clearPreset } from '../../dev/presets';
 import type { ColorblindMode } from '../../engine/RetroShader';
 import { VIEW_UNLIMITED, type CoverDensity } from '../../engine/PostFX';
 import type { PerformanceMode } from '../Performance';

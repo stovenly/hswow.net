@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Climate, WEATHER_KINDS, planSky, type DeckTarget, type WeatherKind } from './climate';
 import { createAtmosphere, sampleAtmosphere, cloudLightAt, tintToward } from '../engine/atmosphere';
+import { createDaylight } from '../engine/daylight';
 import { createDecks, type DeckState } from '../engine/Sky';
 import { GENERA, twilightLead } from '../art/glsl/clouds';
 import {
@@ -38,10 +39,32 @@ const SETTLE = 240;
 const THAW = 420;
 
 /**
- * How far under the horizon the sun goes before the moon takes the key light.
- * Not zero: a sun a degree down still lights the world more than a full moon.
+ * Degrees of elevation each body fades in over. Neither is switched on: the key
+ * is the weighted resultant of the two, so a setting sun and a risen moon are
+ * one beam swinging between them rather than a choice made on some frame.
  */
-const MOON_TAKES_OVER = -3;
+const SUN_RISES = [-5, 1] as const;
+const MOON_RISES = [-4, 8] as const;
+/** What the moon's beam is worth against the sun's at its very best. */
+const MOON_BEAM = 0.4;
+/** Sun elevations an opening brightens over, whatever the cloud. */
+const OPENING = [-8, 5] as const;
+/** What a room's base light is worth at midnight against what it is at noon. */
+const ROOM_NIGHT = 0.1;
+
+/**
+ * Degrees either side of the horizon the low-sun colour is carried over, and how
+ * far it is taken. The table's own warm rows span about eight degrees, which at
+ * a twenty-four minute day is under a minute — long enough outdoors, where the
+ * whole sky says what hour it is, and far too short through a window, which has
+ * only its colour to say it with. Hue and chroma only, so this lengthens the
+ * sunset without brightening it.
+ */
+const HORIZON_SPAN = 12;
+const HORIZON_DEPTH = 0.55;
+/** Morning air is pinker and evening air is warmer. The atmosphere's own pair. */
+const DAWN_LIGHT = new THREE.Color().setHex(0xf6c2cc, THREE.SRGBColorSpace);
+const DUSK_LIGHT = new THREE.Color().setHex(0xffb27a, THREE.SRGBColorSpace);
 
 /**
  * Seconds a deck takes to arrive or leave. A sky whose genus changes on the
@@ -85,6 +108,8 @@ const FLASH_AIR = 0.7;
 export class WeatherRig {
   readonly climate: Climate;
   readonly air = createAtmosphere();
+  /** What a beam of sky through a hole is, this frame. See `WindowLight`. */
+  readonly daylight = createDaylight();
   readonly decks: DeckState[] = createDecks();
   private readonly wanted: DeckTarget[] = [
     { genus: null, amount: 0, snap: false },
@@ -299,6 +324,9 @@ export class WeatherRig {
     // night, just under it by day: what makes a daytime moon pale is that the
     // sky beside it is bright, not that the moon has dimmed.
     const daylight = Math.max(0, Math.min(1, (climate.sunElevation + 6) / 10));
+    // The score reads the same ramp the moon's face does. The director holds it
+    // until its next piece, so this may be written every frame.
+    zones.music?.setNight(1 - daylight);
     postfx.setNight(
       this.air.stars * clear,
       risen * (0.35 + clear * 0.65),
@@ -308,15 +336,51 @@ export class WeatherRig {
       climate.starAngle,
     );
 
-    // Once the sun is properly down the moon is the key light, and it casts —
-    // faintly, and from the other side of the sky, which is most of what makes
-    // a bright night read as night rather than as a dim day.
-    const moonlit = climate.sunElevation < MOON_TAKES_OVER;
-    this.key.copy(moonlit ? climate.moonDirection : climate.sunDirection);
-    // A new moon lights nothing. Not zero at the bottom: at that point the sky
-    // itself is the light, and the key is only shaping it.
-    const phase = 0.25 + climate.moonLight * 0.75;
-    zones.aimKeyLight(this.key, (moonlit ? 0.45 * phase : 1) * clear * clear);
+    // What each body is worth right now: how high it stands, times how hard it
+    // shines. Neither is ever switched off, so nothing here happens on a frame.
+    const solar = ramp(SUN_RISES[0], SUN_RISES[1], climate.sunElevation);
+    const moonElevation = (Math.asin(Math.max(-1, Math.min(1, climate.moonDirection.y))) * 180) / Math.PI;
+    const up = ramp(MOON_RISES[0], MOON_RISES[1], moonElevation);
+    const lunar = up * (0.15 + climate.moonLight * 0.85);
+    const lit = lunar * MOON_BEAM * (1 - solar);
+
+    // The scene's key, which does change hands: the moon casts at night. The
+    // sun carries a trace of weight it never loses, so the sum has a direction
+    // even with both below the horizon and there is no branch to step on.
+    this.key
+      .copy(climate.sunDirection)
+      .multiplyScalar(solar + 1e-3)
+      .addScaledVector(climate.moonDirection, lit)
+      .normalize();
+    zones.aimKeyLight(this.key, (solar + lit) * clear * clear);
+
+    // The sun's own colour off the table, and no moon in it. Nothing about the
+    // world's light knows what phase the moon is in — the rig is keyed on the
+    // sun's elevation end to end — so a window that cooled and brightened under
+    // a full moon would be the one thing in the frame claiming it mattered.
+    DAY_TINT.copy(this.air.sunColour);
+
+    // And the horizon over the top of it, carried whichever way a window faces:
+    // this is what the light *is*, not what angle it arrives at, so a north wall
+    // reddens at sunset along with a west one.
+    // A rounded peak, not a tent: `1 - |elevation|` has a corner at the horizon
+    // exactly where the tint is strongest, and that corner is the sunset
+    // arriving and leaving with a snap in the middle of it.
+    const off = Math.min(1, Math.abs(climate.sunElevation) / HORIZON_SPAN);
+    const low = (1 - off * off) ** 2;
+    tintToward(DAY_TINT, rising ? DAWN_LIGHT : DUSK_LIGHT, low * HORIZON_DEPTH);
+
+    // The shaft is the sun's and no one else's. The moon lights the glass and
+    // colours it and never throws a beam, so this takes the sun's own bearing
+    // whatever else is in the sky, and goes out with it.
+    this.daylight.direction.copy(climate.sunDirection);
+    this.daylight.beam = solar * clear * clear;
+
+    // How bright the hole is, which is a different question: an overcast noon
+    // has no shaft and a very bright window. The sun's height and nothing else.
+    this.daylight.colour.copy(DAY_TINT);
+    this.daylight.glow = ramp(OPENING[0], OPENING[1], climate.sunElevation);
+    zones.applyDaylight(this.daylight);
     // The key is not moved: a strike lasts three to eight frames, and swinging
     // the shadow camera and putting it back is a change of direction the eye
     // has no time to read and the shadow map every reason to alias on. The
@@ -324,8 +388,11 @@ export class WeatherRig {
     if (this.flash > 0) zones.aimFill(this.flashToward);
     // The decks take the same key. A cloud shaded by a sun that has set carries
     // a lit side and a silvered rim aimed at nothing.
-    postfx.setSkyLight(this.key, moonlit ? 0.5 * climate.moonLight : 1);
-    zones.applyLightRig(this.air);
+    postfx.setSkyLight(this.key, Math.min(1, solar + lit * 0.5));
+    // A room's base light off the same number the window is: they cannot
+    // disagree about the hour, and the floor is what keeps the drama in the
+    // lamps rather than turning the place off.
+    zones.applyLightRig(this.air, ROOM_NIGHT + (1 - ROOM_NIGHT) * this.daylight.glow);
 
     // The lamps come up as the sun goes down, on the sun's elevation rather
     // than on the clock, so a winter afternoon lights itself early.
@@ -858,9 +925,16 @@ const CONDITIONS: Conditions = {
 const AIR_ONE = new THREE.Color();
 const COVER_SKY = new THREE.Color();
 const FLASH_ADD = new THREE.Color();
+const DAY_TINT = new THREE.Color();
 const FORWARD = new THREE.Vector3();
 const RIGHT = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+
+/** Smooth 0→1 between two thresholds, either way round. */
+function ramp(a: number, b: number, x: number): number {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+  return t * t * (3 - 2 * t);
+}
 
 function hashName(name: string): number {
   let value = 0x811c9dc5;

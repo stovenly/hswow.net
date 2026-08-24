@@ -187,6 +187,8 @@ export class Soundscape {
   private readonly bedIds = new Set<string>();
   /** One fader over every bed, so ducking the air is one automation event. */
   private readonly bedBus: GainNode | null = null;
+  /** The same, over the beds that go to the weather bus rather than the air's. */
+  private readonly rainBus: GainNode | null = null;
   private readonly scatter: ScatterField[] = [];
   private active = true;
 
@@ -194,6 +196,7 @@ export class Soundscape {
     this.engine = engine;
 
     const bedSpecs = spec.bed ? (Array.isArray(spec.bed) ? spec.bed : [spec.bed as BedSpec]) : [];
+    let rainBus: GainNode | null = null;
     if (bedSpecs.length > 0) {
       const bus = engine.context.createGain();
       bus.connect(engine.dry);
@@ -204,7 +207,18 @@ export class Soundscape {
         gain.gain.value = declared.gain ?? 1;
         // Precipitation goes to the weather bus wherever it was declared, so
         // one slider covers it whether the zone asked for rain or the rig did.
-        model.output.connect(gain).connect(declared.model === 'rain' ? engine.weatherBus : bus);
+        // Through a fader of the zone's own on the way, because it still has to
+        // switch off with the zone: the rig drives the *active* zone's bed and
+        // no other, so a bed that is not silenced here is never silenced.
+        if (declared.model === 'rain') {
+          if (!rainBus) {
+            rainBus = engine.context.createGain();
+            rainBus.connect(engine.weatherBus);
+          }
+          model.output.connect(gain).connect(rainBus);
+        } else {
+          model.output.connect(gain).connect(bus);
+        }
         this.beds.push(model);
         if (declared.id) {
           this.models.set(declared.id, model);
@@ -212,6 +226,7 @@ export class Soundscape {
         }
       }
     }
+    this.rainBus = rainBus;
 
     for (const placed of spec.emitters ?? []) {
       const model = buildModel(engine, placed);
@@ -249,7 +264,9 @@ export class Soundscape {
     this.active = active;
     for (const emitter of this.emitters) emitter.enabled = active;
     for (const field of this.scatter) field.setActive(active);
-    this.bedBus?.gain.setTargetAtTime(active ? 1 : 0, this.engine.context.currentTime, 0.15);
+    const now = this.engine.context.currentTime;
+    this.bedBus?.gain.setTargetAtTime(active ? 1 : 0, now, 0.15);
+    this.rainBus?.gain.setTargetAtTime(active ? 1 : 0, now, 0.15);
   }
 
   /**
@@ -334,6 +351,7 @@ export class Soundscape {
     for (const bed of this.beds) bed.dispose();
     this.beds.length = 0;
     this.bedBus?.disconnect();
+    this.rainBus?.disconnect();
     this.models.clear();
   }
 }

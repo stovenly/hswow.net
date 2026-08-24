@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type GUI from 'lil-gui';
 import { fogUniforms } from '../engine/fog';
-import type { SurfaceName } from '../debug/ProvingGround';
 import { ZONE_GROUPS } from '../world/Zone';
 import type { WindModel } from '../audio/models/wind';
 import type { FoliageModel } from '../audio/models/foliage';
@@ -13,12 +12,11 @@ import type { WaveguideModel } from '../audio/models/waveguide';
 import { VOICE_TUNING, pushVoiceTuning, type VoiceTuning } from '../audio/voice/tuning';
 import { WEATHER_KINDS } from '../world/climate';
 import { DECK_LEVELS, GENERA } from '../art/glsl/clouds';
-import { STAGE_STATIONS } from '../debug/SoundStage';
 import { VIBES, VIBE_NAMES, musicFor, type VibeName } from '../audio/vibes';
 import { AMBIENCE_VOICES } from '../audio/ambience/voices';
 import type { AmbienceVoice } from '../audio/ambience/spec';
-import { auditionToConsole } from '../debug/Audition';
-import { createMeter } from '../debug/Meter';
+import { auditionToConsole } from '../dev/Audition';
+import { createMeter } from '../dev/Meter';
 import { windUniforms } from '../art/sway';
 import { finishUniforms } from '../art/finish';
 import { RECIPES, RECIPE_KNOBS, RECIPE_PARAMS, uploadRecipeKnobs } from '../art/recipes';
@@ -26,10 +24,8 @@ import { RAMPS, uploadRamps } from '../art/glsl/ramp';
 import { setClothWindOverride, setClothFrozen } from '../engine/ClothActivity';
 import { setGlitchOverride, setGlitchFrozen } from '../engine/GlitchActivity';
 import { setHorrorOverride, setHorrorFrozen } from '../engine/HorrorActivity';
-import { voiceLabels } from '../debug/VoiceLabel';
-import { attachFaustPanel } from '../debug/FaustPanel';
-import { READING_FIXTURES } from '../debug/reading-fixtures';
-import { NOTES } from '../content/notes';
+import { voiceLabels } from '../dev/VoiceLabel';
+import { attachFaustPanel } from '../dev/FaustPanel';
 import type { App } from './boot';
 
 /**
@@ -37,8 +33,7 @@ import type { App } from './boot';
  * game hands it the `?debug` panel; the editor hands it its own.
  */
 export function installDevPanel(gui: GUI, app: App): void {
-  const { viewport, postfx, collider, player, zones, audio, climate, weather, options, settings, reading, provingGround, loop } =
-    app;
+  const { viewport, postfx, collider, player, zones, audio, climate, weather, options, settings, loop } = app;
 /** Read back into the panel each frame. The climate names the sky; nobody sets it. */
 const deckNames = { high: '—', mid: '—', low: '—' };
 /** What the pickers call handing the choice back to the day. */
@@ -346,23 +341,6 @@ const FOLIAGE_BASE = new Map<string, number>([
   fogFolder.add(r, 'fogSky', 0, 1, 0.05).name('sky colour').onChange(refresh);
   fogFolder.add(r, 'fogRamp', 0.5, 4, 0.1).name('curve').onChange(refresh);
   fogFolder.add(r, 'fogCeiling', 0.5, 1, 0.01).name('most it can hide').onChange(refresh);
-
-  // Surface colours, live. Contrast between the floor and everything standing
-  // on it is a quantization question as much as an art one, so it wants to be
-  // adjustable against the filters rather than guessed at in a constant.
-  const surfaces = gui.addFolder('surfaces').close();
-  for (const name of Object.keys(provingGround.colors) as SurfaceName[]) {
-    surfaces.addColor(provingGround.colors, name).onChange(() => provingGround.applyColors());
-  }
-  surfaces.add(
-    {
-      reset: () => {
-        provingGround.resetColors();
-        gui.controllersRecursive().forEach((c) => c.updateDisplay());
-      },
-    },
-    'reset',
-  );
 
   const preset = gui.addFolder('preset');
   preset.add(
@@ -799,22 +777,12 @@ const FOLIAGE_BASE = new Map<string, number>([
   for (const zone of all) {
     if (!zone.definition.group) go(travel, zone.id, zone.name);
   }
-  for (const group of ZONE_GROUPS) {
+  for (const group of app.project.groups ?? ZONE_GROUPS) {
     const members = all.filter((zone) => zone.definition.group === group);
     if (members.length === 0) continue;
     const folder = travel.addFolder(group);
     folder.close();
     for (const zone of members) go(folder, zone.id, zone.name);
-  }
-
-  // --- the reading screen ---------------------------------------------------
-  //
-  // A way in that is not a walk across a room. Everything here is also bound to
-  // a book in the Readables Showcase and reachable the way a player reaches it;
-  // this is for tuning the type without the walk between one look and the next.
-  const read = gui.addFolder('reading').close();
-  for (const note of [...NOTES, ...READING_FIXTURES]) {
-    read.add({ open: () => reading.open(note) }, 'open').name(note.title.toLowerCase());
   }
 
   // --- the sound stage ------------------------------------------------------
@@ -838,7 +806,7 @@ const FOLIAGE_BASE = new Map<string, number>([
     },
   };
   stage
-    .add(stageState, 'solo', ['all', ...STAGE_STATIONS])
+    .add(stageState, 'solo', ['all', ...(app.project.stations ?? [])])
     .name('solo')
     .onChange((value: string) => {
       zones.sound?.setSolo(value === 'all' ? null : value);
@@ -1030,6 +998,7 @@ const FOLIAGE_BASE = new Map<string, number>([
       sortFolders(folder);
     }
   };
+  app.project.panel?.(gui, app);
   sortFolders(gui);
   for (const folder of gui.foldersRecursive()) folder.close();
 }

@@ -3,31 +3,49 @@
 A first-person browser game. three.js, TypeScript, no art assets — every mesh and every
 sound is generated in code.
 
-Live at <https://stovenly.github.io/hswow.net/> once Pages is enabled (see below).
+Live at <https://stovenly.github.io/hswow.net/>.
+
+## Layout
+
+One engine, many projects.
+
+```
+src/                 the engine: art, audio, engine, world, life, player, ui, app, editor, dev
+editor.html          the authoring tool, dev server only
+index.html           the game page
+projects/<id>/
+  project.json       id, title, entry zone, zone groups
+  content/           zone documents and their sidecars — the editor's territory
+  code/              zones that stay code: galleries, showcases, rigs
+  public/            copied verbatim into the build: CNAME
+docs/<id>            git-ignored; a clone of that project's own site repo
+```
+
+Projects import the engine as `@engine/*`. The engine never imports a project — a page
+asks `virtual:project` for one and hands it to `createApp`.
 
 ## Commands
 
 ```
-npm run build           # typecheck, then bundle into docs/
-npm run preview         # serve the built docs/ locally
-npm run dev             # dev server with HMR, exposed on the LAN
+npm run dev             # dev server; /editor.html is the authoring tool
+npm run build           # typecheck, then bundle the debug project into docs/debug
+npm run deploy -- <id>  # build a project into its site repo, commit and push
+npm run preview         # serve the built docs/debug locally
 npm run check:movement  # headless collision and movement assertions
 npm run check:audio     # gust field, noise colour, reverb decay
-npm run check:art       # builder determinism, sway weights, scale
 npm run check:world     # zone graph, portals, terrain, prop placement
 npm run check:faust     # every .dsp matches its committed .wasm
-npm run check           # all five
 ```
 
-`docs/` is committed on purpose — it is what GitHub Pages serves. It is also Vite's output
-directory and is **wiped on every build**, so nothing may be hand-written into it. Files
-that must ship alongside the build — `.nojekyll`, the `CNAME` for the custom domain — live
-in `public/`, which Vite copies across verbatim.
+`vite build --mode <id>` picks the project and writes `docs/<id>`. That folder is a clone
+of the site repo it deploys to, made once by hand:
 
-## Enabling Pages
+```
+git clone <site-repo> docs/debug
+```
 
-One-time, in the repo on GitHub: **Settings → Pages → Source: Deploy from a branch →
-Branch `main`, folder `/docs`**. After that every push that touches `docs/` redeploys.
+The engine repo carries no built output. Each game is hosted from its own repo, with its
+own Pages settings, domain and history; the `CNAME` lives in that project's `public/`.
 
 ## Debug switches
 
@@ -40,25 +58,21 @@ the game is tested on a phone against the live URL.
 | `?level=<name>` | Which level to boot into. Only `proving` exists so far |
 | `?touch` | Force the touch controls on, to test them with a mouse |
 
-## Layout
+## Inside the engine
 
 ```
 src/
   engine/     renderer, frame loop, post-processing
   audio/      procedural synthesis, spatialization, zone acoustics
   player/     first-person controller, collision
-  world/      zones, heightfield, portals, prop streaming
-  actors/     NPCs and animation
-  systems/    topics, dialogue, quests, inventory, notes, autosave
-  ui/         HUD, dialogue, journal, touch controls
-  content/    data only, no engine imports
+  world/      zones, heightfield, portals, prop streaming, notes
+  life/       creatures and animation
+  ui/         HUD, options, reading screen, loader
   art/        procedural mesh builders — one file per family
-  debug/      proving ground, panels, overlays
-docs/         build output, served by Pages
+  app/        the boot sequence and the tuning panel, shared by both pages
+  editor/     the authoring shell
+  dev/        engine dev utilities: flags, presets, stats, identify
 ```
-
-Content files hold no engine imports, so writing the game is authoring data rather
-than writing code.
 
 ## Build plan
 

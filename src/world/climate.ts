@@ -403,6 +403,13 @@ export class Climate {
   pinned = false;
   /** Clock stopped, weather still sampled — the dev scrub. */
   frozen = false;
+  /**
+   * Held while the panel's clock slider is under the pointer. The slider reads
+   * the clock back as it runs, so without this the two write the same number:
+   * the day moves it on between frames and the next drag event puts it back
+   * where the cursor is, which reads as the bar stepping backwards.
+   */
+  scrubbing = false;
 
   private readonly amounts = new Map<string, number>();
   private readonly forced = new Map<string, number>();
@@ -541,7 +548,7 @@ export class Climate {
   }
 
   update(dt: number): void {
-    if (!this.frozen) {
+    if (!this.frozen && !this.scrubbing) {
       this.timeOfDay += dt / Math.max(this.settings.dayLength, 1);
       while (this.timeOfDay >= 1) {
         this.timeOfDay -= 1;

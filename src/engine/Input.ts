@@ -1,4 +1,4 @@
-import { flags } from '../debug/flags';
+import { flags } from '../dev/flags';
 
 /**
  * Aggregated player input.

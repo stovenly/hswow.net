@@ -81,13 +81,41 @@ TEXT_GLOW_ADDITIVE.onBeforeCompile = (shader) => {
 };
 TEXT_GLOW_ADDITIVE.customProgramCacheKey = () => 'text-glow-additive';
 
+/** What a lamp is worth at noon, and the floor `setGlowLevel` lifts from. */
+const DAY_GLOW = 0.55;
+
 /**
- * Wraps merged glow geometry into a mesh. `noCollide` keeps `markCollidable` out
- * of this subtree, so the player does not walk into the flame and stop, and
- * `renderOrder` puts it after the opaque pass, which keeps several glows in one
- * prop in a stable order between frames. Which of the three glow materials is a
- * caller's choice; that everything goes through here is not.
+ * Every per-instance copy of a glow material now alive. The occlusion pass has
+ * to hide all of them and there is no other way to reach one: it draws the scene
+ * under an override material, so a glow that stays visible there is a solid box
+ * of ambient occlusion in the shape of a beam.
  */
+const CLONES = new Set<THREE.Material>();
+
+/**
+ * A glow material of one prop's own, for a prop whose colour or level is its
+ * own business. Registered here so the occlusion pass finds it, and disposed
+ * with the zone holding it — `owned` is what tells `Zone.dispose` that.
+ */
+export function cloneGlow(source: THREE.MeshBasicMaterial = GLOW_MATERIAL): THREE.MeshBasicMaterial {
+  const material = source.clone();
+  material.userData.owned = true;
+  CLONES.add(material);
+  material.addEventListener('dispose', () => CLONES.delete(material));
+  return material;
+}
+
+/**
+ * Shows or hides every glow material at once. The occlusion pass reads a normal
+ * pass that has no concept of transparency, so glow is taken out of it.
+ */
+export function setGlowVisible(visible: boolean): void {
+  GLOW_MATERIAL.visible = visible;
+  TEXT_GLOW_MATERIAL.visible = visible;
+  TEXT_GLOW_ADDITIVE.visible = visible;
+  for (const material of CLONES) material.visible = visible;
+}
+
 /**
  * The dusk-to-dawn schedule, 0 at noon and 1 in the dark. One global rather than
  * a per-prop switch, and it lifts rather than lights: an additive flame is far
@@ -96,11 +124,18 @@ TEXT_GLOW_ADDITIVE.customProgramCacheKey = () => 'text-glow-additive';
  * at midnight. Nothing is ever switched off.
  */
 export function setGlowLevel(darkness: number): void {
-  const level = 0.55 + Math.min(Math.max(darkness, 0), 1) * 0.45;
+  const level = DAY_GLOW + Math.min(Math.max(darkness, 0), 1) * (1 - DAY_GLOW);
   GLOW_MATERIAL.opacity = level;
   TEXT_GLOW_ADDITIVE.opacity = level;
 }
 
+/**
+ * Wraps merged glow geometry into a mesh. `noCollide` keeps `markCollidable` out
+ * of this subtree, so the player does not walk into the flame and stop, and
+ * `renderOrder` puts it after the opaque pass, which keeps several glows in one
+ * prop in a stable order between frames. Which of the three glow materials is a
+ * caller's choice; that everything goes through here is not.
+ */
 export function finishGlow(
   geometry: THREE.BufferGeometry,
   name: string,

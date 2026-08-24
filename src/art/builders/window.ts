@@ -1,30 +1,43 @@
 import * as THREE from 'three';
-import type { MeshBuilder } from '../types';
+import type { BuildOptions, BuilderWith } from '../types';
 import { assemble, finish, type Part } from '../assemble';
-import { finishGlow } from '../glow';
+import { cloneGlow, finishGlow } from '../glow';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 
 // Window: opening, frame, curtains and the sheared daylight shaft. Built in the
 // XY plane with the wall at z = 0 and everything standing proud toward +Z, floor
-// at y = 0. The shaft is a sheared box, not a cone: the sun's rays are parallel,
-// so what comes through a hole keeps the hole's cross-section, and shearing it
-// keeps that cross-section in the plane of the wall. `aimWindow` re-aims it by
-// writing the shaft's matrix directly.
+// at y = 0, so local +Z is the inward normal and the wall's outside faces −Z.
+// The shaft is a sheared box, not a cone: the sun's rays are parallel, so what
+// comes through a hole keeps the hole's cross-section, and shearing it keeps
+// that cross-section in the plane of the wall.
+//
+// A window comes out of `build` finished — aimed and lit from its own seed — so
+// a caller that knows nothing about the clock gets a window that looks right.
+// `WindowLight` then overwrites both every eighth frame for any window in a
+// zone that has said which way it faces; `holdWindow` takes one back.
 
 /**
  * Where `aimWindow` will accept the sun from. Elevation is clamped off the
  * horizon because the shaft length is `centreY / sin(elevation)`; azimuth is
  * clamped short of a right angle, past which the shear inverts.
  */
-const MIN_ELEVATION = 0.1;
+export const MIN_ELEVATION = 0.1;
 const MAX_ELEVATION = 1.45;
 const MAX_AZIMUTH = 1.3;
 /** However low the sun, the shaft stops here. Longer than any room in the game. */
 const MAX_REACH = 9;
 
-/** Daylight, so brighter than any lamp in the kit — but weak enough not to draw a
- * circular pool of its own. The square is drawn by the additive slab. */
+/**
+ * What an opening is worth at full daylight, as material opacity. On its own
+ * schedule rather than the lamps': `setGlowLevel` lifts a lamp as the sun goes
+ * down, and a window has no business brightening at dusk along with them. This
+ * and `WindowLight`'s night floor are the two numbers that set how a window
+ * reads at midnight against how it reads at noon.
+ */
+const PANE_GLOW = 0.8;
+
+/** Daylight, so brighter than any lamp in the kit. */
 const LIGHT_INTENSITY = 4.5;
 const LIGHT_RANGE = 16;
 /**
@@ -34,6 +47,15 @@ const LIGHT_RANGE = 16;
  */
 const LIGHT_DECAY = 1.5;
 
+/**
+ * What the seed rolled, unless a placer says. `'none'` is what a window put
+ * somewhere to be looked *through* wants: drawn curtains take the shaft away,
+ * and a shaft is most of why a window is where it is.
+ */
+export interface WindowOptions extends BuildOptions {
+  curtains?: 'none' | 'open' | 'drawn';
+}
+
 /** What `aimWindow` needs to know, and what a caller can read back. */
 export interface WindowMetrics {
   /** Aperture width and height, scale already applied. */
@@ -41,12 +63,26 @@ export interface WindowMetrics {
   height: number;
   /** Height of the aperture's centre above the floor. */
   centreY: number;
-  /** 1 with the curtains open or absent, near 0 with them drawn. */
+  /** 1 with the curtains open or absent, near 0 with them drawn. Already baked
+   * into the pane's vertex colour and the lamp's intensity. */
   openness: number;
   /** Current aim, in the units `aimWindow` takes. */
   azimuth: number;
   elevation: number;
+  /** Warm or cold, rolled from the seed. Packed sRGB, multiplied over the day's colour. */
+  tint: number;
+  /** Where the shaft stops however low the sun, in metres. */
+  reach: number;
+  /** Radians this window's own +Z is turned from the zone's, for the odd wall. */
+  bearing: number;
+  /** Whether the opening keeps a floor under it once the sun is down. */
+  night: 'shine' | 'dark';
+  /** Whether the daylight cycle may drive it. Cleared by `holdWindow`. */
+  driven: boolean;
 }
+
+/** Scratch for `lightWindow`, which runs for every window in a room. */
+const TINT = new THREE.Color();
 
 /** Reads the metrics back off a mesh built by this builder. */
 export function windowMetrics(mesh: THREE.Object3D): WindowMetrics {
@@ -57,8 +93,8 @@ export function windowMetrics(mesh: THREE.Object3D): WindowMetrics {
  * Points the daylight somewhere else. `azimuth` is the beam's horizontal swing
  * in radians, 0 being the sun square on the window, positive swinging toward the
  * window's own +X; clamped to ±1.3. `elevation` is the sun's height above the
- * horizon, clamped to 0.1..1.45 — higher means a shorter, steeper shaft and a
- * patch closer to the window. Safe to call on a curtained window.
+ * horizon, clamped to 0.1..1.45 — higher means a shorter, steeper shaft. Safe to
+ * call on a curtained window, which has none.
  */
 export function aimWindow(mesh: THREE.Object3D, azimuth: number, elevation: number): void {
   const metrics = mesh.userData.window as WindowMetrics | undefined;
@@ -76,10 +112,8 @@ export function aimWindow(mesh: THREE.Object3D, azimuth: number, elevation: numb
   const dy = -Math.sin(el);
   const dz = Math.cos(az) * flat;
 
-  // How far along the ray the middle of the opening travels to reach the floor,
-  // which is what makes the patch land on something.
-  const drop = metrics.centreY / Math.sin(el);
-  const reach = Math.min(drop, MAX_REACH);
+  // How far along the ray the middle of the opening travels to reach the floor.
+  const reach = Math.min(metrics.centreY / Math.sin(el), metrics.reach);
 
   const shaft = mesh.getObjectByName('window:shaft');
   if (shaft) {
@@ -95,49 +129,96 @@ export function aimWindow(mesh: THREE.Object3D, azimuth: number, elevation: numb
     shaft.matrixWorldNeedsUpdate = true;
   }
 
-  const pool = mesh.getObjectByName('window:pool');
-  if (pool) {
-    // The aperture projected onto the floor: as wide as the window, stretched
-    // along the ray by 1/sin(elevation).
-    const stretch = metrics.height / Math.sin(el);
-    pool.matrixAutoUpdate = false;
-    pool.matrix.set(
-      metrics.width, 0, stretch * dx, drop * dx,
-      0, 1, 0, 0,
-      0, 0, stretch * dz, drop * dz,
-      0, 0, 0, 1,
-    );
-    pool.matrixWorldNeedsUpdate = true;
-    // A sun this low never gets its beam down to the floor inside a building.
-    // Drawing the patch anyway would put it out beyond the far wall.
-    pool.visible = drop <= MAX_REACH;
-  }
-
-  // The lamp stays up at the aperture rather than following the beam. A point
-  // source sixty centimetres above the boards burns a tight circle into them,
-  // which is the round shape all this exists to be rid of. From the aperture its
-  // falloff washes the room and lands nowhere in particular, leaving the additive
-  // slab as the only thing on the floor with an edge.
+  // The lamp is not moved. It stands outside the wall where the daylight comes
+  // from; following the beam to where it lands would burn a tight circle into
+  // the boards, which is the round shape all this exists to be rid of.
 }
 
-const windowBuilder: MeshBuilder = {
+/**
+ * How bright this window is, and what colour. `sky` is the opening — the pane,
+ * its glare and the lamp — and `beam` is the shaft, which is the one that goes
+ * out when the sun swings behind the wall; a pane still shows a sky it gets no
+ * sun from. Both 0..1 against full daylight. `colour` is the light itself, and
+ * the window's own tint is applied over it here.
+ */
+export function lightWindow(
+  mesh: THREE.Object3D,
+  colour: THREE.Color,
+  sky: number,
+  beam: number,
+): void {
+  const metrics = mesh.userData.window as WindowMetrics | undefined;
+  if (!metrics) return;
+  TINT.setHex(metrics.tint, THREE.SRGBColorSpace).multiply(colour);
+
+  const glow = mesh.getObjectByName('window:glow');
+  if (glow instanceof THREE.Mesh) paint(glow.material, TINT, sky);
+  const shaft = mesh.getObjectByName('window:shaft');
+  if (shaft instanceof THREE.Mesh) {
+    paint(shaft.material, TINT, beam);
+    // A beam at nothing is still a transparent draw of a twelve-segment box.
+    shaft.visible = beam > 0;
+  }
+
+  const lamp = mesh.getObjectByName('window:sun');
+  if (lamp instanceof THREE.PointLight) {
+    lamp.color.copy(TINT);
+    lamp.intensity = (lamp.userData.lit as number) * sky;
+  }
+}
+
+/**
+ * Stops the daylight cycle touching this window, and optionally sets it where
+ * you want first. What a showcase wants, and a room whose light must not change.
+ */
+export function holdWindow(
+  mesh: THREE.Object3D,
+  aim?: { azimuth: number; elevation: number },
+): void {
+  const metrics = mesh.userData.window as WindowMetrics | undefined;
+  if (!metrics) return;
+  metrics.driven = false;
+  if (aim) aimWindow(mesh, aim.azimuth, aim.elevation);
+}
+
+/** Whether this window's opening keeps a floor under it after dark. */
+export function windowNight(mesh: THREE.Object3D, night: 'shine' | 'dark'): void {
+  const metrics = mesh.userData.window as WindowMetrics | undefined;
+  if (metrics) metrics.night = night;
+}
+
+/** Colour multiplies vertex colour; level is opacity against a full-daylight glow. */
+function paint(
+  material: THREE.Material | THREE.Material[],
+  colour: THREE.Color,
+  level: number,
+): void {
+  if (Array.isArray(material) || !(material instanceof THREE.MeshBasicMaterial)) return;
+  material.color.copy(colour);
+  material.opacity = PANE_GLOW * (level < 0 ? 0 : level);
+}
+
+const windowBuilder: BuilderWith<WindowOptions> = {
   name: 'window',
   category: 'structures',
   // Wider than the opening: a pair of shutters flung back is most of a metre
   // either side, and two windows spaced by the aperture alone would collide.
   radius: 1,
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, curtains } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
     const glow: Part[] = [];
 
     // Curtains, not shutters: this is a window seen from inside a room, and
     // shutters hang outside. Rolled first, so a given seed keeps its dressing
-    // however much is added below. `shut` means the curtains are drawn, and it
-    // still kills the shaft.
-    const hasCurtains = rng.chance(0.6);
-    const shut = hasCurtains && rng.chance(0.35);
+    // however much is added below — and rolled even when the caller has said,
+    // so saying does not shift everything after it. `shut` means the curtains
+    // are drawn, and it still kills the shaft.
+    const rolled = rng.chance(0.6);
+    const rolledShut = rolled && rng.chance(0.35);
+    const hasCurtains = curtains === undefined ? rolled : curtains !== 'none';
+    const shut = curtains === undefined ? rolledShut : curtains === 'drawn';
 
     const openW = rng.range(0.66, 1.1);
     const openH = rng.range(0.8, 1.3);
@@ -149,12 +230,11 @@ const windowBuilder: MeshBuilder = {
     const reveal = rng.range(0.1, 0.16);
 
     // Sun, or a north light. One cold window among warm ones reads as weather
-    // rather than as a palette slip.
+    // rather than as a palette slip. A tint rather than a colour: it multiplies
+    // whatever the sky is doing, so a north window stays cool at every hour and
+    // a sunset still reddens it.
     const sunny = rng.chance(0.72);
     const day = sunny ? 0xfff1d2 : 0xdce8f6;
-    // Deeper than the glow: the glow is additive and already at its own
-    // brightness, but this is multiplied into albedo.
-    const dayLight = sunny ? 0xffe3ae : 0xbed2e8;
 
     const timber = shade(rng.chance(0.55) ? PALETTE.TIMBER : PALETTE.TIMBER_DARK, rng.range(0.9, 1.08));
     const stone = shade(PALETTE.STONE_DARK, rng.range(0.9, 1.1));
@@ -164,9 +244,14 @@ const windowBuilder: MeshBuilder = {
     // A painted board, because the wall behind it is solid. Slightly oversized,
     // so its edges run under the jambs, head and sill rather than stopping in
     // their planes.
+    //
+    // Dark, and it has to be: this is a surface the room's own light falls on,
+    // so a pale one says the window is bright at every hour and cannot be told
+    // otherwise. How bright the window is, is the glow's to say — the board is
+    // only what stops you seeing wall through the glass.
     const pane = new THREE.BoxGeometry(openW + 0.024, openH + 0.024, 0.018);
     pane.translate(0, centreY, 0.011);
-    parts.push({ geometry: pane, color: day, sway: 0 });
+    parts.push({ geometry: pane, color: fade(day, 0.14), sway: 0 });
 
     // --- frame ---------------------------------------------------------------
     //
@@ -293,30 +378,18 @@ const windowBuilder: MeshBuilder = {
     }
 
     // --- the aperture glow ---------------------------------------------------
-    // A curtained window still shows light round the cloth, so this is dimmed
-    // rather than removed.
-    const openness = shut ? 0.07 : 1;
-    const paneGlow = shut ? 0.3 : 1;
+    // Drawn curtains keep the glow and lose the beam. Cloth with daylight behind
+    // it is a lit surface, not a dark one — it is the shaft that a curtain
+    // stops, and that is not built at all below.
+    const openness = shut ? 0.25 : 1;
+    const paneGlow = shut ? 0.6 : 1;
 
+    // Clear of the board behind it. At 0.026 its back face lands exactly on the
+    // board's front one, and two surfaces in the same plane trade places pixel
+    // by pixel as the camera turns.
     const bright = new THREE.BoxGeometry(openW * 0.97, openH * 0.97, 0.012);
-    bright.translate(0, centreY, 0.026);
-    glow.push({ geometry: bright, color: fade(day, paneGlow), sway: 0 });
-
-    // Glare round the opening. An octahedron rather than a subdivided plane:
-    // eight faces is the cheapest soft edge there is, and the falloff is vertex
-    // colour going to black, which adds nothing under additive blending.
-    const halo = new THREE.OctahedronGeometry(1, 1);
-    halo.scale(openW * 0.85, openH * 0.8, 0.3);
-    halo.translate(0, centreY, 0.05);
-    const haloReach = Math.max(openW, openH) * 0.85;
-    glow.push({
-      geometry: halo,
-      color: (x, y) => {
-        const d = Math.hypot(x / haloReach, (y - centreY) / haloReach);
-        return fade(day, Math.max(0, 0.3 * paneGlow * (1 - d)));
-      },
-      sway: 0,
-    });
+    bright.translate(0, centreY, 0.038);
+    glow.push({ geometry: bright, color: fade(0xffffff, paneGlow), sway: 0 });
 
     // --- the shaft, in canonical form ----------------------------------------
     //
@@ -333,30 +406,9 @@ const windowBuilder: MeshBuilder = {
           return box;
         })(),
         // Bright at the glass, nothing at the far end. Without it the beam stops
-        // in mid-air at a hard bright rectangle.
-        color: (_x, _y, z) => fade(day, 0.22 * Math.max(0, 1 - z) ** 1.35),
-        sway: 0,
-      },
-    ]);
-
-    // --- the patch on the floor ----------------------------------------------
-    // A unit square in x and z, sheared and stretched into a parallelogram by
-    // `aimWindow`. Only y is a real length: the thickness, and the lift that
-    // keeps it off the boards.
-    const poolLift = 0.014;
-    const poolGeometry = assemble([
-      {
-        geometry: (() => {
-          const slab = new THREE.BoxGeometry(1, 0.012, 1, 4, 1, 4);
-          slab.translate(0, poolLift, 0);
-          return slab;
-        })(),
-        // Soft at the edges. A real sun patch has an edge about half a degree
-        // wide, but a hard edge on a quantized pipeline stair-steps.
-        color: (x, _y, z) => {
-          const edge = Math.max(Math.abs(x), Math.abs(z)) * 2;
-          return fade(day, 0.62 * (1 - smoothstep(0.6, 1.02, edge)));
-        },
+        // in mid-air at a hard bright rectangle. Grey, not the day's colour:
+        // the hue is the material's, so it can be changed without the buffer.
+        color: (_x, _y, z) => fade(0xffffff, 0.22 * Math.max(0, 1 - z) ** 1.35),
         sway: 0,
       },
     ]);
@@ -368,14 +420,15 @@ const windowBuilder: MeshBuilder = {
     if (scale !== 1) {
       geometry.scale(scale, scale, scale);
       glowGeometry.scale(scale, scale, scale);
-      // The shaft's z and the patch's x and z are sweep parameters rather than
-      // lengths, so they are left alone; the metres come out of the aim matrix.
+      // The shaft's z is a sweep parameter rather than a length, so it is left
+      // alone; the metres come out of the aim matrix.
       shaftGeometry.scale(scale, scale, 1);
-      poolGeometry.scale(1, scale, 1);
     }
 
     const mesh = finish(geometry, 'window', 0);
-    mesh.add(finishGlow(glowGeometry, 'window:glow'));
+    // Its own materials, not the shared glow: hue and level are per window from
+    // here on. Two, because the opening and the shaft answer different questions.
+    mesh.add(finishGlow(glowGeometry, 'window:glow', cloneGlow()));
 
     const metrics: WindowMetrics = {
       width: shaftW * scale,
@@ -384,22 +437,22 @@ const windowBuilder: MeshBuilder = {
       openness,
       azimuth: 0,
       elevation: 0.6,
+      tint: day,
+      reach: MAX_REACH * scale,
+      bearing: 0,
+      night: 'shine',
+      driven: true,
     };
     mesh.userData.window = metrics;
 
-    // Shut shutters get no shaft and no patch at all. A beam through a closed
-    // window reads as a bug in the renderer, so it is not dimmed — it is not built.
+    // Shut curtains get no shaft at all. A beam through a closed window reads as
+    // a bug in the renderer, so it is not dimmed — it is not built.
     if (!shut) {
-      const shaft = finishGlow(shaftGeometry, 'window:shaft');
+      const shaft = finishGlow(shaftGeometry, 'window:shaft', cloneGlow());
       shaft.matrixAutoUpdate = false;
       mesh.add(shaft);
-
-      const pool = finishGlow(poolGeometry, 'window:pool');
-      pool.matrixAutoUpdate = false;
-      mesh.add(pool);
     } else {
       shaftGeometry.dispose();
-      poolGeometry.dispose();
     }
 
     // A point source at the far end, not a spot from the window. A spot throws a
@@ -407,20 +460,28 @@ const windowBuilder: MeshBuilder = {
     // so the answer is a light with no shape at all. `aimWindow` moves it to the
     // landing point, and this position is only what it has before the first aim.
     const light = new THREE.PointLight(
-      dayLight,
+      day,
       LIGHT_INTENSITY * openness * rng.around(1, 0.1) * scale * scale,
       LIGHT_RANGE * scale,
       LIGHT_DECAY,
     );
     light.name = 'window:sun';
-    // At the aperture, at its own height, standing a little into the room.
-    light.position.set(0, centreY * scale, reveal * scale + 0.25);
+    // What full daylight is worth here, which is what `lightWindow` scales.
+    light.userData.lit = light.intensity;
+    // Outside the wall, where daylight comes from. In front of the glass it lit
+    // the fitting it is part of, and a point source a hand's breadth off a flat
+    // board burns a circle into the middle of it — the pane has to be one
+    // brightness. Every face of the window points away from here and takes
+    // nothing; the room beyond it takes the wash.
+    light.position.set(0, centreY * scale, -0.55 * scale);
     light.castShadow = false;
     mesh.add(light);
 
-    // A default sun, rolled from the seed: mid-morning, swung a little off square.
-    // A window that had to be aimed before it looked like anything would be a trap.
+    // A default sun, rolled from the seed: mid-morning, swung a little off square,
+    // at full daylight. A window that had to be driven before it looked like
+    // anything would be a trap, and in a gallery nothing drives it.
     aimWindow(mesh, rng.range(-0.7, 0.7), rng.range(0.38, 0.95));
+    lightWindow(mesh, WHITE, 1, 1);
 
     return mesh;
   },
@@ -437,11 +498,8 @@ function clamp(value: number, min: number, max: number): number {
   return value < min ? min : value > max ? max : value;
 }
 
-/** Smooth 0→1 between two thresholds. */
-function smoothstep(a: number, b: number, x: number): number {
-  const t = clamp((x - a) / Math.max(b - a, 1e-6), 0, 1);
-  return t * t * (3 - 2 * t);
-}
+/** Full daylight, for the window that is never driven. */
+const WHITE = new THREE.Color(1, 1, 1);
 
 /** Scales a packed hex toward black. Additive, so this is an amount of light. */
 function fade(hex: number, factor: number): number {
