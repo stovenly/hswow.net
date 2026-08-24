@@ -15,6 +15,11 @@ import { Thumbnails } from './thumbnails';
 import { Palette } from './palette';
 import { Outliner } from './outliner';
 import { ZonePanel } from './zonePanel';
+import { TerrainPanel } from './terrainPanel';
+import { Visualisers, type ViewFlags } from './visualisers';
+import { Shapes, groundPoint, type ShapeKind } from './shapes';
+import { PortalTool } from './portals';
+import { findIn } from './transform';
 import {
   addEntry,
   duplicateEntries,
@@ -27,7 +32,18 @@ import {
 } from './entries';
 import { entryKind, type Entry } from '../world/entry';
 
-export type EditorMode = 'fly' | 'play';
+export type EditorMode = 'fly' | 'play' | 'top';
+
+/**
+ * How high the top view sits, and how narrow its field is.
+ *
+ * A narrow field from a long way up rather than an orthographic camera: the
+ * pipeline captures the perspective camera in a dozen places — the pixel stage,
+ * the sky, the cover, the water's submersion test — and swapping it would be a
+ * change to the renderer for the sake of a view mode.
+ */
+const TOP_HEIGHT = 340;
+const TOP_FOV = 20;
 
 const DOWN = new THREE.Vector3(0, -1, 0);
 /** How far above a hit the capsule is set down, matching `Zone.settle`. */
@@ -54,6 +70,10 @@ export class Editor {
   readonly palette: Palette;
   readonly outliner: Outliner;
   readonly thumbnails: Thumbnails;
+  readonly terrainPanel: TerrainPanel;
+  readonly visualisers: Visualisers;
+  readonly shapes: Shapes;
+  readonly portalTool: PortalTool;
 
   private current: EditorMode = 'fly';
   private readonly modeToggles: Record<EditorMode, Toggle>;
@@ -65,6 +85,14 @@ export class Editor {
   private clipboard: Entry[] = [];
   /** Where the last prop brush stroke put something, so spacing is honoured. */
   private lastBrush: THREE.Vector3 | null = null;
+  /** What the camera was doing before the top view, so leaving restores it. */
+  private beforeTop: { position: THREE.Vector3; yaw: number; pitch: number; fov: number } | null = null;
+  private wiringPortals = false;
+  /** ctrl-drag between two points, metres in the status line. */
+  private ruler: THREE.Vector3 | null = null;
+  private rulerText = '';
+  /** Where a key sends the camera. Session-only, like everything on the View menu. */
+  private readonly bookmarks = new Map<string, { position: THREE.Vector3; yaw: number; pitch: number }>();
 
   constructor(app: App, documents: readonly ZoneDocument[], manifest: PortalManifest) {
     this.app = app;
@@ -121,6 +149,31 @@ export class Editor {
     });
     this.outliner.visible = false;
 
+    this.visualisers = new Visualisers(app, this.session);
+    this.shapes = new Shapes(app);
+    this.portalTool = new PortalTool(app, this.session);
+    this.portalTool.say = (message) => this.chrome.say(message);
+    this.portalTool.onWired = () => this.visualisers.invalidate();
+
+    this.terrainPanel = new TerrainPanel(this.gui, this.session, {
+      changed: () => this.visualisers.invalidate(),
+      drawCircle: (onDone) =>
+        this.shapes.start('circle', (shape) => {
+          if (shape.kind === 'circle') onDone([shape.at[0], shape.at[1]], shape.radius);
+        }),
+      drawPolyline: (onDone) =>
+        this.shapes.start('polyline', (shape) => {
+          if (shape.kind === 'polyline') onDone(shape.points.map((point) => [point[0], point[1]]));
+        }),
+      drawRectangle: (onDone) =>
+        this.shapes.start('rectangle', (shape) => {
+          if (shape.kind === 'rectangle') {
+            onDone([shape.min[0], shape.min[1]], [shape.max[0], shape.max[1]]);
+          }
+        }),
+      editPoints: (points, onChange) => this.shapes.edit(points, onChange),
+    });
+
     this.zonePanel = new ZonePanel(this.gui, this.session, {
       rebuilt: () => {},
       newZone: (kind) => this.newZone(kind),
@@ -132,9 +185,11 @@ export class Editor {
     this.modeToggles = {
       fly: this.chrome.toggle(modes, 'fly', () => this.setMode('fly'), 'free camera'),
       play: this.chrome.toggle(modes, 'play', () => this.setMode('play'), 'drop in as the player — Tab'),
+      top: this.chrome.toggle(modes, 'top', () => this.setMode('top'), 'straight down — Home'),
     };
     this.zonePicker = this.buildToolbar();
 
+    this.viewMenu();
     const tuning = this.gui.addFolder('tuning').close();
     installDevPanel(tuning, app);
 
@@ -145,22 +200,86 @@ export class Editor {
       const tag = this.selection.tag;
       this.inspector.show(tag?.zone ?? null, tag?.id ?? null);
       this.refreshOutliner();
+      this.showHandles(tag);
     });
     this.transform.onCommit = () => this.inspector.refresh();
     this.session.onChange = () => {
       this.report();
       this.refreshOutliner();
       this.zonePanel.refresh();
+      this.terrainPanel.refresh();
+      this.visualisers.invalidate();
     };
 
     this.setMode('fly');
     this.zonePanel.show(app.zones.current?.id ?? null);
+    this.terrainPanel.show(app.zones.current?.id ?? null);
     this.refreshOutliner();
     app.loop.add(() => this.report());
   }
 
   get mode(): EditorMode {
     return this.current;
+  }
+
+  /** Everything session-only, in one folder that says so. */
+  private viewMenu(): void {
+    const folder = this.gui.addFolder('view · session only').close();
+    const flags = this.visualisers.flags;
+    for (const key of Object.keys(flags) as (keyof ViewFlags)[]) {
+      folder.add(flags, key).onChange((on: boolean) => this.visualisers.set(key, on));
+    }
+    folder.add(this.app.zones, 'showBarriers').name('invisible walls');
+    folder.add(this.app.zones, 'freezeVista').name('freeze the vista').listen();
+
+    const isolate = { kind: 'everything' };
+    const kinds = ['everything', ...entryKindNames()];
+    folder
+      .add(isolate, 'kind', kinds)
+      .name('isolate')
+      .onChange((kind: string) => this.isolate(kind === 'everything' ? null : kind));
+  }
+
+  /** Hides every entry but one kind. Inspection state; nothing is written. */
+  private isolate(kind: string | null): void {
+    const zone = this.app.zones.current;
+    if (!zone?.isBuilt) return;
+    for (const { entry } of this.session.entries(zone.id)) {
+      const object = entry.id ? this.objectFor(entry.id) : null;
+      if (object) object.visible = kind === null || entry.kind === kind;
+    }
+    this.outliner.isolate(kind);
+  }
+
+  /** Draws a shape and writes it into whatever the selection can take. */
+  private drawInto(kind: ShapeKind): void {
+    const tag = this.selection.tag;
+    if (!tag) {
+      this.chrome.say('select what the shape belongs to first');
+      return;
+    }
+    this.shapes.start(kind, (shape) => {
+      this.session.commit(tag.zone, 'zone', (doc) => {
+        const entry = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
+        if (!entry) return;
+        if (shape.kind === 'polyline') {
+          if (entry.kind === 'run') entry.points = shape.points;
+          else if (entry.kind === 'chain') {
+            entry.start = shape.points[0];
+            entry.edges = shape.points.slice(1).map((to) => ({ to, kind: 'fence' }));
+            delete entry.runs;
+          }
+        } else if (shape.kind === 'circle') {
+          entry.from = shape.at;
+          entry.within = shape.radius;
+        } else {
+          entry.at = [(shape.min[0] + shape.max[0]) / 2, (shape.min[1] + shape.max[1]) / 2];
+          entry.size = [shape.max[0] - shape.min[0], shape.max[1] - shape.min[1]];
+        }
+      });
+      this.chrome.say(`shaped ${tag.id}`);
+    });
+    this.chrome.say('click to place points, enter to finish, escape to drop it');
   }
 
   // --- chrome ---------------------------------------------------------------
@@ -184,6 +303,17 @@ export class Editor {
     move('free', 'free', 'F — things may interpenetrate');
     move('contact', 'contact', 'C — stops at the first touch');
     move('ground', 'ground', 'G — rides the terrain');
+
+    const shapes = chrome.group();
+    for (const [label, kind] of [['line', 'polyline'], ['circle', 'circle'], ['box', 'rectangle']] as const) {
+      chrome.button(shapes, label, () => this.drawInto(kind), `draw into the selection`);
+    }
+    const portalToggle = chrome.toggle(shapes, 'portal', () => {
+      this.wiringPortals = !this.wiringPortals;
+      portalToggle.pressed = this.wiringPortals;
+      if (!this.wiringPortals) this.portalTool.cancel();
+      this.chrome.say(this.wiringPortals ? 'pick a door site' : '');
+    }, 'wire a door between two zones');
 
     const view = chrome.group();
     chrome.button(view, 'frame', () => this.orbit.frame(), '.');
@@ -243,12 +373,35 @@ export class Editor {
     const canvas = this.app.viewport.renderer.domElement;
 
     canvas.addEventListener('pointermove', (event) => {
-      if (this.current !== 'fly' || this.transform.controls.dragging || this.orbit.active) return;
+      if (this.shapes.drag(event)) return;
+      if (this.ruler) {
+        const at = groundPoint(this.app, event);
+        if (at) this.rulerText = `${this.ruler.distanceTo(at).toFixed(2)} m`;
+        return;
+      }
+      if (this.current === 'play' || this.transform.controls.dragging || this.orbit.active) return;
       this.selection.hover(this.selection.pick(event));
     });
 
+    canvas.addEventListener('pointerup', () => {
+      this.shapes.release();
+      this.ruler = null;
+    });
+
+    canvas.addEventListener('dblclick', () => this.shapes.finishPolyline());
+
     canvas.addEventListener('pointerdown', (event) => {
-      if (this.current !== 'fly' || event.button !== 0 || event.shiftKey) return;
+      if (this.current === 'play' || event.button !== 0 || event.shiftKey) return;
+      if (this.shapes.click(event)) return;
+      if (this.shapes.grab(event)) return;
+      if (event.ctrlKey && event.altKey) {
+        this.ruler = groundPoint(this.app, event);
+        return;
+      }
+      if (this.wiringPortals) {
+        this.portalTool.click(event, this.selection.pick(event));
+        return;
+      }
       // A press that started on a gizmo handle belongs to the gizmo.
       if (this.transform.controls.axis) return;
       const hit = this.selection.pick(event);
@@ -380,12 +533,30 @@ export class Editor {
           this.duplicate();
           return true;
         }
+        if (event.code.startsWith('Digit')) {
+          this.bookmarks.set(event.code, {
+            position: this.app.player.position.clone(),
+            yaw: this.app.player.heading,
+            pitch: this.app.player.tilt,
+          });
+          this.chrome.say(`bookmark ${event.code.slice(5)}`);
+          return true;
+        }
         return false;
       }
 
       switch (event.code) {
         case 'Tab':
           this.setMode(this.current === 'play' ? 'fly' : 'play');
+          return true;
+        case 'Home':
+          this.setMode(this.current === 'top' ? 'fly' : 'top');
+          return true;
+        case 'KeyP':
+          this.drawInto('polyline');
+          return true;
+        case 'Enter':
+          this.shapes.finishPolyline();
           return true;
         case 'KeyW':
         case 'KeyE':
@@ -446,6 +617,21 @@ export class Editor {
         case 'Period':
           this.orbit.frame();
           return true;
+        case 'Digit1':
+        case 'Digit2':
+        case 'Digit3':
+        case 'Digit4':
+        case 'Digit5':
+        case 'Digit6':
+        case 'Digit7':
+        case 'Digit8':
+        case 'Digit9': {
+          const held = this.bookmarks.get(event.code);
+          if (!held) return false;
+          this.app.player.teleport(held.position, held.yaw);
+          this.app.player.aim(held.yaw, held.pitch);
+          return true;
+        }
         case 'Escape':
           this.picking = null;
           this.palette.pick(null);
@@ -562,6 +748,42 @@ export class Editor {
     this.chrome.say(`deleted ${id} — reload to clear it from the world`);
   }
 
+  /** A selected run or chain gets a draggable handle on each of its points. */
+  private showHandles(tag: { zone: string; id: string } | null): void {
+    const entry = tag ? this.session.entry(tag.zone, tag.id) : undefined;
+    const record = entry as unknown as Record<string, unknown> | undefined;
+    if (!tag || !record) {
+      this.shapes.edit(null);
+      return;
+    }
+    if (record.kind === 'run' && Array.isArray(record.points)) {
+      this.shapes.edit(record.points as [number, number][], (points) => {
+        this.session.commit(tag.zone, 'zone', (doc) => {
+          const held = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
+          if (held) held.points = points;
+        });
+      });
+      return;
+    }
+    if (record.kind === 'chain' && Array.isArray(record.edges)) {
+      const edges = record.edges as { to: [number, number]; kind?: 'wall' | 'fence' }[];
+      const start = (record.start as [number, number]) ?? [0, 0];
+      this.shapes.edit([start, ...edges.map((edge) => edge.to)], (points) => {
+        this.session.commit(tag.zone, 'zone', (doc) => {
+          const held = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
+          if (!held) return;
+          held.start = points[0];
+          held.edges = points.slice(1).map((to, index) => ({
+            to,
+            kind: edges[index]?.kind ?? 'fence',
+          }));
+        });
+      });
+      return;
+    }
+    this.shapes.edit(null);
+  }
+
   private refreshOutliner(): void {
     const zone = this.app.zones.current?.id ?? null;
     this.outliner.show(this.session.doc(zone ?? '') ? zone : null, this.selectedIds());
@@ -580,14 +802,41 @@ export class Editor {
   }
 
   setMode(mode: EditorMode): void {
+    const leavingTop = this.current === 'top' && mode !== 'top';
     this.current = mode;
-    for (const name of ['fly', 'play'] as const) this.modeToggles[name].pressed = name === mode;
+    for (const name of ['fly', 'play', 'top'] as const) this.modeToggles[name].pressed = name === mode;
 
     const { player, zones, input } = this.app;
-    // Parallax frozen while flying, or the vista band slides under whatever is
-    // being looked at and a placement cannot be judged.
-    zones.freezeVista = mode === 'fly';
-    this.transform.controls.getHelper().visible = mode === 'fly';
+    // Parallax frozen unless the player is walking, or the vista band slides
+    // under whatever is being looked at and a placement cannot be judged.
+    zones.freezeVista = mode !== 'play';
+    this.transform.controls.getHelper().visible = mode !== 'play';
+
+    if (leavingTop && this.beforeTop) {
+      player.tuning.fov = this.beforeTop.fov;
+      player.teleport(this.beforeTop.position, this.beforeTop.yaw);
+      player.aim(this.beforeTop.yaw, this.beforeTop.pitch);
+      this.beforeTop = null;
+    }
+
+    if (mode === 'top') {
+      this.beforeTop = {
+        position: player.position.clone(),
+        yaw: player.heading,
+        pitch: player.tilt,
+        fov: player.tuning.fov,
+      };
+      player.noclip = true;
+      input.freeLook = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+      player.tuning.fov = TOP_FOV;
+      const at = player.position;
+      player.teleport(new THREE.Vector3(at.x, TOP_HEIGHT, at.z), 0);
+      player.aim(0, -Math.PI / 2 + 0.001);
+      this.visualisers.set('grid', true);
+      this.chrome.say('straight down — draw shapes here');
+      return;
+    }
 
     if (mode === 'fly') {
       player.noclip = true;
@@ -636,9 +885,11 @@ export class Editor {
     this.chrome.set('tris', `${collider.triangles.toLocaleString()} tris`);
     const lights = this.census();
     this.chrome.set('lights', lights.text, lights.over);
+    if (this.rulerText) this.chrome.set('ruler', this.rulerText);
     const here = zone?.name;
     if (!here || this.zonePicker.value === here) return;
     this.zonePanel.show(zone?.id ?? null);
+    this.terrainPanel.show(zone?.id ?? null);
     this.refreshOutliner();
     if (![...this.zonePicker.options].some((option) => option.value === here)) this.refreshZoneList();
     this.zonePicker.value = here;
@@ -671,4 +922,13 @@ export class Editor {
 function round(value: number, places = 3): number {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
+}
+
+/** Every kind the isolate filter can name. */
+function entryKindNames(): string[] {
+  return [
+    'prop', 'creature', 'run', 'chain', 'scatter', 'barrier', 'prefab', 'ground',
+    'water', 'particles', 'fogVolume', 'glitch', 'horror', 'sound', 'soundScatter',
+    'vistaRing', 'dressing',
+  ].filter((kind) => entryKind(kind) !== undefined);
 }

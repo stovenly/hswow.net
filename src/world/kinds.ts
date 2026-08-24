@@ -15,7 +15,8 @@ import { fencePost } from '../art/builders/fence-post';
 import { hazel } from '../art/builders/hazel';
 import { vistaRing, type VistaProp, type VistaScatter } from './vista-ring';
 import { edgeDressing, type DressingKind } from './dressing';
-import { shapeDistance, type PatchShape } from './ground';
+import { shapeDistance, GROUND, COVER_TYPES, type PatchShape } from './ground';
+import { SURFACES } from '../audio/models/footsteps';
 import { doorways, doorwayFront } from '../art/building';
 import { dilateOutline } from './vista';
 import { DOOR_PROUD } from './Portal';
@@ -206,6 +207,12 @@ function runShape(name: string): RunShape {
 
 registerEntryKind<RunEntry>({
   kind: 'run',
+  schema: {
+    builder: { type: 'choice', options: () => Object.keys(RUNS) },
+    pitch: { type: 'number', min: 0.2, max: 8, step: 0.05, label: 'metres per section' },
+    most: { type: 'int', min: 1, max: 12, label: 'sections per piece' },
+    cap: { type: 'choice', options: ['post'], label: 'far end' },
+  },
   defaults: () => ({ builder: 'fence', points: [[0, 0], [6, 0]] }),
   build(entry, ctx) {
     const shape = runShape(entry.builder);
@@ -269,6 +276,7 @@ function slab(root: THREE.Object3D, from: Point, to: Point, ctx: EntryContext, h
 
 registerEntryKind<ChainEntry>({
   kind: 'chain',
+  schema: { close: { type: 'choice', options: ['hedge'], label: 'close the gap with' } },
   defaults: () => ({ start: [0, 0], edges: [{ to: [8, 0], kind: 'fence' }] }),
   build(entry, ctx) {
     const group = new THREE.Group();
@@ -387,6 +395,15 @@ function layHedge(group: THREE.Object3D, seed: number, from: Point, to: Point, c
 
 registerEntryKind<ScatterEntry>({
   kind: 'scatter',
+  schema: {
+    count: { type: 'int', min: 1, max: 400 },
+    within: { type: 'number', min: 0.5, max: 200, step: 0.5, label: 'radius (m)' },
+    maxSlope: { type: 'number', min: 0, max: 80, step: 1, label: 'steepest (deg)' },
+    minHeight: { type: 'number', min: -60, max: 200, step: 0.5 },
+    maxHeight: { type: 'number', min: -60, max: 200, step: 0.5 },
+    inset: { type: 'number', min: 0, max: 20, step: 0.5, label: 'clear of the edge' },
+    region: { type: 'string', label: 'inside region' },
+  },
   defaults: () => ({ builder: 'bush', count: 12, within: 8 }),
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
@@ -465,6 +482,7 @@ function circlesOf(shapes: readonly PatchShape[]): readonly (readonly [number, n
 
 registerEntryKind<BarrierEntry>({
   kind: 'barrier',
+  schema: { height: { type: 'number', min: 0.5, max: 20, step: 0.1 } },
   defaults: () => ({ size: [2, 3, 0.5] }),
   build(entry, ctx) {
     const group = new THREE.Group();
@@ -486,6 +504,7 @@ registerEntryKind<BarrierEntry>({
 
 registerEntryKind<PrefabEntry>({
   kind: 'prefab',
+  schema: { prefab: { type: 'string' } },
   defaults: () => ({ prefab: '' }),
   build(entry, ctx) {
     const body = ctx.prefabs[entry.prefab];
@@ -502,6 +521,13 @@ registerEntryKind<PrefabEntry>({
 
 registerEntryKind<GroundEntry>({
   kind: 'ground',
+  schema: {
+    y: { type: 'number', min: -60, max: 200, step: 0.05 },
+    thickness: { type: 'number', min: 0.05, max: 4, step: 0.05 },
+    material: { type: 'choice', options: () => Object.keys(GROUND) },
+    cover: { type: 'choice', options: () => Object.keys(COVER_TYPES) },
+    underfoot: { type: 'choice', options: () => Object.keys(SURFACES) },
+  },
   defaults: () => ({ size: [4, 4], thickness: 0.3, material: 'stone' }),
   build(entry, ctx) {
     const size = entry.size ?? [4, 4];
@@ -532,6 +558,12 @@ function groundMaterial(): THREE.Material {
 
 registerEntryKind<WaterEntry>({
   kind: 'water',
+  schema: {
+    width: { type: 'number', min: 0.5, max: 200, step: 0.1 },
+    depth: { type: 'number', min: 0.5, max: 200, step: 0.1 },
+    chop: { type: 'number', min: 0, max: 3, step: 0.01 },
+    segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
+  },
   defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
   build(entry, ctx) {
     const holder = new THREE.Object3D();
@@ -551,6 +583,7 @@ registerEntryKind<WaterEntry>({
 
 registerEntryKind<ParticlesEntry>({
   kind: 'particles',
+  schema: {},
   defaults: () => ({
     spec: {
       count: 200,
@@ -575,6 +608,14 @@ registerEntryKind<ParticlesEntry>({
 
 registerEntryKind<FogVolumeEntry>({
   kind: 'fogVolume',
+  schema: {
+    shape: { type: 'choice', options: ['ellipsoid', 'box'] },
+    density: { type: 'number', min: 0, max: 2, step: 0.01, label: 'per metre' },
+    tint: { type: 'color' },
+    softness: { type: 'number', min: 0.02, max: 1, step: 0.01 },
+    noiseScale: { type: 'number', min: 0.5, max: 40, step: 0.5, label: 'billow (m)' },
+    turbulence: { type: 'number', min: 0, max: 1, step: 0.01 },
+  },
   defaults: () => ({
     shape: 'ellipsoid',
     center: [0, 1, 0],
@@ -604,6 +645,12 @@ registerEntryKind<FogVolumeEntry>({
 for (const kind of ['glitch', 'horror'] as const) {
   registerEntryKind<EffectVolumeEntry>({
     kind,
+    schema: {
+      shape: { type: 'choice', options: ['ellipsoid', 'box'] },
+      strength: { type: 'number', min: 0, max: 1, step: 0.01 },
+      tempo: { type: 'number', min: 0.1, max: 8, step: 0.05 },
+      grounded: { type: 'boolean' },
+    },
     defaults: () => ({ shape: 'ellipsoid', center: [0, 1, 0], size: [4, 3, 4], strength: 0.5 }),
     build(entry, ctx) {
       const placement = {
@@ -645,6 +692,7 @@ for (const kind of ['glitch', 'horror'] as const) {
 
 registerEntryKind<SoundEntry>({
   kind: 'sound',
+  schema: { ref: { type: 'ref', label: 'anchored to' }, lift: { type: 'number', min: 0, max: 20, step: 0.05 } },
   defaults: () => ({ spec: { model: 'fire', options: {} } }),
   build(entry, ctx) {
     const spec = { ...entry.spec } as Record<string, unknown>;
@@ -668,6 +716,7 @@ registerEntryKind<SoundEntry>({
 
 registerEntryKind<SoundScatterEntry>({
   kind: 'soundScatter',
+  schema: { ref: { type: 'ref', label: 'anchored to' }, lift: { type: 'number', min: 0, max: 20, step: 0.05 } },
   defaults: () => ({ spec: { sound: { model: 'bird' }, at: [0, 1, 0], spread: 12, every: 30 } }),
   build(entry, ctx) {
     const spec = { ...entry.spec } as Record<string, unknown>;
@@ -691,6 +740,7 @@ registerEntryKind<SoundScatterEntry>({
 
 registerEntryKind<VistaRingEntry>({
   kind: 'vistaRing',
+  schema: { chunk: { type: 'number', min: 40, max: 800, step: 10, label: 'merge cell (m)' } },
   defaults: () => ({ band: { inner: 30, outer: 160 }, place: [], scatter: [] }),
   build(entry, ctx) {
     if (!ctx.skirt) throw new Error('a vista ring needs a skirt');
@@ -724,6 +774,7 @@ function namedVistaScatter(raw: Record<string, unknown>): VistaScatter {
 
 registerEntryKind<DressingEntry>({
   kind: 'dressing',
+  schema: { solidWithin: { type: 'number', min: -200, max: 200, step: 1, label: 'solid inside (m)' } },
   defaults: () => ({ band: { inner: -4, outer: 14 }, kinds: [] }),
   build(entry, ctx) {
     if (!ctx.terrain || !ctx.skirt) throw new Error('edge dressing needs a terrain and a skirt');
