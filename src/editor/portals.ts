@@ -74,10 +74,20 @@ export class PortalTool {
     const at = groundPoint(this.app, event);
     if (!at) return null;
     if (shell) {
-      const toX = shell.width / 2 - Math.abs(at.x);
-      const toZ = shell.depth / 2 - Math.abs(at.z);
-      const wall = toX < toZ ? (at.x > 0 ? '+x' : '-x') : at.z > 0 ? '+z' : '-z';
-      return { zone, wall };
+      // Whichever room the click lands in, and whichever of its walls is nearest.
+      const room = shell.rooms?.find(
+        (candidate) =>
+          Math.abs(at.x - candidate.at[0]) <= candidate.width / 2 &&
+          Math.abs(at.z - candidate.at[1]) <= candidate.depth / 2,
+      );
+      const box = room
+        ? { width: room.width, depth: room.depth, cx: room.at[0], cz: room.at[1] }
+        : { width: shell.width ?? 8, depth: shell.depth ?? 6, cx: 0, cz: 0 };
+      const toX = box.width / 2 - Math.abs(at.x - box.cx);
+      const toZ = box.depth / 2 - Math.abs(at.z - box.cz);
+      const wall =
+        toX < toZ ? (at.x > box.cx ? '+x' : '-x') : at.z > box.cz ? '+z' : '-z';
+      return { zone, wall, ...(room ? { room: room.id } : {}) };
     }
     // Open ground: a freestanding door, facing whoever is looking at it.
     const yaw = round(this.app.player.heading + Math.PI);
@@ -105,7 +115,13 @@ export class PortalTool {
     const doc = this.session.doc(zone);
     if (!doc) return [];
     const sites: DoorSite[] = [];
-    if (doc.shell) {
+    if (doc.shell?.rooms) {
+      for (const room of doc.shell.rooms) {
+        for (const wall of ['-z', '+z', '-x', '+x'] as const) {
+          sites.push({ zone, wall, room: room.id });
+        }
+      }
+    } else if (doc.shell) {
       for (const wall of ['-z', '+z', '-x', '+x'] as const) sites.push({ zone, wall });
     }
     for (const { entry } of this.session.entries(zone)) {

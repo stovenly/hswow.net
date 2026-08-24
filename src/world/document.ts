@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SoundscapeSpec } from '../audio/Soundscape';
 import { buildInterior, interiorStyleByName } from './interior';
+import { buildRooms } from './rooms';
 import { markCollidable } from '../player/Collider';
 import { flatGround, type FlatGroundOptions } from './floor';
 import { Terrain, type TerrainOptions, type TerrainRasters } from './terrain';
@@ -129,6 +130,8 @@ export interface ManifestEnd {
   doorOf?: string;
   /** Put in a shell wall, facing in. */
   wall?: WallSide;
+  /** Which room of a graph the wall belongs to. The first, by default. */
+  room?: string;
   at?: readonly number[];
   yaw?: Yaw;
   arrival?: { at: readonly number[]; yaw?: Yaw };
@@ -163,19 +166,30 @@ export function shellOf(zone: string): ShellSpec | null {
  * A door standing in a shell wall, facing back into the room. Exported so a
  * zone that is still code can wire a portal to a document interior.
  */
-export function wallEnd(zone: string, wall: WallSide): { position: THREE.Vector3; yaw: number } {
-  const shell = shellOf(zone);
-  if (!shell) throw new Error(`zone "${zone}" has no shell for wall "${wall}"`);
+export function wallEnd(
+  zone: string,
+  wall: WallSide,
+  room?: string,
+): { position: THREE.Vector3; yaw: number } {
+  const held = shellOf(zone);
+  if (!held) throw new Error(`zone "${zone}" has no shell for wall "${wall}"`);
+  // A graph names which room the door stands in; a plain box has only the one.
+  const inRoom = held.rooms?.find((candidate) => candidate.id === (room ?? held.rooms?.[0]?.id));
+  const shell = inRoom
+    ? { width: inRoom.width, depth: inRoom.depth, at: inRoom.at, level: inRoom.level ?? 0 }
+    : { width: held.width ?? 8, depth: held.depth ?? 6, at: [0, 0] as const, level: 0 };
   const inset = DOOR_PROUD;
+  const [cx, cz] = shell.at;
+  const y = shell.level;
   switch (wall) {
     case '-z':
-      return { position: new THREE.Vector3(0, 0, -shell.depth / 2 + inset), yaw: 0 };
+      return { position: new THREE.Vector3(cx, y, cz - shell.depth / 2 + inset), yaw: 0 };
     case '+z':
-      return { position: new THREE.Vector3(0, 0, shell.depth / 2 - inset), yaw: Math.PI };
+      return { position: new THREE.Vector3(cx, y, cz + shell.depth / 2 - inset), yaw: Math.PI };
     case '-x':
-      return { position: new THREE.Vector3(-shell.width / 2 + inset, 0, 0), yaw: Math.PI / 2 };
+      return { position: new THREE.Vector3(cx - shell.width / 2 + inset, y, cz), yaw: Math.PI / 2 };
     default:
-      return { position: new THREE.Vector3(shell.width / 2 - inset, 0, 0), yaw: -Math.PI / 2 };
+      return { position: new THREE.Vector3(cx + shell.width / 2 - inset, y, cz), yaw: -Math.PI / 2 };
   }
 }
 
@@ -238,18 +252,32 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     }
     // The skirt is out of bounds by definition: seen, never walked on.
     if (skirt) root.add(skirt.build());
-    if (shell) {
+    if (shell?.rooms) {
       root.add(
-        markCollidable(buildInterior({
-          width: shell.width,
-          depth: shell.depth,
-          height: shell.height,
-          seed: shell.seed,
-          style: shell.style ? interiorStyleByName(shell.style) : undefined,
-          planks: shell.planks,
-          beams: shell.beams,
-          thickness: shell.thickness,
-        })),
+        markCollidable(
+          buildRooms({
+            rooms: shell.rooms,
+            joins: shell.joins,
+            seed: shell.seed,
+            style: shell.style,
+            thickness: shell.thickness,
+          }),
+        ),
+      );
+    } else if (shell) {
+      root.add(
+        markCollidable(
+          buildInterior({
+            width: shell.width ?? 8,
+            depth: shell.depth ?? 6,
+            height: shell.height ?? 3,
+            seed: shell.seed,
+            style: shell.style ? interiorStyleByName(shell.style) : undefined,
+            planks: shell.planks,
+            beams: shell.beams,
+            thickness: shell.thickness,
+          }),
+        ),
       );
     }
 
@@ -401,7 +429,7 @@ function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
     out.position.copy(anchor.position);
     out.yaw = anchor.yaw;
   } else if (end.wall) {
-    const inner = wallEnd(end.zone, end.wall);
+    const inner = wallEnd(end.zone, end.wall, end.room);
     out.position.copy(inner.position);
     out.yaw = inner.yaw;
   } else if (end.at) {

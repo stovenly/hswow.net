@@ -6,7 +6,12 @@ import { SURFACES } from '../audio/models/footsteps';
 import { VIBE_NAMES } from '../audio/vibes';
 import { ZONE_GROUPS } from '../world/Zone';
 import type { ZoneDocument } from '../world/document';
+import type { Join, Room } from '../world/rooms';
 import type { Session } from './session';
+
+/** Rooms and joins being edited: the document's own lists are read-only. */
+type MutableRoom = Omit<Room, 'at'> & { at: [number, number] };
+type MutableJoin = Omit<Join, 'between'> & { between: [string, string] };
 
 /**
  * The zone's own header: where it stands, where you arrive, and the whole
@@ -165,27 +170,157 @@ export class ZonePanel {
   private shell(folder: GUI, doc: ZoneDocument): void {
     if (!doc.shell) return;
     const shell = doc.shell;
-    const state = {
-      width: shell.width,
-      depth: shell.depth,
-      height: shell.height,
-      seed: shell.seed ?? 1,
-      style: shell.style ?? 'house',
-      planks: shell.planks ?? true,
-      beams: shell.beams ?? 3,
-    };
+    const group = folder.addFolder('shell');
+    const write = (): void => this.edit(doc, () => {});
+
+    group.add(shell, 'seed', 0, 1_000_000, 1).onChange(write);
+    group.add({ style: shell.style ?? 'house' }, 'style', interiorStyleNames()).onChange((style: string) =>
+      this.edit(doc, () => (shell.style = style)),
+    );
+
+    if (!shell.rooms) {
+      const box = shell as { width?: number; depth?: number; height?: number; planks?: boolean; beams?: number };
+      box.width ??= 8;
+      box.depth ??= 6;
+      box.height ??= 3;
+      box.planks ??= true;
+      box.beams ??= 3;
+      group.add(box, 'width', 2, 40, 0.1).onChange(write);
+      group.add(box, 'depth', 2, 40, 0.1).onChange(write);
+      group.add(box, 'height', 2, 12, 0.1).onChange(write);
+      group.add(box, 'planks').name('boarded floor').onChange(write);
+      group.add(box, 'beams', 0, 8, 1).onChange(write);
+      group
+        .add(
+          {
+            grow: () => {
+              // The box becomes the graph's first room, so nothing moves.
+              this.edit(doc, () => {
+                shell.rooms = [
+                  {
+                    id: 'room-1',
+                    at: [0, 0],
+                    width: box.width ?? 8,
+                    depth: box.depth ?? 6,
+                    height: box.height ?? 3,
+                    planks: box.planks,
+                    beams: box.beams,
+                  },
+                ];
+                shell.joins = [];
+              });
+              this.refresh();
+            },
+          },
+          'grow',
+        )
+        .name('make it a room graph');
+      return;
+    }
+
+    this.rooms(group, doc, shell);
+  }
+
+  /** The room graph: each room's box, and the joins between them. */
+  private rooms(
+    group: GUI,
+    doc: ZoneDocument,
+    shell: NonNullable<ZoneDocument['shell']>,
+  ): void {
+    const rooms = [...(shell.rooms ?? [])] as MutableRoom[];
+    const joins = [...(shell.joins ?? [])] as MutableJoin[];
     const write = (): void =>
       this.edit(doc, () => {
-        Object.assign(shell, state);
+        shell.rooms = rooms;
+        shell.joins = joins;
       });
-    const group = folder.addFolder('shell');
-    group.add(state, 'width', 2, 40, 0.1).onChange(write);
-    group.add(state, 'depth', 2, 40, 0.1).onChange(write);
-    group.add(state, 'height', 2, 12, 0.1).onChange(write);
-    group.add(state, 'seed', 0, 1_000_000, 1).onChange(write);
-    group.add(state, 'style', interiorStyleNames()).onChange(write);
-    group.add(state, 'planks').name('boarded floor').onChange(write);
-    group.add(state, 'beams', 0, 8, 1).onChange(write);
+
+    group
+      .add(
+        {
+          add: () => {
+            rooms.push({
+              id: `room-${rooms.length + 1}`,
+              at: [rooms.length * 9, 0],
+              width: 8,
+              depth: 6,
+              height: 3,
+            });
+            write();
+            this.refresh();
+          },
+        },
+        'add',
+      )
+      .name('add a room');
+
+    rooms.forEach((room, index) => {
+      const row = group.addFolder(`room · ${room.id}`).close();
+      row.add(room, 'id').onChange(write);
+      row.add(room.at, '0', -80, 80, 0.1).name('x').onChange(write);
+      row.add(room.at, '1', -80, 80, 0.1).name('z').onChange(write);
+      row.add(room, 'width', 2, 60, 0.1).onChange(write);
+      row.add(room, 'depth', 2, 60, 0.1).onChange(write);
+      row.add(room, 'height', 2, 14, 0.1).onChange(write);
+      room.level ??= 0;
+      room.roughen ??= 0;
+      room.beams ??= 3;
+      room.planks ??= true;
+      row.add(room, 'level', -12, 12, 0.05).name('floor level').onChange(write);
+      row.add(room, 'roughen', 0, 1, 0.02).name('cave the walls').onChange(write);
+      row.add(room, 'planks').name('boarded floor').onChange(write);
+      row.add(room, 'beams', 0, 10, 1).onChange(write);
+      row
+        .add({ style: room.style ?? '' }, 'style', ['', ...interiorStyleNames()])
+        .onChange((style: string) => {
+          if (style) room.style = style;
+          else delete room.style;
+          write();
+        });
+      if (rooms.length > 1) {
+        row.add({ remove: () => {
+          rooms.splice(index, 1);
+          write();
+          this.refresh();
+        } }, 'remove');
+      }
+    });
+
+    const names = rooms.map((room) => room.id);
+    const wanted = { from: names[0] ?? '', to: names[1] ?? '', kind: 'doorway' };
+    const link = group.addFolder('joins');
+    link.add(wanted, 'from', names);
+    link.add(wanted, 'to', names);
+    link.add(wanted, 'kind', ['doorway', 'arch', 'open', 'stair']);
+    link
+      .add(
+        {
+          add: () => {
+            if (!wanted.from || !wanted.to || wanted.from === wanted.to) return;
+            joins.push({ between: [wanted.from, wanted.to], kind: wanted.kind as MutableJoin['kind'] });
+            write();
+            this.refresh();
+          },
+        },
+        'add',
+      )
+      .name('join them');
+
+    joins.forEach((join, index) => {
+      const row = link.addFolder(`${join.between[0]} — ${join.between[1]}`).close();
+      row.add(join, 'kind', ['doorway', 'arch', 'open', 'stair']).onChange(write);
+      join.offset ??= 0;
+      row.add(join, 'offset', -20, 20, 0.05).name('along the wall').onChange(write);
+      join.width ??= 1.1;
+      join.height ??= 2.05;
+      row.add(join, 'width', 0.5, 20, 0.05).onChange(write);
+      row.add(join, 'height', 1, 12, 0.05).onChange(write);
+      row.add({ remove: () => {
+        joins.splice(index, 1);
+        write();
+        this.refresh();
+      } }, 'remove');
+    });
   }
 
   private zones(folder: GUI): void {

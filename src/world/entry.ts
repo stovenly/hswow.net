@@ -10,6 +10,7 @@ import type { CoverName, GroundName, PatchShape } from './ground';
 import type { Terrain } from './terrain';
 import type { Skirt } from './vista';
 import type { GroundAt, Point } from './placement';
+import type { Join, Room } from './rooms';
 
 /**
  * What a zone document is made of, and the table that turns one entry into
@@ -336,14 +337,18 @@ export type Entry =
 // --- the build context ------------------------------------------------------
 
 export interface ShellSpec {
-  width: number;
-  depth: number;
-  height: number;
+  /** The one-room form: a sealed box centred on the origin. */
+  width?: number;
+  depth?: number;
+  height?: number;
   seed?: number;
   style?: string;
   planks?: boolean;
   beams?: number;
   thickness?: number;
+  /** The room graph. Present, it replaces the three dimensions above. */
+  rooms?: readonly Room[];
+  joins?: readonly Join[];
 }
 
 /** What a kind's `build` is handed. Everything a zone knows about itself. */
