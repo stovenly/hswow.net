@@ -38,6 +38,8 @@ export interface ProjectCode {
   stations?: readonly string[];
   /** This project's own tuning folders, mounted alongside the engine's. */
   panel?(gui: GUI, app: App): void;
+  /** Which zone a builder is on show in, for the inspector's jump to it. */
+  galleryFor?(builder: string): ZoneId | undefined;
 }
 
 export interface ProjectWorld {

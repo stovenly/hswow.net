@@ -386,6 +386,22 @@ export class Controller {
     return this.yaw;
   }
 
+  /** How far the view is tilted, in radians. Positive is up. */
+  get tilt(): number {
+    return this.pitch;
+  }
+
+  /**
+   * Points the view. Only the editor's orbit camera uses this — the player
+   * looks with the mouse, and a second way to set the same two numbers would be
+   * a second place for them to disagree.
+   */
+  aim(yaw: number, pitch: number): void {
+    const limit = Math.PI / 2 - 0.001;
+    this.yaw = yaw % (Math.PI * 2);
+    this.pitch = Math.min(Math.max(pitch, -limit), limit);
+  }
+
   get isGrounded(): boolean {
     return this.grounded;
   }

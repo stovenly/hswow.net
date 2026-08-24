@@ -450,33 +450,83 @@ export class ZoneManager {
     for (const zone of this.zones.values()) {
       if (!zone.isBuilt || keep.has(zone.id)) continue;
 
-      zone.dispose();
-      this.options.collider.invalidate(zone.id);
-      this.doored.delete(zone.id);
-      this.preparing.delete(zone.id);
-      this.warmed.delete(zone.id);
-      // The meshes are about to be freed; holding them here would be a leak
+      // The meshes are about to be freed; holding anything here would be a leak
       // shaped exactly like the one eviction exists to prevent.
-      this.clutter.delete(zone.id);
-      this.parallax.delete(zone.id);
-      this.barriers.delete(zone.id);
-      this.casters.delete(zone.id);
-      this.particled.delete(zone.id);
-      this.activity.release(zone.id);
-      this.windows.release(zone.id);
-      this.cloth.release(zone.id);
-      this.life.release(zone.id);
-      this.glitch.release(zone.id);
-      this.horror.release(zone.id);
-      for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
-
-      const soundscape = this.soundscapes.get(zone.id);
-      if (soundscape) {
-        soundscape.dispose();
-        this.soundscapes.delete(zone.id);
-      }
-
+      this.release(zone, true);
       this.evicted++;
+    }
+  }
+
+  /**
+   * Releases one zone and raises it again, in place. The editor's rebuild path:
+   * everything eviction drops goes, then the zone is prepared and, if it is the
+   * one being stood in, swapped back into the scene and the collider without
+   * moving the camera.
+   *
+   * The soundscape is only dropped when asked, because rebuilding one silences
+   * the place for as long as its models take to construct — which for a nudged
+   * crate is a bad trade.
+   */
+  async rebuild(id: ZoneId, sound = false): Promise<void> {
+    const zone = this.zones.get(id);
+    if (!zone) return;
+    const wasActive = this.active === zone;
+    if (wasActive) this.options.scene.remove(zone.root());
+    this.release(zone, sound);
+    await zone.ensureLoaded();
+    const root = await this.prepare(zone);
+    root.updateWorldMatrix(true, true);
+    if (!wasActive) return;
+    this.options.scene.add(root);
+    this.options.collider.build(root, zone.id);
+    this.warmed.add(zone.id);
+    this.applyAudio(zone);
+    const targets: THREE.Object3D[] = this.portals
+      .in(zone.id)
+      .map((side) => side.door)
+      .filter((door): door is THREE.Mesh => door !== null);
+    root.traverse((object) => {
+      if (typeof object.userData.label === 'string') targets.push(object);
+    });
+    this.options.interaction.setTargets(targets);
+    this.options.postfx.setEnvironment({
+      sky: zone.environment.sky,
+      fogColor: zone.environment.fogColor,
+      fogNear: zone.environment.fogNear,
+      fogFar: zone.environment.fogFar,
+      fogVolumes: zone.fogVolumes,
+      water: zone.hasWater,
+      glass: zone.hasGlass,
+      particles: this.particled.has(zone.id),
+    });
+    this.hovered = null;
+    this.options.reticle.set(null);
+  }
+
+  /** Everything eviction drops, for one zone. */
+  private release(zone: Zone, sound: boolean): void {
+    zone.dispose();
+    this.options.collider.invalidate(zone.id);
+    this.doored.delete(zone.id);
+    this.preparing.delete(zone.id);
+    this.warmed.delete(zone.id);
+    this.clutter.delete(zone.id);
+    this.parallax.delete(zone.id);
+    this.barriers.delete(zone.id);
+    this.casters.delete(zone.id);
+    this.particled.delete(zone.id);
+    this.activity.release(zone.id);
+    this.windows.release(zone.id);
+    this.cloth.release(zone.id);
+    this.life.release(zone.id);
+    this.glitch.release(zone.id);
+    this.horror.release(zone.id);
+    for (const side of this.portals.in(zone.id)) this.portals.unbind(side);
+    if (!sound) return;
+    const soundscape = this.soundscapes.get(zone.id);
+    if (soundscape) {
+      soundscape.dispose();
+      this.soundscapes.delete(zone.id);
     }
   }
 

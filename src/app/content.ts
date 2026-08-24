@@ -16,11 +16,27 @@ export interface ContentWorld {
   zones: ZoneDefinition[];
   portals: PortalDefinition[];
   documents: ZoneDocument[];
+  manifest: PortalManifest;
 }
 
+/**
+ * Interpreted once per project. The editor edits the document objects the world
+ * is already reading, so a second interpretation would hand it copies and every
+ * change would go nowhere.
+ */
+const interpreted = new Map<string, ContentWorld>();
+
 export function contentWorld(project: string, state?: WorldState): ContentWorld {
+  const held = interpreted.get(project);
+  if (held) return held;
+  const world = interpret(project, state);
+  interpreted.set(project, world);
+  return world;
+}
+
+function interpret(project: string, state?: WorldState): ContentWorld {
   const bundle = content[project];
-  if (!bundle) return { zones: [], portals: [], documents: [] };
+  if (!bundle) return { zones: [], portals: [], documents: [], manifest: { portals: [] } };
 
   const documents = Object.entries(bundle.zones)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -30,9 +46,8 @@ export function contentWorld(project: string, state?: WorldState): ContentWorld 
   // zones have to be registered before either door is placed.
   const zones = documents.map((doc) => zoneFromDocument(doc, state));
 
-  const manifest = Object.values(bundle.world)[0] as PortalManifest | undefined;
-  const portals = manifest ? portalsFromManifest(manifest) : [];
-  return { zones, portals, documents };
+  const manifest = (Object.values(bundle.world)[0] as PortalManifest | undefined) ?? { portals: [] };
+  return { zones, portals: portalsFromManifest(manifest), documents, manifest };
 }
 
 /** A sidecar raster's URL, by the file name a document names. */

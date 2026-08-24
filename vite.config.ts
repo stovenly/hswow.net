@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+// @ts-expect-error — plain JS, and its shape is one function.
+import { editorRoutes } from './scripts/editor-middleware.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PROJECTS = 'projects';
@@ -112,6 +114,26 @@ function projectPublic(pinned: string | null): Plugin {
 }
 
 /**
+ * The editor's save endpoint, on the dev server the editor is already served
+ * from. Writes it makes are marked so the reload banner does not report the
+ * editor's own saves back to it.
+ */
+function editorSave(written: Set<string>): Plugin {
+  return {
+    name: 'hswow:editor-save',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use(
+        editorRoutes(ROOT, (file: string) => {
+          written.add(file.split(/[\\/]/).pop() ?? '');
+          setTimeout(() => written.clear(), 2000);
+        }),
+      );
+    },
+  };
+}
+
+/**
  * Never reload the page by itself. Say so instead.
  *
  * A full reload drops pointer lock, returns you to spawn, rebuilds every zone
@@ -130,7 +152,7 @@ function projectPublic(pinned: string | null): Plugin {
  * were affected, so it sends nothing and the client has nothing to act on. The
  * custom event carries the news to the banner instead.
  */
-function noAutoReload(): Plugin {
+function noAutoReload(written: Set<string>): Plugin {
   return {
     name: 'hswow:no-auto-reload',
     apply: 'serve',
@@ -143,6 +165,9 @@ function noAutoReload(): Plugin {
     },
     handleHotUpdate(ctx) {
       const file = ctx.file.split(/[\\/]/).pop() ?? '';
+      // The editor's own save, coming back round. Reporting it would tell the
+      // person who pressed ctrl-S that something changed under them.
+      if (written.has(file)) return [];
       ctx.server.config.logger.info(`  hswow: suppressed reload for ${file}`);
       ctx.server.ws.send({
         type: 'custom',
@@ -160,8 +185,9 @@ export default defineConfig(({ command, mode }) => {
   // `vite build --mode <id>` picks the project. Serving lists them all.
   const pinned = command === 'build' ? (listProjects().includes(mode) ? mode : listProjects()[0] ?? null) : null;
   const outDir = pinned ? `docs/${pinned}` : 'docs';
+  const written = new Set<string>();
   return {
-    plugins: [projectModule(pinned), projectPublic(pinned), noAutoReload()],
+    plugins: [projectModule(pinned), projectPublic(pinned), editorSave(written), noAutoReload(written)],
     resolve: {
       alias: { '@engine': path.join(ROOT, 'src') },
     },

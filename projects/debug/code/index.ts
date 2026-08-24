@@ -6,6 +6,7 @@ import { createTestWorld, ZONE_COUNTRYSIDE } from './zones';
 import { STAGE_STATIONS } from './SoundStage';
 import { READING_FIXTURES } from './reading-fixtures';
 import { NOTES } from './notes';
+import { GALLERIES } from './galleries';
 
 /**
  * The debug project: every gallery, showcase, rig and demo level this engine
@@ -19,6 +20,10 @@ export const project: ProjectCode = {
   prebuild: [ZONE_COUNTRYSIDE],
   precompile: [ZONE_COUNTRYSIDE],
   stations: STAGE_STATIONS,
+
+  galleryFor(builder) {
+    return GALLERIES.find((plan) => plan.builders.some((made) => made.name === builder))?.id;
+  },
 
   async world(loader) {
     ground = await loader.step('shaping the ground', 0.12, () => new ProvingGround());

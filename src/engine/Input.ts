@@ -66,6 +66,13 @@ export class Input {
    */
   readonly needsCapture: boolean;
 
+  /**
+   * The mouse is free and the keyboard still steers. The editor's fly camera:
+   * a click has to be able to pick something, so nothing may grab pointer lock,
+   * and WASD has to keep flying while it is loose.
+   */
+  freeLook = false;
+
   /** Fires whenever capture is gained or lost, for cursor and HUD state. */
   onLockChange: ((locked: boolean) => void) | null = null;
 
@@ -259,7 +266,7 @@ export class Input {
     // menu out there to be typed into, and without this, nudging a slider with the
     // arrow keys walks the player forwards behind the panel. Only where capture is a
     // concept — on touch `locked` is permanently true and this is a no-op.
-    if (this.needsCapture && !this.locked) return;
+    if (this.needsCapture && !this.locked && !this.freeLook) return;
 
     this.keys.add(event.code);
     if (JUMP_KEYS.includes(event.code)) {
@@ -290,7 +297,7 @@ export class Input {
   };
 
   private readonly handleCanvasPointerDown = (event: PointerEvent): void => {
-    if (this.locked || event.button !== 0) return;
+    if (this.freeLook || this.locked || event.button !== 0) return;
     void this.requestLock();
   };
 

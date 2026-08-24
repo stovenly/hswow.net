@@ -1,5 +1,6 @@
 import { createApp } from '../app/boot';
 import { loadProject } from '../app/loadProject';
+import { contentWorld } from '../app/content';
 import { Editor } from './Editor';
 
 const canvas = document.getElementById('viewport');
@@ -14,5 +15,8 @@ if (!(overlay instanceof HTMLElement)) {
 const project = await loadProject();
 document.title = `${project.title} — editor`;
 const app = await createApp({ canvas, overlay, project });
-new Editor(app);
+// The same documents the boot interpreted: the editor edits the objects the
+// world is already reading, so a change reaches the world without a reload.
+const content = contentWorld(project.id);
+new Editor(app, content.documents, content.manifest);
 await app.start();
