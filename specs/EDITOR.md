@@ -1,10 +1,29 @@
 # The editor — spec
 
-**Not built.** This replaces the earlier version of this document, which was written before
-weather, vista, life, streaming and the debug levels existed and argued for an in-game
-`?editor` mode. The brief has changed: the editor is a separate authoring tool, internal only,
-that has to reach *everything* a zone contains and has to keep reaching it as systems are
-added. Every name, key, slug and key binding below is provisional — naming is the repo owner's.
+**Steps 1 through 11 of §7 are built.** What follows is the design; this note is
+what the code does differently from it, and what is still open.
+
+- **Documents carry no code-splitting flag.** Splitting one buys nothing: the
+  geometry is in the shared builders either way, and a document is a few
+  kilobytes of placement.
+- **Top view is a narrow field from three hundred metres up**, not an
+  orthographic camera. The pipeline captures the perspective camera in a dozen
+  places and swapping it would be a change to the renderer for the sake of a
+  view mode.
+- **The factory interior stays code.** Its roof trusses are raw boxes in a
+  private material rather than art-kit builders, so there is no builder name a
+  document could name; making one is an art decision rather than a migration.
+- **Wall features are not part of the room graph.** A window and a hearth are
+  placed builders, which is what every interior does today; cutting them into
+  the shell would be a second way to do the same thing with a different look.
+- **`docs/` is ignored and untracked.** The one-time `git clone <site-repo>
+  docs/debug` and the Pages switch have not been done, so the live site is
+  served from a folder this repo no longer carries.
+- **Nothing has been looked at in a browser.** Every zone the migration touched
+  needs its render judged.
+
+Every name, key, slug and key binding below is provisional — naming is the repo
+owner's.
 
 Two things are being specified, and the order between them is fixed:
 

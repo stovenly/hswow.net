@@ -61,6 +61,17 @@ built. The finish stage reads it to tell a roof from the ground under its eave.
 direction.** The shadow map is rebuilt every frame; the light and the fill both
 travel with it.
 
+## Documents
+
+A zone is a JSON file of verbs, never meshes: `document.ts` turns one into a
+`ZoneDefinition` and `world.json` into the portal graph. `entry.ts` holds the
+grammar and the kind table `registerEntryKind` extends; `kinds.ts` holds the
+kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
+the game ignores and the editor is built on.
+
+`state.ts` is what a `when` is judged against — flags and quest stages in memory,
+a stub until the quest system exists.
+
 ## Dressing, interior, terrain, vista
 
 - **`terrain.ts`** — the walkable heightfield, summed from placed landforms.
@@ -70,7 +81,12 @@ travel with it.
   a colour **and** a sound **and** what grows on it, in one table, so the three
   cannot drift apart.
 - **`interior.ts`** — a sealed shell with no doorway cut in it. Portal doors
-  bring their own frame and dark backing panel.
+  bring their own frame and dark backing panel. `rooms.ts` is the same thing for
+  several rooms joined where they touch: every wall is built as panels that tile
+  it exactly with the openings taken out, so the shell is watertight by
+  construction rather than by care.
+- **`raster.ts`** — the sculpted layer over a heightfield. Shapes for what is
+  deliberate, rasters for what is brushed, and the two compose.
 - **`vista*.ts`** — everything past the boundary, in three bands: ordinary props
   along the edge (`dressing.ts`), merged scenery in the ring, and the sky. The
   whole band is written against one signed distance to the level's outline,
