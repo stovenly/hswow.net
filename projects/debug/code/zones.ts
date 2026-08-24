@@ -5,7 +5,7 @@ import type { PortalDefinition, PortalEnd } from '@engine/world/Portal';
 import { ProvingGround, SPAWN } from './ProvingGround';
 import { countrysideZone } from './countryside-village';
 import { demoZone, demoHallPortal, demoPortals } from './demos';
-import { countrysideHomeZones, countrysideHomePortals } from './countryside-homes';
+import { countrysideHomePortals } from './countryside-homes';
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
@@ -363,8 +363,6 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     // The antechamber every finished place hangs off, and the places themselves.
     demoZone(),
     countrysideZone(),
-    // The three houses in it you can go into — see `countryside-homes.ts`.
-    ...countrysideHomeZones(),
     // Two chains of rooms hung off the hut and the factory, three deep. They
     // exist so that somewhere in the world is more than two doors from the hub
     // — see `chains.ts`, and the residency check in `check:world`.

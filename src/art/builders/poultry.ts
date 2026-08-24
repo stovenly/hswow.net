@@ -7,6 +7,7 @@ import { segment } from '../quadruped';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions, LifeSpec } from '../../life/spec';
+import type { Fields } from '../schema';
 
 /**
  * A fowl — the only two-legged animal in the kit, so it has its own plan. A body
@@ -22,6 +23,7 @@ import type { LifeOptions, LifeSpec } from '../../life/spec';
 export const poultry: BuilderWith<LifeOptions> = {
   name: 'poultry',
   category: 'animals',
+  options: { roam: { type: 'number', min: 0, max: 12, step: 0.1 }, face: { type: 'string' }, folk: { type: 'choice', options: ['country', 'city'] } } satisfies Fields,
   radius: 0.35,
   solid: false,
 

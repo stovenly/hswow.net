@@ -5,6 +5,7 @@ import { createRng } from '../random';
 import { shade } from '../palette';
 import { hearting, pointing, polygonPlan, quoinedPolygon, stoneColours, upright } from '../masonry';
 import { LOW, TALL, WALL_DEPTH, type Build } from './stone-wall';
+import type { Fields } from '../schema';
 
 // A stone pier: the end of a wall, the corner of one, or the cheek of a gate.
 // Piers are how this wall turns corners — three faces bend a run 60°, four 90°,
@@ -88,6 +89,7 @@ export function buildColumn(
 export const stoneWallSquareColumn: BuilderWith<StoneWallColumnOptions> = {
   name: 'stone-wall-square-column',
   category: 'structures',
+  options: { height: { type: 'number', min: 0.5, max: 4, step: 0.05 }, phase: { type: 'number', min: 0, max: 1, step: 0.01 } } satisfies Fields,
   radius: 0.45,
   build: (options) => buildColumn('stone-wall-square-column', TALL, 4, options),
 };
@@ -100,6 +102,7 @@ export const stoneWallSquareColumn: BuilderWith<StoneWallColumnOptions> = {
 export const stoneWallSquareColumnLow: BuilderWith<StoneWallColumnOptions> = {
   name: 'stone-wall-square-column-low',
   category: 'structures',
+  options: { height: { type: 'number', min: 0.5, max: 4, step: 0.05 }, phase: { type: 'number', min: 0, max: 1, step: 0.01 } } satisfies Fields,
   radius: 0.4,
   build: (options) => buildColumn('stone-wall-square-column-low', LOW, 4, options),
 };

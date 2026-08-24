@@ -3,6 +3,7 @@ import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
+import type { Fields } from '../schema';
 
 // A hedge: a run of dense growth, laid to a line. Sectioned as `fence` and
 // `stone-wall` are, with a fixed pitch, so a lane can run one as a count of
@@ -41,6 +42,7 @@ export const hedge: BuilderWith<HedgeOptions> = {
   // Half the longest span, plus the overhang past it — the masses are allowed
   // past the join on purpose, and a placer spacing to the pitch alone would
   // leave the ends of two runs growing through each other.
+  options: { sections: { type: 'int', min: 1, max: 6 }, run: { type: 'int' } } satisfies Fields,
   radius: (HEDGE_MAX_SECTIONS * HEDGE_SECTION) / 2 + 0.5,
 
   build({ seed = 1, scale = 1, sections, run }: HedgeOptions = {}) {

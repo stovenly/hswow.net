@@ -4,6 +4,7 @@ import { assemble, finish, type Part } from '../assemble';
 import { cloneGlow, finishGlow } from '../glow';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
+import type { Fields } from '../schema';
 
 // Window: opening, frame, curtains and the sheared daylight shaft. Built in the
 // XY plane with the wall at z = 0 and everything standing proud toward +Z, floor
@@ -201,6 +202,7 @@ function paint(
 const windowBuilder: BuilderWith<WindowOptions> = {
   name: 'window',
   category: 'structures',
+  options: { curtains: { type: 'choice', options: ['none', 'open', 'drawn'] } } satisfies Fields,
   // Wider than the opening: a pair of shutters flung back is most of a metre
   // either side, and two windows spaced by the aperture alone would collide.
   radius: 1,

@@ -12,6 +12,7 @@ import { pickWeighted, type BoneBall } from './figure-surface';
 import { LayerStack, dress } from './figure-layers';
 import { boot, head, limb, makeLimb } from './figure-limbs';
 import { COAT_PROUD, PEOPLE } from './figure-people';
+import type { Fields } from '../schema';
 
 /**
  * A villager, or a cityfolk. Friendly, bipedal, and not a person. `folk` picks
@@ -43,6 +44,7 @@ import { COAT_PROUD, PEOPLE } from './figure-people';
 export const figure: BuilderWith<LifeOptions> = {
   name: 'figure',
   category: 'people',
+  options: { roam: { type: 'number', min: 0, max: 12, step: 0.1 }, face: { type: 'string' }, folk: { type: 'choice', options: ['country', 'city'] } } satisfies Fields,
   radius: 0.5,
   solid: false,
 

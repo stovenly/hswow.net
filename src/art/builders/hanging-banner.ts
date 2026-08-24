@@ -5,6 +5,7 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel } from '../clothMesh';
+import type { Fields } from '../schema';
 
 // A tall banner hanging from a bracket arm on a post: one post, one arm, and a
 // long drop of simulated cloth pinned along its top edge. Canvas by default, so it
@@ -19,6 +20,7 @@ export interface HangingBannerOptions extends BuildOptions {
 export const hangingBanner: BuilderWith<HangingBannerOptions> = {
   name: 'hanging-banner',
   category: 'structures',
+  options: { text: { type: 'string' }, fabric: { type: 'string' } } satisfies Fields,
   radius: 0.9,
 
   build({ seed = 1, scale = 1, fabric = 'canvas' }: HangingBannerOptions = {}) {

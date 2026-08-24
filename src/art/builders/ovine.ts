@@ -3,6 +3,7 @@ import { buildQuadruped, ovineHead, type Species } from '../quadruped';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
+import type { Fields } from '../schema';
 
 // A sheep: a small dark face and legs, and a loaf of fleece where the body is.
 // The loaf is the body loft ruffled — every vertex pushed in or out — so the
@@ -42,6 +43,7 @@ const OVINE: Species = {
 export const ovine: BuilderWith<LifeOptions> = {
   name: 'ovine',
   category: 'animals',
+  options: { roam: { type: 'number', min: 0, max: 12, step: 0.1 }, face: { type: 'string' }, folk: { type: 'choice', options: ['country', 'city'] } } satisfies Fields,
   radius: 0.8,
   solid: false,
   build: (options = {}) =>

@@ -1,3 +1,4 @@
+import type { Fields } from '../schema';
 import * as THREE from 'three';
 import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
@@ -204,6 +205,7 @@ export function buildWall(
 export const stoneWall: BuilderWith<StoneWallOptions> = {
   name: 'stone-wall',
   category: 'structures',
+  options: { sections: { type: 'int', min: 1, max: 4 }, run: { type: 'int' } } satisfies Fields,
   radius: (WALL_MAX_SECTIONS * WALL_SECTION) / 2,
   build: (options) => buildWall('stone-wall', TALL, options),
 };

@@ -4,6 +4,7 @@ import { assemble, finish, type Part } from '../assemble';
 import { sheet, STOCK, LEAF } from '../paper';
 import { createRng, type Rng } from '../random';
 import { PALETTE, shade } from '../palette';
+import type { Fields } from '../schema';
 
 // A roll of parchment on a staff, with a turned knob standing out at each end.
 // The knobs are the object: a plain cylinder of paper is a rolling pin, and what
@@ -23,6 +24,7 @@ export const rollerScroll: BuilderWith<ScrollOptions> = {
   // Sized for the spread, which is the larger of the two states. A gallery only
   // ever builds the rolled one, so this is a little generous there and correct
   // for anywhere a placer opens one.
+  options: { state: { type: 'choice', options: ['rolled', 'unrolled'] } } satisfies Fields,
   radius: 0.32,
   solid: false,
 

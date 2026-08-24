@@ -3,6 +3,7 @@ import { buildQuadruped, porcineHead, type Species } from '../quadruped';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
+import type { Fields } from '../schema';
 
 // A pig: a torpedo on short legs, heavy at the ham, no neck to speak of. The head
 // runs straight on from the shoulders, with a wedge face, a disc of a snout and
@@ -44,6 +45,7 @@ const PORCINE: Species = {
 export const porcine: BuilderWith<LifeOptions> = {
   name: 'porcine',
   category: 'animals',
+  options: { roam: { type: 'number', min: 0, max: 12, step: 0.1 }, face: { type: 'string' }, folk: { type: 'choice', options: ['country', 'city'] } } satisfies Fields,
   radius: 0.71,
   solid: false,
   build: (options = {}) =>

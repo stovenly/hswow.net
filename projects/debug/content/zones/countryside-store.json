@@ -1,0 +1,39 @@
+{
+  "id": "countryside-store",
+  "name": "Countryside Store Demo",
+  "group": "countryside",
+  "environment": { "base": "countryside-store" },
+  "spawn": { "at": [0, 0.1, 0.4], "yaw": 3.141592653589793 },
+  "floor": -5,
+  "shell": {
+    "width": 7,
+    "depth": 5.5,
+    "height": 2.8,
+    "seed": 4470,
+    "style": "countryside-store",
+    "planks": false,
+    "beams": 2
+  },
+  "entries": [
+    { "id": "barrel-1", "kind": "prop", "builder": "barrel", "seed": 4471, "at": [-2.9, -1.6], "yaw": 0 },
+    { "id": "barrel-2", "kind": "prop", "builder": "barrel", "seed": 4472, "at": [-2.95, -0.6], "yaw": 0.4 },
+    { "id": "barrel-3", "kind": "prop", "builder": "barrel", "seed": 4473, "at": [-2.88, 0.5], "yaw": 0.9 },
+    { "id": "barrel-4", "kind": "prop", "builder": "barrel", "seed": 4474, "at": [-2.4, 1.6], "yaw": 0.2 },
+
+    { "id": "crate-1", "kind": "prop", "builder": "crate", "seed": 4475, "at": [2.8, -1.7], "yaw": 0.1 },
+    { "id": "crate-2", "kind": "prop", "builder": "crate", "seed": 4476, "at": [2.85, -0.5], "yaw": 0.6 },
+    { "id": "crate-3", "kind": "prop", "builder": "crate", "seed": 4477, "at": [2.78, 0.7], "yaw": 1.2 },
+    { "id": "crate-4", "kind": "prop", "builder": "crate", "seed": 4478, "at": [2.2, 1.8], "yaw": 0.3 },
+
+    { "id": "chest-1", "kind": "prop", "builder": "chest", "seed": 4479, "at": [-1.3, 2.25], "yaw": 0.04 },
+    { "id": "chest-2", "kind": "prop", "builder": "chest", "seed": 4480, "at": [0.1, 2.3], "yaw": -0.03 },
+    { "id": "dresser", "kind": "prop", "builder": "dresser", "seed": 4481, "at": [-3.15, 1.9], "yaw": 1.5707963267948966 },
+
+    { "id": "cistern", "kind": "prop", "builder": "cistern", "seed": 4482, "at": [1.5, 2.05], "yaw": 0.3 },
+    { "id": "washtub", "kind": "prop", "builder": "washtub", "seed": 4483, "at": [1.4, -2.15], "yaw": 0.5 },
+    { "id": "herbs", "kind": "prop", "builder": "hanging-herbs", "seed": 4484, "at": [3.34, 1.7], "yaw": -1.5707963267948966 },
+
+    { "id": "lantern-crate", "kind": "prop", "builder": "lantern", "seed": 4485, "options": { "shadows": true }, "on": "crate-1", "at": [2.8, -1.7], "yaw": -0.5 },
+    { "id": "candle-chest", "kind": "prop", "builder": "candle", "seed": 4486, "options": { "shadows": true }, "on": "chest-1", "at": [-1.3, 2.25], "yaw": 0.4 }
+  ]
+}

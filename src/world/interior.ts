@@ -50,6 +50,24 @@ export const WORKS_STYLE: InteriorStyle = {
   beam: PALETTE.RUST,
 };
 
+const styles = new Map<string, InteriorStyle>([
+  ['house', HOUSE_STYLE],
+  ['works', WORKS_STYLE],
+]);
+
+/** Names a document's `shell.style` can point at. Presets stay code. */
+export function registerInteriorStyle(name: string, style: InteriorStyle): void {
+  styles.set(name, style);
+}
+
+export function interiorStyleByName(name: string): InteriorStyle | undefined {
+  return styles.get(name);
+}
+
+export function interiorStyleNames(): readonly string[] {
+  return [...styles.keys()];
+}
+
 export interface InteriorOptions {
   width: number;
   depth: number;

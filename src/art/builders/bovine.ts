@@ -3,6 +3,7 @@ import { buildQuadruped, bovineHead, type Species } from '../quadruped';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
+import type { Fields } from '../schema';
 
 // Cattle: long and boxy, short in the leg, head carried low, about 1.4 m nose to
 // tail rather than a real cow's two. A rectangle with a sagging belly and a high
@@ -46,6 +47,7 @@ const BOVINE: Species = {
 export const bovine: BuilderWith<LifeOptions> = {
   name: 'bovine',
   category: 'animals',
+  options: { roam: { type: 'number', min: 0, max: 12, step: 0.1 }, face: { type: 'string' }, folk: { type: 'choice', options: ['country', 'city'] } } satisfies Fields,
   radius: 0.95,
   // Alive: the player is stopped by the creature itself, not by a ghost of
   // where it was built. See LIFE.md §7.

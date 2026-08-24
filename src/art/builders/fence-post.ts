@@ -3,6 +3,7 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { fenceHeight, postGeometry, rollPost } from './fence';
+import type { Fields } from '../schema';
 
 export interface FencePostOptions extends BuildOptions {
   /** The run this post finishes, so it matches its height. See `FenceOptions.run`. */
@@ -20,6 +21,7 @@ export interface FencePostOptions extends BuildOptions {
 export const fencePost: BuilderWith<FencePostOptions> = {
   name: 'fence-post',
   category: 'structures',
+  options: { run: { type: 'int' } } satisfies Fields,
   radius: 0.2,
 
   build({ seed = 1, scale = 1, run }: FencePostOptions = {}) {

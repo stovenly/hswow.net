@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { SoundscapeSpec } from '../audio/Soundscape';
-import { buildInterior } from './interior';
+import { buildInterior, interiorStyleByName } from './interior';
 import { markCollidable } from '../player/Collider';
 import { flatGround } from './floor';
 import { Terrain, type TerrainOptions } from './terrain';
@@ -79,8 +79,6 @@ export interface ZoneDocument {
   layers?: readonly Layer[];
   /** Loose entries, for a zone with nothing conditional in it. */
   entries?: readonly Entry[];
-  /** Keeps this zone's geometry out of the boot bundle. */
-  split?: boolean;
 }
 
 export interface Layer {
@@ -102,12 +100,14 @@ export interface ManifestPortal {
   label?: string;
 }
 
+export type WallSide = '+x' | '-x' | '+z' | '-z';
+
 export interface ManifestEnd {
   zone: string;
   /** Stood at the door anchor of a placed building. */
   doorOf?: string;
   /** Put in a shell wall, facing in. */
-  wall?: '+x' | '-x' | '+z' | '-z';
+  wall?: WallSide;
   at?: readonly number[];
   yaw?: Yaw;
   arrival?: { at: readonly number[]; yaw?: Yaw };
@@ -122,6 +122,31 @@ interface Registered {
 }
 
 const registry = new Map<string, Registered>();
+
+/** The shell a document declares, for anything placing a door in its wall. */
+export function shellOf(zone: string): ShellSpec | null {
+  return registry.get(zone)?.shell ?? null;
+}
+
+/**
+ * A door standing in a shell wall, facing back into the room. Exported so a
+ * zone that is still code can wire a portal to a document interior.
+ */
+export function wallEnd(zone: string, wall: WallSide): { position: THREE.Vector3; yaw: number } {
+  const shell = shellOf(zone);
+  if (!shell) throw new Error(`zone "${zone}" has no shell for wall "${wall}"`);
+  const inset = DOOR_PROUD;
+  switch (wall) {
+    case '-z':
+      return { position: new THREE.Vector3(0, 0, -shell.depth / 2 + inset), yaw: 0 };
+    case '+z':
+      return { position: new THREE.Vector3(0, 0, shell.depth / 2 - inset), yaw: Math.PI };
+    case '-x':
+      return { position: new THREE.Vector3(-shell.width / 2 + inset, 0, 0), yaw: Math.PI / 2 };
+    default:
+      return { position: new THREE.Vector3(shell.width / 2 - inset, 0, 0), yaw: -Math.PI / 2 };
+  }
+}
 
 const layersOf = (doc: ZoneDocument): readonly Layer[] =>
   doc.layers ?? [{ name: 'main', entries: doc.entries ?? [] }];
@@ -188,7 +213,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = NO_STATE
           depth: shell.depth,
           height: shell.height,
           seed: shell.seed,
-          style: shell.style as never,
+          style: shell.style ? interiorStyleByName(shell.style) : undefined,
           planks: shell.planks,
           beams: shell.beams,
           thickness: shell.thickness,
@@ -323,27 +348,9 @@ function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
     out.position.copy(anchor.position);
     out.yaw = anchor.yaw;
   } else if (end.wall) {
-    const shell = registry.get(end.zone)?.shell;
-    if (!shell) throw new Error(`zone "${end.zone}" has no shell for wall "${end.wall}"`);
-    const inset = DOOR_PROUD;
-    // The door faces back into the room, so its yaw is the inward normal.
-    switch (end.wall) {
-      case '-z':
-        out.position.set(0, 0, -shell.depth / 2 + inset);
-        out.yaw = 0;
-        break;
-      case '+z':
-        out.position.set(0, 0, shell.depth / 2 - inset);
-        out.yaw = Math.PI;
-        break;
-      case '-x':
-        out.position.set(-shell.width / 2 + inset, 0, 0);
-        out.yaw = Math.PI / 2;
-        break;
-      default:
-        out.position.set(shell.width / 2 - inset, 0, 0);
-        out.yaw = -Math.PI / 2;
-    }
+    const inner = wallEnd(end.zone, end.wall);
+    out.position.copy(inner.position);
+    out.yaw = inner.yaw;
   } else if (end.at) {
     const at = end.at;
     const x = at[0];

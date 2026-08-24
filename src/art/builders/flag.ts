@@ -5,6 +5,7 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel } from '../clothMesh';
+import type { Fields } from '../schema';
 
 // A flag on a pole: sheer fabric pinned along its hoist, so it streams in wind,
 // seeks alignment and flutters about it — the flutter emerging from the dynamics
@@ -18,6 +19,7 @@ export interface FlagOptions extends BuildOptions {
 export const flag: BuilderWith<FlagOptions> = {
   name: 'flag',
   category: 'structures',
+  options: { fabric: { type: 'string' } } satisfies Fields,
   radius: 0.8,
 
   build({ seed = 1, scale = 1, fabric = 'sheer' }: FlagOptions = {}) {

@@ -3,6 +3,7 @@ import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
+import type { Fields } from '../schema';
 
 // A barrel: bellied staves with iron hoops, sometimes lying on its side. The
 // belly is three stacked sections, because a straight tube with hoops on it
@@ -20,6 +21,7 @@ export interface BarrelOptions extends BuildOptions {
 export const barrel: BuilderWith<BarrelOptions> = {
   name: 'barrel',
   category: 'objects',
+  options: { fallen: { type: 'boolean' } } satisfies Fields,
   radius: 0.55,
 
   build({ seed = 1, scale = 1, fallen: asked }: BarrelOptions = {}) {

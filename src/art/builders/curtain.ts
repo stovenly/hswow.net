@@ -5,6 +5,7 @@ import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel } from '../clothMesh';
+import type { Fields } from '../schema';
 
 // A curtain over a doorway: two jambs, a rod, and a drop of sheer cloth. The
 // jambs are the cloth's colliders, so a draught moves it without pushing it
@@ -18,6 +19,7 @@ export interface CurtainOptions extends BuildOptions {
 export const curtain: BuilderWith<CurtainOptions> = {
   name: 'curtain',
   category: 'structures',
+  options: { fabric: { type: 'string' } } satisfies Fields,
   radius: 0.9,
 
   build({ seed = 1, scale = 1, fabric = 'sheer' }: CurtainOptions = {}) {

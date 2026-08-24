@@ -1,0 +1,46 @@
+{
+  "id": "countryside-workshop",
+  "name": "Countryside Workshop Demo",
+  "group": "countryside",
+  "environment": { "base": "countryside-house" },
+  "spawn": { "at": [0, 0.1, 0.5], "yaw": 3.141592653589793 },
+  "floor": -5,
+  "shell": {
+    "width": 9,
+    "depth": 7,
+    "height": 3.2,
+    "seed": 4440,
+    "style": "house",
+    "planks": true,
+    "beams": 4
+  },
+  "entries": [
+    { "id": "window-s1", "kind": "prop", "builder": "window", "seed": 4441, "at": [-2.6, 3.4], "yaw": 3.141592653589793 },
+    { "id": "window-s2", "kind": "prop", "builder": "window", "seed": 4442, "at": [2.4, 3.4], "yaw": 3.141592653589793 },
+    { "id": "wheel", "kind": "prop", "builder": "spinning-wheel", "seed": 4443, "at": [-2.9, 2.4], "yaw": 2.670353755551324 },
+    { "id": "spinner", "kind": "creature", "builder": "figure", "seed": 4444, "roam": 1.5, "at": [-2.2, 1.6], "yaw": -0.7 },
+
+    { "id": "bench", "kind": "prop", "builder": "table", "seed": 4445, "at": [-2.6, -1.2], "yaw": 0.1 },
+    { "id": "stool-1", "kind": "prop", "builder": "stool", "seed": 4446, "at": [-1.6, -1.9], "yaw": 0.7 },
+    { "id": "stool-2", "kind": "prop", "builder": "stool", "seed": 4447, "at": [-3.3, -2.3], "yaw": 2.1 },
+    { "id": "washtub", "kind": "prop", "builder": "washtub", "seed": 4448, "at": [-3.8, -0.2], "yaw": 0.3 },
+
+    { "id": "stove", "kind": "prop", "builder": "stove", "seed": 4449, "at": [4.15, -2.9], "yaw": -1.5707963267948966 },
+
+    { "id": "crate-1", "kind": "prop", "builder": "crate", "seed": 4450, "at": [3.8, -1.1], "yaw": 0.1 },
+    { "id": "crate-2", "kind": "prop", "builder": "crate", "seed": 4451, "at": [3.75, 0.3], "yaw": 0.5 },
+    { "id": "crate-3", "kind": "prop", "builder": "crate", "seed": 4452, "at": [2.9, -2.1], "yaw": 0.9 },
+    { "id": "barrel-1", "kind": "prop", "builder": "barrel", "seed": 4453, "at": [3.9, 1.9], "yaw": 0 },
+    { "id": "barrel-2", "kind": "prop", "builder": "barrel", "seed": 4454, "at": [3.2, 2.7], "yaw": 0.4 },
+    { "id": "chest-1", "kind": "prop", "builder": "chest", "seed": 4455, "at": [3.6, -3.0], "yaw": 0.05 },
+
+    { "id": "herbs-e", "kind": "prop", "builder": "hanging-herbs", "seed": 4456, "at": [4.34, -0.2], "yaw": -1.5707963267948966 },
+    { "id": "herbs-w", "kind": "prop", "builder": "hanging-herbs", "seed": 4457, "at": [-4.34, 1.1], "yaw": 1.5707963267948966 },
+
+    { "id": "pegs", "kind": "prop", "builder": "wall-pegs", "seed": 4458, "at": [-1.6, -3.36], "yaw": 0 },
+    { "id": "broom", "kind": "prop", "builder": "broom", "seed": 4459, "at": [-2.4, -3.05], "yaw": -0.2 },
+
+    { "id": "candle-bench", "kind": "prop", "builder": "candle", "seed": 4460, "on": "bench", "at": [-2.35, -1.45], "yaw": 0.3 },
+    { "id": "lantern-crate", "kind": "prop", "builder": "lantern", "seed": 4461, "on": "crate-1", "at": [3.8, -1.1], "yaw": -0.6 }
+  ]
+}

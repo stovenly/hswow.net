@@ -3,6 +3,7 @@ import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng, type Rng } from '../random';
 import { PALETTE, shade } from '../palette';
+import type { Fields } from '../schema';
 
 // A run of post-and-rail fence, built to be joined to another. The pitch is fixed
 // at `FENCE_SECTION` whatever the seed rolls, and the last post is missing — the
@@ -118,6 +119,7 @@ function rail(a: PostShape, b: PostShape, y: number, sag: number, colour: number
 export const fence: BuilderWith<FenceOptions> = {
   name: 'fence',
   category: 'structures',
+  options: { sections: { type: 'int', min: 1, max: 4 }, run: { type: 'int' } } satisfies Fields,
   radius: (FENCE_MAX_SECTIONS * FENCE_SECTION) / 2,
 
   build({ seed = 1, scale = 1, sections, run }: FenceOptions = {}) {

@@ -3,6 +3,7 @@ import { buildQuadruped, canineHead, type Species } from '../quadruped';
 import { createRng } from '../random';
 import { PALETTE } from '../palette';
 import type { LifeOptions } from '../../life/spec';
+import type { Fields } from '../schema';
 
 // A dog: short, high off the ground, all head and tail. Deep at the chest, tucked
 // at the loin, a long neck carried up, a head with a stop, and a tail above the
@@ -43,6 +44,7 @@ const CANINE: Species = {
 export const dog: BuilderWith<LifeOptions> = {
   name: 'dog',
   category: 'animals',
+  options: { roam: { type: 'number', min: 0, max: 12, step: 0.1 }, face: { type: 'string' }, folk: { type: 'choice', options: ['country', 'city'] } } satisfies Fields,
   radius: 0.55,
   solid: false,
   build: (options = {}) =>

@@ -6,6 +6,7 @@ import { createRng } from '../random';
 import { rollActivity, LANTERN } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { castFlame, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
+import type { Fields } from '../schema';
 
 // A carried lantern: a flame in a box, with a ring to lift it by — brighter than
 // a candle, dimmer than a street lamp, and built to be looked at from every side.
@@ -25,6 +26,7 @@ const LIGHT_RANGE = 18;
 export const lantern: BuilderWith<FlameOptions> = {
   name: 'lantern',
   category: 'objects',
+  options: { shadows: { type: 'boolean' } } satisfies Fields,
   radius: 0.28,
 
   build({ seed = 1, scale = 1, shadows = false } = {}) {

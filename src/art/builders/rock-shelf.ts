@@ -2,6 +2,7 @@ import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { stoneColour, weathered, stoneLump, stoneChunk } from '../stone';
+import type { Fields } from '../schema';
 
 // A rock shelf: a low ledge of broken stone, laid to a line — what an authored
 // step in the terrain needs to stop looking like a ramp.
@@ -46,6 +47,7 @@ export const rockShelf: BuilderWith<RockShelfOptions> = {
   // Half the longest span plus the overhang: the end plates are centred *on*
   // the ends of the piece so two runs interlock across a join, which puts about
   // a third of a metre of stone past the pitch at each end.
+  options: { sections: { type: 'int', min: 1, max: 6 }, run: { type: 'int' } } satisfies Fields,
   radius: (SHELF_MAX_SECTIONS * SHELF_SECTION) / 2 + 0.7,
 
   build({ seed = 1, scale = 1, sections, run }: RockShelfOptions = {}) {

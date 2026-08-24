@@ -6,6 +6,7 @@ import { createRng } from '../random';
 import { rollActivity, CANDLE } from '../activity';
 import { PALETTE, shade } from '../palette';
 import { castFlame, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
+import type { Fields } from '../schema';
 
 // A candle on a dish, sometimes several, sometimes on a stick — the small light,
 // about one candela. Returns a `PointLight` at the flame and additive glow
@@ -29,6 +30,7 @@ const LIGHT_RANGE = 14;
 export const candle: BuilderWith<FlameOptions> = {
   name: 'candle',
   category: 'objects',
+  options: { shadows: { type: 'boolean' } } satisfies Fields,
   radius: 0.3,
 
   build({ seed = 1, scale = 1, shadows = false } = {}) {

@@ -1,4 +1,6 @@
 import type { ProjectCode } from '@engine/app/project';
+// Registers the environments and interior styles the documents name, at import.
+import './presets';
 import { ProvingGround, type SurfaceName } from './ProvingGround';
 import { createTestWorld, ZONE_COUNTRYSIDE } from './zones';
 import { STAGE_STATIONS } from './SoundStage';

@@ -6,6 +6,7 @@ import { PALETTE, shade } from '../palette';
 import { lettering } from '../lettering';
 import { ClothSim, type ClothCollider } from '../cloth';
 import { clothPanel, skinToCloth } from '../clothMesh';
+import type { Fields } from '../schema';
 
 // A cloth banner slung between two poles, with words across it. The panel is
 // simulated and pinned along the rope, and the lettering is skinned to the grid,
@@ -22,6 +23,7 @@ export interface BannerOptions extends BuildOptions {
 export const banner: BuilderWith<BannerOptions> = {
   name: 'banner',
   category: 'structures',
+  options: { text: { type: 'string' }, fabric: { type: 'string' } } satisfies Fields,
   radius: 1.6,
 
   build({ seed = 1, scale = 1, text = 'BANNER', fabric = 'canvas' }: BannerOptions = {}) {
