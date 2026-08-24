@@ -1,0 +1,38 @@
+{
+  "id": "demos",
+  "name": "Demo Showcase",
+  "group": "general",
+  "environment": {
+    "base": "outdoor",
+    "fogNear": 19.872000000000003,
+    "fogFar": 44.160000000000004,
+    "ambientGround": 12563096,
+    "surface": "stone",
+    "room": "open"
+  },
+  "spawn": {
+    "at": [
+      0,
+      0.1,
+      14
+    ],
+    "yaw": 0
+  },
+  "floor": -20,
+  "flat": {
+    "size": 96
+  },
+  "entries": [
+    {
+      "id": "hut",
+      "kind": "prop",
+      "builder": "hut",
+      "seed": 5511,
+      "at": [
+        -8,
+        0
+      ],
+      "yaw": 0
+    }
+  ]
+}

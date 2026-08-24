@@ -16,6 +16,9 @@ import { hazel } from '../art/builders/hazel';
 import { vistaRing, type VistaProp, type VistaScatter } from './vista-ring';
 import { edgeDressing, type DressingKind } from './dressing';
 import { shapeDistance, type PatchShape } from './ground';
+import { doorways, doorwayFront } from '../art/building';
+import { dilateOutline } from './vista';
+import { DOOR_PROUD } from './Portal';
 import { insidePolygon, layRun, place, scatterProps, along, type Point } from './placement';
 import {
   applyPlacement,
@@ -35,6 +38,9 @@ import {
   type PrefabEntry,
   type PropEntry,
   type RunEntry,
+  type Anchor,
+  type AvoidItem,
+  type ChainRun,
   type ScatterEntry,
   type SoundEntry,
   type SoundScatterEntry,
@@ -50,7 +56,6 @@ import {
  * here: it grows from terrain paint and from `cover` on a prop.
  */
 
-const _box = new THREE.Box3();
 
 function seedOf(entry: { seed?: number; id?: string }): number {
   if (entry.seed !== undefined) return entry.seed;
@@ -67,6 +72,64 @@ function needBuilder(name: string): NonNullable<ReturnType<typeof builderByName>
   const builder = builderByName(name);
   if (!builder) throw new Error(`no builder named "${name}"`);
   return builder;
+}
+
+const _bounds = new THREE.Box3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * A point, or a point taken off something already built.
+ *
+ * Document order is build order, so a referent is always finished by the time
+ * anything asks about it — which is what lets a wall butt against a jamb whose
+ * width was rolled from a seed.
+ */
+function pointOf(anchor: Anchor, ctx: EntryContext): Point {
+  if (Array.isArray(anchor)) return anchor as Point;
+  const ref = anchor as Exclude<Anchor, Point>;
+  const base = ctx.resolve(ref.ref);
+  if (!base) throw new Error(`nothing built with id "${ref.ref}"`);
+
+  let x = base.position.x;
+  let z = base.position.z;
+
+  if (ref.ahead !== undefined) {
+    const front = doorFront(base);
+    if (front) {
+      x = front.x + Math.sin(front.yaw) * ref.ahead;
+      z = front.z + Math.cos(front.yaw) * ref.ahead;
+    }
+  } else if (ref.edge) {
+    _bounds.setFromObject(base, true);
+    if (ref.edge === '+x') x = _bounds.max.x;
+    else if (ref.edge === '-x') x = _bounds.min.x;
+    else if (ref.edge === '+z') z = _bounds.max.z;
+    else z = _bounds.min.z;
+  }
+
+  if (ref.offset) {
+    x += ref.offset[0];
+    z += ref.offset[1];
+  }
+  return [x, z];
+}
+
+/**
+ * Where a door leaf stands in a building's first doorway, and which way it
+ * faces — in the zone's space.
+ *
+ * The standoff is taken along the doorway's own normal first and the whole
+ * offset is then turned by the building's yaw; the other order puts the leaf on
+ * a different wall.
+ */
+function doorFront(object: THREE.Object3D): { x: number; z: number; yaw: number } | null {
+  if (!(object instanceof THREE.Mesh)) return null;
+  const way = doorways(object)[0];
+  if (!way) return null;
+  const yaw = object.rotation.y;
+  const stand = doorwayFront(way, DOOR_PROUD);
+  const offset = new THREE.Vector3(stand.x, 0, stand.z).applyAxisAngle(UP, yaw);
+  return { x: object.position.x + offset.x, z: object.position.z + offset.z, yaw: yaw + way.yaw };
 }
 
 // --- prop -------------------------------------------------------------------
@@ -148,8 +211,11 @@ registerEntryKind<RunEntry>({
     const shape = runShape(entry.builder);
     const group = new THREE.Group();
     const seed = seedOf(entry);
-    let at = entry.points[0];
-    for (let i = 1; i < entry.points.length; i++) {
+    const points = entry.points.map((point) => pointOf(point, ctx));
+    let at = points[0];
+    let yaw = 0;
+    for (let i = 1; i < points.length; i++) {
+      yaw = along(at, points[i]).yaw;
       at = layRun(
         group,
         {
@@ -162,8 +228,13 @@ registerEntryKind<RunEntry>({
           groundAt: ctx.groundAt,
         },
         at,
-        entry.points[i],
+        points[i],
       );
+    }
+    // Rounding moves the far end, so a terminal post is placed where the run
+    // actually finished rather than where it was aimed.
+    if (entry.cap === 'post') {
+      place(group, fencePost.build({ seed: seed + 9, run: seed }), at[0], at[1], yaw, ctx.groundAt);
     }
     return group;
   },
@@ -202,87 +273,115 @@ registerEntryKind<ChainEntry>({
   build(entry, ctx) {
     const group = new THREE.Group();
     const seed = seedOf(entry);
-    let at: Point = entry.start;
+    const runs: readonly ChainRun[] =
+      entry.runs ?? [{ start: entry.start ?? [0, 0], edges: entry.edges ?? [] }];
 
-    for (let i = 0; i < entry.edges.length; i++) {
-      const edge = entry.edges[i];
-      const run = along(at, edge.to);
-      const shape = runShape(edge.kind === 'wall' ? 'stone-wall' : 'fence');
-      const runSeed = seed + i * 10;
-      const end = layRun(
-        group,
-        {
-          build: (pieceSeed, sections) => shape.build(pieceSeed, runSeed, sections),
-          pitch: shape.pitch,
-          most: shape.most,
-          seed: runSeed,
-          groundAt: ctx.groundAt,
-        },
-        at,
-        edge.to,
-      );
-      slab(group, at, end, ctx);
-
-      const next = entry.edges[i + 1];
-      if (!next) {
-        at = end;
-        break;
-      }
-
-      // A pier wherever stone is one of the two sides, a post where both are
-      // timber. The pier stands `COLUMN_REACH` past the run that arrives and
-      // the run that leaves starts the same distance the other side of it, so
-      // the masonry butts against its faces instead of into its middle.
-      if (edge.kind === 'wall' || next.kind === 'wall') {
-        const centre: Point = [end[0] + run.ux * COLUMN_REACH, end[1] + run.uz * COLUMN_REACH];
-        const stand = wallHeight(createRng(runSeed + 7)) + 0.3;
-        place(
-          group,
-          stoneWallSquareColumn.build({ seed: runSeed + 7, height: stand }),
-          centre[0],
-          centre[1],
-          run.yaw,
-          ctx.groundAt,
-        );
-        const out = along(centre, next.to);
-        at = [centre[0] + out.ux * COLUMN_REACH, centre[1] + out.uz * COLUMN_REACH];
-      } else {
-        place(
-          group,
-          fencePost.build({ seed: runSeed + 7, run: runSeed }),
-          end[0],
-          end[1],
-          run.yaw,
-          ctx.groundAt,
-        );
-        at = end;
-      }
-    }
+    const ends: Point[] = [];
+    const starts: Point[] = [];
+    runs.forEach((run, index) => {
+      const first = pointOf(run.start, ctx);
+      starts.push(first);
+      ends.push(layOneChain(group, run.seed ?? seed + index * 200, first, run.edges, ctx));
+    });
 
     if (entry.close === 'hedge') {
-      const from = at;
-      const to = entry.start;
-      const { ux, uz, length, yaw } = along(from, to);
-      const gaps = Math.max(1, Math.round(length / HEDGE_PITCH));
-      place(group, fencePost.build({ seed, run: seed }), from[0], from[1], yaw, ctx.groundAt);
-      place(group, fencePost.build({ seed: seed + 1, run: seed }), to[0], to[1], yaw, ctx.groundAt);
-      for (let i = 0; i < gaps; i++) {
-        const d = ((i + 0.5) / gaps) * length;
-        place(
-          group,
-          hazel.build({ seed: seed + 10 + i }),
-          from[0] + ux * d,
-          from[1] + uz * d,
-          i * 1.3,
-          ctx.groundAt,
-        );
-      }
-      slab(group, from, to, ctx);
+      // One chain closes back on itself; several close end to end, which is
+      // what a boundary laid outward from a gateway leaves.
+      const from = ends[ends.length - 1];
+      const to = runs.length > 1 ? ends[0] : starts[0];
+      layHedge(group, entry.closeSeed ?? seed + 600, from, to, ctx);
     }
 
     return group;
   },
 });
+
+/** Lays one chain of runs, cornering between them, and returns where it stopped. */
+function layOneChain(
+  group: THREE.Object3D,
+  seed: number,
+  start: Point,
+  edges: readonly { to: Anchor; kind: 'wall' | 'fence' }[],
+  ctx: EntryContext,
+): Point {
+  let at = start;
+  for (let i = 0; i < edges.length; i++) {
+    const edge = edges[i];
+    const to = pointOf(edge.to, ctx);
+    const run = along(at, to);
+    const shape = runShape(edge.kind === 'wall' ? 'stone-wall' : 'fence');
+    const runSeed = seed + i * 10;
+    const end = layRun(
+      group,
+      {
+        build: (pieceSeed, sections) => shape.build(pieceSeed, runSeed, sections),
+        pitch: shape.pitch,
+        most: shape.most,
+        seed: runSeed,
+        groundAt: ctx.groundAt,
+      },
+      at,
+      to,
+    );
+    slab(group, at, end, ctx);
+
+    const next = edges[i + 1];
+    if (!next) return end;
+
+    // A pier wherever stone is one of the two sides, a post where both are
+    // timber. The pier stands `COLUMN_REACH` past the run that arrives and the
+    // run that leaves starts the same distance the other side of it, so the
+    // masonry butts against its faces instead of into its middle.
+    if (edge.kind === 'wall' || next.kind === 'wall') {
+      const centre: Point = [end[0] + run.ux * COLUMN_REACH, end[1] + run.uz * COLUMN_REACH];
+      const stand = wallHeight(createRng(runSeed + 7)) + 0.3;
+      place(
+        group,
+        stoneWallSquareColumn.build({ seed: runSeed + 7, height: stand }),
+        centre[0],
+        centre[1],
+        run.yaw,
+        ctx.groundAt,
+      );
+      const out = along(centre, pointOf(next.to, ctx));
+      at = [centre[0] + out.ux * COLUMN_REACH, centre[1] + out.uz * COLUMN_REACH];
+    } else {
+      place(
+        group,
+        fencePost.build({ seed: runSeed + 7, run: runSeed }),
+        end[0],
+        end[1],
+        run.yaw,
+        ctx.groundAt,
+      );
+      at = end;
+    }
+  }
+  return at;
+}
+
+/**
+ * The closing stretch, and the only run that can be any length: the chains
+ * finish where their rounding puts them and this divides the gap evenly.
+ */
+function layHedge(group: THREE.Object3D, seed: number, from: Point, to: Point, ctx: EntryContext): void {
+  const { ux, uz, length, yaw } = along(from, to);
+  const gaps = Math.max(1, Math.round(length / HEDGE_PITCH));
+  place(group, fencePost.build({ seed, run: seed }), from[0], from[1], yaw, ctx.groundAt);
+  place(group, fencePost.build({ seed: seed + 1, run: seed }), to[0], to[1], yaw, ctx.groundAt);
+  for (let i = 0; i < gaps; i++) {
+    const d = ((i + 0.5) / gaps) * length;
+    place(
+      group,
+      hazel.build({ seed: seed + 10 + i }),
+      from[0] + ux * d,
+      from[1] + uz * d,
+      i * 1.3,
+      ctx.groundAt,
+    );
+  }
+  slab(group, from, to, ctx);
+}
 
 // --- scatter ----------------------------------------------------------------
 
@@ -292,8 +391,7 @@ registerEntryKind<ScatterEntry>({
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
     const group = new THREE.Group();
-    const avoid =
-      typeof entry.avoid === 'string' ? circlesOf(ctx.regions[entry.avoid] ?? []) : entry.avoid;
+    const avoid = avoidCircles(entry.avoid, ctx);
     const region = entry.region ? ctx.regions[entry.region] : undefined;
     const inset = entry.inset ?? 2;
 
@@ -325,6 +423,28 @@ registerEntryKind<ScatterEntry>({
   },
 });
 
+/** Everything a scatter is told to stay off, as circles. */
+function avoidCircles(
+  avoid: string | readonly AvoidItem[] | undefined,
+  ctx: EntryContext,
+): readonly (readonly [number, number, number])[] {
+  if (!avoid) return [];
+  if (typeof avoid === 'string') return circlesOf(ctx.regions[avoid] ?? []);
+  const out: (readonly [number, number, number])[] = [];
+  for (const item of avoid) {
+    if (typeof item === 'string') {
+      out.push(...circlesOf(ctx.regions[item] ?? []));
+    } else if (Array.isArray(item)) {
+      out.push(item as readonly [number, number, number]);
+    } else {
+      const ref = item as { ref: string; radius: number; ahead?: number };
+      const at = pointOf({ ref: ref.ref, ahead: ref.ahead }, ctx);
+      out.push([at[0], at[1], ref.radius]);
+    }
+  }
+  return out;
+}
+
 /** A region as circles, for the scatter rule's cheap avoidance test. */
 function circlesOf(shapes: readonly PatchShape[]): readonly (readonly [number, number, number])[] {
   const out: (readonly [number, number, number])[] = [];
@@ -349,7 +469,7 @@ registerEntryKind<BarrierEntry>({
   build(entry, ctx) {
     const group = new THREE.Group();
     if (entry.from && entry.to) {
-      slab(group, entry.from, entry.to, ctx, entry.height ?? BARRIER_HEIGHT);
+      slab(group, pointOf(entry.from, ctx), pointOf(entry.to, ctx), ctx, entry.height ?? BARRIER_HEIGHT);
       return group;
     }
     const size = entry.size ?? [2, entry.height ?? BARRIER_HEIGHT, 2];
@@ -530,15 +650,15 @@ registerEntryKind<SoundEntry>({
     const spec = { ...entry.spec } as Record<string, unknown>;
     if (entry.ref) {
       const base = ctx.resolve(entry.ref);
-      if (base) {
-        _box.setFromObject(base, true);
-        const lift = entry.lift ?? 0;
-        spec.at = [base.position.x, (_box.isEmpty() ? base.position.y : _box.max.y) + lift, base.position.z];
-      }
+      // Above the referent's foot, not its top: a forge's fire is a height on
+      // the forge, and a canopy's rustle is a height up the tree.
+      if (base) spec.at = [base.position.x, base.position.y + (entry.lift ?? 0), base.position.z];
     } else if (entry.at) {
       const at = entry.at;
       spec.at =
-        at.length >= 3 ? [at[0], at[1], at[2]] : [at[0], ctx.groundAt(at[0], at[1]) + 1, at[1]];
+        at.length >= 3
+          ? [at[0], at[1], at[2]]
+          : [at[0], ctx.groundAt(at[0], at[1]) + (entry.lift ?? 0), at[1]];
     }
     if (entry.id && spec.id === undefined) spec.id = entry.id;
     ctx.collected.emitters.push(spec as never);
@@ -550,7 +670,19 @@ registerEntryKind<SoundScatterEntry>({
   kind: 'soundScatter',
   defaults: () => ({ spec: { sound: { model: 'bird' }, at: [0, 1, 0], spread: 12, every: 30 } }),
   build(entry, ctx) {
-    ctx.collected.scatters.push(entry.spec);
+    const spec = { ...entry.spec } as Record<string, unknown>;
+    if (entry.ref) {
+      const base = ctx.resolve(entry.ref);
+      if (base) spec.at = [base.position.x, base.position.y + (entry.lift ?? 0), base.position.z];
+    } else if (entry.at) {
+      const at = entry.at;
+      spec.at =
+        at.length >= 3
+          ? [at[0], at[1], at[2]]
+          : [at[0], ctx.groundAt(at[0], at[1]) + (entry.lift ?? 0), at[1]];
+    }
+    if (entry.id && spec.id === undefined) spec.id = entry.id;
+    ctx.collected.scatters.push(spec as never);
     return null;
   },
 });
@@ -566,7 +698,7 @@ registerEntryKind<VistaRingEntry>({
       typeof entry.keepOut === 'string'
         ? ctx.regions[entry.keepOut]
         : entry.keepOut
-          ? dilate(ctx.skirt.outline, entry.keepOut.dilate)
+          ? dilateOutline(ctx.skirt.outline, entry.keepOut.dilate)
           : undefined;
     return vistaRing({
       skirt: ctx.skirt,
@@ -588,21 +720,6 @@ function namedVistaProp(raw: Record<string, unknown>): VistaProp {
 function namedVistaScatter(raw: Record<string, unknown>): VistaScatter {
   const { builder, ...rest } = raw as { builder: string } & Record<string, unknown>;
   return { builder: needBuilder(builder), ...rest } as VistaScatter;
-}
-
-/** The outline grown outward, for a keep-out nothing else states. */
-function dilate(outline: readonly PatchShape[], by: number): readonly PatchShape[] {
-  return outline.map((shape) => {
-    if (shape.kind === 'blot') return { ...shape, radius: shape.radius + by };
-    if (shape.kind === 'field') {
-      return {
-        ...shape,
-        min: [shape.min[0] - by, shape.min[1] - by] as const,
-        max: [shape.max[0] + by, shape.max[1] + by] as const,
-      };
-    }
-    return { ...shape, width: shape.width + by * 2 };
-  });
 }
 
 registerEntryKind<DressingEntry>({

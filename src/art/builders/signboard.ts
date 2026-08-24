@@ -4,6 +4,7 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import { lettering } from '../lettering';
+import type { Fields } from '../schema';
 
 // A standing sign: two posts, a planked board between them, and real lettering
 // from `art/lettering`, sized to be read from two to four metres. `text` rides in
@@ -18,6 +19,7 @@ export interface SignboardOptions extends BuildOptions {
 export const signboard: MeshBuilder = {
   name: 'signboard',
   category: 'structures',
+  options: { text: { type: 'string' } } satisfies Fields,
   radius: 1.0,
 
   build({ seed = 1, scale = 1, text = 'SIGNBOARD' }: SignboardOptions = {}) {

@@ -1,9 +1,8 @@
 import * as THREE from 'three';
-import { buildInterior, HOUSE_STYLE, WORKS_STYLE } from '@engine/world/interior';
+import { buildInterior, WORKS_STYLE } from '@engine/world/interior';
 import { markCollidable } from '@engine/player/Collider';
 import { PALETTE, shade } from '@engine/art/palette';
 import {
-  HUT_ROOM_SHELL,
   FACTORY,
   ENGINE_X,
   ENGINE_Z,
@@ -13,167 +12,25 @@ import {
 } from './zones';
 // Builders are imported directly rather than through `art/registry`, which is
 // Vite-only. The headless zone check reaches this file through esbuild.
-import { crate } from '@engine/art/builders/crate';
-import { barrel } from '@engine/art/builders/barrel';
-import { bed } from '@engine/art/builders/bed';
-import { table } from '@engine/art/builders/table';
-import { chair } from '@engine/art/builders/chair';
-import { stool } from '@engine/art/builders/stool';
-import { figure } from '@engine/art/builders/figure';
 import { machine } from '@engine/art/builders/machine';
 import { sink } from '@engine/art/builders/sink';
-import { candle } from '@engine/art/builders/candle';
 import { floodlight } from '@engine/art/builders/floodlight';
 import { pipes } from '@engine/art/builders/pipes';
 import { tank } from '@engine/art/builders/tank';
 import { vent } from '@engine/art/builders/vent';
 import { railing } from '@engine/art/builders/railing';
 import { chainlink } from '@engine/art/builders/chainlink';
-import { fireplace } from '@engine/art/builders/fireplace';
-import { stove } from '@engine/art/builders/stove';
-import { windowBuilder } from '@engine/art/builders/window';
-import { dresser } from '@engine/art/builders/dresser';
-import { chest } from '@engine/art/builders/chest';
-import { washtub } from '@engine/art/builders/washtub';
-import { broom } from '@engine/art/builders/broom';
-import { hangingHerbs } from '@engine/art/builders/hanging-herbs';
-import { spinningWheel } from '@engine/art/builders/spinning-wheel';
-import { wallPegs } from '@engine/art/builders/wall-pegs';
 import { hoist } from '@engine/art/builders/hoist';
-import { lantern } from '@engine/art/builders/lantern';
 
 /**
- * The geometry of the two hub interiors, in its own chunk. The dimensions and
- * the machine placements stay in `zones.ts`, because the portals and the
- * factory soundscape are built from them at boot — see `PIPE_RUN`.
- */
-
-/**
- * A small timber room: floor, four walls, ceiling, and somebody's things in it.
+ * The factory hall's geometry, in its own chunk. The dimensions and the machine
+ * placements stay in `zones.ts`, because the portals and the factory soundscape
+ * are built from them at boot — see `PIPE_RUN`.
  *
- * Furnished rather than empty, because an empty sealed box proves the zone
- * system works and proves nothing about whether it is worth having. A bed
- * against one wall, a table with chairs pulled up to it and a figure standing
- * by are what make walking through the door land as arriving somewhere.
- *
- * Everything is placed by hand. An editor or a JSON file would be doing exactly
- * this from data — the point is that the placement is the only thing that would
- * move.
+ * The last hand-placed interior. Its roof trusses are raw boxes in a private
+ * material rather than art-kit builders, so there is no builder name a document
+ * could put in the room.
  */
-export function buildVillagerHut(): THREE.Group {
-  const root = new THREE.Group();
-  root.add(
-    buildInterior({ ...HUT_ROOM_SHELL, seed: 4400, style: HOUSE_STYLE, planks: true, beams: 3 }),
-  );
-
-  const halfW = HUT_ROOM_SHELL.width / 2;
-  const halfD = HUT_ROOM_SHELL.depth / 2;
-
-  // --- a room somebody lives in --------------------------------------------
-  //
-  // Arranged around the fireplace, because a hearth is not furniture — it is the
-  // thing a room is *organised by*. The seating faces it, the bed is out of its
-  // draught, the work that needs light is under the windows, and the storage is
-  // in the dead corner behind the door.
-  //
-  // The door is in the north wall at x = 0, so the strip in front of it is kept
-  // clear: you have to be able to walk forward off the arrival marker, and it is
-  // also simply how a room works.
-
-  // The hearth, central on the west wall and facing into the room. Built with
-  // its back at z = 0 projecting +Z, so a quarter turn puts it against −X.
-  place(root, fireplace.build({ seed: 8801 }), -halfW + 0.12, 0, 0.4, Math.PI / 2);
-
-  // Two windows in the south wall, either side of centre. Facing −Z, into the
-  // room. They are the reason the south half is where the daytime work happens.
-  place(root, windowBuilder.build({ seed: 8810 }), -2.6, 0, halfD - 0.1, Math.PI);
-  place(root, windowBuilder.build({ seed: 8811 }), 2.4, 0, halfD - 0.1, Math.PI);
-
-  // The stove on the east wall — a second, smaller heat source at the far end
-  // from the hearth, which is what a room this long would actually have.
-  place(root, stove.build({ seed: 8820 }), halfW - 0.35, 0, -1.6, -Math.PI / 2);
-
-  // Bed in the north-west corner: out of the hearth's radiant heat, out of the
-  // window light, and away from the door. Beds are built lying along Z, so the
-  // west wall needs no rotation.
-  place(root, bed.build({ seed: 3120 }), -halfW + 0.95, 0, -2.5, 0);
-  // The chest at its foot, which is where a chest goes.
-  const foot = chest.build({ seed: 8830 });
-  place(root, foot, -halfW + 1.0, 0, -1.0, 0.06);
-
-  // Table and seating pulled in toward the fire rather than pushed to the far
-  // wall. Two chairs and a stool round it, the chairs on the hearth side.
-  const board = table.build({ seed: 2077 });
-  place(root, board, 0.6, 0, 0.9, 0.08);
-  place(root, chair.build({ seed: 411 }), -0.5, 0, 1.5, Math.PI * 0.4);
-  place(root, chair.build({ seed: 412 }), 0.9, 0, -0.4, 0.1);
-  place(root, stool.build({ seed: 413 }), 1.7, 0, 0.4, 0.4);
-  // One drawn up to the fire itself, turned to face it.
-  place(root, stool.build({ seed: 415 }), -halfW + 1.6, 0, 0.2, -0.5);
-
-  // The spinning wheel under the west window, because it is the piece that
-  // most needs light to work at — and putting it there is the cheapest way to
-  // say the windows are for something.
-  place(root, spinningWheel.build({ seed: 8840 }), -2.9, 0, halfD - 2.2, Math.PI * 0.85);
-
-  // A side table against the south wall between the windows, with the clutter.
-  const side = table.build({ seed: 2078 });
-  place(root, side, -0.2, 0, halfD - 0.8, Math.PI);
-
-  // The dresser on the north wall, east of the door, facing into the room.
-  place(root, dresser.build({ seed: 8850 }), 2.6, 0, -halfD + 0.35, 0);
-
-  // Washing in the corner by the hearth, where the water would be heated.
-  place(root, washtub.build({ seed: 8860 }), -halfW + 0.75, 0, 3.3, 0.4);
-  // Herbs drying on the wall above it — the overhead register, and the only
-  // thing in the room whose geometry starts above head height.
-  place(root, hangingHerbs.build({ seed: 8870 }), -halfW + 0.16, 0, 2.4, Math.PI / 2);
-  // Pegs by the door, where coats come off.
-  place(root, wallPegs.build({ seed: 8880 }), -1.5, 0, -halfD + 0.14, 0);
-  // And the broom leaning beside them.
-  place(root, broom.build({ seed: 8890 }), -2.3, 0, -halfD + 0.45, 0.25);
-
-  // Somebody home. Static, but a room
-  // with a person standing in it reads completely differently from one without,
-  // and this is the fixture the animation work will be judged against. Stood at
-  // the table rather than in open floor, which is where a person actually is.
-  place(root, figure.build({ seed: 6602, roam: 1.2 }), 0.4, 0, 2.1, Math.PI * 0.9);
-
-  // Storage in the dead corner behind the door, which is where it goes in a
-  // real room: the space nobody walks through and nobody sits in.
-  const crateA = crate.build({ seed: 61 });
-  place(root, crateA, halfW - 0.9, 0, -halfD + 1.0, 0.4);
-  // One crate, not two. A crate rolls very nearly a metre across, and there is
-  // nowhere left in a ten-by-eight room with a hearth, a stove, a dresser and
-  // two windows in it that a second metre-wide box can stand without fouling
-  // something.
-  place(root, barrel.build({ seed: 67 }), halfW - 0.7, 0, -0.2, 0.2);
-
-  // --- light you can see ---------------------------------------------------
-  //
-  // The interior's own lighting is a sun at a tenth strength and a generous
-  // ambient — enough to read the room by and no reason for any of it. These are
-  // the reason: four small sources, each standing on something, so the light in
-  // here is *coming from* things rather than being a property of the air.
-  //
-  // Four rather than a dozen. Each carries a `PointLight`, and every one is
-  // another iteration in the shader for every lit fragment in the room. Four
-  // gives the space a direction and a couple of pools of warmth; a candle on
-  // every surface costs real frames to read as "the lights are on".
-  //
-  // Stood on measured surfaces rather than at guessed heights — see `topOf`.
-  place(root, candle.build({ seed: 7101 }), 0.75, topOf(board), 0.65, 0.6);
-  place(root, candle.build({ seed: 7102 }), -0.35, topOf(side), halfD - 0.85, -0.4);
-  // On a crate rather than beside it. A lantern on the floor of a room this
-  // size lights the boards and nothing else; up on a box it reaches the wall.
-  place(root, lantern.build({ seed: 7103 }), halfW - 0.95, topOf(crateA), -halfD + 1, 0.9);
-  // And one genuinely on the floor, by the bed, where somebody set it down.
-  // Standing *on* the chest at the foot of the bed, not inside it. Read off
-  // the chest's own geometry rather than assumed — the lid height is rolled.
-  place(root, lantern.build({ seed: 7104 }), -halfW + 1.05, topOf(foot), -1.05, -0.5);
-
-  return markCollidable(root);
-}
 
 /**
  * Inside the factory: a large stone hall with engines in it. The machinery is
@@ -345,18 +202,6 @@ export function buildFactory(): THREE.Group {
   place(root, floodlight.build({ seed: 5503 }), 1.2, 0, -0.6, Math.PI / 2);
 
   return markCollidable(root);
-}
-
-/**
- * The height of the top of a placed prop, in its parent's space. Measured off
- * the geometry rather than looked up: every builder rolls its own dimensions
- * from its seed — a table is between 0.68 and 0.78 m tall — so a constant here
- * would be correct for one seed and put a candle through the boards for every
- * other.
- */
-function topOf(mesh: THREE.Mesh): number {
-  mesh.geometry.computeBoundingBox();
-  return (mesh.geometry.boundingBox?.max.y ?? 0) + mesh.position.y;
 }
 
 function place(

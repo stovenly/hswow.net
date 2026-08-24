@@ -1,0 +1,77 @@
+{
+  "portals": [
+    {
+      "id": "countryside-cottage-door",
+      "a": {
+        "zone": "countryside-village",
+        "doorOf": "hut-cottage"
+      },
+      "b": {
+        "zone": "countryside-cottage",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8811
+    },
+    {
+      "id": "countryside-workshop-door",
+      "a": {
+        "zone": "countryside-village",
+        "doorOf": "hut-workshop"
+      },
+      "b": {
+        "zone": "countryside-workshop",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8812
+    },
+    {
+      "id": "countryside-store-door",
+      "a": {
+        "zone": "countryside-village",
+        "doorOf": "hut-store"
+      },
+      "b": {
+        "zone": "countryside-store",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8813
+    },
+    {
+      "id": "countryside-gate",
+      "a": {
+        "zone": "demos",
+        "at": [
+          -18,
+          0
+        ],
+        "yaw": 0
+      },
+      "b": {
+        "zone": "countryside-village",
+        "at": [
+          0,
+          22
+        ],
+        "yaw": 3.1415927
+      },
+      "material": "timber",
+      "seed": 4713
+    },
+    {
+      "id": "hut-door",
+      "a": {
+        "zone": "demos",
+        "doorOf": "hut"
+      },
+      "b": {
+        "zone": "villager-hut",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8801
+    }
+  ]
+}

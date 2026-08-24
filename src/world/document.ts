@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { SoundscapeSpec } from '../audio/Soundscape';
 import { buildInterior, interiorStyleByName } from './interior';
 import { markCollidable } from '../player/Collider';
-import { flatGround } from './floor';
+import { flatGround, type FlatGroundOptions } from './floor';
 import { Terrain, type TerrainOptions } from './terrain';
 import { Skirt, type SkirtOptions } from './vista';
 import type { PatchShape } from './ground';
@@ -72,6 +72,8 @@ export interface ZoneDocument {
   terrain?: TerrainSpec;
   skirt?: Omit<SkirtOptions, 'terrain'>;
   shell?: ShellSpec;
+  /** A gridded plane, for a zone that is neither a heightfield nor a room. */
+  flat?: { size?: number } & FlatGroundOptions;
   /** Named lists of shapes, so a scatter or a ring can name one. */
   regions?: Record<string, readonly PatchShape[]>;
   /** Composed sets of entries this zone places by name. */
@@ -122,6 +124,11 @@ interface Registered {
 }
 
 const registry = new Map<string, Registered>();
+
+/** The ground height a document's terrain gives, for anything measuring into it. */
+export function groundOf(zone: string, x: number, z: number): number {
+  return registry.get(zone)?.groundAt(x, z) ?? 0;
+}
 
 /** The shell a document declares, for anything placing a door in its wall. */
 export function shellOf(zone: string): ShellSpec | null {
@@ -202,7 +209,8 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = NO_STATE
       ground.name = 'terrain';
       root.add(markCollidable(ground));
     } else if (!shell) {
-      root.add(flatGround());
+      const { size, ...rest } = doc.flat ?? {};
+      root.add(flatGround(size, rest));
     }
     // The skirt is out of bounds by definition: seen, never walked on.
     if (skirt) root.add(skirt.build());

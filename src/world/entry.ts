@@ -137,28 +137,57 @@ export interface CreatureEntry extends EntryBase {
   options?: Record<string, unknown>;
 }
 
+/**
+ * A point, or a point taken off something already built.
+ *
+ * `edge` is the referent's world extent along that axis, which is how a wall
+ * butts against an arch's jamb without anyone knowing how wide the arch rolled.
+ * `ahead` steps out of the referent's first doorway, which is how a scatter
+ * keeps off the ground you land on stepping out of a house.
+ */
+export type Anchor =
+  | Point
+  | {
+      ref: string;
+      edge?: '+x' | '-x' | '+z' | '-z';
+      ahead?: number;
+      offset?: Point;
+    };
+
 export interface RunEntry extends EntryBase {
   kind: 'run';
   builder: string;
   seed?: number;
-  points: readonly Point[];
+  points: readonly Anchor[];
   /** Metres per section, when the builder's own pitch is not wanted. */
   pitch?: number;
   most?: number;
+  /** A post on the far end, where rounding leaves it. */
+  cap?: 'post';
 }
 
 export interface ChainEdge {
-  to: Point;
+  to: Anchor;
   kind: 'wall' | 'fence';
+}
+
+export interface ChainRun {
+  start: Anchor;
+  edges: readonly ChainEdge[];
+  /** Its own seed, so a boundary's two halves are dressed independently. */
+  seed?: number;
 }
 
 export interface ChainEntry extends EntryBase {
   kind: 'chain';
   seed?: number;
-  start: Point;
-  edges: readonly ChainEdge[];
-  /** Closes the loop with a hedge run back to `start`. */
+  /** One chain. Several are `runs`, and `close` joins their far ends in order. */
+  start?: Anchor;
+  edges?: readonly ChainEdge[];
+  runs?: readonly ChainRun[];
+  /** Closes the gap with a hedge: one chain back to its start, several end to end. */
   close?: 'hedge';
+  closeSeed?: number;
 }
 
 export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
@@ -171,8 +200,11 @@ export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
   maxSlope?: number;
   minHeight?: number;
   maxHeight?: number;
-  /** A region name, or circles as `[x, z, radius]`. */
-  avoid?: string | readonly (readonly [number, number, number])[];
+  /**
+   * Where not to place: a region name, a circle as `[x, z, radius]`, or a
+   * clearance round something built.
+   */
+  avoid?: string | readonly AvoidItem[];
   /** Metres of clearance from the level outline. */
   inset?: number;
   /** A region name the candidates must fall inside. */
@@ -181,10 +213,15 @@ export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
   scale?: readonly [number, number];
 }
 
+export type AvoidItem =
+  | readonly [number, number, number]
+  | string
+  | { ref: string; radius: number; ahead?: number };
+
 export interface BarrierEntry extends EntryBase {
   kind: 'barrier';
-  from?: Point;
-  to?: Point;
+  from?: Anchor;
+  to?: Anchor;
   height?: number;
   /** The box form: `at` plus half-extents. */
   size?: readonly [number, number, number];
@@ -247,12 +284,15 @@ export interface SoundEntry extends EntryBase {
   spec: Record<string, unknown>;
   /** Anchored to a built entry rather than to a coordinate. */
   ref?: string;
+  /** Metres above the referent's foot, or above the ground under a flat `at`. */
   lift?: number;
 }
 
 export interface SoundScatterEntry extends EntryBase {
   kind: 'soundScatter';
   spec: ScatterSpec;
+  ref?: string;
+  lift?: number;
 }
 
 export interface VistaRingEntry extends EntryBase {

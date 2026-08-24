@@ -3,9 +3,7 @@ import { type ZoneDefinition, OUTDOOR_ENVIRONMENT, INDOOR_ENVIRONMENT } from '@e
 import type { SoundscapeSpec } from '@engine/audio/Soundscape';
 import type { PortalDefinition, PortalEnd } from '@engine/world/Portal';
 import { ProvingGround, SPAWN } from './ProvingGround';
-import { countrysideZone } from './countryside-village';
-import { demoZone, demoHallPortal, demoPortals } from './demos';
-import { countrysideHomePortals } from './countryside-homes';
+import { demoHallPortal, demoPortals } from './demos';
 import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
@@ -40,7 +38,7 @@ import { chainZones, chainPortals } from './chains';
 export const ZONE_EXTERIOR = 'exterior';
 export const ZONE_HUT = 'villager-hut';
 export const ZONE_FACTORY = 'factory';
-export { ZONE_COUNTRYSIDE } from './countryside-village';
+export { ZONE_COUNTRYSIDE } from './countryside';
 
 /**
  * The door to the Demo Showcase, directly ahead of spawn. A portal you have to
@@ -78,7 +76,6 @@ const PROP_YAW = Math.PI;
  */
 // Roomy rather than snug: at eye height a room needs enough floor that you can
 // walk *around* something, not just past it.
-export const HUT_ROOM_SHELL = { width: 10, depth: 8, height: 3.4 };
 export const FACTORY = { width: 15, depth: 11, height: 5.6 };
 
 /**
@@ -290,39 +287,6 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     },
 
     {
-      id: ZONE_HUT,
-      name: 'Countryside Village Interior Demo',
-      group: 'countryside',
-      environment: {
-        ...INDOOR_ENVIRONMENT,
-        room: 'cell',
-        surface: 'wood',
-        // Warm, and light enough to see the far corners.
-        fogColor: '#181309',
-        fogNear: 9,
-        fogFar: 34,
-        ambientSky: 0xa2977c,
-        ambientGround: 0x574c3c,
-        ambientIntensity: 2.3,
-        sunIntensity: 1.2,
-        fillIntensity: 0.8,
-        fillColor: 0xa08c6a,
-        firstPersonReverb: 0.45,
-        // The hut's windows are on its south wall and its north is the world's,
-        // so the sun takes them square at noon.
-        bearing: 0,
-      },
-      // Only reached if something goes wrong — arriving through the door puts
-      // you on the portal's marker instead. Placed in the middle of the floor
-      // so it is obvious when it has been used.
-      spawn: { position: new THREE.Vector3(0, 0.1, 1), yaw: Math.PI },
-      // The floor is at y = 0 and the room is sealed, so anything below this is
-      // a bug rather than a fall — but the recovery still has to exist.
-      floor: -5,
-      load: () => import('./interiors.build').then((m) => m.buildVillagerHut),
-    },
-
-    {
       id: ZONE_FACTORY,
       name: 'Industrial Factory Interior Demo',
       group: 'industrial',
@@ -360,9 +324,6 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
       load: () => import('./interiors.build').then((m) => m.buildFactory),
     },
 
-    // The antechamber every finished place hangs off, and the places themselves.
-    demoZone(),
-    countrysideZone(),
     // Two chains of rooms hung off the hut and the factory, three deep. They
     // exist so that somewhere in the world is more than two doors from the hub
     // — see `chains.ts`, and the residency check in `check:world`.
@@ -382,28 +343,13 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
     // And every door out of that room. The interior ends are ours because the
     // shells are — `demos.ts` knows what hangs off it and nothing about the far
     // side of its own doors.
-    ...demoPortals(
-      {
-        zone: ZONE_HUT,
-        // Set into the north wall, facing back into the room. This is the way
-        // out — the same portal read from the other end.
-        position: new THREE.Vector3(0, 0, -HUT_ROOM_SHELL.depth / 2 + DOOR_PROUD),
-        yaw: 0,
-        material: 'timber',
-        seed: 8802,
-      },
-      {
-        zone: ZONE_FACTORY,
-        position: new THREE.Vector3(0, 0, -FACTORY.depth / 2 + DOOR_PROUD),
-        yaw: 0,
-        material: 'iron',
-        seed: 9302,
-      },
-    ),
-    // The doors in the three open houses. The exterior owns where they stand
-    // and the homes own what is behind them, so neither can be authored without
-    // the other agreeing.
-    ...countrysideHomePortals(),
+    ...demoPortals({
+      zone: ZONE_FACTORY,
+      position: new THREE.Vector3(0, 0, -FACTORY.depth / 2 + DOOR_PROUD),
+      yaw: 0,
+      material: 'iron',
+      seed: 9302,
+    }),
     ...chainPortals(ZONE_FACTORY, ZONE_HUT),
   ];
 
