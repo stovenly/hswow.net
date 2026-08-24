@@ -1,0 +1,20 @@
+{
+  "id": "document-test",
+  "name": "Document Test Room",
+  "group": "general",
+  "environment": {
+    "base": "indoor",
+    "vibe": "village interior 1"
+  },
+  "spawn": { "at": [0, 0.1, 2.5], "yaw": "north" },
+  "floor": -5,
+  "shell": { "width": 8, "depth": 7, "height": 3, "seed": 41 },
+  "entries": [
+    { "id": "table-1", "kind": "prop", "builder": "table", "seed": 1201, "at": [-1.4, -1.2], "yaw": "east" },
+    { "id": "candle-1", "kind": "prop", "builder": "candle", "seed": 1202, "on": "table-1" },
+    { "id": "chair-1", "kind": "prop", "builder": "chair", "seed": 1203, "at": [-1.4, 0.2], "yaw": "north" },
+    { "id": "crate-1", "kind": "prop", "builder": "crate", "seed": 1204, "at": [2.6, -2.1], "yaw": 0.4 },
+    { "id": "barrel-1", "kind": "prop", "builder": "barrel", "seed": 1205, "at": [3.0, -0.6], "yaw": 1.1 },
+    { "id": "shelf-1", "kind": "prop", "builder": "bookshelf", "seed": 1206, "at": [0, -3.0], "yaw": "south" }
+  ]
+}

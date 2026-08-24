@@ -45,6 +45,13 @@ export interface PortalDefinition {
  */
 export const ARRIVAL_STANDOFF = 1.15;
 
+/**
+ * How far a door leaf stands proud of the wall it hangs in, in metres. One
+ * number, here: a room whose door is placed from one figure and whose walls are
+ * built from another has its way out inside a wall.
+ */
+export const DOOR_PROUD = 0.07;
+
 /** Unit vector the door faces. */
 export function doorFacing(yaw: number, out = new THREE.Vector3()): THREE.Vector3 {
   return out.set(Math.sin(yaw), 0, Math.cos(yaw));

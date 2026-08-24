@@ -1,0 +1,412 @@
+import * as THREE from 'three';
+import type { SoundscapeSpec } from '../audio/Soundscape';
+import { buildInterior } from './interior';
+import { markCollidable } from '../player/Collider';
+import { flatGround } from './floor';
+import { Terrain, type TerrainOptions } from './terrain';
+import { Skirt, type SkirtOptions } from './vista';
+import type { PatchShape } from './ground';
+import { DOOR_PROUD, type PortalDefinition, type PortalEnd } from './Portal';
+import { doorways, doorwayFront } from '../art/building';
+import {
+  OUTDOOR_ENVIRONMENT,
+  type Placement,
+  type ZoneDefinition,
+  type ZoneEnvironment,
+  type ZoneGroup,
+} from './Zone';
+import { environmentByName } from './environments';
+import type { ZonePlace } from './climate';
+import type { Point } from './placement';
+import {
+  emptyCollected,
+  entryKind,
+  holds,
+  NO_STATE,
+  tagEntry,
+  yawOf,
+  type Collected,
+  type Entry,
+  type EntryContext,
+  type PropEntry,
+  type ShellSpec,
+  type WorldState,
+  type Yaw,
+} from './entry';
+import { needBuilder, seedOf } from './kinds';
+
+/**
+ * The interpreter. A zone document in, a `ZoneDefinition` out.
+ *
+ * Every commit is document to world, one direction. Nothing here reads the
+ * scene graph back into the file.
+ */
+
+export interface EnvironmentSpec extends Partial<Omit<ZoneEnvironment, 'soundscape'>> {
+  /** A preset registered in code. The rest of the block is overrides on it. */
+  base?: string;
+}
+
+export interface SculptLayer {
+  file: string;
+  resolution?: number;
+}
+
+export interface TerrainSpec extends Omit<TerrainOptions, 'landforms'> {
+  landforms?: TerrainOptions['landforms'];
+  sculpt?: SculptLayer;
+  paint?: SculptLayer;
+  coverPaint?: SculptLayer;
+}
+
+export interface ZoneDocument {
+  id: string;
+  name: string;
+  group?: ZoneGroup;
+  /** Where on the map, in kilometres. Presence puts the zone under the weather. */
+  place?: ZonePlace;
+  environment?: EnvironmentSpec;
+  spawn?: { at: readonly number[]; yaw?: Yaw };
+  floor?: number;
+  soundscape?: SoundscapeSpec;
+  terrain?: TerrainSpec;
+  skirt?: Omit<SkirtOptions, 'terrain'>;
+  shell?: ShellSpec;
+  /** Named lists of shapes, so a scatter or a ring can name one. */
+  regions?: Record<string, readonly PatchShape[]>;
+  /** Composed sets of entries this zone places by name. */
+  prefabs?: Record<string, readonly Entry[]>;
+  layers?: readonly Layer[];
+  /** Loose entries, for a zone with nothing conditional in it. */
+  entries?: readonly Entry[];
+  /** Keeps this zone's geometry out of the boot bundle. */
+  split?: boolean;
+}
+
+export interface Layer {
+  name: string;
+  when?: import('./entry').Condition;
+  entries: readonly Entry[];
+}
+
+export interface PortalManifest {
+  portals?: readonly ManifestPortal[];
+}
+
+export interface ManifestPortal {
+  id: string;
+  a: ManifestEnd;
+  b: ManifestEnd;
+  seed?: number;
+  material?: PortalEnd['material'];
+  label?: string;
+}
+
+export interface ManifestEnd {
+  zone: string;
+  /** Stood at the door anchor of a placed building. */
+  doorOf?: string;
+  /** Put in a shell wall, facing in. */
+  wall?: '+x' | '-x' | '+z' | '-z';
+  at?: readonly number[];
+  yaw?: Yaw;
+  arrival?: { at: readonly number[]; yaw?: Yaw };
+}
+
+/** What a portal end needs to know about a zone, without building it. */
+interface Registered {
+  doc: ZoneDocument;
+  terrain: Terrain | null;
+  shell: ShellSpec | null;
+  groundAt(x: number, z: number): number;
+}
+
+const registry = new Map<string, Registered>();
+
+const layersOf = (doc: ZoneDocument): readonly Layer[] =>
+  doc.layers ?? [{ name: 'main', entries: doc.entries ?? [] }];
+
+export function zoneFromDocument(doc: ZoneDocument, state: WorldState = NO_STATE): ZoneDefinition {
+  const base = environmentByName(doc.environment?.base ?? 'outdoor') ?? OUTDOOR_ENVIRONMENT;
+  // Mutable on purpose: anchored emitters are resolved as the zone is built,
+  // and the manager reads this after `build()` has run.
+  const soundscape: SoundscapeSpec = {
+    bed: doc.soundscape?.bed,
+    emitters: [...(doc.soundscape?.emitters ?? [])],
+    scatter: [...(doc.soundscape?.scatter ?? [])],
+  };
+  const environment: ZoneEnvironment = {
+    ...base,
+    ...stripUndefined(doc.environment ?? {}),
+    soundscape,
+  };
+  delete (environment as { base?: string }).base;
+
+  const terrain = doc.terrain ? new Terrain(terrainOptions(doc.terrain)) : null;
+  const skirt = terrain && doc.skirt ? new Skirt({ ...doc.skirt, terrain }) : null;
+  const shell = doc.shell ?? null;
+  const groundAt = (x: number, z: number): number => (terrain ? terrain.heightAt(x, z) : 0);
+
+  const collected: Collected = emptyCollected();
+  const spawnAt = doc.spawn?.at ?? [0, 0];
+  const spawn: Placement = {
+    position: new THREE.Vector3(
+      spawnAt[0],
+      spawnAt.length >= 3 ? spawnAt[1] : groundAt(spawnAt[0], spawnAt[1]) + 0.1,
+      spawnAt.length >= 3 ? spawnAt[2] : spawnAt[1],
+    ),
+    yaw: yawOf(doc.spawn?.yaw),
+  };
+
+  registry.set(doc.id, { doc, terrain, shell, groundAt });
+
+  const build = (): THREE.Group => {
+    const root = new THREE.Group();
+    // Rebuilt from empty on every build, or a second build doubles the volumes
+    // and the emitters the manager reads back.
+    collected.emitters.length = 0;
+    collected.scatters.length = 0;
+    collected.fogVolumes.length = 0;
+    collected.glitches.length = 0;
+    collected.horrors.length = 0;
+    for (const spec of doc.soundscape?.emitters ?? []) collected.emitters.push(spec);
+    for (const spec of doc.soundscape?.scatter ?? []) collected.scatters.push(spec);
+
+    if (terrain) {
+      const ground = terrain.build();
+      ground.name = 'terrain';
+      root.add(markCollidable(ground));
+    } else if (!shell) {
+      root.add(flatGround());
+    }
+    // The skirt is out of bounds by definition: seen, never walked on.
+    if (skirt) root.add(skirt.build());
+    if (shell) {
+      root.add(
+        markCollidable(buildInterior({
+          width: shell.width,
+          depth: shell.depth,
+          height: shell.height,
+          seed: shell.seed,
+          style: shell.style as never,
+          planks: shell.planks,
+          beams: shell.beams,
+          thickness: shell.thickness,
+        })),
+      );
+    }
+
+    const byId = new Map<string, THREE.Object3D>();
+
+    const ctx: EntryContext = {
+      zone: doc.id,
+      root,
+      terrain,
+      skirt,
+      shell,
+      groundAt,
+      slopeAt: (x, z) => (terrain ? terrain.slopeAt(x, z) : 0),
+      regions: doc.regions ?? {},
+      outline: outlineOf(doc),
+      resolve: (id) => byId.get(id),
+      collected,
+      state,
+      prefabs: doc.prefabs ?? {},
+      expand: (entries, parent, prefix, seed) => run(entries, parent, prefix, seed),
+    };
+
+    const run = (
+      entries: readonly Entry[],
+      parent: THREE.Object3D,
+      prefix: string,
+      seedOffset: number,
+    ): void => {
+      for (const entry of entries) {
+        if (!holds(entry.when, state)) continue;
+        const kind = entryKind(entry.kind);
+        if (!kind) throw new Error(`zone "${doc.id}": no entry kind "${entry.kind}"`);
+        const id = `${prefix}${entry.id ?? entry.kind}`;
+        const shifted =
+          seedOffset === 0
+            ? entry
+            : ({ ...entry, seed: (entry as { seed?: number }).seed !== undefined
+                ? ((entry as { seed?: number }).seed as number) + seedOffset
+                : undefined } as Entry);
+        const object = kind.build(shifted as never, ctx);
+        if (!object) continue;
+        tagEntry(object, doc.id, id);
+        byId.set(id, object);
+        parent.add(object);
+      }
+    };
+
+    for (const layer of layersOf(doc)) {
+      if (!holds(layer.when, state)) continue;
+      run(layer.entries, root, '', 0);
+    }
+
+    // The manager reads these off the definition after `build()`. Copied rather
+    // than aliased so a rebuild cannot leave the previous pass's volumes live.
+    soundscape.emitters = [...collected.emitters];
+    soundscape.scatter = [...collected.scatters];
+    return root;
+  };
+
+  return {
+    id: doc.id,
+    name: doc.name,
+    group: doc.group,
+    environment,
+    place: doc.place,
+    spawn,
+    floor: doc.floor,
+    surfaceAt: terrain ? (x, z) => terrain.stepAt(x, z) : undefined,
+    groundAt: terrain ? (x, z) => terrain.heightAt(x, z) : undefined,
+    get fogVolumes() {
+      return collected.fogVolumes;
+    },
+    get glitches() {
+      return collected.glitches;
+    },
+    get horrors() {
+      return collected.horrors;
+    },
+    build,
+  };
+}
+
+function stripUndefined<T extends object>(value: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== undefined) out[key] = item;
+  }
+  return out as Partial<T>;
+}
+
+function terrainOptions(spec: TerrainSpec): TerrainOptions {
+  return { ...spec, landforms: spec.landforms ?? [] };
+}
+
+/** The level's outline as a closed polygon, when its skirt or terrain states one. */
+function outlineOf(doc: ZoneDocument): readonly Point[] | null {
+  const shapes = doc.skirt?.outline ?? doc.regions?.outline;
+  if (!shapes) return null;
+  const points: Point[] = [];
+  for (const shape of shapes) {
+    if (shape.kind === 'path') points.push(...shape.through.map((p) => [p[0], p[1]] as Point));
+  }
+  return points.length >= 3 ? points : null;
+}
+
+// --- portals ----------------------------------------------------------------
+
+export function portalsFromManifest(manifest: PortalManifest): PortalDefinition[] {
+  return (manifest.portals ?? []).map((portal) => ({
+    id: portal.id,
+    a: endOf(portal.a, portal),
+    b: endOf(portal.b, portal),
+  }));
+}
+
+function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
+  const out: PortalEnd = {
+    zone: end.zone,
+    position: new THREE.Vector3(),
+    yaw: yawOf(end.yaw),
+    material: portal.material,
+    seed: portal.seed,
+    label: portal.label,
+  };
+
+  if (end.doorOf) {
+    const anchor = doorwayAnchor(end.zone, end.doorOf);
+    out.position.copy(anchor.position);
+    out.yaw = anchor.yaw;
+  } else if (end.wall) {
+    const shell = registry.get(end.zone)?.shell;
+    if (!shell) throw new Error(`zone "${end.zone}" has no shell for wall "${end.wall}"`);
+    const inset = DOOR_PROUD;
+    // The door faces back into the room, so its yaw is the inward normal.
+    switch (end.wall) {
+      case '-z':
+        out.position.set(0, 0, -shell.depth / 2 + inset);
+        out.yaw = 0;
+        break;
+      case '+z':
+        out.position.set(0, 0, shell.depth / 2 - inset);
+        out.yaw = Math.PI;
+        break;
+      case '-x':
+        out.position.set(-shell.width / 2 + inset, 0, 0);
+        out.yaw = Math.PI / 2;
+        break;
+      default:
+        out.position.set(shell.width / 2 - inset, 0, 0);
+        out.yaw = -Math.PI / 2;
+    }
+  } else if (end.at) {
+    const at = end.at;
+    const x = at[0];
+    const z = at.length >= 3 ? at[2] : at[1];
+    const y = at.length >= 3 ? at[1] : (registry.get(end.zone)?.groundAt(x, z) ?? 0);
+    out.position.set(x, y, z);
+  }
+
+  if (end.arrival) {
+    const at = end.arrival.at;
+    out.arrival = {
+      position: new THREE.Vector3(at[0], at.length >= 3 ? at[1] : 0, at.length >= 3 ? at[2] : at[1]),
+      yaw: yawOf(end.arrival.yaw),
+    };
+  }
+
+  return out;
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * Where a door leaf stands in a placed building's first doorway.
+ *
+ * The building is built once here and thrown away rather than read off the
+ * zone: a portal has to be placed before anybody has entered either side, and a
+ * doorway measured from a different seed is a way out inside a wall.
+ *
+ * The standoff is taken along the doorway's own normal first and the whole
+ * offset is then turned by the building's yaw — the other order puts the leaf on
+ * a different wall.
+ */
+function doorwayAnchor(zone: string, entryId: string): { position: THREE.Vector3; yaw: number } {
+  const registered = registry.get(zone);
+  if (!registered) throw new Error(`no zone document "${zone}"`);
+  const entry = findEntry(registered.doc, entryId);
+  if (!entry || entry.kind !== 'prop') {
+    throw new Error(`zone "${zone}" has no placed building "${entryId}"`);
+  }
+  const prop = entry as PropEntry;
+  const builder = needBuilder(prop.builder);
+  const mesh = builder.build({ seed: seedOf(prop), scale: prop.scale });
+  const way = doorways(mesh)[0];
+  mesh.geometry.dispose();
+  if (!way) throw new Error(`"${prop.builder}" has no doorway for portal end "${entryId}"`);
+
+  const yaw = yawOf(prop.yaw);
+  const stand = doorwayFront(way, DOOR_PROUD);
+  const offset = new THREE.Vector3(stand.x, 0, stand.z).applyAxisAngle(UP, yaw);
+  const at = prop.at ?? [0, 0];
+  const baseX = at[0];
+  const baseZ = at.length >= 3 ? at[2] : at[1];
+  const x = baseX + offset.x;
+  const z = baseZ + offset.z;
+  return {
+    position: new THREE.Vector3(x, registered.groundAt(x, z), z),
+    yaw: yaw + way.yaw,
+  };
+}
+
+function findEntry(doc: ZoneDocument, id: string): Entry | undefined {
+  for (const layer of layersOf(doc)) {
+    for (const entry of layer.entries) if (entry.id === id) return entry;
+  }
+  return undefined;
+}

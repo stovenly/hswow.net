@@ -14,6 +14,7 @@ import { createDevTools, type DevTools } from '../dev/DevPanel';
 import { Identify } from '../dev/Identify';
 import { ZoneManager } from '../world/ZoneManager';
 import type { Project } from './project';
+import { contentWorld } from './content';
 import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction } from '../world/Interaction';
@@ -133,7 +134,15 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
   // preferences on one machine. Separate store, separate lifetime.
   const options = loadOptions();
 
-  const world = (await project.world?.(loader)) ?? { zones: [], portals: [] };
+  // Documents first, then the project's code zones: a portal end reads the
+  // document zone it stands in, and the manager throws on a link to a zone it
+  // has not been given.
+  const documents = contentWorld(project.id);
+  const code = (await project.world?.(loader)) ?? { zones: [], portals: [] };
+  const world = {
+    zones: [...documents.zones, ...code.zones],
+    portals: [...documents.portals, ...code.portals],
+  };
   for (const definition of world.zones) zones.register(definition);
   // Linked after every zone is registered — a portal to an unregistered zone
   // throws here rather than when somebody opens the door.

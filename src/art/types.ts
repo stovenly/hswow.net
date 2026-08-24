@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Fields } from './schema';
 
 /**
  * The art kit's contract. Every buildable thing in the world is one of these: a
@@ -75,6 +76,8 @@ export interface MeshBuilder {
    * reliable way to make a world feel like a set of boxes.
    */
   readonly solid?: boolean;
+  /** Set by extended builders — see `BuilderWith`. */
+  readonly options?: Fields;
   build(options?: BuildOptions): THREE.Mesh;
 }
 
@@ -85,5 +88,7 @@ export interface MeshBuilder {
  * option to say, so a placer's section count is checked rather than dropped.
  */
 export interface BuilderWith<Options extends BuildOptions> extends MeshBuilder {
+  /** What the extras are, so a form can draw controls for them. */
+  readonly options?: Fields;
   build(options?: Options): THREE.Mesh;
 }

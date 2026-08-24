@@ -1,0 +1,431 @@
+import * as THREE from 'three';
+import type { Fields } from '../art/schema';
+import type { SurfaceName } from '../audio/models/footsteps';
+import type { EmitterSpec } from '../audio/Soundscape';
+import type { ScatterSpec } from '../audio/Scatter';
+import type { FogVolume } from '../engine/FogVolumes';
+import type { GlitchPlacement } from '../engine/Glitch';
+import type { HorrorPlacement } from '../engine/Horror';
+import type { CoverName, GroundName, PatchShape } from './ground';
+import type { Terrain } from './terrain';
+import type { Skirt } from './vista';
+import type { GroundAt, Point } from './placement';
+
+/**
+ * What a zone document is made of, and the table that turns one entry into
+ * geometry.
+ *
+ * The file stores what the authoring vocabulary *says*, never what the scene
+ * graph contains. A prop is a builder name, a seed and a placement; a fence is a
+ * polyline; a scatter is a rule. The world is derived on every build, and
+ * builders are seeded, so the derivation is repeatable forever.
+ */
+
+// --- placement --------------------------------------------------------------
+
+/**
+ * A compass word instead of radians. A builder faces +Z, and `rotateY(θ)` takes
+ * +Z to `(sin θ, 0, cos θ)`, so +Z is south and the four fall out of that.
+ */
+export const COMPASS = {
+  south: 0,
+  east: Math.PI / 2,
+  north: Math.PI,
+  west: -Math.PI / 2,
+  southeast: Math.PI / 4,
+  northeast: (Math.PI * 3) / 4,
+  northwest: (-Math.PI * 3) / 4,
+  southwest: -Math.PI / 4,
+} as const;
+
+export type Compass = keyof typeof COMPASS;
+export type Yaw = number | Compass;
+
+export function yawOf(yaw: Yaw | undefined, fallback = 0): number {
+  if (yaw === undefined) return fallback;
+  return typeof yaw === 'number' ? yaw : (COMPASS[yaw] ?? fallback);
+}
+
+/** Shared by every placed entry. */
+export interface EntryPlacement {
+  /** `[x, z]` settles onto the ground; `[x, y, z]` is absolute. */
+  at?: readonly number[];
+  /** Stood on the top of the entry with this id, measured after it is built. */
+  on?: string;
+  yaw?: Yaw;
+  /** YXZ about the foot, when pitch or roll is needed. Wins over `yaw`. */
+  rotation?: readonly [number, number, number];
+  /** The builder contract's uniform scale. */
+  scale?: number;
+  /** Per-axis, applied to the finished mesh. Loud on purpose. */
+  stretch?: readonly [number, number, number];
+}
+
+// --- conditions -------------------------------------------------------------
+
+export type Condition =
+  | { flag: string }
+  | { quest: string; stage: { min?: number; max?: number } }
+  | { not: Condition }
+  | { all: readonly Condition[] }
+  | { any: readonly Condition[] };
+
+/** What conditions are evaluated against. A dev-panel stub until quests exist. */
+export interface WorldState {
+  flag(name: string): boolean;
+  stage(quest: string): number;
+}
+
+export const NO_STATE: WorldState = {
+  flag: () => false,
+  stage: () => 0,
+};
+
+export function holds(condition: Condition | undefined, state: WorldState): boolean {
+  if (!condition) return true;
+  if ('flag' in condition) return state.flag(condition.flag);
+  if ('quest' in condition) {
+    const at = state.stage(condition.quest);
+    const { min, max } = condition.stage;
+    return (min === undefined || at >= min) && (max === undefined || at <= max);
+  }
+  if ('not' in condition) return !holds(condition.not, state);
+  if ('all' in condition) return condition.all.every((one) => holds(one, state));
+  return condition.any.some((one) => holds(one, state));
+}
+
+// --- entries ----------------------------------------------------------------
+
+export interface EntryBase extends EntryPlacement {
+  /**
+   * Minted once by the editor and never re-minted. What `on`, emitter anchors,
+   * portal ends and the player-state override layer point at.
+   */
+  id?: string;
+  kind: string;
+  when?: Condition;
+  /** Which layer this belongs to. Set by the interpreter, not by the file. */
+  layer?: string;
+}
+
+export interface PropEntry extends EntryBase {
+  kind: 'prop';
+  builder: string;
+  seed?: number;
+  /** The builder's own extras, checked against its runtime option schema. */
+  options?: Record<string, unknown>;
+  /** Overrides the builder's own answer. */
+  solid?: boolean;
+  label?: string;
+  /** A note id, for a readable. */
+  text?: string;
+  /** Overrides the footstep surface for this mesh's triangles. */
+  underfoot?: SurfaceName;
+  /** Grows groundcover on it. The wall types only exist this way. */
+  cover?: CoverName;
+  /** Treated as ground by `prepare()`: receives shadow, casts none. */
+  ground?: boolean;
+}
+
+export interface CreatureEntry extends EntryBase {
+  kind: 'creature';
+  builder: string;
+  seed?: number;
+  roam?: number;
+  folk?: string;
+  face?: string;
+  options?: Record<string, unknown>;
+}
+
+export interface RunEntry extends EntryBase {
+  kind: 'run';
+  builder: string;
+  seed?: number;
+  points: readonly Point[];
+  /** Metres per section, when the builder's own pitch is not wanted. */
+  pitch?: number;
+  most?: number;
+}
+
+export interface ChainEdge {
+  to: Point;
+  kind: 'wall' | 'fence';
+}
+
+export interface ChainEntry extends EntryBase {
+  kind: 'chain';
+  seed?: number;
+  start: Point;
+  edges: readonly ChainEdge[];
+  /** Closes the loop with a hedge run back to `start`. */
+  close?: 'hedge';
+}
+
+export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
+  kind: 'scatter';
+  builder: string;
+  seed?: number;
+  count: number;
+  within: number;
+  from?: Point;
+  maxSlope?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  /** A region name, or circles as `[x, z, radius]`. */
+  avoid?: string | readonly (readonly [number, number, number])[];
+  /** Metres of clearance from the level outline. */
+  inset?: number;
+  /** A region name the candidates must fall inside. */
+  region?: string;
+  /** Uniform scale range, rolled per instance. */
+  scale?: readonly [number, number];
+}
+
+export interface BarrierEntry extends EntryBase {
+  kind: 'barrier';
+  from?: Point;
+  to?: Point;
+  height?: number;
+  /** The box form: `at` plus half-extents. */
+  size?: readonly [number, number, number];
+}
+
+export interface PrefabEntry extends EntryBase {
+  kind: 'prefab';
+  prefab: string;
+  seed?: number;
+}
+
+export interface GroundEntry extends EntryBase {
+  kind: 'ground';
+  shape?: readonly PatchShape[];
+  /** The plain slab form. */
+  size?: readonly [number, number];
+  y?: number;
+  material?: GroundName;
+  cover?: CoverName;
+  thickness?: number;
+  underfoot?: SurfaceName;
+}
+
+export interface WaterEntry extends EntryBase {
+  kind: 'water';
+  width: number;
+  depth: number;
+  chop?: number;
+  flow?: readonly [number, number];
+  segment?: number;
+}
+
+export interface ParticlesEntry extends EntryBase {
+  kind: 'particles';
+  seed?: number;
+  spec: Record<string, unknown>;
+}
+
+export interface FogVolumeEntry extends EntryBase, Omit<FogVolume, 'center' | 'size' | 'drift'> {
+  kind: 'fogVolume';
+  center: readonly [number, number, number];
+  size: readonly [number, number, number];
+  drift?: readonly [number, number];
+}
+
+export interface EffectVolumeEntry extends EntryBase {
+  kind: 'glitch' | 'horror';
+  shape: 'box' | 'ellipsoid';
+  center: readonly [number, number, number];
+  size: readonly [number, number, number];
+  strength: number;
+  seed?: number;
+  tempo?: number;
+  weights?: readonly number[];
+  grounded?: boolean;
+}
+
+export interface SoundEntry extends EntryBase {
+  kind: 'sound';
+  spec: Record<string, unknown>;
+  /** Anchored to a built entry rather than to a coordinate. */
+  ref?: string;
+  lift?: number;
+}
+
+export interface SoundScatterEntry extends EntryBase {
+  kind: 'soundScatter';
+  spec: ScatterSpec;
+}
+
+export interface VistaRingEntry extends EntryBase {
+  kind: 'vistaRing';
+  seed?: number;
+  band: { inner: number; outer: number };
+  /** A region name, or a dilation of the level outline. */
+  keepOut?: string | { dilate: number };
+  place?: readonly Record<string, unknown>[];
+  scatter?: readonly Record<string, unknown>[];
+  chunk?: number;
+}
+
+export interface DressingEntry extends EntryBase {
+  kind: 'dressing';
+  seed?: number;
+  band: { inner: number; outer: number };
+  solidWithin?: number;
+  kinds: readonly Record<string, unknown>[];
+}
+
+export type Entry =
+  | PropEntry
+  | CreatureEntry
+  | RunEntry
+  | ChainEntry
+  | ScatterEntry
+  | BarrierEntry
+  | PrefabEntry
+  | GroundEntry
+  | WaterEntry
+  | ParticlesEntry
+  | FogVolumeEntry
+  | EffectVolumeEntry
+  | SoundEntry
+  | SoundScatterEntry
+  | VistaRingEntry
+  | DressingEntry
+  | (EntryBase & Record<string, unknown>);
+
+// --- the build context ------------------------------------------------------
+
+export interface ShellSpec {
+  width: number;
+  depth: number;
+  height: number;
+  seed?: number;
+  style?: string;
+  planks?: boolean;
+  beams?: number;
+  thickness?: number;
+}
+
+/** What a kind's `build` is handed. Everything a zone knows about itself. */
+export interface EntryContext {
+  zone: string;
+  root: THREE.Group;
+  terrain: Terrain | null;
+  skirt: Skirt | null;
+  shell: ShellSpec | null;
+  groundAt: GroundAt;
+  slopeAt(x: number, z: number): number;
+  /** Named regions the document declared, for anything that names one. */
+  regions: Record<string, readonly PatchShape[]>;
+  /** The level's outline as a closed polygon, when it has one. */
+  outline: readonly Point[] | null;
+  /** An entry built earlier in this pass. */
+  resolve(id: string): THREE.Object3D | undefined;
+  /** What an entry adds to the zone as a whole. */
+  collected: Collected;
+  state: WorldState;
+  /** Prefab bodies, by name. */
+  prefabs: Record<string, readonly Entry[]>;
+  /** Builds a nested list of entries into `parent` — how a prefab expands. */
+  expand(entries: readonly Entry[], parent: THREE.Object3D, prefix: string, seed: number): void;
+}
+
+/** Everything an entry can contribute that is not geometry. */
+export interface Collected {
+  emitters: EmitterSpec[];
+  scatters: ScatterSpec[];
+  fogVolumes: FogVolume[];
+  glitches: GlitchPlacement[];
+  horrors: HorrorPlacement[];
+}
+
+export function emptyCollected(): Collected {
+  return { emitters: [], scatters: [], fogVolumes: [], glitches: [], horrors: [] };
+}
+
+// --- the kind table ---------------------------------------------------------
+
+export interface EntryKind<E extends Entry = never> {
+  kind: string;
+  /** Fields the inspector renders, beyond the placement every entry has. */
+  schema?: Fields;
+  /** Builds the entry, or returns null when it contributes no geometry. */
+  build(entry: E, ctx: EntryContext): THREE.Object3D | null;
+  /** For kinds with no mesh of their own: what the editor draws instead. */
+  gizmo?(entry: E, ctx: EntryContext): THREE.Object3D | null;
+  /** Where the palette lists it, and what it offers. */
+  palette?: { tab: string; list(): readonly string[] };
+}
+
+const kinds = new Map<string, EntryKind<never>>();
+
+/**
+ * Adds a kind. The interpreter, the inspector, the palette, the outliner icons
+ * and the pick path all read this table; nothing else knows the list of kinds.
+ */
+export function registerEntryKind<E extends Entry>(kind: EntryKind<E>): void {
+  kinds.set(kind.kind, kind as unknown as EntryKind<never>);
+}
+
+export function entryKind(name: string): EntryKind<never> | undefined {
+  return kinds.get(name);
+}
+
+export function entryKinds(): readonly EntryKind<never>[] {
+  return [...kinds.values()];
+}
+
+// --- shared placement -------------------------------------------------------
+
+const _bounds = new THREE.Box3();
+
+/**
+ * Puts a built object where its entry says. Position, then rotation about the
+ * foot, then stretch — in that order, because a rotation applied after a
+ * translation turns about the wrong point.
+ */
+export function applyPlacement(
+  object: THREE.Object3D,
+  entry: EntryPlacement,
+  ctx: Pick<EntryContext, 'groundAt' | 'resolve'>,
+): void {
+  const at = entry.at;
+  let x = 0;
+  let z = 0;
+  let y: number | null = null;
+
+  if (at && at.length >= 2) {
+    x = at[0];
+    z = at.length >= 3 ? at[2] : at[1];
+    if (at.length >= 3) y = at[1];
+  }
+
+  if (entry.on) {
+    const base = ctx.resolve(entry.on);
+    if (base) {
+      if (!at || at.length < 2) {
+        x = base.position.x;
+        z = base.position.z;
+      }
+      _bounds.setFromObject(base, true);
+      y = _bounds.isEmpty() ? base.position.y : _bounds.max.y;
+    }
+  }
+
+  object.position.set(x, y ?? ctx.groundAt(x, z), z);
+
+  if (entry.rotation) {
+    object.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2], 'YXZ');
+  } else {
+    object.rotation.set(0, yawOf(entry.yaw), 0);
+  }
+
+  if (entry.stretch) {
+    object.scale.set(entry.stretch[0], entry.stretch[1], entry.stretch[2]);
+  }
+}
+
+/** Tags a subtree so a pick can name the entry it came from. */
+export function tagEntry(object: THREE.Object3D, zone: string, id: string): void {
+  object.userData.entry = { zone, id };
+}

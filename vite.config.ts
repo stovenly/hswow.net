@@ -34,6 +34,15 @@ function projectModule(pinned: string | null): Plugin {
   const RESOLVED = '\0' + VIRTUAL;
   return {
     name: 'hswow:project',
+    configureServer(server) {
+      // A document dropped into a project is a new zone, and the module that
+      // lists them was resolved before it existed.
+      server.watcher.on('add', (file) => {
+        if (!file.includes('content')) return;
+        const module = server.moduleGraph.getModuleById(RESOLVED);
+        if (module) server.moduleGraph.invalidateModule(module);
+      });
+    },
     resolveId(id) {
       return id === VIRTUAL ? RESOLVED : undefined;
     },
@@ -43,7 +52,18 @@ function projectModule(pinned: string | null): Plugin {
       const head: string[] = [];
       const configs: string[] = [];
       const loaders: string[] = [];
+      const content: string[] = [];
       names.forEach((name, i) => {
+        const dir = `/${PROJECTS}/${name}/content`;
+        content.push(
+          [
+            `  ${JSON.stringify(name)}: {`,
+            `    zones: import.meta.glob('${dir}/zones/*.json', { eager: true, import: 'default' }),`,
+            `    world: import.meta.glob('${dir}/world.json', { eager: true, import: 'default' }),`,
+            `    sidecars: import.meta.glob('${dir}/zones/*.{r32,u8}', { eager: true, query: '?url', import: 'default' }),`,
+            `  },`,
+          ].join('\n'),
+        );
         head.push(`import config${i} from '/${PROJECTS}/${name}/project.json';`);
         configs.push(`  ${JSON.stringify(name)}: config${i},`);
         if (!hasCode(name)) {
@@ -62,6 +82,7 @@ function projectModule(pinned: string | null): Plugin {
         ...head,
         `export const configs = {\n${configs.join('\n')}\n};`,
         `export const loaders = {\n${loaders.join('\n')}\n};`,
+        `export const content = {\n${content.join('\n')}\n};`,
         `export const only = ${pinned ? JSON.stringify(pinned) : 'null'};`,
       ].join('\n');
     },
