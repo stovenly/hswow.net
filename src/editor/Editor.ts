@@ -20,6 +20,7 @@ import { Visualisers, type ViewFlags } from './visualisers';
 import { Shapes, groundPoint, type ShapeKind } from './shapes';
 import { PortalTool } from './portals';
 import { Terraform, type Brush } from './terraform';
+import { LayerPanel } from './layerPanel';
 import { findIn } from './transform';
 import {
   addEntry,
@@ -76,6 +77,7 @@ export class Editor {
   readonly shapes: Shapes;
   readonly portalTool: PortalTool;
   readonly terraform: Terraform;
+  readonly layerPanel: LayerPanel;
 
   private current: EditorMode = 'fly';
   private readonly modeToggles: Record<EditorMode, Toggle>;
@@ -178,6 +180,22 @@ export class Editor {
       editPoints: (points, onChange) => this.shapes.edit(points, onChange),
     });
 
+    this.layerPanel = new LayerPanel(this.gui, this.session, {
+      changed: () => {
+        const zone = app.zones.current?.id;
+        if (zone) void this.session.rebuildNow(zone);
+        this.visualisers.invalidate();
+      },
+      selected: () => this.selectedIds(),
+      setLayerVisible: (zone, layer, visible) => {
+        for (const row of this.session.entries(zone)) {
+          if (row.layer !== layer || !row.entry.id) continue;
+          const object = this.objectFor(row.entry.id);
+          if (object) object.visible = visible;
+        }
+      },
+    });
+
     this.zonePanel = new ZonePanel(this.gui, this.session, {
       rebuilt: () => {},
       newZone: (kind) => this.newZone(kind),
@@ -213,12 +231,14 @@ export class Editor {
       this.refreshOutliner();
       this.zonePanel.refresh();
       this.terrainPanel.refresh();
+      this.layerPanel.refresh();
       this.visualisers.invalidate();
     };
 
     this.setMode('fly');
     this.zonePanel.show(app.zones.current?.id ?? null);
     this.terrainPanel.show(app.zones.current?.id ?? null);
+    this.layerPanel.show(app.zones.current?.id ?? null);
     this.refreshOutliner();
     app.loop.add(() => this.report());
   }
@@ -956,6 +976,7 @@ export class Editor {
     if (!here || this.zonePicker.value === here) return;
     this.zonePanel.show(zone?.id ?? null);
     this.terrainPanel.show(zone?.id ?? null);
+    this.layerPanel.show(zone?.id ?? null);
     this.refreshOutliner();
     if (![...this.zonePicker.options].some((option) => option.value === here)) this.refreshZoneList();
     this.zonePicker.value = here;

@@ -19,11 +19,11 @@ import {
 import { environmentByName } from './environments';
 import type { ZonePlace } from './climate';
 import type { Point } from './placement';
+import { worldState } from './state';
 import {
   emptyCollected,
   entryKind,
   holds,
-  NO_STATE,
   tagEntry,
   yawOf,
   type Collected,
@@ -182,7 +182,7 @@ export function wallEnd(zone: string, wall: WallSide): { position: THREE.Vector3
 const layersOf = (doc: ZoneDocument): readonly Layer[] =>
   doc.layers ?? [{ name: 'main', entries: doc.entries ?? [] }];
 
-export function zoneFromDocument(doc: ZoneDocument, state: WorldState = NO_STATE): ZoneDefinition {
+export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldState): ZoneDefinition {
   const base = environmentByName(doc.environment?.base ?? 'outdoor') ?? OUTDOOR_ENVIRONMENT;
   // Mutable on purpose: anchored emitters are resolved as the zone is built,
   // and the manager reads this after `build()` has run.
