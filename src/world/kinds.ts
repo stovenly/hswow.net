@@ -143,6 +143,7 @@ function runShape(name: string): RunShape {
 
 registerEntryKind<RunEntry>({
   kind: 'run',
+  defaults: () => ({ builder: 'fence', points: [[0, 0], [6, 0]] }),
   build(entry, ctx) {
     const shape = runShape(entry.builder);
     const group = new THREE.Group();
@@ -197,6 +198,7 @@ function slab(root: THREE.Object3D, from: Point, to: Point, ctx: EntryContext, h
 
 registerEntryKind<ChainEntry>({
   kind: 'chain',
+  defaults: () => ({ start: [0, 0], edges: [{ to: [8, 0], kind: 'fence' }] }),
   build(entry, ctx) {
     const group = new THREE.Group();
     const seed = seedOf(entry);
@@ -286,6 +288,7 @@ registerEntryKind<ChainEntry>({
 
 registerEntryKind<ScatterEntry>({
   kind: 'scatter',
+  defaults: () => ({ builder: 'bush', count: 12, within: 8 }),
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
     const group = new THREE.Group();
@@ -342,6 +345,7 @@ function circlesOf(shapes: readonly PatchShape[]): readonly (readonly [number, n
 
 registerEntryKind<BarrierEntry>({
   kind: 'barrier',
+  defaults: () => ({ size: [2, 3, 0.5] }),
   build(entry, ctx) {
     const group = new THREE.Group();
     if (entry.from && entry.to) {
@@ -362,6 +366,7 @@ registerEntryKind<BarrierEntry>({
 
 registerEntryKind<PrefabEntry>({
   kind: 'prefab',
+  defaults: () => ({ prefab: '' }),
   build(entry, ctx) {
     const body = ctx.prefabs[entry.prefab];
     if (!body) throw new Error(`no prefab named "${entry.prefab}"`);
@@ -377,6 +382,7 @@ registerEntryKind<PrefabEntry>({
 
 registerEntryKind<GroundEntry>({
   kind: 'ground',
+  defaults: () => ({ size: [4, 4], thickness: 0.3, material: 'stone' }),
   build(entry, ctx) {
     const size = entry.size ?? [4, 4];
     const thickness = entry.thickness ?? 0.3;
@@ -406,6 +412,7 @@ function groundMaterial(): THREE.Material {
 
 registerEntryKind<WaterEntry>({
   kind: 'water',
+  defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
   build(entry, ctx) {
     const holder = new THREE.Object3D();
     applyPlacement(holder, entry, ctx);
@@ -424,6 +431,18 @@ registerEntryKind<WaterEntry>({
 
 registerEntryKind<ParticlesEntry>({
   kind: 'particles',
+  defaults: () => ({
+    spec: {
+      count: 200,
+      shape: 'billboard',
+      motion: 'rise',
+      volume: { kind: 'box', size: [4, 3, 4] },
+      size: [0.04, 0.09],
+      colour: 0xd8d0c0,
+      opacity: 0.7,
+      speed: [0.2, 0.5],
+    },
+  }),
   build(entry, ctx) {
     const spec = { shape: 'billboard', ...entry.spec } as unknown as ParticleSpec;
     const mesh = createParticles(spec, seedOf(entry));
@@ -436,6 +455,16 @@ registerEntryKind<ParticlesEntry>({
 
 registerEntryKind<FogVolumeEntry>({
   kind: 'fogVolume',
+  defaults: () => ({
+    shape: 'ellipsoid',
+    center: [0, 1, 0],
+    size: [6, 2, 6],
+    density: 0.25,
+    tint: '#c8d0d8',
+    softness: 0.4,
+    noiseScale: 6,
+    turbulence: 0.4,
+  }),
   build(entry, ctx) {
     ctx.collected.fogVolumes.push({
       shape: entry.shape,
@@ -455,6 +484,7 @@ registerEntryKind<FogVolumeEntry>({
 for (const kind of ['glitch', 'horror'] as const) {
   registerEntryKind<EffectVolumeEntry>({
     kind,
+    defaults: () => ({ shape: 'ellipsoid', center: [0, 1, 0], size: [4, 3, 4], strength: 0.5 }),
     build(entry, ctx) {
       const placement = {
         shape: entry.shape,
@@ -495,6 +525,7 @@ for (const kind of ['glitch', 'horror'] as const) {
 
 registerEntryKind<SoundEntry>({
   kind: 'sound',
+  defaults: () => ({ spec: { model: 'fire', options: {} } }),
   build(entry, ctx) {
     const spec = { ...entry.spec } as Record<string, unknown>;
     if (entry.ref) {
@@ -517,6 +548,7 @@ registerEntryKind<SoundEntry>({
 
 registerEntryKind<SoundScatterEntry>({
   kind: 'soundScatter',
+  defaults: () => ({ spec: { sound: { model: 'bird' }, at: [0, 1, 0], spread: 12, every: 30 } }),
   build(entry, ctx) {
     ctx.collected.scatters.push(entry.spec);
     return null;
@@ -527,6 +559,7 @@ registerEntryKind<SoundScatterEntry>({
 
 registerEntryKind<VistaRingEntry>({
   kind: 'vistaRing',
+  defaults: () => ({ band: { inner: 30, outer: 160 }, place: [], scatter: [] }),
   build(entry, ctx) {
     if (!ctx.skirt) throw new Error('a vista ring needs a skirt');
     const keepOut =
@@ -574,6 +607,7 @@ function dilate(outline: readonly PatchShape[], by: number): readonly PatchShape
 
 registerEntryKind<DressingEntry>({
   kind: 'dressing',
+  defaults: () => ({ band: { inner: -4, outer: 14 }, kinds: [] }),
   build(entry, ctx) {
     if (!ctx.terrain || !ctx.skirt) throw new Error('edge dressing needs a terrain and a skirt');
     return edgeDressing({

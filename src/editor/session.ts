@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { App } from '../app/boot';
-import type { ZoneDocument, PortalManifest } from '../world/document';
+import { zoneFromDocument, type ZoneDocument, type PortalManifest } from '../world/document';
 import type { Entry } from '../world/entry';
 import { applyPlacement, type EntryPlacement } from '../world/entry';
 import { Api, SaveConflict } from './api';
@@ -216,6 +216,22 @@ export class Session {
       }
     }
     this.say('saved');
+    this.onChange?.();
+  }
+
+  /** Adds a document and registers it as a zone, without a reload. */
+  createZone(doc: ZoneDocument): void {
+    this.docs.set(doc.id, doc);
+    this.app.zones.register(zoneFromDocument(doc));
+    this.dirty.add(doc.id);
+    void this.api.saveZone(doc).then(() => this.dirty.delete(doc.id));
+    this.onChange?.();
+  }
+
+  async deleteZone(id: string): Promise<void> {
+    this.docs.delete(id);
+    this.dirty.delete(id);
+    await this.api.deleteZone(id);
     this.onChange?.();
   }
 

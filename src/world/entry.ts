@@ -349,6 +349,8 @@ export interface EntryKind<E extends Entry = never> {
   kind: string;
   /** Fields the inspector renders, beyond the placement every entry has. */
   schema?: Fields;
+  /** What a freshly placed entry of this kind carries, beyond its placement. */
+  defaults?(): Record<string, unknown>;
   /** Builds the entry, or returns null when it contributes no geometry. */
   build(entry: E, ctx: EntryContext): THREE.Object3D | null;
   /** For kinds with no mesh of their own: what the editor draws instead. */

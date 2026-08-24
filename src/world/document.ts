@@ -257,7 +257,15 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = NO_STATE
             : ({ ...entry, seed: (entry as { seed?: number }).seed !== undefined
                 ? ((entry as { seed?: number }).seed as number) + seedOffset
                 : undefined } as Entry);
-        const object = kind.build(shifted as never, ctx);
+        // A half-typed entry loses itself, not the level: the editor is the
+        // only thing that ever writes these, and it writes them mid-edit.
+        let object: THREE.Object3D | null = null;
+        try {
+          object = kind.build(shifted as never, ctx);
+        } catch (error) {
+          console.warn(`zone "${doc.id}": entry "${id}" did not build`, error);
+          continue;
+        }
         if (!object) continue;
         tagEntry(object, doc.id, id);
         byId.set(id, object);

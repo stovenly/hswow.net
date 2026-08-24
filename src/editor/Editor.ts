@@ -11,6 +11,21 @@ import { Session } from './session';
 import { Transform, type MoveMode, type Tool } from './transform';
 import { OrbitCamera, FreeLook } from './camera';
 import { Inspector } from './inspector';
+import { Thumbnails } from './thumbnails';
+import { Palette } from './palette';
+import { Outliner } from './outliner';
+import { ZonePanel } from './zonePanel';
+import {
+  addEntry,
+  duplicateEntries,
+  listOf,
+  makePrefab,
+  pasteEntries,
+  removeEntries,
+  reorderEntry,
+  templateDocument,
+} from './entries';
+import { entryKind, type Entry } from '../world/entry';
 
 export type EditorMode = 'fly' | 'play';
 
@@ -35,6 +50,10 @@ export class Editor {
   readonly transform: Transform;
   readonly orbit: OrbitCamera;
   readonly inspector: Inspector;
+  readonly zonePanel: ZonePanel;
+  readonly palette: Palette;
+  readonly outliner: Outliner;
+  readonly thumbnails: Thumbnails;
 
   private current: EditorMode = 'fly';
   private readonly modeToggles: Record<EditorMode, Toggle>;
@@ -42,6 +61,10 @@ export class Editor {
   private readonly moveToggles = new Map<MoveMode, Toggle>();
   private picking: ((id: string) => void) | null = null;
   private readonly zonePicker: HTMLSelectElement;
+  /** Cut across zones: entries keep their seeds and get fresh ids on paste. */
+  private clipboard: Entry[] = [];
+  /** Where the last prop brush stroke put something, so spacing is honoured. */
+  private lastBrush: THREE.Vector3 | null = null;
 
   constructor(app: App, documents: readonly ZoneDocument[], manifest: PortalManifest) {
     this.app = app;
@@ -74,6 +97,37 @@ export class Editor {
       },
     });
 
+    this.thumbnails = new Thumbnails(app);
+    this.palette = new Palette(this.thumbnails);
+    this.palette.visible = false;
+    this.palette.onChoice = (choice) => {
+      this.chrome.say(choice ? `placing ${choice.builder ?? choice.kind} — click the ground` : '');
+    };
+
+    this.outliner = new Outliner(this.session, {
+      select: (id, extend) => this.selectById(id, extend),
+      frame: (id) => {
+        this.selectById(id, false);
+        this.orbit.frame();
+      },
+      setVisible: (id, visible) => {
+        const object = this.objectFor(id);
+        if (object) object.visible = visible;
+      },
+      reorder: (from, to) => {
+        const zone = app.zones.current?.id;
+        if (zone) reorderEntry(this.session, zone, from, to);
+      },
+    });
+    this.outliner.visible = false;
+
+    this.zonePanel = new ZonePanel(this.gui, this.session, {
+      rebuilt: () => {},
+      newZone: (kind) => this.newZone(kind),
+      duplicate: () => this.duplicateZone(),
+      remove: () => void this.removeZone(),
+    });
+
     const modes = this.chrome.group();
     this.modeToggles = {
       fly: this.chrome.toggle(modes, 'fly', () => this.setMode('fly'), 'free camera'),
@@ -90,11 +144,18 @@ export class Editor {
     this.selection.onChanged(() => {
       const tag = this.selection.tag;
       this.inspector.show(tag?.zone ?? null, tag?.id ?? null);
+      this.refreshOutliner();
     });
     this.transform.onCommit = () => this.inspector.refresh();
-    this.session.onChange = () => this.report();
+    this.session.onChange = () => {
+      this.report();
+      this.refreshOutliner();
+      this.zonePanel.refresh();
+    };
 
     this.setMode('fly');
+    this.zonePanel.show(app.zones.current?.id ?? null);
+    this.refreshOutliner();
     app.loop.add(() => this.report());
   }
 
@@ -135,6 +196,23 @@ export class Editor {
       },
       'show invisible walls',
     );
+
+    const panels = chrome.group();
+    const paletteToggle = chrome.toggle(panels, 'palette', () => {
+      this.palette.visible = !this.palette.visible;
+      paletteToggle.pressed = this.palette.visible;
+    }, 'what can be placed');
+    const outlinerToggle = chrome.toggle(panels, 'outliner', () => {
+      this.outliner.visible = !this.outliner.visible;
+      outlinerToggle.pressed = this.outliner.visible;
+      this.refreshOutliner();
+    }, 'the tree');
+
+    const edit = chrome.group();
+    chrome.button(edit, 'copy', () => this.copy(), 'ctrl-C');
+    chrome.button(edit, 'duplicate', () => this.duplicate(), 'ctrl-D');
+    chrome.button(edit, 'delete', () => this.remove(), 'Del');
+    chrome.button(edit, 'prefab', () => this.savePrefab(), 'save the selection as a prefab');
 
     const file = chrome.group();
     chrome.button(file, 'save', () => void this.session.saveAll(), 'ctrl-S');
@@ -185,6 +263,11 @@ export class Editor {
         return;
       }
 
+      if (this.palette.choice) {
+        this.placeAt(event);
+        return;
+      }
+
       if (!hit) {
         if (!event.ctrlKey) this.selection.clear();
         return;
@@ -192,6 +275,73 @@ export class Editor {
       if (event.ctrlKey) this.selection.toggle(hit);
       else this.selection.set([hit]);
     });
+
+    // The prop brush: drag a favourite out at a spacing, one kept seed each.
+    canvas.addEventListener('pointermove', (event) => {
+      if (this.current !== 'fly' || !this.palette.brushing || !(event.buttons & 1)) return;
+      const at = this.groundUnderCursor(event);
+      if (!at) return;
+      if (this.lastBrush && at.distanceTo(this.lastBrush) < this.palette.brushSpacing) return;
+      this.lastBrush = at.clone();
+      this.placeChoice(at, null);
+    });
+    canvas.addEventListener('pointerup', () => {
+      this.lastBrush = null;
+    });
+  }
+
+  /** Where the cursor meets the world, by collider raycast. */
+  private groundUnderCursor(event: MouseEvent): THREE.Vector3 | null {
+    const zone = this.app.zones.current;
+    if (!zone?.isBuilt) return null;
+    const canvas = this.app.viewport.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const caster = new THREE.Raycaster();
+    caster.setFromCamera(pointer, this.app.viewport.camera);
+    const hit = caster.intersectObject(zone.root(), true)[0];
+    return hit ? hit.point.clone() : null;
+  }
+
+  private placeAt(event: MouseEvent): void {
+    const at = this.groundUnderCursor(event);
+    if (!at) return;
+    this.placeChoice(at, null);
+  }
+
+  /**
+   * Places whatever the palette is holding. A favourite rolls its yaw and scale
+   * from the ranges pinned with it; anything else takes the yaw given, or zero.
+   */
+  private placeChoice(at: THREE.Vector3, yaw: number | null): void {
+    const choice = this.palette.choice;
+    const zone = this.app.zones.current?.id;
+    if (!choice || !zone) return;
+    const favourite = choice.builder ? this.palette.favourite(choice.builder) : undefined;
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const rolled = favourite
+      ? favourite.yaw[0] + Math.random() * (favourite.yaw[1] - favourite.yaw[0])
+      : 0;
+    const scale = favourite
+      ? favourite.scale[0] + Math.random() * (favourite.scale[1] - favourite.scale[0])
+      : undefined;
+
+    const kind = choice.kind || 'prop';
+    const entry = {
+      ...(entryKind(kind)?.defaults?.() ?? {}),
+      kind,
+      ...(choice.builder ? { builder: choice.builder } : {}),
+      seed,
+      at: [round(at.x), round(at.z)],
+      yaw: round(yaw ?? rolled, 4),
+      ...(scale !== undefined && Math.abs(scale - 1) > 0.001 ? { scale: round(scale, 3) } : {}),
+    } as unknown as Entry;
+
+    const id = addEntry(this.session, zone, entry, choice.builder ?? choice.kind);
+    if (id) this.chrome.say(`placed ${id}`);
   }
 
   private bindKeys(): void {
@@ -216,6 +366,18 @@ export class Editor {
         }
         if (event.code === 'KeyS') {
           void this.session.saveAll();
+          return true;
+        }
+        if (event.code === 'KeyC') {
+          this.copy();
+          return true;
+        }
+        if (event.code === 'KeyV') {
+          this.paste(event.shiftKey);
+          return true;
+        }
+        if (event.code === 'KeyD') {
+          this.duplicate();
           return true;
         }
         return false;
@@ -271,6 +433,13 @@ export class Editor {
           };
           this.chrome.say('pick what to snap to…');
           return true;
+        case 'Delete':
+          this.remove();
+          return true;
+        case 'KeyB':
+          this.palette.brushing = !this.palette.brushing;
+          this.chrome.say(this.palette.brushing ? 'prop brush on' : 'prop brush off');
+          return true;
         case 'End':
           this.transform.drop();
           return true;
@@ -279,6 +448,7 @@ export class Editor {
           return true;
         case 'Escape':
           this.picking = null;
+          this.palette.pick(null);
           this.selection.clear();
           return true;
         default:
@@ -298,6 +468,103 @@ export class Editor {
       if (tag?.id === id) found = object;
     });
     return found;
+  }
+
+  private selectById(id: string, extend: boolean): void {
+    const object = this.objectFor(id);
+    if (!object) return;
+    if (extend) this.selection.add(object);
+    else this.selection.set([object]);
+  }
+
+  private selectedIds(): string[] {
+    return this.selection.objects
+      .map((object) => entryTagOf(object)?.id)
+      .filter((id): id is string => typeof id === 'string');
+  }
+
+  private copy(): void {
+    const zone = this.app.zones.current?.id;
+    const doc = zone ? this.session.doc(zone) : undefined;
+    if (!doc) return;
+    const wanted = new Set(this.selectedIds());
+    this.clipboard = listOf(doc)
+      .filter((entry) => wanted.has(entry.id ?? ''))
+      .map((entry) => JSON.parse(JSON.stringify(entry)) as Entry);
+    this.chrome.say(`copied ${this.clipboard.length}`);
+  }
+
+  private paste(inPlace: boolean): void {
+    const zone = this.app.zones.current?.id;
+    if (!zone || this.clipboard.length === 0) return;
+    const at = this.app.player.position;
+    const made = pasteEntries(this.session, zone, this.clipboard, inPlace, [
+      round(at.x),
+      round(at.z),
+    ]);
+    this.chrome.say(`pasted ${made.length}`);
+  }
+
+  private duplicate(): void {
+    const zone = this.app.zones.current?.id;
+    if (!zone) return;
+    const made = duplicateEntries(this.session, zone, this.selectedIds(), 1);
+    this.chrome.say(`duplicated ${made.length}`);
+  }
+
+  private remove(): void {
+    const zone = this.app.zones.current?.id;
+    if (!zone) return;
+    const ids = this.selectedIds();
+    if (ids.length === 0) return;
+    this.selection.clear();
+    removeEntries(this.session, zone, ids);
+    this.chrome.say(`deleted ${ids.length}`);
+  }
+
+  private savePrefab(): void {
+    const zone = this.app.zones.current?.id;
+    const ids = this.selectedIds();
+    if (!zone || ids.length === 0) return;
+    const name = window.prompt('prefab name', ids[0]);
+    if (!name) return;
+    makePrefab(this.session, zone, ids, name);
+    this.chrome.say(`saved prefab ${name}`);
+  }
+
+  private newZone(kind: 'exterior' | 'interior'): void {
+    const id = window.prompt('zone id', `${kind}-1`);
+    if (!id) return;
+    const name = window.prompt('zone name', id) ?? id;
+    this.session.createZone(templateDocument(id, name, kind));
+    void this.app.zones.travel(id);
+    this.chrome.say(`made ${id}`);
+  }
+
+  private duplicateZone(): void {
+    const from = this.app.zones.current?.id;
+    const doc = from ? this.session.doc(from) : undefined;
+    if (!doc) return;
+    const id = window.prompt('new zone id', `${doc.id}-copy`);
+    if (!id) return;
+    const copy = JSON.parse(JSON.stringify(doc)) as ZoneDocument;
+    copy.id = id;
+    copy.name = `${doc.name} copy`;
+    this.session.createZone(copy);
+    void this.app.zones.travel(id);
+  }
+
+  private async removeZone(): Promise<void> {
+    const id = this.app.zones.current?.id;
+    if (!id || !this.session.doc(id)) return;
+    if (!window.confirm(`delete ${id}? Its portals go with it.`)) return;
+    await this.session.deleteZone(id);
+    this.chrome.say(`deleted ${id} — reload to clear it from the world`);
+  }
+
+  private refreshOutliner(): void {
+    const zone = this.app.zones.current?.id ?? null;
+    this.outliner.show(this.session.doc(zone ?? '') ? zone : null, this.selectedIds());
   }
 
   // --- state ----------------------------------------------------------------
@@ -371,6 +638,8 @@ export class Editor {
     this.chrome.set('lights', lights.text, lights.over);
     const here = zone?.name;
     if (!here || this.zonePicker.value === here) return;
+    this.zonePanel.show(zone?.id ?? null);
+    this.refreshOutliner();
     if (![...this.zonePicker.options].some((option) => option.value === here)) this.refreshZoneList();
     this.zonePicker.value = here;
   }
@@ -397,4 +666,9 @@ export class Editor {
     });
     return { text: `${points}/8 point · ${spots}/2 spot`, over: points > 8 || spots > 2 };
   }
+}
+
+function round(value: number, places = 3): number {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
 }
