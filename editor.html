@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <title>hswow editor</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a0f;
+        color: #dcdcc8;
+        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 1.1rem;
+        background: #0a0a0f;
+      }
+      .loading-track {
+        width: min(19rem, 56vw);
+        height: 1px;
+        overflow: hidden;
+        background: rgb(220 220 200 / 18%);
+      }
+      .loading-bar {
+        width: 100%;
+        height: 100%;
+        background: #dcdcc8;
+        transform: scaleX(0);
+        transform-origin: left center;
+      }
+      .loading-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.22em;
+        text-transform: lowercase;
+        color: rgb(220 220 200 / 55%);
+      }
+    </style>
+  </head>
+  <body class="is-loading is-editor">
+    <canvas id="viewport"></canvas>
+    <div id="overlay">
+      <div id="crosshair"></div>
+    </div>
+    <div id="loading">
+      <div class="loading-track"><div class="loading-bar"></div></div>
+      <div class="loading-label">starting</div>
+    </div>
+    <script type="module" src="/src/editor/main.ts"></script>
+  </body>
+</html>

@@ -51,6 +51,8 @@ export default defineConfig({
   // as well as from a local file server, so nothing may be rooted at "/".
   base: './',
   build: {
+    // The editor is a dev-server page only; the game's build lists one input.
+    rollupOptions: { input: 'index.html' },
     outDir: 'docs',
     emptyOutDir: true,
     // es2022 for top-level await, which `main.ts` uses to sequence boot behind
