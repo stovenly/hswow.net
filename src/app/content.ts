@@ -1,5 +1,11 @@
 import { content } from 'virtual:project';
-import { zoneFromDocument, portalsFromManifest, type PortalManifest, type ZoneDocument } from '../world/document';
+import {
+  holdSidecar,
+  portalsFromManifest,
+  zoneFromDocument,
+  type PortalManifest,
+  type ZoneDocument,
+} from '../world/document';
 import type { ZoneDefinition } from '../world/Zone';
 import type { PortalDefinition } from '../world/Portal';
 import type { WorldState } from '../world/entry';
@@ -25,6 +31,29 @@ export interface ContentWorld {
  * change would go nowhere.
  */
 const interpreted = new Map<string, ContentWorld>();
+
+/**
+ * Fetches every sidecar raster a project carries. Awaited before any document is
+ * interpreted, because a terrain built without its sculpt layer is the wrong
+ * ground and everything settled onto it is in the wrong place.
+ */
+export async function loadSidecars(project: string): Promise<void> {
+  const bundle = content[project];
+  if (!bundle) return;
+  await Promise.all(
+    Object.entries(bundle.sidecars).map(async ([path, url]) => {
+      const file = path.split('/').pop();
+      if (!file) return;
+      try {
+        const response = await fetch(url);
+        if (response.ok) holdSidecar(file, await response.arrayBuffer());
+      } catch {
+        // A missing raster is a level with no sculpting in it, which is a real
+        // answer: the shapes still build.
+      }
+    }),
+  );
+}
 
 export function contentWorld(project: string, state?: WorldState): ContentWorld {
   const held = interpreted.get(project);

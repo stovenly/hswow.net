@@ -14,7 +14,7 @@ import { createDevTools, type DevTools } from '../dev/DevPanel';
 import { Identify } from '../dev/Identify';
 import { ZoneManager } from '../world/ZoneManager';
 import type { Project } from './project';
-import { contentWorld } from './content';
+import { contentWorld, loadSidecars } from './content';
 import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction } from '../world/Interaction';
@@ -137,6 +137,7 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
   // Documents first, then the project's code zones: a portal end reads the
   // document zone it stands in, and the manager throws on a link to a zone it
   // has not been given.
+  await loader.step('reading the ground', 0.08, () => loadSidecars(project.id));
   const documents = contentWorld(project.id);
   const code = (await project.world?.(loader)) ?? { zones: [], portals: [] };
   const world = {

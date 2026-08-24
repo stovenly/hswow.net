@@ -22,6 +22,15 @@ import {
   type CoverName,
 } from './ground';
 import type { SurfaceName } from '../audio/models/footsteps';
+import { Raster, type HeightRaster, type IndexRaster } from './raster';
+
+/**
+ * The painted tables, as indices. One-based, so zero can mean unpainted; the
+ * order is the table's own, which is why adding a material in the middle of
+ * `GROUND` would repaint every level that has a raster.
+ */
+const GROUND_NAMES = Object.keys(GROUND) as GroundName[];
+const COVER_NAMES = Object.keys(COVER_TYPES) as CoverName[];
 
 /**
  * Authored terrain: a heightfield summed from placed landforms. Not noise — every
@@ -120,6 +129,15 @@ export interface DetailRegion {
   level: number;
 }
 
+export interface TerrainRasters {
+  /** Added to the sum of the landforms, in metres. */
+  sculpt?: HeightRaster;
+  /** Material index into `GROUND`'s keys, plus one. Zero is unpainted. */
+  paint?: IndexRaster;
+  /** Cover index into `COVER_TYPES`' keys, plus one. Zero is unpainted. */
+  cover?: IndexRaster;
+}
+
 export interface TerrainOptions {
   /** Metres across. The field is square and centred on the origin. */
   size: number;
@@ -166,6 +184,12 @@ export interface TerrainOptions {
    * own square. Density only — the ground material is unchanged.
    */
   edgeFade?: { band: number; outline?: readonly PatchShape[] };
+  /**
+   * The sculpted layers, over the shapes above. Height composes by addition;
+   * material and cover are decided base, then raster, then patches — shapes win,
+   * because a path is a decision and paint is a gesture.
+   */
+  rasters?: TerrainRasters;
 }
 
 /** The levelling landforms, which run in their own pass. */
@@ -313,6 +337,8 @@ export class Terrain {
   private readonly cover: readonly CoverPatch[];
   private readonly detail: readonly DetailRegion[];
   private readonly rockAngle: number;
+  /** Mutable: the editor writes into these while a stroke is under way. */
+  private readonly rasters: TerrainRasters;
   private readonly base: GroundName;
   private readonly edgeFade: number;
   private readonly edgeOutline: readonly PatchShape[];
@@ -342,6 +368,7 @@ export class Terrain {
     this.rockAngle = options.rockAngle ?? 34;
     this.base = options.base ?? 'turf';
     this.edgeFade = options.edgeFade?.band ?? 0;
+    this.rasters = options.rasters ?? {};
     this.edgeOutline = options.edgeFade?.outline ?? [
       { kind: 'field', min: [-this.size / 2, -this.size / 2], max: [this.size / 2, this.size / 2] },
     ];
@@ -389,6 +416,41 @@ export class Terrain {
     this.levellers = levellers;
   }
 
+  /**
+   * The sculpted layer, made blank on first ask.
+   *
+   * Handed out live rather than copied: the brush writes into it and `heightAt`
+   * reads it on the next vertex, which is what makes a stroke visible while the
+   * mouse is still down.
+   */
+  sculptRaster(resolution: number): HeightRaster {
+    this.rasters.sculpt ??= Raster.blank((n) => new Float32Array(n), this.size, resolution);
+    return this.rasters.sculpt;
+  }
+
+  paintRaster(resolution: number): IndexRaster {
+    this.rasters.paint ??= Raster.blank((n) => new Uint8Array(n), this.size, resolution);
+    return this.rasters.paint;
+  }
+
+  coverRaster(resolution: number): IndexRaster {
+    this.rasters.cover ??= Raster.blank((n) => new Uint8Array(n), this.size, resolution);
+    return this.rasters.cover;
+  }
+
+  /** What has been sculpted, or nothing where nothing has. */
+  sculptRasterIfAny(): HeightRaster | undefined {
+    return this.rasters.sculpt;
+  }
+
+  paintRasterIfAny(): IndexRaster | undefined {
+    return this.rasters.paint;
+  }
+
+  coverRasterIfAny(): IndexRaster | undefined {
+    return this.rasters.cover;
+  }
+
   /** How much cover survives here, 0 at the level's edge and 1 a band inward. Smootherstep, or a linear ramp draws a line of its own a band's width inside the one it was hiding. */
   private edgeDensity(x: number, z: number): number {
     if (this.edgeFade <= 0) return 1;
@@ -401,7 +463,7 @@ export class Terrain {
    * once per vertex when building the mesh, so nothing expensive belongs here.
    */
   heightAt(x: number, z: number): number {
-    let height = 0;
+    let height = this.rasters.sculpt ? this.rasters.sculpt.sample(x, z) : 0;
 
     // First pass: everything that adds. Order does not matter, which is why it
     // can be split between the always-list and one bucket.
@@ -702,7 +764,23 @@ export class Terrain {
    */
   materialAt(x: number, z: number): GroundName {
     if (this.slopeAt(x, z) > this.rockAngle) return 'rock';
-    return patchAt(this.patches, x, z) ?? this.base;
+    return patchAt(this.patches, x, z) ?? this.paintedAt(x, z) ?? this.base;
+  }
+
+  /** What the material raster says here, or nothing where it is unpainted. */
+  private paintedAt(x: number, z: number): GroundName | null {
+    const raster = this.rasters.paint;
+    if (!raster) return null;
+    const index = raster.nearest(x, z);
+    return index > 0 ? (GROUND_NAMES[index - 1] ?? null) : null;
+  }
+
+  /** And the same for cover. */
+  private coverPaintedAt(x: number, z: number): CoverName | null {
+    const raster = this.rasters.cover;
+    if (!raster) return null;
+    const index = raster.nearest(x, z);
+    return index > 0 ? (COVER_NAMES[index - 1] ?? null) : null;
   }
 
   /** What the ground here sounds like underfoot. Read per footstep. */
@@ -716,7 +794,12 @@ export class Terrain {
    * normal — so this is here for the checks and the debug panel.
    */
   coverAt(x: number, z: number): CoverName {
-    return coverPatchAt(this.cover, x, z) ?? COVER[this.materialAt(x, z)] ?? 'none';
+    return (
+      coverPatchAt(this.cover, x, z) ??
+      this.coverPaintedAt(x, z) ??
+      COVER[this.materialAt(x, z)] ??
+      'none'
+    );
   }
 
   /**
@@ -727,7 +810,9 @@ export class Terrain {
    */
   private faceMaterial(normalY: number, x: number, z: number): GroundName {
     const slope = (Math.acos(Math.min(1, Math.max(-1, normalY))) * 180) / Math.PI;
-    return slope > this.rockAngle ? 'rock' : (patchAt(this.patches, x, z) ?? this.base);
+    return slope > this.rockAngle
+      ? 'rock'
+      : (patchAt(this.patches, x, z) ?? this.paintedAt(x, z) ?? this.base);
   }
 
   /**

@@ -19,6 +19,7 @@ import { TerrainPanel } from './terrainPanel';
 import { Visualisers, type ViewFlags } from './visualisers';
 import { Shapes, groundPoint, type ShapeKind } from './shapes';
 import { PortalTool } from './portals';
+import { Terraform, type Brush } from './terraform';
 import { findIn } from './transform';
 import {
   addEntry,
@@ -74,6 +75,7 @@ export class Editor {
   readonly visualisers: Visualisers;
   readonly shapes: Shapes;
   readonly portalTool: PortalTool;
+  readonly terraform: Terraform;
 
   private current: EditorMode = 'fly';
   private readonly modeToggles: Record<EditorMode, Toggle>;
@@ -151,6 +153,8 @@ export class Editor {
 
     this.visualisers = new Visualisers(app, this.session);
     this.shapes = new Shapes(app);
+    this.terraform = new Terraform(app, this.session);
+    this.terraform.say = (message) => this.chrome.say(message);
     this.portalTool = new PortalTool(app, this.session);
     this.portalTool.say = (message) => this.chrome.say(message);
     this.portalTool.onWired = () => this.visualisers.invalidate();
@@ -189,6 +193,7 @@ export class Editor {
     };
     this.zonePicker = this.buildToolbar();
 
+    this.brushMenu();
     this.viewMenu();
     const tuning = this.gui.addFolder('tuning').close();
     installDevPanel(tuning, app);
@@ -220,6 +225,42 @@ export class Editor {
 
   get mode(): EditorMode {
     return this.current;
+  }
+
+  /** The brushes, and the swatch rows they paint from. */
+  private brushMenu(): void {
+    const folder = this.gui.addFolder('ground brush').close();
+    const brushes: Brush[] = [
+      'raise',
+      'smooth',
+      'flatten',
+      'set',
+      'ramp',
+      'roughen',
+      'erase',
+      'paint',
+      'unpaint',
+    ];
+    folder
+      .add(this.terraform, 'brush', brushes)
+      .onChange(() => this.setBrush(true));
+    folder.add(this.terraform, 'radius', 0.5, 120, 0.5).name('radius (m)').listen();
+    folder.add(this.terraform, 'strength', 0.05, 6, 0.05);
+    folder.add(this.terraform, 'falloff', ['smooth', 'linear', 'flat']);
+    folder.add(this.terraform, 'seed', 0, 1_000_000, 1).name('roughen seed');
+    folder.add(this.terraform, 'painting', ['material', 'cover']).name('paint which');
+    folder.add(this.terraform, 'material', [...Terraform.materials]);
+    folder.add(this.terraform, 'cover', [...Terraform.covers]);
+    folder
+      .add({ off: () => this.setBrush(false) }, 'off')
+      .name('put the brush down');
+  }
+
+  /** B turns the ground brush on; it and the gizmo are never both live. */
+  setBrush(on: boolean): void {
+    this.terraform.setEnabled(on);
+    this.transform.controls.enabled = !on && this.selection.objects.length > 0;
+    this.chrome.say(on ? `${this.terraform.brush} — scroll for radius` : '');
   }
 
   /** Everything session-only, in one folder that says so. */
@@ -373,6 +414,10 @@ export class Editor {
     const canvas = this.app.viewport.renderer.domElement;
 
     canvas.addEventListener('pointermove', (event) => {
+      if (this.terraform.enabled) {
+        this.terraform.hover(event, (event.buttons & 1) !== 0);
+        return;
+      }
       if (this.shapes.drag(event)) return;
       if (this.ruler) {
         const at = groundPoint(this.app, event);
@@ -384,14 +429,29 @@ export class Editor {
     });
 
     canvas.addEventListener('pointerup', () => {
+      this.terraform.up();
       this.shapes.release();
       this.ruler = null;
     });
+
+    canvas.addEventListener(
+      'wheel',
+      (event) => {
+        if (!this.terraform.enabled || event.shiftKey) return;
+        this.terraform.scale(event.deltaY);
+        event.preventDefault();
+      },
+      { passive: false },
+    );
 
     canvas.addEventListener('dblclick', () => this.shapes.finishPolyline());
 
     canvas.addEventListener('pointerdown', (event) => {
       if (this.current === 'play' || event.button !== 0 || event.shiftKey) return;
+      if (this.terraform.enabled) {
+        this.terraform.down(event, event.shiftKey);
+        return;
+      }
       if (this.shapes.click(event)) return;
       if (this.shapes.grab(event)) return;
       if (event.ctrlKey && event.altKey) {
@@ -608,6 +668,9 @@ export class Editor {
           this.remove();
           return true;
         case 'KeyB':
+          this.setBrush(!this.terraform.enabled);
+          return true;
+        case 'KeyN':
           this.palette.brushing = !this.palette.brushing;
           this.chrome.say(this.palette.brushing ? 'prop brush on' : 'prop brush off');
           return true;
@@ -634,6 +697,9 @@ export class Editor {
         }
         case 'Escape':
           this.picking = null;
+          this.shapes.cancel();
+          this.portalTool.cancel();
+          this.setBrush(false);
           this.palette.pick(null);
           this.selection.clear();
           return true;

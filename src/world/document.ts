@@ -3,7 +3,8 @@ import type { SoundscapeSpec } from '../audio/Soundscape';
 import { buildInterior, interiorStyleByName } from './interior';
 import { markCollidable } from '../player/Collider';
 import { flatGround, type FlatGroundOptions } from './floor';
-import { Terrain, type TerrainOptions } from './terrain';
+import { Terrain, type TerrainOptions, type TerrainRasters } from './terrain';
+import { heightRaster, indexRaster } from './raster';
 import { Skirt, type SkirtOptions } from './vista';
 import type { PatchShape } from './ground';
 import { DOOR_PROUD, type PortalDefinition, type PortalEnd } from './Portal';
@@ -49,7 +50,25 @@ export interface EnvironmentSpec extends Partial<Omit<ZoneEnvironment, 'soundsca
 
 export interface SculptLayer {
   file: string;
+  /** Metres per cell. May be finer than the mesh's own. */
   resolution?: number;
+}
+
+/**
+ * Sidecar rasters, by file name, decoded before any document is interpreted.
+ *
+ * Raw little-endian and out of the JSON: a 114 m zone at 1 m is thirteen
+ * thousand floats, and keeping that out of the document keeps the parse cheap
+ * and the git objects small.
+ */
+const sidecars = new Map<string, ArrayBuffer>();
+
+export function holdSidecar(file: string, bytes: ArrayBuffer): void {
+  sidecars.set(file, bytes);
+}
+
+export function sidecarBytes(file: string): ArrayBuffer | undefined {
+  return sidecars.get(file);
 }
 
 export interface TerrainSpec extends Omit<TerrainOptions, 'landforms'> {
@@ -124,6 +143,11 @@ interface Registered {
 }
 
 const registry = new Map<string, Registered>();
+
+/** The live heightfield a document built, for the brushes that write into it. */
+export function terrainOf(zone: string): Terrain | null {
+  return registry.get(zone)?.terrain ?? null;
+}
 
 /** The ground height a document's terrain gives, for anything measuring into it. */
 export function groundOf(zone: string, x: number, z: number): number {
@@ -325,7 +349,20 @@ function stripUndefined<T extends object>(value: T): Partial<T> {
 }
 
 function terrainOptions(spec: TerrainSpec): TerrainOptions {
-  return { ...spec, landforms: spec.landforms ?? [] };
+  const rasters: TerrainRasters = {};
+  const sculpt = spec.sculpt && sidecars.get(spec.sculpt.file);
+  if (spec.sculpt && sculpt) {
+    rasters.sculpt = heightRaster(sculpt, spec.size, spec.sculpt.resolution ?? spec.resolution);
+  }
+  const paint = spec.paint && sidecars.get(spec.paint.file);
+  if (spec.paint && paint) {
+    rasters.paint = indexRaster(paint, spec.size, spec.paint.resolution ?? spec.resolution);
+  }
+  const cover = spec.coverPaint && sidecars.get(spec.coverPaint.file);
+  if (spec.coverPaint && cover) {
+    rasters.cover = indexRaster(cover, spec.size, spec.coverPaint.resolution ?? spec.resolution);
+  }
+  return { ...spec, landforms: spec.landforms ?? [], rasters };
 }
 
 /** The level's outline as a closed polygon, when its skirt or terrain states one. */
