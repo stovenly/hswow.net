@@ -16,6 +16,8 @@ export interface ProjectConfig {
   readonly title: string;
   /** Where a fresh boot lands. */
   readonly entry: ZoneId;
+  /** Where the editor lands. A code zone has nothing in it to select. */
+  readonly editorEntry?: ZoneId;
   /** Zone families, in the order anything listing zones should read them. */
   readonly groups?: readonly ZoneGroup[];
   /** Whether this project's build carries the `?debug` panel at all. */

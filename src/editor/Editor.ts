@@ -430,13 +430,20 @@ export class Editor {
 
     const travel = chrome.group();
     return chrome.select(travel, this.zoneNames(), (value) => {
-      const zone = [...app.zones.zones.values()].find((held) => held.name === value);
+      const zone = [...app.zones.zones.values()].find(
+        (held) => this.zoneLabel(held.id, held.name) === value,
+      );
       if (zone) void app.zones.travel(zone.id);
     });
   }
 
+  /** Zone names for the travel list, code ones marked as what they are. */
   private zoneNames(): string[] {
-    return [...this.app.zones.zones.values()].map((zone) => zone.name);
+    return [...this.app.zones.zones.values()].map((zone) => this.zoneLabel(zone.id, zone.name));
+  }
+
+  private zoneLabel(id: string, name: string): string {
+    return this.session.doc(id) ? name : `${name} · code`;
   }
 
   // --- input ----------------------------------------------------------------
@@ -909,6 +916,9 @@ export class Editor {
     zones.freezeVista = mode !== 'play';
     this.transform.controls.getHelper().visible = mode !== 'play';
 
+    // The grid is the top view's, so it goes when the top view does.
+    if (leavingTop) this.visualisers.set('grid', false);
+
     if (leavingTop && this.beforeTop) {
       player.tuning.fov = this.beforeTop.fov;
       player.teleport(this.beforeTop.position, this.beforeTop.yaw);
@@ -977,13 +987,20 @@ export class Editor {
       'tool',
       this.transform.tool + (this.transform.axis ? ` ${this.transform.axis}` : ''),
     );
-    this.chrome.set('zone', (zone?.name ?? '—') + (zone && this.session.isDirty(zone.id) ? ' •' : ''));
+    const editable = zone ? this.session.doc(zone.id) !== undefined : false;
+    this.chrome.set(
+      'zone',
+      (zone?.name ?? '—') +
+        (zone && this.session.isDirty(zone.id) ? ' •' : '') +
+        (zone && !editable ? ' · code, nothing to select' : ''),
+      Boolean(zone) && !editable,
+    );
     this.chrome.set('at', `${at.x.toFixed(1)} ${at.y.toFixed(1)} ${at.z.toFixed(1)}`);
     this.chrome.set('tris', `${collider.triangles.toLocaleString()} tris`);
     const lights = this.census();
     this.chrome.set('lights', lights.text, lights.over);
     if (this.rulerText) this.chrome.set('ruler', this.rulerText);
-    const here = zone?.name;
+    const here = zone ? this.zoneLabel(zone.id, zone.name) : null;
     if (!here || this.zonePicker.value === here) return;
     this.zonePanel.show(zone?.id ?? null);
     this.terrainPanel.show(zone?.id ?? null);

@@ -1,7 +1,10 @@
 /* The editor's chrome. Everything the game draws is untouched; this is the
    frame around it. */
 
-.is-editor #capture-hint {
+.is-editor #capture-hint,
+/* The player's own menu opens from the tuning panel's "open the player's menu".
+   Its button keys off `:not(.is-playing)`, which in fly mode is always true. */
+.is-editor #options-open {
   display: none;
 }
 
