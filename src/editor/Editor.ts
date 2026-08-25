@@ -163,7 +163,7 @@ export class Editor {
     this.portalTool.say = (message) => this.chrome.say(message);
     this.portalTool.onWired = () => this.visualisers.invalidate();
 
-    this.terrainPanel = new TerrainPanel(this.menus.panel('terrain'), this.session, {
+    this.terrainPanel = new TerrainPanel(this.menus.gui('terrain'), this.session, {
       changed: () => this.visualisers.invalidate(),
       drawCircle: (onDone) =>
         this.shapes.start('circle', (shape) => {
@@ -182,7 +182,7 @@ export class Editor {
       editPoints: (points, onChange) => this.shapes.edit(points, onChange),
     });
 
-    this.layerPanel = new LayerPanel(this.menus.panel('layers'), this.session, {
+    this.layerPanel = new LayerPanel(this.menus.gui('layers'), this.session, {
       changed: () => {
         const zone = app.zones.current?.id;
         if (zone) void this.session.rebuildNow(zone);
@@ -198,7 +198,7 @@ export class Editor {
       },
     });
 
-    this.zonePanel = new ZonePanel(this.menus.panel('zone'), this.session, {
+    this.zonePanel = new ZonePanel(this.menus.gui('zone'), this.session, {
       rebuilt: () => {},
       newZone: (kind) => this.newZone(kind),
       duplicate: () => this.duplicateZone(),
@@ -217,7 +217,7 @@ export class Editor {
     this.viewMenu();
     // The buttons exist from the start; what is behind them is built the first
     // time one is pressed. See `fillTuning`.
-    for (const name of new Set(Object.values(TUNING_MENUS))) this.menus.panel(name);
+    for (const name of new Set(Object.values(TUNING_MENUS))) this.menus.slot(name);
     this.menus.beforeShow = (name) => {
       if (name in TUNING_MENUS) this.fillTuning();
     };
@@ -282,7 +282,7 @@ export class Editor {
 
   /** The brushes, and the swatch rows they paint from. */
   private brushMenu(): void {
-    const folder = this.menus.panel('terrain').addFolder('ground brush').close();
+    const folder = this.menus.gui('terrain').addFolder('ground brush').close();
     const brushes: Brush[] = [
       'raise',
       'smooth',
@@ -318,7 +318,7 @@ export class Editor {
 
   /** Everything session-only, in one folder that says so. */
   private viewMenu(): void {
-    const folder = this.menus.panel('view').addFolder('session only, never saved');
+    const folder = this.menus.gui('view').addFolder('session only, never saved');
     const flags = this.visualisers.flags;
     const named: Record<keyof ViewFlags, string> = {
       sounds: 'how far each sound reaches',

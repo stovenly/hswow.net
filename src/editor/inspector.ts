@@ -1,11 +1,10 @@
-import GUI from 'lil-gui';
-import type { Controller } from 'lil-gui';
 import { builders, builderByName } from '../art/registry';
 import type { Field } from '../art/schema';
 import { COMPASS, entryKind, type Entry } from '../world/entry';
-import { GROUND, COVER_TYPES } from '../world/ground';
+import { COVER_TYPES } from '../world/ground';
 import { SURFACES } from '../audio/models/footsteps';
 import { allNotes } from '../world/notes';
+import type { Panel, Section } from './ui';
 import type { Session } from './session';
 import { findIn } from './transform';
 
@@ -27,41 +26,47 @@ export interface InspectorHooks {
 }
 
 const YAW_WORDS = Object.keys(COMPASS);
+const TURN = { min: -Math.PI, max: Math.PI, step: 0.001, scrub: 0.01 };
+const METRES = { step: 0.01, scrub: 0.02 };
 
 export class Inspector {
-  private readonly root: GUI;
+  private readonly panel: Panel;
   private readonly session: Session;
   private readonly hooks: InspectorHooks;
-  private folder: GUI | null = null;
   private shown: { zone: string; id: string } | null = null;
 
-  constructor(root: GUI, session: Session, hooks: InspectorHooks) {
-    this.root = root;
+  constructor(panel: Panel, session: Session, hooks: InspectorHooks) {
+    this.panel = panel;
     this.session = session;
     this.hooks = hooks;
+    this.panel.clear();
+    this.panel.loose().note('nothing selected');
   }
 
   /** Redraws for a selection, or clears when nothing is selected. */
   show(zone: string | null, id: string | null): void {
     if (zone === this.shown?.zone && id === this.shown?.id) return;
     this.shown = zone && id ? { zone, id } : null;
-    this.folder?.destroy();
-    this.folder = null;
-    if (!zone || !id) return;
+    this.panel.clear();
 
+    if (!zone || !id) {
+      this.panel.loose().note('nothing selected');
+      return;
+    }
     const entry = this.session.entry(zone, id);
-    if (!entry) return;
+    if (!entry) {
+      this.panel.loose().note(`no entry "${id}"`);
+      return;
+    }
 
-    const folder = this.root.addFolder(`${entry.kind} · ${id}`);
-    this.folder = folder;
-    folder.add({ id }, 'id').disable();
+    const head = this.panel.loose();
+    head.readout(entry.kind, id);
 
-    this.placement(folder, zone, entry);
-    this.kindFields(folder, zone, entry);
-    folder.open();
+    this.placement(this.panel.section('placement'), zone, entry);
+    this.body(zone, entry);
   }
 
-  /** Rebuilds the open folder in place, after something else changed the entry. */
+  /** Rebuilds in place, after something else changed the entry. */
   refresh(): void {
     const shown = this.shown;
     this.shown = null;
@@ -81,83 +86,7 @@ export class Inspector {
     this.hooks.after(reach);
   }
 
-  private placement(folder: GUI, zone: string, entry: Entry): void {
-    const id = entry.id as string;
-    const at = (entry.at ?? [0, 0]) as number[];
-    const state = {
-      x: at[0] ?? 0,
-      y: at.length >= 3 ? at[1] : 0,
-      z: at.length >= 3 ? at[2] : (at[1] ?? 0),
-      settled: at.length < 3,
-      yaw: typeof entry.yaw === 'number' ? entry.yaw : (COMPASS[entry.yaw ?? 'south'] ?? 0),
-      scale: typeof entry.scale === 'number' ? entry.scale : 1,
-      on: entry.on ?? '',
-    };
-    const writeAt = (): void => {
-      this.edit(zone, id, 'transform', (target) => {
-        target.at = state.settled ? [state.x, state.z] : [state.x, state.y, state.z];
-      });
-    };
-
-    const place = folder.addFolder('placement');
-    place.add(state, 'x', -400, 400, 0.01).onChange(writeAt).listen();
-    place.add(state, 'z', -400, 400, 0.01).onChange(writeAt).listen();
-    place.add(state, 'y', -60, 200, 0.01).onChange(writeAt).listen();
-    place
-      .add(state, 'settled')
-      .name('sit on the ground')
-      .onChange(writeAt);
-    place
-      .add(state, 'yaw', -Math.PI, Math.PI, 0.001)
-      .onChange(() => this.edit(zone, id, 'transform', (target) => (target.yaw = state.yaw)))
-      .listen();
-    place
-      .add({ compass: '' }, 'compass', ['', ...YAW_WORDS])
-      .name('face')
-      .onChange((word: string) => {
-        if (!word) return;
-        state.yaw = COMPASS[word as keyof typeof COMPASS];
-        this.edit(zone, id, 'transform', (target) => (target.yaw = word as keyof typeof COMPASS));
-      });
-    if (entry.kind === 'prop' || entry.kind === 'creature') {
-      place
-        .add(state, 'scale', 0.2, 4, 0.01)
-        .onChange(() => this.edit(zone, id, 'zone', (target) => (target.scale = state.scale)));
-    }
-    this.ref(place, 'stands on', state, 'on', (value) =>
-      this.edit(zone, id, 'transform', (target) => {
-        if (value) target.on = value;
-        else delete target.on;
-      }),
-    );
-  }
-
-  /** A dropdown of entry ids with a crosshair button beside it. */
-  private ref(
-    folder: GUI,
-    label: string,
-    state: Record<string, unknown>,
-    key: string,
-    write: (value: string) => void,
-  ): void {
-    const ids = ['', ...this.currentIds()];
-    const control = folder.add(state, key, ids).name(label).onChange(write);
-    folder
-      .add(
-        {
-          pick: () =>
-            this.hooks.pick((picked) => {
-              state[key] = picked;
-              control.updateDisplay();
-              write(picked);
-            }),
-        },
-        'pick',
-      )
-      .name(`↖ pick ${label}`);
-  }
-
-  private currentIds(): string[] {
+  private ids(): string[] {
     const zone = this.shown?.zone;
     if (!zone) return [];
     return this.session
@@ -166,145 +95,187 @@ export class Inspector {
       .filter((id): id is string => typeof id === 'string' && id !== this.shown?.id);
   }
 
-  private kindFields(folder: GUI, zone: string, entry: Entry): void {
+  // --- placement -------------------------------------------------------------
+
+  private placement(section: Section, zone: string, entry: Entry): void {
+    const id = entry.id as string;
+    const at = (entry.at ?? [0, 0]) as number[];
+    const flat = at.length < 3;
+    const state = {
+      x: at[0] ?? 0,
+      y: flat ? 0 : at[1],
+      z: flat ? (at[1] ?? 0) : at[2],
+      settled: flat,
+    };
+    const writeAt = (): void => {
+      this.edit(zone, id, 'transform', (target) => {
+        target.at = state.settled ? [state.x, state.z] : [state.x, state.y, state.z];
+      });
+    };
+
+    section.vector(
+      'at',
+      [state.x, state.y, state.z],
+      ['x', 'y', 'z'],
+      METRES,
+      (index, value) => {
+        if (index === 0) state.x = value;
+        else if (index === 1) state.y = value;
+        else state.z = value;
+        writeAt();
+      },
+    );
+    section.toggle('on the ground', state.settled, (on) => {
+      state.settled = on;
+      writeAt();
+      this.refresh();
+    });
+
+    const yaw = typeof entry.yaw === 'number' ? entry.yaw : (COMPASS[entry.yaw ?? 'south'] ?? 0);
+    section.number('yaw', yaw, TURN, (value) =>
+      this.edit(zone, id, 'transform', (target) => (target.yaw = value)),
+    );
+    section.select('facing', typeof entry.yaw === 'string' ? entry.yaw : '', ['', ...YAW_WORDS], (word) => {
+      if (!word) return;
+      this.edit(zone, id, 'transform', (target) => (target.yaw = word as keyof typeof COMPASS));
+      this.refresh();
+    });
+
+    if (entry.kind === 'prop' || entry.kind === 'creature') {
+      section.number('scale', typeof entry.scale === 'number' ? entry.scale : 1, {
+        min: 0.05,
+        max: 8,
+        step: 0.01,
+      }, (value) => this.edit(zone, id, 'zone', (target) => (target.scale = value)));
+    }
+
+    section.ref(
+      'stands on',
+      entry.on ?? '',
+      this.ids(),
+      (value) =>
+        this.edit(zone, id, 'transform', (target) => {
+          if (value) target.on = value;
+          else delete target.on;
+        }),
+      (accept) => this.hooks.pick(accept),
+    );
+  }
+
+  // --- the entry's own fields ------------------------------------------------
+
+  private body(zone: string, entry: Entry): void {
     const id = entry.id as string;
     const record = entry as unknown as Record<string, unknown>;
 
-    if ('seed' in record || entry.kind === 'prop' || entry.kind === 'creature') {
-      const seed = { value: (record.seed as number) ?? 1 };
-      const control = folder
-        .add(seed, 'value', 0, 1_000_000, 1)
-        .name('seed')
-        .onChange(() => this.edit(zone, id, 'zone', (target) => ((target as { seed?: number }).seed = seed.value)));
-      folder
-        .add(
-          {
-            roll: () => {
-              // Deliberate churn: a re-rolled seed is a different object, and
-              // that is the point of the button.
-              seed.value = Math.floor(Math.random() * 1_000_000);
-              control.updateDisplay();
-              this.edit(zone, id, 'zone', (target) => ((target as { seed?: number }).seed = seed.value));
-            },
-          },
-          'roll',
-        )
-        .name('re-roll the seed');
-    }
-
     if (entry.kind === 'prop' || entry.kind === 'creature') {
-      const which = { builder: (record.builder as string) ?? '' };
-      folder
-        .add(which, 'builder', builders.map((builder) => builder.name))
-        .onChange(() => {
-          this.edit(zone, id, 'zone', (target) => ((target as { builder?: string }).builder = which.builder));
-          this.refresh();
-        });
-      folder
-        .add(
-          { gallery: () => this.hooks.openInGallery(which.builder, (record.seed as number) ?? 1) },
-          'gallery',
-        )
-        .name('open in the gallery');
+      const made = this.panel.section(entry.kind === 'prop' ? 'prop' : 'creature');
+      made.select('builder', (record.builder as string) ?? '', builders.map((b) => b.name), (name) => {
+        this.edit(zone, id, 'zone', (target) => ((target as { builder?: string }).builder = name));
+        this.refresh();
+      });
+      const seed = (record.seed as number) ?? 1;
+      made.number('seed', seed, { min: 0, max: 1_000_000, step: 1, scrub: 40 }, (value) =>
+        this.edit(zone, id, 'zone', (target) => ((target as { seed?: number }).seed = value)),
+      );
+      made.actions(
+        {
+          label: 're-roll',
+          title: 'a different object of the same kind',
+          onClick: () => {
+            // Deliberate churn: a re-rolled seed is a different object, and
+            // that is the whole point of the button.
+            this.edit(zone, id, 'zone', (target) => {
+              (target as { seed?: number }).seed = Math.floor(Math.random() * 1_000_000);
+            });
+            this.refresh();
+          },
+        },
+        {
+          label: 'in the gallery',
+          onClick: () => this.hooks.openInGallery((record.builder as string) ?? '', seed),
+        },
+      );
     }
 
-    if (entry.kind === 'prop') {
-      const prop = record as { solid?: boolean; label?: string; text?: string; underfoot?: string; cover?: string; ground?: boolean };
-      const state = {
-        solid: prop.solid ?? true,
-        label: prop.label ?? '',
-        text: prop.text ?? '',
-      };
-      folder
-        .add(state, 'solid')
-        .onChange(() => this.edit(zone, id, 'zone', (target) => ((target as { solid?: boolean }).solid = state.solid)));
-      folder
-        .add(state, 'label')
-        .onChange(() =>
-          this.edit(zone, id, 'zone', (target) => {
-            const held = target as { label?: string };
-            if (state.label) held.label = state.label;
-            else delete held.label;
-          }),
-        );
-      folder
-        .add(state, 'text', ['', ...allNotes().map((note) => note.id)])
-        .name('bound note')
-        .onChange(() =>
-          this.edit(zone, id, 'zone', (target) => {
-            const held = target as { text?: string };
-            if (state.text) held.text = state.text;
-            else delete held.text;
-          }),
-        );
+    if (entry.kind === 'prop') this.prop(zone, entry, record);
+    if (entry.kind === 'creature') this.creature(zone, entry, record);
 
-      const ground = folder.addFolder('as ground').close();
-      const groundState = {
-        underfoot: prop.underfoot ?? '',
-        cover: prop.cover ?? '',
-        ground: prop.ground ?? false,
-      };
-      ground
-        .add(groundState, 'underfoot', ['', ...Object.keys(SURFACES)])
-        .onChange(() =>
-          this.edit(zone, id, 'zone', (target) => {
-            const held = target as { underfoot?: string };
-            if (groundState.underfoot) held.underfoot = groundState.underfoot;
-            else delete held.underfoot;
-          }),
-        );
-      ground
-        .add(groundState, 'cover', ['', ...Object.keys(COVER_TYPES)])
-        .onChange(() =>
-          this.edit(zone, id, 'zone', (target) => {
-            const held = target as { cover?: string };
-            if (groundState.cover) held.cover = groundState.cover;
-            else delete held.cover;
-          }),
-        );
-      ground
-        .add(groundState, 'ground')
-        .name('treat as ground')
-        .onChange(() =>
-          this.edit(zone, id, 'zone', (target) => ((target as { ground?: boolean }).ground = groundState.ground)),
-        );
-
-      this.builderOptions(folder, zone, entry);
-    }
-
-    if (entry.kind === 'creature') {
-      const creature = record as { roam?: number; folk?: string; face?: string };
-      const state = { roam: creature.roam ?? 0, folk: creature.folk ?? '' };
-      folder
-        .add(state, 'roam', 0, 12, 0.1)
-        .name('roam (m)')
-        .onChange(() => this.edit(zone, id, 'zone', (target) => ((target as { roam?: number }).roam = state.roam)));
-      folder
-        .add(state, 'folk', ['', 'country', 'city'])
-        .onChange(() =>
-          this.edit(zone, id, 'zone', (target) => {
-            const held = target as { folk?: string };
-            if (state.folk) held.folk = state.folk;
-            else delete held.folk;
-          }),
-        );
-    }
-
-    // Everything a kind declares beyond the placement, which is the escape
-    // hatch a new kind gets for free.
     const schema = entryKind(entry.kind)?.schema;
-    if (schema) this.fields(folder, zone, entry, schema, record);
+    if (schema && Object.keys(schema).length > 0) {
+      this.fields(this.panel.section(entry.kind), zone, entry, schema, record);
+    }
   }
 
-  private builderOptions(folder: GUI, zone: string, entry: Entry): void {
-    const record = entry as unknown as Record<string, unknown>;
+  private prop(zone: string, entry: Entry, record: Record<string, unknown>): void {
+    const id = entry.id as string;
+    const held = record as { solid?: boolean; label?: string; text?: string };
+
+    const world = this.panel.section('in the world');
+    world.toggle('solid', held.solid ?? true, (on) =>
+      this.edit(zone, id, 'zone', (target) => ((target as { solid?: boolean }).solid = on)),
+    );
+    world.text('label', held.label ?? '', (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { label?: string };
+        if (value) named.label = value;
+        else delete named.label;
+      }),
+    );
+    world.select('bound note', held.text ?? '', ['', ...allNotes().map((note) => note.id)], (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { text?: string };
+        if (value) named.text = value;
+        else delete named.text;
+      }),
+    );
+
+    const ground = this.panel.section('as ground', false);
+    const state = record as { underfoot?: string; cover?: string; ground?: boolean };
+    ground.select('underfoot', state.underfoot ?? '', ['', ...Object.keys(SURFACES)], (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { underfoot?: string };
+        if (value) named.underfoot = value;
+        else delete named.underfoot;
+      }),
+    );
+    ground.select('grows', state.cover ?? '', ['', ...Object.keys(COVER_TYPES)], (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { cover?: string };
+        if (value) named.cover = value;
+        else delete named.cover;
+      }),
+    );
+    ground.toggle('treat as ground', state.ground ?? false, (on) =>
+      this.edit(zone, id, 'zone', (target) => ((target as { ground?: boolean }).ground = on)),
+    );
+
+    this.builderOptions(zone, entry, record);
+  }
+
+  private creature(zone: string, entry: Entry, record: Record<string, unknown>): void {
+    const id = entry.id as string;
+    const held = record as { roam?: number; folk?: string };
+    const section = this.panel.section('life');
+    section.number('roam', held.roam ?? 0, { min: 0, max: 20, step: 0.1, suffix: 'm' }, (value) =>
+      this.edit(zone, id, 'zone', (target) => ((target as { roam?: number }).roam = value)),
+    );
+    section.select('folk', held.folk ?? '', ['', 'country', 'city'], (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { folk?: string };
+        if (value) named.folk = value;
+        else delete named.folk;
+      }),
+    );
+  }
+
+  private builderOptions(zone: string, entry: Entry, record: Record<string, unknown>): void {
     const builder = builderByName(record.builder as string);
     if (!builder?.options) return;
-    const options = ((record.options as Record<string, unknown>) ?? {}) as Record<string, unknown>;
-    const held = { ...options };
-    const group = folder.addFolder('builder options');
+    const held = { ...((record.options as Record<string, unknown>) ?? {}) };
+    const section = this.panel.section(`${builder.name} options`);
     for (const [key, field] of Object.entries(builder.options)) {
-      this.field(group, held, key, field, () =>
+      this.field(section, held, key, field, () =>
         this.edit(zone, entry.id as string, 'zone', (target) => {
           (target as { options?: Record<string, unknown> }).options = { ...held };
         }),
@@ -313,7 +284,7 @@ export class Inspector {
   }
 
   private fields(
-    folder: GUI,
+    section: Section,
     zone: string,
     entry: Entry,
     schema: Record<string, Field>,
@@ -321,7 +292,7 @@ export class Inspector {
   ): void {
     const held = { ...record };
     for (const [key, field] of Object.entries(schema)) {
-      this.field(folder, held, key, field, () =>
+      this.field(section, held, key, field, () =>
         this.edit(zone, entry.id as string, 'zone', (target) => {
           (target as Record<string, unknown>)[key] = held[key];
         }),
@@ -330,45 +301,66 @@ export class Inspector {
   }
 
   private field(
-    folder: GUI,
+    section: Section,
     held: Record<string, unknown>,
     key: string,
     field: Field,
     write: () => void,
-  ): Controller | null {
+  ): void {
     const label = field.label ?? key;
     switch (field.type) {
       case 'number':
-        held[key] ??= field.min ?? 0;
-        return folder.add(held, key, field.min ?? 0, field.max ?? 10, field.step ?? 0.01).name(label).onChange(write);
+        section.number(label, (held[key] as number) ?? field.min ?? 0, field, (value) => {
+          held[key] = value;
+          write();
+        });
+        return;
       case 'int':
-        held[key] ??= field.min ?? 1;
-        return folder.add(held, key, field.min ?? 0, field.max ?? 100, 1).name(label).onChange(write);
+        section.number(
+          label,
+          (held[key] as number) ?? field.min ?? 0,
+          { ...field, step: 1, scrub: 0.2 },
+          (value) => {
+            held[key] = Math.round(value);
+            write();
+          },
+        );
+        return;
       case 'boolean':
-        held[key] ??= false;
-        return folder.add(held, key).name(label).onChange(write);
+        section.toggle(label, (held[key] as boolean) ?? false, (on) => {
+          held[key] = on;
+          write();
+        });
+        return;
       case 'choice': {
         const options = typeof field.options === 'function' ? field.options() : field.options;
-        held[key] ??= '';
-        return folder.add(held, key, ['', ...options]).name(label).onChange(write);
+        section.select(label, (held[key] as string) ?? '', ['', ...options], (value) => {
+          held[key] = value;
+          write();
+        });
+        return;
       }
-      case 'color':
-        held[key] ??= '#ffffff';
-        return folder.addColor(held, key).name(label).onChange(write);
-      case 'ref': {
-        const state = held as Record<string, unknown>;
-        state[key] ??= '';
-        this.ref(folder, label, state, key, write);
-        return null;
-      }
+      case 'ref':
+        section.ref(
+          label,
+          (held[key] as string) ?? '',
+          this.ids(),
+          (value) => {
+            held[key] = value;
+            write();
+          },
+          (accept) => this.hooks.pick(accept),
+        );
+        return;
       case 'string':
-        held[key] ??= '';
-        return folder.add(held, key).name(label).onChange(write);
+      case 'color':
+        section.text(label, (held[key] as string) ?? '', (value) => {
+          held[key] = value;
+          write();
+        });
+        return;
       default:
-        return null;
+        return;
     }
   }
 }
-
-/** Named so the ground table is a dropdown rather than a typed string. */
-export const GROUND_NAMES = Object.keys(GROUND);

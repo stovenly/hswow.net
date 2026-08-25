@@ -312,8 +312,202 @@ body.is-playing .editor-toolbar {
 }
 
 /* lil-gui placed in a container of ours rather than fixed to the corner. */
-.editor-column .editor-panel {
+.editor-column .editor-gui {
   --width: 320px;
 
   width: 100%;
+}
+
+/* The bar is one row of ten and must not creep across the world. */
+.editor-menubar {
+  max-width: 66vw;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* --- the editor's own controls -------------------------------------------- */
+
+.ed-panel {
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgb(220 220 200 / 88%);
+  background: rgb(10 10 15 / 92%);
+  border-left: 1px solid rgb(220 220 200 / 12%);
+}
+
+.ed-panel-title {
+  padding: 6px 9px;
+  color: #dcdcc8;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  background: rgb(255 255 255 / 6%);
+  border-bottom: 1px solid rgb(220 220 200 / 12%);
+}
+
+.ed-section-head {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  width: 100%;
+  padding: 5px 9px;
+  font: inherit;
+  color: rgb(220 220 200 / 62%);
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  background: none;
+  border: 0;
+  border-top: 1px solid rgb(220 220 200 / 9%);
+  cursor: pointer;
+}
+
+.ed-section-head:hover {
+  color: #dcdcc8;
+}
+
+.ed-caret {
+  width: 0.7em;
+  font-size: 9px;
+}
+
+.ed-rows.is-shut {
+  display: none;
+}
+
+.ed-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 1px 9px 1px 0;
+}
+
+.ed-row:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.ed-label {
+  flex: 0 0 96px;
+  padding: 3px 0 3px 9px;
+  overflow: hidden;
+  color: rgb(220 220 200 / 62%);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-scrub {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.ed-scrub:hover {
+  color: #7fd4ff;
+}
+
+.ed-cell {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ed-input,
+.ed-select {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 5px;
+  font: inherit;
+  color: #dcdcc8;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+
+.ed-input:focus,
+.ed-select:focus {
+  border-color: #7fd4ff;
+  outline: none;
+}
+
+.ed-number {
+  color: #7fd4ff;
+  text-align: right;
+}
+
+.ed-check {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: #7fd4ff;
+}
+
+.ed-readout {
+  overflow: hidden;
+  color: rgb(220 220 200 / 45%);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-suffix {
+  order: 2;
+  color: rgb(220 220 200 / 35%);
+}
+
+.ed-pick {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font: inherit;
+  color: #dcdcc8;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(220 220 200 / 14%);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ed-pick:hover {
+  color: #0a0a0f;
+  background: #7fd4ff;
+}
+
+.ed-vector {
+  gap: 3px;
+}
+
+.ed-axis {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ed-axis-name {
+  flex: 0 0 auto;
+  color: rgb(220 220 200 / 40%);
+}
+
+.ed-note {
+  padding: 3px 9px 5px;
+  color: rgb(220 220 200 / 45%);
+}
+
+.ed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px 9px 6px;
+}
+
+.ed-button {
+  padding: 3px 8px;
+  font: inherit;
+  color: #dcdcc8;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(220 220 200 / 14%);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ed-button:hover {
+  background: rgb(255 255 255 / 14%);
 }

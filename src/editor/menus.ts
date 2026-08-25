@@ -1,4 +1,5 @@
 import GUI from 'lil-gui';
+import { Panel } from './ui';
 
 /**
  * The editor's menu bar: named buttons, one panel showing at a time.
@@ -7,8 +8,9 @@ import GUI from 'lil-gui';
  * developer's scratchpad. An editor is not that — you come to it to do a named
  * thing, so the things are named and each opens its own panel.
  *
- * lil-gui stays the form library. What changes is that there are several of
- * them and a bar decides which one you are looking at.
+ * A menu holds either the editor's own controls or a lil-gui, never both: the
+ * panels the editor owns are built from `ui.ts`, and lil-gui is left holding the
+ * game's tuning folders, which are the game's to lay out.
  */
 
 export type MenuName = string;
@@ -16,7 +18,9 @@ export type MenuName = string;
 export class Menus {
   private readonly bar = document.createElement('div');
   private readonly column = document.createElement('div');
-  private readonly panels = new Map<MenuName, GUI>();
+  private readonly slots = new Map<MenuName, HTMLElement>();
+  private readonly guis = new Map<MenuName, GUI>();
+  private readonly panels = new Map<MenuName, Panel>();
   private readonly buttons = new Map<MenuName, HTMLButtonElement>();
   private open: MenuName | null = null;
 
@@ -29,16 +33,16 @@ export class Menus {
     parent.append(this.bar, this.column);
   }
 
-  /** The panel for a menu, made on first ask. */
-  panel(name: MenuName): GUI {
-    const held = this.panels.get(name);
+  /** The container for a menu, made on first ask, with its button. */
+  slot(name: MenuName): HTMLElement {
+    const held = this.slots.get(name);
     if (held) return held;
 
-    const gui = new GUI({ container: this.column, title: name });
-    gui.domElement.classList.add('editor-panel');
-    // The bar decides what is open, so a panel never closes into a title bar.
-    gui.domElement.style.display = 'none';
-    this.panels.set(name, gui);
+    const slot = document.createElement('div');
+    slot.className = 'editor-slot';
+    slot.style.display = 'none';
+    this.column.append(slot);
+    this.slots.set(name, slot);
 
     const button = document.createElement('button');
     button.textContent = name;
@@ -48,6 +52,26 @@ export class Menus {
     });
     this.bar.append(button);
     this.buttons.set(name, button);
+    return slot;
+  }
+
+  /** A menu built from the editor's own controls. */
+  panel(name: MenuName): Panel {
+    const held = this.panels.get(name);
+    if (held) return held;
+    const panel = new Panel(name);
+    this.slot(name).append(panel.element);
+    this.panels.set(name, panel);
+    return panel;
+  }
+
+  /** A menu holding the game's own tuning folders. */
+  gui(name: MenuName): GUI {
+    const held = this.guis.get(name);
+    if (held) return held;
+    const gui = new GUI({ container: this.slot(name), title: name });
+    gui.domElement.classList.add('editor-gui');
+    this.guis.set(name, gui);
     return gui;
   }
 
@@ -55,8 +79,8 @@ export class Menus {
   show(name: MenuName | null): void {
     if (name) this.beforeShow?.(name);
     this.open = name;
-    for (const [held, gui] of this.panels) {
-      gui.domElement.style.display = held === name ? '' : 'none';
+    for (const [held, slot] of this.slots) {
+      slot.style.display = held === name ? '' : 'none';
     }
     for (const [held, button] of this.buttons) {
       button.setAttribute('aria-pressed', held === name ? 'true' : 'false');
@@ -77,6 +101,6 @@ export class Menus {
    * which is the whole reason it exists.
    */
   adopt(name: MenuName, folder: GUI): void {
-    this.panel(name).$children.appendChild(folder.domElement);
+    this.gui(name).$children.appendChild(folder.domElement);
   }
 }
