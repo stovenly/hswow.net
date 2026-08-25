@@ -217,7 +217,7 @@ export class Editor {
     this.viewMenu();
     // The buttons exist from the start; what is behind them is built the first
     // time one is pressed. See `fillTuning`.
-    for (const name of Object.keys(TUNING_MENUS)) this.menus.panel(name);
+    for (const name of new Set(Object.values(TUNING_MENUS))) this.menus.panel(name);
     this.menus.beforeShow = (name) => {
       if (name in TUNING_MENUS) this.fillTuning();
     };
@@ -995,6 +995,14 @@ export class Editor {
 
     input.freeLook = false;
     player.noclip = false;
+    // Indexing a level this size blocks for a second, so it is paid here — on
+    // the way into the one mode that collides with anything — and not on every
+    // drag release.
+    const zone = zones.current?.id;
+    if (zone && this.session.collisionStale(zone)) {
+      this.chrome.say('settling the collision…');
+      this.session.settleCollision(zone);
+    }
     const from = player.position.clone();
     const drop = this.app.collider.raycast(from, DOWN);
     if (drop !== null) {

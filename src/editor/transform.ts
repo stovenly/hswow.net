@@ -30,8 +30,8 @@ const SNAP = { move: 0.1, rotate: Math.PI / 36, scale: 0.05 };
 const SKIN = 0.002;
 
 const DOWN = new THREE.Vector3(0, -1, 0);
-const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
+const _caster = new THREE.Raycaster();
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
 const _step = new THREE.Vector3();
@@ -194,28 +194,50 @@ export class Transform {
   }
 
   /**
-   * Sweeps the selection's collision extent along the drag against the zone,
-   * stopping at the first contact. The selection's own triangles are excluded by
-   * hiding it from the ray: the collider indexes the whole zone, so a box tested
-   * against itself always touches.
+   * Sweeps the selection's extent along the drag against the zone, stopping at
+   * the first contact.
+   *
+   * Against the scene graph rather than the octree: the octree is only rebuilt
+   * on the way into Play, so during a drag it is a second out of date — and the
+   * one prop it is most out of date about is the one in your hand.
    */
   private sweep(delta: THREE.Vector3): THREE.Vector3 {
     const distance = delta.length();
     if (distance < 1e-6) return delta;
     const box = this.selection.boundsOf(this.selection.objects);
     if (!box) return delta;
-    _box.copy(box);
-    _box.getSize(_size);
+    box.getSize(_size);
     const radius = Math.max(_size.x, _size.z) / 2;
     const direction = _to.copy(delta).normalize();
+    box.getCenter(_from);
 
-    // Cast from the extent's own corners along the drag, which is a swept box
-    // approximated by its worst corner — enough to stop a crate at a wall.
-    _from.copy(box.getCenter(new THREE.Vector3()));
-    const hit = this.app.collider.raycast(_from, direction);
+    const hit = this.castWorld(_from, direction, distance + radius + 1);
     if (hit === null) return delta;
     const room = Math.max(0, hit - radius - SKIN);
     return room >= distance ? delta : delta.setLength(room);
+  }
+
+  /**
+   * Distance to the nearest thing in the zone that is not the selection, along
+   * a ray. The scene graph, so it is never out of date.
+   */
+  private castWorld(from: THREE.Vector3, direction: THREE.Vector3, far: number): number | null {
+    const zone = this.app.zones.current;
+    if (!zone?.isBuilt) return null;
+    _caster.set(from, direction);
+    _caster.far = far;
+    const mine = new Set(this.selection.objects);
+    for (const hit of _caster.intersectObject(zone.root(), true)) {
+      let owned = false;
+      for (let node: THREE.Object3D | null = hit.object; node; node = node.parent) {
+        if (mine.has(node)) {
+          owned = true;
+          break;
+        }
+      }
+      if (!owned) return hit.distance;
+    }
+    return null;
   }
 
   private groundUnder(at: THREE.Vector3): number {
@@ -224,7 +246,7 @@ export class Transform {
     if (ground !== undefined) return ground;
     // No heightfield: fall onto whatever is under it, or leave it where it is.
     _from.set(at.x, at.y + 20, at.z);
-    const hit = this.app.collider.raycast(_from, DOWN);
+    const hit = this.castWorld(_from, DOWN, 60);
     return hit === null ? at.y : _from.y - hit;
   }
 
@@ -232,7 +254,7 @@ export class Transform {
   drop(): void {
     for (const object of this.selection.objects) {
       _from.copy(object.position).setY(object.position.y + 0.05);
-      const hit = this.app.collider.raycast(_from, DOWN);
+      const hit = this.castWorld(_from, DOWN, 80);
       if (hit === null) continue;
       const landed = _from.y - hit;
       const under = this.underEntry(_from, hit);

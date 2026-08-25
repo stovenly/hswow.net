@@ -38,6 +38,8 @@ export class Session {
   private rebuildTimer = 0;
   private saveTimer = 0;
   private readonly pendingRebuild = new Set<string>();
+  /** Zones whose octree is behind the props. See `reindex`. */
+  private readonly stale = new Set<string>();
 
   /** Called after anything changes: the status line, the dirty dot, the rings. */
   onChange: (() => void) | null = null;
@@ -153,6 +155,7 @@ export class Session {
     for (const zone of zones) {
       this.say(`rebuilding ${zone}…`);
       await this.app.zones.rebuild(zone);
+      this.stale.delete(zone);
     }
     this.say('');
     this.onChange?.();
@@ -180,11 +183,30 @@ export class Session {
     this.reindex(zone);
   }
 
+  /**
+   * Says the zone's collision is out of date. It is *not* rebuilt here:
+   * indexing a level the size of the village is a second of blocked main
+   * thread, and nothing in Fly collides with anything.
+   */
   reindex(zone: string): void {
+    this.stale.add(zone);
+  }
+
+  /**
+   * Rebuilds the collision if a move has left it behind. Called on the way into
+   * Play, which is the only place it is asked to be right.
+   */
+  settleCollision(zone: string): void {
+    if (!this.stale.delete(zone)) return;
     const held = this.app.zones.zones.get(zone);
     if (!held?.isBuilt) return;
     this.app.collider.invalidate(zone);
     if (this.app.zones.current?.id === zone) this.app.collider.build(held.root(), zone);
+  }
+
+  /** Whether a zone's octree is behind where its props now are. */
+  collisionStale(zone: string): boolean {
+    return this.stale.has(zone);
   }
 
   undo(): void {
