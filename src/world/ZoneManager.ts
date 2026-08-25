@@ -549,7 +549,7 @@ export class ZoneManager {
       }
     }
 
-    await this.dress(zone);
+    await this.decorate(zone, root);
     this.options.collider.invalidate(id);
     if (this.active === zone) this.options.collider.build(root, id);
   }
@@ -819,10 +819,13 @@ export class ZoneManager {
 
   private async dress(zone: Zone): Promise<THREE.Group> {
     const root = zone.root();
-    const dressed = this.doored.has(zone.id);
+    // Dressing is once per build. `prepare` runs on every entry, and a second
+    // pass would hang a second set of light pads and a second sparkle field
+    // on the zone — which is a shader permutation and a frame rate.
+    if (this.doored.has(zone.id)) return root;
     this.doored.add(zone.id);
 
-    for (const side of dressed ? [] : this.portals.in(zone.id)) {
+    for (const side of this.portals.in(zone.id)) {
       const end = side.end;
       const mesh = buildDoor({ seed: end.seed ?? 1, material: end.material });
       mesh.position.copy(end.position);
@@ -834,6 +837,18 @@ export class ZoneManager {
       this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
     }
 
+    return this.decorate(zone, root);
+  }
+
+  /**
+   * Everything dressing does that is not the doors: shadows, the light census,
+   * the clutter and barrier lists, the cover, the sparkles.
+   *
+   * Separate from `dress` because it is the half that can be run again — over
+   * a zone one of whose objects has just been swapped. Whatever it adds of its
+   * own has to be taken back out first; see `replaceObject`.
+   */
+  private async decorate(zone: Zone, root: THREE.Group): Promise<THREE.Group> {
     // Every solid surface both casts and receives, decided once here rather than
     // by each builder. Glow never casts: it is additive and unlit. Ground never
     // casts: a floor can only shadow itself, which is the classic source of acne.
