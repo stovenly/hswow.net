@@ -15,6 +15,19 @@ import type { Session } from './session';
 
 type Record_ = Record<string, unknown>;
 
+/**
+ * A control's value, and where it goes when it changes.
+ *
+ * **Nothing here may write to a document to make a control work.** A panel that
+ * seeds a missing field with a default has changed the level by being opened,
+ * and an absent field usually means "take the default", which is not the same
+ * number — a skirt with no `sink` falls six metres under the level, and one
+ * written as `sink: 0` sits on it.
+ */
+function bind<T>(held: Record_, key: string, fallback: T): { value: T } {
+  return { value: (held[key] as T | undefined) ?? fallback };
+}
+
 /** What each landform kind carries, beyond its own shape. */
 const LANDFORM_FIELDS: Record<string, Record<string, Field>> = {
   hill: {
@@ -178,15 +191,16 @@ export class TerrainPanel {
       const row = group.addFolder(`${index + 1} · ${String(form.kind)}`).close();
       const fields = LANDFORM_FIELDS[String(form.kind)] ?? {};
       for (const [key, field] of Object.entries(fields)) {
-        if (form[key] === undefined) form[key] = field.type === 'int' ? 1 : 0;
-        if (field.type === 'int') {
-          row.add(form, key, field.min ?? -1, field.max ?? 1, 1).name(field.label ?? key).onChange(write);
-        } else if (field.type === 'number') {
-          row
-            .add(form, key, field.min ?? 0, field.max ?? 100, field.step ?? 0.1)
-            .name(field.label ?? key)
-            .onChange(write);
-        }
+        if (field.type !== 'int' && field.type !== 'number') continue;
+        const state = bind(form, key, field.type === 'int' ? 1 : 0);
+        const step = field.type === 'int' ? 1 : (field.step ?? 0.1);
+        row
+          .add(state, 'value', field.min ?? -1, field.max ?? 100, step)
+          .name(field.label ?? key)
+          .onChange(() => {
+            form[key] = state.value;
+            write();
+          });
       }
 
       // The shape itself is drawn rather than typed.
@@ -305,9 +319,25 @@ export class TerrainPanel {
 
     patches.forEach((patch, index) => {
       const row = group.addFolder(`patch ${index + 1} · ${String(patch.material)}`).close();
-      row.add(patch, 'material', Object.keys(GROUND)).onChange(writePatches);
-      if (patch.kind === 'path') row.add(patch, 'width', 0.5, 20, 0.1).onChange(writePatches);
-      if (patch.kind === 'blot') row.add(patch, 'radius', 0.5, 100, 0.5).onChange(writePatches);
+      const material = bind(patch, 'material', 'dirt');
+      row.add(material, 'value', Object.keys(GROUND)).name('material').onChange(() => {
+        patch.material = material.value;
+        writePatches();
+      });
+      if (patch.kind === 'path') {
+        const width = bind(patch, 'width', 2);
+        row.add(width, 'value', 0.5, 20, 0.1).name('width').onChange(() => {
+          patch.width = width.value;
+          writePatches();
+        });
+      }
+      if (patch.kind === 'blot') {
+        const radius = bind(patch, 'radius', 4);
+        row.add(radius, 'value', 0.5, 100, 0.5).name('radius').onChange(() => {
+          patch.radius = radius.value;
+          writePatches();
+        });
+      }
       row.add({ remove: () => {
         patches.splice(index, 1);
         writePatches();
@@ -317,8 +347,16 @@ export class TerrainPanel {
 
     covers.forEach((patch, index) => {
       const row = group.addFolder(`cover ${index + 1} · ${String(patch.cover)}`).close();
-      row.add(patch, 'cover', ['none', ...Object.keys(COVER_TYPES)]).onChange(writeCovers);
-      row.add(patch, 'edge', ['feather', 'hard']).onChange(writeCovers);
+      const grows = bind(patch, 'cover', 'none');
+      row.add(grows, 'value', ['none', ...Object.keys(COVER_TYPES)]).name('cover').onChange(() => {
+        patch.cover = grows.value;
+        writeCovers();
+      });
+      const edge = bind(patch, 'edge', 'feather');
+      row.add(edge, 'value', ['feather', 'hard']).name('edge').onChange(() => {
+        patch.edge = edge.value;
+        writeCovers();
+      });
       row.add({ remove: () => {
         covers.splice(index, 1);
         writeCovers();
@@ -345,20 +383,28 @@ export class TerrainPanel {
         .name('give this level open country');
       return;
     }
-    const skirt = doc.skirt as unknown as Record<string, number>;
-    const write = (): void => this.edit(doc, () => {});
-    const dial = (key: string, min: number, max: number, step: number, label?: string): void => {
-      if (skirt[key] === undefined) skirt[key] = min;
-      group.add(skirt, key, min, max, step).name(label ?? key).onChange(write);
+    const skirt = doc.skirt as unknown as Record_;
+    // The defaults `Skirt` itself applies, shown so a control has a number
+    // without one being written into the file.
+    const dial = (key: string, min: number, max: number, step: number, fallback: number, label?: string): void => {
+      const state = bind(skirt, key, fallback);
+      group
+        .add(state, 'value', min, max, step)
+        .name(label ?? key)
+        .onChange(() =>
+          this.edit(doc, () => {
+            skirt[key] = state.value;
+          }),
+        );
     };
-    dial('reach', 40, 900, 10, 'reaches (m)');
-    dial('resolution', 2, 40, 1, 'metres per quad');
-    dial('collar', 0, 40, 1, 'agrees over (m)');
-    dial('apron', 0, 120, 1, 'falls away over (m)');
-    dial('sink', 0, 40, 0.5, 'sinks under by (m)');
-    dial('roll', 0, 4, 0.05, 'how much it rolls');
-    dial('curve', 0, 20000, 100, 'world radius (m)');
-    dial('seed', 0, 1_000_000, 1);
+    dial('reach', 40, 900, 10, 320, 'reaches (m)');
+    dial('resolution', 2, 40, 1, 9, 'metres per quad');
+    dial('collar', 0, 40, 1, 8, 'agrees over (m)');
+    dial('apron', 0, 120, 1, 24, 'falls away over (m)');
+    dial('sink', 0, 40, 0.5, 6, 'sinks under by (m)');
+    dial('roll', 0, 4, 0.05, 1, 'how much it rolls');
+    dial('curve', 0, 20000, 100, 0, 'world radius (m)');
+    dial('seed', 0, 1_000_000, 1, 1);
   }
 }
 

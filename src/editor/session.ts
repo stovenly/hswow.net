@@ -56,6 +56,20 @@ export class Session {
   private readonly pendingRebuild = new Set<string>();
   /** Zones whose octree is behind the props. See `reindex`. */
   private readonly stale = new Set<string>();
+  /**
+   * Each document as it stood after the last commit.
+   *
+   * **`commit` is the only thing allowed to write to a document.** A panel that
+   * binds a control straight to one, or seeds a missing field so a control has
+   * something to sit on, has changed the level by being opened — and autosave
+   * will put it on disk. An absent field is not the same as its default: a
+   * skirt with no `sink` falls six metres under the level, and one written as
+   * `sink: 0` sits on it and z-fights the whole thing.
+   *
+   * So every commit checks the document still looks the way it left it, and
+   * puts back anything that was written behind its back.
+   */
+  private readonly canonical = new Map<string, string>();
   /** Entries waiting to be raised again on their own, by `zone/id`. */
   private readonly pendingEntries = new Set<string>();
   private entryTimer = 0;
@@ -83,7 +97,10 @@ export class Session {
 
   /** Adopts the documents the page booted with, so nothing is fetched twice. */
   adopt(documents: readonly ZoneDocument[], manifest: PortalManifest): void {
-    for (const doc of documents) this.docs.set(doc.id, doc);
+    for (const doc of documents) {
+      this.docs.set(doc.id, doc);
+      this.canonical.set(doc.id, JSON.stringify(doc));
+    }
     this.manifest = manifest;
     // The mtimes the writes will be checked against.
     void this.api.zones().catch(() => {});
@@ -143,10 +160,19 @@ export class Session {
   commit(zone: string, reach: Reach, mutate: (doc: ZoneDocument) => void, entry?: string): void {
     const doc = this.docs.get(zone);
     if (!doc) return;
-    const before = JSON.stringify(doc);
+
+    let before = JSON.stringify(doc);
+    const canon = this.canonical.get(zone);
+    if (canon !== undefined && canon !== before) {
+      console.warn(`document "${zone}" was written to outside a commit; putting it back`);
+      writeInto(doc, JSON.parse(canon) as ZoneDocument);
+      before = canon;
+    }
+
     mutate(doc);
     const after = JSON.stringify(doc);
     if (before === after) return;
+    this.canonical.set(zone, after);
 
     this.undoStack.push({ zone, before, after });
     this.redoStack.length = 0;
@@ -284,9 +310,8 @@ export class Session {
     if (!doc) return;
     // In place, because the zone definition closed over this object when it was
     // interpreted and a replacement would leave the world reading the old one.
-    const held = doc as unknown as Record<string, unknown>;
-    for (const key of Object.keys(held)) delete held[key];
-    Object.assign(doc, JSON.parse(snapshot));
+    writeInto(doc, JSON.parse(snapshot) as ZoneDocument);
+    this.canonical.set(zone, snapshot);
     this.dirty.add(zone);
     this.schedule(zone, 'zone');
     this.onChange?.();
@@ -316,6 +341,7 @@ export class Session {
   /** Adds a document and registers it as a zone, without a reload. */
   createZone(doc: ZoneDocument): void {
     this.docs.set(doc.id, doc);
+    this.canonical.set(doc.id, JSON.stringify(doc));
     this.app.zones.register(zoneFromDocument(doc));
     this.dirty.add(doc.id);
     void this.api.saveZone(doc).then(() => this.dirty.delete(doc.id));
@@ -325,6 +351,7 @@ export class Session {
 
   async deleteZone(id: string): Promise<void> {
     this.docs.delete(id);
+    this.canonical.delete(id);
     this.dirty.delete(id);
     await this.api.deleteZone(id);
     this.onChange?.();
@@ -349,6 +376,13 @@ export function findEntryObject(
     if (tag && tag.zone === zone && tag.id === id) found = object;
   });
   return found;
+}
+
+/** Replaces a document's contents without replacing the object itself. */
+function writeInto(doc: ZoneDocument, from: ZoneDocument): void {
+  const held = doc as unknown as Record<string, unknown>;
+  for (const key of Object.keys(held)) delete held[key];
+  Object.assign(held, from);
 }
 
 function splitKey(key: string): [string, string] {

@@ -179,17 +179,25 @@ export class ZonePanel {
     );
 
     if (!shell.rooms) {
-      const box = shell as { width?: number; depth?: number; height?: number; planks?: boolean; beams?: number };
-      box.width ??= 8;
-      box.depth ??= 6;
-      box.height ??= 3;
-      box.planks ??= true;
-      box.beams ??= 3;
-      group.add(box, 'width', 2, 40, 0.1).onChange(write);
-      group.add(box, 'depth', 2, 40, 0.1).onChange(write);
-      group.add(box, 'height', 2, 12, 0.1).onChange(write);
-      group.add(box, 'planks').name('boarded floor').onChange(write);
-      group.add(box, 'beams', 0, 8, 1).onChange(write);
+      // Read with the builder's own defaults, written only when moved: seeding
+      // a missing field is a change to the level made by opening a panel.
+      const box = shell as Record<string, unknown>;
+      const state = {
+        width: (box.width as number) ?? 8,
+        depth: (box.depth as number) ?? 6,
+        height: (box.height as number) ?? 3,
+        planks: (box.planks as boolean) ?? true,
+        beams: (box.beams as number) ?? 3,
+      };
+      const put = (key: keyof typeof state) => () => {
+        box[key] = state[key];
+        write();
+      };
+      group.add(state, 'width', 2, 40, 0.1).onChange(put('width'));
+      group.add(state, 'depth', 2, 40, 0.1).onChange(put('depth'));
+      group.add(state, 'height', 2, 12, 0.1).onChange(put('height'));
+      group.add(state, 'planks').name('boarded floor').onChange(put('planks'));
+      group.add(state, 'beams', 0, 8, 1).onChange(put('beams'));
       group
         .add(
           {
@@ -200,11 +208,11 @@ export class ZonePanel {
                   {
                     id: 'room-1',
                     at: [0, 0],
-                    width: box.width ?? 8,
-                    depth: box.depth ?? 6,
-                    height: box.height ?? 3,
-                    planks: box.planks,
-                    beams: box.beams,
+                    width: state.width,
+                    depth: state.depth,
+                    height: state.height,
+                    planks: state.planks,
+                    beams: state.beams,
                   },
                 ];
                 shell.joins = [];
@@ -262,14 +270,20 @@ export class ZonePanel {
       row.add(room, 'width', 2, 60, 0.1).onChange(write);
       row.add(room, 'depth', 2, 60, 0.1).onChange(write);
       row.add(room, 'height', 2, 14, 0.1).onChange(write);
-      room.level ??= 0;
-      room.roughen ??= 0;
-      room.beams ??= 3;
-      room.planks ??= true;
-      row.add(room, 'level', -12, 12, 0.05).name('floor level').onChange(write);
-      row.add(room, 'roughen', 0, 1, 0.02).name('cave the walls').onChange(write);
-      row.add(room, 'planks').name('boarded floor').onChange(write);
-      row.add(room, 'beams', 0, 10, 1).onChange(write);
+      const extra = {
+        level: room.level ?? 0,
+        roughen: room.roughen ?? 0,
+        planks: room.planks ?? true,
+        beams: room.beams ?? 3,
+      };
+      const put = (key: keyof typeof extra) => () => {
+        (room as unknown as Record<string, unknown>)[key] = extra[key];
+        write();
+      };
+      row.add(extra, 'level', -12, 12, 0.05).name('floor level').onChange(put('level'));
+      row.add(extra, 'roughen', 0, 1, 0.02).name('cave the walls').onChange(put('roughen'));
+      row.add(extra, 'planks').name('boarded floor').onChange(put('planks'));
+      row.add(extra, 'beams', 0, 10, 1).onChange(put('beams'));
       row
         .add({ style: room.style ?? '' }, 'style', ['', ...interiorStyleNames()])
         .onChange((style: string) => {
@@ -309,12 +323,18 @@ export class ZonePanel {
     joins.forEach((join, index) => {
       const row = link.addFolder(`${join.between[0]} — ${join.between[1]}`).close();
       row.add(join, 'kind', ['doorway', 'arch', 'open', 'stair']).onChange(write);
-      join.offset ??= 0;
-      row.add(join, 'offset', -20, 20, 0.05).name('along the wall').onChange(write);
-      join.width ??= 1.1;
-      join.height ??= 2.05;
-      row.add(join, 'width', 0.5, 20, 0.05).onChange(write);
-      row.add(join, 'height', 1, 12, 0.05).onChange(write);
+      const shape = {
+        offset: join.offset ?? 0,
+        width: join.width ?? 1.1,
+        height: join.height ?? 2.05,
+      };
+      const put = (key: keyof typeof shape) => () => {
+        (join as unknown as Record<string, unknown>)[key] = shape[key];
+        write();
+      };
+      row.add(shape, 'offset', -20, 20, 0.05).name('along the wall').onChange(put('offset'));
+      row.add(shape, 'width', 0.5, 20, 0.05).onChange(put('width'));
+      row.add(shape, 'height', 1, 12, 0.05).onChange(put('height'));
       row.add({ remove: () => {
         joins.splice(index, 1);
         write();

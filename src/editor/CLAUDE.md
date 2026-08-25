@@ -19,6 +19,15 @@ not is on the View menu and says session only.** There is no third category —
 visibility, isolate, the ruler, bookmarks, the world-state preview and the
 climate holds are all inspection state and none of them is saved.
 
+**`Session.commit` is the only thing that may write to a document.** Never bind
+a control straight to a document object, and never seed a missing field so a
+control has something to sit on — a panel that does has changed the level by
+being opened, and autosave puts it on disk. An absent field is not its default:
+a skirt with no `sink` falls six metres under the level, one written as
+`sink: 0` sits on it. Read with a fallback into a local object; write on change.
+The session keeps a copy of each document as the last commit left it and puts
+back anything written behind its back.
+
 **No second renderer.** The world is drawn by `PostFX` or not at all. The gizmo,
 the outlines, the brush rings and the visualisers are ordinary scene objects with
 `depthTest` off and `fog` off; the moment the editor draws anything the game
