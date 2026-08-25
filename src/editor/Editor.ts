@@ -109,6 +109,12 @@ export class Editor {
     this.session = new Session(app);
     this.session.adopt(documents, manifest);
     this.session.say = (message) => this.chrome.say(message);
+    // A rebuilt entry is a different object; the selection has to follow it or
+    // the gizmo is left holding a mesh that is no longer in the world.
+    this.session.onReplaced = (zone, id, object) => {
+      if (this.selection.tag?.zone !== zone || this.selection.tag.id !== id) return;
+      this.selection.set([object]);
+    };
 
     this.selection = new Selection(app);
     this.transform = new Transform(app, this.session, this.selection);
@@ -696,7 +702,7 @@ export class Editor {
         case 'KeyR':
         case 'KeyT': {
           // Only while the mouse is loose. In play these are movement keys.
-          if (this.current !== 'fly' || this.app.input.locked) return false;
+          if (this.current === 'play' || this.app.input.freeLook) return false;
           const which: Tool =
             event.code === 'KeyW'
               ? 'move'
@@ -711,26 +717,26 @@ export class Editor {
         case 'KeyX':
         case 'KeyY':
         case 'KeyZ':
-          if (this.current !== 'fly') return false;
+          if (this.current === 'play' || this.app.input.freeLook) return false;
           this.transform.setAxis(event.code.slice(3) as 'X' | 'Y' | 'Z');
           return true;
         case 'KeyL':
           this.transform.setSpace(this.transform.space === 'local' ? 'world' : 'local');
           return true;
         case 'KeyF':
-          if (this.current !== 'fly') return false;
+          if (this.current === 'play' || this.app.input.freeLook) return false;
           this.setMoveMode('free');
           return true;
         case 'KeyC':
-          if (this.current !== 'fly') return false;
+          if (this.current === 'play' || this.app.input.freeLook) return false;
           this.setMoveMode('contact');
           return true;
         case 'KeyG':
-          if (this.current !== 'fly') return false;
+          if (this.current === 'play' || this.app.input.freeLook) return false;
           this.setMoveMode('ground');
           return true;
         case 'KeyS':
-          if (this.current !== 'fly' || this.selection.objects.length === 0) return false;
+          if (this.app.input.freeLook || this.selection.objects.length === 0) return false;
           this.picking = (id) => {
             const target = this.objectFor(id);
             if (target) this.transform.snapTo(target);
@@ -972,7 +978,7 @@ export class Editor {
         fov: player.tuning.fov,
       };
       player.noclip = true;
-      input.freeLook = true;
+      input.freeLook = false;
       if (document.pointerLockElement) document.exitPointerLock();
       player.tuning.fov = TOP_FOV;
       const at = player.position;
@@ -985,11 +991,14 @@ export class Editor {
 
     if (mode === 'fly') {
       player.noclip = true;
-      input.freeLook = true;
+      // Held only while the right button is down — see `FreeLook`. Unmodified
+      // keys are the editor's the rest of the time, and nothing can be left
+      // held down by a keyup that arrived after you stopped flying.
+      input.freeLook = false;
       if (document.pointerLockElement) document.exitPointerLock();
       this.setTool(this.transform.tool);
       this.setMoveMode(this.transform.mode);
-      this.chrome.say('flying — right-drag to look, click to pick');
+      this.chrome.say('hold the right button to fly · click to pick');
       return;
     }
 

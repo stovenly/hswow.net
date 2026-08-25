@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import type { App } from '../app/boot';
-import { zoneFromDocument, type ZoneDocument, type PortalManifest } from '../world/document';
+import {
+  rebuildEntry,
+  zoneFromDocument,
+  type PortalManifest,
+  type ZoneDocument,
+} from '../world/document';
 import type { Entry } from '../world/entry';
 import { applyPlacement, type EntryPlacement } from '../world/entry';
 import { Api, SaveConflict } from './api';
@@ -14,12 +19,23 @@ import { moved } from './matrices';
  * scene graph back into a document.
  */
 
-/** How long after the last change a full rebuild runs. */
+/** How long after the last change one entry is raised again. */
+const ENTRY_DELAY = 120;
+/** And how long after the last change the whole zone is. */
 const REBUILD_DELAY = 250;
 /** And how long after that the file is written. */
 const SAVE_DELAY = 1000;
 
-export type Reach = 'transform' | 'zone';
+/**
+ * What a change costs to show.
+ *
+ * `transform` moves the built object and re-indexes nothing else. `entry`
+ * builds that one object again and swaps it in — a re-rolled seed, a changed
+ * builder option. `zone` raises the whole level, which is what terrain, a
+ * scatter rule, a shell or a layer condition need, and what makes the world
+ * blink; nothing should ask for it that does not need it.
+ */
+export type Reach = 'transform' | 'entry' | 'zone';
 
 interface Step {
   zone: string;
@@ -40,6 +56,11 @@ export class Session {
   private readonly pendingRebuild = new Set<string>();
   /** Zones whose octree is behind the props. See `reindex`. */
   private readonly stale = new Set<string>();
+  /** Entries waiting to be raised again on their own, by `zone/id`. */
+  private readonly pendingEntries = new Set<string>();
+  private entryTimer = 0;
+  /** What the editor is holding, so a swap can hand back the new object. */
+  onReplaced: ((zone: string, id: string, object: THREE.Object3D) => void) | null = null;
 
   /** Called after anything changes: the status line, the dirty dot, the rings. */
   onChange: (() => void) | null = null;
@@ -119,7 +140,7 @@ export class Session {
    * collider re-indexed, with no rebuild at all. Anything else is a full zone
    * rebuild through the eviction path, debounced.
    */
-  commit(zone: string, reach: Reach, mutate: (doc: ZoneDocument) => void): void {
+  commit(zone: string, reach: Reach, mutate: (doc: ZoneDocument) => void, entry?: string): void {
     const doc = this.docs.get(zone);
     if (!doc) return;
     const before = JSON.stringify(doc);
@@ -130,7 +151,7 @@ export class Session {
     this.undoStack.push({ zone, before, after });
     this.redoStack.length = 0;
     this.dirty.add(zone);
-    this.schedule(zone, reach);
+    this.schedule(zone, reach, entry);
     this.onChange?.();
   }
 
@@ -139,7 +160,12 @@ export class Session {
     this.onStructure?.();
   }
 
-  private schedule(zone: string, reach: Reach): void {
+  private schedule(zone: string, reach: Reach, entry?: string): void {
+    if (reach === 'entry' && entry) {
+      this.pendingEntries.add(`${zone}/${entry}`);
+      window.clearTimeout(this.entryTimer);
+      this.entryTimer = window.setTimeout(() => void this.flushEntries(), ENTRY_DELAY);
+    }
     if (reach === 'zone') {
       this.pendingRebuild.add(zone);
       window.clearTimeout(this.rebuildTimer);
@@ -159,6 +185,36 @@ export class Session {
     }
     this.say('');
     this.onChange?.();
+  }
+
+  /**
+   * Raises each waiting entry again on its own. Anything the interpreter cannot
+   * build alone falls back to raising its zone.
+   */
+  private async flushEntries(): Promise<void> {
+    const waiting = [...this.pendingEntries];
+    this.pendingEntries.clear();
+    for (const key of waiting) {
+      const [zone, id] = splitKey(key);
+      const from = this.objectFor(zone, id);
+      const to = from ? rebuildEntry(zone, id) : null;
+      if (!from || !to) {
+        this.pendingRebuild.add(zone);
+        continue;
+      }
+      await this.app.zones.replaceObject(zone, from, to);
+      this.stale.add(zone);
+      this.onReplaced?.(zone, id, to);
+    }
+    if (this.pendingRebuild.size > 0) await this.flushRebuild();
+    this.onChange?.();
+  }
+
+  /** The built object for an entry id, or nothing. */
+  objectFor(zone: string, id: string): THREE.Object3D | null {
+    const held = this.app.zones.zones.get(zone);
+    if (!held?.isBuilt) return null;
+    return findEntryObject(held.root(), zone, id) ?? null;
   }
 
   /** Forces the debounced rebuild to happen now. */
@@ -293,4 +349,9 @@ export function findEntryObject(
     if (tag && tag.zone === zone && tag.id === id) found = object;
   });
   return found;
+}
+
+function splitKey(key: string): [string, string] {
+  const at = key.indexOf('/');
+  return [key.slice(0, at), key.slice(at + 1)];
 }

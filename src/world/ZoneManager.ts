@@ -102,6 +102,26 @@ function revealBarrier(mesh: THREE.Mesh, shown: boolean): void {
  * again every frame. Anything already off is left alone: a builder that turned
  * it off wrote its own matrix. `LightActivity` turns the flames' back on.
  */
+/**
+ * Frees one subtree's buffers. Materials are shared across the whole kit and
+ * must survive — a per-instance clone says so with `userData.owned`.
+ */
+function releaseSubtree(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (
+      object instanceof THREE.Mesh ||
+      object instanceof THREE.LineSegments ||
+      object instanceof THREE.Points
+    ) {
+      object.geometry.dispose();
+      for (const material of [object.material].flat()) {
+        if (material.userData.owned) material.dispose();
+      }
+    }
+  });
+  root.clear();
+}
+
 function freezeMatrices(root: THREE.Object3D): void {
   root.traverse((object) => {
     if (!object.matrixAutoUpdate) return;
@@ -503,6 +523,37 @@ export class ZoneManager {
     this.options.reticle.set(null);
   }
 
+  /**
+   * Swaps one built object for another without raising the zone again.
+   *
+   * The editor's fast path for a re-rolled seed or a changed builder option:
+   * re-raising a level the size of the village makes the whole world blink,
+   * and the thing that changed is one mesh. What is re-run is the dressing —
+   * shadows, the light census, the clutter and barrier lists, the activities —
+   * all of which are a traverse and none of which is geometry.
+   */
+  async replaceObject(id: ZoneId, from: THREE.Object3D, to: THREE.Object3D): Promise<void> {
+    const zone = this.zones.get(id);
+    if (!zone?.isBuilt) return;
+    const root = zone.root();
+    (from.parent ?? root).add(to);
+    from.removeFromParent();
+    releaseSubtree(from);
+
+    // The pads and the sparkle field are the dressing's own additions; they go
+    // before it runs again, or the census counts its own padding.
+    for (const held of [...root.children]) {
+      if (held.userData.lightPad === true || held.userData.sparkleField === true) {
+        held.removeFromParent();
+        if (held instanceof THREE.Mesh) held.geometry.dispose();
+      }
+    }
+
+    await this.dress(zone);
+    this.options.collider.invalidate(id);
+    if (this.active === zone) this.options.collider.build(root, id);
+  }
+
   /** Everything eviction drops, for one zone. */
   private release(zone: Zone, sound: boolean): void {
     zone.dispose();
@@ -768,10 +819,10 @@ export class ZoneManager {
 
   private async dress(zone: Zone): Promise<THREE.Group> {
     const root = zone.root();
-    if (this.doored.has(zone.id)) return root;
+    const dressed = this.doored.has(zone.id);
     this.doored.add(zone.id);
 
-    for (const side of this.portals.in(zone.id)) {
+    for (const side of dressed ? [] : this.portals.in(zone.id)) {
       const end = side.end;
       const mesh = buildDoor({ seed: end.seed ?? 1, material: end.material });
       mesh.position.copy(end.position);
@@ -854,10 +905,15 @@ export class ZoneManager {
     // the same test that decided shadows decides this. Attached after the walk
     // rather than during it, because adding to a tree you are traversing is how
     // you end up covering the cover.
-    const covers = await Promise.all(grounds.map((mesh) => coverFor(mesh)));
-    grounds.forEach((mesh, i) => {
+    const bare = grounds.filter(
+      (mesh) => !mesh.children.some((child) => child.userData.coverField === true),
+    );
+    const covers = await Promise.all(bare.map((mesh) => coverFor(mesh)));
+    bare.forEach((mesh, i) => {
       const cover = covers[i];
-      if (cover) mesh.add(cover);
+      if (!cover) return;
+      cover.userData.coverField = true;
+      mesh.add(cover);
     });
 
     this.padLights(root, zone.id, points, spots);
@@ -866,6 +922,7 @@ export class ZoneManager {
     // Built after the walk above, so it is counted here rather than found there.
     const sparkles = buildZoneSparkles(root);
     if (sparkles) {
+      sparkles.userData.sparkleField = true;
       root.add(sparkles);
       particles = true;
     }
@@ -914,6 +971,9 @@ export class ZoneManager {
         const light = make();
         // Like every real light, so the particle pass sees the same census.
         light.layers.enable(PARTICLE_LAYER);
+        // Marked, so re-dressing a zone replaces the pads rather than stacking
+        // a second set on top of them.
+        light.userData.lightPad = true;
         root.add(light);
       }
     };

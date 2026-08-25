@@ -44,9 +44,12 @@ would draw differently, its judgement is worthless.
 
 ## Modes
 
-**Fly** is the game's `Controller` with `noclip` on and `Input.freeLook` set, so
-the keyboard still steers while the mouse is loose — a left click has to be able
-to pick. Right-drag looks; shift-drag orbits the selection.
+**Fly** is the game's `Controller` with `noclip` on. **Hold the right button to
+fly**: that is what sets `Input.freeLook`, which lets the keyboard steer while
+the mouse is loose. Let go and the same keys are the editor's shortcuts again —
+W is the move tool and a step forward, and only one of them at a time. Letting
+go also drops whatever was held, so a key released after you stop flying cannot
+stick. Shift-drag orbits the selection.
 
 **Play** drops the capsule at the camera's feet with everything live. Nothing
 about it is special-cased: it is the game loop with the panels still on screen.
@@ -58,10 +61,20 @@ mode.
 
 ## Rebuild reach
 
-A placement change moves the built object and re-indexes the collider — no
-builder runs and nothing is disposed. Anything else rebuilds the whole zone
-through `ZoneManager.rebuild`, debounced. An entry that throws while building
-loses itself and not the level, because the editor writes these files mid-edit.
+Three reaches, and nothing should ask for a costlier one than it needs.
+
+- `transform` moves the built object. No builder runs and nothing is disposed.
+- `entry` builds that one object again and swaps it in — a re-rolled seed, a
+  changed builder option — through `ZoneManager.replaceObject`.
+- `zone` raises the whole level through `ZoneManager.rebuild`. Terrain, a
+  scatter rule, a shell, a layer condition. It makes the world blink.
+
+Collision is *marked* stale by a move and rebuilt on the way into Play: indexing
+a level the size of the village blocks for a second, and nothing in Fly collides
+with anything. Contact dragging and drop cast against the scene graph instead.
+
+An entry that throws while building loses itself and not the level, because the
+editor writes these files mid-edit.
 
 ## No checks
 

@@ -147,6 +147,20 @@ interface Registered {
 
 const registry = new Map<string, Registered>();
 
+/** Per zone, a way to build one of its entries again against the live build. */
+const rebuilders = new Map<string, (id: string) => THREE.Object3D | null>();
+
+/**
+ * Builds one entry again, in the context of the zone's current build.
+ *
+ * Null when the zone has never been built, when the id names nothing, or when
+ * the entry contributes no geometry — a sound, a volume — all of which the
+ * caller has to answer by raising the zone instead.
+ */
+export function rebuildEntry(zone: string, id: string): THREE.Object3D | null {
+  return rebuilders.get(zone)?.(id) ?? null;
+}
+
 /** The live heightfield a document built, for the brushes that write into it. */
 export function terrainOf(zone: string): Terrain | null {
   return registry.get(zone)?.terrain ?? null;
@@ -229,6 +243,12 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
   };
 
   registry.set(doc.id, { doc, terrain, shell, groundAt });
+  // Kept from the last build, so one entry can be raised again on its own.
+  let lastPass: ((entry: Entry, id: string) => THREE.Object3D | null) | null = null;
+  rebuilders.set(doc.id, (id) => {
+    const entry = findEntry(doc, id);
+    return entry && lastPass ? lastPass(entry, id) : null;
+  });
 
   const build = (): THREE.Group => {
     const root = new THREE.Group();
@@ -331,6 +351,16 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
         byId.set(id, object);
         parent.add(object);
       }
+    };
+
+    // Held for `rebuildEntry`: the context a single entry needs is the one the
+    // whole pass used, and it is only valid while this build's root is live.
+    lastPass = (entry, id) => {
+      const kind = entryKind(entry.kind);
+      if (!kind) return null;
+      const object = kind.build(entry as never, ctx);
+      if (object) tagEntry(object, doc.id, id);
+      return object;
     };
 
     for (const layer of layersOf(doc)) {

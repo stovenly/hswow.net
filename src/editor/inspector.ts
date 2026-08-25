@@ -5,7 +5,7 @@ import { COVER_TYPES } from '../world/ground';
 import { SURFACES } from '../audio/models/footsteps';
 import { allNotes } from '../world/notes';
 import type { Panel, Section } from './ui';
-import type { Session } from './session';
+import type { Reach, Session } from './session';
 import { findIn } from './transform';
 
 /**
@@ -21,8 +21,8 @@ export interface InspectorHooks {
   pick(onPicked: (id: string) => void): void;
   /** Opens the builder's gallery row with this seed marked. */
   openInGallery(builder: string, seed: number): void;
-  /** Rebuild reach for a field: placement is cheap, anything else is not. */
-  after(reach: 'transform' | 'zone'): void;
+  /** What the field cost to show, so the editor can follow the object. */
+  after(reach: Reach): void;
 }
 
 const YAW_WORDS = Object.keys(COMPASS);
@@ -73,16 +73,16 @@ export class Inspector {
     this.show(shown?.zone ?? null, shown?.id ?? null);
   }
 
-  private edit(
-    zone: string,
-    id: string,
-    reach: 'transform' | 'zone',
-    write: (entry: Entry) => void,
-  ): void {
-    this.session.commit(zone, reach, (doc) => {
-      const entry = findIn(doc, id);
-      if (entry) write(entry);
-    });
+  private edit(zone: string, id: string, reach: Reach, write: (entry: Entry) => void): void {
+    this.session.commit(
+      zone,
+      reach,
+      (doc) => {
+        const entry = findIn(doc, id);
+        if (entry) write(entry);
+      },
+      id,
+    );
     this.hooks.after(reach);
   }
 
@@ -146,7 +146,7 @@ export class Inspector {
         min: 0.05,
         max: 8,
         step: 0.01,
-      }, (value) => this.edit(zone, id, 'zone', (target) => (target.scale = value)));
+      }, (value) => this.edit(zone, id, 'entry', (target) => (target.scale = value)));
     }
 
     section.ref(
@@ -171,12 +171,12 @@ export class Inspector {
     if (entry.kind === 'prop' || entry.kind === 'creature') {
       const made = this.panel.section(entry.kind === 'prop' ? 'prop' : 'creature');
       made.select('builder', (record.builder as string) ?? '', builders.map((b) => b.name), (name) => {
-        this.edit(zone, id, 'zone', (target) => ((target as { builder?: string }).builder = name));
+        this.edit(zone, id, 'entry', (target) => ((target as { builder?: string }).builder = name));
         this.refresh();
       });
       const seed = (record.seed as number) ?? 1;
       made.number('seed', seed, { min: 0, max: 1_000_000, step: 1, scrub: 40 }, (value) =>
-        this.edit(zone, id, 'zone', (target) => ((target as { seed?: number }).seed = value)),
+        this.edit(zone, id, 'entry', (target) => ((target as { seed?: number }).seed = value)),
       );
       made.actions(
         {
@@ -185,7 +185,7 @@ export class Inspector {
           onClick: () => {
             // Deliberate churn: a re-rolled seed is a different object, and
             // that is the whole point of the button.
-            this.edit(zone, id, 'zone', (target) => {
+            this.edit(zone, id, 'entry', (target) => {
               (target as { seed?: number }).seed = Math.floor(Math.random() * 1_000_000);
             });
             this.refresh();
@@ -213,7 +213,7 @@ export class Inspector {
 
     const world = this.panel.section('in the world');
     world.toggle('solid', held.solid ?? true, (on) =>
-      this.edit(zone, id, 'zone', (target) => ((target as { solid?: boolean }).solid = on)),
+      this.edit(zone, id, 'entry', (target) => ((target as { solid?: boolean }).solid = on)),
     );
     world.text('label', held.label ?? '', (value) =>
       this.edit(zone, id, 'zone', (target) => {
@@ -258,7 +258,7 @@ export class Inspector {
     const held = record as { roam?: number; folk?: string };
     const section = this.panel.section('life');
     section.number('roam', held.roam ?? 0, { min: 0, max: 20, step: 0.1, suffix: 'm' }, (value) =>
-      this.edit(zone, id, 'zone', (target) => ((target as { roam?: number }).roam = value)),
+      this.edit(zone, id, 'entry', (target) => ((target as { roam?: number }).roam = value)),
     );
     section.select('folk', held.folk ?? '', ['', 'country', 'city'], (value) =>
       this.edit(zone, id, 'zone', (target) => {
@@ -276,7 +276,7 @@ export class Inspector {
     const section = this.panel.section(`${builder.name} options`);
     for (const [key, field] of Object.entries(builder.options)) {
       this.field(section, held, key, field, () =>
-        this.edit(zone, entry.id as string, 'zone', (target) => {
+        this.edit(zone, entry.id as string, 'entry', (target) => {
           (target as { options?: Record<string, unknown> }).options = { ...held };
         }),
       );

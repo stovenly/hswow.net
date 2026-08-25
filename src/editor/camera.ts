@@ -130,6 +130,9 @@ export class FreeLook {
     canvas.addEventListener('pointerdown', (event) => {
       if (!enabled() || event.button !== 2) return;
       this.dragging = true;
+      // The keyboard steers only while this is down, so W is a tool the rest of
+      // the time and a step forward while you are flying.
+      app.input.freeLook = true;
       this.lastX = event.clientX;
       this.lastY = event.clientY;
       canvas.setPointerCapture(event.pointerId);
@@ -146,9 +149,21 @@ export class FreeLook {
     const stop = (event: PointerEvent): void => {
       if (!this.dragging) return;
       this.dragging = false;
+      app.input.freeLook = false;
       canvas.releasePointerCapture(event.pointerId);
     };
     canvas.addEventListener('pointerup', stop);
     canvas.addEventListener('pointercancel', stop);
+    // Letting go outside the window never delivers a pointerup either.
+    window.addEventListener('blur', () => {
+      if (!this.dragging) return;
+      this.dragging = false;
+      app.input.freeLook = false;
+    });
+  }
+
+  /** True while the look button is down, so shortcuts stay out of the way. */
+  get flying(): boolean {
+    return this.dragging;
   }
 }
