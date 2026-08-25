@@ -58,6 +58,7 @@ export class Selection {
   private readonly picker = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly bounds = new THREE.Box3();
+  private readonly hoverBounds = new THREE.Box3();
   private readonly centre = new THREE.Vector3();
   private readonly extent = new THREE.Vector3();
 
@@ -140,11 +141,17 @@ export class Selection {
     this.hoveredObject = object;
   }
 
-  /** The selection's bounds in world space, or null when nothing is selected. */
+  /**
+   * The selection's bounds in world space, or null when nothing is selected.
+   *
+   * Not `precise`: that walks every vertex, and this is asked twice a frame by
+   * the outline and the gizmo. A merged prop's own bounding box is close enough
+   * to draw a box round and is computed once by three and kept.
+   */
   boundsOf(objects: readonly THREE.Object3D[]): THREE.Box3 | null {
     if (objects.length === 0) return null;
     this.bounds.makeEmpty();
-    for (const object of objects) this.bounds.expandByObject(object, true);
+    for (const object of objects) this.bounds.expandByObject(object);
     return this.bounds.isEmpty() ? null : this.bounds;
   }
 
@@ -167,7 +174,7 @@ export class Selection {
       : null;
     this.hoverBox.visible = hovered !== null;
     if (!hovered) return;
-    const over = new THREE.Box3().expandByObject(hovered, true);
+    const over = this.hoverBounds.makeEmpty().expandByObject(hovered);
     if (over.isEmpty()) {
       this.hoverBox.visible = false;
       return;

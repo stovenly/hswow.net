@@ -10,9 +10,13 @@ import { builderByName } from '../art/registry';
  * is made of the same material the world is.
  */
 
-const SIZE = 96;
-/** How many are drawn per frame. Small: each one builds a mesh. */
-const PER_FRAME = 2;
+/**
+ * Pixels square. Drawn at 48 in the palette, so this is one step of headroom
+ * and no more: every pixel is read back off the GPU, which is a hard sync.
+ */
+const SIZE = 64;
+/** How many are drawn per frame. One: each builds a mesh and stalls the pipe. */
+const PER_FRAME = 1;
 
 export class Thumbnails {
   private readonly app: App;
@@ -61,6 +65,11 @@ export class Thumbnails {
     }
   }
 
+  /** How many are still waiting, for the status line. */
+  get pending(): number {
+    return this.queue.length;
+  }
+
   private draw(name: string): string | null {
     const builder = builderByName(name);
     if (!builder) return null;
@@ -91,12 +100,17 @@ export class Thumbnails {
 
     const renderer = this.app.viewport.renderer;
     const wasTarget = renderer.getRenderTarget();
+    // Put the clear colour back: the pipeline's own passes rely on it, and a
+    // thumbnail is not a reason for the world to change colour behind you.
+    const wasClear = renderer.getClearColor(new THREE.Color());
+    const wasAlpha = renderer.getClearAlpha();
     renderer.setRenderTarget(this.target);
     renderer.setClearColor(0x14141a, 1);
     renderer.clear();
     renderer.render(this.scene, this.camera);
     renderer.readRenderTargetPixels(this.target, 0, 0, SIZE, SIZE, this.pixels);
     renderer.setRenderTarget(wasTarget);
+    renderer.setClearColor(wasClear, wasAlpha);
 
     this.scene.remove(mesh);
     mesh.geometry.dispose();

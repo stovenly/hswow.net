@@ -97,6 +97,8 @@ export class Editor {
   private rulerText = '';
   /** Where a key sends the camera. Session-only, like everything on the View menu. */
   private readonly bookmarks = new Map<string, { position: THREE.Vector3; yaw: number; pitch: number }>();
+  /** Per built zone, dropped whenever one is raised again. */
+  private readonly lightCount = new Map<string, { text: string; over: boolean }>();
 
   constructor(app: App, documents: readonly ZoneDocument[], manifest: PortalManifest) {
     this.app = app;
@@ -213,8 +215,16 @@ export class Editor {
 
     this.brushMenu();
     this.viewMenu();
+
+    // Several hundred controllers, an analyser off the master bus and a folder
+    // per Faust module. Built the first time the folder is opened rather than
+    // behind the loading screen, which is where it was being paid for.
     const tuning = this.gui.addFolder('tuning').close();
-    installDevPanel(tuning, app);
+    tuning.onOpenClose((folder) => {
+      if (folder !== tuning || folder._closed) return;
+      installDevPanel(tuning, app);
+      tuning.onOpenClose(() => {});
+    });
 
     this.bindMouse();
     this.bindKeys();
@@ -228,6 +238,7 @@ export class Editor {
     this.transform.onCommit = () => this.inspector.refresh();
     this.session.onChange = () => {
       this.report();
+      this.lightCount.clear();
       this.refreshOutliner();
       this.zonePanel.refresh();
       this.terrainPanel.refresh();
@@ -992,17 +1003,25 @@ export class Editor {
     }
   }
 
-  /** Point and spot lights in the built zone, against the tiers the manager pads to. */
+  /**
+   * Point and spot lights in the built zone, against the tiers the manager pads
+   * to. Counted when the zone is raised: a whole-zone traverse every frame is
+   * the most expensive thing the status line could possibly do.
+   */
   private census(): { text: string; over: boolean } {
     const zone = this.app.zones.current;
     if (!zone?.isBuilt) return { text: '—', over: false };
+    const held = this.lightCount.get(zone.id);
+    if (held) return held;
     let points = 0;
     let spots = 0;
     zone.root().traverse((object) => {
       if (object instanceof THREE.PointLight) points++;
       else if (object instanceof THREE.SpotLight) spots++;
     });
-    return { text: `${points}/8 point · ${spots}/2 spot`, over: points > 8 || spots > 2 };
+    const counted = { text: `${points}/8 point · ${spots}/2 spot`, over: points > 8 || spots > 2 };
+    this.lightCount.set(zone.id, counted);
+    return counted;
   }
 }
 

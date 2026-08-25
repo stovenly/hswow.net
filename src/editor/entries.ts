@@ -36,6 +36,7 @@ export function addEntry(session: Session, zone: string, entry: Entry, stem: str
   session.commit(zone, 'zone', (target) => {
     write(target, [...listOf(target), { ...entry, id }]);
   });
+  session.structureChanged();
   return id;
 }
 
@@ -63,6 +64,7 @@ export function duplicateEntries(session: Session, zone: string, ids: readonly s
     }
     write(target, entries);
   });
+  session.structureChanged();
   return made;
 }
 
@@ -88,6 +90,7 @@ export function pasteEntries(
     }
     write(target, entries);
   });
+  session.structureChanged();
   return made;
 }
 
@@ -99,6 +102,7 @@ export function removeEntries(session: Session, zone: string, ids: readonly stri
       listOf(target).filter((entry) => !gone.has(entry.id ?? '')),
     );
   });
+  session.structureChanged();
 }
 
 /** Moves one entry to sit before another. Document order is build order. */
@@ -112,6 +116,7 @@ export function reorderEntry(session: Session, zone: string, from: string, to: s
     entries.splice(before < 0 ? entries.length : before, 0, moved);
     write(target, entries);
   });
+  session.structureChanged();
 }
 
 /** Composes a set of entries into a named prefab on the document. */
@@ -122,6 +127,7 @@ export function makePrefab(session: Session, zone: string, ids: readonly string[
     if (body.length === 0) return;
     target.prefabs = { ...target.prefabs, [name]: JSON.parse(JSON.stringify(body)) as Entry[] };
   });
+  session.structureChanged();
 }
 
 function stemOf(entry: Entry): string {

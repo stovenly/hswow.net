@@ -82,6 +82,9 @@ export class Palette {
   brushing = false;
   brushSpacing = 2;
 
+  private readonly watcher: IntersectionObserver;
+  private drawn = false;
+
   constructor(thumbnails: Thumbnails, parent: HTMLElement = document.body) {
     this.thumbnails = thumbnails;
     this.element.className = 'editor-palette';
@@ -106,7 +109,25 @@ export class Palette {
     this.grid.className = 'editor-grid';
     this.element.append(this.tabRow, this.search, this.pinned, this.grid);
     parent.append(this.element);
-    this.redraw();
+
+    // A thumbnail is a mesh built, rendered and read back off the GPU, so they
+    // are drawn for the cells you can actually see and for no others.
+    this.watcher = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const image = entry.target as HTMLImageElement;
+          this.watcher.unobserve(image);
+          const name = image.dataset.builder;
+          if (name) {
+            this.thumbnails.request(name, (url) => {
+              image.src = url;
+            });
+          }
+        }
+      },
+      { root: this.grid, rootMargin: '160px' },
+    );
   }
 
   get visible(): boolean {
@@ -115,6 +136,9 @@ export class Palette {
 
   set visible(on: boolean) {
     this.element.classList.toggle('is-hidden', !on);
+    // Built on first sight: two hundred cells and their pictures are not worth
+    // making for a panel nobody has opened.
+    if (on && !this.drawn) this.redraw();
   }
 
   pick(choice: PaletteChoice | null): void {
@@ -135,6 +159,13 @@ export class Palette {
   }
 
   private redraw(): void {
+    if (!this.visible) {
+      // Redrawn when it is next shown, with whatever has changed since.
+      this.drawn = false;
+      return;
+    }
+    this.drawn = true;
+    this.watcher.disconnect();
     for (const button of this.tabRow.children) {
       const active = button.textContent === this.tab.name;
       (button as HTMLElement).setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -170,10 +201,9 @@ export class Palette {
       image.width = 48;
       image.height = 48;
       image.alt = '';
+      image.dataset.builder = name;
       cell.append(image);
-      this.thumbnails.request(name, (url) => {
-        image.src = url;
-      });
+      this.watcher.observe(image);
       cell.addEventListener('click', () => this.pick({ kind, builder: name }));
     } else {
       cell.classList.add('is-kind');

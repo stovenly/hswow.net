@@ -13,6 +13,8 @@ import type { Session } from './session';
  */
 
 const RING_SEGMENTS = 48;
+/** Milliseconds of quiet before the rings are rebuilt. */
+const SETTLE = 120;
 
 function lineMaterial(color: number, opacity = 1): THREE.LineBasicMaterial {
   return new THREE.LineBasicMaterial({
@@ -78,6 +80,7 @@ export class Visualisers {
   private readonly root = new THREE.Group();
   private readonly grid: THREE.GridHelper;
   private dirty = true;
+  private settleAt = 0;
   private shownZone = '';
 
   constructor(app: App, session: Session) {
@@ -95,9 +98,13 @@ export class Visualisers {
     app.loop.add(() => this.tick());
   }
 
-  /** Redraws next frame. Called whenever a document changes. */
+  /**
+   * Redraws shortly. Debounced rather than immediate: a slider being dragged
+   * commits every frame, and this rebuilds every ring in the zone.
+   */
   invalidate(): void {
     this.dirty = true;
+    this.settleAt = performance.now() + SETTLE;
   }
 
   set(flag: keyof ViewFlags, on: boolean): void {
@@ -111,7 +118,7 @@ export class Visualisers {
       this.shownZone = zone;
       this.dirty = true;
     }
-    if (!this.dirty) return;
+    if (!this.dirty || performance.now() < this.settleAt) return;
     this.dirty = false;
     this.redraw();
   }

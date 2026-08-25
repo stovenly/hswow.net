@@ -133,6 +133,7 @@ export class LayerPanel {
       target.layers = layers;
       delete target.entries;
     });
+    this.session.structureChanged();
     this.hooks.changed();
   }
 

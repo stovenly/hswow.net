@@ -38,8 +38,17 @@ export class Session {
   private saveTimer = 0;
   private readonly pendingRebuild = new Set<string>();
 
-  /** Called after anything changes, so the panels can redraw. */
+  /** Called after anything changes: the status line, the dirty dot, the rings. */
   onChange: (() => void) | null = null;
+  /**
+   * Called only when the *shape* of a document changed — an entry added,
+   * removed or reordered, a layer edited, a snapshot restored, a zone made.
+   *
+   * The panels rebuild from this and never from `onChange`. A slider being
+   * dragged commits on every frame, and a panel that rebuilt itself each time
+   * would destroy the control under the mouse.
+   */
+  onStructure: (() => void) | null = null;
   /** Called with a line for the status bar. */
   say: (message: string) => void = () => {};
 
@@ -122,6 +131,11 @@ export class Session {
     this.onChange?.();
   }
 
+  /** Says the document's shape changed, so the panels redraw. */
+  structureChanged(): void {
+    this.onStructure?.();
+  }
+
   private schedule(zone: string, reach: Reach): void {
     if (reach === 'zone') {
       this.pendingRebuild.add(zone);
@@ -197,6 +211,7 @@ export class Session {
     this.dirty.add(zone);
     this.schedule(zone, 'zone');
     this.onChange?.();
+    this.structureChanged();
   }
 
   async saveAll(): Promise<void> {
@@ -226,6 +241,7 @@ export class Session {
     this.dirty.add(doc.id);
     void this.api.saveZone(doc).then(() => this.dirty.delete(doc.id));
     this.onChange?.();
+    this.structureChanged();
   }
 
   async deleteZone(id: string): Promise<void> {
@@ -233,6 +249,7 @@ export class Session {
     this.dirty.delete(id);
     await this.api.deleteZone(id);
     this.onChange?.();
+    this.structureChanged();
   }
 
   async saveWorld(): Promise<void> {
