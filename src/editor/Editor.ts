@@ -34,6 +34,7 @@ import {
   templateDocument,
 } from './entries';
 import { entryKind, type Entry } from '../world/entry';
+import { WEATHER_KINDS } from '../world/climate';
 
 export type EditorMode = 'fly' | 'play' | 'top';
 
@@ -101,6 +102,8 @@ export class Editor {
   /** Per built zone, dropped whenever one is raised again. */
   private readonly lightCount = new Map<string, { text: string; over: boolean }>();
   private tuningBuilt = false;
+  /** Whether the day is allowed to run. Session-only; nothing is saved. */
+  private readonly climate = { weather: false, clock: false };
 
   constructor(app: App, documents: readonly ZoneDocument[], manifest: PortalManifest) {
     this.app = app;
@@ -249,6 +252,12 @@ export class Editor {
       this.visualisers.invalidate();
     };
 
+    // A held day by default. Rain is a few thousand particles and a wet pass
+    // over everything, and neither says anything about where a crate should
+    // stand — turn them on to judge a place in weather, not to place things.
+    this.setWeather(false);
+    this.setClock(false);
+
     this.setMode('fly');
     this.zonePanel.show(app.zones.current?.id ?? null);
     this.terrainPanel.show(app.zones.current?.id ?? null);
@@ -322,6 +331,24 @@ export class Editor {
     this.chrome.say(on ? `${this.terraform.brush} — scroll for radius` : '');
   }
 
+  /**
+   * Holds every weather kind at nothing, or hands the sky back to the climate.
+   *
+   * A hold, not a switch on the systems: the weather is global by decision and
+   * a zone only modifies what it samples, so the editor overrides the sample
+   * and changes nothing about the world.
+   */
+  setWeather(on: boolean): void {
+    this.climate.weather = on;
+    for (const kind of WEATHER_KINDS) this.app.climate.force(kind.name, on ? null : 0);
+  }
+
+  /** Whether the sun moves. Held still, a placement is judged in one light. */
+  setClock(on: boolean): void {
+    this.climate.clock = on;
+    this.app.climate.frozen = !on;
+  }
+
   /** Everything session-only, in one folder that says so. */
   private viewMenu(): void {
     const folder = this.menus.gui('view').addFolder('session only, never saved');
@@ -343,6 +370,14 @@ export class Editor {
         .onChange((on: boolean) => this.visualisers.set(key, on));
     }
     folder.add(this.app.zones, 'showBarriers').name('invisible walls');
+    folder
+      .add(this.climate, 'weather')
+      .name('let the weather run')
+      .onChange((on: boolean) => this.setWeather(on));
+    folder
+      .add(this.climate, 'clock')
+      .name('let the sun move')
+      .onChange((on: boolean) => this.setClock(on));
     folder.add(this.app.zones, 'freezeVista').name('freeze the vista').listen();
 
     const isolate = { kind: 'everything' };
