@@ -11,6 +11,7 @@ import { Session } from './session';
 import { Transform, type MoveMode, type Tool } from './transform';
 import { OrbitCamera, FreeLook } from './camera';
 import { Inspector } from './inspector';
+import { Menus } from './menus';
 import { Thumbnails } from './thumbnails';
 import { Palette } from './palette';
 import { Outliner } from './outliner';
@@ -62,7 +63,7 @@ export class Editor {
   readonly app: App;
   readonly chrome = new Chrome();
   readonly keys = new Keys();
-  readonly gui: GUI;
+  readonly menus = new Menus();
   readonly session: Session;
   readonly selection: Selection;
   readonly transform: Transform;
@@ -99,12 +100,11 @@ export class Editor {
   private readonly bookmarks = new Map<string, { position: THREE.Vector3; yaw: number; pitch: number }>();
   /** Per built zone, dropped whenever one is raised again. */
   private readonly lightCount = new Map<string, { text: string; over: boolean }>();
+  private tuningBuilt = false;
 
   constructor(app: App, documents: readonly ZoneDocument[], manifest: PortalManifest) {
     this.app = app;
 
-    this.gui = new GUI({ title: 'hswow editor' });
-    this.gui.domElement.style.setProperty('--width', '320px');
 
     this.session = new Session(app);
     this.session.adopt(documents, manifest);
@@ -115,7 +115,7 @@ export class Editor {
     this.orbit = new OrbitCamera(app, this.selection);
     new FreeLook(app, () => this.current === 'fly');
 
-    this.inspector = new Inspector(this.gui, this.session, {
+    this.inspector = new Inspector(this.menus.panel('entry'), this.session, {
       pick: (onPicked) => {
         this.picking = onPicked;
         this.chrome.say('pick an entry…');
@@ -163,7 +163,7 @@ export class Editor {
     this.portalTool.say = (message) => this.chrome.say(message);
     this.portalTool.onWired = () => this.visualisers.invalidate();
 
-    this.terrainPanel = new TerrainPanel(this.gui, this.session, {
+    this.terrainPanel = new TerrainPanel(this.menus.panel('terrain'), this.session, {
       changed: () => this.visualisers.invalidate(),
       drawCircle: (onDone) =>
         this.shapes.start('circle', (shape) => {
@@ -182,7 +182,7 @@ export class Editor {
       editPoints: (points, onChange) => this.shapes.edit(points, onChange),
     });
 
-    this.layerPanel = new LayerPanel(this.gui, this.session, {
+    this.layerPanel = new LayerPanel(this.menus.panel('layers'), this.session, {
       changed: () => {
         const zone = app.zones.current?.id;
         if (zone) void this.session.rebuildNow(zone);
@@ -198,7 +198,7 @@ export class Editor {
       },
     });
 
-    this.zonePanel = new ZonePanel(this.gui, this.session, {
+    this.zonePanel = new ZonePanel(this.menus.panel('zone'), this.session, {
       rebuilt: () => {},
       newZone: (kind) => this.newZone(kind),
       duplicate: () => this.duplicateZone(),
@@ -215,16 +215,12 @@ export class Editor {
 
     this.brushMenu();
     this.viewMenu();
-
-    // Several hundred controllers, an analyser off the master bus and a folder
-    // per Faust module. Built the first time the folder is opened rather than
-    // behind the loading screen, which is where it was being paid for.
-    const tuning = this.gui.addFolder('tuning').close();
-    tuning.onOpenClose((folder) => {
-      if (folder !== tuning || folder._closed) return;
-      installDevPanel(tuning, app);
-      tuning.onOpenClose(() => {});
-    });
+    // The buttons exist from the start; what is behind them is built the first
+    // time one is pressed. See `fillTuning`.
+    for (const name of Object.keys(TUNING_MENUS)) this.menus.panel(name);
+    this.menus.beforeShow = (name) => {
+      if (name in TUNING_MENUS) this.fillTuning();
+    };
 
     this.bindMouse();
     this.bindKeys();
@@ -232,6 +228,7 @@ export class Editor {
     this.selection.onChanged(() => {
       const tag = this.selection.tag;
       this.inspector.show(tag?.zone ?? null, tag?.id ?? null);
+      if (tag && this.menus.showing === null) this.menus.show('entry');
       this.refreshOutliner();
       this.showHandles(tag);
     });
@@ -258,9 +255,34 @@ export class Editor {
     return this.current;
   }
 
+  /**
+   * The game's tuning folders, distributed into the menus they belong to.
+   *
+   * Built once, on the first press of any of them: it is several hundred
+   * controllers, an analyser off the master bus and a folder per Faust module,
+   * and none of it belongs behind a loading screen. `installDevPanel` stays the
+   * one place a knob is written; this only decides where it hangs.
+   */
+  private fillTuning(): void {
+    if (this.tuningBuilt) return;
+    this.tuningBuilt = true;
+
+    const holding = document.createElement('div');
+    const source = new GUI({ container: holding });
+    installDevPanel(source, this.app);
+
+    for (const folder of [...source.folders]) {
+      const name = folder.$title.textContent ?? '';
+      this.menus.adopt(TUNING_MENUS[name] ?? 'info', folder);
+    }
+    // `noclip fly` is the fly mode's, and `identify mesh` is what picking does.
+    for (const controller of [...source.controllers]) controller.destroy();
+    source.domElement.remove();
+  }
+
   /** The brushes, and the swatch rows they paint from. */
   private brushMenu(): void {
-    const folder = this.gui.addFolder('ground brush').close();
+    const folder = this.menus.panel('terrain').addFolder('ground brush').close();
     const brushes: Brush[] = [
       'raise',
       'smooth',
@@ -296,7 +318,7 @@ export class Editor {
 
   /** Everything session-only, in one folder that says so. */
   private viewMenu(): void {
-    const folder = this.gui.addFolder('view · session only').close();
+    const folder = this.menus.panel('view').addFolder('session only, never saved');
     const flags = this.visualisers.flags;
     const named: Record<keyof ViewFlags, string> = {
       sounds: 'how far each sound reaches',
@@ -1071,3 +1093,46 @@ function entryKindNames(): string[] {
     'vistaRing', 'dressing',
   ].filter((kind) => entryKind(kind) !== undefined);
 }
+
+/**
+ * Where each of the game's tuning folders hangs in the editor. A folder added
+ * later and not named here lands in `info`, which is where a stray knob should
+ * be findable rather than lost.
+ */
+const TUNING_MENUS: Record<string, string> = {
+  look: 'look',
+  'ambient occlusion': 'look',
+  bloom: 'look',
+  'material finish': 'look',
+  water: 'look',
+  glass: 'look',
+  groundcover: 'look',
+  particles: 'look',
+  'view distance': 'look',
+  vista: 'look',
+  sky: 'look',
+  'sky clouds': 'look',
+  light: 'look',
+  'fog volumes': 'look',
+  fog: 'look',
+  preset: 'look',
+  surfaces: 'look',
+  cloth: 'look',
+  glitch: 'look',
+  horror: 'look',
+  climate: 'climate',
+  'weather surfaces': 'climate',
+  wind: 'climate',
+  audio: 'audio',
+  voice: 'audio',
+  'sound stage': 'audio',
+  'music stage': 'audio',
+  ambience: 'audio',
+  'player movement': 'player',
+  'player contact': 'player',
+  'player view': 'player',
+  'player head bob': 'player',
+  state: 'info',
+  zones: 'info',
+  reading: 'info',
+};

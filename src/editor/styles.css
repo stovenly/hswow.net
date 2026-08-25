@@ -16,6 +16,8 @@
   display: flex;
   align-items: stretch;
   gap: 1px;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 430px);
   padding: 4px;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -104,10 +106,10 @@ body.is-playing .editor-toolbar {
   left: 0;
 }
 
+/* Beside the palette rather than opposite it: the right-hand side is the menu
+   panels' and a tree under one of them is a tree you cannot read. */
 .editor-outliner {
-  right: 0;
-  border-right: 0;
-  border-left: 1px solid rgb(220 220 200 / 12%);
+  left: 250px;
 }
 
 .editor-palette.is-hidden,
@@ -256,4 +258,62 @@ body.is-playing .editor-toolbar {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* --- menu bar and panels -------------------------------------------------- */
+
+.editor-menubar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 31;
+  display: flex;
+  gap: 1px;
+  padding: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  background: rgb(10 10 15 / 82%);
+  border-bottom-left-radius: 4px;
+}
+
+.editor-menubar button {
+  padding: 4px 9px;
+  font: inherit;
+  color: #dcdcc8;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(220 220 200 / 14%);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.editor-menubar button:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.editor-menubar button[aria-pressed='true'] {
+  color: #0a0a0f;
+  background: #dcdcc8;
+  border-color: #dcdcc8;
+}
+
+.editor-column {
+  position: fixed;
+  top: 34px;
+  right: 0;
+  bottom: 26px;
+  z-index: 30;
+  width: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.editor-column.is-empty {
+  pointer-events: none;
+}
+
+/* lil-gui placed in a container of ours rather than fixed to the corner. */
+.editor-column .editor-panel {
+  --width: 320px;
+
+  width: 100%;
 }
