@@ -64,14 +64,18 @@ export interface ViewFlags {
 }
 
 export class Visualisers {
+  /**
+   * All off. Every one of these draws a ring or a shell over the world, and a
+   * level opened with the lot on is a level you cannot see.
+   */
   readonly flags: ViewFlags = {
-    sounds: true,
-    volumes: true,
-    roam: true,
-    regions: true,
-    spawn: true,
-    portals: true,
-    scatters: true,
+    sounds: false,
+    volumes: false,
+    roam: false,
+    regions: false,
+    spawn: false,
+    portals: false,
+    scatters: false,
     grid: false,
   };
 

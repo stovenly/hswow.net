@@ -5,6 +5,7 @@ import type { Entry, EntryPlacement } from '../world/entry';
 import type { Selection } from './selection';
 import { entryTagOf } from './selection';
 import type { Session } from './session';
+import { moved } from './matrices';
 
 /**
  * The gizmo, and what a drag means.
@@ -169,6 +170,7 @@ export class Transform {
         if (!from) continue;
         object.position.copy(from).add(delta);
         if (this.mode === 'ground') object.position.y = this.groundUnder(object.position);
+        moved(object);
       }
       this.handle.position.copy(this.start).add(delta);
       return;
@@ -176,7 +178,10 @@ export class Transform {
 
     if (this.toolName === 'rotate') {
       const yaw = this.handle.rotation.y;
-      for (const object of objects) object.rotation.y = yaw;
+      for (const object of objects) {
+        object.rotation.y = yaw;
+        moved(object);
+      }
       return;
     }
 
@@ -184,6 +189,7 @@ export class Transform {
     for (const object of objects) {
       if (this.toolName === 'stretch') object.scale.copy(scale);
       else object.scale.setScalar((scale.x + scale.y + scale.z) / 3);
+      moved(object);
     }
   }
 
@@ -280,12 +286,18 @@ export class Transform {
       delta[key] = push;
     }
 
-    for (const object of this.selection.objects) object.position.add(delta);
+    for (const object of this.selection.objects) {
+      object.position.add(delta);
+      moved(object);
+    }
     this.write();
   }
 
   private endDrag(): void {
     this.write();
+    // The octree indexed the prop where it used to be.
+    const zone = this.selection.tag?.zone;
+    if (zone) this.session.reindex(zone);
   }
 
   /** Writes every selected object's transform back into its entry. */

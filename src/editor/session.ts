@@ -4,6 +4,7 @@ import { zoneFromDocument, type ZoneDocument, type PortalManifest } from '../wor
 import type { Entry } from '../world/entry';
 import { applyPlacement, type EntryPlacement } from '../world/entry';
 import { Api, SaveConflict } from './api';
+import { moved } from './matrices';
 
 /**
  * The documents the editor is holding, what has changed in them, and how a
@@ -175,7 +176,7 @@ export class Session {
       groundAt: (x, z) => definition.definition.groundAt?.(x, z) ?? 0,
       resolve: (id) => findEntryObject(definition.root(), zone, id),
     });
-    object.updateWorldMatrix(true, true);
+    moved(object);
     this.reindex(zone);
   }
 

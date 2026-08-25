@@ -298,8 +298,21 @@ export class Editor {
   private viewMenu(): void {
     const folder = this.gui.addFolder('view · session only').close();
     const flags = this.visualisers.flags;
+    const named: Record<keyof ViewFlags, string> = {
+      sounds: 'how far each sound reaches',
+      volumes: 'fog, glitch and horror shells',
+      roam: 'how far a creature wanders',
+      regions: 'named region outlines',
+      spawn: 'where a fresh boot lands',
+      portals: 'doors, and where they land you',
+      scatters: 'the disc a scatter draws in',
+      grid: 'a metre grid on the ground',
+    };
     for (const key of Object.keys(flags) as (keyof ViewFlags)[]) {
-      folder.add(flags, key).onChange((on: boolean) => this.visualisers.set(key, on));
+      folder
+        .add(flags, key)
+        .name(named[key])
+        .onChange((on: boolean) => this.visualisers.set(key, on));
     }
     folder.add(this.app.zones, 'showBarriers').name('invisible walls');
     folder.add(this.app.zones, 'freezeVista').name('freeze the vista').listen();
@@ -914,6 +927,9 @@ export class Editor {
     // Parallax frozen unless the player is walking, or the vista band slides
     // under whatever is being looked at and a placement cannot be judged.
     zones.freezeVista = mode !== 'play';
+    // Creatures walk in Play and nowhere else: one that wanders off while you
+    // are placing him cannot be placed.
+    this.app.simulate = mode === 'play';
     this.transform.controls.getHelper().visible = mode !== 'play';
 
     // The grid is the top view's, so it goes when the top view does.

@@ -67,6 +67,13 @@ export interface App {
   readonly footsteps: Footsteps | null;
   /** Elapsed seconds the loop last saw, frozen while `identify` is up. */
   readonly clock: number;
+  /**
+   * Whether the world is *running* as against being looked at. The editor
+   * turns it off outside Play: a villager who wanders off while you are placing
+   * him cannot be placed. Anything added later that moves things of its own
+   * accord is gated on it in the frame loop.
+   */
+  simulate: boolean;
   /** Registers the frame loop, lifts the loading screen and starts running. */
   start(): Promise<void>;
 }
@@ -288,6 +295,8 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
   });
 
 
+  let simulate = true;
+
   const start = async (): Promise<void> => {
     loop.add((rawDt, rawElapsed) => {
       const dt = identify.active ? 0 : rawDt;
@@ -321,7 +330,9 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
       const retestOcclusion = audio.update(dt, viewport.camera);
       zones.updateSound(dt, retestOcclusion);
       // The creatures, once the listener stands where it stands this frame.
-      zones.updateLife(dt, retestOcclusion);
+      // Stepped by zero rather than skipped, so a creature still holds a
+      // settled pose rather than the bind pose it was built in.
+      zones.updateLife(simulate ? dt : 0, retestOcclusion);
 
       // **After the audio, and that ordering is the point.** `audio.update` steps
       // the gust field; this ships the *same* field to the vertex shader. The other
@@ -413,6 +424,12 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
     },
     get clock() {
       return clock;
+    },
+    get simulate() {
+      return simulate;
+    },
+    set simulate(on: boolean) {
+      simulate = on;
     },
     start,
   };
