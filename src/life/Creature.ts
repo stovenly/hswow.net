@@ -112,7 +112,18 @@ const BIPED_YAW_LIMIT = 1.6;
 const GREET_FACING = 1;
 const HEAD_PITCH_LIMIT = 0.62;
 /** Half-life of the offset a state change leaves behind. */
-const SETTLE = 0.14;
+const SETTLE = 0.25;
+/** Seconds one gesture takes to hand the arms to the next. */
+const CROSS = 0.28;
+
+/** One gesture in flight: which shape it is, how far through it, how long it gets. */
+interface Gesture {
+  family: 'greet' | 'talk';
+  greeting: Greeting;
+  style: Talk;
+  t: number;
+  length: number;
+}
 
 /** When anything last began a greeting, so a crowd takes turns rather than hailing at once. */
 let lastGreetAt = -Infinity;
@@ -176,11 +187,13 @@ export class Creature {
   private readonly lean = new Spring();
   private readonly headLag = new Spring();
   private readonly earLag = new Spring();
-  private gestureT = 0;
+  /** The gesture coming in, the one going out under it, and how far over. */
+  private gesture: Gesture;
+  private fading: Gesture | null = null;
+  private cross = 1;
   /** Runs from the moment it turns to you; the gesture clock waits on this. */
   private turnT = 0;
   private hailed = false;
-  private gestureLength = 1;
   private fidget: Fidget = 'lookAround';
   private fidgetLength = 3;
   private greeting: Greeting;
@@ -192,8 +205,6 @@ export class Creature {
   private conversing = false;
   /** The last world it was updated with, so `say` can reach the audio engine. */
   private seen: World | null = null;
-  /** Which family the line being spoken gestures from. */
-  private lineGesture: 'greet' | 'talk' = 'talk';
   /** Audio-clock times inside the line where another gesture starts. */
   private gestureAt: number[] = [];
   /** Idle business between lines, while it listens. */
@@ -226,6 +237,8 @@ export class Creature {
     this.yaw = mesh.rotation.y;
     this.lastYaw = this.yaw;
     this.greeting = GREETINGS[this.spec.seed % GREETINGS.length];
+    // Spent, so the first real gesture fades in from nothing rather than out of it.
+    this.gesture = { family: 'talk', greeting: this.greeting, style: 'beat', t: 1, length: 1 };
     this.salt = (this.spec.seed % 1000) * 0.37;
     this.legs = this.spec.legs && this.rig.bones.legLf ? new Legs(this.spec, this.rig) : null;
     // Out of step with its neighbours from the first frame.
@@ -356,7 +369,7 @@ export class Creature {
       this.talkedThisVisit = true;
       this.begin('talk');
       const said = this.babble('talk', world);
-      if (said) this.gestureLength = said.end - said.at + 0.6;
+      if (said) this.gesture.length = said.end - said.at + 0.6;
     }
 
     // --- the state machine ------------------------------------------------
@@ -450,10 +463,15 @@ export class Creature {
               else this.callOut(0.5, world);
             }
           }
-          this.gestureT += dt;
+          this.gesture.t += dt;
+          if (this.fading) {
+            this.fading.t += dt;
+            this.cross = Math.min(1, this.cross + dt / CROSS);
+            if (this.cross >= 1) this.fading = null;
+          }
         }
         if (this.conversing) this.converseGestures(dt, world);
-        else if (this.gestureT > this.gestureLength) this.begin('idle');
+        else if (this.gesture.t > this.gesture.length) this.begin('idle');
         break;
       }
     }
@@ -555,33 +573,28 @@ export class Creature {
       if (spec.kind === 'fowl') peck(pose, t, this.salt, w, spec.grazeDrop);
       else graze(pose, t, this.salt, w, spec.grazeDrop);
     }
-    // Business while idle, and the same while listening to somebody: a figure
-    // being spoken to is not a figure standing perfectly still.
-    const busy = this.state === 'business' || (this.conversing && this.timer > 0);
-    if (spec.kind === 'biped' && busy) {
-      bipedFidget(pose, this.fidget, 1 - this.timer / this.fidgetLength, t, this.salt, spec.handed ?? 1, spec.gestures);
-    }
-
-    // The gesture, if one is running.
+    // The gesture, if one is running, and the one it is taking the arms from.
+    // A lerp and not a sum: the two weights add to one, which is what keeps the
+    // mix inside `envelope.ts`.
     const { level: syllable, beat } = this.voiceNow(world);
+    let gestureW = 0;
     if (this.state === 'greet' || this.state === 'talk') {
-      const t01 = this.gestureT / this.gestureLength;
-      if (spec.kind === 'biped') {
-        if (this.conversing ? this.lineGesture === 'greet' : this.state === 'greet') {
-          bipedGreet(pose, this.greeting, t01, spec.handed ?? 1, spec.gestures);
-          faceGreet(pose, spec.face, envelope(t01, 0.22, 0.28));
-        } else {
-          const w = smooth(Math.min(t01 * 4, 1, (1 - t01) * 4));
-          bipedTalk(pose, this.talkStyle, t, this.salt, syllable, beat, w, spec.handed ?? 1);
-          faceTalk(pose, spec.face, syllable, beat, w, t, this.salt);
-        }
-      } else {
-        call(pose, t01, syllable, spec.call === 'dog');
-      }
+      const k = smooth(this.cross);
+      if (this.fading) gestureW += this.gestureLayer(pose, this.fading, 1 - k, t, syllable, beat);
+      gestureW += this.gestureLayer(pose, this.gesture, k, t, syllable, beat);
     } else if (spec.kind === 'biped' && syllable > 0) {
       // Still talking after the gesture: the head keeps time on its own.
       pose.turn('head', 0.05 * syllable);
       faceTalk(pose, spec.face, syllable, beat, 1, t, this.salt);
+    }
+
+    // Business while idle, and the same while listening to somebody: a figure
+    // being spoken to is not a figure standing perfectly still. It gives the
+    // arms up to however much of them the gesture is using.
+    const busy = this.state === 'business' || (this.conversing && this.timer > 0);
+    const fidgetW = clamp01(1 - gestureW);
+    if (spec.kind === 'biped' && busy && fidgetW > 0.001) {
+      bipedFidget(pose, this.fidget, 1 - this.timer / this.fidgetLength, t, this.salt, spec.handed ?? 1, spec.gestures, fidgetW);
     }
 
     // Looking, over the top; the graze relaxes as it looks up.
@@ -703,17 +716,15 @@ export class Creature {
         // A different one from last time, so a village does not have one hello
         // in it, and each takes as long as it needs.
         this.greeting = another(GREETINGS, this.greeting);
-        this.gestureT = 0;
         this.turnT = 0;
         this.hailed = false;
-        this.gestureLength = this.spec.kind === 'biped' ? GREET_LENGTH[this.greeting] : 1.6;
+        this.handOver('greet', this.spec.kind === 'biped' ? GREET_LENGTH[this.greeting] : 1.6);
         break;
       case 'talk':
         this.talkStyle = another(TALKS, this.talkStyle);
-        this.gestureT = 0;
         this.turnT = 0;
         this.hailed = true;
-        this.gestureLength = 3.2;
+        this.handOver('talk', 3.2);
         break;
     }
   }
@@ -802,7 +813,7 @@ export class Creature {
     const units = this.said?.units ?? this.shot?.syllables;
     if (!units || !world.audio) {
       // No voice: a stand-in rhythm during a gesture.
-      const on = this.state === 'greet' || this.state === 'talk' ? pulse(this.gestureT, 0.35, 0.2, this.salt) : 0;
+      const on = this.state === 'greet' || this.state === 'talk' ? pulse(this.gesture.t, 0.35, 0.2, this.salt) : 0;
       return { level: on, beat: on };
     }
     const now = world.audio.context.currentTime;
@@ -852,19 +863,51 @@ export class Creature {
    * calmer of them for a goodbye, one of the talking hands for anything else.
    */
   private startGesture(manner: 'greeting' | 'talk' | 'farewell', seconds: number): void {
-    this.gestureT = 0;
-    // No idle business under a gesture: two layers on the same arms would go
-    // past what the envelope allows.
-    this.timer = -1;
     if (manner === 'talk') {
-      this.lineGesture = 'talk';
       this.talkStyle = another(TALKS, this.talkStyle);
-      this.gestureLength = seconds + 0.6;
+      this.handOver('talk', seconds + 0.6);
       return;
     }
-    this.lineGesture = 'greet';
     this.greeting = another(manner === 'farewell' ? FAREWELLS : GREETINGS, this.greeting);
-    this.gestureLength = GREET_LENGTH[this.greeting];
+    this.handOver('greet', GREET_LENGTH[this.greeting]);
+  }
+
+  /**
+   * Hands the arms from the gesture running to the next one. The outgoing one
+   * keeps its own clock, so an arm that was rising is still rising as it fades.
+   * A third arriving mid-fade takes the incoming slot and drops what was
+   * already leaving: one gesture's worth of rotation is the whole budget, so
+   * the residue goes to `settling` rather than onto the arms.
+   */
+  private handOver(family: 'greet' | 'talk', length: number): void {
+    if (this.cross < 1) this.settling = true;
+    this.fading = this.gesture;
+    this.gesture = { family, greeting: this.greeting, style: this.talkStyle, t: 0, length };
+    this.cross = 0;
+  }
+
+  /**
+   * Adds one gesture at `w` and answers how much of the arms it took: `w`
+   * through the gesture's own arc, which is what the fidget gives up.
+   */
+  private gestureLayer(pose: Pose, g: Gesture, w: number, t: number, syllable: number, beat: number): number {
+    if (w <= 0.001) return 0;
+    const spec = this.spec;
+    const t01 = g.t / g.length;
+    if (spec.kind !== 'biped') {
+      call(pose, t01, syllable, spec.call === 'dog', w);
+      return envelope(t01, 0.2, 0.3) * w;
+    }
+    if (g.family === 'greet') {
+      const e = envelope(t01, 0.22, 0.28) * w;
+      bipedGreet(pose, g.greeting, t01, spec.handed ?? 1, spec.gestures, w);
+      faceGreet(pose, spec.face, e);
+      return e;
+    }
+    const shape = smooth(Math.min(t01 * 4, 1, (1 - t01) * 4)) * w;
+    bipedTalk(pose, g.style, t, this.salt, syllable, beat, shape, spec.handed ?? 1);
+    faceTalk(pose, spec.face, syllable, beat, shape, t, this.salt);
+    return shape;
   }
 
   /**
@@ -903,7 +946,7 @@ export class Creature {
     this.begin(kind === 'greeting' ? 'greet' : 'talk');
     this.hailed = false;
     this.pending = kind;
-    this.gestureLength = 6;
+    this.gesture.length = 6;
   }
 
   /** Ends a meeting, whether it finished or was interrupted. */

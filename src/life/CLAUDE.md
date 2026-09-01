@@ -25,6 +25,20 @@ The mind decides weights and phases. The layers in `gaits` are summed into one
 `Pose`. A biped's legs are then solved from its planted feet, the transition
 offset is added and decayed, and the whole pose is written to the skeleton.
 
+**Every layer takes a weight and nothing is applied at full strength on the
+frame it starts or the frame it stops.** A figure holds two gesture slots — the
+one coming in and the one going out, each on its own clock — mixed at `k` and
+`1 - k` over `CROSS` seconds, so an arm interrupted mid-rise finishes its arc
+under the gesture that replaced it. Layers *add*, so a cross-fade has to be a
+lerp: the two weights sum to one, which is what keeps the mix inside
+`envelope.ts`. The idle fidget shares the same arms and takes `1 - ` whatever
+the gesture mix is using of them.
+
+A third gesture starting mid-fade takes the incoming slot and drops what was
+already leaving; the residue goes to the settling offset. That offset is for
+*state* changes — where the kind of thing the body is doing changed and there
+is no matching pair of gestures to blend.
+
 **Nothing here keeps state.** Every layer is a pure function of a phase or a
 clock, so a creature that goes quiet and comes back picks up wherever the clock
 says it should be. The only state is the feet and the springs.
@@ -54,6 +68,8 @@ gestures are whole-arm shapes and never finger work.
 
 ## Adding a gesture
 
-A function in `gaits.ts` taking `(pose, t01, ...)` and adding into the pose, an
-entry in whichever family list names it, and a check that its largest rotation
-per bone is inside `envelope.ts`.
+A function in `gaits.ts` taking `(pose, t01, ..., w)` and adding `w` times its
+shape into the pose, an entry in whichever family list names it, and a check
+that its largest rotation per bone at `w = 1` is inside `envelope.ts`. It also
+carries its own arc over `t01` — `envelope(t01, rise, fall)` — so it is worth
+nothing at either end whatever weight it is given.

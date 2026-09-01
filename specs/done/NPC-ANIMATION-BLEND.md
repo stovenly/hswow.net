@@ -1,5 +1,8 @@
 # Blending a creature's motions — spec
 
+**Built, all five steps.** Each step carries a note where what landed differs
+from the sketch under it, and those notes are the authority.
+
 Every motion a figure makes should arrive out of the one before it and leave
 into the one after. Today most of them cut.
 
@@ -71,6 +74,12 @@ yet: they all pass 1.
 *Done when* every gait function has a weight and the figures look exactly as
 they do now.
 
+**Built.** `bipedGreet`, `bipedFidget` and `call` take a trailing `w = 1`. Each
+case's own `envelope(t01, ...)` is scaled by it, and the three terms that ride a
+bare `bump(t01)` or a raw `syllable` rather than an envelope — the wave's head
+turn, the doff's dip, the dog's body shove — are scaled separately. `fit` lost
+its `?` so the weight can sit after it.
+
 ## Step 2 — nothing starts or ends at full strength
 
 The ramp `bipedTalk` already has — `smooth(min(t01·4, 1, (1−t01)·4))` — becomes
@@ -84,6 +93,14 @@ the middle, which is Step 4.
 *Done when* a greeting no longer pops at either end, and the idle business
 under a conversation arrives and leaves rather than blinking.
 
+**Built, and smaller than the sketch.** The step assumed the greetings and the
+fidgets were applied flat; reading them, every case already carries its own
+`envelope(t01, rise, fall)`, so nothing was popping at the ends of its own
+clock. The one that was is the fidget, killed mid-arc by `startGesture` setting
+`timer = -1`. That line is gone and the fidget takes `1 - gestureW` instead, so
+it hands the arms over rather than switching off — which is Step 5's answer
+arriving here.
+
 ## Step 3 — a gesture change settles like a state change
 
 `startGesture` sets `settling`, and so does anything else that resets
@@ -93,6 +110,12 @@ number to try, and it is the repo owner's to move.
 
 *Done when* the gesture that opens each sentence of a conversation grows out of
 the one before it.
+
+**Built as Step 4 instead.** Firing `settling` on every gesture change was the
+stepping stone Step 4 removes, so it was never written: the cross-fade is what
+carries a gesture change, and `settling` stays what it was for. It does fire on
+one gesture change — a third arriving mid-fade, where there is no third slot to
+blend into. `SETTLE` moved to 0.25 s as written.
 
 ## Step 4 — two gesture slots, and a real cross-fade
 
@@ -119,6 +142,15 @@ matching pair of gestures to blend.
 *Done when* a villager interrupted mid-greeting by a new line finishes the
 greeting's arc under the new gesture rather than dropping it.
 
+**Built.** `gestureT`, `gestureLength` and `lineGesture` are gone, replaced by
+two `Gesture` records — `gesture` and `fading` — and `cross`, 0 to 1 over
+`CROSS = 0.28`. `handOver` pushes the running one across and starts the next;
+`gestureLayer` evaluates one slot at a weight and answers how much of the arms
+it took. Both clocks advance under the same gate the single clock had, so a
+figure still waits until it is round far enough before either gesture moves. A
+creature starts life holding a spent gesture rather than an unstarted one, so
+its first hello fades in out of nothing.
+
 ## Step 5 — the envelope holds
 
 Every gait function's largest rotation per bone was cleared against
@@ -135,6 +167,12 @@ cheap answer and the right one, or the pair needs its own envelope entry.
 *Done when* no bone exceeds its entry during a cross-fade, checked by reading
 the weights rather than by measuring anything.
 
+**Built, the cheap answer.** Read off the weights: the two slots are at `k` and
+`1 - k` and each is worth at most its own arc, so the mix is worth at most one
+gesture. `gestureLayer` returns that arc weight, the two are summed into
+`gestureW`, and the fidget runs at `1 - gestureW` — so gesture and fidget
+together never exceed one either. No entry in `envelope.ts` needed widening.
+
 ## What this is not
 
 - Not clips, not an animation graph, not keyframes. Every layer stays a pure
@@ -146,12 +184,7 @@ the weights rather than by measuring anything.
   change that — but garments are cleared against `envelope.ts`, so Step 5 is
   what keeps them honest.
 
-## To settle before building
+## Still to settle
 
-1. **How far.** Steps 1–3 are small, land together and fix the ends of every
-   motion, which may be most of what was actually wrong. Step 4 is the real
-   cross-fade and is its own piece of work. Worth doing both, or is 1–3 enough
-   to look at first?
-2. **The numbers.** `SETTLE`, the ramp fractions and `CROSS` are all
-   placeholders picked from reading the code, not from watching a villager.
-   They want a pass in the world once there is something to watch.
+`SETTLE` (0.25 s), `CROSS` (0.28 s) and the ramp fractions were picked from
+reading the code, not from watching a villager. They want a pass in the world.

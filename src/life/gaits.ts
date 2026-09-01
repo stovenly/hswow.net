@@ -81,14 +81,14 @@ export function graze(pose: Pose, t: number, salt: number, w: number, drop: numb
 }
 
 /** A call: head comes up and forward with it, and bobs on the syllables. */
-export function call(pose: Pose, t01: number, syllable: number, dog: boolean): void {
-  const e = envelope(t01, 0.2, 0.3);
+export function call(pose: Pose, t01: number, syllable: number, dog: boolean, w = 1): void {
+  const e = envelope(t01, 0.2, 0.3) * w;
   pose.turn('neck', -0.22 * e);
-  pose.turn('head', -0.18 * e + 0.12 * syllable);
+  pose.turn('head', -0.18 * e + 0.12 * syllable * w);
   if (dog) {
     pose.turn('tail', 0, 0.55 * e * Math.sin(t01 * 40));
     pose.turn('tail2', 0, 0.4 * e * Math.sin(t01 * 40 - 1));
-    pose.move('body', 0, 0.01 * syllable, -0.01 * syllable);
+    pose.move('body', 0, 0.01 * syllable * w, -0.01 * syllable * w);
   }
 }
 
@@ -180,11 +180,11 @@ export const GREET_LENGTH: Record<Greeting, number> = {
   clap: 1.8,
 };
 
-export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1, fit?: GestureFit): void {
+export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1, fit: GestureFit | undefined, w = 1): void {
   const arm = side > 0 ? 'armL' : 'armR';
   const reachIn = fit?.reachIn ?? 1;
   const reachUp = fit?.reachUp ?? 1;
-  const e = envelope(t01, 0.22, 0.28);
+  const e = envelope(t01, 0.22, 0.28) * w;
   switch (kind) {
     case 'wave': {
       // rz > 0 carries a hanging arm toward +X: out and up on the left, so
@@ -194,14 +194,14 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
       pose.turn(`${arm}l`, -0.35 * e, 0, side * (0.4 + 0.45 * wave) * e);
       // The waving shoulder comes up with the arm.
       pose.turn(side > 0 ? 'clavL' : 'clavR', 0, 0, side * 0.12 * e);
-      pose.turn('head', 0.14 * bump(t01), 0, 0.05 * side * e);
+      pose.turn('head', 0.14 * bump(t01) * w, 0, 0.05 * side * e);
       pose.turn('torso', 0.03 * e);
       break;
     }
     case 'bow': {
       // A bow from the waist, the ribcage folding on after it, arms drawn
       // back a little, head following.
-      const b = envelope(t01, 0.35, 0.35);
+      const b = envelope(t01, 0.35, 0.35) * w;
       pose.turn('torso', 0.28 * b);
       pose.turn('chest', 0.16 * b);
       pose.turn('head', 0.15 * b);
@@ -213,7 +213,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     }
     case 'raise': {
       // Both arms up and out, a bounce on the toes.
-      const r = envelope(t01, 0.25, 0.3);
+      const r = envelope(t01, 0.25, 0.3) * w;
       pose.turn('armLu', -0.4 * r, 0, 1.7 * r);
       pose.turn('armRu', -0.4 * r, 0, -1.7 * r);
       pose.turn('armLl', -0.3 * r, 0, 0.5 * r);
@@ -228,7 +228,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     case 'heart': {
       // A hand flat on the chest and a small bow over it. ry carries a
       // forearm inward across the front, as `fold` does.
-      const h = envelope(t01, 0.3, 0.32);
+      const h = envelope(t01, 0.3, 0.32) * w;
       pose.turn(`${arm}u`, -0.3 * h, side * 0.55 * h, -side * 0.1 * h);
       pose.turn(`${arm}l`, -2.3 * reachIn * h, side * 0.75 * h, 0);
       pose.turn('torso', 0.12 * h);
@@ -238,7 +238,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     }
     case 'press': {
       // Both palms brought together in front of the chest, and a dip.
-      const p = envelope(t01, 0.3, 0.32);
+      const p = envelope(t01, 0.3, 0.32) * w;
       pose.turn('armLu', -0.5 * p, 0.5 * p, -0.15 * p);
       pose.turn('armRu', -0.5 * p, -0.5 * p, 0.15 * p);
       pose.turn('armLl', -2.1 * reachIn * p, 0.8 * p, 0);
@@ -250,7 +250,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     }
     case 'brow': {
       // Fingertips up off the brow, held a moment, then swept out and down.
-      const up = envelope(t01, 0.2, 0.45);
+      const up = envelope(t01, 0.2, 0.45) * w;
       const out = smooth(clamp01((t01 - 0.5) / 0.5));
       pose.turn(`${arm}u`, (-1.0 + 0.55 * out) * reachUp * up, side * 0.2 * up, side * (0.45 + 0.7 * out) * up);
       pose.turn(`${arm}l`, (-1.7 + 1.1 * out) * reachUp * up, side * (0.45 - 0.35 * out) * up, 0);
@@ -260,7 +260,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     }
     case 'beckon': {
       // The arm out, and the forearm scooping back twice: come over.
-      const b = envelope(t01, 0.2, 0.28);
+      const b = envelope(t01, 0.2, 0.28) * w;
       const scoop = Math.sin(t01 * TWO_PI * 2.2);
       pose.turn(`${arm}u`, -0.5 * b, side * 0.2 * b, side * 0.7 * b);
       pose.turn(`${arm}l`, (-0.7 - 0.5 * scoop) * b, side * (0.3 + 0.3 * scoop) * b, 0);
@@ -270,17 +270,17 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     }
     case 'doff': {
       // A hand up to the brim of the mask, and the head dipped under it.
-      const d = envelope(t01, 0.26, 0.3);
+      const d = envelope(t01, 0.26, 0.3) * w;
       const touch = bump(t01);
       pose.turn(`${arm}u`, -1.1 * reachUp * d, side * 0.15 * d, side * 0.5 * d);
       pose.turn(`${arm}l`, (-1.9 - 0.25 * touch) * reachUp * d, side * 0.45 * d, 0);
-      pose.turn('head', 0.2 * touch, 0, side * 0.08 * d);
+      pose.turn('head', 0.2 * touch * w, 0, side * 0.08 * d);
       pose.turn('torso', 0.06 * d);
       break;
     }
     case 'offer': {
       // Both hands offered forward, palms up, leaning in behind them.
-      const o = envelope(t01, 0.32, 0.34);
+      const o = envelope(t01, 0.32, 0.34) * w;
       pose.turn('armLu', -0.7 * o, 0.18 * o, 0.28 * o);
       pose.turn('armRu', -0.7 * o, -0.18 * o, -0.28 * o);
       pose.turn('armLl', -0.45 * o, 0.3 * o, 0.15 * o);
@@ -293,7 +293,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
     }
     case 'clap': {
       // Two claps in front of the chest: the hands open on the off-beat.
-      const c = envelope(t01, 0.18, 0.3);
+      const c = envelope(t01, 0.18, 0.3) * w;
       const beat = Math.abs(Math.sin(t01 * TWO_PI * 2));
       const open = 0.3 * (1 - beat);
       pose.turn('armLu', -0.7 * c, (0.5 - open) * c, (open - 0.1) * c);
@@ -314,14 +314,14 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
 export type Fidget = 'stretch' | 'scratch' | 'fold' | 'lookAround' | 'shift';
 
 /** Idle business for a figure: one small piece of it, over `t01`. */
-export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, salt: number, side: 1 | -1, fit?: GestureFit): void {
+export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, salt: number, side: 1 | -1, fit: GestureFit | undefined, w = 1): void {
   const arm = side > 0 ? 'armL' : 'armR';
   const other = side > 0 ? 'armR' : 'armL';
   const reachIn = fit?.reachIn ?? 1;
   const reachUp = fit?.reachUp ?? 1;
   switch (kind) {
     case 'stretch': {
-      const e = envelope(t01, 0.3, 0.3);
+      const e = envelope(t01, 0.3, 0.3) * w;
       pose.turn('armLu', -0.5 * e, 0, 1.4 * e);
       pose.turn('armRu', -0.5 * e, 0, -1.4 * e);
       pose.turn('armLl', -0.6 * e, 0, 0.3 * e);
@@ -336,7 +336,7 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
     }
     case 'scratch': {
       // One hand up to the side of the head, a few small rubs.
-      const e = envelope(t01, 0.25, 0.25);
+      const e = envelope(t01, 0.25, 0.25) * w;
       pose.turn(`${arm}u`, -0.9 * reachUp * e, 0, side * 0.9 * e);
       pose.turn(`${arm}l`, (-2.0 - 0.15 * Math.sin(t01 * TWO_PI * 5)) * reachUp * e, 0, side * 0.6 * e);
       pose.turn('head', 0.05 * e, -side * 0.25 * e, side * 0.15 * e);
@@ -344,7 +344,7 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
     }
     case 'fold': {
       // Forearms across the front, one over the other.
-      const e = envelope(t01, 0.3, 0.3);
+      const e = envelope(t01, 0.3, 0.3) * w;
       pose.turn('armLu', -0.3 * e, 0.45 * e, -0.05 * e);
       pose.turn('armRu', -0.3 * e, -0.45 * e, 0.05 * e);
       pose.turn('armLl', -2.0 * reachIn * e, 0.7 * e, 0);
@@ -355,7 +355,7 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
     }
     case 'lookAround': {
       // A slow sweep of the head one way, then the other, with a pause.
-      const e = envelope(t01, 0.15, 0.15);
+      const e = envelope(t01, 0.15, 0.15) * w;
       const sweep = Math.sin(t01 * Math.PI * 2) * 0.75;
       pose.turn('head', 0.05 * e, sweep * e, 0.05 * sweep * e);
       pose.turn('torso', 0, sweep * 0.2 * e);
@@ -366,7 +366,7 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
     case 'shift': {
       // Weight goes onto one leg: the hips slide over it and drop, and the
       // legs, solved from the feet, take up the bend.
-      const e = envelope(t01, 0.3, 0.3);
+      const e = envelope(t01, 0.3, 0.3) * w;
       pose.move('hips', side * 0.035 * e, -0.014 * e, 0);
       pose.turn('hips', 0, 0, -side * 0.06 * e);
       pose.turn('torso', 0, 0, side * 0.05 * e);
