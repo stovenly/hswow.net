@@ -6,6 +6,7 @@ import type { ScatterSpec } from '../audio/Scatter';
 import type { FogVolume } from '../engine/FogVolumes';
 import type { GlitchPlacement } from '../engine/Glitch';
 import type { HorrorPlacement } from '../engine/Horror';
+import type { PropAsk } from '../engine/work/jobs';
 import type { CoverName, GroundName, PatchShape } from './ground';
 import type { Terrain } from './terrain';
 import type { Skirt } from './vista';
@@ -377,6 +378,12 @@ export interface EntryContext {
   expand(entries: readonly Entry[], parent: THREE.Object3D, prefix: string, seed: number): void;
 }
 
+/**
+ * What exists before the walk runs: the ground and the skirt, both made with
+ * the definition, and nothing built. See `EntryKind.asks`.
+ */
+export type WarmContext = Pick<EntryContext, 'terrain' | 'skirt' | 'groundAt'>;
+
 /** Everything an entry can contribute that is not geometry. */
 export interface Collected {
   emitters: EmitterSpec[];
@@ -400,6 +407,15 @@ export interface EntryKind<E extends Entry = never> {
   defaults?(): Record<string, unknown>;
   /** Builds the entry, or returns null when it contributes no geometry. */
   build(entry: E, ctx: EntryContext): THREE.Object3D | null;
+  /**
+   * The builder calls `build` is going to make, in the order it makes them, so
+   * they can be built off the main thread before the walk runs. Omitting it
+   * warms the kind for nothing, which is what most kinds want. Listing a call
+   * the walk does not make costs a build nobody claims; listing one with the
+   * wrong seed costs the same and gains nothing, so the draw order has to be
+   * shared with `build` rather than reproduced here.
+   */
+  asks?(entry: E, ctx: WarmContext): readonly PropAsk[];
   /** For kinds with no mesh of their own: what the editor draws instead. */
   gizmo?(entry: E, ctx: EntryContext): THREE.Object3D | null;
   /** Where the palette lists it, and what it offers. */

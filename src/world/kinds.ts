@@ -73,6 +73,14 @@ function seedOf(entry: { seed?: number; id?: string }): number {
   return (hash >>> 0) % 1_000_000;
 }
 
+/** An entry's options, coerced against whatever schema its builder declares. */
+function optionsOf(
+  builder: NonNullable<ReturnType<typeof builderByName>>,
+  options: unknown,
+): Record<string, unknown> {
+  return builder.options ? coerceFields(builder.options, options) : {};
+}
+
 /** The builder a name points at, or a thrown error naming the document's fault. */
 function needBuilder(name: string): NonNullable<ReturnType<typeof builderByName>> {
   const builder = builderByName(name);
@@ -143,9 +151,14 @@ function doorFront(object: THREE.Object3D): { x: number; z: number; yaw: number 
 registerEntryKind<PropEntry>({
   kind: 'prop',
   palette: { tab: 'objects', list: () => [] },
+  asks(entry) {
+    const builder = builderByName(entry.builder);
+    if (!builder) return [];
+    return [{ builder: entry.builder, seed: seedOf(entry), scale: entry.scale, extras: optionsOf(builder, entry.options) }];
+  },
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
-    const extras = builder.options ? coerceFields(builder.options, entry.options) : {};
+    const extras = optionsOf(builder, entry.options);
     const seed = seedOf(entry);
     // Built on a worker before this walk ran, where the builder was one pure
     // walk to a `finish`. A miss builds it here, exactly as it always did.

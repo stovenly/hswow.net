@@ -739,7 +739,7 @@ export class ZoneManager {
 
     // Indexed here, where yielding is still allowed, so the swap below finds it
     // cached. A pool that refuses the work leaves `build` to do it inline.
-    await collider.warmAsync(root, zone.id);
+    await collider.warmAsync(root, zone.id, true);
     if (stale()) return;
 
     // Compiled before anything is swapped. Every frame this yields still shows

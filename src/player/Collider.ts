@@ -220,12 +220,16 @@ export class Collider {
    * a crossing may not yield between the swap and the teleport, so `build` has
    * to find this already in the cache or do it inline itself.
    */
-  async warmAsync(root: THREE.Object3D, key: string): Promise<void> {
+  async warmAsync(root: THREE.Object3D, key: string, urgent = false): Promise<void> {
     if (this.cache.has(key)) return;
     const { triangles, positions } = carve(root);
     let plan;
     try {
-      plan = await pool.run('collision-index', { positions }, { transfer: [positions.buffer] });
+      plan = await pool.run(
+        'collision-index',
+        { positions },
+        { transfer: [positions.buffer], urgent },
+      );
     } catch {
       return;
     }

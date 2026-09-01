@@ -38,6 +38,11 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** Payload buffers to move rather than copy. Unusable here afterwards. */
   transfer?: Transferable[];
+  /**
+   * Goes to the front of the queue. For the one piece of work with a deadline
+   * the player can see: a zone crossing, waiting behind the next zone's warm.
+   */
+  urgent?: boolean;
 }
 
 export class WorkPool {
@@ -77,7 +82,8 @@ export class WorkPool {
         signal: options.signal,
       };
       options.signal?.addEventListener('abort', () => this.drop(pending), { once: true });
-      this.queue.push(pending);
+      if (options.urgent) this.queue.unshift(pending);
+      else this.queue.push(pending);
       this.pump();
     });
   }

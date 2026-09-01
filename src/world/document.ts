@@ -208,7 +208,7 @@ export function wallEnd(
   }
 }
 
-const layersOf = (doc: ZoneDocument): readonly Layer[] =>
+export const layersOf = (doc: ZoneDocument): readonly Layer[] =>
   doc.layers ?? [{ name: 'main', entries: doc.entries ?? [] }];
 
 export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldState): ZoneDefinition {
@@ -397,7 +397,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     get horrors() {
       return collected.horrors;
     },
-    warm: () => warmDocument(doc),
+    warm: () => warmDocument(doc, { terrain, skirt, groundAt }, state),
     build,
   };
 }
