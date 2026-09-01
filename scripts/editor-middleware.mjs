@@ -14,6 +14,9 @@ const PREFIX = '/__editor/projects/';
 /** File names the editor may write, so a path cannot walk out of the project. */
 const SAFE = /^[a-z0-9][a-z0-9._-]*$/i;
 
+/** Content families that are one flat directory of documents, and nothing else. */
+const FAMILIES = new Set(['people', 'traits', 'quests']);
+
 function json(res, status, body) {
   res.statusCode = status;
   res.setHeader('content-type', 'application/json');
@@ -97,6 +100,58 @@ export function editorRoutes(root, onWrite = () => {}) {
           onWrite(file);
           res.setHeader('x-mtime', String(stamp));
           return json(res, 200, { ok: true });
+        }
+      }
+
+      // The flat families: list, read, write, rename, delete. No sidecars, and
+      // nothing else in the project points at one by name.
+      if (FAMILIES.has(parts[0])) {
+        const dir = path.join(content, parts[0]);
+
+        if (parts.length === 1 && req.method === 'GET') {
+          if (!fs.existsSync(dir)) return json(res, 200, []);
+          const listing = fs
+            .readdirSync(dir)
+            .filter((name) => name.endsWith('.json'))
+            .map((name) => ({ id: name.slice(0, -5), mtime: mtimeOf(path.join(dir, name)) }));
+          return json(res, 200, listing);
+        }
+
+        if (parts[1] && SAFE.test(parts[1])) {
+          const file = path.join(dir, `${parts[1]}.json`);
+
+          if (parts[2] === 'rename' && req.method === 'POST') {
+            const { to } = JSON.parse((await readBody(req)).toString('utf8'));
+            if (!to || !SAFE.test(to)) return text(res, 400, 'bad id');
+            fs.renameSync(file, path.join(dir, `${to}.json`));
+            onWrite(file);
+            return json(res, 200, { ok: true });
+          }
+
+          if (req.method === 'GET') {
+            if (!fs.existsSync(file)) return text(res, 404, 'no such document');
+            res.setHeader('x-mtime', String(mtimeOf(file)));
+            res.setHeader('content-type', 'application/json');
+            return res.end(fs.readFileSync(file, 'utf8'));
+          }
+
+          if (req.method === 'PUT') {
+            const known = Number(req.headers['x-mtime'] ?? 0);
+            const now = mtimeOf(file);
+            if (now && known && now > known) {
+              return json(res, 409, JSON.parse(fs.readFileSync(file, 'utf8')));
+            }
+            const stamp = writeAtomic(file, await readBody(req));
+            onWrite(file);
+            res.setHeader('x-mtime', String(stamp));
+            return json(res, 200, { ok: true });
+          }
+
+          if (req.method === 'DELETE') {
+            if (fs.existsSync(file)) fs.unlinkSync(file);
+            onWrite(file);
+            return json(res, 200, { ok: true });
+          }
         }
       }
 

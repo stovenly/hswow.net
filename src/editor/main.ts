@@ -31,5 +31,5 @@ const entry =
   project.entry;
 
 const app = await createApp({ canvas, overlay, project: { ...project, entry }, enter: true });
-new Editor(app, content.documents, content.manifest);
+new Editor(app, content);
 await app.start();

@@ -255,7 +255,7 @@ export class Inspector {
 
   private creature(zone: string, entry: Entry, record: Record<string, unknown>): void {
     const id = entry.id as string;
-    const held = record as { roam?: number; folk?: string };
+    const held = record as { roam?: number; folk?: string; person?: string; traits?: string[] };
     const section = this.panel.section('life');
     section.number('roam', held.roam ?? 0, { min: 0, max: 20, step: 0.1, suffix: 'm' }, (value) =>
       this.edit(zone, id, 'entry', (target) => ((target as { roam?: number }).roam = value)),
@@ -265,6 +265,24 @@ export class Inspector {
         const named = target as { folk?: string };
         if (value) named.folk = value;
         else delete named.folk;
+      }),
+    );
+
+    const people = this.session.cast('people').map((doc) => doc.id);
+    section.select('person', held.person ?? '', ['', ...people], (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { person?: string };
+        if (value) named.person = value;
+        else delete named.person;
+      }),
+    );
+    // Comma separated: a trait id has no commas in it, and the list is short.
+    section.text('traits', (held.traits ?? []).join(', '), (value) =>
+      this.edit(zone, id, 'zone', (target) => {
+        const named = target as { traits?: string[] };
+        const list = value.split(',').map((one) => one.trim()).filter(Boolean);
+        if (list.length) named.traits = list;
+        else delete named.traits;
       }),
     );
   }

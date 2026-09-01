@@ -283,6 +283,21 @@ and its topics appear and disappear at the right stages across a save and load.
 
 ## Step 5 — the editor
 
+**Built, as one panel rather than two.** People, traits and quests are the same
+three questions — who is this, what do they say, what does saying it do — so
+they are one `cast` menu with a family picker, not a panel each.
+
+`Session` grew a second, smaller half rather than a family argument on the zone
+one: the cast documents have no sidecars, no portal fixups and no rebuild, and
+`commit` is thick with all three. What is shared is the undo stack, which now
+keys on `<family>/<id>` and dispatches on the way back out.
+
+A condition is a text field holding JSON. Twelve cases in the union is a panel
+of its own, and a field that refuses to commit what it cannot parse says the
+same thing in one line. The same field takes a topic's infos and a quest's
+stages, which is what makes the panel able to author anything the runtime can
+read on the day it is written.
+
 The expensive step, and the reason it is last. `scripts/editor-middleware.mjs`
 routes `zones` and `world` by name; it needs a generic family route with the
 same list/read/write/rename it already gives zones, minus the sidecars.

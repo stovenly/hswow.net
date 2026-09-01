@@ -1,6 +1,7 @@
 import GUI from 'lil-gui';
 import type { Condition, Entry } from '../world/entry';
 import type { ZoneDocument } from '../world/document';
+import { everyQuest } from '../world/people';
 import { worldState, type StatePreview } from '../world/state';
 import type { Session } from './session';
 
@@ -105,15 +106,16 @@ export class LayerPanel {
         .name(`drop ${flag}`);
     }
 
+    // Authored quests by name, plus a free field for one that is not written yet.
     const quest = { name: '', stage: 0 };
-    group.add(quest, 'name').name('quest');
-    group
-      .add(quest, 'stage', 0, 50, 1)
-      .onChange(() => {
-        if (!quest.name) return;
-        worldState.setStage(quest.name, quest.stage);
-        this.hooks.changed();
-      });
+    const ids = everyQuest().map((doc) => doc.id);
+    if (ids.length) group.add(quest, 'name', ['', ...ids]).name('quest');
+    else group.add(quest, 'name').name('quest');
+    group.add(quest, 'stage', 0, 100, 5).onChange(() => {
+      if (!quest.name) return;
+      worldState.setStage(quest.name, quest.stage);
+      this.hooks.changed();
+    });
   }
 
   private layersOf(doc: ZoneDocument): MutableLayer[] {

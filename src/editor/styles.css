@@ -429,6 +429,11 @@ body.is-playing .editor-toolbar {
   outline: none;
 }
 
+/** Text the field could not parse, and so did not commit. */
+.ed-input.is-bad {
+  border-color: #e08a6a;
+}
+
 .ed-number {
   color: #7fd4ff;
   text-align: right;

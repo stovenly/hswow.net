@@ -8,7 +8,9 @@ import {
 } from '../world/document';
 import type { Entry } from '../world/entry';
 import { applyPlacement, type EntryPlacement } from '../world/entry';
-import { Api, SaveConflict } from './api';
+import { holdCast, type PersonDocument, type QuestDocument, type TraitDocument } from '../world/people';
+import type { ContentWorld } from '../app/content';
+import { Api, SaveConflict, type Family, type Named } from './api';
 import { moved } from './matrices';
 
 /**
@@ -37,8 +39,9 @@ const SAVE_DELAY = 1000;
  */
 export type Reach = 'transform' | 'entry' | 'zone';
 
+/** An undo step, on `zones/<id>` or on a flat family's `<family>/<id>`. */
 interface Step {
-  zone: string;
+  key: string;
   before: string;
   after: string;
 }
@@ -47,6 +50,10 @@ export class Session {
   readonly app: App;
   readonly api: Api;
   private readonly docs = new Map<string, ZoneDocument>();
+  /** The flat families, in the order the panel lists them. Shared with `holdCast`. */
+  private readonly families: Record<Family, Named[]> = { people: [], traits: [], quests: [] };
+  private readonly castCanon = new Map<string, string>();
+  private readonly castDirty = new Set<string>();
   private manifest: PortalManifest = { portals: [] };
   private readonly dirty = new Set<string>();
   private readonly undoStack: Step[] = [];
@@ -104,6 +111,103 @@ export class Session {
     this.manifest = manifest;
     // The mtimes the writes will be checked against.
     void this.api.zones().catch(() => {});
+  }
+
+  /** Adopts the people, traits and quests the page booted with, for the same reason. */
+  adoptCast(world: ContentWorld): void {
+    this.families.people = world.people;
+    this.families.traits = world.traits;
+    this.families.quests = world.quests;
+    for (const family of ['people', 'traits', 'quests'] as const) {
+      for (const doc of this.families[family]) {
+        this.castCanon.set(`${family}/${doc.id}`, JSON.stringify(doc));
+      }
+      void this.api.list(family).catch(() => {});
+    }
+  }
+
+  cast(family: Family): readonly Named[] {
+    return this.families[family];
+  }
+
+  castDoc(family: Family, id: string): Named | undefined {
+    return this.families[family].find((doc) => doc.id === id);
+  }
+
+  /**
+   * Mutates one document of a flat family. The world reads these objects at the
+   * moment somebody speaks, so nothing has to be raised again unless the change
+   * was to a body — `rebuild` names the zone that has to be.
+   */
+  commitCast(family: Family, id: string, mutate: (doc: never) => void, rebuild?: string): void {
+    const key = `${family}/${id}`;
+    const doc = this.castDoc(family, id);
+    if (!doc) return;
+
+    let before = JSON.stringify(doc);
+    const canon = this.castCanon.get(key);
+    if (canon !== undefined && canon !== before) {
+      console.warn(`document "${key}" was written to outside a commit; putting it back`);
+      writeInto(doc as never, JSON.parse(canon) as never);
+      before = canon;
+    }
+
+    mutate(doc as never);
+    const after = JSON.stringify(doc);
+    if (before === after) return;
+    this.castCanon.set(key, after);
+
+    this.undoStack.push({ key, before, after });
+    this.redoStack.length = 0;
+    this.castDirty.add(key);
+    if (rebuild) this.schedule(rebuild, 'zone');
+    else this.scheduleSave();
+    this.onChange?.();
+  }
+
+  /** Adds a document to a family and registers it, without a reload. */
+  createCast(family: Family, doc: Named): void {
+    this.families[family].push(doc);
+    this.castCanon.set(`${family}/${doc.id}`, JSON.stringify(doc));
+    this.rehold();
+    this.castDirty.add(`${family}/${doc.id}`);
+    this.scheduleSave();
+    this.onChange?.();
+    this.structureChanged();
+  }
+
+  async removeCast(family: Family, id: string): Promise<void> {
+    const list = this.families[family];
+    const at = list.findIndex((doc) => doc.id === id);
+    if (at >= 0) list.splice(at, 1);
+    this.castCanon.delete(`${family}/${id}`);
+    this.castDirty.delete(`${family}/${id}`);
+    this.rehold();
+    await this.api.remove(family, id);
+    this.onChange?.();
+    this.structureChanged();
+  }
+
+  async renameCast(family: Family, from: string, to: string): Promise<void> {
+    const doc = this.castDoc(family, from);
+    if (!doc || this.castDoc(family, to)) return;
+    await this.api.rename(family, from, to);
+    doc.id = to;
+    this.castCanon.delete(`${family}/${from}`);
+    this.castCanon.set(`${family}/${to}`, JSON.stringify(doc));
+    this.castDirty.add(`${family}/${to}`);
+    this.rehold();
+    this.scheduleSave();
+    this.structureChanged();
+  }
+
+  /** Hands the runtime the family lists again, after one of them gained or lost a member. */
+  private rehold(): void {
+    holdCast(
+      this.families.people as PersonDocument[],
+      this.families.traits as TraitDocument[],
+      this.families.quests as QuestDocument[],
+    );
   }
 
   get zones(): readonly ZoneDocument[] {
@@ -174,7 +278,7 @@ export class Session {
     if (before === after) return;
     this.canonical.set(zone, after);
 
-    this.undoStack.push({ zone, before, after });
+    this.undoStack.push({ key: `zones/${zone}`, before, after });
     this.redoStack.length = 0;
     this.dirty.add(zone);
     this.schedule(zone, reach, entry);
@@ -197,6 +301,10 @@ export class Session {
       window.clearTimeout(this.rebuildTimer);
       this.rebuildTimer = window.setTimeout(() => void this.flushRebuild(), REBUILD_DELAY);
     }
+    this.scheduleSave();
+  }
+
+  private scheduleSave(): void {
     window.clearTimeout(this.saveTimer);
     this.saveTimer = window.setTimeout(() => void this.saveAll(), SAVE_DELAY);
   }
@@ -295,25 +403,39 @@ export class Session {
     const step = this.undoStack.pop();
     if (!step) return;
     this.redoStack.push(step);
-    this.restore(step.zone, step.before);
+    this.restore(step.key, step.before);
   }
 
   redo(): void {
     const step = this.redoStack.pop();
     if (!step) return;
     this.undoStack.push(step);
-    this.restore(step.zone, step.after);
+    this.restore(step.key, step.after);
   }
 
-  private restore(zone: string, snapshot: string): void {
-    const doc = this.docs.get(zone);
+  private restore(key: string, snapshot: string): void {
+    const [family, id] = splitKey(key);
+    if (family !== 'zones') return this.restoreCast(family as Family, id, snapshot);
+    const doc = this.docs.get(id);
     if (!doc) return;
+    const zone = id;
     // In place, because the zone definition closed over this object when it was
     // interpreted and a replacement would leave the world reading the old one.
     writeInto(doc, JSON.parse(snapshot) as ZoneDocument);
     this.canonical.set(zone, snapshot);
     this.dirty.add(zone);
     this.schedule(zone, 'zone');
+    this.onChange?.();
+    this.structureChanged();
+  }
+
+  private restoreCast(family: Family, id: string, snapshot: string): void {
+    const doc = this.castDoc(family, id);
+    if (!doc) return;
+    writeInto(doc as never, JSON.parse(snapshot) as never);
+    this.castCanon.set(`${family}/${id}`, snapshot);
+    this.castDirty.add(`${family}/${id}`);
+    this.scheduleSave();
     this.onChange?.();
     this.structureChanged();
   }
@@ -331,6 +453,22 @@ export class Session {
           return;
         }
         this.say(`${zone}: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+    }
+    for (const key of [...this.castDirty]) {
+      const [family, id] = splitKey(key);
+      const doc = this.castDoc(family as Family, id);
+      if (!doc) continue;
+      try {
+        await this.api.write(family as Family, doc);
+        this.castDirty.delete(key);
+      } catch (error) {
+        if (error instanceof SaveConflict) {
+          this.say(`${key}: the file on disk is newer — reload or overwrite`);
+          return;
+        }
+        this.say(`${key}: ${error instanceof Error ? error.message : String(error)}`);
         return;
       }
     }
@@ -379,7 +517,7 @@ export function findEntryObject(
 }
 
 /** Replaces a document's contents without replacing the object itself. */
-function writeInto(doc: ZoneDocument, from: ZoneDocument): void {
+function writeInto<T extends object>(doc: T, from: T): void {
   const held = doc as unknown as Record<string, unknown>;
   for (const key of Object.keys(held)) delete held[key];
   Object.assign(held, from);

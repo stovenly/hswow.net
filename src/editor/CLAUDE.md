@@ -43,6 +43,12 @@ would draw differently, its judgement is worthless.
 - `selection.ts`, `transform.ts` — picking by `userData.entry`, and the gizmo.
 - `inspector.ts`, `zonePanel.ts`, `terrainPanel.ts`, `layerPanel.ts` — forms,
   generated from the kind's schema and the builder's own option schema.
+- `castPanel.ts` — people, traits and quests. These are flat families rather
+  than zones: one directory of documents each, no sidecars, and nothing else in
+  the project points at one by name. The world reads these documents at the
+  moment somebody speaks, so a change needs no rebuild unless it was to a body.
+  A condition is edited as JSON, and a field that cannot parse what it holds
+  says so and does not commit.
 - `palette.ts`, `thumbnails.ts`, `entries.ts` — what can be placed, what it looks
   like, and adding, copying and removing it.
 - `outliner.ts` — the tree. Dragging a row reorders the document, and document

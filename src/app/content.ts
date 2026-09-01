@@ -29,6 +29,10 @@ export interface ContentWorld {
   portals: PortalDefinition[];
   documents: ZoneDocument[];
   manifest: PortalManifest;
+  /** The flat families, as the same objects `holdCast` is holding. */
+  people: PersonDocument[];
+  traits: TraitDocument[];
+  quests: QuestDocument[];
 }
 
 /**
@@ -71,7 +75,17 @@ export function contentWorld(project: string, state?: WorldState): ContentWorld 
 
 function interpret(project: string, state?: WorldState): ContentWorld {
   const bundle = content[project];
-  if (!bundle) return { zones: [], portals: [], documents: [], manifest: { portals: [] } };
+  if (!bundle) {
+    return {
+      zones: [],
+      portals: [],
+      documents: [],
+      manifest: { portals: [] },
+      people: [],
+      traits: [],
+      quests: [],
+    };
+  }
 
   const documents = Object.entries(bundle.zones)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -79,18 +93,25 @@ function interpret(project: string, state?: WorldState): ContentWorld {
 
   // Before any zone is interpreted: a creature entry naming a person reads its
   // body off that person, and the warm pass runs before the walk.
-  holdCast(
-    Object.values(bundle.people) as PersonDocument[],
-    Object.values(bundle.traits) as TraitDocument[],
-    Object.values(bundle.quests) as QuestDocument[],
-  );
+  const people = Object.values(bundle.people) as PersonDocument[];
+  const traits = Object.values(bundle.traits) as TraitDocument[];
+  const quests = Object.values(bundle.quests) as QuestDocument[];
+  holdCast(people, traits, quests);
 
   // Definitions first: a portal end reads the zone it stands in, and both
   // zones have to be registered before either door is placed.
   const zones = documents.map((doc) => zoneFromDocument(doc, state));
 
   const manifest = (Object.values(bundle.world)[0] as PortalManifest | undefined) ?? { portals: [] };
-  return { zones, portals: portalsFromManifest(manifest), documents, manifest };
+  return {
+    zones,
+    portals: portalsFromManifest(manifest),
+    documents,
+    manifest,
+    people,
+    traits,
+    quests,
+  };
 }
 
 /** A sidecar raster's URL, by the file name a document names. */

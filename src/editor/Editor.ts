@@ -3,7 +3,8 @@ import GUI from 'lil-gui';
 import type { App } from '../app/boot';
 import { installDevPanel } from '../app/devPanel';
 import { projectIds } from '../app/loadProject';
-import type { ZoneDocument, PortalManifest } from '../world/document';
+import type { ZoneDocument } from '../world/document';
+import type { ContentWorld } from '../app/content';
 import { Chrome, type Toggle } from './chrome';
 import { Keys } from './keys';
 import { Selection, entryTagOf } from './selection';
@@ -22,6 +23,7 @@ import { Shapes, groundPoint, type ShapeKind } from './shapes';
 import { PortalTool } from './portals';
 import { Terraform, type Brush } from './terraform';
 import { LayerPanel } from './layerPanel';
+import { CastPanel } from './castPanel';
 import { findIn } from './transform';
 import {
   addEntry,
@@ -80,6 +82,7 @@ export class Editor {
   readonly portalTool: PortalTool;
   readonly terraform: Terraform;
   readonly layerPanel: LayerPanel;
+  readonly castPanel: CastPanel;
 
   private current: EditorMode = 'fly';
   private readonly modeToggles: Record<EditorMode, Toggle>;
@@ -105,12 +108,12 @@ export class Editor {
   /** Whether the day is allowed to run. Session-only; nothing is saved. */
   private readonly climate = { weather: false, clock: false };
 
-  constructor(app: App, documents: readonly ZoneDocument[], manifest: PortalManifest) {
+  constructor(app: App, content: ContentWorld) {
     this.app = app;
 
-
     this.session = new Session(app);
-    this.session.adopt(documents, manifest);
+    this.session.adopt(content.documents, content.manifest);
+    this.session.adoptCast(content);
     this.session.say = (message) => this.chrome.say(message);
     // A rebuilt entry is a different object; the selection has to follow it or
     // the gizmo is left holding a mesh that is no longer in the world.
@@ -206,6 +209,12 @@ export class Editor {
         }
       },
     });
+
+    this.castPanel = new CastPanel(this.menus.panel('cast'), this.session, {
+      zone: () => this.app.zones.current?.id ?? null,
+      say: (message) => this.chrome.say(message),
+    });
+    this.castPanel.refresh();
 
     this.zonePanel = new ZonePanel(this.menus.gui('zone'), this.session, {
       rebuilt: () => {},
