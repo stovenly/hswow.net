@@ -1,6 +1,7 @@
 import { holds, type Subject, type WorldState } from './entry';
 import type { NpcMark } from './Interaction';
-import { personById, traitById, type Speech, type Topic } from './people';
+import { personById, traitById, type Effect, type Speech, type Topic } from './people';
+import type { WorldFlags } from './state';
 
 /**
  * What somebody has to say, gathered from everything they are.
@@ -18,6 +19,19 @@ export interface Answered {
   key: string;
   label: string;
   reply: string;
+  then?: readonly Effect[];
+}
+
+/** What `giveItem` and `takeItem` reach for. Held by whoever owns the pack. */
+export interface Satchel {
+  give(builder: string, seed?: number): void;
+  take(builder: string): boolean;
+}
+
+let satchel: Satchel | null = null;
+
+export function holdSatchel(pack: Satchel | null): void {
+  satchel = pack;
 }
 
 export interface Conversation {
@@ -30,10 +44,11 @@ const NOTHING: readonly string[] = [];
 
 export function converse(mark: NpcMark, state: WorldState, doing?: string): Conversation {
   const person = mark.person ? personById(mark.person) : undefined;
-  const who: Subject = { person: mark.person, traits: mark.traits, home: person?.home, doing };
+  const carried = state.traitsOf(mark.person ?? '', mark.traits);
+  const who: Subject = { person: mark.person, traits: carried, home: person?.home, doing };
 
   const owners: { speech: Speech; rank: number }[] = [];
-  for (const id of mark.traits) {
+  for (const id of carried) {
     const trait = traitById(id);
     if (trait) owners.push({ speech: trait, rank: TRAIT });
   }
@@ -59,9 +74,47 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
   for (const { topic } of held.values()) {
     if (!holds(topic.when, state, who)) continue;
     const info = topic.infos.find((one) => holds(one.when, state, who));
-    if (info) topics.push({ key: topic.key, label: topic.label, reply: info.reply });
+    if (info) {
+      topics.push({ key: topic.key, label: topic.label, reply: info.reply, then: info.then });
+    }
   }
   return { greeting, farewell, topics };
+}
+
+/** Runs what a line does. Written state only, so it takes the real thing. */
+export function apply(
+  effects: readonly Effect[] | undefined,
+  state: WorldFlags,
+  speaker?: string,
+): void {
+  for (const effect of effects ?? []) {
+    switch (effect.do) {
+      case 'setFlag':
+        state.setFlag(effect.flag, effect.on ?? true);
+        break;
+      case 'setStage':
+        state.setStage(effect.quest, effect.stage);
+        break;
+      case 'failQuest':
+        state.setFailed(effect.quest, true);
+        break;
+      case 'grantTrait':
+      case 'revokeTrait': {
+        const person = effect.person ?? speaker;
+        if (person) state.grantTrait(person, effect.trait, effect.do === 'grantTrait');
+        else console.warn(`dialogue: "${effect.trait}" has nobody named to hang it on`);
+        break;
+      }
+      case 'giveItem':
+        if (satchel) satchel.give(effect.builder, effect.seed);
+        else console.warn(`dialogue: no pack to give "${effect.builder}" into`);
+        break;
+      case 'takeItem':
+        if (satchel) satchel.take(effect.builder);
+        else console.warn(`dialogue: no pack to take "${effect.builder}" from`);
+        break;
+    }
+  }
 }
 
 /** One of a bank, chosen by the speaker's seed and how many lines have passed. */

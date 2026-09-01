@@ -19,7 +19,7 @@ import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction, type NpcMark } from '../world/Interaction';
 import { Dialogue } from '../ui/Dialogue';
-import { converse, pick } from '../world/dialogue';
+import { apply, converse, pick } from '../world/dialogue';
 import { worldState } from '../world/state';
 import type { Creature } from '../life/Creature';
 import { Reticle, Fade } from '../ui/Reticle';
@@ -344,7 +344,11 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       name: mark.name,
       greeting: pick(talk.greeting, creature.spec.seed, turn),
       farewell: pick(talk.farewell, creature.spec.seed, turn),
-      topics: talk.topics,
+      topics: () =>
+        converse(mark, worldState, creature.doing).topics.map((topic) => ({
+          ...topic,
+          chosen: topic.then ? () => apply(topic.then, worldState, mark.person) : undefined,
+        })),
       speak: (text, manner) => creature.say(text, manner),
       hush: () => creature.hush(),
       away: () => creature.mesh.position.distanceTo(player.position),

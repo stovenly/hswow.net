@@ -16,9 +16,24 @@ import type { Condition } from './entry';
 /** Where somebody comes from: their dress, their mask and their lect. */
 export type Folk = 'country' | 'city';
 
+/**
+ * What saying a line does. A fixed vocabulary of records, never a script: a
+ * line that needs more than these offers is a line to reconsider. `person`
+ * defaults to whoever is speaking.
+ */
+export type Effect =
+  | { do: 'setFlag'; flag: string; on?: boolean }
+  | { do: 'setStage'; quest: string; stage: number }
+  | { do: 'failQuest'; quest: string }
+  | { do: 'grantTrait'; trait: string; person?: string }
+  | { do: 'revokeTrait'; trait: string; person?: string }
+  | { do: 'giveItem'; builder: string; seed?: number }
+  | { do: 'takeItem'; builder: string };
+
 export interface Info {
   when?: Condition;
   reply: string;
+  then?: readonly Effect[];
 }
 
 export interface Topic {

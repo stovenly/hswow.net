@@ -111,6 +111,8 @@ export interface WorldState {
   /** A field of the ambient snapshot, or undefined when nothing has sampled one. */
   ambient(field: string): number | undefined;
   cast(quest: string, role: string): string | undefined;
+  /** The placed grants, plus what has been granted since, minus what has been taken. */
+  traitsOf(person: string, placed: readonly string[]): readonly string[];
 }
 
 export const NO_STATE: WorldState = {
@@ -122,6 +124,7 @@ export const NO_STATE: WorldState = {
   region: () => false,
   ambient: () => undefined,
   cast: () => undefined,
+  traitsOf: (_person, placed) => placed,
 };
 
 export function holds(condition: Condition | undefined, state: WorldState, who?: Subject): boolean {

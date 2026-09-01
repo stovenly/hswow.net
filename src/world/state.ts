@@ -20,6 +20,8 @@ export class WorldFlags implements WorldState {
   private readonly visited = new Map<string, Set<number>>();
   private readonly lost = new Set<string>();
   private readonly roles = new Map<string, string>();
+  private readonly given = new Map<string, Set<string>>();
+  private readonly taken = new Map<string, Set<string>>();
   private now: Conditions | null = null;
   private here = '';
   private regions: Record<string, readonly PatchShape[]> = {};
@@ -73,6 +75,16 @@ export class WorldFlags implements WorldState {
     return this.roles.get(`${quest}/${role}`);
   }
 
+  traitsOf(person: string, placed: readonly string[]): readonly string[] {
+    const given = this.given.get(person);
+    const taken = this.taken.get(person);
+    if (!given && !taken) return placed;
+    const out = taken ? placed.filter((id) => !taken.has(id)) : [...placed];
+    // Appended, so a trait granted in conversation outranks one they stood up with.
+    if (given) for (const id of given) if (!out.includes(id)) out.push(id);
+    return out;
+  }
+
   setFlag(name: string, on: boolean): void {
     if (on) this.raised.add(name);
     else this.raised.delete(name);
@@ -92,6 +104,15 @@ export class WorldFlags implements WorldState {
 
   setCast(quest: string, role: string, person: string): void {
     this.roles.set(`${quest}/${role}`, person);
+  }
+
+  grantTrait(person: string, trait: string, on: boolean): void {
+    const into = on ? this.given : this.taken;
+    const outOf = on ? this.taken : this.given;
+    outOf.get(person)?.delete(trait);
+    const held = into.get(person);
+    if (held) held.add(trait);
+    else into.set(person, new Set([trait]));
   }
 
   /** What the world is doing and where the player stands, sampled once a frame. */

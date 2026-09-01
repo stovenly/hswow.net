@@ -6,7 +6,8 @@ import { ItemWorld } from '../world/ItemWorld';
 import { InventoryUI } from '../ui/Inventory';
 import { ItemIcons, PACE_IDLE, PACE_OPEN } from '../ui/ItemIcons';
 import { SaveSlots } from '../ui/SaveSlots';
-import { isReadable, type Item } from '../world/items';
+import { displayOf, isReadable, kindOf, type Item } from '../world/items';
+import { holdSatchel } from '../world/dialogue';
 import { noteById } from '../world/notes';
 import { ItemAudio } from '../audio/models/items';
 import {
@@ -40,6 +41,16 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   const inventory = new Inventory();
   const world = new ItemWorld(app.zones, app.collider, inventory);
   app.zones.onDressed = (zone, root) => world.dressed(zone, root);
+
+  // What a line of dialogue reaches for when it hands something over.
+  holdSatchel({
+    give: (builder, seed = 0) =>
+      inventory.add({ name: displayOf(builder, seed), kind: kindOf(builder), builder, seed }),
+    take: (builder) => {
+      const at = inventory.items.findIndex((item) => item.builder === builder);
+      return at >= 0 && inventory.takeAt(at) !== null;
+    },
+  });
 
   const held = new HeldTool(app.viewport.scene);
   const sounds = new ItemAudio(app.audio);

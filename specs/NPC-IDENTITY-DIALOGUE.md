@@ -221,6 +221,19 @@ rebuild.
 
 ## Step 3 — the pool, the priority and the reply
 
+**Built.** The pool itself landed in Step 2; what arrived here is `then` and the
+wiring that fires it. `Speaker.topics` became a method, so the choices are
+resolved every time they go up rather than once at the greeting, and a line that
+raises a flag can open a topic in the same conversation.
+
+`startQuest` is not in the vocabulary. With no quest document to say what a
+quest's first stage is, starting one is `setStage`, and a second spelling of the
+same effect is a spelling to get wrong; Step 4 is where it earns its keep.
+`grantTrait` and `revokeTrait` need somebody to hang the trait on, so they only
+work on a named person and say so when there is none. `giveItem` and `takeItem`
+reach for a pack registered by whoever owns one, and complain rather than fail
+quietly when nothing has registered.
+
 The resolver: gather the speaker's traits, collect topics from every live owner
 whose condition holds, sort by priority, keep the highest per `key`, and for
 each walk its infos to the first that holds. Greetings and farewells resolve the
