@@ -1234,6 +1234,7 @@
     {
       "id": "villager-3",
       "kind": "creature",
+      "person": "hob",
       "traits": ["farmhand"],
       "builder": "figure",
       "seed": 3303,
@@ -1247,6 +1248,7 @@
     {
       "id": "villager-4",
       "kind": "creature",
+      "person": "nell",
       "builder": "figure",
       "seed": 3304,
       "at": [
@@ -1259,6 +1261,7 @@
     {
       "id": "visitor",
       "kind": "creature",
+      "person": "vance",
       "builder": "figure",
       "seed": 3311,
       "at": [

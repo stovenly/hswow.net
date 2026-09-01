@@ -1,0 +1,28 @@
+{
+  "id": "hob",
+  "name": "Hob",
+  "home": "countryside-village",
+  "body": {
+    "builder": "figure",
+    "seed": 3303,
+    "folk": "country"
+  },
+  "greeting": [
+    "You want the field, it is that way.",
+    "Hob. What of it."
+  ],
+  "farewell": [
+    "Back to it."
+  ],
+  "topics": [
+    {
+      "key": "hob",
+      "label": "About yourself",
+      "infos": [
+        {
+          "reply": "Hob. I do the fields for whoever is paying, and this month that is the whole row of them."
+        }
+      ]
+    }
+  ]
+}

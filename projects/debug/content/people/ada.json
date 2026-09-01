@@ -1,0 +1,29 @@
+{
+  "id": "ada",
+  "name": "Ada",
+  "home": "countryside-cottage",
+  "body": {
+    "builder": "figure",
+    "seed": 4427,
+    "folk": "country"
+  },
+  "greeting": [
+    "Mind the step.",
+    "Come in, or do not.",
+    "You will let the heat out."
+  ],
+  "farewell": [
+    "Pull it to behind you."
+  ],
+  "topics": [
+    {
+      "key": "ada",
+      "label": "About yourself",
+      "infos": [
+        {
+          "reply": "Ada. This is my roof and that is my chair, and you are stood between me and the fire."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "vance",
+  "name": "Vance",
+  "home": "countryside-village",
+  "body": {
+    "builder": "figure",
+    "seed": 3311,
+    "folk": "city"
+  },
+  "greeting": [
+    "Make it quick.",
+    "I am not stopping.",
+    "What."
+  ],
+  "farewell": [
+    "Quite.",
+    "That is enough of that."
+  ],
+  "topics": [
+    {
+      "key": "vance",
+      "label": "About yourself",
+      "infos": [
+        {
+          "when": {
+            "ambient": "rain",
+            "min": 0.2
+          },
+          "reply": "Vance. Stood in a field in the rain, which was not the arrangement."
+        },
+        {
+          "reply": "Vance. Here on business that is mine, leaving on a road that is everyone's."
+        }
+      ]
+    }
+  ]
+}

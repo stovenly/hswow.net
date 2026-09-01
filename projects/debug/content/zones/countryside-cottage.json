@@ -219,6 +219,7 @@
     {
       "id": "resident",
       "kind": "creature",
+      "person": "ada",
       "builder": "figure",
       "seed": 4427,
       "roam": 1.2,

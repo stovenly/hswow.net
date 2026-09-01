@@ -1,0 +1,29 @@
+{
+  "id": "bess",
+  "name": "Bess",
+  "home": "countryside-workshop",
+  "body": {
+    "builder": "figure",
+    "seed": 4444,
+    "folk": "country"
+  },
+  "greeting": [
+    "A moment — I have a thread.",
+    "Mm.",
+    "Sit, if you are staying."
+  ],
+  "farewell": [
+    "Mind the wheel on your way."
+  ],
+  "topics": [
+    {
+      "key": "bess",
+      "label": "About yourself",
+      "infos": [
+        {
+          "reply": "Bess. I spin for the row and half the row still owes me for it."
+        }
+      ]
+    }
+  ]
+}

@@ -239,6 +239,7 @@
     {
       "id": "resident",
       "kind": "creature",
+      "person": "wat",
       "builder": "figure",
       "seed": 6602,
       "at": [

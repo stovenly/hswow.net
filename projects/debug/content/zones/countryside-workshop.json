@@ -19,7 +19,7 @@
     { "id": "window-s1", "kind": "prop", "builder": "window", "seed": 4441, "at": [-2.6, 3.4], "yaw": 3.141592653589793 },
     { "id": "window-s2", "kind": "prop", "builder": "window", "seed": 4442, "at": [2.4, 3.4], "yaw": 3.141592653589793 },
     { "id": "wheel", "kind": "prop", "builder": "spinning-wheel", "seed": 4443, "at": [-2.9, 2.4], "yaw": 2.670353755551324 },
-    { "id": "spinner", "kind": "creature", "builder": "figure", "seed": 4444, "roam": 1.5, "at": [-2.2, 1.6], "yaw": -0.7 },
+    { "id": "spinner", "kind": "creature", "person": "bess", "builder": "figure", "seed": 4444, "roam": 1.5, "at": [-2.2, 1.6], "yaw": -0.7 },
 
     { "id": "bench", "kind": "prop", "builder": "table", "seed": 4445, "at": [-2.6, -1.2], "yaw": 0.1 },
     { "id": "stool-1", "kind": "prop", "builder": "stool", "seed": 4446, "at": [-1.6, -1.9], "yaw": 0.7 },

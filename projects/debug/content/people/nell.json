@@ -1,0 +1,30 @@
+{
+  "id": "nell",
+  "name": "Nell",
+  "home": "countryside-village",
+  "body": {
+    "builder": "figure",
+    "seed": 3304,
+    "folk": "country"
+  },
+  "greeting": [
+    "Oh — hello.",
+    "You gave me a fright.",
+    "Yes? Yes."
+  ],
+  "farewell": [
+    "Go carefully.",
+    "Bye now."
+  ],
+  "topics": [
+    {
+      "key": "nell",
+      "label": "About yourself",
+      "infos": [
+        {
+          "reply": "Nell. I keep the green tidy and the well covered, which is more work than either sounds."
+        }
+      ]
+    }
+  ]
+}

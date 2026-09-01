@@ -1,0 +1,36 @@
+{
+  "id": "wat",
+  "name": "Wat",
+  "home": "villager-hut",
+  "body": {
+    "builder": "figure",
+    "seed": 6602,
+    "folk": "country"
+  },
+  "greeting": [
+    "Hm?",
+    "You are in my doorway.",
+    "Aye."
+  ],
+  "farewell": [
+    "Right."
+  ],
+  "topics": [
+    {
+      "key": "wat",
+      "label": "About yourself",
+      "infos": [
+        {
+          "when": {
+            "ambient": "sun",
+            "max": -6
+          },
+          "reply": "Wat. And it is the middle of the night, which you may have noticed on the way in."
+        },
+        {
+          "reply": "Wat. One room, one door, and it was quiet until just now."
+        }
+      ]
+    }
+  ]
+}
