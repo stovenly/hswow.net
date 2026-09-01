@@ -44,6 +44,29 @@
           "reply": "Fair, mostly. Fairer than the gate men, and they have the nerve to weigh it twice."
         }
       ]
+    },
+    {
+      "key": "give-back",
+      "label": "Give the candle back",
+      "when": {
+        "flag": "trader-gift"
+      },
+      "infos": [
+        {
+          "reply": "Changed your mind. Well, it is mine again and you are no richer for it.",
+          "then": [
+            {
+              "do": "takeItem",
+              "builder": "candle"
+            },
+            {
+              "do": "setFlag",
+              "flag": "trader-gift",
+              "on": false
+            }
+          ]
+        }
+      ]
     }
   ]
 }

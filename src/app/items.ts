@@ -4,6 +4,7 @@ import { Inventory } from '../player/Inventory';
 import { HeldTool } from '../player/HeldTool';
 import { ItemWorld } from '../world/ItemWorld';
 import { InventoryUI } from '../ui/Inventory';
+import { Notices } from '../ui/Notices';
 import { ItemIcons, PACE_IDLE, PACE_OPEN } from '../ui/ItemIcons';
 import { SaveSlots } from '../ui/SaveSlots';
 import { displayOf, isReadable, kindOf, type Item } from '../world/items';
@@ -43,13 +44,20 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   const world = new ItemWorld(app.zones, app.collider, inventory);
   app.zones.onDressed = (zone, root) => world.dressed(zone, root);
 
-  // What a line of dialogue reaches for when it hands something over.
+  // What a line of dialogue reaches for when it hands something over. The pack
+  // is behind a key and the speech box covers the middle, so it says so.
+  const notices = new Notices(overlay);
   holdSatchel({
-    give: (builder, seed = 0) =>
-      inventory.add({ name: displayOf(builder, seed), kind: kindOf(builder), builder, seed }),
+    give: (builder, seed = 0) => {
+      const name = displayOf(builder, seed);
+      inventory.add({ name, kind: kindOf(builder), builder, seed });
+      notices.say(name, 'gain');
+    },
     take: (builder) => {
       const at = inventory.items.findIndex((item) => item.builder === builder);
-      return at >= 0 && inventory.takeAt(at) !== null;
+      const taken = at >= 0 ? inventory.takeAt(at) : null;
+      if (taken) notices.say(taken.name, 'loss');
+      return taken !== null;
     },
   });
 
@@ -155,6 +163,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     setWorldSeed(data.worldSeed);
     worldDelta.replace(data.delta);
     worldState.restore(data.state);
+    notices.clear();
     // A load re-seats every slot at once; that is restoration, not a gesture.
     restoring = true;
     inventory.replace(data.items, data.tool, data.accessories);
@@ -252,6 +261,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   const resetWorld = (): void => {
     worldDelta.replace({ removed: [], placed: [], containers: [] });
     worldState.clear();
+    notices.clear();
     restoring = true;
     inventory.replace([], null, []);
     restoring = false;
