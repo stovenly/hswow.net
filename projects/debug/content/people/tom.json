@@ -1,0 +1,28 @@
+{
+  "id": "tom",
+  "name": "Tom",
+  "home": "countryside-village",
+  "greeting": [
+    "Morning.",
+    "Hm.",
+    "You are not from the row, are you."
+  ],
+  "topics": [
+    {
+      "key": "tom",
+      "label": "About yourself",
+      "infos": [
+        {
+          "when": {
+            "ambient": "sun",
+            "max": -6
+          },
+          "reply": "I am stood outside in the dark talking to a stranger. Draw your own conclusion."
+        },
+        {
+          "reply": "Tom. Four doors down, the one with the bad gate. That is the whole of it."
+        }
+      ]
+    }
+  ]
+}

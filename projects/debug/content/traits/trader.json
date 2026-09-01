@@ -1,0 +1,49 @@
+{
+  "id": "trader",
+  "name": "Trader",
+  "topics": [
+    {
+      "key": "trade",
+      "label": "Trade",
+      "infos": [
+        {
+          "when": {
+            "not": {
+              "flag": "trader-gift"
+            }
+          },
+          "reply": "You have the look of somebody with nothing to trade. Here, take the candle and go.",
+          "then": [
+            {
+              "do": "giveItem",
+              "builder": "candle"
+            },
+            {
+              "do": "setFlag",
+              "flag": "trader-gift"
+            }
+          ]
+        },
+        {
+          "reply": "You have had your charity for the week. Come back with something to swap."
+        }
+      ]
+    },
+    {
+      "key": "prices",
+      "label": "Prices",
+      "infos": [
+        {
+          "when": {
+            "ambient": "rain",
+            "min": 0.2
+          },
+          "reply": "Everything is dearer in the wet. The road out is mud and the mud is my cost."
+        },
+        {
+          "reply": "Fair, mostly. Fairer than the gate men, and they have the nerve to weigh it twice."
+        }
+      ]
+    }
+  ]
+}

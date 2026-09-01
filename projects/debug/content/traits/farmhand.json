@@ -1,0 +1,29 @@
+{
+  "id": "farmhand",
+  "name": "Farmhand",
+  "topics": [
+    {
+      "key": "work",
+      "label": "The work",
+      "infos": [
+        {
+          "when": {
+            "ambient": "sun",
+            "max": -6
+          },
+          "reply": "Done for today. Whatever is left in that field can wait for the light."
+        },
+        {
+          "when": {
+            "ambient": "rain",
+            "min": 0.2
+          },
+          "reply": "In this? The ground takes a boot to the ankle and gives it back empty."
+        },
+        {
+          "reply": "Enough of it, and the same again tomorrow. It is what the season asks."
+        }
+      ]
+    }
+  ]
+}

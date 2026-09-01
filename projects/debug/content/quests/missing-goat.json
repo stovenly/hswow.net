@@ -1,0 +1,96 @@
+{
+  "id": "missing-goat",
+  "name": "The Missing Goat",
+  "cast": {
+    "owner": "mark"
+  },
+  "stages": [
+    {
+      "at": 10,
+      "log": "Mark's goat is out past the stile."
+    },
+    {
+      "at": 20,
+      "log": "Tom saw the goat down by the water.",
+      "then": [
+        {
+          "do": "setFlag",
+          "flag": "goat-seen"
+        }
+      ]
+    },
+    {
+      "at": 30,
+      "log": "The goat is back.",
+      "then": [
+        {
+          "do": "grantTrait",
+          "trait": "farmhand",
+          "person": "mark"
+        }
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "key": "goat",
+      "label": "The goat",
+      "when": {
+        "cast": "owner",
+        "of": "missing-goat"
+      },
+      "infos": [
+        {
+          "when": {
+            "quest": "missing-goat",
+            "done": 30
+          },
+          "reply": "She is in, and the gate is wired shut this time. I owe Tom a civil word and he will not get one."
+        },
+        {
+          "when": {
+            "quest": "missing-goat",
+            "done": 20
+          },
+          "reply": "By the water, was she. That will be her. I will fetch her myself before dark.",
+          "then": [
+            {
+              "do": "setStage",
+              "quest": "missing-goat",
+              "stage": 30
+            }
+          ]
+        },
+        {
+          "reply": "Still out. Ask Tom — he is stood there all day with nothing better to look at."
+        }
+      ]
+    },
+    {
+      "key": "goat-tom",
+      "label": "Mark's goat",
+      "when": {
+        "person": "tom"
+      },
+      "infos": [
+        {
+          "when": {
+            "quest": "missing-goat",
+            "done": 30
+          },
+          "reply": "He got her back, then. He will not thank me for it."
+        },
+        {
+          "reply": "Down by the water, before the reeds. Grazing like she pays rent.",
+          "then": [
+            {
+              "do": "setStage",
+              "quest": "missing-goat",
+              "stage": 20
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

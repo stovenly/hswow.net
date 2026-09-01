@@ -1,0 +1,54 @@
+{
+  "id": "mark",
+  "name": "Mark",
+  "home": "countryside-village",
+  "traits": [
+    "trader"
+  ],
+  "body": {
+    "builder": "figure",
+    "seed": 8801,
+    "folk": "country"
+  },
+  "greeting": [
+    "Aye, you again.",
+    "Something you wanted?",
+    "Speak up, I am counting."
+  ],
+  "farewell": [
+    "Mind how you go.",
+    "Right you are."
+  ],
+  "topics": [
+    {
+      "key": "village",
+      "label": "Village",
+      "infos": [
+        {
+          "reply": "I know every door of it and what is owed behind each one. That is my trade as much as the pack is."
+        }
+      ]
+    },
+    {
+      "key": "goat-start",
+      "label": "You look put out",
+      "when": {
+        "quest": "missing-goat",
+        "stage": {
+          "max": 0
+        }
+      },
+      "infos": [
+        {
+          "reply": "My goat is out. Went through the stile at first light and has not come back. Ask about, would you.",
+          "then": [
+            {
+              "do": "startQuest",
+              "quest": "missing-goat"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

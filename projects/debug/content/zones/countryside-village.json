@@ -1208,6 +1208,7 @@
     {
       "id": "villager-1",
       "kind": "creature",
+      "person": "mark",
       "builder": "figure",
       "seed": 3301,
       "at": [
@@ -1220,6 +1221,7 @@
     {
       "id": "villager-2",
       "kind": "creature",
+      "person": "tom",
       "builder": "figure",
       "seed": 3302,
       "at": [
@@ -1232,6 +1234,7 @@
     {
       "id": "villager-3",
       "kind": "creature",
+      "traits": ["farmhand"],
       "builder": "figure",
       "seed": 3303,
       "at": [

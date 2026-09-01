@@ -30,6 +30,50 @@
           "reply": "The city? I went once. Too many walls and not one of them mine."
         }
       ]
+    },
+    {
+      "key": "weather",
+      "label": "The weather",
+      "infos": [
+        {
+          "when": {
+            "ambient": "storm",
+            "min": 0.2
+          },
+          "reply": "Get under something. It is walking about up there and it does not look."
+        },
+        {
+          "when": {
+            "ambient": "rain",
+            "min": 0.2
+          },
+          "reply": "It will do the barley good and nothing else any good at all."
+        },
+        {
+          "when": {
+            "ambient": "snow",
+            "min": 0.15
+          },
+          "reply": "Early for it. The road out will be gone by the morning."
+        },
+        {
+          "when": {
+            "ambient": "sun",
+            "max": -6
+          },
+          "reply": "Late to be asking. Whatever it is doing, it is doing it in the dark."
+        },
+        {
+          "when": {
+            "ambient": "warmth",
+            "min": 22
+          },
+          "reply": "Too warm to stand in and too warm to work in. Take the shade while it is there."
+        },
+        {
+          "reply": "Held, for now. It never holds long."
+        }
+      ]
     }
   ]
 }
