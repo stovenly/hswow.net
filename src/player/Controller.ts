@@ -212,9 +212,14 @@ const CONVERSE_CAP = 1.1;
 /** Half-life of the hold once the turn has landed. */
 const CONVERSE_HOLD = 0.23;
 /** Degrees off the vertical field of view while talking to somebody. */
-const CONVERSE_ZOOM = 7;
-/** How fast the zoom follows the turn. Slower than the sprint widening, which is a flinch. */
-const CONVERSE_ZOOM_RATE = 2.2;
+const CONVERSE_ZOOM = 11;
+/**
+ * How fast the zoom arrives, and how fast it leaves. Leaving is much the
+ * quicker: by then you are walking away, and a view still widening under you
+ * reads as the world moving rather than as the camera settling.
+ */
+const CONVERSE_ZOOM_IN = 5;
+const CONVERSE_ZOOM_OUT = 15;
 
 /** The shortest way round to an angle, in radians. */
 function shortest(angle: number): number {
@@ -1038,7 +1043,9 @@ export class Controller {
     } else if (this.input.sprint && this.speed > 1.2) {
       this.zoomedOut = true;
     }
-    this.talkZoom = THREE.MathUtils.damp(this.talkZoom, this.talkingTo ? 1 : 0, CONVERSE_ZOOM_RATE, dt);
+    const zoomTo = this.talkingTo ? 1 : 0;
+    const zoomRate = this.talkingTo ? CONVERSE_ZOOM_IN : CONVERSE_ZOOM_OUT;
+    this.talkZoom = THREE.MathUtils.damp(this.talkZoom, zoomTo, zoomRate, dt);
     const targetFov =
       t.fov + (this.zoomedOut ? t.sprintFovBoost : 0) - CONVERSE_ZOOM * this.talkZoom;
     this.authoredFov = THREE.MathUtils.damp(this.authoredFov, targetFov, 6, dt);
