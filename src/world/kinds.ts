@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { builderByName } from '../art/registry';
 import { coerceFields } from '../art/schema';
+import { finishCaptured } from '../art/assemble';
+import { takeWarm } from './warmProps';
 import { markCollidable } from '../player/Collider';
 import { markLabelled, markReadable } from './Interaction';
 import { markGlitched } from '../art/glitch';
@@ -142,7 +144,10 @@ registerEntryKind<PropEntry>({
     const builder = needBuilder(entry.builder);
     const extras = builder.options ? coerceFields(builder.options, entry.options) : {};
     const seed = seedOf(entry);
-    const mesh = builder.build({ seed, scale: entry.scale, ...extras });
+    // Built on a worker before this walk ran, where the builder was one pure
+    // walk to a `finish`. A miss builds it here, exactly as it always did.
+    const warm = takeWarm({ builder: entry.builder, seed, scale: entry.scale, extras });
+    const mesh = warm ? finishCaptured(warm) : builder.build({ seed, scale: entry.scale, ...extras });
     applyPlacement(mesh, entry, ctx);
     // The item systems read this back, so a taken prop is carried with the
     // exact look it stood with.

@@ -36,6 +36,7 @@ import {
   type Yaw,
 } from './entry';
 import { needBuilder, seedOf } from './kinds';
+import { dropWarm, useWarm, warmDocument } from './warmProps';
 
 /**
  * The interpreter. A zone document in, a `ZoneDefinition` out.
@@ -251,6 +252,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
   });
 
   const build = (): THREE.Group => {
+    useWarm(doc.id);
     const root = new THREE.Group();
     // Rebuilt from empty on every build, or a second build doubles the volumes
     // and the emitters the manager reads back.
@@ -372,6 +374,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     // than aliased so a rebuild cannot leave the previous pass's volumes live.
     soundscape.emitters = [...collected.emitters];
     soundscape.scatter = [...collected.scatters];
+    dropWarm(doc.id);
     return root;
   };
 
@@ -394,6 +397,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     get horrors() {
       return collected.horrors;
     },
+    warm: () => warmDocument(doc),
     build,
   };
 }

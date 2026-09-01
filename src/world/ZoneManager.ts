@@ -447,7 +447,7 @@ export class ZoneManager {
     await zone.ensureLoaded();
     const root = await this.prepare(zone);
     root.updateWorldMatrix(true, true);
-    this.options.collider.warm(root, zone.id);
+    await this.options.collider.warmAsync(root, zone.id);
     // Prebuilding pays the cost up front, so entering later takes the silent path.
     this.warmed.add(zone.id);
   }
@@ -732,6 +732,11 @@ export class ZoneManager {
     // Triangles are read straight out of the graph, and this subtree may never
     // have been rendered — its world matrices are whatever they were left as.
     root.updateWorldMatrix(true, true);
+
+    // Indexed here, where yielding is still allowed, so the swap below finds it
+    // cached. A pool that refuses the work leaves `build` to do it inline.
+    await collider.warmAsync(root, zone.id);
+    if (stale()) return;
 
     // Compiled before anything is swapped. Every frame this yields still shows
     // the old zone with the player standing on its collider; compiling after the

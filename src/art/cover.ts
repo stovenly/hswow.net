@@ -8,8 +8,9 @@ import {
   COVER_BLEND_ATTRIBUTE,
   PROP_LOD,
   type CoverChunks,
+  type CoverRequest,
 } from './cover-sample';
-import type { CoverReply, CoverRequest } from './cover.worker';
+import { pool } from '../engine/work/pool';
 import { windUniforms } from './sway';
 import { applyAerialFog } from '../engine/fog';
 import { COVER_LAYER } from '../layers';
@@ -1486,25 +1487,11 @@ export async function coverFor(
     return null;
   }
 
-  const chunks = await sampleInWorker(ground, type);
+  const chunks = await sampleOnPool(ground, type);
   return chunks ? assemble(chunks) : null;
 }
 
 // --- the worker --------------------------------------------------------------
-
-/**
- * The sampling worker, built on first use and kept for the session. `undefined`
- * means it has not been asked for yet, `null` that there is none to be had.
- * Both fall back to sampling in place, which is never wrong, only blocking.
- */
-let worker: Worker | null | undefined;
-
-/** Requests still out, by id. The mesh is held with each one, because the answer to a worker that dies is to sample its outstanding fields here. */
-const waiting = new Map<
-  number,
-  { ground: THREE.Mesh; type?: CoverName; settle: (chunks: CoverChunks | null) => void }
->();
-let nextRequest = 0;
 
 /** Samples on this thread. The fallback, and what this all used to be. */
 function sampleHere(ground: THREE.Mesh, type?: CoverName): CoverChunks | null {
@@ -1512,42 +1499,16 @@ function sampleHere(ground: THREE.Mesh, type?: CoverName): CoverChunks | null {
   return sample && (sample.bladeCount > 0 || sample.propCount > 0) ? packSample(sample) : null;
 }
 
-function coverWorker(): Worker | null {
-  if (worker !== undefined) return worker;
-  worker = null;
-  if (typeof Worker === 'undefined') return worker;
-  try {
-    const made = new Worker(new URL('./cover.worker.ts', import.meta.url), { type: 'module' });
-    made.onmessage = (event: MessageEvent<CoverReply>) => {
-      const pending = waiting.get(event.data.id);
-      waiting.delete(event.data.id);
-      pending?.settle(event.data.chunks);
-    };
-    // A worker that has fallen over must not leave a zone waiting on it. Every
-    // field still out is sampled here, and the ones after it go the same way.
-    made.onerror = () => {
-      worker = null;
-      made.terminate();
-      for (const pending of waiting.values()) pending.settle(sampleHere(pending.ground, pending.type));
-      waiting.clear();
-    };
-    worker = made;
-  } catch {
-    // Nothing to report and nothing to do: the fallback is the same field,
-    // sampled on this thread.
-  }
-  return worker;
-}
-
 /**
- * Flattens a ground mesh, samples it in the worker, and waits. Attributes are
- * read through `getX`/`getY` rather than copied off `attribute.array`: a ground
- * mesh that turned out interleaved, or shorts, would otherwise arrive as noise.
+ * Flattens a ground mesh and samples it on the work pool. Attributes are read
+ * through `getComponent` rather than copied off `attribute.array`: a ground mesh
+ * that turned out interleaved, or shorts, would otherwise arrive as noise.
+ *
+ * The sampler is the longest purely arithmetic step in building a zone and
+ * depends on nothing but a mesh's attributes and a seed, so the fade animates
+ * while it runs instead of freezing for the length of a field.
  */
-async function sampleInWorker(ground: THREE.Mesh, type?: CoverName): Promise<CoverChunks | null> {
-  const hired = coverWorker();
-  if (!hired) return sampleHere(ground, type);
-
+async function sampleOnPool(ground: THREE.Mesh, type?: CoverName): Promise<CoverChunks | null> {
   const source = ground.geometry;
   const attributes: CoverRequest['attributes'] = {};
   for (const name of ['position', 'color', COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE]) {
@@ -1569,20 +1530,22 @@ async function sampleInWorker(ground: THREE.Mesh, type?: CoverName): Promise<Cov
 
   ground.updateWorldMatrix(true, false);
   const request: CoverRequest = {
-    id: nextRequest++,
     cover: type ?? (ground.userData.cover as CoverName | undefined),
     matrix: ground.matrixWorld.toArray(),
     attributes,
     index,
   };
-
-  const answer = new Promise<CoverChunks | null>((resolve) => {
-    waiting.set(request.id, { ground, type, settle: resolve });
-  });
-  const transfer: ArrayBufferLike[] = Object.values(attributes).map((a) => a.data.buffer);
+  const transfer: Transferable[] = Object.values(attributes).map(
+    (attribute) => attribute.data.buffer,
+  );
   if (index) transfer.push(index.buffer);
-  hired.postMessage(request, transfer as Transferable[]);
-  return answer;
+  try {
+    return await pool.run('cover-sample', request, { transfer });
+  } catch {
+    // The buffers went with the failed job, so the mesh is resampled from the
+    // graph rather than from what was packed for the crossing.
+    return sampleHere(ground, type);
+  }
 }
 
 /** Headless count of what a mesh would grow, for the world check's budget. */

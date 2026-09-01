@@ -130,6 +130,38 @@ export interface CoverSample {
  * field every time a zone is rebuilt. A mesh with no painted attribute grows a
  * single stated type everywhere, sampled at its world position.
  */
+/** A ground mesh flattened for a crossing to the worker pool. See `coverFor`. */
+export interface CoverRequest {
+  /** `userData.cover`, or the type passed at the call site. */
+  cover?: CoverName;
+  /** `matrixWorld`, in three's column-major order. */
+  matrix: number[];
+  attributes: Record<string, { data: Float32Array; size: number }>;
+  index: Uint32Array | null;
+}
+
+/**
+ * Rebuilds enough of a mesh for the sampler to read. Nothing here touches a GL
+ * object: this geometry is never rendered, never uploaded, and dies with the
+ * job.
+ */
+export function meshFor(request: CoverRequest): THREE.Mesh {
+  const geometry = new THREE.BufferGeometry();
+  for (const [name, { data, size }] of Object.entries(request.attributes)) {
+    geometry.setAttribute(name, new THREE.BufferAttribute(data, size));
+  }
+  if (request.index) geometry.setIndex(new THREE.BufferAttribute(request.index, 1));
+
+  const mesh = new THREE.Mesh(geometry);
+  // The world matrix arrives resolved, and `sampleCover` recomputes it from the
+  // mesh's own transform — so it is decomposed back into one here rather than
+  // assigned, or the recompute would throw it away and sample object space.
+  mesh.matrix.fromArray(request.matrix);
+  mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+  if (request.cover) mesh.userData.cover = request.cover;
+  return mesh;
+}
+
 export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | null {
   const source = ground.geometry;
   const painted = source.getAttribute(COVER_ATTRIBUTE);

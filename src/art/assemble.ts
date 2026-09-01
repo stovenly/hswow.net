@@ -288,6 +288,90 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
  * one draw call. `swayPhase` is stamped for anything wanting a stable
  * per-instance number.
  */
+/**
+ * What `finish` was handed, which is everything the dressing needs. A builder
+ * whose whole body is a pure walk to one `finish` call can therefore be run
+ * anywhere — see `capture`.
+ */
+export interface Finished {
+  geometry: THREE.BufferGeometry;
+  name: string;
+  phase: number;
+  underfoot?: SurfaceName;
+}
+
+let capturing = false;
+let captured: Finished | null = null;
+let doubled = false;
+/** The object a captured `finish` hands back, so the builder has something to return. */
+const STUB = new THREE.Mesh();
+
+/**
+ * Whether the stub came back exactly as it went out. Anything a builder did to
+ * the mesh after finishing it — a position, a light, a userData mark — is work
+ * the geometry alone cannot carry, and the capture has to be refused.
+ */
+function untouched(): boolean {
+  return (
+    STUB.children.length === 0 &&
+    STUB.name === '' &&
+    STUB.visible &&
+    !STUB.castShadow &&
+    !STUB.receiveShadow &&
+    STUB.layers.mask === 1 &&
+    Object.keys(STUB.userData).length === 0 &&
+    STUB.position.lengthSq() === 0 &&
+    STUB.rotation.x === 0 &&
+    STUB.rotation.y === 0 &&
+    STUB.rotation.z === 0 &&
+    STUB.scale.x === 1 &&
+    STUB.scale.y === 1 &&
+    STUB.scale.z === 1
+  );
+}
+
+function resetStub(): void {
+  STUB.clear();
+  STUB.name = '';
+  STUB.visible = true;
+  STUB.castShadow = false;
+  STUB.receiveShadow = false;
+  STUB.layers.set(0);
+  STUB.userData = {};
+  STUB.position.set(0, 0, 0);
+  STUB.rotation.set(0, 0, 0);
+  STUB.scale.set(1, 1, 1);
+}
+
+/**
+ * Runs a builder for its geometry alone, off the seam `finish` already draws:
+ * the parts walk and the merge are pure, and only the dressing needs a
+ * material. Null when the builder is not that shape — it hung lights or child
+ * meshes on its mesh, or finished through `finishMesh` with a mesh of its own —
+ * and the caller must build it the ordinary way.
+ */
+export function capture(run: () => THREE.Object3D): Finished | null {
+  if (capturing) throw new Error('assemble: capture does not nest');
+  capturing = true;
+  captured = null;
+  doubled = false;
+  resetStub();
+  try {
+    const made = run();
+    if (!captured || doubled || made !== STUB || !untouched()) return null;
+    return captured;
+  } finally {
+    capturing = false;
+    captured = null;
+    resetStub();
+  }
+}
+
+/** Dresses what `capture` took, on the thread that owns the materials. */
+export function finishCaptured(taken: Finished): THREE.Mesh {
+  return finish(taken.geometry, taken.name, taken.phase, taken.underfoot);
+}
+
 export function finish(
   geometry: THREE.BufferGeometry,
   name: string,
@@ -300,6 +384,13 @@ export function finish(
    */
   underfoot?: SurfaceName,
 ): THREE.Mesh {
+  if (capturing) {
+    // A builder that finishes twice makes two meshes, and one geometry cannot
+    // stand for both.
+    if (captured) doubled = true;
+    captured = { geometry, name, phase, underfoot };
+    return STUB;
+  }
   return finishMesh(new THREE.Mesh(geometry, ART_MATERIAL), name, phase, underfoot);
 }
 

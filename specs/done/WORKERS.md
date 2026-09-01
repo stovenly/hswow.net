@@ -1,6 +1,6 @@
 # Work off the main thread — spec
 
-**Proposed, not built.** A general worker pool the whole project can push jobs
+**Built through Step 5. Step 6 is deferred.** A general worker pool the whole project can push jobs
 onto, and the two first tenants: building a zone's geometry, and indexing it
 for collision. Both are pure functions of a seed today and both currently run
 as one synchronous burst that freezes the frame.
@@ -78,18 +78,26 @@ survives a cancel mid-flight, and falls back inline when workers are disabled.
 
 ## Step 2 — split geometry from mesh in the art kit
 
-`MeshBuilder` grows a `geometry(options)` half; `build` becomes `geometry`
-followed by the dressing that needs a material. Same output, same seeds, same
-pictures — this is a refactor with no behaviour in it.
+Built at the seam rather than in the builders. `assemble.ts` gains `capture`,
+which runs a builder with `finish` recording its arguments instead of dressing
+a mesh; a builder whose whole body is a pure walk to one `finish` therefore
+yields its geometry with no edit to the builder at all. Anything else — a
+builder that hangs a light or a child mesh on its mesh, moves it, or finishes
+twice — comes back refused, and the caller builds it the ordinary way. No
+builder was touched, so no picture can have changed.
 
-*Done when* every builder in the registry produces byte-identical geometry
-through the split path, and the galleries are unchanged.
+*Done when* a builder's geometry comes back through the capture path and the
+galleries are unchanged.
 
 ## Step 3 — zone geometry on the pool
 
 A zone build fans out per entry rather than per zone: a zone of two hundred
-props is two hundred jobs, which is what makes the pool worth having. The main
-thread receives buffers, wraps them, dresses them and places them.
+props is two hundred jobs, which is what makes the pool worth having. The
+document walk stays synchronous and unchanged — `warmProps.ts` scans the
+document for `prop` entries and warms every one of them on the pool before the
+walk runs, and the walk claims what is ready. A miss builds inline as before: a
+builder the capture refused, a prop inside a prefab whose seed the scan cannot
+predict, a browser with no workers.
 
 *Done when* raising the countryside no longer blocks the title, the zone is
 identical to the one built inline, and a cold entry is faster on a machine with
@@ -97,25 +105,27 @@ cores to spare and no slower on one without.
 
 ## Step 4 — the collision index on the pool
 
-`Collider.warm` is a pure walk over triangles. The octree is a tree of objects
-today, so this step is mostly about giving it a flat, transferable
-representation and rebuilding it on arrival — or teaching the queries to read
-the flat form directly, which is the better end state.
+The subdivision is what moved. `octreePlan.ts` works out the boxes and which
+triangles fall in them from triangle positions alone, and hands back flat
+buffers; `Collider` cuts the triangles out of the graph on the main thread as
+before and hangs them on the plan. The queries are untouched. Only a warm goes
+to the pool — a crossing may not yield between the swap and the teleport, so
+`build` finds the index cached or does it inline itself.
 
 *Done when* indexing a zone happens off-thread, and standing on the result
 behaves exactly as before.
 
 ## Step 5 — the second tenant
 
-Prove the abstraction generalises by moving something that is not geometry.
-Candidates, in order of how well they fit: item icon meshes (already built off
-a queue), loot rolls, the audio engine's offline noise and impulse renders
-(already async but main-thread), terrain heightfields.
+Groundcover sampling, which had a bespoke worker of its own. It becomes the
+`cover-sample` kind on the same pool and `cover.worker.ts` goes, along with its
+private queue, its own fallback and its own failure handling — the pool already
+has all three.
 
 *Done when* a second kind of work runs on the same pool with no change to the
 pool itself.
 
-## Step 6 — adaptive sizing (separate sign-off)
+## Step 6 — adaptive sizing (deferred)
 
 Replace the static clamp with measured throughput: start at the guess, time
 the first batch, grow or shrink. Handles P/E cores, thermal throttling and a

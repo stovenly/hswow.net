@@ -252,6 +252,12 @@ export interface ZoneDefinition {
    * arrival prefetches the chunks within the residency ring.
    */
   readonly load?: () => Promise<() => THREE.Group>;
+  /**
+   * Work the build wants done off the main thread first — a document zone
+   * warms its props on the worker pool. Awaited with `load`, and building
+   * without it is only slower, never wrong.
+   */
+  readonly warm?: () => Promise<void>;
 }
 
 /**
@@ -363,16 +369,14 @@ export class Zone {
    * needs the zone retries rather than inheriting a prefetch's dead promise.
    */
   ensureLoaded(): Promise<void> {
-    if (this.builder || !this.definition.load) return Promise.resolve();
-    this.loading ??= this.definition.load().then(
-      (build) => {
-        this.builder = build;
-      },
-      (error: unknown) => {
-        this.loading = null;
-        throw error;
-      },
-    );
+    if (this.builder && !this.definition.warm) return Promise.resolve();
+    this.loading ??= (async () => {
+      if (!this.builder && this.definition.load) this.builder = await this.definition.load();
+      await this.definition.warm?.();
+    })().catch((error: unknown) => {
+      this.loading = null;
+      throw error;
+    });
     return this.loading;
   }
 

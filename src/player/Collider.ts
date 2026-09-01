@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { COLLISION_LAYER } from '../layers';
 import { Octree } from 'three/examples/jsm/math/Octree.js';
+import { planOctree, type OctreePlan } from './octreePlan';
+import { pool } from '../engine/work/pool';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import type { SurfaceName } from '../audio/models/footsteps';
 
@@ -89,7 +91,6 @@ function mark(node: THREE.Object3D): void {
 const _candidates: SurfacedTriangle[] = [];
 const _ray = new THREE.Ray();
 const _point = new THREE.Vector3();
-const _half = new THREE.Vector3();
 const _axis = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _planePoint = new THREE.Vector3();
@@ -100,6 +101,11 @@ const _offset = new THREE.Vector3();
 const _segment = new THREE.Line3();
 const _contact: Contact = { normal: new THREE.Vector3(), depth: 0, surface: null };
 const _corner = new THREE.Vector3();
+
+/** What `carve` takes triangles from. See `markCollidable`. */
+const COLLIDABLE = new THREE.Layers();
+COLLIDABLE.disableAll();
+COLLIDABLE.enable(COLLISION_LAYER);
 
 interface Index {
   octree: Octree;
@@ -205,17 +211,26 @@ export class Collider {
   }
 
   private static index(root: THREE.Object3D): Index {
-    const octree = new Octree();
-    octree.layers.disableAll();
-    octree.layers.enable(COLLISION_LAYER);
-    // Not `octree.fromGraphNode`, which is the same walk without the one thing
-    // wanted here: three's triangles do not remember which mesh they came from,
-    // and that is the whole of what a footstep needs to know.
-    const triangles = cut(octree, root);
-    // Not `octree.build()`, which is this pair with three's `split`.
-    octree.calcBox();
-    split(octree, 0);
-    return { octree, triangles };
+    const { triangles, positions } = carve(root);
+    return assemble(planOctree(positions), triangles);
+  }
+
+  /**
+   * The same index, with the tree worked out on the pool. Only ever a warm:
+   * a crossing may not yield between the swap and the teleport, so `build` has
+   * to find this already in the cache or do it inline itself.
+   */
+  async warmAsync(root: THREE.Object3D, key: string): Promise<void> {
+    if (this.cache.has(key)) return;
+    const { triangles, positions } = carve(root);
+    let plan;
+    try {
+      plan = await pool.run('collision-index', { positions }, { transfer: [positions.buffer] });
+    } catch {
+      return;
+    }
+    if (this.cache.has(key)) return;
+    this.cache.set(key, assemble(plan, triangles));
   }
 
   /**
@@ -355,12 +370,13 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
  * same handling of indexed geometry — with the surface stamped on and without
  * the `build()` at the end, so the caller can add from more than one root.
  */
-function cut(octree: Octree, root: THREE.Object3D): number {
+function carve(root: THREE.Object3D): { triangles: SurfacedTriangle[]; positions: Float32Array } {
   root.updateWorldMatrix(true, true);
-  let count = 0;
+  const triangles: SurfacedTriangle[] = [];
+  const coordinates: number[] = [];
 
   root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) || !octree.layers.test(object.layers)) return;
+    if (!(object instanceof THREE.Mesh) || !COLLIDABLE.test(object.layers)) return;
 
     const indexed = object.geometry.index !== null;
     const geometry = indexed ? object.geometry.toNonIndexed() : object.geometry;
@@ -375,98 +391,42 @@ function cut(octree: Octree, root: THREE.Object3D): number {
         target
           .copy(_corner.fromBufferAttribute(position, i + corner))
           .applyMatrix4(object.matrixWorld);
+        coordinates.push(target.x, target.y, target.z);
       }
       triangle.surface = surface;
       triangle.stamp = 0;
-      octree.addTriangle(triangle);
-      count++;
+      triangles.push(triangle);
     }
 
     if (indexed) geometry.dispose();
   });
 
-  return count;
+  return { triangles, positions: Float32Array.from(coordinates) };
 }
 
-/** How deep the tree may go. Three's own cap is 16 and every zone hit it. */
-const MAX_DEPTH = 11;
-
-/** A node holding no more than this is not worth dividing. Three's number. */
-const LEAF_SIZE = 8;
-
-/**
- * Refuse to split if any one child would keep this share of the parent. The
- * runaway case is a handful of large triangles that each straddle the whole
- * box: they are still a handful in every child, all the way down.
- */
-const NO_PROGRESS = 0.9;
-
-/** Refuse to split if the eight children between them would hold this many. */
-const MAX_DUPLICATION = 2.5;
-
-/**
- * Above this, a node is divided whatever the two guards say. The guards ask
- * whether dividing is worth what it costs, and the answer is always yes once a
- * leaf is large enough that a query has to scan all of it.
- */
-const SCAN_LIMIT = 192;
-
-/**
- * Divides a node into eight, unless dividing is only making copies.
- *
- * Three's `split` asks one question — more than eight triangles, and depth left
- * — and copies a triangle crossing a boundary into every child it touches.
- * Dense detail then drives subdivision to the cap and every large triangle
- * passing through that volume is copied into all the resulting leaves. A
- * doorway is where the two meet: a door's hardware, and the wall and floor
- * whose big triangles run through it.
- *
- * So this asks whether the split *separated* anything and stays a leaf when it
- * did not — up to `SCAN_LIMIT`, past which a leaf costs more to scan than the
- * nodes cost to walk. Both halves are load-bearing.
- */
-function split(node: Octree, level: number): void {
-  const box = node.box;
-  if (!box || node.triangles.length <= LEAF_SIZE || level >= MAX_DEPTH) return;
-
-  _half.copy(box.max).sub(box.min).multiplyScalar(0.5);
-
-  const boxes: THREE.Box3[] = [];
-  const buckets: THREE.Triangle[][] = [];
-  for (let x = 0; x < 2; x++) {
-    for (let y = 0; y < 2; y++) {
-      for (let z = 0; z < 2; z++) {
-        const child = new THREE.Box3();
-        child.min.set(box.min.x + x * _half.x, box.min.y + y * _half.y, box.min.z + z * _half.z);
-        child.max.copy(child.min).add(_half);
-        boxes.push(child);
-        buckets.push([]);
-      }
-    }
+/** Hangs the carved triangles on the plan's boxes, as one `Octree` per node. */
+function assemble(plan: OctreePlan, triangles: SurfacedTriangle[]): Index {
+  const nodes: Octree[] = [];
+  for (let i = 0; i < plan.firstChild.length; i += 1) {
+    const box = new THREE.Box3(
+      new THREE.Vector3(plan.boxes[i * 6], plan.boxes[i * 6 + 1], plan.boxes[i * 6 + 2]),
+      new THREE.Vector3(plan.boxes[i * 6 + 3], plan.boxes[i * 6 + 4], plan.boxes[i * 6 + 5]),
+    );
+    const node = new Octree(box);
+    const start = plan.triStart[i];
+    const held: SurfacedTriangle[] = new Array(plan.triCount[i]);
+    for (let t = 0; t < held.length; t += 1) held[t] = triangles[plan.triIndices[start + t]];
+    node.triangles = held;
+    nodes.push(node);
   }
-
-  let total = 0;
-  let largest = 0;
-  for (const triangle of node.triangles) {
-    for (let i = 0; i < boxes.length; i++) {
-      if (!boxes[i].intersectsTriangle(triangle)) continue;
-      const held = buckets[i].push(triangle);
-      total++;
-      if (held > largest) largest = held;
-    }
+  for (let i = 0; i < nodes.length; i += 1) {
+    const first = plan.firstChild[i];
+    if (first < 0) continue;
+    for (let c = 0; c < plan.childCount[i]; c += 1) nodes[i].subTrees.push(nodes[first + c]);
   }
-
-  const parent = node.triangles.length;
-  if (parent <= SCAN_LIMIT && (largest >= parent * NO_PROGRESS || total > parent * MAX_DUPLICATION)) {
-    return;
-  }
-
-  node.triangles.length = 0;
-  for (let i = 0; i < boxes.length; i++) {
-    if (buckets[i].length === 0) continue;
-    const subTree = new Octree(boxes[i]);
-    subTree.triangles = buckets[i];
-    node.subTrees.push(subTree);
-    split(subTree, level + 1);
-  }
+  const octree = nodes[0] ?? new Octree();
+  octree.layers.disableAll();
+  octree.layers.enable(COLLISION_LAYER);
+  return { octree, triangles: triangles.length };
 }
+
