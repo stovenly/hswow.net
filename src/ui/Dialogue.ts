@@ -19,6 +19,8 @@ export interface Speaker {
   speak(text: string, manner: 'greeting' | 'talk' | 'farewell'): Spoken | null;
   /** Cuts off whatever they are saying. */
   hush(): void;
+  /** Metres from the player. A goodbye left behind goes quicker the further you walk. */
+  away(): number;
   readonly greeting: string;
   readonly farewell: string;
   readonly topics: readonly { key: string; label: string; reply: string }[];
@@ -51,7 +53,12 @@ const FADE_OUT = 160;
  * Seconds a goodbye stays up after it has finished being said, with the mouse
  * already handed back. Opening a new conversation is what cuts it short.
  */
-const PARTING_HOLD = 2.4;
+const PARTING_HOLD = 1.1;
+/** Metres you can walk off before a goodbye starts going faster, and where it is gone. */
+const PARTING_NEAR = 3.5;
+const PARTING_FAR = 11;
+/** How much faster it runs down at `PARTING_FAR`. */
+const PARTING_RUSH = 7;
 
 export class Dialogue {
   private readonly root: HTMLDivElement;
@@ -72,8 +79,9 @@ export class Dialogue {
   private elapsed = 0;
   /** The pending empty-out, so reopening before it lands does not get wiped. */
   private wiping = 0;
-  /** Seconds left on a goodbye that outlives the conversation it ended. */
+  /** Seconds left on a goodbye that outlives the conversation it ended, and who said it. */
   private parting = 0;
+  private parted: Speaker | null = null;
 
   constructor(
     overlay: HTMLElement,
@@ -122,6 +130,7 @@ export class Dialogue {
     if (this.speaker) return;
     window.clearTimeout(this.wiping);
     this.parting = 0;
+    this.parted = null;
     this.speaker = speaker;
     this.nameEl.textContent = speaker.name;
     document.body.classList.add('is-dialogue');
@@ -138,8 +147,11 @@ export class Dialogue {
     if (this.parting > 0) {
       this.elapsed += dt;
       this.reveal();
-      this.parting -= dt;
-      if (this.parting <= 0) this.hide();
+      this.parting -= dt * this.rush();
+      if (this.parting <= 0) {
+        this.parted = null;
+        this.hide();
+      }
       return;
     }
     if (!this.speaker || this.waiting <= 0) return;
@@ -149,6 +161,13 @@ export class Dialogue {
     if (this.waiting > 0) return;
     this.fill();
     this.offer();
+  }
+
+  /** How fast a goodbye runs down: walking away from whoever said it hurries it. */
+  private rush(): number {
+    const away = this.parted?.away() ?? 0;
+    const past = (away - PARTING_NEAR) / (PARTING_FAR - PARTING_NEAR);
+    return 1 + (PARTING_RUSH - 1) * Math.max(0, Math.min(1, past));
   }
 
   private say(text: string, manner: 'greeting' | 'talk' | 'farewell' = 'talk'): void {
@@ -264,6 +283,7 @@ export class Dialogue {
     // Before `shut`, which fades the box out if there is nothing left to say.
     const voiced = said ? said.seconds + 0.15 : Math.max(READ_LEAST, speaker.farewell.length * READ_RATE);
     this.parting = voiced + PARTING_HOLD;
+    this.parted = speaker;
     this.shut();
     this.line = speaker.farewell;
     this.lay();
@@ -301,6 +321,7 @@ export class Dialogue {
   /** Ends it from outside — walking off, a zone change, a quit to the title. */
   close(): void {
     this.parting = 0;
+    this.parted = null;
     if (this.speaker) this.shut();
     else this.hide();
   }

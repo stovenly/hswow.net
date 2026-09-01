@@ -345,6 +345,7 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       topics: script.topics,
       speak: (text, manner) => creature.say(text, manner),
       hush: () => creature.hush(),
+      away: () => creature.mesh.position.distanceTo(player.position),
     });
   };
 

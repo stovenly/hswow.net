@@ -14,15 +14,10 @@
  * code that already runs.
  */
 
-import { blank, type Score, type Syllable, type Tune } from './parse';
+import { blank, PAUSES, type Score, type Syllable, type Tune } from './parse';
 import { pick, type Lect } from './lects';
 import type { Consonant, Vowel } from './phonemes';
 import type { LectName } from '../voice/types';
-
-/** Seconds of silence a mark buys. `parse.ts` spells the same table. */
-const PAUSES: Record<string, number> = {
-  ',': 0.26, ';': 0.32, ':': 0.3, '.': 0.55, '!': 0.5, '?': 0.55, '—': 0.4, '-': 0.12, '…': 0.7,
-};
 
 /**
  * The English words that carry grammar rather than meaning. Each becomes one
