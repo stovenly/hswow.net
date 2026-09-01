@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
 import { createRng } from '../art/random';
+import { finishCaptured } from '../art/assemble';
+import { takeWarm } from './warmProps';
 import type { MeshBuilder } from '../art/types';
 
 /**
@@ -146,22 +148,11 @@ export function scatterProps(
   ground: ScatterGround,
   onPlaced?: (mesh: THREE.Mesh) => void,
 ): void {
-  const rng = createRng(rule.seed);
-  const [cx, cz] = rule.from ?? [0, 0];
   const maxSlope = rule.maxSlope ?? 26;
   const avoid = rule.avoid ?? [];
   const solid = builder.solid !== false;
 
-  for (let i = 0; i < rule.count; i++) {
-    // Square-rooted radius: uniform in radius is not uniform in area.
-    const angle = rng.range(0, Math.PI * 2);
-    const radius = Math.sqrt(rng()) * rule.within;
-    const x = cx + Math.cos(angle) * radius;
-    const z = cz + Math.sin(angle) * radius;
-    const yaw = rng.range(0, Math.PI * 2);
-    const size = rule.scale ? rng.range(rule.scale[0], rule.scale[1]) : 1;
-    const seed = rng.int(1, 1_000_000);
-
+  for (const { x, z, yaw, scale, seed } of scatterCandidates(rule)) {
     if (ground.accept && !ground.accept(x, z)) continue;
     if (ground.slopeAt && ground.slopeAt(x, z) > maxSlope) continue;
 
@@ -178,13 +169,48 @@ export function scatterProps(
     }
     if (blocked) continue;
 
-    const mesh = builder.build({ seed, scale: size });
+    const warm = takeWarm({ builder: builder.name, seed, scale });
+    const mesh = warm ? finishCaptured(warm) : builder.build({ seed, scale });
     // The item systems read this back, so a taken prop is carried with the
     // exact look it stood with.
     mesh.userData.seed = seed;
     onPlaced?.(mesh);
     place(parent, mesh, x, z, yaw, ground.groundAt, solid);
   }
+}
+
+/** One candidate, drawn before the ground has had any say over it. */
+export interface ScatterCandidate {
+  x: number;
+  z: number;
+  yaw: number;
+  scale: number;
+  seed: number;
+}
+
+/**
+ * Every candidate a rule draws, in order. The one place the draw order lives:
+ * `scatterProps` walks this and rejects some of it, and the warm pass walks it
+ * to know which builder calls are coming without knowing the ground.
+ */
+export function scatterCandidates(rule: ScatterRule): ScatterCandidate[] {
+  const rng = createRng(rule.seed);
+  const [cx, cz] = rule.from ?? [0, 0];
+  const out: ScatterCandidate[] = [];
+
+  for (let i = 0; i < rule.count; i++) {
+    // Square-rooted radius: uniform in radius is not uniform in area.
+    const angle = rng.range(0, Math.PI * 2);
+    const radius = Math.sqrt(rng()) * rule.within;
+    out.push({
+      x: cx + Math.cos(angle) * radius,
+      z: cz + Math.sin(angle) * radius,
+      yaw: rng.range(0, Math.PI * 2),
+      scale: rule.scale ? rng.range(rule.scale[0], rule.scale[1]) : 1,
+      seed: rng.int(1, 1_000_000),
+    });
+  }
+  return out;
 }
 
 /** Shortest distance from a point to a segment, in the XZ plane. */

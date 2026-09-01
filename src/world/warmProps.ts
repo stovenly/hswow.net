@@ -2,7 +2,7 @@ import { pool } from '../engine/work/pool';
 import type { PropAsk } from '../engine/work/jobs';
 import type { Finished } from '../art/assemble';
 import { entryKind, holds, type WarmContext, type WorldState } from './entry';
-import { layersOf, type ZoneDocument } from './document';
+import type { Layer } from './document';
 
 /**
  * A zone's props, built off the main thread before the document walk runs.
@@ -37,9 +37,9 @@ function keyOf(ask: PropAsk): string {
  * before it runs. The same `when` tests the walk applies, so a layer the state
  * has turned off is not warmed.
  */
-function planDocument(doc: ZoneDocument, ctx: WarmContext, state: WorldState): PropAsk[] {
+function planDocument(layers: readonly Layer[], ctx: WarmContext, state: WorldState): PropAsk[] {
   const found: PropAsk[] = [];
-  for (const layer of layersOf(doc)) {
+  for (const layer of layers) {
     if (!holds(layer.when, state)) continue;
     for (const entry of layer.entries) {
       if (!holds(entry.when, state)) continue;
@@ -60,15 +60,16 @@ function planDocument(doc: ZoneDocument, ctx: WarmContext, state: WorldState): P
  * makes the pool worth having. Awaited before the zone is built.
  */
 export async function warmDocument(
-  doc: ZoneDocument,
+  zone: string,
+  layers: readonly Layer[],
   ctx: WarmContext,
   state: WorldState,
 ): Promise<void> {
-  const found = planDocument(doc, ctx, state);
+  const found = planDocument(layers, ctx, state);
   if (found.length === 0) return;
 
   const bank = new Map<string, Finished[]>();
-  banks.set(doc.id, bank);
+  banks.set(zone, bank);
   const giveUp = new AbortController();
   const timer = setTimeout(() => giveUp.abort(), BUDGET);
 

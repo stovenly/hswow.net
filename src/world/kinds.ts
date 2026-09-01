@@ -25,7 +25,15 @@ import { SURFACES } from '../audio/models/footsteps';
 import { doorways, doorwayFront } from '../art/building';
 import { dilateOutline } from './vista';
 import { DOOR_PROUD } from './Portal';
-import { insidePolygon, layRun, place, scatterProps, along, type Point } from './placement';
+import {
+  insidePolygon,
+  layRun,
+  place,
+  scatterCandidates,
+  scatterProps,
+  along,
+  type Point,
+} from './placement';
 import {
   applyPlacement,
   registerEntryKind,
@@ -449,6 +457,24 @@ registerEntryKind<ScatterEntry>({
     region: { type: 'string', label: 'inside region' },
   },
   defaults: () => ({ builder: 'bush', count: 12, within: 8 }),
+  // Every candidate is warmed, including the ones the ground will reject: the
+  // accept, slope, height and avoid tests need a built context this does not
+  // have, and building a rejected prop on a worker costs less than waiting for
+  // an accepted one on the frame. `dropWarm` frees what is not claimed.
+  asks(entry) {
+    if (!builderByName(entry.builder)) return [];
+    return scatterCandidates({
+      seed: seedOf(entry),
+      count: entry.count,
+      within: entry.within,
+      from: entry.from,
+      scale: entry.scale,
+    }).map((candidate) => ({
+      builder: entry.builder,
+      seed: candidate.seed,
+      scale: candidate.scale,
+    }));
+  },
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
     const group = new THREE.Group();
