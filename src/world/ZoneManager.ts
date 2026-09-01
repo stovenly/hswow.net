@@ -654,6 +654,18 @@ export class ZoneManager {
     }
   }
 
+  /**
+   * Everything still sounding for a place nobody is in any more. Eviction
+   * silences a soundscape rather than disposing it, because the player is
+   * expected back; leaving the world entirely is the case where they are not.
+   */
+  private hush(): void {
+    for (const soundscape of this.soundscapes.values()) soundscape.dispose();
+    this.soundscapes.clear();
+    this.air?.leave();
+    this.director?.setZone(null);
+  }
+
   /** Counts releases, so eviction can be told from never-built. */
   private evicted = 0;
 
@@ -1438,6 +1450,7 @@ export class ZoneManager {
       for (const held of this.zones.values()) {
         if (held.isBuilt) this.release(held, false);
       }
+      this.hush();
       during?.();
     });
 

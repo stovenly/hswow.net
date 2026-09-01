@@ -296,6 +296,11 @@ export class AmbienceDirector {
     this.select(ambienceFor(choice, zoneId, Math.floor(this.conditions.elapsed)));
   }
 
+  /** Nowhere to be: the whole rack fades out and nothing takes its place. */
+  leave(): void {
+    this.select(null);
+  }
+
   /** For the dev panel: hold one vibe's ambience, or hand it back with null. */
   setVibe(name: VibeName | null): void {
     this.select(name ? VIBES[name].ambience : null);

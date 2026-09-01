@@ -258,6 +258,10 @@ export class WeatherRig {
       this.applySound(dt, audio, zones, listener, outdoors);
       this.applyStorm(audio, zones, camera, outdoors);
       this.applyAmbience(zones, listener, outdoors);
+    } else {
+      // Nowhere to rain on. The bed is wound down rather than left running,
+      // or the weather of the place you quit follows you to the title.
+      this.silence(audio, dt, listener);
     }
   }
 
