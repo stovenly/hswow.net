@@ -9,6 +9,7 @@
  */
 
 import { capture, type Finished } from '../../art/assemble';
+import type { Rig } from '../../art/rig';
 import { builderByName } from '../../art/registry';
 import { fromWire, toWire, type GeometryWire } from './geometry';
 import { planOctree, type OctreePlan } from '../../player/octreePlan';
@@ -41,13 +42,17 @@ interface PropWire {
   name: string;
   phase: number;
   underfoot?: string;
+  /** A creature's bones, so the skeleton can be built on the main thread. */
+  rig?: Rig;
+  scale?: number;
+  userData?: Record<string, unknown>;
 }
 
 export const JOBS = {
   /**
-   * One prop's geometry. Null when the builder is not a pure walk to a single
-   * `finish` — it hung lights or children on its mesh — and the caller must
-   * build it on the main thread as before.
+   * One prop's geometry, or one creature's. Null when the builder is not a pure
+   * walk to a single `finish` or `finishRigged` — it hung lights or children on
+   * its mesh — and the caller must build it on the main thread as before.
    */
   'prop-geometry': job<PropAsk, PropWire | null, Finished | null>({
     inWorker: (ask) => {
@@ -59,7 +64,15 @@ export const JOBS = {
       if (!taken) return { result: null };
       const { wire, transfer } = toWire(taken.geometry);
       return {
-        result: { geometry: wire, name: taken.name, phase: taken.phase, underfoot: taken.underfoot },
+        result: {
+          geometry: wire,
+          name: taken.name,
+          phase: taken.phase,
+          underfoot: taken.underfoot,
+          rig: taken.rig,
+          scale: taken.scale,
+          userData: taken.userData,
+        },
         transfer,
       };
     },
@@ -71,6 +84,9 @@ export const JOBS = {
             name: wire.name,
             phase: wire.phase,
             underfoot: wire.underfoot as Finished['underfoot'],
+            rig: wire.rig,
+            scale: wire.scale,
+            userData: wire.userData,
           },
   }),
 

@@ -3,6 +3,7 @@ import { builderByName } from '../art/registry';
 import { coerceFields } from '../art/schema';
 import { finishCaptured } from '../art/assemble';
 import { takeWarm } from './warmProps';
+import type { PropAsk } from '../engine/work/jobs';
 import { SCRIPTS, type Folk } from './talk';
 import type { NpcMark } from './Interaction';
 import type { LifeSpec } from '../life/spec';
@@ -212,17 +213,19 @@ registerEntryKind<PropEntry>({
 registerEntryKind<CreatureEntry>({
   kind: 'creature',
   palette: { tab: 'creatures', list: () => [] },
+  asks(entry) {
+    const builder = builderByName(entry.builder);
+    return builder ? [creatureAsk(entry, builder)] : [];
+  },
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
-    const extras = builder.options ? coerceFields(builder.options, entry.options) : {};
-    const mesh = builder.build({
-      seed: seedOf(entry),
-      scale: entry.scale,
-      ...(entry.roam !== undefined ? { roam: entry.roam } : {}),
-      ...(entry.folk !== undefined ? { folk: entry.folk } : {}),
-      ...(entry.face !== undefined ? { face: entry.face } : {}),
-      ...extras,
-    } as never);
+    const ask = creatureAsk(entry, builder);
+    // A rigged builder is captured too: the bones and the `LifeSpec` cross the
+    // wire and the skeleton is bound here, where the materials are.
+    const warm = takeWarm(ask);
+    const mesh = warm
+      ? finishCaptured(warm)
+      : builder.build({ seed: ask.seed, scale: ask.scale, ...ask.extras } as never);
     applyPlacement(mesh, entry, ctx);
     // A skinned mesh raycasts against its bind pose, so the crosshair is given
     // an invisible cylinder to find instead. Invisible rather than absent: a
@@ -248,6 +251,28 @@ registerEntryKind<CreatureEntry>({
     return mesh;
   },
 });
+
+/**
+ * What a creature entry calls its builder with. The one place the options are
+ * assembled, so the warm and the walk key the same way — the order of the keys
+ * is part of that key.
+ */
+function creatureAsk(
+  entry: CreatureEntry,
+  builder: NonNullable<ReturnType<typeof builderByName>>,
+): PropAsk {
+  return {
+    builder: entry.builder,
+    seed: seedOf(entry),
+    scale: entry.scale,
+    extras: {
+      ...(entry.roam !== undefined ? { roam: entry.roam } : {}),
+      ...(entry.folk !== undefined ? { folk: entry.folk } : {}),
+      ...(entry.face !== undefined ? { face: entry.face } : {}),
+      ...optionsOf(builder, entry.options),
+    },
+  };
+}
 
 // --- run --------------------------------------------------------------------
 

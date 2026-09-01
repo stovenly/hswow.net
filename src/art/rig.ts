@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { assemble, finishMesh, type Part } from './assemble';
+import { assemble, captureRigged, capturingNow, finishMesh, type Part } from './assemble';
 
 /**
  * Rigged creatures: one merged mesh, one draw call, and a skeleton of hinges.
@@ -53,9 +53,31 @@ export function finishRigged(
   phase: number,
   scale = 1,
 ): THREE.SkinnedMesh {
-  const names = boneNames(rig);
-  const geometry = assemble(parts, names);
+  const geometry = riggedGeometry(parts, rig, scale);
+  if (capturingNow()) return captureRigged({ geometry, name, phase, rig, scale });
+  return dressRigged(geometry, rig, name, phase, scale);
+}
+
+/** The pure half: the parts merged against the rig's bones, at the builder's scale. */
+export function riggedGeometry(parts: Part[], rig: Rig, scale = 1): THREE.BufferGeometry {
+  const geometry = assemble(parts, boneNames(rig));
   if (scale !== 1) geometry.scale(scale, scale, scale);
+  return geometry;
+}
+
+/**
+ * The half that needs the main thread: the bones, the skeleton and the
+ * material. The pivots are in the builder's unscaled space, so `scale` has to
+ * be the same one `riggedGeometry` was given or the two disagree.
+ */
+export function dressRigged(
+  geometry: THREE.BufferGeometry,
+  rig: Rig,
+  name: string,
+  phase: number,
+  scale = 1,
+): THREE.SkinnedMesh {
+  const names = boneNames(rig);
 
   const bones: Record<string, THREE.Bone> = {};
   const rest: Record<string, THREE.Vector3> = {};

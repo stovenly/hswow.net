@@ -5,6 +5,7 @@ import { MATERIALS } from './underfoot';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL, dressArtMesh } from './sway';
+import { dressRigged, type Rig } from './rig';
 import { WEAR_TINT_ATTRIBUTE } from './weathering';
 import { DETAIL_TINT_ATTRIBUTE } from './detail';
 import {
@@ -298,18 +299,34 @@ export interface Finished {
   name: string;
   phase: number;
   underfoot?: SurfaceName;
+  /** Set when the builder finished a rigged creature rather than a plain mesh. */
+  rig?: Rig;
+  /** The builder's scale. The rig's pivots are in unscaled space and need it. */
+  scale?: number;
+  /** What the builder stamped on its mesh afterwards. Plain data, or no capture. */
+  userData?: Record<string, unknown>;
 }
 
 let capturing = false;
 let captured: Finished | null = null;
 let doubled = false;
-/** The object a captured `finish` hands back, so the builder has something to return. */
-const STUB = new THREE.Mesh();
+
+/** `finish` writes the slot from another frame, which a direct read cannot see. */
+function taken(): Finished | null {
+  return captured;
+}
+/**
+ * The object a captured `finish` hands back, so the builder has something to
+ * return. Skinned, so a rigged builder's declared return type is honest too.
+ */
+const STUB = new THREE.SkinnedMesh();
 
 /**
  * Whether the stub came back exactly as it went out. Anything a builder did to
- * the mesh after finishing it — a position, a light, a userData mark — is work
- * the geometry alone cannot carry, and the capture has to be refused.
+ * the mesh after finishing it — a position, a light, a child — is work the
+ * geometry alone cannot carry, and the capture has to be refused. `userData` is
+ * the exception: plain data can be carried and replayed, which is how a life
+ * builder's `LifeSpec` survives the trip.
  */
 function untouched(): boolean {
   return (
@@ -319,7 +336,7 @@ function untouched(): boolean {
     !STUB.castShadow &&
     !STUB.receiveShadow &&
     STUB.layers.mask === 1 &&
-    Object.keys(STUB.userData).length === 0 &&
+    plainData(STUB.userData) &&
     STUB.position.lengthSq() === 0 &&
     STUB.rotation.x === 0 &&
     STUB.rotation.y === 0 &&
@@ -328,6 +345,21 @@ function untouched(): boolean {
     STUB.scale.y === 1 &&
     STUB.scale.z === 1
   );
+}
+
+/**
+ * Only what crosses a `postMessage` unchanged. A class instance would arrive as
+ * a plain object with its prototype gone, which the clone would not complain
+ * about and the runtime would, so anything that is not a literal is a refusal.
+ */
+function plainData(value: unknown, depth = 0): boolean {
+  if (value === null || value === undefined) return true;
+  const type = typeof value;
+  if (type === 'number' || type === 'string' || type === 'boolean') return true;
+  if (type !== 'object' || depth > 8) return false;
+  if (Array.isArray(value)) return value.every((item) => plainData(item, depth + 1));
+  if (Object.getPrototypeOf(value) !== Object.prototype) return false;
+  return Object.values(value as object).every((item) => plainData(item, depth + 1));
 }
 
 function resetStub(): void {
@@ -357,9 +389,11 @@ export function capture(run: () => THREE.Object3D): Finished | null {
   doubled = false;
   resetStub();
   try {
-    const made = run();
-    if (!captured || doubled || made !== STUB || !untouched()) return null;
-    return captured;
+    const returned = run();
+    const finished = taken();
+    if (!finished || doubled || returned !== STUB || !untouched()) return null;
+    if (Object.keys(STUB.userData).length > 0) finished.userData = { ...STUB.userData };
+    return finished;
   } finally {
     capturing = false;
     captured = null;
@@ -369,7 +403,23 @@ export function capture(run: () => THREE.Object3D): Finished | null {
 
 /** Dresses what `capture` took, on the thread that owns the materials. */
 export function finishCaptured(taken: Finished): THREE.Mesh {
-  return finish(taken.geometry, taken.name, taken.phase, taken.underfoot);
+  const mesh = taken.rig
+    ? dressRigged(taken.geometry, taken.rig, taken.name, taken.phase, taken.scale ?? 1)
+    : finish(taken.geometry, taken.name, taken.phase, taken.underfoot);
+  if (taken.userData) Object.assign(mesh.userData, taken.userData);
+  return mesh;
+}
+
+/** True while a builder is being run for its geometry alone. Read by `rig.ts`. */
+export function capturingNow(): boolean {
+  return capturing;
+}
+
+/** What a captured `finishRigged` records. Hands back the same stub `finish` does. */
+export function captureRigged(taken: Finished): THREE.SkinnedMesh {
+  if (captured) doubled = true;
+  captured = taken;
+  return STUB;
 }
 
 export function finish(
