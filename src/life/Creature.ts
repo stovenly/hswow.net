@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { RigHandle } from '../art/rig';
 import type { Collider } from '../player/Collider';
+import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import type { AudioEngine } from '../audio/AudioEngine';
 import { Emitter } from '../audio/Emitter';
 import { buildOneShot, type OneShot } from '../audio/Scatter';
@@ -124,6 +125,12 @@ const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _at = new THREE.Vector3();
 const _rot = new THREE.Vector3();
+const _capsule = new Capsule();
+
+/** Depenetration passes a frame. A corner takes two; a third is a wedge nothing fixes. */
+const UNSTICK_PASSES = 2;
+/** Frames of being pushed before a walk gives up on the way it was going. */
+const UNSTICK_PATIENCE = 12;
 
 export class Creature {
   readonly mesh: THREE.SkinnedMesh;
@@ -185,6 +192,8 @@ export class Creature {
   private gestureAt: number[] = [];
   /** Idle business between lines, while it listens. */
   private listenIn = 0;
+  /** Consecutive frames spent being pushed out of something solid. */
+  private stuckFor = 0;
   private talkedThisVisit = false;
   private nearFor = 0;
 
@@ -447,6 +456,8 @@ export class Creature {
       }
     }
 
+    this.unstick(world);
+
     // --- ground -----------------------------------------------------------
     pos.y = world.groundAt(pos.x, pos.z);
     this.mesh.rotation.y = this.yaw;
@@ -676,6 +687,42 @@ export class Creature {
         this.hailed = true;
         this.gestureLength = 3.2;
         break;
+    }
+  }
+
+  /**
+   * Pushes out of anything solid it has walked into. The two walk probes are
+   * for planning a path — a table top slips between the knee ray and the chest
+   * ray — and this is what actually keeps a villager out of the furniture.
+   *
+   * Horizontal only, and after the move rather than before it: the ground is
+   * snapped to straight after, and lifting a creature over what it walked into
+   * would put it on the table instead of beside it.
+   */
+  private unstick(world: World): void {
+    const pos = this.mesh.position;
+    const foot = this.spec.radius;
+    let pushed = false;
+    for (let pass = 0; pass < UNSTICK_PASSES; pass += 1) {
+      _capsule.start.set(pos.x, pos.y + foot, pos.z);
+      _capsule.end.set(pos.x, pos.y + Math.max(this.spec.height - foot, foot), pos.z);
+      _capsule.radius = foot;
+      const contact = world.collider.intersectCapsule(_capsule);
+      if (!contact) break;
+      const flat = Math.hypot(contact.normal.x, contact.normal.z);
+      // Straight up is the ground, which the snap below owns.
+      if (flat < 1e-3) break;
+      pushed = true;
+      const push = contact.depth / flat;
+      pos.x += contact.normal.x * push;
+      pos.z += contact.normal.z * push;
+    }
+    this.stuckFor = pushed ? this.stuckFor + 1 : 0;
+    // Still being pushed frame after frame: it is walking at something it
+    // cannot get round, so it stops, as a blocked probe already makes it stop.
+    if (pushed && this.state === 'walk' && this.stuckFor > UNSTICK_PATIENCE) {
+      this.begin('idle');
+      this.timer = 1.5 + Math.random() * 3;
     }
   }
 
