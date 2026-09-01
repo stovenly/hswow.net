@@ -23,7 +23,7 @@ export class Notices {
   say(text: string, change: Change): void {
     const line = document.createElement('div');
     line.className = `notice is-${change}`;
-    line.textContent = `${change === 'gain' ? '+' : '−'} ${text}`;
+    line.textContent = text;
     line.addEventListener('animationend', () => line.remove());
     this.root.append(line);
     while (this.root.childElementCount > MOST) this.root.firstElementChild?.remove();

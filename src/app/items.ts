@@ -30,6 +30,11 @@ import {
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 
+/** Nothing in the item tables starts with a silent h or a sounded u. */
+function an(name: string): string {
+  return `${'aeiouAEIOU'.includes(name[0]) ? 'an' : 'a'} ${name}`;
+}
+
 export interface GameItems {
   /** The slot picker's load path: seed, delta and pack restored, then a hard reset into the saved zone. */
   loadSlot(slot: number): Promise<boolean>;
@@ -48,15 +53,17 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   // is behind a key and the speech box covers the middle, so it says so.
   const notices = new Notices(overlay);
   holdSatchel({
-    give: (builder, seed = 0) => {
+    give: (builder, seed = 0, from) => {
       const name = displayOf(builder, seed);
       inventory.add({ name, kind: kindOf(builder), builder, seed });
-      notices.say(name, 'gain');
+      notices.say(from ? `${from} gave you ${an(name)}` : `You received ${an(name)}`, 'gain');
     },
-    take: (builder) => {
+    take: (builder, from) => {
       const at = inventory.items.findIndex((item) => item.builder === builder);
       const taken = at >= 0 ? inventory.takeAt(at) : null;
-      if (taken) notices.say(taken.name, 'loss');
+      if (taken) {
+        notices.say(from ? `${from} took ${an(taken.name)}` : `You lost ${an(taken.name)}`, 'loss');
+      }
       return taken !== null;
     },
   });

@@ -347,7 +347,9 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       topics: () =>
         converse(mark, worldState, creature.doing).topics.map((topic) => ({
           ...topic,
-          chosen: topic.then ? () => apply(topic.then, worldState, mark.person) : undefined,
+          chosen: topic.then
+            ? () => apply(topic.then, worldState, { person: mark.person, name: mark.name })
+            : undefined,
         })),
       speak: (text, manner) => creature.say(text, manner),
       hush: () => creature.hush(),

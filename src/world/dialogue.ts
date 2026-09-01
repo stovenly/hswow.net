@@ -32,10 +32,19 @@ export interface Answered {
   then?: readonly Effect[];
 }
 
-/** What `giveItem` and `takeItem` reach for. Held by whoever owns the pack. */
+/**
+ * What `giveItem` and `takeItem` reach for. Held by whoever owns the pack.
+ * `from` is a named person's name, and absent for anybody who is not one.
+ */
 export interface Satchel {
-  give(builder: string, seed?: number): void;
-  take(builder: string): boolean;
+  give(builder: string, seed?: number, from?: string): void;
+  take(builder: string, from?: string): boolean;
+}
+
+/** Who a line is being said by, for the effects that care. */
+export interface Speaking {
+  person?: string;
+  name?: string;
 }
 
 let satchel: Satchel | null = null;
@@ -99,8 +108,11 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
 export function apply(
   effects: readonly Effect[] | undefined,
   state: WorldFlags,
-  speaker?: string,
+  said?: Speaking,
 ): void {
+  const speaker = said?.person;
+  // Only a named person is somebody a notice can name.
+  const from = said?.person ? said.name : undefined;
   for (const effect of effects ?? []) {
     switch (effect.do) {
       case 'setFlag':
@@ -109,11 +121,11 @@ export function apply(
       case 'startQuest': {
         const quest = questById(effect.quest);
         if (state.stage(effect.quest) > 0) break;
-        reach(state, effect.quest, quest ? firstStage(quest) : 10, speaker);
+        reach(state, effect.quest, quest ? firstStage(quest) : 10, said);
         break;
       }
       case 'setStage':
-        reach(state, effect.quest, effect.stage, speaker);
+        reach(state, effect.quest, effect.stage, said);
         break;
       case 'failQuest':
         state.setFailed(effect.quest, true);
@@ -126,11 +138,11 @@ export function apply(
         break;
       }
       case 'giveItem':
-        if (satchel) satchel.give(effect.builder, effect.seed);
+        if (satchel) satchel.give(effect.builder, effect.seed, from);
         else console.warn(`dialogue: no pack to give "${effect.builder}" into`);
         break;
       case 'takeItem':
-        if (satchel) satchel.take(effect.builder);
+        if (satchel) satchel.take(effect.builder, from);
         else console.warn(`dialogue: no pack to take "${effect.builder}" from`);
         break;
     }
@@ -138,12 +150,12 @@ export function apply(
 }
 
 /** Moves a quest to a stage, and runs that stage's own effects the first time. */
-function reach(state: WorldFlags, quest: string, at: number, speaker?: string): void {
+function reach(state: WorldFlags, quest: string, at: number, said?: Speaking): void {
   const first = !state.stageDone(quest, at);
   state.setStage(quest, at);
   if (!first) return;
   const stage = questById(quest)?.stages?.find((one) => one.at === at);
-  apply(stage?.then, state, speaker);
+  apply(stage?.then, state, said);
 }
 
 /** One of a bank, chosen by the speaker's seed and how many lines have passed. */
