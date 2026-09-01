@@ -1247,6 +1247,11 @@ body:not(.is-playing) #prompt {
   pointer-events: auto;
 }
 
+/* The way out, off the foot of the column with the topics stacking above it. */
+.speech-leave {
+  margin-top: 0.7rem;
+}
+
 /* On the way out the box keeps its contents until it has faded, so nothing
    reflows under the name. A faded button is not a button. */
 #speech:not(.is-shown) .speech-choice {
@@ -1277,7 +1282,10 @@ body:not(.is-playing) #prompt {
   inset: 0;
 }
 
-body:not(.is-playing):not(.is-dialogue) #speech {
+/* `is-capturing` counts: a goodbye plays on after the conversation has ended,
+   and the lock takes a moment to come back, so without it the line blinks out
+   and in again over the handover. */
+body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
   opacity: 0;
 }
 

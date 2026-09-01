@@ -67,6 +67,8 @@ export class Dialogue {
   private elapsed = 0;
   /** The pending empty-out, so reopening before it lands does not get wiped. */
   private wiping = 0;
+  /** Seconds left on a goodbye that outlives the conversation it ended. */
+  private parting = 0;
 
   constructor(
     overlay: HTMLElement,
@@ -114,6 +116,7 @@ export class Dialogue {
   open(speaker: Speaker): void {
     if (this.speaker) return;
     window.clearTimeout(this.wiping);
+    this.parting = 0;
     this.speaker = speaker;
     this.nameEl.textContent = speaker.name;
     document.body.classList.add('is-dialogue');
@@ -125,6 +128,15 @@ export class Dialogue {
 
   /** Drives the reveal and the wait on the line. Called from the frame loop. */
   update(dt: number): void {
+    // A goodbye outlives the conversation: you have the mouse back and are
+    // walking off, and it is still being said behind you.
+    if (this.parting > 0) {
+      this.elapsed += dt;
+      this.reveal();
+      this.parting -= dt;
+      if (this.parting <= 0) this.hide();
+      return;
+    }
     if (!this.speaker || this.waiting <= 0) return;
     this.elapsed += dt;
     this.reveal();
@@ -219,7 +231,11 @@ export class Dialogue {
     for (const topic of speaker.topics) {
       this.choicesEl.append(this.choice(topic.label, () => this.say(topic.reply)));
     }
-    this.choicesEl.append(this.choice('Farewell', () => this.leave()));
+    // Always there, always last, and set apart: it is the way out rather than
+    // something to talk about.
+    const bye = this.choice('Farewell', () => this.leave());
+    bye.classList.add('speech-leave');
+    this.choicesEl.append(bye);
   }
 
   private choice(label: string, chosen: () => void): HTMLButtonElement {
@@ -231,36 +247,56 @@ export class Dialogue {
     return button;
   }
 
-  /** The goodbye plays as the box goes; nobody waits it out. */
+  /**
+   * The goodbye is said on the way out. The conversation is over the moment it
+   * starts — the mouse comes back, the camera lets go — and the line stays up
+   * on its own until it has been said.
+   */
   private leave(): void {
     const speaker = this.speaker;
     if (!speaker) return;
-    speaker.speak(speaker.farewell, 'farewell');
+    const said = speaker.speak(speaker.farewell, 'farewell');
     this.shut();
+    this.line = speaker.farewell;
+    this.lay();
+    this.choicesEl.replaceChildren();
+    this.elapsed = 0;
+    this.parting = said
+      ? said.seconds + 0.15
+      : Math.max(READ_LEAST, speaker.farewell.length * READ_RATE);
   }
 
+  /** Hands the game back. The box may still have a goodbye left to say. */
   private shut(): void {
     if (!this.speaker) return;
     this.speaker = null;
     this.waiting = 0;
     this.spoken = null;
-    this.root.classList.remove('is-shown');
     this.scrim.hidden = true;
     document.body.classList.remove('is-dialogue');
-    // Emptied after it has gone, not before: dropping the line and the choices
-    // now would leave the name to fall into the space they were holding and
-    // the whole box would reflow on its way out.
+    this.handlers.onClose();
+    if (this.parting <= 0) this.hide();
+  }
+
+  /**
+   * Fades the box out, and empties it only once it has gone: dropping the line
+   * and the choices first would leave the name to fall into the space they were
+   * holding and the whole box would reflow on its way out.
+   */
+  private hide(): void {
+    this.root.classList.remove('is-shown');
     this.wiping = window.setTimeout(() => {
       this.line = '';
       this.lay();
       this.choicesEl.replaceChildren();
       this.nameEl.textContent = '';
     }, FADE_OUT);
-    this.handlers.onClose();
   }
 
   /** Ends it from outside — walking off, a zone change, a quit to the title. */
   close(): void {
-    this.shut();
+    this.parting = 0;
+    if (this.speaker) this.shut();
+    else this.hide();
   }
 }
