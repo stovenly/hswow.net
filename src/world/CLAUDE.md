@@ -64,9 +64,11 @@ travel with it.
 ## Documents
 
 A zone is a JSON file of verbs, never meshes: `document.ts` turns one into a
-`ZoneDefinition` and `world.json` into the portal graph. `entry.ts` holds the
-grammar and the kind table `registerEntryKind` extends; `kinds.ts` holds the
-kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
+`ZoneDefinition` and `world.json` into the portal graph. Before that walk runs,
+`warmProps.ts` scans the document for props and builds their geometry on the
+work pool; the walk claims what is ready and builds the rest itself. `entry.ts`
+holds the grammar and the kind table `registerEntryKind` extends; `kinds.ts`
+holds the kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
 the game ignores and the editor is built on.
 
 `state.ts` is what a `when` is judged against — flags and quest stages in memory,

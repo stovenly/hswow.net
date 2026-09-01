@@ -68,6 +68,19 @@ Every new sky layer must be either invisible at `direction.y = 0` or present
 identically in `skyAir`. That one line is what the vista band cannot afford a
 seam on.
 
+## Off the main thread
+
+`work/` is a pool of module workers with a queue in front of them. A job kind is
+registered by name in `work/jobs.ts` with two halves: `inWorker` is pure and
+returns transferable buffers, `onMain` turns those into engine objects and is
+the only half allowed to touch three, the renderer or the DOM. Callers await
+`pool.run(kind, payload)` and never see a worker; a browser that refuses them
+runs the same halves inline.
+
+Shader compilation, buffer upload and anything touching the renderer stay on
+the main thread. Its tenants are a prop's geometry, a zone's collision tree,
+and the groundcover sampler.
+
 ## Conventions
 
 Effects are **spatial only**: one value per chunky pixel, no accumulation

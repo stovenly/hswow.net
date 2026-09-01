@@ -11,6 +11,7 @@ being true, edit the line — do not append a correction.
 ## Files
 
 - `Creature.ts` — the mind, the attention, and the per-frame assembly.
+- `meetings.ts` — two of them crossing paths: turn-taking, decaying small talk.
 - `gaits.ts` — every pose layer: walks, idles, greetings, talk, the mask.
 - `legs.ts` — planted feet and two-bone IK back to the hips.
 - `pose.ts` — the pose buffer and the Euler convention.
