@@ -1247,9 +1247,14 @@ body:not(.is-playing) #prompt {
   pointer-events: auto;
 }
 
-/* The way out, off the foot of the column with the topics stacking above it. */
+/* The way out, off the foot of the column with the topics stacking above it.
+   Stretched so the rule spans the column rather than the word. */
 .speech-leave {
-  margin-top: 0.7rem;
+  align-self: stretch;
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgb(220 220 200 / 18%);
+  text-align: right;
 }
 
 /* On the way out the box keeps its contents until it has faded, so nothing
