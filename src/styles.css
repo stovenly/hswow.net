@@ -1186,8 +1186,8 @@ body:not(.is-playing) #prompt {
   position: fixed;
   bottom: 12%;
   left: 50%;
-  width: min(34rem, 80vw);
-  font-size: 1rem;
+  width: min(40rem, 84vw);
+  font-size: 1.18rem;
   line-height: 1.45;
   letter-spacing: 0.04em;
   text-align: center;
@@ -1207,7 +1207,7 @@ body:not(.is-playing) #prompt {
 }
 
 .speech-name {
-  font-size: 0.8rem;
+  font-size: 0.8em;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.62;

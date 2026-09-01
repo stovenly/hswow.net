@@ -47,6 +47,11 @@ const FADE_CHARS = 7;
  * `styles.css` — change both together, or it empties while still on screen.
  */
 const FADE_OUT = 160;
+/**
+ * Seconds a goodbye stays up after it has finished being said, with the mouse
+ * already handed back. Opening a new conversation is what cuts it short.
+ */
+const PARTING_HOLD = 2.4;
 
 export class Dialogue {
   private readonly root: HTMLDivElement;
@@ -256,14 +261,14 @@ export class Dialogue {
     const speaker = this.speaker;
     if (!speaker) return;
     const said = speaker.speak(speaker.farewell, 'farewell');
+    // Before `shut`, which fades the box out if there is nothing left to say.
+    const voiced = said ? said.seconds + 0.15 : Math.max(READ_LEAST, speaker.farewell.length * READ_RATE);
+    this.parting = voiced + PARTING_HOLD;
     this.shut();
     this.line = speaker.farewell;
     this.lay();
     this.choicesEl.replaceChildren();
     this.elapsed = 0;
-    this.parting = said
-      ? said.seconds + 0.15
-      : Math.max(READ_LEAST, speaker.farewell.length * READ_RATE);
   }
 
   /** Hands the game back. The box may still have a goodbye left to say. */
