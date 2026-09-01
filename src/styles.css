@@ -1240,10 +1240,16 @@ body:not(.is-playing) #prompt {
   outline: none;
 }
 
-/* The unsaid part holds its place invisibly, so the line is its final size
-   from the first syllable. */
-.speech-unsaid {
-  visibility: hidden;
+/* The whole line is laid out at once and each letter comes up on its own, so
+   the block is its final size from the first syllable and nothing reflows. A
+   word is kept whole because the letters are separate elements and a wrap would
+   otherwise fall inside one. */
+.speech-word {
+  white-space: nowrap;
+}
+
+.speech-line span {
+  transition: opacity 90ms linear;
 }
 
 /* Catches the clicks that miss a choice, as the reading screen's does. */

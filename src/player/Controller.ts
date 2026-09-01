@@ -211,6 +211,10 @@ const CONVERSE_PER_RADIAN = 0.35;
 const CONVERSE_CAP = 1.1;
 /** Half-life of the hold once the turn has landed. */
 const CONVERSE_HOLD = 0.23;
+/** Degrees off the vertical field of view while talking to somebody. */
+const CONVERSE_ZOOM = 7;
+/** How fast the zoom follows the turn. Slower than the sprint widening, which is a flinch. */
+const CONVERSE_ZOOM_RATE = 2.2;
 
 /** The shortest way round to an angle, in radians. */
 function shortest(angle: number): number {
@@ -260,6 +264,8 @@ export class Controller {
   private talkingTo: THREE.Vector3 | null = null;
   private talkT = 0;
   private talkFor = 0;
+  /** 0 out of a conversation, 1 in one. Eased, and the only thing the zoom reads. */
+  private talkZoom = 0;
   private readonly talkFrom = new THREE.Vector2();
 
   /**
@@ -1032,7 +1038,9 @@ export class Controller {
     } else if (this.input.sprint && this.speed > 1.2) {
       this.zoomedOut = true;
     }
-    const targetFov = t.fov + (this.zoomedOut ? t.sprintFovBoost : 0);
+    this.talkZoom = THREE.MathUtils.damp(this.talkZoom, this.talkingTo ? 1 : 0, CONVERSE_ZOOM_RATE, dt);
+    const targetFov =
+      t.fov + (this.zoomedOut ? t.sprintFovBoost : 0) - CONVERSE_ZOOM * this.talkZoom;
     this.authoredFov = THREE.MathUtils.damp(this.authoredFov, targetFov, 6, dt);
     this.applyProjection();
   }

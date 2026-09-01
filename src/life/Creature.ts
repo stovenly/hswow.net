@@ -921,6 +921,18 @@ export class Creature {
   }
 
   /** True while a line is still to come out or still coming out. */
+  /**
+   * Cuts a line off where it is. The gesture is left alone: an arm on its way
+   * up carries on to wherever it was going, which is what an interrupted
+   * person does.
+   */
+  hush(): void {
+    const now = this.seen?.audio?.context.currentTime ?? 0;
+    this.voice?.hush(now);
+    this.said = null;
+    this.gestureAt = [];
+  }
+
   saying(now: number): boolean {
     if (this.pending) return true;
     return this.said !== null && now < this.said.end;

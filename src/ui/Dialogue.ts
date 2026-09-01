@@ -19,6 +19,8 @@ export interface Speaker {
   readonly name: string;
   /** Speaks a line. Null when the throat is mute, and the line is read on the wall clock. */
   speak(text: string, manner: 'greeting' | 'talk' | 'farewell'): Spoken | null;
+  /** Cuts off whatever they are saying. */
+  hush(): void;
   /** True when they hailed the player in the open world a moment ago. */
   readonly hailedRecently: boolean;
   readonly greeting: string;
@@ -36,6 +38,13 @@ export interface DialogueHandlers {
 /** Seconds a line stays up when no voice timed it. */
 const READ_RATE = 0.032;
 const READ_LEAST = 0.9;
+/**
+ * How much of the speaking the writing takes. Under 1, so the sentence is
+ * finished and readable while the villager is still saying the end of it.
+ */
+const REVEAL_AHEAD = 0.7;
+/** Characters a letter takes to come up from nothing. */
+const FADE_CHARS = 7;
 
 export class Dialogue {
   private readonly root: HTMLDivElement;
@@ -48,7 +57,12 @@ export class Dialogue {
   /** The line on screen, and the voice saying it. */
   private line = '';
   private spoken: Spoken | null = null;
-  private shown = 0;
+  /** One span per letter of the line, in order. Built once when the line is set. */
+  private chars: HTMLSpanElement[] = [];
+  /** How many of them are fully up. Only ever moves forward. */
+  private lit = 0;
+  /** What `waiting` started at, for the reveal when there is no voice to follow. */
+  private span = 0;
 
   constructor(
     overlay: HTMLElement,
@@ -57,6 +71,7 @@ export class Dialogue {
     this.scrim = document.createElement('div');
     this.scrim.className = 'speech-scrim';
     this.scrim.hidden = true;
+    this.scrim.addEventListener('pointerdown', () => this.advance());
 
     this.root = document.createElement('div');
     this.root.id = 'speech';
@@ -75,7 +90,11 @@ export class Dialogue {
     window.addEventListener(
       'keydown',
       (event) => {
-        if (!this.speaker || event.key !== 'Escape') return;
+        if (!this.speaker) return;
+        // Tab closes it the way it closes the inventory. Escape does too, but
+        // it is the browser's own key for giving up a pointer lock, so it is
+        // not the one to build the way out on.
+        if (event.key !== 'Escape' && event.code !== 'Tab') return;
         event.preventDefault();
         event.stopPropagation();
         this.leave();
@@ -102,7 +121,7 @@ export class Dialogue {
     if (speaker.hailedRecently) {
       this.line = '';
       this.spoken = null;
-      this.lineEl.replaceChildren();
+      this.lay();
       this.offer();
     } else {
       this.say(speaker.greeting, 'greeting');
@@ -115,47 +134,91 @@ export class Dialogue {
     this.reveal();
     this.waiting -= dt;
     if (this.waiting > 0) return;
-    this.shown = this.line.length;
-    this.paint();
+    this.fill();
     this.offer();
   }
 
   private say(text: string, manner: 'greeting' | 'talk' | 'farewell' = 'talk'): void {
     this.line = text;
-    this.shown = 0;
     this.choicesEl.replaceChildren();
     this.spoken = this.speaker?.speak(text, manner) ?? null;
-    this.paint();
+    this.lay();
     this.waiting = this.spoken
       ? this.spoken.seconds + 0.15
       : Math.max(READ_LEAST, text.length * READ_RATE);
+    this.span = this.waiting;
   }
 
   /**
-   * How much of the line has been said. A mute throat falls back to the wall
-   * clock, so the words still arrive when there is no voice to arrive with.
+   * A click fills the line in. A click on a line already filled cuts the
+   * villager off and takes what they say next — which is the choices, since a
+   * line is one answer.
+   */
+  private advance(): void {
+    if (!this.speaker || this.waiting <= 0) return;
+    if (this.lit < this.chars.length) {
+      this.fill();
+      return;
+    }
+    this.speaker.hush();
+    this.waiting = 0;
+    this.offer();
+  }
+
+  /**
+   * The whole line, one span per letter, laid out at once and invisible. Laid
+   * out rather than typed so nothing reflows as it arrives, and per letter so
+   * each can come up on its own. Words are kept whole, or a line that wraps
+   * would break in the middle of one.
+   */
+  private lay(): void {
+    this.chars = [];
+    this.lit = 0;
+    const out: Node[] = [];
+    for (const piece of this.line.split(/(\s+)/)) {
+      if (piece === '') continue;
+      if (/^\s+$/.test(piece)) {
+        out.push(document.createTextNode(piece));
+        continue;
+      }
+      const word = document.createElement('span');
+      word.className = 'speech-word';
+      for (const letter of piece) {
+        const span = document.createElement('span');
+        span.textContent = letter;
+        span.style.opacity = '0';
+        this.chars.push(span);
+        word.append(span);
+      }
+      out.push(word);
+    }
+    this.lineEl.replaceChildren(...out);
+  }
+
+  /**
+   * How much of the line has arrived. A mute throat falls back to the wall
+   * clock, so the words still come when there is no voice to come with.
    */
   private reveal(): void {
-    const was = this.shown;
-    if (this.spoken) this.shown = Math.max(this.shown, this.spoken.upTo());
-    else {
-      const through = 1 - this.waiting / Math.max(READ_LEAST, this.line.length * READ_RATE);
-      this.shown = Math.round(this.line.length * Math.min(1, Math.max(0, through)));
-    }
-    if (this.shown !== was) this.paint();
+    const through = this.spoken
+      ? this.spoken.upTo()
+      : this.line.length * (1 - this.waiting / this.span);
+    this.lightUp(through / REVEAL_AHEAD);
   }
 
-  /**
-   * The whole line is laid out at once with the unsaid half held invisible, so
-   * nothing reflows as it arrives.
-   */
-  private paint(): void {
-    const said = document.createElement('span');
-    said.textContent = this.line.slice(0, this.shown);
-    const unsaid = document.createElement('span');
-    unsaid.className = 'speech-unsaid';
-    unsaid.textContent = this.line.slice(this.shown);
-    this.lineEl.replaceChildren(said, unsaid);
+  /** Brings every letter up to where a reveal of `p` letters leaves it. */
+  private lightUp(p: number): void {
+    const end = Math.min(this.chars.length, Math.floor(p) + FADE_CHARS + 1);
+    for (let i = this.lit; i < end; i++) {
+      const alpha = Math.min(1, (p - i) / FADE_CHARS + 1);
+      if (alpha <= 0) break;
+      this.chars[i].style.opacity = alpha >= 1 ? '1' : alpha.toFixed(2);
+      if (alpha >= 1) this.lit = i + 1;
+    }
+  }
+
+  private fill(): void {
+    this.lightUp(this.chars.length + FADE_CHARS);
   }
 
   private offer(): void {
@@ -192,6 +255,10 @@ export class Dialogue {
     this.waiting = 0;
     this.spoken = null;
     this.line = '';
+    // Cleared, or the choices stay in the document as invisible buttons that
+    // can still be pressed.
+    this.choicesEl.replaceChildren();
+    this.lay();
     this.root.classList.remove('is-shown');
     this.scrim.hidden = true;
     document.body.classList.remove('is-dialogue');

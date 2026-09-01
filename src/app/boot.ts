@@ -345,6 +345,7 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       farewell: pick(script.farewell, creature.spec.seed, turn),
       topics: script.topics,
       speak: (text, manner) => creature.say(text, manner),
+      hush: () => creature.hush(),
     });
   };
 
