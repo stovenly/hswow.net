@@ -112,6 +112,8 @@ export class Input {
   private jumpHeld = false;
   /** Edge-triggered and consumed by the reader — see `takeInteract`. */
   private interactPressed = false;
+  /** The same, for a left click while captured. See `takeAttack`. */
+  private attackPressed = false;
   /** True until the first mouse move after capture, which is always garbage. */
   private settling = false;
   /** Guards against a second click starting a parallel retry loop. */
@@ -207,6 +209,17 @@ export class Input {
   takeInteract(): boolean {
     if (!this.interactPressed) return false;
     this.interactPressed = false;
+    return true;
+  }
+
+  /**
+   * True once per left click while the mouse is captured, `takeInteract`'s
+   * pattern exactly. Only while captured: an uncaptured click is how the lock
+   * is acquired, and the first click after every alt-tab must not swing.
+   */
+  takeAttack(): boolean {
+    if (!this.attackPressed) return false;
+    this.attackPressed = false;
     return true;
   }
 
@@ -314,7 +327,11 @@ export class Input {
   };
 
   private readonly handleCanvasPointerDown = (event: PointerEvent): void => {
-    if (this.free || this.locked || event.button !== 0) return;
+    if (this.free || event.button !== 0) return;
+    if (this.locked) {
+      this.attackPressed = true;
+      return;
+    }
     void this.requestLock();
   };
 

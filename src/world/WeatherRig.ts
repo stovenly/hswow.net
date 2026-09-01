@@ -228,7 +228,9 @@ export class WeatherRig {
     const climate = this.climate;
     const listener = camera.position;
     const zone = zones.current;
-    const outdoors = zone?.environment.sky ?? true;
+    // No zone is not "outside" — it is nowhere, between the title and a world.
+    // Read as indoors, so nothing falls where there is no ground to fall on.
+    const outdoors = zone?.environment.sky ?? false;
     // Set before the sample, not after: a zone with no map coordinate stands
     // outside the weather entirely. The clock still runs over it, but nothing
     // falls on an exhibit.
@@ -249,9 +251,13 @@ export class WeatherRig {
     this.postfx = postfx;
     this.applySurfaces(dt, outdoors, zone?.environment.wind ?? 1);
     this.applyFalling(postfx, outdoors, dt);
-    this.applySound(dt, audio, zones, listener, outdoors);
-    this.applyStorm(audio, zones, camera, outdoors);
-    this.applyAmbience(zones, listener, outdoors);
+    // Nothing to hear before somewhere exists to hear it in: the title screen
+    // sits outside the world, and its weather stays a fact rather than a sound.
+    if (zone) {
+      this.applySound(dt, audio, zones, listener, outdoors);
+      this.applyStorm(audio, zones, camera, outdoors);
+      this.applyAmbience(zones, listener, outdoors);
+    }
   }
 
   private applyLight(postfx: PostFX, zones: ZoneManager): void {

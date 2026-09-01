@@ -141,8 +141,12 @@ registerEntryKind<PropEntry>({
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
     const extras = builder.options ? coerceFields(builder.options, entry.options) : {};
-    const mesh = builder.build({ seed: seedOf(entry), scale: entry.scale, ...extras });
+    const seed = seedOf(entry);
+    const mesh = builder.build({ seed, scale: entry.scale, ...extras });
     applyPlacement(mesh, entry, ctx);
+    // The item systems read this back, so a taken prop is carried with the
+    // exact look it stood with.
+    mesh.userData.seed = seed;
 
     const solid = entry.solid ?? builder.solid !== false;
     if (solid) markCollidable(mesh);

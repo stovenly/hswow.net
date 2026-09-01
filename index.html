@@ -9,6 +9,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#0a0a0f" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%230a0a0f'/%3E%3Crect x='2' y='12' width='12' height='1' fill='%2346413a'/%3E%3Crect x='5' y='3' width='4' height='9' fill='%23dcdcc8'/%3E%3Crect x='8' y='3' width='1' height='9' fill='%239a958a'/%3E%3Crect x='11' y='7' width='3' height='5' fill='%237f7a70'/%3E%3Crect x='13' y='7' width='1' height='5' fill='%235f5b53'/%3E%3C/svg%3E" />
     <meta name="description" content="Here Stands What Once Was" />
     <!-- The title run together, lowercase, no spaces. The description carries
          the real one, so search and link previews still say what this is. -->
@@ -81,12 +82,13 @@
     <div id="overlay">
       <div id="crosshair"></div>
       <!--
-        Shown whenever the mouse is not captured, which is the closest thing
-        this game has to a pause screen — there is no menu, so this is where the
-        controls live. Static markup rather than built in script: it has to be
-        correct before any module has run, and nothing about it is dynamic.
+        The pause stack, shown whenever the mouse is not captured: the controls
+        panel, then the buttons the pause screen owns, mounted into
+        #pause-buttons by their own modules. The hint is static markup because
+        it has to be correct before any module has run.
       -->
-      <div id="capture-hint">
+      <div id="pause">
+        <div id="capture-hint">
         <div class="hint-title">click to play</div>
         <dl class="controls">
           <dt>Look Around</dt>
@@ -119,6 +121,8 @@
           <dt>Jump</dt>
           <dd><kbd class="key key-wide">Space</kbd></dd>
         </dl>
+        </div>
+        <div id="pause-buttons"></div>
       </div>
     </div>
     <div id="loading">

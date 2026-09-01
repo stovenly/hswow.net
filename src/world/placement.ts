@@ -179,6 +179,9 @@ export function scatterProps(
     if (blocked) continue;
 
     const mesh = builder.build({ seed, scale: size });
+    // The item systems read this back, so a taken prop is carried with the
+    // exact look it stood with.
+    mesh.userData.seed = seed;
     onPlaced?.(mesh);
     place(parent, mesh, x, z, yaw, ground.groundAt, solid);
   }

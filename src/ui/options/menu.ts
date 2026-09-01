@@ -119,7 +119,9 @@ export class OptionsMenu {
     foot.append(reset, resume);
     panel.append(title, strip, pages, foot);
     this.root.append(scrim, panel);
-    overlay.append(this.opener, this.root);
+    // Into the pause stack where the page has one; the editor page does not.
+    (document.getElementById('pause-buttons') ?? overlay).append(this.opener);
+    overlay.append(this.root);
 
     window.addEventListener('keydown', this.handleKeyDown);
     // The typeface arrives some time after the switch is thrown, and the note

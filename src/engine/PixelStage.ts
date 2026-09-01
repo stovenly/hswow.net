@@ -102,6 +102,10 @@ export class PixelStage extends Pass {
   private readonly renderResolution = new THREE.Vector2();
 
   private readonly colourTarget: THREE.WebGLRenderTarget;
+  /** What the scene is drawn into. Programs carry its colour space; see `PostFX.sceneTarget`. */
+  get sceneTarget(): THREE.WebGLRenderTarget {
+    return this.colourTarget;
+  }
   private readonly depthTexture: THREE.DepthTexture;
   private readonly normalTarget: THREE.WebGLRenderTarget;
   /**

@@ -141,9 +141,15 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
   setLightning(options.lightning);
   postfx.setWaterMotion(options.waterMotion);
   tuning.bobScale = options.headBob ? 1 : 0;
+  applyTextSize(options);
+}
+
+/**
+ * The root size, so every `rem` in the interface follows it. Nothing in the
+ * world is measured in `rem`. Separate from `applyOptions`, which needs an
+ * engine: this has to run before the first interface is drawn.
+ */
+export function applyTextSize(options: Options): void {
   setDyslexicFont(options.dyslexicFont);
-  // The root size, so every `rem` in the interface follows it. Nothing in the
-  // world is measured in `rem`, so this moves the HUD and the menus and leaves
-  // the game alone.
   document.documentElement.style.fontSize = `${BASE_FONT_PX + options.fontSize}px`;
 }

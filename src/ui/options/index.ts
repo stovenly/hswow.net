@@ -3,7 +3,7 @@ import { applyOptions, type OptionTargets } from './apply';
 import { saveOptions, type Options } from './model';
 
 export { loadOptions } from './model';
-export { audioLatencyHint } from './apply';
+export { audioLatencyHint, applyTextSize } from './apply';
 export type { Options } from './model';
 
 /**
@@ -40,7 +40,10 @@ export function installOptions(
     // The button says resume, so it resumes. Without this the panel would
     // close and leave the player looking at "click to play", having just
     // clicked — the panel swallowed the click that would have taken the lock.
-    onResume: () => targets.input.capture(),
+    // No world, no capture: the title screen has nothing to resume into.
+    onResume: () => {
+      if (targets.zones.current) void targets.input.capture();
+    },
   });
 
   applyOptions(options, targets);

@@ -41,17 +41,6 @@ export const ART_MATERIAL = new THREE.MeshLambertMaterial({
   flatShading: true,
 });
 
-/**
- * The same material with every finish chunk in it. Two programs, and that is the
- * whole set: a prop declaring any finish takes this one, everything else takes
- * the lean one above, and both are built before a zone is ever shown. What it
- * buys is that no door waits on a compile it could have done earlier.
- */
-export const ART_FINISHED_MATERIAL = new THREE.MeshLambertMaterial({
-  vertexColors: true,
-  flatShading: true,
-});
-
 export interface Part {
   geometry: THREE.BufferGeometry;
   /**

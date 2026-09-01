@@ -110,6 +110,13 @@ export class LightActivity {
     if (tracked.length) this.zones.set(id, tracked);
   }
 
+  /** Puts every tracked flame back at its authored level — call before a re-collect, so a mid-flicker intensity is never captured as a baseline. */
+  settle(id: string): void {
+    const tracked = this.zones.get(id);
+    if (!tracked) return;
+    for (const entry of tracked) rest(entry);
+  }
+
   release(id: string): void {
     this.zones.delete(id);
   }

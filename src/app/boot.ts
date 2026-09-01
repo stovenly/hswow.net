@@ -12,7 +12,7 @@ import { Footsteps } from '../audio/models/footsteps';
 import { AudioEngine } from '../audio/AudioEngine';
 import { createDevTools, type DevTools } from '../dev/DevPanel';
 import { Identify } from '../dev/Identify';
-import { ZoneManager } from '../world/ZoneManager';
+import { ZoneManager, type Focus } from '../world/ZoneManager';
 import type { Project } from './project';
 import { contentWorld, loadSidecars } from './content';
 import { Climate } from '../world/climate';
@@ -24,6 +24,7 @@ import { patchArtMaterial, updateWind } from '../art/sway';
 import { updateCover } from '../art/cover';
 import { updateParticles } from '../art/particles';
 import { installReloadBanner } from '../dev/HotReload';
+import { watchCompiles } from '../dev/compileWatch';
 import { Loader } from '../ui/Loader';
 import {
   audioLatencyHint,
@@ -44,6 +45,8 @@ export interface AppOptions {
   canvas: HTMLCanvasElement;
   overlay: HTMLElement;
   project: Project;
+  /** Whether boot enters `project.entry` behind the bar. The editor asks; the game page boots to the title. */
+  enter?: boolean;
 }
 
 export interface App {
@@ -74,11 +77,19 @@ export interface App {
    * accord is gated on it in the frame loop.
    */
   simulate: boolean;
+  /**
+   * First say over what the interact key does. Called before the default door
+   * and reading verbs; returning true consumes the press. How the game page
+   * adds verbs — items, containers — without the boot learning them.
+   */
+  interceptInteract: ((focus: Focus) => boolean) | null;
+  /** Runs inside the frame loop, after the player has moved and before the render. Returns an unsubscribe. */
+  onFrame(fn: (dt: number, elapsed: number) => void): () => void;
   /** Registers the frame loop, lifts the loading screen and starts running. */
   start(): Promise<void>;
 }
 
-export async function createApp({ canvas, overlay, project }: AppOptions): Promise<App> {
+export async function createApp({ canvas, overlay, project, enter = false }: AppOptions): Promise<App> {
   const viewport = new Viewport(canvas);
   const loop = new Loop();
   const dev = createDevTools();
@@ -166,14 +177,22 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
   zones.setShadows(options.shadows);
   postfx.aimSun(zones.sunDirection);
 
-  await loader.step('settling the world', 0.6, () => zones.enter(project.entry));
+  if (enter) {
+    await loader.step('settling the world', 0.55, () => zones.prebuild(project.entry));
+    // The entry of a built zone is its compile, so the wait carries its name.
+    await loader.step('compiling materials', 0.7, () => zones.enter(project.entry));
+  } else {
+    // Nothing covers the first entry here; the title hands straight to a fade.
+    zones.announceEntries();
+  }
 
-  // Built now rather than on first entry. A zone this size takes longer to raise
-  // than the transition fade is black for, so paying it here keeps the doorway
-  // instant, and the collider caches it. Its shader compile is NOT here: that
-  // fires in the background after boot, below.
-  for (const id of project.prebuild ?? []) {
-    await loader.step('raising the countryside', 0.78, () => zones.prebuild(id));
+  // Built now rather than on first entry, so a doorway into it is instant. Only
+  // where boot enters: raising a zone is one synchronous burst that cannot yield,
+  // and a title screen is being clicked on while this would run.
+  if (enter) {
+    for (const id of project.prebuild ?? []) {
+      await loader.step('raising the countryside', 0.78, () => zones.prebuild(id));
+    }
   }
 
   // --- audio ----------------------------------------------------------------
@@ -255,6 +274,7 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
   // Named `perfHud` rather than `performance`, which is a global this file
   // already reads for the heap size.
   const perfHud = new PerformanceHud(overlay, viewport.renderer, postfx.gpu);
+  const compiles = watchCompiles(viewport.renderer);
 
   // The reading screen. Not a pause: the world keeps running behind it, exactly
   // as it does behind the options panel — what stops is *steering*, and that
@@ -296,13 +316,16 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
 
 
   let simulate = true;
+  let interceptInteract: ((focus: Focus) => boolean) | null = null;
+  const frameHooks = new Set<(dt: number, elapsed: number) => void>();
 
   const start = async (): Promise<void> => {
     loop.add((rawDt, rawElapsed) => {
       const dt = identify.active ? 0 : rawDt;
       const elapsed = identify.active ? identify.frozenElapsed : rawElapsed;
       clock = elapsed;
-      player.update(dt);
+      // Not before somewhere exists to stand: with no collider the player falls.
+      if (zones.current) player.update(dt);
 
       // A floor under the world, so a fall through a seam is recoverable rather
       // than permanent. Each zone sets its own — an interior's is just below its
@@ -317,12 +340,14 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
       // press aimed at nothing would sit in the buffer and fire at whatever you
       // happened to look at next.
       const interacted = input.takeInteract();
-      if (interacted && focus) {
-        // Two verbs, one key. Which one is decided by what is under the crosshair
-        // rather than by a mode, so nothing has to be entered or left.
+      if (interacted && focus && !interceptInteract?.(focus)) {
+        // The verbs are decided by what is under the crosshair rather than by a
+        // mode, so nothing has to be entered or left.
         if (focus.kind === 'door') void zones.use(focus.side);
-        else reading.open(focus.note);
+        else if (focus.kind === 'read') reading.open(focus.note);
       }
+
+      for (const fn of frameHooks) fn(dt, elapsed);
 
       // The listener has to be moved before anything is judged against it, so the
       // engine is pumped first and hands back whether the occlusion raycasts are
@@ -374,6 +399,7 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
       // in. The debug readout reads them at the *top* of the frame and is a frame
       // behind for exactly that reason; this one does not have to be.
       perfHud.update(dt);
+      compiles(dt, zones.current !== null);
       dev.update();
     });
 
@@ -399,7 +425,9 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
     // Unawaited on purpose: the countryside's programs compile on driver threads
     // while the player stands at spawn. Reaching its door first just means the
     // entry awaits the remainder behind the fade.
-    for (const id of project.precompile ?? []) void zones.precompile(id);
+    // Unawaited, but not free: it builds the zone to compile it, and that build
+    // blocks. Same reason as the prebuild above — never under a live title.
+    if (enter) for (const id of project.precompile ?? []) void zones.precompile(id);
   };
 
   return {
@@ -430,6 +458,16 @@ export async function createApp({ canvas, overlay, project }: AppOptions): Promi
     },
     set simulate(on: boolean) {
       simulate = on;
+    },
+    get interceptInteract() {
+      return interceptInteract;
+    },
+    set interceptInteract(fn: ((focus: Focus) => boolean) | null) {
+      interceptInteract = fn;
+    },
+    onFrame(fn: (dt: number, elapsed: number) => void) {
+      frameHooks.add(fn);
+      return () => frameHooks.delete(fn);
     },
     start,
   };

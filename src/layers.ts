@@ -112,3 +112,15 @@ export const GLASS_LAYER = 6;
  * gated by.
  */
 export const EFFECT_MASK_LAYER = 7;
+
+/**
+ * The held tool — **the fourth exception to the additive rule.**
+ *
+ * `HeldTool` calls `layers.set`, so a held mesh is on this layer and only this
+ * layer: out of the colour pass, the normal pass and the shadow map. The held
+ * pass re-renders it over the finished frame onto a cleared depth buffer, so
+ * it depth-tests against itself and never against the world — a broom cannot
+ * clip into a wall. Lights must enable this layer or the tool renders black;
+ * `ZoneManager` does it wherever it enables `PARTICLE_LAYER`.
+ */
+export const HELD_LAYER = 8;

@@ -57,6 +57,7 @@ export class Reading {
   private readonly countEl: HTMLDivElement;
   private readonly prevEl: HTMLButtonElement;
   private readonly nextEl: HTMLButtonElement;
+  private readonly takeEl: HTMLButtonElement;
   private readonly handlers: Handlers;
   private readonly resize: ResizeObserver;
 
@@ -73,6 +74,11 @@ export class Reading {
   private open_ = false;
   /** The box as it was when the current pagination was measured against it. */
   private measured = '';
+  /** Set for a note whose carrier can be taken: pressing E while open takes it. */
+  private take: (() => void) | null = null;
+
+  /** Runs after every close, in the same frame — before the interface can react to the lock being gone. */
+  closed: (() => void) | null = null;
 
   constructor(overlay: HTMLElement, handlers: Handlers) {
     this.handlers = handlers;
@@ -109,7 +115,19 @@ export class Reading {
     this.countEl.className = 'reading-count';
 
     foot.append(this.prevEl, this.countEl, this.nextEl);
-    book.append(this.titleEl, this.bodyEl, foot);
+
+    this.takeEl = document.createElement('button');
+    this.takeEl.type = 'button';
+    this.takeEl.className = 'reading-take';
+    this.takeEl.textContent = 'take';
+    this.takeEl.hidden = true;
+    this.takeEl.addEventListener('click', () => {
+      const take = this.take;
+      if (take) take();
+      this.close();
+    });
+
+    book.append(this.titleEl, this.bodyEl, foot, this.takeEl);
     this.root.append(scrim, book);
     overlay.append(this.root);
 
@@ -133,7 +151,9 @@ export class Reading {
    * laid out, because a hidden box has no height and pagination measured
    * against no height is one page of nothing.
    */
-  open(note: Note): void {
+  open(note: Note, take?: () => void): void {
+    this.take = take ?? null;
+    this.takeEl.hidden = this.take === null;
     this.titleEl.textContent = note.title;
     const parsed = parse(note.body);
     this.tokens = parsed.tokens;
@@ -156,9 +176,11 @@ export class Reading {
   close(): void {
     if (!this.open_) return;
     this.open_ = false;
+    this.take = null;
     this.root.hidden = true;
     document.body.classList.remove('is-reading');
     this.handlers.onClose();
+    this.closed?.();
   }
 
   dispose(): void {
@@ -263,6 +285,13 @@ export class Reading {
     const from = this.starts[this.page];
     const to = this.starts[this.page + 1] ?? this.tokens.length;
     this.paint(from, to);
+    // A blank carrier: the quiet centred note, the inventory's empty register.
+    if (this.tokens.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'reading-empty';
+      empty.textContent = 'nothing is written';
+      this.bodyEl.replaceChildren(empty);
+    }
 
     this.countEl.textContent = `${this.page + 1} / ${this.starts.length}`;
     // Held in place and dimmed rather than removed: a control that disappears
@@ -312,9 +341,16 @@ export class Reading {
     if (!this.open_ || event.repeat) return;
     switch (event.code) {
       case 'Escape':
-      case 'KeyE':
         this.close();
         break;
+      // The second press of the key that opened it: reading something you could
+      // pocket ends by pocketing it.
+      case 'KeyE': {
+        const take = this.take;
+        if (take) take();
+        this.close();
+        break;
+      }
       case 'ArrowRight':
       case 'KeyD':
         this.turnTo(this.page + 1);

@@ -6,8 +6,8 @@ import { AERIAL_AIR_GLSL, fogUniforms } from '../engine/fog';
 import { REFLECT_GLSL } from '../engine/reflect';
 import { windUniforms } from './sway';
 
-// Stylized water: the fourth shared material, beside ART_MATERIAL,
-// ART_FINISHED_MATERIAL and GLOW_MATERIAL. Everything it does is a function of
+// Stylized water: the shared material beside ART_MATERIAL and its finish
+// variants, and GLOW_MATERIAL. Everything it does is a function of
 // what is behind it, so it draws in the effect chain with the opaque pass's
 // colour and depth bound as textures and the depth test done in the shader.
 // Per-pool variation is per-vertex; colour is global.

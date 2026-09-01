@@ -268,6 +268,36 @@ export const SURFACES = {
     roll: 0.085,
   },
 
+  /** Bound pages and loose leaves. A soft slap, a breath of pages pushed flat, no ring. */
+  paper: {
+    level: 0.4,
+    impact: { level: 0.3, duration: 0.03, low: 110, tone: 1300, q: 0.6, attack: 0.006 },
+    crush: { level: 0.22, duration: 0.07, from: 900, to: 1900, q: 0.9 },
+    modes: [],
+    grit: {
+      count: 8, over: 0.07, energyDecay: 0.028, hz: 3400, q: 0.6, level: 0.22,
+      grain: 0.006, attack: 0.002,
+    },
+    scuff: 0.55,
+    toe: 0.4,
+    roll: 0.08,
+  },
+
+  /** Woven fabric. Nearly no strike — the shove of cloth, and a fine dry rustle over it. */
+  cloth: {
+    level: 0.36,
+    impact: { level: 0.08, duration: 0.04, low: 150, tone: 1100, q: 0.5, attack: 0.02 },
+    crush: { level: 0.34, duration: 0.11, from: 1100, to: 2400, q: 0.8, rough: 0.3 },
+    modes: [],
+    grit: {
+      count: 10, over: 0.09, energyDecay: 0.035, hz: 4200, q: 0.5, level: 0.16,
+      grain: 0.005, attack: 0.003,
+    },
+    scuff: 0.7,
+    toe: 0.35,
+    roll: 0.09,
+  },
+
   /** Sheet metal, bedded. Inharmonic; the substrate drains the low end and takes the shimmer off the top. */
   'metal-solid': {
     level: 0.46,
@@ -492,7 +522,7 @@ function dragFor(speed: number): number {
 }
 
 /** One footfall's worth of context, shared by both its contacts. */
-interface Gesture {
+export interface Gesture {
   /** Audio-clock time of the first contact. */
   at: number;
   /** Seconds that a contact's `at` is measured in. */
@@ -547,9 +577,124 @@ function scatterBubbles(
   }
 }
 
-interface Chain {
+/** A surface's cached resonators: the ring-down is state, so they persist across contacts. */
+export interface SurfaceChain {
   bank: ModalBank;
   gritBed: ParticleBed | null;
+}
+
+/** Builds a surface's chain into `output` — shared by feet and hands, one chain per voice. */
+export function surfaceChain(
+  context: BaseAudioContext,
+  surface: Surface,
+  output: AudioNode,
+): SurfaceChain {
+  const bank = createModalBank(context, surface.modes, output, BANK);
+  let gritBed: ParticleBed | null = null;
+  if (surface.grit) {
+    gritBed = createParticleBed(context, surface.grit, output);
+  }
+  return { bank, gritBed };
+}
+
+/**
+ * One contact with a surface: transient, crush, modal ring, grit and splash.
+ * Shared with item handling, which differs only in gesture.
+ */
+export function strikeSurface(
+  context: BaseAudioContext,
+  noise: AudioBuffer,
+  output: AudioNode,
+  chain: SurfaceChain,
+  surface: Surface,
+  gesture: Gesture,
+  shape: Contact,
+): void {
+  const contact = settle(shape);
+  const at = gesture.at + contact.at * gesture.gap;
+  const level = gesture.force * contact.level;
+
+  // How much loose material this contact actually moves: partly weight,
+  // partly speed, in the proportion the material sets. See `Surface.scuff`.
+  const scuffing = 1 - surface.scuff + surface.scuff * gesture.drag;
+
+  // Built per contact, so brightness can follow the gesture. The resonators
+  // in the chain stay put: their ring-down is state.
+  const filter = context.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = surface.impact.tone * contact.tone;
+  filter.Q.value = surface.impact.q ?? 1;
+  filter.connect(output);
+
+  // The bottom of the band, when the material has one. Not scaled by
+  // `contact.tone` as the top is: the bottom is a fact about the material.
+  let entry: AudioNode = filter;
+  if (surface.impact.low) {
+    const shelf = context.createBiquadFilter();
+    shelf.type = 'highpass';
+    shelf.frequency.value = surface.impact.low;
+    shelf.Q.value = 0.7;
+    shelf.connect(filter);
+    entry = shelf;
+  }
+
+  // A single short excitation feeds the transient and every resonator alike.
+  excite(
+    context,
+    noise,
+    entry,
+    at,
+    level * surface.impact.level,
+    surface.impact.duration * contact.stretch,
+    surface.impact.attack === undefined ? undefined : surface.impact.attack * contact.stretch,
+  );
+
+  // The give. Straight to the output: `crush` builds its own sweeping band.
+  // A scrape compresses nothing, so `stretch` shortens and quietens it.
+  if (surface.crush) {
+    const press = 1 / Math.max(1, contact.stretch);
+    crush(context, noise, output, at, level * surface.crush.level * press, {
+      duration: surface.crush.duration * (0.7 + 0.3 * Math.min(contact.stretch, 1.6)),
+      from: surface.crush.from,
+      to: surface.crush.to,
+      q: surface.crush.q,
+      rise: surface.crush.rise,
+      band: surface.crush.band,
+      rough: surface.crush.rough,
+    });
+  }
+
+  // In excitation mode the ring-down lives in the burst, so each mode is fed
+  // one its own length — and always a strike, whatever the contact's rise.
+  for (let i = 0; i < surface.modes.length; i++) {
+    const mode = surface.modes[i];
+    excite(context, noise, chain.bank.inputs[i], at, level * mode.level * contact.modes, mode.decay * MODE_EXCITATION);
+  }
+
+  // Shear moves more pieces further and only incidentally louder, so most of
+  // the variation goes into `count` and `over` rather than into level.
+  if (surface.grit && chain.gritBed) {
+    const thrown: Grit = {
+      ...surface.grit,
+      count: Math.max(1, Math.round(surface.grit.count * (0.35 + 0.65 * scuffing))),
+      over: surface.grit.over * (0.5 + 0.5 * scuffing),
+    };
+    scatterParticles(context, noise, chain.gritBed, thrown, at, level * contact.grit * (0.75 + 0.25 * scuffing));
+  }
+
+  // The same, wet.
+  if (surface.splash) {
+    // Count follows the contact as well as the speed.
+    const thrown: Splash = {
+      ...surface.splash,
+      count: Math.max(
+        1,
+        Math.round(surface.splash.count * (0.35 + 0.65 * scuffing) * Math.min(contact.level, 1)),
+      ),
+      over: surface.splash.over * (0.6 + 0.4 * scuffing),
+    };
+    scatterBubbles(context, output, thrown, at, level * contact.grit * (0.75 + 0.25 * scuffing));
+  }
 }
 
 export class Footsteps {
@@ -562,7 +707,7 @@ export class Footsteps {
   private readonly panner: StereoPannerNode;
   private readonly reverbSend: GainNode;
   /** Built on first use and kept — resonators are the ground, not the step. */
-  private readonly chains = new Map<SurfaceName, Chain>();
+  private readonly chains = new Map<SurfaceName, SurfaceChain>();
   /** Which foot the *next* footfall belongs to. Toggled as each one is used. */
   private left = false;
   /** Last footfall's sideways component, for spotting a strafe starting. */
@@ -716,127 +861,16 @@ export class Footsteps {
   }
 
   /** One contact: transient, crush, modal ring, grit and splash. */
-  private strike(chain: Chain, surface: Surface, gesture: Gesture, shape: Contact): void {
-    const context = this.engine.context;
+  private strike(chain: SurfaceChain, surface: Surface, gesture: Gesture, shape: Contact): void {
     const noise = this.engine.noise;
     if (!noise) return;
-
-    const contact = settle(shape);
-    const at = gesture.at + contact.at * gesture.gap;
-    const level = gesture.force * contact.level;
-
-    // How much loose material this contact actually moves: partly weight,
-    // partly speed, in the proportion the material sets. See `Surface.scuff`.
-    const scuffing = 1 - surface.scuff + surface.scuff * gesture.drag;
-
-    // Built per contact, so brightness can follow the gesture. The resonators
-    // below stay cached: their ring-down is state.
-    const filter = context.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = surface.impact.tone * contact.tone;
-    filter.Q.value = surface.impact.q ?? 1;
-    filter.connect(this.output);
-
-    // The bottom of the band, when the material has one. Not scaled by
-    // `contact.tone` as the top is: the bottom is a fact about the material.
-    let entry: AudioNode = filter;
-    if (surface.impact.low) {
-      const shelf = context.createBiquadFilter();
-      shelf.type = 'highpass';
-      shelf.frequency.value = surface.impact.low;
-      shelf.Q.value = 0.7;
-      shelf.connect(filter);
-      entry = shelf;
-    }
-
-    // A single short excitation feeds the transient and every resonator alike.
-    excite(
-      context,
-      noise.white,
-      entry,
-      at,
-      level * surface.impact.level,
-      surface.impact.duration * contact.stretch,
-      surface.impact.attack === undefined ? undefined : surface.impact.attack * contact.stretch,
-    );
-
-    // The give. Straight to the output: `crush` builds its own sweeping band.
-    // A scrape compresses nothing, so `stretch` shortens and quietens it.
-    if (surface.crush) {
-      const press = 1 / Math.max(1, contact.stretch);
-      crush(context, noise.white, this.output, at, level * surface.crush.level * press, {
-        duration: surface.crush.duration * (0.7 + 0.3 * Math.min(contact.stretch, 1.6)),
-        from: surface.crush.from,
-        to: surface.crush.to,
-        q: surface.crush.q,
-        rise: surface.crush.rise,
-        band: surface.crush.band,
-        rough: surface.crush.rough,
-      });
-    }
-
-    // In excitation mode the ring-down lives in the burst, so each mode is fed
-    // one its own length — and always a strike, whatever the contact's rise.
-    for (let i = 0; i < surface.modes.length; i++) {
-      const mode = surface.modes[i];
-      excite(
-        context,
-        noise.white,
-        chain.bank.inputs[i],
-        at,
-        level * mode.level * contact.modes,
-        mode.decay * MODE_EXCITATION,
-      );
-    }
-
-    // Shear moves more pieces further and only incidentally louder, so most of
-    // the variation goes into `count` and `over` rather than into level.
-    if (surface.grit && chain.gritBed) {
-      const thrown: Grit = {
-        ...surface.grit,
-        count: Math.max(1, Math.round(surface.grit.count * (0.35 + 0.65 * scuffing))),
-        over: surface.grit.over * (0.5 + 0.5 * scuffing),
-      };
-      scatterParticles(
-        context,
-        noise.white,
-        chain.gritBed,
-        thrown,
-        at,
-        level * contact.grit * (0.75 + 0.25 * scuffing),
-      );
-    }
-
-    // The same, wet.
-    if (surface.splash) {
-      // Count follows the contact as well as the speed.
-      const thrown: Splash = {
-        ...surface.splash,
-        count: Math.max(
-          1,
-          Math.round(surface.splash.count * (0.35 + 0.65 * scuffing) * Math.min(contact.level, 1)),
-        ),
-        over: surface.splash.over * (0.6 + 0.4 * scuffing),
-      };
-      scatterBubbles(context, this.output, thrown, at, level * contact.grit * (0.75 + 0.25 * scuffing));
-    }
+    strikeSurface(this.engine.context, noise.white, this.output, chain, surface, gesture, shape);
   }
 
-  private chainFor(name: SurfaceName): Chain {
+  private chainFor(name: SurfaceName): SurfaceChain {
     const existing = this.chains.get(name);
     if (existing) return existing;
-
-    const context = this.engine.context;
-    const surface: Surface = SURFACES[name];
-
-    const bank = createModalBank(context, surface.modes, this.output, BANK);
-
-    let gritBed: ParticleBed | null = null;
-    if (surface.grit) {
-      gritBed = createParticleBed(context, surface.grit, this.output);
-    }
-
-    const chain: Chain = { bank, gritBed };
+    const chain = surfaceChain(this.engine.context, SURFACES[name], this.output);
     this.chains.set(name, chain);
     return chain;
   }

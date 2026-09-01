@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BuildOptions, MeshBuilder } from './types';
 import { assemble, finish, type Part } from './assemble';
-import { bookParts, type Book, type CoverBuilder } from './book';
+import { bookParts, hideColor, type Book, type CoverBuilder } from './book';
 import { createRng, type Rng } from './random';
 import { PALETTE, shade } from './palette';
 import { boardBook } from './builders/board-book';
@@ -238,8 +238,8 @@ function stock(
     // binding in four colours is just as real, and it is what a shelf of
     // somebody's own books looks like.
     const matched = rng.chance(0.5);
-    const hide = rng.pick(builder.plan.hide);
-    const spine = builder.plan.spine ? rng.pick(builder.plan.spine) : undefined;
+    const hide = hideColor(rng.pick(builder.plan.hide));
+    const spine = builder.plan.spine ? hideColor(rng.pick(builder.plan.spine)) : undefined;
 
     const run: Run = { books: [], key: stature + rng.around(0, 0.022) };
     const want = rng.int(1, 6);

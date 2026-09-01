@@ -61,6 +61,12 @@ export interface MeshBuilder {
    * would say something the player has no way to check.
    */
   readonly display?: string;
+  /**
+   * What this particular one is called, where the seed decides something the
+   * name carries. From the seed alone, never from a mesh: container stock is
+   * named unbuilt. Share the draw with `build`, never repeat it.
+   */
+  nameFor?(seed: number): string;
   /** Rough horizontal extent in metres, for spacing the gallery. Approximate by design: a hint, not a bounding volume. */
   readonly radius: number;
   /**

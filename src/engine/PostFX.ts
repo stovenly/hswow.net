@@ -12,8 +12,9 @@ import { glassUniforms } from '../art/glass';
 import { ParticlesEffect } from './Particles';
 import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
+import { HeldEffect } from './HeldOverlay';
 import { GlitchEffect } from './Glitch';
-import { applyGlitchDisplacement, glitchUniforms, setGlitchErode } from '../art/glitch';
+import { applyGlitchDisplacement, glitchUniforms, glitchVariant, setGlitchErode } from '../art/glitch';
 import { HorrorEffect } from './Horror';
 import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
@@ -243,6 +244,7 @@ export class PostFX {
   private readonly fog: FogVolumesEffect;
   private readonly particles: ParticlesEffect;
   private readonly bloom: BloomEffect;
+  private readonly held: HeldEffect;
   private readonly glitchFx: GlitchEffect;
   private readonly horrorFx: HorrorEffect;
   private readonly maskFx: EffectMaskPass;
@@ -363,6 +365,8 @@ export class PostFX {
     // After the fog and before bloom, and both of those are load-bearing.
     this.particles = new ParticlesEffect();
     this.bloom = new BloomEffect();
+    // Over the bloomed, fogged frame and under the corruption.
+    this.held = new HeldEffect();
     // The owner-id mask both corruption passes are gated by. A passthrough.
     this.maskFx = new EffectMaskPass();
     // Under the glitch pass: darkness pools over the bloomed, fogged scene.
@@ -378,6 +382,7 @@ export class PostFX {
       this.fog,
       this.particles,
       this.bloom,
+      this.held,
       this.maskFx,
       this.horrorFx,
       this.glitchFx,
@@ -427,6 +432,13 @@ export class PostFX {
     this.skyWarmth = warmth;
     this.sky.setAir(horizon, zenith, ground, sun, warmth);
     this.applyFog();
+  }
+
+  /** Whether the live zone still holds any particle of its own — its star sites come and go with what is placed in it. */
+  setZoneParticles(present: boolean): void {
+    if (this.air) this.air.particles = present;
+    this.particles.setActive(present || this.weatherParticles);
+    this.apply();
   }
 
   /** Weather draws on the particle layer without being part of any zone. */
@@ -578,6 +590,11 @@ export class PostFX {
   get clutterRadius(): number {
     if (this.viewDistance === null) return Infinity;
     return this.viewDistance * this.settings.clutterCull;
+  }
+
+  /** Whether anything is in the hand. Off skips the held pass entirely. */
+  setHeldItem(present: boolean): void {
+    this.held.enabled = present;
   }
 
   /** Particles on or off. Off skips the pass and every particle draw with it. */
@@ -762,13 +779,45 @@ export class PostFX {
    * the first pond does not stall the frame a fade lifts. Two frames: the art
    * materials compile the glitch discard out where nothing is glitched.
    */
+  /**
+   * Compiles with the scene's own render target bound. A program's key carries
+   * the output colour space of whatever target is current, and the scene is
+   * drawn into the pixel stage — compiled against the canvas the programs are
+   * the wrong ones, and every mesh links again the first frame it is drawn.
+   */
+  async compiling<T>(work: () => Promise<T>): Promise<T> {
+    const { renderer } = this.viewport;
+    const held = renderer.getRenderTarget();
+    renderer.setRenderTarget(this.pixelStage.sceneTarget);
+    try {
+      return await work();
+    } finally {
+      renderer.setRenderTarget(held);
+    }
+  }
+
+  /** One unseen frame, every pass on: compiles the depth, normal and glow programs for the geometry standing now. Touches no global switch. */
+  warmScene(): void {
+    const held = this.pixelStage.effects.map((effect) => effect.enabled);
+    this.warming = true;
+    this.render(0);
+    this.warming = false;
+    this.pixelStage.effects.forEach((effect, i) => {
+      effect.enabled = held[i];
+    });
+  }
+
   prewarm(): void {
     const held = this.pixelStage.effects.map((effect) => effect.enabled);
+    // Restored, not left where the loop ends: the switch invalidates every art
+    // material, and only what these two frames draw is warmed again.
+    const wasEroding = glitchVariant() === 'erode';
     this.warming = true;
     for (const eroding of [true, false]) {
       setGlitchErode(eroding);
       this.render(0);
     }
+    setGlitchErode(wasEroding);
     this.warming = false;
     this.pixelStage.effects.forEach((effect, i) => {
       effect.enabled = held[i];

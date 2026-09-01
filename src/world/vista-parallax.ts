@@ -83,12 +83,6 @@ export class VistaParallax {
       // than its own half-extent cannot be given room it never had, so it is
       // pinned — which at least stops visibly rather than sinking in.
       this.keepRoom[i] = Math.min(p.keep, placed);
-      if (placed < p.keep) {
-        console.warn(
-          `VistaParallax: a prop ${p.keep.toFixed(0)} m across was placed ` +
-            `${placed.toFixed(0)} m from the keep-out, so it barely moves`,
-        );
-      }
       for (let j = 0; j < n; j++) {
         if (i === j) continue;
         const q = this.props[j];

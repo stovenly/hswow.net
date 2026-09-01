@@ -181,8 +181,6 @@ export class ProvingGround {
         flatShading: true,
       });
     }
-
-    this.populate();
   }
 
   /**

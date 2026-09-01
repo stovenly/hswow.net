@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { ART_FINISHED_MATERIAL, ART_MATERIAL, FIELD_ATTRIBUTE } from './assemble';
+import { ART_MATERIAL, FIELD_ATTRIBUTE } from './assemble';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
 import { applyAerialFog } from '../engine/fog';
-import { applyFinish, FINISH_MASK_ALL } from './finish';
+import { applyFinish } from './finish';
 import { applyGlitch, applyGlitchDisplacement, glitchVariant } from './glitch';
 import { applyHorror, applyHorrorDisplacement } from './horror';
 import type { Weather } from '../audio/weather';
@@ -226,7 +226,7 @@ export function patchArtMaterial(): void {
   // The finish stage wraps last. It hooks the lighting chunks rather than the
   // colour ones, so it consumes whatever the three stages above decided the
   // surface is. Mask 0: the lean material carries only the base finish, and
-  // anything that declared one takes `ART_FINISHED_MATERIAL` below.
+  // anything that declared more takes a variant from `artMaterialFor`.
   applyFinish(ART_MATERIAL, 0);
   // And the glitch stage wraps after even that: it corrupts the lit result,
   // finish and all, which is what makes it read as the signal going bad rather
@@ -240,42 +240,45 @@ export function patchArtMaterial(): void {
   applyHorror(ART_MATERIAL);
   applyHorrorDisplacement(SWAY_DEPTH_MATERIAL);
 
-  // The finished twin: the same chain, with every finish chunk rather than none.
-  // Built here so both programs exist before any zone compiles, and so a room
-  // never decides anything about materials.
-  //
-  // The cache key is set after the chain, and has to be: each stage sets its own
-  // constant key and the last one wins, so otherwise the two materials would ask
-  // three for the same program.
-  applySway(ART_FINISHED_MATERIAL);
-  applyWear(ART_FINISHED_MATERIAL);
-  applyDetail(ART_FINISHED_MATERIAL);
-  applyFinish(ART_FINISHED_MATERIAL, FINISH_MASK_ALL);
-  applyGlitch(ART_FINISHED_MATERIAL);
-  applyHorror(ART_FINISHED_MATERIAL);
-
-  // The air, outermost of all and on both. It is the last thing that happens to a
+  // The air, outermost of all. It is the last thing that happens to a
   // fragment: everything else is what the surface is, and this is what is between
   // you and it. Ground cover and weather do the same for themselves where they
   // are declared — importing them here would close a cycle, since both read the
   // wind out of this module.
   applyAerialFog(ART_MATERIAL);
-  applyAerialFog(ART_FINISHED_MATERIAL);
 
-  // The erode variant rides in both keys: glitch compiles its `discard` out
+  // The erode variant rides in the key: glitch compiles its `discard` out
   // where nothing is glitched, and the two programs must not be confused for
   // each other. See `setGlitchErode`.
-  ART_MATERIAL.customProgramCacheKey = () => `art:lean:${glitchVariant()}`;
-  ART_FINISHED_MATERIAL.customProgramCacheKey = () => `art:finished:${glitchVariant()}`;
+  ART_MATERIAL.customProgramCacheKey = () => `art:0:${glitchVariant()}`;
 }
 
-/**
- * Puts a mesh in one of the two art materials: lean, or finished. The decision is
- * the mask being nonzero, and there is nothing else to it. The mask is still
- * stamped and still means what a prop declared; nothing reads it at runtime.
- */
+/** The compiled variants, by finish mask. Mask 0 is the lean shared material. */
+const variants = new Map<number, THREE.Material>();
+
+/** The art material carrying exactly the finish chunks `mask` names. Built on first request, kept for the session. */
+export function artMaterialFor(mask: number): THREE.Material {
+  if (mask === 0) return ART_MATERIAL;
+  const held = variants.get(mask);
+  if (held) return held;
+
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  applySway(material);
+  applyWear(material);
+  applyDetail(material);
+  applyFinish(material, mask);
+  applyGlitch(material);
+  applyHorror(material);
+  applyAerialFog(material);
+  // After the chain: each stage sets its own constant key and the last wins.
+  material.customProgramCacheKey = () => `art:${mask}:${glitchVariant()}`;
+  variants.set(mask, material);
+  return material;
+}
+
+/** Puts a mesh in the art material its mask names. Stamped so the compile warmers can read it. */
 export function dressArtMesh(mesh: THREE.Mesh, mask: number): void {
-  mesh.material = mask === 0 ? ART_MATERIAL : ART_FINISHED_MATERIAL;
+  mesh.material = artMaterialFor(mask);
   if (mask !== 0) mesh.userData.finishMask = mask;
 }
 

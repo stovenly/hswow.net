@@ -30,6 +30,6 @@ const entry =
   content.documents[0]?.id ??
   project.entry;
 
-const app = await createApp({ canvas, overlay, project: { ...project, entry } });
+const app = await createApp({ canvas, overlay, project: { ...project, entry }, enter: true });
 new Editor(app, content.documents, content.manifest);
 await app.start();

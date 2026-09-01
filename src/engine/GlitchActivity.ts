@@ -110,6 +110,11 @@ export class GlitchActivity {
     this.zones.clear();
   }
 
+  /** Whether this zone compiles the erode discard in. Asked before entry, so the compile builds the variant that will be drawn. */
+  erodes(id: string | null): boolean {
+    return id !== null && this.zones.get(id) !== undefined;
+  }
+
   /**
    * Packs the active zone's volumes into the shared uniform store. Once a
    * frame, before the frame that reads it.

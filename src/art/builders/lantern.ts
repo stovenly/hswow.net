@@ -23,11 +23,23 @@ const LIGHT_INTENSITY = 5;
 /** Hard cutoff — past this it contributes nothing and costs nothing. See the candle for why the intensity rises by 2.4 rather than 2 to buy twice the reach. */
 const LIGHT_RANGE = 18;
 
+/** The metal, drawn in one place so `nameFor` and `build` cannot disagree. Third draw of the seed. */
+function rollRust(rng: ReturnType<typeof createRng>): boolean {
+  return rng.chance(0.35);
+}
+
 export const lantern: BuilderWith<FlameOptions> = {
   name: 'lantern',
   category: 'objects',
   options: { shadows: { type: 'boolean' } } satisfies Fields,
   radius: 0.28,
+
+  nameFor(seed) {
+    const rng = createRng(seed);
+    rollFlame(rng);
+    rng.range(0.85, 1.08);
+    return rollRust(rng) ? 'Rusted Lantern' : 'Iron Lantern';
+  },
 
   build({ seed = 1, scale = 1, shadows = false } = {}) {
     const rng = createRng(seed);
@@ -36,7 +48,7 @@ export const lantern: BuilderWith<FlameOptions> = {
 
     const flame = rollFlame(rng);
     const iron = shade(PALETTE.IRON, rng.range(0.85, 1.08));
-    const rusty = rng.chance(0.35);
+    const rusty = rollRust(rng);
     const metal = rusty ? shade(PALETTE.RUST, rng.range(0.85, 1.05)) : iron;
 
     // A squat one and a tall one, and not much between. Lanterns come in

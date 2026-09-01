@@ -243,13 +243,14 @@ export function vistaShowcaseZone(): ZoneDefinition {
     // in the game whose whole job is to hide what is far away. The clock still
     // runs overhead, and the panel's holds still reach in — so any weather can
     // be put here on purpose, which is the only way it should arrive.
-    name: 'Vista Showcase',
+    name: 'Countryside Plains Demo',
     group: 'general',
     environment: {
       ...OUTDOOR_ENVIRONMENT,
       fogNear: FOG_NEAR,
       fogFar: FOG_FAR,
       soundscape: SILENCE,
+      vibe: 'plains 1',
     },
     spawn: { position: onGround(0, VIEW_Z), yaw: Math.PI },
     floor: -20,

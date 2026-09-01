@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Collider } from '../player/Collider';
+import type { Item } from './items';
 
 /**
  * What the player is looking at, and whether they can reach it. There is no mouse
@@ -11,8 +12,8 @@ import type { Collider } from '../player/Collider';
  * scenery. If you can read it, you can use it.
  */
 
-/** Metres. A little more than arm's length, so you needn't press up against it. */
-export const DEFAULT_REACH = 3.2;
+/** Metres. About arm's length with a small step of grace. */
+export const DEFAULT_REACH = 2.2;
 
 /**
  * Slack when comparing the interaction ray against the collision ray. Doors are
@@ -86,6 +87,37 @@ export function labelOf(object: THREE.Object3D | null): Labelled | null {
   return null;
 }
 
+/** Stored as `userData.pickup` by the item systems. `key` is the record the affected delta speaks; `placedId` is set on items the player put down. */
+export interface PickupInfo {
+  readonly key: string;
+  readonly item: Item;
+  readonly placedId?: string;
+}
+
+/** Stored as `userData.container`. `kind` is the builder name and picks the loot table. */
+export interface ContainerInfo {
+  readonly key: string;
+  readonly kind: string;
+  readonly display: string;
+}
+
+/**
+ * The nearest ancestor carrying a pickup or container mark, whichever comes
+ * first — one walk, so an item standing on a marked container names itself
+ * rather than what it stands on.
+ */
+export function carriedOf(
+  object: THREE.Object3D | null,
+): { node: THREE.Object3D; pickup?: PickupInfo; container?: ContainerInfo } | null {
+  for (let node = object; node; node = node.parent) {
+    const pickup = node.userData.pickup as PickupInfo | undefined;
+    if (pickup) return { node, pickup };
+    const container = node.userData.container as ContainerInfo | undefined;
+    if (container) return { node, container };
+  }
+  return null;
+}
+
 export class Interaction {
   reach = DEFAULT_REACH;
 
@@ -111,15 +143,22 @@ export class Interaction {
    * object identity the collider's triangle soup cannot, and the collider, which
    * knows about walls the interactable set has never heard of.
    */
-  probe(camera: THREE.Camera, collider: Collider): Hover | null {
+  probe(camera: THREE.Camera, collider: Collider, through?: THREE.Vector2): Hover | null {
     if (this.targets.length === 0) return null;
 
     camera.updateWorldMatrix(true, false);
-    _origin.setFromMatrixPosition(camera.matrixWorld);
-    _direction.set(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(_quaternion));
-
     this.raycaster.far = this.reach;
-    this.raycaster.set(_origin, _direction);
+    if (through) {
+      // The free cursor while a screen is open: the same ray and the same
+      // occlusion, aimed through the pointer instead of down the view axis.
+      this.raycaster.setFromCamera(through, camera);
+      _origin.copy(this.raycaster.ray.origin);
+      _direction.copy(this.raycaster.ray.direction);
+    } else {
+      _origin.setFromMatrixPosition(camera.matrixWorld);
+      _direction.set(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(_quaternion));
+      this.raycaster.set(_origin, _direction);
+    }
 
     // `true` — doors are merged into a single mesh but are parented into the
     // zone's group, and a caller may well register a group rather than a mesh.

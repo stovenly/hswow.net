@@ -2,12 +2,20 @@ import * as THREE from 'three';
 import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import { PortalGraph, arrivalFor, type PortalDefinition, type PortalSide } from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
-import { labelOf, type Interaction } from './Interaction';
+import {
+  carriedOf,
+  labelOf,
+  type ContainerInfo,
+  type Interaction,
+  type PickupInfo,
+} from './Interaction';
+import { isReadable } from './items';
 import { noteById, type Note } from './notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
+import { setGlitchErode } from '../art/glitch';
 import { LightActivity } from '../engine/LightActivity';
 import { WindowLight } from '../engine/WindowLight';
 import type { Daylight } from '../engine/daylight';
@@ -16,7 +24,7 @@ import { LifeActivity } from '../engine/LifeActivity';
 import { GlitchActivity } from '../engine/GlitchActivity';
 import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
-import { COLLISION_LAYER, PARTICLE_LAYER } from '../layers';
+import { COLLISION_LAYER, HELD_LAYER, PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { VistaParallax } from './vista-parallax';
 import { Building } from '../ui/Building';
@@ -130,10 +138,16 @@ function freezeMatrices(root: THREE.Object3D): void {
   });
 }
 
-/** What pressing the interact key would act on. A union, because a door moves you and a readable opens a page. */
+/** What pressing the interact key would act on. A union, because a door moves you, a readable opens a page, and an item or container belongs to the item systems. */
 export type Focus =
   | { readonly kind: 'door'; readonly side: PortalSide }
-  | { readonly kind: 'read'; readonly note: Note };
+  | { readonly kind: 'read'; readonly note: Note; readonly object: THREE.Object3D }
+  | { readonly kind: 'item'; readonly object: THREE.Object3D; readonly pickup: PickupInfo }
+  | {
+      readonly kind: 'container';
+      readonly object: THREE.Object3D;
+      readonly container: ContainerInfo;
+    };
 
 export interface ZoneManagerOptions {
   scene: THREE.Scene;
@@ -162,6 +176,9 @@ const PROBE_INTERVAL = 1 / 18;
 /** Where the camera is looking, refilled each life update. */
 const _gaze = new THREE.Vector3();
 
+/** The cursor, for `cursorLabel`. */
+const _ndc = new THREE.Vector2();
+
 export class ZoneManager {
   readonly zones = new Map<ZoneId, Zone>();
   readonly portals = new PortalGraph();
@@ -186,11 +203,15 @@ export class ZoneManager {
   private readonly soundscapes = new Map<ZoneId, Soundscape>();
   /** Zones whose geometry has been built *and* indexed for collision. A zone can be prebuilt without ever being entered. */
   private readonly warmed = new Set<ZoneId>();
+  /** Finish masks with a program compiled against the named zone's census. Keyed `zone:mask`. */
+  private readonly warmFinish = new Map<string, { done: boolean; wait: Promise<void> }>();
   /** Guards against a second `enter` arriving mid-transition. See `enter`. */
   private entering = 0;
   private readonly building = new Building(document.body);
   /** Whether the player has arrived anywhere yet. The first entry is silent, because boot already has a loading bar. */
   private arrived = false;
+  /** Whether a frame has been drawn with a zone standing in the scene. See the prewarm in `enter`. */
+  private drawn = false;
 
   private active: Zone | null = null;
   /** The zone the player stepped out of, kept resident so pacing in a doorway is free. */
@@ -256,6 +277,9 @@ export class ZoneManager {
   /** Fired after every entry, including the first: how systems that are not zone-owned find out where they are. */
   onZoneChange: ((zone: Zone) => void) | null = null;
 
+  /** Fired once per build of a zone, after dressing, with the finished root — where the item systems mark and correct what was built. */
+  onDressed: ((zone: Zone, root: THREE.Group) => void) | null = null;
+
   constructor(options: ZoneManagerOptions) {
     this.options = options;
 
@@ -301,6 +325,7 @@ export class ZoneManager {
     // never reaches them.
     for (const light of [this.lights.sun, this.lights.fill, this.lights.ambient]) {
       light.layers.enable(PARTICLE_LAYER);
+      light.layers.enable(HELD_LAYER);
     }
     options.scene.add(this.lights.sun, this.lights.fill, this.lights.ambient);
   }
@@ -432,14 +457,65 @@ export class ZoneManager {
     const zone = this.zones.get(id);
     if (!zone) return;
     await zone.ensureLoaded();
-    await this.compile(await this.prepare(zone));
+    const root = await this.prepare(zone);
+    await this.compile(root);
+    this.markWarm(id, root);
+  }
+
+  /** Marks every finish mask under `root` as having a program compiled for `id`. */
+  private markWarm(id: ZoneId, root: THREE.Object3D): void {
+    for (const mask of finishMasksOf(root)) {
+      this.warmFinish.set(`${id}:${mask}`, { done: true, wait: Promise.resolve() });
+    }
+  }
+
+  /** Whether dropping this mesh into the active zone would compile a program mid-frame. */
+  itemWarm(root: THREE.Object3D): boolean {
+    const zone = this.active;
+    if (!zone) return true;
+    return finishMasksOf(root).every((mask) => this.warmFinish.get(`${zone.id}:${mask}`)?.done);
+  }
+
+  /** Compiles an item mesh's programs against the live scene, off the frame. Its own lights are hidden — they are not in the zone's census. */
+  warmItem(root: THREE.Object3D): Promise<void> {
+    const zone = this.active;
+    if (!zone) return Promise.resolve();
+    const cold = finishMasksOf(root).filter(
+      (mask) => !this.warmFinish.get(`${zone.id}:${mask}`)?.done,
+    );
+    if (cold.length === 0) return Promise.resolve();
+    const pending = cold
+      .map((mask) => this.warmFinish.get(`${zone.id}:${mask}`)?.wait)
+      .filter((held): held is Promise<void> => held !== undefined);
+    if (pending.length === cold.length) return Promise.all(pending).then(() => undefined);
+
+    const { scene, player, postfx } = this.options;
+    const lights: THREE.Light[] = [];
+    root.traverse((object) => {
+      if (object instanceof THREE.Light && object.visible) lights.push(object);
+    });
+    for (const light of lights) light.visible = false;
+    const wait: Promise<void> = postfx
+      .compiling(() => postfx.renderer.compileAsync(root, player.camera, scene))
+      .then(() => {
+        for (const mask of cold) this.warmFinish.set(`${zone.id}:${mask}`, { done: true, wait });
+      })
+      .catch((error: unknown) => {
+        for (const mask of cold) this.warmFinish.delete(`${zone.id}:${mask}`);
+        throw error;
+      })
+      .finally(() => {
+        for (const light of lights) light.visible = true;
+      });
+    for (const mask of cold) this.warmFinish.set(`${zone.id}:${mask}`, { done: false, wait });
+    return wait;
   }
 
   /** Compiles every program the root needs, off the critical frame. */
   private async compile(root: THREE.Group): Promise<void> {
     const { scene, player, postfx } = this.options;
     if (root.parent === scene) {
-      await postfx.renderer.compileAsync(scene, player.camera);
+      await postfx.compiling(() => postfx.renderer.compileAsync(scene, player.camera));
       return;
     }
     // A detached root compiles against a stand-in holding clones of the global
@@ -449,7 +525,7 @@ export class ZoneManager {
     stand.fog = scene.fog;
     stand.environment = scene.environment;
     stand.add(this.lights.sun.clone(), this.lights.fill.clone(), this.lights.ambient.clone());
-    await postfx.renderer.compileAsync(root, player.camera, stand);
+    await postfx.compiling(() => postfx.renderer.compileAsync(root, player.camera, stand));
   }
 
   /** Which zones are currently holding memory — what exists, not what policy says should exist. */
@@ -501,14 +577,7 @@ export class ZoneManager {
     this.options.collider.build(root, zone.id);
     this.warmed.add(zone.id);
     this.applyAudio(zone);
-    const targets: THREE.Object3D[] = this.portals
-      .in(zone.id)
-      .map((side) => side.door)
-      .filter((door): door is THREE.Mesh => door !== null);
-    root.traverse((object) => {
-      if (typeof object.userData.label === 'string') targets.push(object);
-    });
-    this.options.interaction.setTargets(targets);
+    this.collectTargets(zone, root);
     this.options.postfx.setEnvironment({
       sky: zone.environment.sky,
       fogColor: zone.environment.fogColor,
@@ -635,7 +704,7 @@ export class ZoneManager {
     const token = ++this.entering;
     const stale = (): boolean => token !== this.entering;
 
-    const { scene, collider, player, postfx, interaction } = this.options;
+    const { scene, collider, player, postfx } = this.options;
     const cold = !this.warmed.has(zone.id) && this.arrived;
 
     if (cold) {
@@ -668,8 +737,18 @@ export class ZoneManager {
     // the old zone with the player standing on its collider; compiling after the
     // swap put rendered frames between the collider changing and the teleport.
     if (cold) await this.building.step('almost there', 0.96);
-    await this.compile(root);
+    // Before the compile: it decides which variant the compile builds.
+    setGlitchErode(this.glitch.erodes(zone.id));
+    // On the cold path the building screen is up and this line is unseen.
+    const slow = window.setTimeout(() => this.options.fade.note('compiling materials…'), 250);
+    try {
+      await this.compile(root);
+    } finally {
+      window.clearTimeout(slow);
+      this.options.fade.note(null);
+    }
     if (stale()) return;
+    this.markWarm(zone.id, root);
 
     // From here to the teleport nothing yields: the swap, the collider and
     // the player's arrival land in one task, so no frame renders mid-swap.
@@ -712,23 +791,33 @@ export class ZoneManager {
 
     this.applyAudio(zone);
 
-    // Doors, plus anything in the zone carrying a label. Collected by walking the
-    // zone on entry: a builder deep inside a gallery has no handle on the
-    // interaction system, and threading one through would cost every layer between.
-    const targets: THREE.Object3D[] = this.portals
-      .in(zone.id)
-      .map((side) => side.door)
-      .filter((door): door is THREE.Mesh => door !== null);
-    root.traverse((object) => {
-      if (typeof object.userData.label === 'string') targets.push(object);
-    });
-    interaction.setTargets(targets);
+    this.collectTargets(zone, root);
 
     // Settled onto the zone's ground: an arrival is derived by stepping out
     // from a door, which keeps the door's height, and outdoors that is only
     // right if the ground happens to be level there.
     const placement = zone.settle(at ?? zone.spawn);
     player.teleport(placement.position, placement.yaw);
+
+    // `compile` above covers surface materials only, and a pass compiles what it
+    // draws. `teleport` moves the capsule; only an update places the camera.
+    if (!this.drawn) {
+      this.drawn = true;
+      player.update(0);
+      postfx.warmScene();
+    }
+
+    // Again, with the zone in the scene. The compile above ran the root against
+    // a stand-in, and a parameter that differs between the two is one a mesh
+    // compiles the first frame it is drawn — whenever the player turns to it.
+    const late = window.setTimeout(() => this.options.fade.note('compiling materials…'), 250);
+    try {
+      await this.compile(root);
+    } finally {
+      window.clearTimeout(late);
+      this.options.fade.note(null);
+    }
+    if (stale()) return;
 
     // Whatever was under the crosshair belonged to the zone we just left.
     this.hovered = null;
@@ -837,7 +926,55 @@ export class ZoneManager {
       this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
     }
 
-    return this.decorate(zone, root);
+    const dressed = await this.decorate(zone, root);
+    this.onDressed?.(zone, dressed);
+    return dressed;
+  }
+
+  /**
+   * Doors, plus anything in the zone carrying a label. Collected by walking the
+   * zone: a builder deep inside a gallery has no handle on the interaction
+   * system, and threading one through would cost every layer between.
+   */
+  private collectTargets(zone: Zone, root: THREE.Group): void {
+    const targets: THREE.Object3D[] = this.portals
+      .in(zone.id)
+      .map((side) => side.door)
+      .filter((door): door is THREE.Mesh => door !== null);
+    root.traverse((object) => {
+      if (typeof object.userData.label === 'string') targets.push(object);
+    });
+    this.options.interaction.setTargets(targets);
+  }
+
+  /** Re-collects the active zone's interactables after something was added or taken. */
+  refreshTargets(): void {
+    if (this.active?.isBuilt) this.collectTargets(this.active, this.active.root());
+  }
+
+  /** Rebuilds the zone's star sites: the field bakes in every site's position, so it is wrong the moment a starred prop arrives or leaves. */
+  refreshSparkles(id: ZoneId): void {
+    const zone = this.zones.get(id);
+    if (!zone?.isBuilt) return;
+    const root = zone.root();
+    const held: THREE.Object3D[] = [];
+    root.traverse((object) => {
+      if (object.userData.sparkleField === true) held.push(object);
+    });
+    for (const old of held) {
+      old.removeFromParent();
+      if (old instanceof THREE.Mesh) old.geometry.dispose();
+    }
+
+    const sparkles = buildZoneSparkles(root);
+    if (sparkles) {
+      sparkles.userData.sparkleField = true;
+      root.add(sparkles);
+      this.particled.add(id);
+    } else this.particled.delete(id);
+
+    // Only the live zone owns the effect chain's state.
+    if (this.active === zone) this.options.postfx.setZoneParticles(this.particled.has(id));
   }
 
   /**
@@ -867,6 +1004,7 @@ export class ZoneManager {
       // without this every flake in the zone comes out black.
       if (object instanceof THREE.Light) {
         object.layers.enable(PARTICLE_LAYER);
+        object.layers.enable(HELD_LAYER);
         if (object instanceof THREE.PointLight) points++;
         if (object instanceof THREE.SpotLight) spots++;
         // A flame that asked to cast, which the preset can still overrule.
@@ -986,6 +1124,7 @@ export class ZoneManager {
         const light = make();
         // Like every real light, so the particle pass sees the same census.
         light.layers.enable(PARTICLE_LAYER);
+        light.layers.enable(HELD_LAYER);
         // Marked, so re-dressing a zone replaces the pads rather than stacking
         // a second set on top of them.
         light.userData.lightPad = true;
@@ -994,6 +1133,40 @@ export class ZoneManager {
     };
     pad(points, POINT_TIERS, () => new THREE.PointLight(0x000000, 0), 'point');
     pad(spots, SPOT_TIERS, () => new THREE.SpotLight(0x000000, 0), 'spot');
+  }
+
+  /**
+   * Re-pads a built zone's census after a runtime light add or remove — a
+   * lantern picked up or put down — so its programs stay on the shared tiers.
+   */
+  rebalanceLights(id: ZoneId): void {
+    const zone = this.zones.get(id);
+    if (!zone?.isBuilt) return;
+    const root = zone.root();
+    const pads: THREE.Light[] = [];
+    let points = 0;
+    let spots = 0;
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Light)) return;
+      if (object.userData.lightPad === true) {
+        pads.push(object);
+        return;
+      }
+      // Like decorate does for the zone's own lights, or the flake pass draws
+      // this one black.
+      object.layers.enable(PARTICLE_LAYER);
+      object.layers.enable(HELD_LAYER);
+      if (object instanceof THREE.PointLight) points++;
+      if (object instanceof THREE.SpotLight) spots++;
+    });
+    for (const held of pads) held.removeFromParent();
+    this.padLights(root, id, points, spots);
+
+    // The flames changed with the lights. Settled before the walk, so a
+    // mid-flicker intensity is not captured as the new baseline.
+    this.activity.settle(id);
+    this.activity.release(id);
+    this.activity.collect(id, root);
   }
 
   /**
@@ -1083,20 +1256,76 @@ export class ZoneManager {
       return { kind: 'door', side: this.hovered };
     }
 
-    // Not a door. Told apart by what the object carries: nothing named is no
-    // tooltip and no verb; named and nothing more is a sign; named and bound to
-    // a note is a readable, with a verb.
-    const found = labelOf(hover?.object ?? null);
+    // Not a door. Told apart by what the object carries: a note binding is a
+    // readable, a pickup or container mark brings its own verb, and a bare
+    // label is a sign with no verb at all.
+    const object = hover?.object ?? null;
+    const found = labelOf(object);
+    if (found?.text !== undefined) {
+      // An id that resolves to nothing degrades to a plain label rather than
+      // opening a blank page.
+      const note = noteById(found.text);
+      // Only a bound note inverts the prompt; a single line keeps the item register.
+      reticle.set(note ? { title: found.label, target: note.title, kind: 'read' } : { title: found.label });
+      return note && object ? { kind: 'read', note, object } : null;
+    }
+
+    const carried = carriedOf(object);
+    if (carried?.container) {
+      reticle.set({ title: carried.container.display });
+      return { kind: 'container', object: carried.node, container: carried.container };
+    }
+    if (carried?.pickup) {
+      const pickup = carried.pickup;
+      // A readable with nothing bound still opens as a page: the player always
+      // reads before pocketing, and an unwritten book says so itself.
+      if (pickup.item.builder && isReadable(pickup.item.builder)) {
+        reticle.set({ title: pickup.item.name });
+        return {
+          kind: 'read',
+          note: { id: '', title: pickup.item.name, body: '' },
+          object: carried.node,
+        };
+      }
+      reticle.set({ title: pickup.item.name });
+      return { kind: 'item', object: carried.node, pickup };
+    }
+
     if (!found) {
       reticle.set(null);
       return null;
     }
+    reticle.set({ title: found.label, target: undefined, kind: 'read' });
+    return null;
+  }
 
-    // An id that resolves to nothing degrades to a plain label rather than
-    // opening a blank page.
-    const note = found.text === undefined ? undefined : noteById(found.text);
-    reticle.set({ title: found.label, target: note?.title, kind: 'read' });
-    return note ? { kind: 'read', note } : null;
+  /**
+   * What the free cursor is over — the crosshair resolution reduced to a name
+   * and whether it could be dragged, for the inventory screen's hover tip and
+   * cursor. Touches neither the reticle nor the held focus, so closing the
+   * screen leaves the crosshair exactly as it was.
+   */
+  /** The pickable under the free cursor, for dragging it out of the world. Same ray, same reach, same occlusion as everything else. */
+  cursorItem(ndcX: number, ndcY: number): { object: THREE.Object3D; pickup: PickupInfo } | null {
+    if (!this.active || this.transitioning) return null;
+    const { interaction, collider, player } = this.options;
+    const hover = interaction.probe(player.camera, collider, _ndc.set(ndcX, ndcY));
+    const carried = carriedOf(hover?.object ?? null);
+    return carried?.pickup ? { object: carried.node, pickup: carried.pickup } : null;
+  }
+
+  cursorHover(ndcX: number, ndcY: number): { label: string; item: boolean } | null {
+    if (!this.active || this.transitioning) return null;
+    const { interaction, collider, player } = this.options;
+    const hover = interaction.probe(player.camera, collider, _ndc.set(ndcX, ndcY));
+    if (!hover) return null;
+    const side = this.portals.sideOf(hover.object);
+    if (side) return { label: side.title, item: false };
+    const carried = carriedOf(hover.object);
+    if (carried?.container) return { label: carried.container.display, item: false };
+    if (carried?.pickup) return { label: carried.pickup.item.name, item: true };
+    const found = labelOf(hover.object);
+    return found ? { label: found.label, item: false } : null;
   }
 
   /**
@@ -1139,6 +1368,64 @@ export class ZoneManager {
     this.transitioning = false;
   }
 
+  /** The title's way into the world: the zone's own spawn, under the fade a jump gets. */
+  async begin(id: ZoneId): Promise<void> {
+    if (this.transitioning) return;
+    this.transitioning = true;
+    this.options.reticle.set(null);
+
+    await this.options.fade.cover(async () => {
+      await this.enter(id);
+    });
+
+    this.transitioning = false;
+  }
+
+  /**
+   * Loading a save: every built zone is released so the next build reads the
+   * new records, then `id` is entered under one fade.
+   */
+  async hardReset(id: ZoneId, at?: Placement): Promise<void> {
+    if (!this.zones.has(id) || this.transitioning) return;
+    this.transitioning = true;
+    this.options.reticle.set(null);
+
+    await this.options.fade.cover(async () => {
+      if (this.active) this.options.scene.remove(this.active.root());
+      this.active = null;
+      this.cameFrom = null;
+      for (const held of this.zones.values()) {
+        if (held.isBuilt) this.release(held, false);
+      }
+      await this.enter(id, at);
+    });
+
+    this.transitioning = false;
+  }
+
+  /**
+   * Empties the world under one fade: every zone released, nothing active. The
+   * way back to the title. `during` runs at full black, so whatever replaces
+   * the world is already standing when the fade lifts.
+   */
+  async leave(during?: () => void): Promise<void> {
+    if (this.transitioning) return;
+    this.transitioning = true;
+    this.options.reticle.set(null);
+
+    await this.options.fade.cover(() => {
+      if (this.active) this.options.scene.remove(this.active.root());
+      this.active = null;
+      this.cameFrom = null;
+      for (const held of this.zones.values()) {
+        if (held.isBuilt) this.release(held, false);
+      }
+      during?.();
+    });
+
+    this.transitioning = false;
+  }
+
   /**
    * Where the first door into a zone lands you, if it has one. Deterministic:
    * the same door every time, so a jump is repeatable.
@@ -1146,6 +1433,11 @@ export class ZoneManager {
   private doorArrival(id: ZoneId): Placement | undefined {
     const side = this.portals.in(id)[0];
     return side ? arrivalFor(side.end) : undefined;
+  }
+
+  /** Says no loading bar covers the next entry, so a cold one raises the building indicator like any other. */
+  announceEntries(): void {
+    this.arrived = true;
   }
 
   /** Puts the player back on the current zone's spawn. */
@@ -1238,4 +1530,14 @@ export class ZoneManager {
   get clothAwake(): number {
     return this.cloth.awake;
   }
+}
+
+/** The distinct nonzero finish masks stamped under `root` — see `dressArtMesh`. */
+function finishMasksOf(root: THREE.Object3D): number[] {
+  const masks = new Set<number>();
+  root.traverse((object) => {
+    const mask = object.userData.finishMask as number | undefined;
+    if (mask) masks.add(mask);
+  });
+  return [...masks];
 }

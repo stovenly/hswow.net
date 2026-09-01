@@ -156,12 +156,6 @@ body.is-playing #crosshair {
   transition: opacity 160ms linear;
 }
 
-body.is-playing #capture-hint,
-body.is-touch #capture-hint,
-body.is-identifying #capture-hint {
-  opacity: 0;
-}
-
 .hint-title {
   margin-bottom: 1rem;
   font-size: 0.72rem;
@@ -269,11 +263,8 @@ body.is-identifying #capture-hint {
   background: rgb(10 10 15 / 86%);
   border: 1px solid rgb(220 220 200 / 32%);
   transform: translateX(-50%);
-  opacity: 0;
   cursor: pointer;
-  pointer-events: none;
   transition:
-    opacity 160ms linear,
     color 120ms linear,
     background-color 120ms linear;
 }
@@ -282,19 +273,6 @@ body.is-identifying #capture-hint {
   color: var(--void);
   background: var(--ink);
   border-color: var(--ink);
-}
-
-body:not(.is-playing) #options-open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Both of these cover the screen themselves, and a button floating over either
-   is a button that does nothing useful. */
-body.is-loading #options-open,
-body.is-options #options-open {
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* Touch never leaves the playing state — there is no capture to lose — so the
@@ -773,13 +751,6 @@ body.is-touch.is-options #options-open {
 #options-open:focus-visible {
   outline: 1px solid var(--ink);
   outline-offset: 2px;
-}
-
-/* One panel at a time. The capture hint teaches the controls and is exactly
-   what the options panel covers, so leaving it up would stack two boxes of
-   small text over each other. */
-body.is-options #capture-hint {
-  opacity: 0;
 }
 
 /* --- performance monitor -------------------------------------------------- */
@@ -1263,6 +1234,24 @@ body:not(.is-playing) #speech {
   opacity: 1;
 }
 
+/* What the wait under the cover is. Only readable at full black. */
+#fade .fade-note {
+  position: absolute;
+  bottom: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: rgb(220 220 200 / 55%);
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+#fade.is-black .fade-note {
+  opacity: 1;
+}
+
 /* --- touch controls ----------------------------------------------------- */
 
 /* Covers the viewport so drags anywhere are caught; the visible parts opt into
@@ -1451,27 +1440,641 @@ body:not(.is-playing) #speech {
   cursor: default;
 }
 
-/* Nothing else on screen while a note is open.
-
-   The crosshair follows the pointer lock on its own. These three do not, and
-   two of them are actively wrong: reading gives up the lock, and *not holding
-   the lock* is exactly the state the capture panel and the options button exist
-   to advertise — so opening a book raised the pause screen behind the page.
-   The lock is a proxy for "not playing" everywhere else in the interface and it
-   is the wrong proxy here, because reading a note is something you do while
-   playing. */
-body.is-reading #options-open,
-body.is-reading #capture-hint,
+/* The prompt follows the crosshair rather than the lock, so it needs saying
+   here: reading gives up the lock but is something you do while playing. */
 body.is-reading #prompt {
   display: none;
 }
 
-/* And for as long as it takes to get the mouse back afterwards. The lock
-   returns some way after the page closes, and the gap is long enough to see —
-   see `Input.capture`. Only the two that say "you are not playing"; the prompt
-   comes back the moment there is something under the crosshair, which is
-   correct and is what the player is walking away to do. */
-body.is-capturing #options-open,
-body.is-capturing #capture-hint {
+/* --- the pause stack ------------------------------------------------------ */
+
+/* One fixed column: the controls panel, then the buttons the pause screen
+   owns. Placement here, visibility in the one rule below. */
+#pause {
+  position: fixed;
+  z-index: 15;
+  top: var(--pause-top);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  pointer-events: none;
+}
+
+/**
+ * The one rule that decides whether the pause screen is up. Every member —
+ * the controls panel, save, load, options, quit, and anything added later —
+ * is governed here and carries no visibility rules of its own, so a new button
+ * cannot be forgotten in a list and flash on its own.
+ *
+ * It is up when the mouse is free and nothing else owns the screen. `is-capturing`
+ * is in the list because the lock returns some way after a panel closes, and the
+ * gap is long enough to see.
+ */
+body.is-playing #pause,
+body.is-loading #pause,
+body.is-options #pause,
+body.is-slots #pause,
+body.is-reading #pause,
+body.is-inventory #pause,
+body.is-quitting #pause,
+body.is-title #pause,
+body.is-capturing #pause,
+body.is-identifying #pause,
+body.is-touch #pause {
   display: none;
+}
+
+/* Statically stacked members: their old fixed offsets stop applying here. */
+#pause #capture-hint,
+#pause-buttons > * {
+  position: static;
+  transform: none;
+}
+
+#pause-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+}
+
+#pause-buttons > * {
+  width: 13rem;
+}
+
+/* Save, load, options — in that order, whatever order modules mounted them. */
+#save-open {
+  order: 1;
+}
+
+#load-open {
+  order: 2;
+}
+
+#options-open {
+  order: 3;
+}
+
+#quit-open {
+  order: 4;
+}
+
+#save-open,
+#load-open,
+#quit-open {
+  padding: 0.55rem 1.5rem;
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(10 10 15 / 86%);
+  border: 1px solid rgb(220 220 200 / 32%);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    background-color 120ms linear;
+}
+
+#save-open:hover,
+#load-open:hover,
+#quit-open:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* --- the title screen ----------------------------------------------------- */
+
+/* Over everything the world draws, under the panels it opens and the fade. */
+#title {
+  position: fixed;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3.2rem;
+  background: var(--void);
+}
+
+.title-name {
+  font-size: 1.05rem;
+  letter-spacing: 0.55em;
+  text-transform: lowercase;
+  text-align: center;
+  color: var(--ink);
+}
+
+.title-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* The pause buttons' dress, so the two screens read as one interface. */
+.title-button {
+  width: 13rem;
+  padding: 0.55rem 1.5rem;
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(10 10 15 / 86%);
+  border: 1px solid rgb(220 220 200 / 32%);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    background-color 120ms linear;
+}
+
+.title-button:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.title-button:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* The title owns the screen, and carries half these buttons itself. */
+/* Boot runs behind the title; the bar covers only the window before it. */
+body.is-title #loading {
+  display: none;
+}
+
+/* The quit confirm: the slot picker's panel, two answers and the warning. */
+#quit {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.quit-warning {
+  margin-top: 0.9rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.quit-when {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: rgb(220 220 200 / 55%);
+}
+
+.quit-buttons {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 1.3rem;
+}
+
+.quit-button {
+  flex: 1;
+  padding: 0.55rem 1.5rem;
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(10 10 15 / 86%);
+  border: 1px solid rgb(220 220 200 / 32%);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    background-color 120ms linear;
+}
+
+.quit-button:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.quit-button:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* The slot picker: options-panel register, three rows and nothing else. */
+#slots {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+}
+
+.slots-panel {
+  position: absolute;
+  top: var(--pause-top);
+  left: 50%;
+  display: grid;
+  gap: 0.9rem;
+  width: min(24rem, 92vw);
+  padding: 1.2rem 1.3rem 1.1rem;
+  background: rgb(10 10 15 / 94%);
+  border: 1px solid rgb(220 220 200 / 30%);
+  transform: translateX(-50%);
+}
+
+.slots-rows {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.slots-row {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: rgb(220 220 200 / 4%);
+  border: 1px solid rgb(220 220 200 / 22%);
+  cursor: pointer;
+  transition: border-color 120ms linear;
+}
+
+.slots-row:hover:not(:disabled) {
+  border-color: rgb(220 220 200 / 55%);
+}
+
+.slots-row:disabled {
+  color: rgb(220 220 200 / 30%);
+  cursor: default;
+}
+
+.slots-name {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.slots-detail {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: rgb(220 220 200 / 55%);
+}
+
+.slots-row:disabled .slots-detail {
+  color: rgb(220 220 200 / 30%);
+}
+
+/* --- inventory ------------------------------------------------------------ */
+
+/* Same layer as the reading screen, and never open at the same time as it. */
+#inventory {
+  --inv-cell: 3.5rem;
+
+  position: fixed;
+  z-index: 31;
+  inset: 0;
+}
+
+/* Invisible and necessary — it catches the clicks that would otherwise take
+   pointer lock, starts world grabs, and takes world drops. */
+.inv-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+/* --- the floating windows ------------------------------------------------- */
+
+.inv-window {
+  position: absolute;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: rgb(10 10 15 / 94%);
+  border: 1px solid rgb(220 220 200 / 30%);
+}
+
+.inv-window[hidden] {
+  display: none;
+}
+
+.inv-window-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid rgb(220 220 200 / 18%);
+  cursor: move;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.inv-window-title {
+  overflow: hidden;
+  font-size: 0.72rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 55%);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.inv-take {
+  padding: 0.25rem 0.6rem;
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(220 220 200 / 6%);
+  border: 1px solid rgb(220 220 200 / 26%);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.inv-take:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.inv-window-body {
+  min-height: 0;
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  padding: 0.8rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(220 220 200 / 30%) transparent;
+}
+
+/* Edge and corner grips: invisible, generous, above the body. */
+.inv-resize {
+  position: absolute;
+  z-index: 2;
+}
+
+.inv-resize-n {
+  top: -4px;
+  right: 8px;
+  left: 8px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.inv-resize-s {
+  bottom: -4px;
+  right: 8px;
+  left: 8px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.inv-resize-e {
+  top: 8px;
+  right: -4px;
+  bottom: 8px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.inv-resize-w {
+  top: 8px;
+  bottom: 8px;
+  left: -4px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.inv-resize-ne {
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.inv-resize-sw {
+  bottom: -4px;
+  left: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.inv-resize-nw {
+  top: -4px;
+  left: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.inv-resize-se {
+  right: -4px;
+  bottom: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+/* --- equipment and grids -------------------------------------------------- */
+
+/* The block is the window minimum width; a wider window centres it. Tool on
+   the left, accessories beside it. */
+.inv-equip {
+  display: flex;
+  gap: 0.9rem;
+  align-items: start;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.inv-equip-col {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.inv-section {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 45%);
+}
+
+.inv-slots {
+  display: grid;
+  grid-template-columns: repeat(5, var(--inv-cell));
+  gap: 0.35rem;
+}
+
+.inv-slots-tool {
+  grid-template-columns: var(--inv-cell);
+}
+
+/* Cells are one fixed size everywhere; a bigger window shows more of them. */
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--inv-cell));
+  gap: 0.35rem;
+  justify-content: start;
+  align-content: start;
+  min-height: calc(var(--inv-cell) * 2);
+}
+
+.inv-cell,
+.inv-slot {
+  display: grid;
+  place-items: center;
+  width: var(--inv-cell);
+  height: var(--inv-cell);
+  overflow: hidden;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 38%);
+  background: rgb(220 220 200 / 5%);
+  border: 1px solid rgb(220 220 200 / 22%);
+}
+
+.inv-cell,
+.inv-slot.has-item {
+  color: var(--ink);
+  border-color: rgb(220 220 200 / 34%);
+  cursor: grab;
+}
+
+.inv-cell:hover,
+.inv-slot.has-item:hover {
+  border-color: rgb(220 220 200 / 60%);
+}
+
+/* Rendered above the cell's size and filtered down. Nearest here would alias a
+   minification, which is the opposite of what it does on an upscale. */
+.inv-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Waiting for its picture: the cell breathes, and stays fully draggable. */
+.inv-cell.is-loading,
+.inv-slot.is-loading {
+  animation: inv-wait 1.1s ease-in-out infinite alternate;
+}
+
+.inv-cell.is-loading .inv-icon,
+.inv-slot.is-loading .inv-icon {
+  visibility: hidden;
+}
+
+@keyframes inv-wait {
+  from {
+    background: rgb(220 220 200 / 5%);
+  }
+
+  to {
+    background: rgb(220 220 200 / 14%);
+  }
+}
+
+.inv-empty {
+  grid-column: 1 / -1;
+  padding: 0.4rem 0.1rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: rgb(220 220 200 / 38%);
+}
+
+.inv-note {
+  min-height: 1rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: rgb(220 220 200 / 45%);
+}
+
+/* --- drag ghost and hover tip --------------------------------------------- */
+
+/* Follows the pointer during a drag. Inert, so it never swallows the very
+   release it is waiting for. */
+/* The tip's box exactly — the two name the same thing and are read the same
+   way. Only the placement differs: this one is held by the pointer. */
+.inv-ghost {
+  position: fixed;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.62rem 1.05rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  white-space: nowrap;
+  background: rgb(10 10 15 / 78%);
+  border: 1px solid rgb(220 220 200 / 28%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.inv-ghost .inv-icon {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* What the free cursor is over. Inert, offset clear of the pointer. */
+.inv-tip {
+  position: fixed;
+  z-index: 44;
+  padding: 0.62rem 1.05rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  white-space: nowrap;
+  background: rgb(10 10 15 / 78%);
+  border: 1px solid rgb(220 220 200 / 28%);
+  pointer-events: none;
+  transform: translate(14px, 18px);
+}
+
+/* Nothing else on screen while the pack is open, the reading screen rule. */
+body.is-inventory #prompt {
+  display: none;
+}
+
+/* The pocket line under the footer, present only while the page can be taken. */
+.reading-take {
+  justify-self: center;
+  padding: 0.45rem 1.6rem;
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 78%);
+  background: rgb(220 220 200 / 6%);
+  border: 1px solid rgb(220 220 200 / 26%);
+  cursor: pointer;
+}
+
+.reading-take:hover {
+  color: var(--void);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.reading-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--type);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: rgb(220 220 200 / 38%);
 }

@@ -31,17 +31,33 @@ export interface Cover {
   /** How far the spine rounds out past the boards, as a fraction of the bulk. Stepped rather than turned. */
   round: number;
   /** Covering colours. One per book, picked by the seed. */
-  hide: readonly number[];
+  hide: readonly Hide[];
   /**
    * Spine colours, when the back is bound in something else — the half-binding.
    * The spine is all a shelved book shows, so a different back is simply a
    * different colour of book, and the cheapest variety in the family.
    */
-  spine?: readonly number[];
+  spine?: readonly Hide[];
   /** What shows past the fore-edge, if anything. One kind, and that is the whole list. */
   furniture?: 'clasps';
   /** How far out of square the thing has been knocked about, 0..1: cocked boards, and a block of leaves that no longer lines up with them. */
   worn?: number;
+}
+
+/** A covering colour. A worded one reaches the player through `MeshBuilder.nameFor`. */
+export type Hide = number | { readonly color: number; readonly word: string };
+
+export function hideColor(hide: Hide): number {
+  return typeof hide === 'number' ? hide : hide.color;
+}
+
+/** The draws a shut book makes before anything is measured. One function, so `nameFor` and the mesh cannot disagree. */
+function shutRoll(plan: Cover, rng: Rng): { height: number; hide: Hide; spine: Hide } {
+  return {
+    height: rng.range(plan.height[0], plan.height[1]),
+    hide: rng.pick(plan.hide),
+    spine: rng.pick(plan.spine ?? plan.hide),
+  };
 }
 
 /** Shut, or lying open on its face. Two attitudes of one object rather than two objects — see `cover`. */
@@ -112,9 +128,7 @@ export function bookParts(plan: Cover, rng: Rng, fit: Fit = {}): Book {
   // Every roll is drawn whether or not it is used: a caller supplying a height or
   // a colour must not shift the sequence for everything after it, or a shelf
   // would rearrange itself the moment one book on it was matched to a neighbour.
-  const rolled = rng.range(plan.height[0], plan.height[1]);
-  const pickedHide = rng.pick(plan.hide);
-  const pickedSpine = rng.pick(plan.spine ?? plan.hide);
+  const { height: rolled, hide: pickedHide, spine: pickedSpine } = shutRoll(plan, rng);
 
   // Clamped before the other two are derived from it, so a book cut down to fit
   // a shelf keeps its proportions instead of becoming a squat one.
@@ -122,8 +136,8 @@ export function bookParts(plan: Cover, rng: Rng, fit: Fit = {}): Book {
   const width = height * rng.range(plan.proportion[0], plan.proportion[1]);
   const thickness = height * rng.range(plan.bulk[0], plan.bulk[1]);
 
-  const hide = fit.hide ?? pickedHide;
-  const backing = fit.spine ?? pickedSpine;
+  const hide = fit.hide ?? hideColor(pickedHide);
+  const backing = fit.spine ?? hideColor(pickedSpine);
   const paper = rng.pick(PAPER);
   const board = Math.max(plan.board, LIMP);
   const square = Math.max(plan.square, MARGIN);
@@ -275,8 +289,8 @@ function openParts(plan: Cover, rng: Rng): Part[] {
   const width = height * rng.range(plan.proportion[0], plan.proportion[1]);
   const thickness = height * rng.range(plan.bulk[0], plan.bulk[1]);
 
-  const hide = rng.pick(plan.hide);
-  const backing = rng.pick(plan.spine ?? plan.hide);
+  const hide = hideColor(rng.pick(plan.hide));
+  const backing = hideColor(rng.pick(plan.spine ?? plan.hide));
   const paper = rng.pick(PAPER);
   const board = Math.max(plan.board, LIMP);
   const square = Math.max(plan.square, MARGIN);
@@ -386,6 +400,11 @@ export function cover(name: string, display: string, plan: Cover): CoverBuilder 
     // Never collidable: being stopped by a book is the fastest way to make a room
     // feel like a floor with boxes on it, and the ray finds a readable by label.
     solid: false,
+
+    nameFor(seed) {
+      const { hide } = shutRoll(plan, createRng(seed));
+      return typeof hide === 'number' ? display : `${hide.word} ${display}`;
+    },
 
     build({ seed = 1, scale = 1, state = 'shut' }: BookOptions = {}) {
       const rng = createRng(seed);
