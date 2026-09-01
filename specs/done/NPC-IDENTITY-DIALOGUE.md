@@ -1,5 +1,10 @@
 # Who an NPC is, and what they can say — spec
 
+**Built, all five steps.** Step 2 took Step 3's resolver with it, and Step 5
+came out as one panel instead of two; each step says what it did differently
+and why. Nothing authors a person or a quest — the mechanism is there and
+unexercised, because naming somebody is content.
+
 A villager is currently a body and a `folk`. Pressing E on one runs
 `SCRIPTS[mark.folk]`, a two-entry table in `src/world/talk.ts`, so every
 countryside figure in the world is the same person with a different seed.
