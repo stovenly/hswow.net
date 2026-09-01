@@ -43,6 +43,10 @@ import {
 const FIDGETS: readonly Fidget[] = ['stretch', 'scratch', 'fold', 'lookAround', 'shift'];
 const GREETINGS: readonly Greeting[] = ['wave', 'bow', 'raise', 'heart', 'press', 'brow', 'beckon', 'doff', 'offer', 'clap'];
 const TALKS: readonly Talk[] = ['beat', 'roll', 'sweep', 'clasp', 'point', 'open'];
+/** The greetings that read as a goodbye: nothing that calls you over. */
+const FAREWELLS: readonly Greeting[] = ['bow', 'raise', 'press'];
+/** A gap between syllables this long is a sentence ending, and a new gesture. */
+const SENTENCE_GAP = 0.3;
 
 /** The next of a list, never the one just used. */
 function another<T>(list: readonly T[], last: T): T {
@@ -175,6 +179,12 @@ export class Creature {
   private conversing = false;
   /** The last world it was updated with, so `say` can reach the audio engine. */
   private seen: World | null = null;
+  /** Which family the line being spoken gestures from. */
+  private lineGesture: 'greet' | 'talk' = 'talk';
+  /** Audio-clock times inside the line where another gesture starts. */
+  private gestureAt: number[] = [];
+  /** Idle business between lines, while it listens. */
+  private listenIn = 0;
   private talkedThisVisit = false;
   private nearFor = 0;
 
@@ -405,7 +415,8 @@ export class Creature {
           }
           this.gestureT += dt;
         }
-        if (!this.conversing && this.gestureT > this.gestureLength) this.begin('idle');
+        if (this.conversing) this.converseGestures(dt, world);
+        else if (this.gestureT > this.gestureLength) this.begin('idle');
         break;
       }
     }
@@ -505,7 +516,10 @@ export class Creature {
       if (spec.kind === 'fowl') peck(pose, t, this.salt, w, spec.grazeDrop);
       else graze(pose, t, this.salt, w, spec.grazeDrop);
     }
-    if (spec.kind === 'biped' && this.state === 'business') {
+    // Business while idle, and the same while listening to somebody: a figure
+    // being spoken to is not a figure standing perfectly still.
+    const busy = this.state === 'business' || (this.conversing && this.timer > 0);
+    if (spec.kind === 'biped' && busy) {
       bipedFidget(pose, this.fidget, 1 - this.timer / this.fidgetLength, t, this.salt, spec.handed ?? 1, spec.gestures);
     }
 
@@ -514,7 +528,7 @@ export class Creature {
     if (this.state === 'greet' || this.state === 'talk') {
       const t01 = this.gestureT / this.gestureLength;
       if (spec.kind === 'biped') {
-        if (this.state === 'greet') {
+        if (this.conversing ? this.lineGesture === 'greet' : this.state === 'greet') {
           bipedGreet(pose, this.greeting, t01, spec.handed ?? 1, spec.gestures);
           faceGreet(pose, spec.face, envelope(t01, 0.22, 0.28));
         } else {
@@ -748,10 +762,59 @@ export class Creature {
     this.conversing = false;
     this.greeted = true;
     this.talkedThisVisit = true;
-    this.greetCooldown = 30 + (this.spec.seed % 30);
-    lastGreetAt = performance.now() / 1000;
-    this.gestureLength = 0;
+    // Counted from the end of the goodbye rather than from the moment the box
+    // shut, so the lockout starts when the talking actually stops.
+    const audio = this.seen?.audio;
+    const left = audio && this.said ? Math.max(0, this.said.end - audio.context.currentTime) : 0;
+    this.greetCooldown = left + 30 + (this.spec.seed % 30);
+    lastGreetAt = performance.now() / 1000 + left;
     this.begin('idle');
+  }
+
+  /**
+   * Starts the gesture a line opens on: a greeting shape for a hello, the
+   * calmer of them for a goodbye, one of the talking hands for anything else.
+   */
+  private startGesture(manner: 'greeting' | 'talk' | 'farewell', seconds: number): void {
+    this.gestureT = 0;
+    // No idle business under a gesture: two layers on the same arms would go
+    // past what the envelope allows.
+    this.timer = -1;
+    if (manner === 'talk') {
+      this.lineGesture = 'talk';
+      this.talkStyle = another(TALKS, this.talkStyle);
+      this.gestureLength = seconds + 0.6;
+      return;
+    }
+    this.lineGesture = 'greet';
+    this.greeting = another(manner === 'farewell' ? FAREWELLS : GREETINGS, this.greeting);
+    this.gestureLength = GREET_LENGTH[this.greeting];
+  }
+
+  /**
+   * Keeps a conversation gesturing: another shape at each sentence inside a
+   * line, and small business between them while it listens.
+   */
+  private converseGestures(dt: number, world: World): void {
+    const now = world.audio?.context.currentTime ?? 0;
+    while (this.gestureAt.length > 0 && now >= this.gestureAt[0]) {
+      const at = this.gestureAt.shift() as number;
+      const left = this.said ? Math.max(0.6, this.said.end - at) : 1.2;
+      this.startGesture('talk', left);
+    }
+    const speaking = this.said !== null && now < this.said.end;
+    if (speaking) {
+      this.listenIn = 1.5 + (this.spec.seed % 5) * 0.6;
+      return;
+    }
+    // Listening. A gesture that has run out gives way to idle business rather
+    // than to a figure standing perfectly still while it is spoken to.
+    this.listenIn -= dt;
+    if (this.listenIn > 0) return;
+    this.listenIn = 3 + (this.spec.seed % 7) * 0.5;
+    this.fidget = another(FIDGETS, this.fidget);
+    this.fidgetLength = 1.8 + (this.spec.seed % 4) * 0.5;
+    this.timer = this.fidgetLength;
   }
 
   get inConverse(): boolean {
@@ -774,7 +837,7 @@ export class Creature {
    * lasts and how far through it the voice has got. Null when the throat never
    * built — the caller times the line off the wall clock then.
    */
-  say(text: string): Spoken | null {
+  say(text: string, manner: 'greeting' | 'talk' | 'farewell' = 'talk'): Spoken | null {
     const world = this.seen;
     if (!world?.audio) return null;
     if (!this.ensureVoice(world)) return null;
@@ -786,8 +849,16 @@ export class Creature {
     this.said = said;
     world.audio.duckUnder(said.at, said.end);
     this.showLabel(world);
-    this.gestureT = 0;
-    this.gestureLength = said.end - said.at + 0.6;
+    this.startGesture(manner, said.end - said.at);
+    // Every further sentence inside the line takes another gesture, so a long
+    // answer does not run on one shape.
+    this.gestureAt = [];
+    for (let i = 1; i < said.units.length; i += 1) {
+      const before = said.units[i - 1];
+      if (said.units[i].at - (before.at + before.length) >= SENTENCE_GAP) {
+        this.gestureAt.push(said.units[i].at);
+      }
+    }
     if (said.units.length === 0) return null;
     return {
       seconds: said.end - said.at,

@@ -18,7 +18,7 @@ export interface Spoken {
 export interface Speaker {
   readonly name: string;
   /** Speaks a line. Null when the throat is mute, and the line is read on the wall clock. */
-  speak(text: string): Spoken | null;
+  speak(text: string, manner: 'greeting' | 'talk' | 'farewell'): Spoken | null;
   /** True when they hailed the player in the open world a moment ago. */
   readonly hailedRecently: boolean;
   readonly greeting: string;
@@ -105,7 +105,7 @@ export class Dialogue {
       this.lineEl.replaceChildren();
       this.offer();
     } else {
-      this.say(speaker.greeting);
+      this.say(speaker.greeting, 'greeting');
     }
   }
 
@@ -120,11 +120,11 @@ export class Dialogue {
     this.offer();
   }
 
-  private say(text: string): void {
+  private say(text: string, manner: 'greeting' | 'talk' | 'farewell' = 'talk'): void {
     this.line = text;
     this.shown = 0;
     this.choicesEl.replaceChildren();
-    this.spoken = this.speaker?.speak(text) ?? null;
+    this.spoken = this.speaker?.speak(text, manner) ?? null;
     this.paint();
     this.waiting = this.spoken
       ? this.spoken.seconds + 0.35
@@ -182,7 +182,7 @@ export class Dialogue {
   private leave(): void {
     const speaker = this.speaker;
     if (!speaker) return;
-    speaker.speak(speaker.farewell);
+    speaker.speak(speaker.farewell, 'farewell');
     this.shut();
   }
 
