@@ -363,6 +363,7 @@ function plainData(value: unknown, depth = 0): boolean {
 }
 
 function resetStub(): void {
+  STUB.removeFromParent();
   STUB.clear();
   STUB.name = '';
   STUB.visible = true;
@@ -417,9 +418,20 @@ export function capturingNow(): boolean {
 
 /** What a captured `finishRigged` records. Hands back the same stub `finish` does. */
 export function captureRigged(taken: Finished): THREE.SkinnedMesh {
-  if (captured) doubled = true;
+  if (captured) return second();
   captured = taken;
   return STUB;
+}
+
+/**
+ * The refusal, for a builder that finishes twice: one geometry cannot stand for
+ * two meshes. It gets a mesh of its own rather than the stub again, because a
+ * builder that hangs its second finish on its first would otherwise be adding
+ * the stub to itself.
+ */
+function second(): THREE.SkinnedMesh {
+  doubled = true;
+  return new THREE.SkinnedMesh();
 }
 
 export function finish(
@@ -435,9 +447,7 @@ export function finish(
   underfoot?: SurfaceName,
 ): THREE.Mesh {
   if (capturing) {
-    // A builder that finishes twice makes two meshes, and one geometry cannot
-    // stand for both.
-    if (captured) doubled = true;
+    if (captured) return second();
     captured = { geometry, name, phase, underfoot };
     return STUB;
   }

@@ -34,8 +34,8 @@ export interface DialogueHandlers {
 }
 
 /** Seconds a line stays up when no voice timed it. */
-const READ_RATE = 0.055;
-const READ_LEAST = 1.4;
+const READ_RATE = 0.032;
+const READ_LEAST = 0.9;
 
 export class Dialogue {
   private readonly root: HTMLDivElement;
@@ -127,7 +127,7 @@ export class Dialogue {
     this.spoken = this.speaker?.speak(text, manner) ?? null;
     this.paint();
     this.waiting = this.spoken
-      ? this.spoken.seconds + 0.35
+      ? this.spoken.seconds + 0.15
       : Math.max(READ_LEAST, text.length * READ_RATE);
   }
 

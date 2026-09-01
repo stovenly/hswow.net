@@ -1532,11 +1532,15 @@ body.is-touch #pause {
   display: none;
 }
 
-/* Statically stacked members: their old fixed offsets stop applying here. */
+/* Statically stacked members: their old fixed offsets stop applying here. The
+   column is inert so the gaps between the buttons do not eat clicks, and every
+   member opts back in — the same arrangement `#overlay` and its children have,
+   and the reason a button that forgets it is a button you cannot press. */
 #pause #capture-hint,
 #pause-buttons > * {
   position: static;
   transform: none;
+  pointer-events: auto;
 }
 
 #pause-buttons {
