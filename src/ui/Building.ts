@@ -1,12 +1,13 @@
+import { buildRaise, raisedTo } from './raise';
+
 /**
  * The indicator shown while a zone is being built.
  *
  * Separate from `ui/Loader`, which owns the boot sequence, but the **same
- * face**: it builds `.loading-track` / `.loading-bar` / `.loading-label` in the
- * middle of the screen, so the rule that fills while a doorway opens is the
- * same rule, the same width and in the same place as the one that filled while
- * the game booted. Everything visual comes from the shared stylesheet and
- * cannot drift.
+ * face**: the same stone, in the same place, so a doorway that takes a moment
+ * looks like this game loading and not like a second piece of interface from a
+ * different game. Everything visual comes from `ui/raise` and the shared
+ * stylesheet and cannot drift.
  *
  * Only ever shown for a zone that has not been built before, and never during
  * boot. A visited zone is cached in `Zone.root` and indexed in the collider, so
@@ -31,29 +32,24 @@ export function paint(): Promise<void> {
 
 export class Building {
   private readonly root: HTMLElement;
-  private readonly bar: HTMLElement;
+  private readonly raise: HTMLElement;
   private readonly label: HTMLElement;
   private shown = false;
 
   /**
-   * Builds the boot screen's markup, in the boot screen's classes. Track first
+   * Builds the boot screen's markup, in the boot screen's classes. Stone first
    * and label under it, the order `Loader` uses; the styling lives in
-   * `styles.css` next to the `.loading-*` rules it shares.
+   * `styles.css` next to the rules it shares.
    */
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
     this.root.id = 'building';
 
-    const track = document.createElement('div');
-    track.className = 'loading-track';
-    this.bar = document.createElement('div');
-    this.bar.className = 'loading-bar';
-    track.appendChild(this.bar);
-
+    this.raise = buildRaise();
     this.label = document.createElement('div');
     this.label.className = 'loading-label';
 
-    this.root.append(track, this.label);
+    this.root.append(this.raise, this.label);
     parent.appendChild(this.root);
   }
 
@@ -64,42 +60,36 @@ export class Building {
    */
   async show(label: string): Promise<void> {
     this.label.textContent = label;
-    this.bar.style.animation = 'none';
-    this.bar.style.transform = 'scaleX(0.04)';
+    this.raise.style.setProperty('--raised', raisedTo(0.15));
+    this.root.classList.remove('is-working');
     this.root.classList.add('is-shown');
     this.shown = true;
     await paint();
   }
 
   /**
-   * Moves the bar and yields, so the move is drawn before the next step runs.
+   * Lays another course and yields, so it is drawn before the next step runs.
    *
    * Pass `progress` when a real fraction is known. Omit it for a step whose
    * cost cannot be reported from inside — `Zone.build()` is one synchronous
-   * call — and the bar sweeps instead.
+   * call — and the glimmer runs over the stone instead.
    *
-   * **A determinate bar that stops moving is worse than no bar at all**: on a
-   * slow machine it sits at one width and reads as a hang. The sweep is a
+   * **A readout that stops moving is worse than none at all**: on a slow
+   * machine it sits at one height and reads as a hang. The glimmer is a
    * compositor animation, so it carries on while the main thread is blocked.
    */
   async step(label: string, progress?: number): Promise<void> {
     if (!this.shown) return;
     this.label.textContent = label;
-    if (progress === undefined) {
-      this.bar.style.transition = 'none';
-      this.bar.style.animation = 'building-sweep 900ms ease-in-out infinite';
-    } else {
-      this.bar.style.animation = 'none';
-      this.bar.style.transition = '';
-      this.bar.style.transform = `scaleX(${Math.min(Math.max(progress, 0), 1)})`;
-    }
+    this.root.classList.toggle('is-working', progress === undefined);
+    if (progress !== undefined) this.raise.style.setProperty('--raised', raisedTo(progress));
     await paint();
   }
 
   hide(): void {
     if (!this.shown) return;
     this.shown = false;
-    this.bar.style.animation = 'none';
+    this.root.classList.remove('is-working');
     this.root.classList.remove('is-shown');
   }
 

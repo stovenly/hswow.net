@@ -30,6 +30,8 @@
       than built in script for the same reason — it has to exist before any
       script runs. `ui/Loader.ts` adopts these elements instead of creating its
       own, and `styles.css` restates these rules for the rest of the session.
+      The glimmer's animation is not here: it belongs to the zone indicator,
+      which cannot exist this early.
     -->
     <style>
       html,
@@ -55,19 +57,49 @@
         justify-items: center;
         gap: 1.1rem;
         background: #0a0a0f;
+        --raised: 0;
+        --stone: #dcdcc8;
+        --stone-edge: #9a958a;
+        --stone-ghost: rgb(220 220 200 / 8%);
       }
-      .loading-track {
-        width: min(19rem, 56vw);
-        height: 1px;
+      .raise {
+        display: grid;
+        justify-items: center;
+        gap: 0.5rem;
+      }
+      .raise-field {
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        gap: 0.55rem;
         overflow: hidden;
-        background: rgb(220 220 200 / 18%);
       }
-      .loading-bar {
-        width: 100%;
-        height: 100%;
-        background: #dcdcc8;
-        transform: scaleX(0);
-        transform-origin: left center;
+      .raise-pile {
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-start;
+        width: var(--pw);
+      }
+      .raise-course {
+        position: relative;
+        width: var(--w);
+        height: 0.6rem;
+        margin: 1px 0 0 var(--x);
+        background: var(--stone-ghost);
+      }
+      .raise-course::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--stone);
+        box-shadow: inset -0.14rem 0 0 var(--stone-edge);
+        opacity: calc((var(--raised) - var(--c)) * 2.5);
+        transition: opacity 240ms ease-out;
+      }
+      .raise-ground {
+        width: 10.5rem;
+        height: 1px;
+        background: rgb(220 220 200 / 22%);
       }
       .loading-label {
         font-size: 0.68rem;
@@ -125,8 +157,37 @@
         <div id="pause-buttons"></div>
       </div>
     </div>
+    <!--
+      The stone that goes up while the game loads. Static for the same reason
+      the styles above are: it has to be on screen before any module has run.
+      `ui/raise.ts` builds the same thing for the zone indicator and for the
+      fallback path, and `--c` is the order the courses are laid in — not the
+      order they are written in, which is bottom-up per pile.
+    -->
     <div id="loading">
-      <div class="loading-track"><div class="loading-bar"></div></div>
+      <div class="raise" aria-hidden="true">
+        <div class="raise-field">
+          <div class="raise-pile" style="--pw: 1.5rem">
+            <span class="raise-course" style="--c: 1; --w: 100%; --x: 0"></span>
+            <span class="raise-course" style="--c: 4; --w: 86%; --x: 7%"></span>
+          </div>
+          <div class="raise-pile" style="--pw: 4.4rem">
+            <span class="raise-course" style="--c: 0; --w: 96%; --x: 2%"></span>
+            <span class="raise-course" style="--c: 2; --w: 92%; --x: 4%"></span>
+            <span class="raise-course" style="--c: 3; --w: 90%; --x: 5%"></span>
+            <span class="raise-course" style="--c: 5; --w: 86%; --x: 8%"></span>
+            <span class="raise-course" style="--c: 7; --w: 82%; --x: 10%"></span>
+            <span class="raise-course" style="--c: 8; --w: 76%; --x: 13%"></span>
+            <span class="raise-course" style="--c: 9; --w: 70%; --x: 16%"></span>
+            <span class="raise-course" style="--c: 10; --w: 60%; --x: 21%"></span>
+          </div>
+          <div class="raise-pile" style="--pw: 1.1rem">
+            <span class="raise-course" style="--c: 6; --w: 100%; --x: 0"></span>
+          </div>
+          <div class="raise-glimmer"></div>
+        </div>
+        <div class="raise-ground"></div>
+      </div>
       <div class="loading-label">starting</div>
     </div>
     <script type="module" src="/src/main.ts"></script>

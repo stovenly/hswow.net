@@ -1,3 +1,5 @@
+import { buildRaise, raisedTo } from './raise';
+
 /**
  * The boot screen.
  *
@@ -7,15 +9,15 @@
  * network progress to report, but it is easily a second of work on a slow
  * machine and a second of blank page looks broken.
  *
- * **A real bar is possible precisely because there is nothing to download.**
+ * **A real readout is possible precisely because there is nothing to download.**
  * Loading is a fixed known sequence rather than bytes arriving at an unknown
- * rate, so the progress shown is the honest position in that sequence. Steps
- * are weighted by roughly how long they take, which is why the numbers below
- * are not evenly spaced.
+ * rate, so what is shown is the honest position in that sequence, laid out as
+ * courses of a stone going up. Steps are weighted by roughly how long they
+ * take, which is why the numbers below are not evenly spaced.
  *
  * A browser will not repaint in the middle of synchronous work, so every step
  * waits for two animation frames before starting — one to apply the style
- * change and one to let it composite. That is the entire reason the bar moves.
+ * change and one to let it composite. That is the entire reason it moves.
  */
 
 /** Matches the CSS transition below. */
@@ -23,7 +25,7 @@ const FADE = 0.35;
 
 export class Loader {
   private readonly root: HTMLElement;
-  private readonly bar: HTMLElement;
+  private readonly raise: HTMLElement;
   private readonly label: HTMLElement;
 
   /**
@@ -35,27 +37,22 @@ export class Loader {
    */
   constructor(parent: HTMLElement) {
     const existing = document.getElementById('loading');
-    const bar = existing?.querySelector<HTMLElement>('.loading-bar') ?? null;
+    const raise = existing?.querySelector<HTMLElement>('.raise') ?? null;
     const label = existing?.querySelector<HTMLElement>('.loading-label') ?? null;
 
-    if (existing && bar && label) {
+    if (existing && raise && label) {
       this.root = existing;
-      this.bar = bar;
+      this.raise = raise;
       this.label = label;
     } else {
       this.root = document.createElement('div');
       this.root.id = 'loading';
 
-      const track = document.createElement('div');
-      track.className = 'loading-track';
-      this.bar = document.createElement('div');
-      this.bar.className = 'loading-bar';
-      track.appendChild(this.bar);
-
+      this.raise = buildRaise();
       this.label = document.createElement('div');
       this.label.className = 'loading-label';
 
-      this.root.append(track, this.label);
+      this.root.append(this.raise, this.label);
       parent.appendChild(this.root);
     }
 
@@ -69,14 +66,14 @@ export class Loader {
    */
   async step<T>(label: string, progress: number, work: () => T | Promise<T>): Promise<T> {
     this.label.textContent = label;
-    this.bar.style.transform = `scaleX(${Math.min(Math.max(progress, 0), 1)})`;
+    this.raise.style.setProperty('--raised', raisedTo(progress));
     await paint();
     return work();
   }
 
-  /** Fills the bar, holds for a beat, then fades out and removes itself. */
+  /** Tops the stone out, holds for a beat, then fades and removes itself. */
   async done(): Promise<void> {
-    this.bar.style.transform = 'scaleX(1)';
+    this.raise.style.setProperty('--raised', raisedTo(1));
     this.label.textContent = 'ready';
     await paint();
     await wait(0.18);
@@ -89,7 +86,6 @@ export class Loader {
   /** Leaves the message up rather than fading, if boot fails. */
   fail(message: string): void {
     this.label.textContent = message;
-    this.bar.style.transform = 'scaleX(1)';
     this.root.classList.add('is-failed');
   }
 }
