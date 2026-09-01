@@ -8,7 +8,14 @@ import { Terrain, type TerrainOptions, type TerrainRasters } from './terrain';
 import { heightRaster, indexRaster } from './raster';
 import { Skirt, type SkirtOptions } from './vista';
 import type { PatchShape } from './ground';
-import { DOOR_PROUD, type PortalDefinition, type PortalEnd } from './Portal';
+import {
+  DOOR_PROUD,
+  type EndPrompt,
+  type EndUse,
+  type EndVolume,
+  type PortalDefinition,
+  type PortalEnd,
+} from './Portal';
 import { doorways, doorwayFront } from '../art/building';
 import {
   OUTDOOR_ENVIRONMENT,
@@ -125,6 +132,7 @@ export interface ManifestPortal {
   label?: string;
 }
 
+
 export type WallSide = '+x' | '-x' | '+z' | '-z';
 
 export interface ManifestEnd {
@@ -137,7 +145,13 @@ export interface ManifestEnd {
   room?: string;
   at?: readonly number[];
   yaw?: Yaw;
-  arrival?: { at: readonly number[]; yaw?: Yaw };
+  arrival?: { at: readonly number[]; yaw?: Yaw; on?: string };
+  use?: EndUse;
+  /** The entry in this zone the end adopts, for `use: "prop"`. */
+  propOf?: string;
+  half?: 'lower' | 'upper';
+  volume?: EndVolume;
+  prompt?: EndPrompt;
 }
 
 /** What a portal end needs to know about a zone, without building it. */
@@ -457,9 +471,15 @@ function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
     zone: end.zone,
     position: new THREE.Vector3(),
     yaw: yawOf(end.yaw),
+    use: end.use,
+    propOf: end.propOf,
+    half: end.half,
+    volume: end.volume,
     material: portal.material,
     seed: portal.seed,
-    label: portal.label,
+    // The portal's label is the fallback: both ends of a door lead somewhere
+    // with one name, and the two halves of a ladder do not.
+    prompt: { ...end.prompt, label: end.prompt?.label ?? portal.label },
   };
 
   if (end.doorOf) {
@@ -478,11 +498,16 @@ function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
     out.position.set(x, y, z);
   }
 
+  out.landOn = end.arrival?.on;
+
   if (end.arrival) {
     const at = end.arrival.at;
+    const stated = at.length >= 3;
     out.arrival = {
-      position: new THREE.Vector3(at[0], at.length >= 3 ? at[1] : 0, at.length >= 3 ? at[2] : at[1]),
+      position: new THREE.Vector3(at[0], stated ? at[1] : 0, stated ? at[2] : at[1]),
       yaw: yawOf(end.arrival.yaw),
+      // Three numbers means the height was meant. Two means the ground's.
+      exact: stated,
     };
   }
 

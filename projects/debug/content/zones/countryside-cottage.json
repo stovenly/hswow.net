@@ -26,6 +26,17 @@
   "traits": ["villager"],
   "entries": [
     {
+      "id": "cellar-hatch",
+      "kind": "prop",
+      "builder": "hut-trapdoor",
+      "seed": 4611,
+      "at": [
+        2.9,
+        2.3
+      ],
+      "yaw": 0.4
+    },
+    {
       "id": "hearth",
       "kind": "prop",
       "builder": "fireplace",

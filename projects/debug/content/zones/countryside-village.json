@@ -968,6 +968,55 @@
       "yaw": 0.6
     },
     {
+      "id": "tower-1",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 5310,
+      "at": [
+        6.5,
+        5
+      ],
+      "yaw": 0.15
+    },
+    {
+      "id": "tower-2",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 5311,
+      "on": "tower-1",
+      "at": [
+        6.42,
+        5.06
+      ],
+      "yaw": -0.22
+    },
+    {
+      "id": "tower-3",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 5312,
+      "on": "tower-2",
+      "at": [
+        6.55,
+        4.94
+      ],
+      "yaw": 0.34
+    },
+    {
+      "id": "tower-ladder",
+      "kind": "prop",
+      "builder": "ladder",
+      "seed": 5313,
+      "options": {
+        "height": 3
+      },
+      "at": [
+        6.5,
+        5.95
+      ],
+      "yaw": 0
+    },
+    {
       "id": "trapdoor",
       "kind": "prop",
       "builder": "hut-trapdoor",

@@ -1,6 +1,15 @@
 import * as THREE from 'three';
-import { Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
-import { PortalGraph, arrivalFor, type PortalDefinition, type PortalSide } from './Portal';
+import { SETTLE_CLEARANCE, Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
+import {
+  PortalGraph,
+  PROP_PROXY_GROW,
+  VOLUME_REACH,
+  arrivalFor,
+  type EndVolume,
+  type PortalDefinition,
+  type PortalEnd,
+  type PortalSide,
+} from './Portal';
 import { residentZones, KEEP_WITHIN } from './residency';
 import {
   carriedOf,
@@ -14,6 +23,7 @@ import {
 import { isReadable } from './items';
 import { noteById, type Note } from './notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
+import { builderByName } from '../art/registry';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
@@ -177,11 +187,33 @@ const SPOT_TIERS = [0, 2] as const;
 /** How often what is under the crosshair is re-tested, in seconds. At walking pace nothing crosses the crosshair in under fifty milliseconds. */
 const PROBE_INTERVAL = 1 / 18;
 
+/**
+ * Footfalls heard leaving through something with nothing to open: four out
+ * through a gate at the end of a road, two down a ladder or a hatch. Seconds
+ * between them, and the tail of the last one, so the black can be held for
+ * exactly as long as they take.
+ */
+const WALK_AWAY_STEPS = 4;
+const CLIMB_STEPS = 2;
+const WALK_AWAY_SPACING = 0.34;
+const WALK_AWAY_TAIL = 0.35;
+
 /** Where the camera is looking, refilled each life update. */
 const _gaze = new THREE.Vector3();
 
 /** The cursor, for `cursorLabel`. */
 const _ndc = new THREE.Vector2();
+
+/** What a volume end falls back to when it states no box, in metres. */
+const DEFAULT_VOLUME: EndVolume = { size: [2, 2.4, 2] };
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** Shared, and never drawn: a proxy is invisible, and one default material per box would leak one per zone build. */
+const PROXY_MATERIAL = new THREE.MeshBasicMaterial();
+const _box = new THREE.Box3();
+const _centre = new THREE.Vector3();
+const _size = new THREE.Vector3();
 
 export class ZoneManager {
   readonly zones = new Map<ZoneId, Zone>();
@@ -843,6 +875,7 @@ export class ZoneManager {
     // Whatever was under the crosshair belonged to the zone we just left.
     this.hovered = null;
     this.options.reticle.set(null);
+    this.seedVolumes(zone);
 
     this.onZoneChange?.(zone);
     this.arrived = true;
@@ -936,20 +969,87 @@ export class ZoneManager {
     this.doored.add(zone.id);
 
     for (const side of this.portals.in(zone.id)) {
-      const end = side.end;
-      const mesh = buildDoor({ seed: end.seed ?? 1, material: end.material });
-      mesh.position.copy(end.position);
-      mesh.rotation.y = end.yaw;
-      // Solid: a door you can walk through is a hole, and the whole point of
-      // this system is that it is not one.
-      markCollidable(mesh);
-      root.add(mesh);
-      this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
+      this.stand(side, root);
+      this.perch(side.end, root);
     }
 
     const dressed = await this.decorate(zone, root);
     this.onDressed?.(zone, dressed);
     return dressed;
+  }
+
+  /**
+   * Puts one portal end into its zone: a door mesh, an invisible box over an
+   * entry the document already placed, or an invisible box standing on its own.
+   * Only the door is solid — a door you can walk through is a hole, and the
+   * whole point of this system is that it is not one.
+   */
+  private stand(side: PortalSide, root: THREE.Group): void {
+    const end = side.end;
+    if (end.use === 'none') return;
+
+    if (end.use === 'prop') {
+      const adopted = end.propOf ? findTagged(root, end.propOf) : null;
+      if (!adopted) {
+        console.warn(`portal ${side.portal}: no entry "${end.propOf}" in "${end.zone}"`);
+        return;
+      }
+      const box = _box.setFromObject(adopted);
+      const middle = (box.min.y + box.max.y) / 2;
+      box.expandByScalar(PROP_PROXY_GROW);
+      if (end.half === 'lower') box.max.y = middle;
+      else if (end.half === 'upper') box.min.y = middle;
+      const proxy = boxProxy(box);
+      root.add(proxy);
+      this.portals.bind(side, proxy, builderByName(adopted.name)?.display ?? null);
+      return;
+    }
+
+    if (end.use === 'volume') {
+      const volume = end.volume ?? DEFAULT_VOLUME;
+      const [ox, oy, oz] = volume.offset ?? [0, 0, 0];
+      const [sx, sy, sz] = volume.size;
+      // The offset is in the end's own frame, where +Z is the way it faces.
+      // `rotateY(yaw)` takes +Z to `(sin yaw, 0, cos yaw)`, which is the vector
+      // `doorFacing` gives, so an author says "beyond me" without knowing which
+      // way north is. The box stands *on* the end's height, not centred on it.
+      _centre.set(ox, oy, oz).applyAxisAngle(UP, end.yaw).add(end.position);
+      _centre.y += sy / 2;
+      const proxy = boxProxy(_box.setFromCenterAndSize(_centre, _size.set(sx, sy, sz)));
+      proxy.userData.reach = volume.reach ?? VOLUME_REACH;
+      root.add(proxy);
+      side.trigger = _box.clone();
+      this.portals.bind(side, proxy, null);
+      return;
+    }
+
+    const mesh = buildDoor({ seed: end.seed ?? 1, material: end.material });
+    mesh.position.copy(end.position);
+    mesh.rotation.y = end.yaw;
+    markCollidable(mesh);
+    root.add(mesh);
+    this.portals.bind(side, mesh, doorName(doorMetrics(mesh).material));
+  }
+
+  /**
+   * Stands an end's arrival on top of something built in its own zone, for the
+   * ends whose height nobody could have written down. Everything else about
+   * the arrival — where in plan, and which way you face — stays the author's.
+   */
+  private perch(end: PortalEnd, root: THREE.Group): void {
+    if (!end.landOn) return;
+    const under = findTagged(root, end.landOn);
+    if (!under) {
+      console.warn(`portal end in "${end.zone}": nothing built for "${end.landOn}"`);
+      return;
+    }
+    const top = _box.setFromObject(under).max.y + SETTLE_CLEARANCE;
+    const stated = end.arrival ?? arrivalFor(end);
+    this.portals.landing(end, {
+      position: stated.position.clone().setY(top),
+      yaw: stated.yaw,
+      exact: true,
+    });
   }
 
   /**
@@ -960,8 +1060,8 @@ export class ZoneManager {
   private collectTargets(zone: Zone, root: THREE.Group): void {
     const targets: THREE.Object3D[] = this.portals
       .in(zone.id)
-      .map((side) => side.door)
-      .filter((door): door is THREE.Mesh => door !== null);
+      .map((side) => side.node)
+      .filter((node): node is THREE.Object3D => node !== null);
     root.traverse((object) => {
       if (typeof object.userData.label === 'string') targets.push(object);
     });
@@ -1254,6 +1354,10 @@ export class ZoneManager {
       return null;
     }
 
+    // Every frame, not on the probe's clock: this is a threshold being crossed
+    // at walking pace and the frame it happens on is the one it has to happen on.
+    this.crossVolumes();
+
     // The probe is where the raycasts live and it is the same answer for several
     // frames at a time. The answer is held between probes, so the interact key
     // acts on what is being shown rather than on nothing.
@@ -1261,6 +1365,37 @@ export class ZoneManager {
     this.probed = elapsed;
     this.focus = this.lookAhead(interaction, collider, player, reticle);
     return this.focus;
+  }
+
+  /**
+   * Fires a walk-in trigger the player has just entered.
+   *
+   * Hovering it is the whole gate on direction. The crosshair is the view axis,
+   * so a volume you are reversing into or sliding past sideways is not the one
+   * under it, and nothing has to read a velocity to know that. Rising edge,
+   * because a crossing that lands you inside one is not a second crossing.
+   */
+  private crossVolumes(): void {
+    if (!this.active) return;
+    const at = this.options.player.position;
+    for (const side of this.portals.in(this.active.id)) {
+      if (!side.trigger) continue;
+      const inside = side.trigger.containsPoint(at);
+      const entered = inside && !side.inside;
+      side.inside = inside;
+      if (entered && this.hovered === side) void this.use(side);
+    }
+  }
+
+  /**
+   * Marks every trigger the player has landed inside, so arriving next to one
+   * does not read as walking into it.
+   */
+  private seedVolumes(zone: Zone): void {
+    const at = this.options.player.position;
+    for (const side of this.portals.in(zone.id)) {
+      if (side.trigger) side.inside = side.trigger.containsPoint(at);
+    }
   }
 
   /** One probe's worth of work: what is under the crosshair, and its prompt. */
@@ -1273,7 +1408,11 @@ export class ZoneManager {
     const hover = interaction.probe(player.camera, collider);
     this.hovered = hover ? this.portals.sideOf(hover.object) : null;
     if (this.hovered) {
-      reticle.set({ title: this.hovered.title, target: this.hovered.label });
+      // With no title the prompt is one line: the name of the place, over the
+      // crosshair, which is what a walk-in trigger and a ladder inside one cell
+      // both want.
+      const { title, label } = this.hovered;
+      reticle.set({ title: title ?? label, target: title ? label : undefined });
       return { kind: 'door', side: this.hovered };
     }
 
@@ -1350,7 +1489,7 @@ export class ZoneManager {
     const hover = interaction.probe(player.camera, collider, _ndc.set(ndcX, ndcY));
     if (!hover) return null;
     const side = this.portals.sideOf(hover.object);
-    if (side) return { label: side.title, item: false };
+    if (side) return { label: side.title ?? side.label, item: false };
     const carried = carriedOf(hover.object);
     if (carried?.container) return { label: carried.container.display, item: false };
     if (carried?.pickup) return { label: carried.pickup.item.name, item: true };
@@ -1368,14 +1507,28 @@ export class ZoneManager {
     this.transitioning = true;
     this.options.reticle.set(null);
 
-    const material = side.door ? doorMetrics(side.door).material : 'timber';
-    this.doorAudio?.play(material);
+    // A door swings. A hatch, a ladder and a gap in a wall do not, so what is
+    // heard leaving through one is the player's own feet going away.
+    const leaf = isDoorEnd(side) ? (side.node as THREE.Mesh | null) : null;
+    const steps = leaf ? 0 : side.end.use === 'volume' ? WALK_AWAY_STEPS : CLIMB_STEPS;
+    if (leaf) this.doorAudio?.play(doorMetrics(leaf).material);
+    else this.audio?.footsteps?.walkAway(steps, WALK_AWAY_SPACING);
 
+    // Same zone: the fade and the teleport, without the entry. Re-entering the
+    // zone you are standing in would rebuild its audio, its targets and its
+    // lighting in order to arrive four metres higher up the same ladder.
+    const hop = side.target.zone === this.active?.id ? this.active : null;
     await this.options.fade.cover(async () => {
-      await this.enter(side.target.zone, side.arrival);
+      if (hop) {
+        const landing = hop.settle(side.arrival);
+        this.options.player.teleport(landing.position, landing.yaw);
+      } else {
+        await this.enter(side.target.zone, side.arrival);
+      }
       this.crossings++;
-    });
+    }, steps === 0 ? undefined : (steps - 1) * WALK_AWAY_SPACING + WALK_AWAY_TAIL);
 
+    if (hop) this.seedVolumes(hop);
     this.transitioning = false;
   }
 
@@ -1566,6 +1719,37 @@ export class ZoneManager {
   get clothAwake(): number {
     return this.cloth.awake;
   }
+}
+
+/** Whether an end is the plain door the portal built for itself. */
+function isDoorEnd(side: PortalSide): boolean {
+  return side.end.use === undefined || side.end.use === 'door';
+}
+
+/** The nearest object under `root` tagged with an entry id. */
+function findTagged(root: THREE.Object3D, id: string): THREE.Object3D | null {
+  let found: THREE.Object3D | null = null;
+  root.traverse((object) => {
+    const tag = object.userData.entry as { id?: string } | undefined;
+    if (!found && tag?.id === id) found = object;
+  });
+  return found;
+}
+
+/**
+ * An invisible, non-colliding box over a world-space extent. Invisible rather
+ * than absent: the crosshair's raycast does not test visibility, so this is
+ * found exactly as a mesh is, and nothing is drawn and nothing is walked into.
+ */
+function boxProxy(box: THREE.Box3): THREE.Mesh {
+  box.getSize(_size);
+  box.getCenter(_centre);
+  const proxy = new THREE.Mesh(new THREE.BoxGeometry(_size.x, _size.y, _size.z), PROXY_MATERIAL);
+  proxy.name = 'portal-volume';
+  proxy.visible = false;
+  proxy.position.copy(_centre);
+  proxy.userData.noCollide = true;
+  return proxy;
 }
 
 /** The distinct nonzero finish masks stamped under `root` — see `dressArtMesh`. */

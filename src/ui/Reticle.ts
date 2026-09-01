@@ -154,12 +154,16 @@ export class Fade {
    * enforces it: a callback returning a promise has to be awaited to satisfy
    * the signature, and a synchronous one still works unchanged.
    */
-  async cover(during: () => void | Promise<void>): Promise<void> {
+  async cover(during: () => void | Promise<void>, hold = FADE_HOLD): Promise<void> {
+    const from = performance.now();
     this.element.classList.add('is-black');
     await wait(FADE_TIME);
     await during();
     this.note(null);
-    await wait(FADE_HOLD);
+    // `hold` is how long the cover lasts *in total*, counted from the moment it
+    // started: a caller holding the black over a sound wants that sound covered,
+    // not that many seconds added to however long the rebuild took.
+    await wait(Math.max(FADE_HOLD, hold - (performance.now() - from) / 1000));
     this.element.classList.remove('is-black');
     await wait(FADE_TIME);
   }

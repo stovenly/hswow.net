@@ -42,8 +42,30 @@ const COUNTRYSIDE_STORE: ZoneEnvironment = {
   vibe: 'village interior 2',
 };
 
+/**
+ * Under the cottage: no window, so nothing arrives but what is carried down.
+ * The sun is off entirely and the fog is close, which is the whole of what
+ * makes a room read as being below ground.
+ */
+const COUNTRYSIDE_CELLAR: ZoneEnvironment = {
+  ...COUNTRYSIDE_HOUSE,
+  room: 'cell',
+  surface: 'stone',
+  fogColor: '#0d0b07',
+  fogNear: 3,
+  fogFar: 14,
+  ambientSky: 0x4a4438,
+  ambientGround: 0x2b2620,
+  ambientIntensity: 1.1,
+  sunIntensity: 0,
+  fillIntensity: 0.3,
+  firstPersonReverb: 0.7,
+  vibe: 'village interior 2',
+};
+
 registerEnvironment('countryside-house', COUNTRYSIDE_HOUSE);
 registerEnvironment('countryside-store', COUNTRYSIDE_STORE);
+registerEnvironment('countryside-cellar', COUNTRYSIDE_CELLAR);
 
 /**
  * A flagged floor, for the store. `buildInterior` paints its slab in `floor`
@@ -51,3 +73,13 @@ registerEnvironment('countryside-store', COUNTRYSIDE_STORE);
  * neighbours, and the floor is the whole of what makes it read as cold.
  */
 registerInteriorStyle('countryside-store', { ...HOUSE_STYLE, floor: PALETTE.STONE_DARK });
+
+/** Stone all round, with the cottage's boards overhead as the cellar's ceiling. */
+registerInteriorStyle('countryside-cellar', {
+  floor: PALETTE.STONE_DARK,
+  floorSeam: 0x0b0d0e,
+  wall: PALETTE.STONE_DARK,
+  wallTrim: PALETTE.STONE,
+  ceiling: PALETTE.TIMBER_DARK,
+  beam: PALETTE.BARK,
+});

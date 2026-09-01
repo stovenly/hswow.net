@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { MeshBuilder } from '../types';
+import type { BuildOptions, BuilderWith } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
@@ -8,16 +8,25 @@ import { PALETTE, shade } from '../palette';
 // the only way to get one wrong is to add to it. Built climbing +Y with the rungs
 // facing +Z, standing on y = 0. Where it leans and what holds it there are the
 // caller's business.
-export const ladder: MeshBuilder = {
+
+export interface LadderOptions extends BuildOptions {
+  /** Metres, rail top to foot. A ladder into a hole has to reach the hole. */
+  height?: number;
+}
+
+export const ladder: BuilderWith<LadderOptions> = {
   name: 'ladder',
+  display: 'Ladder',
   category: 'structures',
   radius: 0.4,
+  options: { height: { type: 'number', min: 1.2, max: 8, step: 0.05 } },
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, height: asked } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
-    const height = rng.range(2.4, 4.6);
+    const rolled = rng.range(2.4, 4.6);
+    const height = asked ?? rolled;
     const width = rng.range(0.36, 0.48);
     const railR = rng.range(0.02, 0.028);
     // A rung every 0.3 m. That is the pitch a person climbs at, and getting it

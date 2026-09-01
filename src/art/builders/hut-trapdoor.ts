@@ -6,10 +6,10 @@ import { shade } from '../palette';
 import { HUT_STAINS } from './hut-door';
 
 // A wooden trapdoor: a planked hatch in a timber curb, flat on the ground. Draws
-// its stains from `HUT_STAINS`, so a hamlet's hatches match its doors. No voice
-// and no metrics — portals do not open downward, so this is dressing. Built lying
-// flat on y = 0, leaf face up; the curb is well under the step limit, so it is
-// walked over rather than around.
+// its stains from `HUT_STAINS`, so a hamlet's hatches match its doors. Built
+// lying flat on y = 0, leaf face up, and finished on both faces — pitched half a
+// turn about X it is the same hatch seen from the cellar below it. The curb is
+// well under the step limit, so it is walked over rather than around.
 
 export type HutTrapdoorOptions = BuildOptions;
 
@@ -47,11 +47,14 @@ export function buildHutTrapdoor(options: HutTrapdoorOptions = {}): THREE.Mesh {
   // --- leaf ----------------------------------------------------------------
   // Planks spanning the opening, recessed a hair below the curb's top so the hatch
   // reads as sitting in its frame, over a dark void so the gaps read as depth.
+  // The void sits *inside* the leaf's thickness rather than under it: below it
+  // the plank soffits are the lowest surface, so from underneath this is boards
+  // with dark lines between them and not a black plate.
   const leafTop = curbHeight - 0.02;
   const plankThickness = 0.05;
 
-  const void_ = new THREE.BoxGeometry(width, 0.015, depth);
-  void_.translate(0, leafTop - plankThickness - 0.01, 0);
+  const void_ = new THREE.BoxGeometry(width, 0.02, depth);
+  void_.translate(0, leafTop - plankThickness + 0.012, 0);
   parts.push({ geometry: void_, color: 0x14161a, sway: 0 });
 
   const plankCount = rng.int(4, 6);
@@ -64,6 +67,14 @@ export function buildHutTrapdoor(options: HutTrapdoorOptions = {}): THREE.Mesh {
     );
     plank.translate(0, leafTop - plankThickness / 2, -depth / 2 + plankDepth * (i + 0.5));
     parts.push({ geometry: plank, color: shade(leafTone, rng.range(0.95, 1.05)), sway: 0 });
+  }
+
+  // Two ledgers across the planks on the underside, which is what holds a run of
+  // loose boards together and the only thing there is to see from below.
+  for (const bx of [-width * 0.26, width * 0.26]) {
+    const ledger = new THREE.BoxGeometry(0.075, 0.024, depth * 0.86);
+    ledger.translate(bx, leafTop - plankThickness - 0.012, 0);
+    parts.push({ geometry: ledger, color: shade(look.frame, 0.94), sway: 0 });
   }
 
   // --- ironwork ------------------------------------------------------------

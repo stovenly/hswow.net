@@ -509,6 +509,10 @@ const SOFTEST = 0.35;
 /** Impact speed at which a landing is as heavy as it gets, in m/s. */
 const LANDING_FULL = 9;
 
+/** What an unhurried walk is worth, for the footfalls nobody is driving. */
+const WALKING_WEIGHT = 0.72;
+const WALKING_SPEED = 2.4;
+
 /** Speed in m/s at which shear reaches its nominal value. `DRAG_MAX` caps it above 1. */
 const DRAG_SPEED = 5.5;
 const DRAG_MAX = 1.5;
@@ -827,6 +831,39 @@ export class Footsteps {
 
     // The foot cycle is left alone: a landing is on both feet, and the jump
     // before it already advanced the gait.
+  }
+
+  /**
+   * A run of footfalls receding, for a crossing with nothing to open.
+   *
+   * Scheduled onto the audio clock in one go rather than stepped: the crossing
+   * that asks for this is about to tear down the zone these are happening in,
+   * and a burst already on the clock carries across the cut.
+   */
+  walkAway(count = 4, spacing = 0.34): void {
+    const context = this.engine.context;
+    if (context.state !== 'running' || !this.engine.noise) return;
+
+    const surface = SURFACES[this.surface];
+    const chain = this.chainFor(this.surface);
+    const start = context.currentTime + 0.02;
+
+    for (let i = 0; i < count; i++) {
+      const at = start + i * spacing * rand(0.94, 1.06);
+      // Squared, so the run reads as distance opening rather than as a fade:
+      // loudness falls with the square of it and the ear knows the difference.
+      const away = 1 - i / count;
+      const force = surface.level * WALKING_WEIGHT * away * away;
+      const foot = this.takeFoot();
+      this.panner.pan.setValueAtTime(foot * panFor(0, 1, foot), at);
+
+      const gesture: Gesture = { at, gap: surface.roll, force, drag: dragFor(WALKING_SPEED) };
+      const [first, second] = gaitFor(0, 1, foot, surface.toe);
+      this.strike(chain, surface, gesture, { ...first, level: first.level * rand(0.9, 1.1) });
+      if (second.level > 0) {
+        this.strike(chain, surface, gesture, { ...second, level: second.level * rand(0.8, 1.1) });
+      }
+    }
   }
 
   /**

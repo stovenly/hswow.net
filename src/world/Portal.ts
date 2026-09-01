@@ -3,32 +3,82 @@ import type { ZoneId, Placement } from './Zone';
 import type { DoorMaterial } from '../audio/models/door';
 
 /**
- * Portals: the doors between zones. A portal is one link with two ends, and each
- * end is a door and a place to stand in front of it. Both markers are derived from
- * their own door by default — a door knows where it is and which way it faces, and
- * in front of it facing out is a rotation and a step — so a marker cannot drift
- * out of alignment with the door it belongs to. `arrival` overrides that where the
- * derived spot lands somewhere awkward.
+ * Portals: the ways between zones. A portal is one link with two ends, and an
+ * end is a place, a way of touching it, and — for a door — a fitting built
+ * there. Both markers are derived from their own end by default: an end knows
+ * where it is and which way it faces, and in front of it facing out is a
+ * rotation and a step, so a marker cannot drift out of alignment with the thing
+ * it belongs to. `arrival` overrides that where the derived spot lands
+ * somewhere awkward.
  *
  * Doors do not open: using one is a fade and a teleport, and `audio/models/door`
  * carries the gesture with a synthetic swing.
  */
 
+/**
+ * What stands at an end and what the crosshair finds there.
+ *
+ * `door` — the portal builds a door mesh, and the mesh is the target.
+ *
+ * `prop` — an entry the zone document already placed. The portal adopts it and
+ * hangs an invisible box over its extent, which is what makes two ladder rails
+ * findable and a hatch in a ceiling usable without the link layer knowing which
+ * way up it is.
+ *
+ * `volume` — nothing stands there. An invisible box that names where it goes
+ * from further off than arm's length, and fires when you walk into it.
+ *
+ * `none` — nothing stands there and nothing can be touched. A one-way link's
+ * far end: somewhere to arrive, and no way back.
+ */
+export type EndUse = 'door' | 'prop' | 'volume' | 'none';
+
+/** A walk-in trigger box. `offset` is in the end's own frame: +Z is the way it faces. */
+export interface EndVolume {
+  size: readonly [number, number, number];
+  offset?: readonly [number, number, number];
+  /** Metres the name carries. Defaults to `VOLUME_REACH`. */
+  reach?: number;
+}
+
+/**
+ * What the crosshair says. With no `title` the prompt is one line of `label`,
+ * which is what a place-name over the crosshair wants and what a ladder inside
+ * one cell wants — "to Countryside Village Demo" is a lie when you are already
+ * standing in it.
+ */
+export interface EndPrompt {
+  /** Explicitly `null` for one line, absent for whatever the fitting calls itself. */
+  title?: string | null;
+  label?: string;
+}
+
 /** One side of a portal. */
 export interface PortalEnd {
   zone: ZoneId;
-  /** Foot of the door — the door mesh stands on this point. */
+  /** Foot of the end — a door mesh stands on this point, a volume is centred over it. */
   position: THREE.Vector3;
-  /** Which way the door faces, in radians — out of the doorway, toward whoever is looking. The door builder builds toward +Z, so the facing vector is `(sin yaw, 0, cos yaw)`. */
+  /** Which way the end faces, in radians — out toward whoever is looking. The door builder builds toward +Z, so the facing vector is `(sin yaw, 0, cos yaw)`. */
   yaw: number;
+  use?: EndUse;
+  /** The entry id this end adopts, for `use: 'prop'`. */
+  propOf?: string;
+  /** Which half of the adopted entry's extent answers, split in Y. */
+  half?: 'lower' | 'upper';
+  volume?: EndVolume;
   /** Look and voice. Rolled from the seed if omitted. */
   material?: DoorMaterial;
   /** Seeds the door mesh. Same seed, same door, every load. */
   seed?: number;
   /** Overrides the derived arrival marker. */
   arrival?: Placement;
-  /** Overrides the tooltip. Defaults to the name of the zone it leads to. */
-  label?: string;
+  /**
+   * An entry in this end's own zone whose top the arrival stands on. How high
+   * the top of a stack of crates is, is not a number an author has; which crate
+   * it is, is. Takes the height only — the rest of `arrival` is untouched.
+   */
+  landOn?: string;
+  prompt?: EndPrompt;
 }
 
 export interface PortalDefinition {
@@ -52,6 +102,16 @@ export const ARRIVAL_STANDOFF = 1.15;
  */
 export const DOOR_PROUD = 0.07;
 
+/**
+ * How far off a walk-in trigger names itself, in metres. Far enough that the
+ * place at the end of the road has a name before you are in the archway, near
+ * enough that it is not a caption on the horizon.
+ */
+export const VOLUME_REACH = 9;
+
+/** Metres the adopted box is grown by, so a crosshair near a ladder rail still lands on it. */
+export const PROP_PROXY_GROW = 0.14;
+
 /** Unit vector the door faces. */
 export function doorFacing(yaw: number, out = new THREE.Vector3()): THREE.Vector3 {
   return out.set(Math.sin(yaw), 0, Math.cos(yaw));
@@ -64,7 +124,14 @@ export function doorFacing(yaw: number, out = new THREE.Vector3()): THREE.Vector
  */
 export function arrivalFor(end: PortalEnd): Placement {
   if (end.arrival) {
-    return { position: end.arrival.position.clone(), yaw: end.arrival.yaw };
+    const { position, yaw, exact } = end.arrival;
+    return { position: position.clone(), yaw, exact };
+  }
+  // A standoff only means anything in front of something you walk through. A
+  // hatch is walked *over* and a ladder is stood against, so an adopted end
+  // with nothing stated lands on its own point rather than a step beyond it.
+  if (end.use === 'prop') {
+    return { position: end.position.clone(), yaw: end.yaw + Math.PI };
   }
   const facing = doorFacing(end.yaw);
   return {
@@ -73,19 +140,31 @@ export function arrivalFor(end: PortalEnd): Placement {
   };
 }
 
-/** A live portal end: its definition, its door mesh, and where it lands you. */
+/** A live portal end: its definition, what the crosshair finds, and where it lands you. */
 export interface PortalSide {
   readonly portal: string;
   readonly end: PortalEnd;
   /** The end this one leads to. */
   readonly target: PortalEnd;
-  readonly arrival: Placement;
-  /** Set once the door mesh has been built into its zone. */
-  door: THREE.Mesh | null;
-  /** What kind of door this is — the tooltip's first line. Filled in when the mesh is bound, because the kind is rolled from the door's seed. */
-  title: string;
-  /** Where it goes — the tooltip's last line. Resolved against zone names. */
+  /**
+   * Where this side lands you. Rewritten once the far end's fitting is built,
+   * for the ends that take their landing off what they adopted: how high the
+   * top of a ladder is, is not a number an author has.
+   */
+  arrival: Placement;
+  /** Set once this end's target has been built into its zone. */
+  node: THREE.Object3D | null;
+  /** What the thing is — the prompt's first line, or null for a prompt of one line. Filled in when the node is bound, because a door's kind is rolled from its seed. */
+  title: string | null;
+  /** Where it goes — the prompt's last line. Resolved against zone names. */
   label: string;
+  /** Where a volume end's box stands, in world space. Null for every other kind. */
+  trigger: THREE.Box3 | null;
+  /**
+   * Whether the player was inside that box last frame. A volume fires on the
+   * rising edge, so arriving inside one is not a crossing.
+   */
+  inside: boolean;
 }
 
 /**
@@ -95,7 +174,7 @@ export interface PortalSide {
  */
 export class PortalGraph {
   private readonly byZone = new Map<ZoneId, PortalSide[]>();
-  private readonly byDoor = new Map<THREE.Object3D, PortalSide>();
+  private readonly byNode = new Map<THREE.Object3D, PortalSide>();
 
   /**
    * @param nameOf Resolves a zone id to its display name, for default labels.
@@ -116,12 +195,14 @@ export class PortalGraph {
       end,
       target,
       arrival: arrivalFor(target),
-      door: null,
-      title: 'Door',
-      // A door is labelled with where it *goes*, not with where it is. Standing
+      node: null,
+      title: end.prompt?.title === undefined ? (end.use === 'volume' ? null : 'Door') : end.prompt.title,
+      // An end is labelled with where it *goes*, not with where it is. Standing
       // outside a building, the useful thing to be told is the name of the
       // building; standing inside it, the name of the street.
-      label: end.label ?? nameOf(target.zone),
+      label: end.prompt?.label ?? nameOf(target.zone),
+      trigger: null,
+      inside: false,
     };
     const list = this.byZone.get(end.zone);
     if (list) list.push(side);
@@ -133,30 +214,48 @@ export class PortalGraph {
     return this.byZone.get(zone) ?? [];
   }
 
-  /** Called once a side's door mesh exists, to make it findable by raycast. */
-  bind(side: PortalSide, door: THREE.Mesh, title: string): void {
-    side.door = door;
-    side.title = title;
-    door.userData.portal = side;
-    this.byDoor.set(door, side);
+  /** Called once a side's target exists, to make it findable by raycast. */
+  bind(side: PortalSide, node: THREE.Object3D, title: string | null): void {
+    const stated = side.end.prompt?.title;
+    side.node = node;
+    side.title = stated === undefined ? title : stated;
+    node.userData.portal = side;
+    this.byNode.set(node, side);
   }
 
   /**
-   * Forgets a side's door mesh, because the zone holding it has been released.
-   * `bind` puts the mesh into `byDoor`, a strong reference held for the life of the
-   * session, so a zone torn down and rebuilt would leave its old door in there
-   * forever, one per crossing. Idempotent.
+   * Says where an end actually lands you, now that what it stands on has been
+   * built and measured. Every side leading *to* this end takes it.
+   */
+  landing(end: PortalEnd, at: Placement): void {
+    for (const side of this.all()) {
+      if (side.target === end) side.arrival = at;
+    }
+  }
+
+  /** Where arriving at an end puts you, resolved. Undefined until it is linked. */
+  arrivalAt(end: PortalEnd): Placement | undefined {
+    return this.all().find((side) => side.target === end)?.arrival;
+  }
+
+  /**
+   * Forgets a side's node, because the zone holding it has been released.
+   * `bind` puts the node into `byNode`, a strong reference held for the life of
+   * the session, so a zone torn down and rebuilt would leave its old one in
+   * there forever, one per crossing. Idempotent.
    */
   unbind(side: PortalSide): void {
-    if (side.door) this.byDoor.delete(side.door);
-    side.door = null;
+    if (side.node) this.byNode.delete(side.node);
+    side.node = null;
+    side.trigger = null;
+    side.inside = false;
   }
 
   /** What a raycast hit means, if anything. Walks up to the owning mesh. */
   sideOf(object: THREE.Object3D | null): PortalSide | null {
     let node = object;
     while (node) {
-      const side = this.byDoor.get(node);
+      const side = this.byNode.get(node);
       if (side) return side;
       node = node.parent;
     }

@@ -55,10 +55,114 @@
           0,
           22
         ],
-        "yaw": 3.1415927
+        "yaw": 3.1415927,
+        "use": "volume",
+        "volume": {
+          "size": [
+            2.2,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        }
       },
       "material": "timber",
       "seed": 4713
+    },
+    {
+      "id": "cottage-cellar-hatch",
+      "a": {
+        "zone": "countryside-cottage",
+        "use": "prop",
+        "propOf": "cellar-hatch",
+        "arrival": {
+          "at": [
+            2.3,
+            1.5
+          ],
+          "yaw": 1
+        }
+      },
+      "b": {
+        "zone": "countryside-cellar",
+        "use": "prop",
+        "propOf": "ceiling-hatch",
+        "arrival": {
+          "at": [
+            1.2,
+            0.9
+          ],
+          "yaw": 0.93
+        }
+      }
+    },
+    {
+      "id": "cellar-ladder-up",
+      "a": {
+        "zone": "countryside-cellar",
+        "use": "prop",
+        "propOf": "cellar-ladder",
+        "arrival": {
+          "at": [
+            1.2,
+            0.9
+          ],
+          "yaw": 0.93
+        }
+      },
+      "b": {
+        "zone": "countryside-cottage",
+        "use": "none",
+        "arrival": {
+          "at": [
+            2.3,
+            1.5
+          ],
+          "yaw": 1
+        }
+      }
+    },
+    {
+      "id": "village-crate-tower",
+      "a": {
+        "zone": "countryside-village",
+        "use": "prop",
+        "propOf": "tower-ladder",
+        "half": "lower",
+        "arrival": {
+          "at": [
+            6.5,
+            6.6
+          ],
+          "yaw": 0
+        },
+        "prompt": {
+          "title": null,
+          "label": "Climb Up"
+        }
+      },
+      "b": {
+        "zone": "countryside-village",
+        "use": "prop",
+        "propOf": "tower-ladder",
+        "half": "upper",
+        "arrival": {
+          "at": [
+            6.5,
+            5
+          ],
+          "yaw": 3.1415927,
+          "on": "tower-3"
+        },
+        "prompt": {
+          "title": null,
+          "label": "Climb Down"
+        }
+      }
     },
     {
       "id": "hut-door",

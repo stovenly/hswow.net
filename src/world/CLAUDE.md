@@ -1,7 +1,8 @@
 # src/world
 
 Places, and what is between them. A zone is one contiguous piece of world you
-can walk around in; a portal is a link between two of them.
+can walk around in; a portal is a link between two of them, and both its ends
+may be in the same one.
 
 Describe what this area is and how its pieces fit **now**. No history, no "we
 changed X to Y", no rejected alternatives, no tuning notes. If a fact stops
@@ -60,6 +61,28 @@ built. The finish stage reads it to tell a roof from the ground under its eave.
 **The sun moves, so nothing may bake or rate-limit what depends on its
 direction.** The shadow map is rebuilt every frame; the light and the fill both
 travel with it.
+
+## Portal ends
+
+An end is a place, a way of touching it, and — for a door — a fitting built
+there. `door` builds a door mesh and the mesh is what the crosshair finds.
+`prop` adopts an entry the document already placed and hangs an invisible,
+non-colliding box over its extent, which is what makes two ladder rails findable
+and a hatch in a ceiling usable without this layer knowing which way up it is;
+`half` takes the bottom or top of that box, which is a ladder that goes up a
+level inside one cell. `volume` builds a box and nothing else: it names where it
+goes from further off than arm's length, and fires on the rising edge of the
+player being inside it *while it is the hovered target* — the crosshair is the
+view axis, so a volume you are reversing into or sliding past is not the one
+under it. `none` is somewhere to arrive and nothing else, for a one-way link.
+
+An end whose landing nobody could write down names what it stands `on`, and the
+height is measured off that entry when the zone is built. `Placement.exact`
+stops the landing being settled onto the ground three metres below it.
+
+Leaving through a door plays a door. Leaving through anything else plays the
+player's own footsteps receding, scheduled on the audio clock in one go so the
+tail carries across the cut, and the black is held for as long as they take.
 
 ## Documents
 

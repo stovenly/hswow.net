@@ -202,7 +202,7 @@ export class Visualisers {
       this.flag(end.position.x, end.position.y, end.position.z, COLOURS.portal);
       // Where you would land coming the other way, drawn as a capsule: a door
       // whose arrival is in a hedge is visible before anybody walks through it.
-      const arrival = arrivalFor(end);
+      const arrival = this.app.zones.portals.arrivalAt(end) ?? arrivalFor(end);
       const capsule = new THREE.LineSegments(CAPSULE, lineMaterial(COLOURS.portal, 0.45));
       capsule.position.copy(arrival.position).setY(arrival.position.y + 0.85);
       this.add(capsule);

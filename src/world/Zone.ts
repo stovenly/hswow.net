@@ -161,7 +161,7 @@ export const INDOOR_ENVIRONMENT: ZoneEnvironment = {
  * contact point is higher than the point. A few centimetres lets gravity resolve it
  * in one frame.
  */
-const SETTLE_CLEARANCE = 0.12;
+export const SETTLE_CLEARANCE = 0.12;
 
 /** Shared, so the common case of no fog allocates nothing on every crossing. */
 const EMPTY_FOG: readonly FogVolume[] = [];
@@ -174,6 +174,12 @@ const EMPTY_HORROR: readonly HorrorPlacement[] = [];
 export interface Placement {
   position: THREE.Vector3;
   yaw: number;
+  /**
+   * The height is meant, and `settle` leaves it alone. What a ladder to the top
+   * of something needs: the ground under a crate tower is not where you land
+   * when you climb it.
+   */
+  exact?: boolean;
 }
 
 /**
@@ -359,7 +365,7 @@ export class Zone {
    */
   settle(placement: Placement): Placement {
     const groundAt = this.definition.groundAt;
-    if (!groundAt) return placement;
+    if (!groundAt || placement.exact) return placement;
     const position = placement.position.clone();
     position.y = groundAt(position.x, position.z) + SETTLE_CLEARANCE;
     return { position, yaw: placement.yaw };
