@@ -1,0 +1,202 @@
+# Who an NPC is, and what they can say — spec
+
+A villager is currently a body and a `folk`. Pressing E on one runs
+`SCRIPTS[mark.folk]`, a two-entry table in `src/world/talk.ts`, so every
+countryside figure in the world is the same person with a different seed.
+
+This gives them identity, gives that identity things it alone knows, and puts
+both in project content the editor can change. It also lays the condition layer
+a quest system will hang off, without building the quest system's content.
+
+**The short version.** Four layers where there is one: the **body** (what the
+builder makes), the **person** (who this is), their **traits** (what they are),
+and the **placement** (where they stand). Dialogue is contributed by traits,
+people and quests alike into one pool, each line gated by a condition and
+carrying a priority, and the highest-priority line that holds wins.
+
+---
+
+## What is already here
+
+`src/world/entry.ts` has a `Condition` union — `flag`, `quest` with a stage
+range, `not`/`all`/`any` — and `holds()` evaluating it against a `WorldState`.
+`src/world/state.ts` has `WorldFlags`, holding flags and quest stages in memory,
+with a preview mode that forces every condition true or false for the editor.
+Zone layers and entries are gated on this already.
+
+It is described in its own docstring as a stub until the quest system exists.
+Nothing below invents a second condition language; it grows this one.
+
+## The model
+
+**A trait** is what somebody is: `villager`, `cityfolk`, `trader`, `farmhand`.
+It carries topics anyone holding it can talk about, and later a schedule and a
+list of abilities.
+
+**A person** is who somebody is: a name, the body they wear, the traits they
+carry, and the topics only they know.
+
+**A quest** is a run of state with stages, a cast, and topics that appear while
+it is at particular stages.
+
+All three contribute topics to one pool with a priority. A trait sits at 0, a
+person a little above, a live quest higher still. Resolution is: collect every
+topic whose owner is live and whose condition holds for this speaker, sort by
+priority, keep the highest per `key`.
+
+That is the whole mechanism. There is no separate system for generic dialogue
+and specific dialogue — the difference is a number.
+
+## Traits come from four places
+
+The zone grants them, a region inside it grants them, the placement adds one,
+and the person carries their own. Union of the four. Anyone standing in the
+village is a `villager` without being written as one; Mark is a `trader`
+wherever you put him.
+
+## Topics and infos
+
+A **topic** is the option the player sees. An **info** is the reply. Conditions
+sit on both: on the topic, whether the option appears at all; on each info,
+which reply comes out. Infos are tried in order and the first whose condition
+holds is used.
+
+So "Village" stays one topic whose answer changes with the world, rather than
+four topics fighting over a label.
+
+```json
+{
+  "key": "goat",
+  "label": "About your goat",
+  "when": { "quest": "missing-goat", "stage": { "min": 10 } },
+  "infos": [
+    {
+      "when": { "quest": "missing-goat", "stage": { "max": 10 } },
+      "reply": "She is out past the stile, if she is anywhere.",
+      "then": [{ "do": "setStage", "quest": "missing-goat", "stage": 20 }]
+    },
+    { "reply": "You found her. That is that." }
+  ]
+}
+```
+
+`then` is what replaces the Creation Kit's per-line scripts: a short list of
+declarative effects, not a scripting language.
+
+## No aliases
+
+A quest names the people it is about. What it carries instead is a `cast` map
+from a role name to a person id, so recasting is one edit rather than twelve
+scattered conditions, and a condition may name either. Filling a role by
+condition at runtime is what radiant quest generation needs and this world does
+not do it.
+
+## Step 1 — a condition can ask about a person
+
+`Condition` gains `{ trait }`, `{ person }` and `{ cast }`; the quest case gains
+`done` (a stage ever visited, which is not the same question as the highest
+reached) and `failed`. `WorldState` gains `stageDone(quest, index)` and
+`failed(quest)`, and `WorldFlags` implements them.
+
+`holds` takes an optional third argument, the subject it is being asked about.
+Every existing caller passes nothing, and a condition that needs a subject and
+has none is false.
+
+*Done when* a zone layer can still be gated on a flag, and `holds` can answer
+"does this person carry `trader`" when handed one.
+
+## Step 2 — people and traits, in content
+
+Three new content families under `projects/<id>/content/`: `people/`, `traits/`,
+`quests/`. Three globs in `vite.config.ts` beside the one for `zones/`, read off
+the bundle in `src/app/content.ts`. An absent directory is an empty family.
+
+`CreatureEntry` gains `person`. A named person pins the body — builder, folk,
+seed, face, scale, voice all come with them, and the entry keeps its own as the
+fallback for the unnamed crowd, so the six creature entries in
+`countryside-village.json` do not move.
+
+`folk` stops picking dialogue and goes back to meaning origin: dress, mask,
+lect. The `country` and `city` scripts in `src/world/talk.ts` become
+`traits/villager.json` and `traits/cityfolk.json`, the zone grants the matching
+trait, and `talk.ts` is deleted. `NpcMark` in `src/world/Interaction.ts` grows
+from `{ folk, name }` to `{ person, name, folk, traits }`.
+
+*Done when* the village plays exactly as it does now with no `SCRIPTS` table in
+the codebase, and one villager named as a person keeps their face across a
+rebuild.
+
+## Step 3 — the pool, the priority and the reply
+
+The resolver: gather the speaker's traits, collect topics from every live owner
+whose condition holds, sort by priority, keep the highest per `key`, and for
+each walk its infos to the first that holds. Greetings and farewells resolve the
+same way out of the same owners.
+
+`Dialogue.ts` barely moves — its `Speaker` already takes
+`topics: { key, label, reply }[]`. What changes is that choosing a topic now
+also fires that info's `then`, so `boot.ts` hands it a chosen-callback rather
+than a bare reply string.
+
+Effects in this pass: `setStage`, `setFlag`, `startQuest`, `failQuest`,
+`grantTrait`, `revokeTrait`, `giveItem`, `takeItem`. The last two are the only
+ones with an outside dependency; if the inventory is not ready they refuse
+loudly rather than silently.
+
+*Done when* a villager and a named person standing next to each other offer
+different options out of the same trait, and a reply gated on a flag appears
+when the dev panel raises it.
+
+## Step 4 — quests
+
+A quest document: `id`, `name`, `priority`, `cast`, `stages`, `topics`. A stage
+is a sparse index — authored 10, 20, 30, so there is room to insert — with a log
+line, optional `completes`/`fails` flags, and its own `then`.
+
+`WorldFlags` grows from a dev stub into the thing that actually holds quest
+state: stage, the set of stages visited, completed, failed. It is what a save
+file writes and reads, which is the first time anything in it is persisted.
+
+*Done when* a quest can be started from a line of dialogue, advanced by another,
+and its topics appear and disappear at the right stages across a save and load.
+
+## Step 5 — the editor
+
+The expensive step, and the reason it is last. `scripts/editor-middleware.mjs`
+routes `zones` and `world` by name; it needs a generic family route with the
+same list/read/write/rename it already gives zones, minus the sidecars.
+`src/editor/api.ts` and `Session.commit` are both zone-keyed and take a family.
+
+Then two panels beside `zonePanel` and `layerPanel`: one for people and traits,
+one for quests and their topics. Assigning a person is one field on the creature
+inspector.
+
+`WorldFlags.preview` and `setStage` already exist as inspection state driven
+from the layer panel. Wiring the quest panel to them means setting a quest to
+stage 20, walking up to Mark and hearing what he says at stage 20 — which is the
+thing the Creation Kit is actually good at, and it is two panels away.
+
+*Done when* a person can be created, named, given a trait and placed without
+touching a file by hand, and a quest stage can be forced to preview the dialogue
+at it.
+
+## What this is not
+
+- Not a scripting language. Effects are a fixed vocabulary of declarative
+  records, and a line that needs more than they offer is a line to reconsider.
+- Not radiant content. Every quest is written for the people it is about.
+- Not a dialogue graph. Topics are a flat pool resolved by condition and
+  priority; nothing points at anything else.
+- Not a change to the body, the voice or the animation. `LifeSpec`, the
+  builders, `gaits.ts` and the speech stack are all below this line.
+
+## Still to settle
+
+1. **Whether a person's body fields win or lose against the placement's.** They
+   win here, so Mark looks like Mark wherever he stands and a variant is a
+   second person rather than a dressed-up placement. The other way round buys
+   "Mark, but in the winter coat" and costs the guarantee.
+2. **Where the priority numbers sit.** Trait 0, person 10, quest 40 are picked
+   to leave room, not measured against anything.
+3. **What a topic with no matching info does.** Vanish from the list, or show
+   with a rebuff. Vanishing is simpler; a rebuff is usually better writing.
