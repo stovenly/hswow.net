@@ -5,8 +5,10 @@ import { residentZones, KEEP_WITHIN } from './residency';
 import {
   carriedOf,
   labelOf,
+  npcOf,
   type ContainerInfo,
   type Interaction,
+  type NpcMark,
   type PickupInfo,
 } from './Interaction';
 import { isReadable } from './items';
@@ -21,6 +23,7 @@ import { WindowLight } from '../engine/WindowLight';
 import type { Daylight } from '../engine/daylight';
 import { ClothActivity } from '../engine/ClothActivity';
 import { LifeActivity } from '../engine/LifeActivity';
+import type { Creature } from '../life/Creature';
 import { GlitchActivity } from '../engine/GlitchActivity';
 import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
@@ -143,6 +146,7 @@ export type Focus =
   | { readonly kind: 'door'; readonly side: PortalSide }
   | { readonly kind: 'read'; readonly note: Note; readonly object: THREE.Object3D }
   | { readonly kind: 'item'; readonly object: THREE.Object3D; readonly pickup: PickupInfo }
+  | { readonly kind: 'talk'; readonly object: THREE.Object3D; readonly npc: NpcMark }
   | {
       readonly kind: 'container';
       readonly object: THREE.Object3D;
@@ -1266,6 +1270,15 @@ export class ZoneManager {
     // label is a sign with no verb at all.
     const object = hover?.object ?? null;
     const found = labelOf(object);
+
+    // Before the readable and pickup walks: a villager holding a book is still
+    // a villager, and the hover proxy is the innermost mark either way.
+    const person = npcOf(object);
+    if (person && found) {
+      reticle.set({ title: found.label });
+      return { kind: 'talk', object: person.node, npc: person.npc };
+    }
+
     if (found?.text !== undefined) {
       // An id that resolves to nothing degrades to a plain label rather than
       // opening a blank page.
@@ -1487,6 +1500,11 @@ export class ZoneManager {
   /** Steps the active zone's cloths. Called after the wind ships, so cloth and trees answer the same frame's weather. */
   updateCloth(dt: number, weather: Weather): void {
     this.cloth.update(this.active?.id ?? null, dt, weather, this.options.player.camera.position);
+  }
+
+  /** The creature behind a `talk` focus, for whoever is going to speak to it. */
+  creatureFor(mesh: THREE.Object3D): Creature | null {
+    return this.life.creatureFor(mesh);
   }
 
   /** Moves the active zone's creatures. Called after the sound update, so a voice is placed after the listener and before the wind ships. */

@@ -3,6 +3,9 @@ import { builderByName } from '../art/registry';
 import { coerceFields } from '../art/schema';
 import { finishCaptured } from '../art/assemble';
 import { takeWarm } from './warmProps';
+import { SCRIPTS, type Folk } from './talk';
+import type { NpcMark } from './Interaction';
+import type { LifeSpec } from '../life/spec';
 import { markCollidable } from '../player/Collider';
 import { markLabelled, markReadable } from './Interaction';
 import { markGlitched } from '../art/glitch';
@@ -181,6 +184,25 @@ registerEntryKind<CreatureEntry>({
       ...extras,
     } as never);
     applyPlacement(mesh, entry, ctx);
+    // A skinned mesh raycasts against its bind pose, so the crosshair is given
+    // an invisible cylinder to find instead. Invisible rather than absent: a
+    // raycast does not test `visible`, and nothing invisible is drawn or
+    // shadowed.
+    const life = mesh.userData.life as LifeSpec | undefined;
+    if (life?.kind === 'biped') {
+      const folk: Folk = entry.folk === 'city' ? 'city' : 'country';
+      const proxy = new THREE.Mesh(
+        new THREE.CylinderGeometry(life.radius, life.radius, life.height, 8, 1, true),
+      );
+      proxy.name = 'npc-hover';
+      proxy.visible = false;
+      proxy.position.y = life.height / 2;
+      const name = entry.name ?? SCRIPTS[folk].name;
+      proxy.userData.label = name;
+      proxy.userData.npc = { folk, name } satisfies NpcMark;
+      proxy.userData.noCollide = true;
+      mesh.add(proxy);
+    }
     // Creatures move: they are never in the octree, and `LifeActivity` picks
     // them up off `userData.life` and `userData.rig`.
     return mesh;

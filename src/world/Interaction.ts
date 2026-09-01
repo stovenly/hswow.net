@@ -65,6 +65,27 @@ export function markReadable<T extends THREE.Object3D>(
   return object;
 }
 
+/**
+ * Stamped on the invisible cylinder a creature carries, which is what the
+ * crosshair finds. The name itself is the ordinary `userData.label`.
+ */
+export interface NpcMark {
+  readonly folk: 'country' | 'city';
+  readonly name: string;
+}
+
+/** The creature under a hovered object, if what was hit was an NPC's hover proxy. */
+export function npcOf(
+  object: THREE.Object3D | null,
+): { node: THREE.Object3D; npc: NpcMark } | null {
+  for (let node = object; node; node = node.parent) {
+    const npc = node.userData.npc as NpcMark | undefined;
+    // The proxy's parent is the skinned mesh, which is what the life systems key on.
+    if (npc && node.parent) return { node: node.parent, npc };
+  }
+  return null;
+}
+
 /** What a hovered object says about itself: its name, and any note bound to it. */
 export interface Labelled {
   readonly label: string;

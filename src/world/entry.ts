@@ -135,6 +135,8 @@ export interface CreatureEntry extends EntryBase {
   roam?: number;
   folk?: string;
   face?: string;
+  /** What the crosshair calls them. Absent falls back to what their people are called. */
+  name?: string;
   options?: Record<string, unknown>;
 }
 

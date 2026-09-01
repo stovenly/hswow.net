@@ -17,7 +17,10 @@ import type { Project } from './project';
 import { contentWorld, loadSidecars } from './content';
 import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
-import { Interaction } from '../world/Interaction';
+import { Interaction, type NpcMark } from '../world/Interaction';
+import { Dialogue } from '../ui/Dialogue';
+import { SCRIPTS, pick } from '../world/talk';
+import type { Creature } from '../life/Creature';
 import { Reticle, Fade } from '../ui/Reticle';
 import { Crosshair } from '../ui/Crosshair';
 import { patchArtMaterial, updateWind } from '../art/sway';
@@ -304,6 +307,44 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     },
   });
 
+  // The one place in the game that takes the camera. `converse` holds the view
+  // on the villager's head; `release` hands it back where it rests.
+  let talkingTo: Creature | null = null;
+  let talkTurn = 0;
+  const _head = new THREE.Vector3();
+  const dialogue = new Dialogue(overlay, {
+    onOpen: () => {
+      wasPlaying = input.locked;
+      document.exitPointerLock();
+    },
+    onClose: () => {
+      talkingTo?.endConverse();
+      talkingTo = null;
+      player.release();
+      if (!wasPlaying) return;
+      document.body.classList.add('is-capturing');
+      void input.capture().finally(() => document.body.classList.remove('is-capturing'));
+    },
+  });
+
+  /** Opens a conversation, and takes the camera onto whoever it is with. */
+  const openTalk = (mesh: THREE.Object3D, mark: NpcMark): void => {
+    if (dialogue.isOpen) return;
+    const creature = zones.creatureFor(mesh);
+    if (!creature || creature.inConverse) return;
+    const script = SCRIPTS[mark.folk];
+    const turn = talkTurn++;
+    talkingTo = creature;
+    creature.beginConverse();
+    dialogue.open({
+      name: mark.name,
+      hailedRecently: creature.hailedRecently,
+      greeting: pick(script.greeting, creature.spec.seed, turn),
+      topics: script.topics,
+      speak: (kind) => creature.say(kind),
+    });
+  };
+
   const settings = installOptions(options, overlay, {
     audio,
     postfx,
@@ -324,6 +365,10 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       const dt = identify.active ? 0 : rawDt;
       const elapsed = identify.active ? identify.frozenElapsed : rawElapsed;
       clock = elapsed;
+      // Held on the head every frame, so a villager still settling into its own
+      // turn is tracked rather than landed short of. Before the controller runs.
+      if (talkingTo) player.converse(talkingTo.head(_head));
+      dialogue.update(dt);
       // Not before somewhere exists to stand: with no collider the player falls.
       if (zones.current) player.update(dt);
 
@@ -345,6 +390,7 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
         // mode, so nothing has to be entered or left.
         if (focus.kind === 'door') void zones.use(focus.side);
         else if (focus.kind === 'read') reading.open(focus.note);
+        else if (focus.kind === 'talk') openTalk(focus.object, focus.npc);
       }
 
       for (const fn of frameHooks) fn(dt, elapsed);

@@ -203,6 +203,19 @@ const _probeEnd = new THREE.Vector3();
 
 const _probe = new Capsule();
 const _look = { x: 0, y: 0 };
+const _toTarget = new THREE.Vector3();
+
+/** Seconds the turn into a conversation takes, and what the distance adds. */
+const CONVERSE_BASE = 0.45;
+const CONVERSE_PER_RADIAN = 0.35;
+const CONVERSE_CAP = 1.1;
+/** Half-life of the hold once the turn has landed. */
+const CONVERSE_HOLD = 0.23;
+
+/** The shortest way round to an angle, in radians. */
+function shortest(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
 
 /**
  * A moving thing the player is stopped by — a creature. An upright cylinder,
@@ -242,6 +255,12 @@ export class Controller {
 
   private yaw = 0;
   private pitch = 0;
+
+  /** Where the view is being held, while somebody is being spoken to. */
+  private talkingTo: THREE.Vector3 | null = null;
+  private talkT = 0;
+  private talkFor = 0;
+  private readonly talkFrom = new THREE.Vector2();
 
   /**
    * Fly, and pass through everything. A debug camera rather than a movement
@@ -410,8 +429,70 @@ export class Controller {
     return Math.hypot(this.velocity.x, this.velocity.z);
   }
 
+  /**
+   * Turns the view onto a point and holds it there. The one place in the game
+   * that takes the camera from the player; `release` gives it back where it
+   * rests, with nothing snapping.
+   */
+  converse(at: THREE.Vector3): void {
+    if (!this.talkingTo) {
+      this.talkT = 0;
+      this.talkFrom.set(this.yaw, this.pitch);
+      this.talkFor = 0;
+    }
+    this.talkingTo = at;
+  }
+
+  release(): void {
+    this.talkingTo = null;
+  }
+
+  get inConverse(): boolean {
+    return this.talkingTo !== null;
+  }
+
+  /**
+   * A fixed-time eased blend rather than a damp: a damp moves fastest at the
+   * start, which reads as a snap. Cubic ease-in-out over a length set by how
+   * far there is to go, so a quarter turn takes about as long as the villager's
+   * own turn and the two read as one exchange. Once it lands, a lazy damp holds
+   * the head so breathing is followed without rigidity.
+   */
+  private applyConverse(dt: number): void {
+    const at = this.talkingTo;
+    if (!at) return;
+    _toTarget.copy(at).sub(this.camera.position);
+    const flat = Math.hypot(_toTarget.x, _toTarget.z);
+    const wantYaw = Math.atan2(-_toTarget.x, -_toTarget.z);
+    const wantPitch = Math.atan2(_toTarget.y, flat);
+
+    const offYaw = shortest(wantYaw - this.yaw);
+    const offPitch = wantPitch - this.pitch;
+    if (this.talkFor === 0) {
+      const away = Math.hypot(offYaw, offPitch);
+      this.talkFor = Math.min(CONVERSE_BASE + CONVERSE_PER_RADIAN * away, CONVERSE_CAP);
+      this.talkFrom.set(this.yaw, this.pitch);
+    }
+
+    this.talkT += dt;
+    if (this.talkT >= this.talkFor) {
+      const close = 1 - 2 ** (-dt / CONVERSE_HOLD);
+      this.yaw += offYaw * close;
+      this.pitch += offPitch * close;
+      return;
+    }
+    // Measured against the live target every frame, so a villager still
+    // settling is tracked rather than landed short of.
+    const t = this.talkT / this.talkFor;
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+    const left = 1 - eased;
+    this.yaw = wantYaw - shortest(wantYaw - this.talkFrom.x) * left;
+    this.pitch = wantPitch - (wantPitch - this.talkFrom.y) * left;
+  }
+
   update(dt: number): void {
     this.applyLook();
+    this.applyConverse(dt);
 
     // Fixed sub-steps, with the remainder carried to the next frame so motion
     // stays smooth instead of quantising to the sub-step.
@@ -433,6 +514,9 @@ export class Controller {
 
   private applyLook(): void {
     this.input.drainLook(_look);
+    // Drained even while the view is held, or the spin banked during a
+    // conversation lands the moment it ends.
+    if (this.talkingTo) return;
     const { lookSensitivity, invertY, invertX } = this.tuning;
 
     this.yaw -= _look.x * lookSensitivity * (invertX ? -1 : 1);

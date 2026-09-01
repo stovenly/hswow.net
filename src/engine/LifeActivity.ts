@@ -39,6 +39,14 @@ export class LifeActivity {
     if (creatures.length) this.zones.set(id, creatures);
   }
 
+  /** The creature a skinned mesh belongs to, for the systems that talk to one. */
+  creatureFor(mesh: THREE.Object3D): Creature | null {
+    for (const creatures of this.zones.values()) {
+      for (const creature of creatures) if (creature.mesh === mesh) return creature;
+    }
+    return null;
+  }
+
   release(id: string): void {
     const creatures = this.zones.get(id);
     if (creatures) for (const creature of creatures) creature.dispose();

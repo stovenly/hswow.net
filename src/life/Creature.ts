@@ -162,6 +162,10 @@ export class Creature {
   private lastYaw: number;
   private greetCooldown = 0;
   private greeted = false;
+  /** The player has it in conversation: it holds the turn and hails nobody. */
+  private conversing = false;
+  /** The last world it was updated with, so `say` can reach the audio engine. */
+  private seen: World | null = null;
   private talkedThisVisit = false;
   private nearFor = 0;
 
@@ -204,6 +208,7 @@ export class Creature {
   }
 
   update(dt: number, world: World): void {
+    this.seen = world;
     this.clock += dt;
     const spec = this.spec;
     const pos = this.mesh.position;
@@ -283,6 +288,7 @@ export class Creature {
       dist < greetAt &&
       looked &&
       !this.greeted &&
+      !this.conversing &&
       this.greetCooldown === 0 &&
       now - lastGreetAt > GREET_GAP + (this.spec.seed % 5) * 0.15 &&
       (this.state === 'idle' || this.state === 'business' || this.state === 'walk')
@@ -296,7 +302,13 @@ export class Creature {
     // something, once.
     if (spec.kind === 'biped' && dist < greetAt * 0.8 && this.greeted) this.nearFor += dt;
     else this.nearFor = 0;
-    if (spec.kind === 'biped' && this.state === 'idle' && this.nearFor > 2.5 && !this.talkedThisVisit) {
+    if (
+      spec.kind === 'biped' &&
+      this.state === 'idle' &&
+      this.nearFor > 2.5 &&
+      !this.talkedThisVisit &&
+      !this.conversing
+    ) {
       this.talkedThisVisit = true;
       this.begin('talk');
       const said = this.babble('talk', world);
@@ -384,7 +396,7 @@ export class Creature {
           }
           this.gestureT += dt;
         }
-        if (this.gestureT > this.gestureLength) this.begin('idle');
+        if (!this.conversing && this.gestureT > this.gestureLength) this.begin('idle');
         break;
       }
     }
@@ -704,6 +716,61 @@ export class Creature {
       }
     }
     return { level: 0, beat: 0 };
+  }
+
+  /**
+   * Takes the creature into conversation with the player: it turns and holds
+   * the turn, hails nobody, and speaks only when told to.
+   */
+  beginConverse(): void {
+    if (this.conversing) return;
+    this.conversing = true;
+    this.begin('talk');
+    // Turned by the state machine, but never hailing off its own bat.
+    this.hailed = true;
+  }
+
+  /**
+   * Ends it, and sets the proximity lockout fresh so they do not hail you as
+   * you walk away.
+   */
+  endConverse(): void {
+    if (!this.conversing) return;
+    this.conversing = false;
+    this.greeted = true;
+    this.talkedThisVisit = true;
+    this.greetCooldown = 30 + (this.spec.seed % 30);
+    lastGreetAt = performance.now() / 1000;
+    this.gestureLength = 0;
+    this.begin('idle');
+  }
+
+  get inConverse(): boolean {
+    return this.conversing;
+  }
+
+  /** Whether it hailed the player in the street a moment ago, so a second hello would be one too many. */
+  get hailedRecently(): boolean {
+    return this.greeted && this.greetCooldown > 0;
+  }
+
+  /** Where a conversation's camera rests: the head, in world space. */
+  head(out: THREE.Vector3): THREE.Vector3 {
+    const pos = this.mesh.position;
+    return out.set(pos.x, pos.y + this.spec.headHeight, pos.z);
+  }
+
+  /**
+   * Speaks one line of a conversation, and says how long it lasts. Zero when
+   * the throat never built — the caller times the line off the wall clock then.
+   */
+  say(kind: 'greeting' | 'talk'): number {
+    if (!this.seen) return 0;
+    const said = this.babble(kind, this.seen);
+    if (!said) return 0;
+    this.gestureT = 0;
+    this.gestureLength = said.end - said.at + 0.6;
+    return said.end - said.at;
   }
 
   /** A few syllables of nothing: a short greeting or a run of talk. */

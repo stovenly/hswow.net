@@ -1175,21 +1175,19 @@ body:not(.is-playing) #prompt {
 
 /* --- speech ---------------------------------------------------------------- */
 
-/* A villager's line, typed out on its syllables. Low and centred, the same
-   panel as the prompt, and wide enough for a sentence to sit on two lines. */
+/* A villager's line while you are talking to them. No panel and no background:
+   the words are orphaned on the world, in the crosshair's register. */
 #speech {
   position: fixed;
   bottom: 12%;
   left: 50%;
   max-width: min(34rem, 80vw);
-  padding: 0.7rem 1.1rem;
   font-size: 1rem;
   line-height: 1.45;
   letter-spacing: 0.04em;
   text-align: center;
   color: var(--ink);
-  background: rgb(10 10 15 / 78%);
-  border: 1px solid rgb(220 220 200 / 28%);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 85%);
   transform: translate(-50%, 6px);
   opacity: 0;
   pointer-events: none;
@@ -1203,15 +1201,61 @@ body:not(.is-playing) #prompt {
   transform: translate(-50%, 0);
 }
 
-/* The unsaid part holds its place invisibly, so the box is its final size
+.speech-name {
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.62;
+  margin-bottom: 0.35rem;
+}
+
+.speech-line {
+  min-height: 1.45em;
+}
+
+.speech-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.9rem;
+}
+
+.speech-choice {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.15rem 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--ink);
+  text-shadow: inherit;
+  opacity: 0.72;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.speech-choice:hover,
+.speech-choice:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+
+/* The unsaid part holds its place invisibly, so the line is its final size
    from the first syllable. */
 .speech-unsaid {
   visibility: hidden;
 }
 
-body:not(.is-playing) #speech {
+/* Catches the clicks that miss a choice, as the reading screen's does. */
+.speech-scrim {
+  position: fixed;
+  inset: 0;
+}
+
+body:not(.is-playing):not(.is-dialogue) #speech {
   opacity: 0;
 }
+
 
 /* --- zone transition ----------------------------------------------------- */
 
@@ -1478,6 +1522,7 @@ body.is-loading #pause,
 body.is-options #pause,
 body.is-slots #pause,
 body.is-reading #pause,
+body.is-dialogue #pause,
 body.is-inventory #pause,
 body.is-quitting #pause,
 body.is-title #pause,
