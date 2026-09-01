@@ -22,12 +22,15 @@ import { registerVoice } from './voice/Voice';
  * buffer cuts its tail dead, so walking through a doorway would chop the room
  * you just left instead of letting it fall away behind you.
  *
- * The duck bus is a stub until there is dialogue to duck under.
+ * The duck bus pulls everything but the voices down under a line of dialogue.
  *
  * Browsers refuse to start an `AudioContext` without a user gesture, so the
  * context is created suspended and resumed on the first click or key. On
  * desktop that is the same click that grabs pointer lock.
  */
+
+/** How far the world drops under a line of dialogue: about five decibels. */
+const DUCK_UNDER = 0.56;
 
 export interface AudioSettings {
   masterVolume: number;
@@ -133,7 +136,7 @@ export class AudioEngine {
   readonly creatures: GainNode;
   readonly voices: GainNode;
   readonly weatherBus: GainNode;
-  /** Pulled down under dialogue in Phase 8. Unity for now. */
+  /** Everything but the voices, pulled down under a line of dialogue. See `duckUnder`. */
   readonly duck: GainNode;
   readonly master: GainNode;
 
@@ -237,7 +240,9 @@ export class AudioEngine {
     this.steps.connect(this.stepsSend);
     this.stepsSend.connect(this.send);
     this.creatures.connect(this.dry);
-    this.voices.connect(this.dry);
+    // Past the duck, not through it: the bus that dips under a line of
+    // dialogue may not dip the line itself.
+    this.voices.connect(this.master);
     this.weatherBus.connect(this.dry);
 
     const spread = crossfeed(this.context);
@@ -450,6 +455,18 @@ export class AudioEngine {
   }
 
   /** Per-frame housekeeping: weather, listener pose, and the occlusion clock. */
+  /**
+   * Pulls the world down under a line of dialogue and lets it back up after.
+   * Both ends are ramps: a hard step reads as a fault in the mix.
+   */
+  duckUnder(from: number, until: number): void {
+    const gain = this.duck.gain;
+    const at = Math.max(from, this.context.currentTime);
+    gain.cancelScheduledValues(at);
+    gain.setTargetAtTime(DUCK_UNDER, at, 0.12);
+    gain.setTargetAtTime(1, Math.max(until, at + 0.1), 0.3);
+  }
+
   update(dt: number, camera: THREE.Camera): boolean {
     this.weather.update(dt);
     this.updateListener(camera);

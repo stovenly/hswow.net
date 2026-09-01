@@ -4,6 +4,7 @@
  */
 
 import type { OneShot } from '../Scatter';
+import type { Score } from '../speech/parse';
 
 export interface VoiceOptions {
   gain?: number;
@@ -44,6 +45,8 @@ export interface Utterance {
 export interface Voice extends OneShot {
   /** Says a written line: for a dialogue box, when there is one. */
   say(text: string, at: number): Utterance;
+  /** Says a score somebody else built — `say` without the parse. */
+  speak(sc: Score, at: number): Utterance;
   /** Says nothing in particular: a short greeting, or a run of talk. */
   babble(kind: 'greeting' | 'talk', at: number): Utterance;
   /** Cuts whatever is being said, from `at`. */

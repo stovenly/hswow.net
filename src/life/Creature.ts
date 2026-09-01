@@ -6,6 +6,8 @@ import { Emitter } from '../audio/Emitter';
 import { buildOneShot, type OneShot } from '../audio/Scatter';
 import { createVoice, voiceState, type Voice, type Utterance } from '../audio/voice/Voice';
 import { VoiceLabel, voiceLabels } from '../dev/VoiceLabel';
+import { loan } from '../audio/speech/loan';
+import { lectOf } from '../audio/speech/lects';
 import { Pose, applyPose, approach, angleTo, smooth, clamp01, envelope } from './pose';
 import { Spring, damp } from './spring';
 import { Legs } from './legs';
@@ -62,6 +64,13 @@ function another<T>(list: readonly T[], last: T): T {
  * transition offset is added and decayed, and the pose is written to the
  * skeleton.
  */
+
+/** A line in the mouth: how long it lasts, and how far the voice has got. */
+export interface Spoken {
+  readonly seconds: number;
+  /** Characters of the English line voiced so far. */
+  upTo(): number;
+}
 
 export interface World {
   /** The player's feet, world space. */
@@ -761,16 +770,39 @@ export class Creature {
   }
 
   /**
-   * Speaks one line of a conversation, and says how long it lasts. Zero when
-   * the throat never built — the caller times the line off the wall clock then.
+   * Speaks an English line in its own language, and hands back how long it
+   * lasts and how far through it the voice has got. Null when the throat never
+   * built — the caller times the line off the wall clock then.
    */
-  say(kind: 'greeting' | 'talk'): number {
-    if (!this.seen) return 0;
-    const said = this.babble(kind, this.seen);
-    if (!said) return 0;
+  say(text: string): Spoken | null {
+    const world = this.seen;
+    if (!world?.audio) return null;
+    if (!this.ensureVoice(world)) return null;
+    const voice = this.voice;
+    if (!voice) return null;
+    const lect = this.spec.lect ?? 'country';
+    const context = world.audio.context;
+    const said = voice.speak(loan(text, lectOf(lect), lect), context.currentTime + 0.05);
+    this.said = said;
+    world.audio.duckUnder(said.at, said.end);
+    this.showLabel(world);
     this.gestureT = 0;
     this.gestureLength = said.end - said.at + 0.6;
-    return said.end - said.at;
+    if (said.units.length === 0) return null;
+    return {
+      seconds: said.end - said.at,
+      // The reveal follows the voice's own schedule, so the text arrives with
+      // the sound rather than beside it.
+      upTo: () => {
+        const now = context.currentTime;
+        let at = 0;
+        for (const unit of said.units) {
+          if (unit.at > now) break;
+          at = unit.to;
+        }
+        return at;
+      },
+    };
   }
 
   /** A few syllables of nothing: a short greeting or a run of talk. */
@@ -778,41 +810,53 @@ export class Creature {
     if (!world.audio || !world.audio.noise) return null;
     // A voice is kept for life, so it is worth missing one greeting rather
     // than being built on the old model a millisecond before the throat lands.
-    if (!this.voice && voiceState(world.audio.context) === 'waiting') return null;
-    if (!this.voice) {
-      // Where it stands is part of who it is: two villagers built from the
-      // same seed still get their own note, rate and hello.
-      const spot = Math.abs(this.home.x * 73.1 + this.home.y * 41.7);
-      const voice = createVoice(world.audio, {
-        tone: this.spec.tone,
-        gain: 1.0,
-        seed: this.spec.seed + spot,
-        lect: this.spec.lect,
-        character: this.spec.character,
-      });
-      this.voice = voice;
-      this.shot = voice;
-      _at.set(this.mesh.position.x, this.mesh.position.y + this.spec.headHeight, this.mesh.position.z);
-      this.emitter = new Emitter(world.audio, voice, {
-        position: _at,
-        refDistance: 3,
-        maxDistance: 45,
-        rolloff: 1.15,
-        reverb: 0.5,
-        out: world.audio.voices,
-      });
-    }
-    this.said = this.voice.babble(kind, world.audio.context.currentTime + 0.05);
-    if (voiceLabels.on) {
-      this.label ??= new VoiceLabel(this.mesh, this.spec.headHeight + 0.55);
-      // Says which lect it is speaking and which named voice if any, and says
-      // MUTE where a throat failed to build — otherwise a silent villager reads
-      // as one with nothing to say.
-      const who = `${this.spec.lect ?? 'country'}${this.spec.character ? ` ${this.spec.character}` : ''}`;
-      const model = voiceState(world.audio.context) === 'ready' ? who : 'MUTE';
-      this.label.show(`${this.voiceId} ${model}`, this.said.text);
-    }
+    if (!this.ensureVoice(world)) return null;
+    this.said = this.voice?.babble(kind, world.audio.context.currentTime + 0.05) ?? null;
+    this.showLabel(world);
     return this.said;
+  }
+
+  /**
+   * Builds the throat on first use and keeps it for life. False while the
+   * worklet is still landing: better to miss one greeting than to be built on
+   * the old model a millisecond before the throat arrives.
+   */
+  private ensureVoice(world: World): boolean {
+    if (this.voice) return true;
+    if (!world.audio || voiceState(world.audio.context) === 'waiting') return false;
+    // Where it stands is part of who it is: two villagers built from the
+    // same seed still get their own note, rate and hello.
+    const spot = Math.abs(this.home.x * 73.1 + this.home.y * 41.7);
+    const voice = createVoice(world.audio, {
+      tone: this.spec.tone,
+      gain: 1.0,
+      seed: this.spec.seed + spot,
+      lect: this.spec.lect,
+      character: this.spec.character,
+    });
+    this.voice = voice;
+    this.shot = voice;
+    _at.set(this.mesh.position.x, this.mesh.position.y + this.spec.headHeight, this.mesh.position.z);
+    this.emitter = new Emitter(world.audio, voice, {
+      position: _at,
+      refDistance: 3,
+      maxDistance: 45,
+      rolloff: 1.15,
+      reverb: 0.5,
+      out: world.audio.voices,
+    });
+    return true;
+  }
+
+  private showLabel(world: World): void {
+    if (!voiceLabels.on || !world.audio || !this.said) return;
+    this.label ??= new VoiceLabel(this.mesh, this.spec.headHeight + 0.55);
+    // Says which lect it is speaking and which named voice if any, and says
+    // MUTE where a throat failed to build — otherwise a silent villager reads
+    // as one with nothing to say.
+    const who = `${this.spec.lect ?? 'country'}${this.spec.character ? ` ${this.spec.character}` : ''}`;
+    const model = voiceState(world.audio.context) === 'ready' ? who : 'MUTE';
+    this.label.show(`${this.voiceId} ${model}`, this.said.text);
   }
 
   /**

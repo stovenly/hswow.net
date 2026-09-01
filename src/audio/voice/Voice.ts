@@ -109,6 +109,7 @@ function mute(engine: AudioEngine): Voice {
     syllables: [],
     speaking: null,
     say: (text, at) => nothing(text, at),
+    speak: (sc, at) => nothing(sc.text, at),
     babble: (_kind, at) => nothing('', at),
     hush() {},
     fire: () => 0,
@@ -177,6 +178,10 @@ function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
 
     say(text, at) {
       return perform(score(text), at);
+    },
+
+    speak(sc, at) {
+      return perform(sc, at);
     },
 
     babble(kind, at) {
