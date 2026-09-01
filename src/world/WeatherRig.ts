@@ -16,6 +16,7 @@ import { setGlowLevel } from '../art/glow';
 import { setZoneWind } from '../art/sway';
 import { createRain, type RainModel, type RainSurface } from '../audio/models/rain';
 import { BUCKET, drawStrike, flashOf, skyClock, type Strike } from './lightning';
+import { worldState } from './state';
 import { createBolt, type Bolt } from '../art/bolt';
 import { createPeal, type Peal } from '../audio/oneshots/peal';
 import type { Conditions } from '../audio/ambience/conditions';
@@ -789,13 +790,11 @@ export class WeatherRig {
   }
 
   /**
-   * Hands the ambience director what the world is doing. Sampled here because
-   * this already owns the climate and the surface lag, and because nothing
-   * under `src/audio` reads `src/world`.
+   * Hands the ambience director, and the gate a `when` is judged against, what
+   * the world is doing. Sampled here because this already owns the climate and
+   * the surface lag, and because nothing under `src/audio` reads `src/world`.
    */
   private applyAmbience(zones: ZoneManager, listener: THREE.Vector3, outdoors: boolean): void {
-    const director = zones.ambience;
-    if (!director) return;
     const climate = this.climate;
     const wind = climate.wind;
     // Degrees the sun climbs per game minute at the horizon: fifteen an hour,
@@ -821,7 +820,16 @@ export class WeatherRig {
     CONDITIONS.gust = wind.gust;
     CONDITIONS.indoors = !outdoors;
     CONDITIONS.elapsed = climate.elapsedDays;
-    director.setConditions(CONDITIONS);
+    zones.ambience?.setConditions(CONDITIONS);
+
+    const zone = zones.current;
+    worldState.observe(
+      CONDITIONS,
+      zone?.id ?? '',
+      zone?.definition.regions,
+      listener.x,
+      listener.z,
+    );
   }
 
   private applySound(

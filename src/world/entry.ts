@@ -65,35 +65,102 @@ export interface EntryPlacement {
 
 // --- conditions -------------------------------------------------------------
 
+/**
+ * A question about the world or about somebody in it. The world answers `flag`,
+ * `quest`, `zone`, `region`, `ambient` and `cast`; the subject answers `trait`,
+ * `person`, `atHome` and `doing`. Anything nobody can answer is false.
+ */
 export type Condition =
   | { flag: string }
-  | { quest: string; stage: { min?: number; max?: number } }
+  /** Every clause present must hold. `done` is a stage ever visited. */
+  | { quest: string; stage?: { min?: number; max?: number }; done?: number; failed?: boolean }
+  | { zone: string }
+  | { region: string }
+  /** A field of the ambient snapshot, in its own units. A boolean field reads 0 or 1. */
+  | { ambient: string; min?: number; max?: number }
+  | { trait: string }
+  | { person: string }
+  /** The subject is who the quest `of` has cast in this role. */
+  | { cast: string; of: string }
+  | { atHome: boolean }
+  | { doing: string }
   | { not: Condition }
   | { all: readonly Condition[] }
   | { any: readonly Condition[] };
+
+/** Who a condition is being asked about, where it is asking about somebody. */
+export interface Subject {
+  person?: string;
+  traits?: readonly string[];
+  /** The zone they belong in, which is what `atHome` compares against. */
+  home?: string;
+  /** What they are up to: the creature's state now, a schedule's answer later. */
+  doing?: string;
+}
 
 /** What conditions are evaluated against. A dev-panel stub until quests exist. */
 export interface WorldState {
   flag(name: string): boolean;
   stage(quest: string): number;
+  /** Whether a stage was ever visited, which the highest reached does not answer. */
+  stageDone(quest: string, index: number): boolean;
+  failed(quest: string): boolean;
+  /** Where the player is. */
+  zone(): string;
+  region(name: string): boolean;
+  /** A field of the ambient snapshot, or undefined when nothing has sampled one. */
+  ambient(field: string): number | undefined;
+  cast(quest: string, role: string): string | undefined;
 }
 
 export const NO_STATE: WorldState = {
   flag: () => false,
   stage: () => 0,
+  stageDone: () => false,
+  failed: () => false,
+  zone: () => '',
+  region: () => false,
+  ambient: () => undefined,
+  cast: () => undefined,
 };
 
-export function holds(condition: Condition | undefined, state: WorldState): boolean {
+export function holds(condition: Condition | undefined, state: WorldState, who?: Subject): boolean {
   if (!condition) return true;
   if ('flag' in condition) return state.flag(condition.flag);
   if ('quest' in condition) {
+    const { min, max } = condition.stage ?? {};
     const at = state.stage(condition.quest);
-    const { min, max } = condition.stage;
-    return (min === undefined || at >= min) && (max === undefined || at <= max);
+    if (min !== undefined && at < min) return false;
+    if (max !== undefined && at > max) return false;
+    if (condition.done !== undefined && !state.stageDone(condition.quest, condition.done)) {
+      return false;
+    }
+    if (condition.failed !== undefined && state.failed(condition.quest) !== condition.failed) {
+      return false;
+    }
+    return true;
   }
-  if ('not' in condition) return !holds(condition.not, state);
-  if ('all' in condition) return condition.all.every((one) => holds(one, state));
-  return condition.any.some((one) => holds(one, state));
+  if ('zone' in condition) return state.zone() === condition.zone;
+  if ('region' in condition) return state.region(condition.region);
+  if ('ambient' in condition) {
+    const value = state.ambient(condition.ambient);
+    if (value === undefined) return false;
+    const { min, max } = condition;
+    return (min === undefined || value >= min) && (max === undefined || value <= max);
+  }
+  if ('trait' in condition) return who?.traits?.includes(condition.trait) ?? false;
+  if ('person' in condition) return who?.person !== undefined && who.person === condition.person;
+  if ('cast' in condition) {
+    return who?.person !== undefined && state.cast(condition.of, condition.cast) === who.person;
+  }
+  if ('atHome' in condition) {
+    if (who?.home === undefined) return false;
+    return (who.home === state.zone()) === condition.atHome;
+  }
+  if ('doing' in condition) return who?.doing === condition.doing;
+  if ('not' in condition) return !holds(condition.not, state, who);
+  if ('all' in condition) return condition.all.every((one) => holds(one, state, who));
+  return condition.any.some((one) => holds(one, state, who));
 }
 
 // --- entries ----------------------------------------------------------------

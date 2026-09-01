@@ -388,6 +388,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     floor: doc.floor,
     surfaceAt: terrain ? (x, z) => terrain.stepAt(x, z) : undefined,
     groundAt: terrain ? (x, z) => terrain.heightAt(x, z) : undefined,
+    regions: doc.regions,
     get fogVolumes() {
       return collected.fogVolumes;
     },

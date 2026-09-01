@@ -77,8 +77,12 @@ holds the grammar and the kind table `registerEntryKind` extends; `kinds.ts`
 holds the kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
 the game ignores and the editor is built on.
 
-`state.ts` is what a `when` is judged against — flags and quest stages in memory,
-a stub until the quest system exists.
+`state.ts` is what a `when` is judged against. Flags and quest stages are held
+in memory and remain a stub until the quest system exists; where the player
+stands and what the weather is doing are pushed in once a frame by
+`WeatherRig.applyAmbience`, which already samples both. A condition may also ask
+about a person — their traits, their name, what they are doing — and is handed
+that subject by whoever is asking; asked without one, it is false.
 
 ## Dressing, interior, terrain, vista
 

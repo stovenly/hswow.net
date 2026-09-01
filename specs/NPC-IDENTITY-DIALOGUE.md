@@ -149,6 +149,14 @@ not do it.
 
 ## Step 1 — a condition can ask about a person
 
+**Built.** The union is `{ quest, stage?, done?, failed? }` — one case with
+optional clauses that all have to hold, rather than three quest cases — and the
+cast case is `{ cast: role, of: quest }` so it does not collide with it.
+`ZoneDefinition` gained `regions`, and `WeatherRig.applyAmbience` pushes the
+ambient snapshot, the zone id and the listener's position into `worldState`
+beside the copy it already hands the ambience director. Nothing constructs a
+`Subject` yet; Step 2 is where people and traits arrive to fill one.
+
 `Condition` gains `{ trait }`, `{ person }` and `{ cast }`; the quest case gains
 `done` (a stage ever visited, which is not the same question as the highest
 reached) and `failed`. `WorldState` gains `stageDone(quest, index)` and

@@ -7,6 +7,7 @@ import type { FogVolume } from '../engine/FogVolumes';
 import type { GlitchPlacement } from '../engine/Glitch';
 import type { HorrorPlacement } from '../engine/Horror';
 import type { ZonePlace } from './climate';
+import type { PatchShape } from './ground';
 
 /**
  * A zone is a place: one contiguous piece of world you can walk around in. The
@@ -221,6 +222,8 @@ export interface ZoneDefinition {
    * shape of its own ground supplies this and the placement is dropped onto it.
    */
   readonly groundAt?: (x: number, z: number) => number;
+  /** The named regions the document declared, for a `when` that names one. */
+  readonly regions?: Record<string, readonly PatchShape[]>;
   /**
    * Placed fog volumes, in this zone's world space. On the definition rather than in
    * `ZoneEnvironment`, because a volume has a centre and a size and so cannot be

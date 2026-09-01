@@ -213,7 +213,7 @@ export class LayerPanel {
     });
   }
 
-  /** One `when`, in the three forms that exist so far. */
+  /** One `when`, in the two forms this panel offers. */
   private condition(folder: GUI, layer: MutableLayer, write: () => void): void {
     const held = layer.when as { flag?: string; quest?: string; stage?: { min?: number } } | undefined;
     const state = {
