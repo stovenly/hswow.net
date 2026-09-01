@@ -50,6 +50,9 @@ export interface CoverLod {
 /** Blade ribbon segments. Two verts each plus a tip: 9 vertices a blade. */
 const SEGMENTS = 4;
 
+/** Placed items that may part the cover at once. The shaders spell this too. */
+const TREADS = 16;
+
 /** How dark a root is, and how much of that the tip recovers. */
 const ROOT = 0.6;
 const RAMP = 0.4;
@@ -62,6 +65,9 @@ export const coverUniforms = {
   coverPixel: { value: 0 },
   /** The player's feet, for treading a path through the blades. */
   coverPlayer: { value: new THREE.Vector3(0, -1000, 0) },
+  /** Placed items pressing the cover open: xyz the rest point, w the radius in metres. Zero w is an empty slot. */
+  coverTreads: { value: Array.from({ length: TREADS }, () => new THREE.Vector4(0, 0, 0, 0)) },
+  coverTreadCount: { value: 0 },
   /** Toward the sun, and the plume backlight colour, premultiplied. */
   coverSunDir: { value: new THREE.Vector3(0, 1, 0) },
   coverGlow: { value: new THREE.Color(0, 0, 0) },
@@ -113,6 +119,31 @@ export function setCoverWeather(snow: number, wet: number, sky: THREE.Color): vo
   coverUniforms.coverSky.value.copy(sky);
 }
 
+/** Placed items press the cover open: xz an outward push 0..1, y how flat, 0..1. */
+const TREAD_FIELD = /* glsl */ `
+uniform vec4 coverTreads[${TREADS}];
+uniform int coverTreadCount;
+
+vec3 coverTread(vec3 worldRoot) {
+  vec3 acc = vec3(0.0);
+  for (int i = 0; i < ${TREADS}; i++) {
+    if (i >= coverTreadCount) break;
+    vec4 tr = coverTreads[i];
+    if (tr.w <= 0.0) continue;
+    vec2 from = worldRoot.xz - tr.xz;
+    float d = length(from);
+    float near = (1.0 - smoothstep(tr.w * 0.3, tr.w, d))
+               * (1.0 - smoothstep(0.5, 1.0, abs(worldRoot.y - tr.y)));
+    if (near <= 0.0) continue;
+    acc.y = max(acc.y, near);
+    if (d > 0.001) acc.xz += (from / d) * near;
+  }
+  float spread = length(acc.xz);
+  if (spread > 1.0) acc.xz /= spread;
+  return acc;
+}
+`;
+
 /** World direction into a mesh's object space: Y rotation and uniform scale only. */
 const TO_OBJECT = /* glsl */ `
 vec3 coverToObject(vec3 v, vec3 c0, vec3 c1, vec3 c2, float scaleSq) {
@@ -158,6 +189,7 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
       uniform float swayAmount;
       varying vec3 vCoverTint;
       ${TO_OBJECT}
+      ${TREAD_FIELD}
       `,
     )
     .replace(
@@ -221,6 +253,12 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
                     * (1.0 - smoothstep(0.12, 0.85, treadD))
                     * (1.0 - smoothstep(1.0, 1.6, abs(worldRoot.y - coverPlayer.y)));
         if (tread > 0.0 && treadD > 0.001) tip += (fromPlayer / treadD) * (tread * len * 0.9);
+
+        // A placed item parts cover of any height, and presses it down as well
+        // as aside: short grass leans too little to show a dimple otherwise.
+        vec3 press = coverTread(worldRoot);
+        tip += press.xz * (len * 0.8);
+        len *= mix(1.0, 0.3, press.y);
 
         // Cantilever: displacement grows with t squared, and the tip dips to pay.
         float bend = length(tip) / max(len, 0.001);
@@ -327,6 +365,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
       varying vec4 vTuftGrain; // stipple uv, solidity, glow
       varying vec3 vTuftWorld;
       ${TO_OBJECT}
+      ${TREAD_FIELD}
       `,
     )
     .replace(
@@ -355,6 +394,9 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
         p = vec3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca);
 
         vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
+
+        vec3 press = coverTread(worldRoot);
+        p.y *= mix(1.0, 0.45, press.y);
 
         // Distance LOD, as the blades do it: the authored mesh scales from its root.
         vec3 toCam = cameraPosition - worldRoot;
@@ -386,6 +428,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
                     * (1.0 - smoothstep(1.0, 1.8, abs(worldRoot.y - coverPlayer.y)));
         tread *= smoothstep(0.4, 0.6, reach);
         if (tread > 0.0 && treadD > 0.001) push += (fromPlayer / treadD) * (tread * reach * 0.55);
+        push += press.xz * (reach * 0.5);
         p.xz += push;
 
         transformed = iPlace.xyz + coverToObject(p, c0, c1, c2, scaleSq);
@@ -1098,6 +1141,31 @@ function refreshDraw(mesh: THREE.Mesh): void {
   if (!pool.needed) return;
   mesh.visible = pool.wanted > 0;
   if (pool.resident !== pool.wanted) upload(mesh, pool.wanted);
+}
+
+/**
+ * What the cover parts around besides the player. Nearest the player wins when
+ * there are more than the shaders hold; past a dozen drops in one place the
+ * pile is its own landmark. Called on a change, never per frame.
+ */
+export function setCoverTreads(items: readonly { at: THREE.Vector3Like; radius: number }[]): void {
+  const near = coverUniforms.coverPlayer.value;
+  const sorted = items
+    .filter((item) => item.radius > 0)
+    .sort(
+      (a, b) =>
+        (a.at.x - near.x) ** 2 +
+        (a.at.z - near.z) ** 2 -
+        ((b.at.x - near.x) ** 2 + (b.at.z - near.z) ** 2),
+    )
+    .slice(0, TREADS);
+  const slots = coverUniforms.coverTreads.value;
+  for (let i = 0; i < TREADS; i += 1) {
+    const item = sorted[i];
+    if (item) slots[i].set(item.at.x, item.at.y, item.at.z, item.radius);
+    else slots[i].set(0, 0, 0, 0);
+  }
+  coverUniforms.coverTreadCount.value = sorted.length;
 }
 
 /** Sets the distance LOD. The shader reads the uniforms; the chunk cap reads the rest per frame. */

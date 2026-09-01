@@ -1,6 +1,6 @@
 # Cover parts around placed items — spec
 
-**Optional, not built.** Dropped items vanish into groundcover; this makes the
+**Built.** Dropped items vanish into groundcover; this makes the
 blades part around them the way they already part around the player, so a fork
 dropped in a meadow stays findable.
 

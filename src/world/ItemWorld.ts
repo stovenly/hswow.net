@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { COLLISION_LAYER } from '../layers';
 import { type Collider } from '../player/Collider';
 import { builderByName } from '../art/registry';
+import { setCoverTreads } from '../art/cover';
 import type { Inventory } from '../player/Inventory';
 import {
   CONTAINERS,
@@ -23,6 +24,11 @@ import type { ZoneManager } from './ZoneManager';
  * the player's affected records to every build, and edits the live zone when
  * something is taken or put down.
  */
+
+/** How wide a dropped thing parts the cover: its builder radius plus a margin, held to a band. */
+const TREAD_MARGIN = 0.15;
+const TREAD_MIN = 0.25;
+const TREAD_MAX = 0.6;
 
 /** Metres the drop ray may reach, and how far from the feet a drop may land. */
 const DROP_REACH = 5;
@@ -119,6 +125,21 @@ export class ItemWorld {
     }
     if (relight) this.zones.rebalanceLights(zone);
     if (restar) this.zones.refreshSparkles(zone);
+    this.refreshTreads(zone);
+  }
+
+  /** What the groundcover parts around. Rewritten on a drop, a pickup and every build. */
+  private refreshTreads(zone: ZoneId): void {
+    setCoverTreads(
+      worldDelta.placedIn(zone).map((record) => {
+        const builder = record.item.builder ? builderByName(record.item.builder) : undefined;
+        const radius = (builder?.radius ?? 0.2) + TREAD_MARGIN;
+        return {
+          at: { x: record.at[0], y: record.at[1], z: record.at[2] },
+          radius: Math.min(Math.max(radius, TREAD_MIN), TREAD_MAX),
+        };
+      }),
+    );
   }
 
   pickup(object: THREE.Object3D): Item | null {
@@ -147,6 +168,7 @@ export class ItemWorld {
     // underfoot until the next entry rebuilds behind the fade.
     if (solid) this.collider.invalidate(zone.id);
     if (relight) this.zones.rebalanceLights(zone.id);
+    this.refreshTreads(zone.id);
     this.zones.refreshTargets();
     return cloneItem(pickup.item);
   }
@@ -199,6 +221,7 @@ export class ItemWorld {
     };
     const mesh = this.buildPlaced(record);
     worldDelta.place(record);
+    this.refreshTreads(zone.id);
     const root = zone.root();
     const land = (): void => {
       root.add(mesh);
