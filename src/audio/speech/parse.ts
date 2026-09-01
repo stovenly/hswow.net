@@ -199,14 +199,9 @@ function codaOf(x: Consonant): Consonant {
   return x;
 }
 
-/**
- * Seconds of silence a mark buys, before the lect's `pauseScale`. A sentence
- * mark is the one that has to read as a sentence ending: a fast conversational
- * gap is around 0.6 s and a slower one around 1 s, which is where the two
- * peoples land either side of these.
- */
+/** Seconds of silence a mark buys, before the lect's `pauseScale`. */
 export const PAUSES: Record<string, number> = {
-  ',': 0.38, ';': 0.48, ':': 0.45, '.': 0.8, '!': 0.72, '?': 0.82, '—': 0.55, '-': 0.16, '…': 1,
+  ',': 0.14, ';': 0.19, ':': 0.18, '.': 0.32, '!': 0.28, '?': 0.32, '—': 0.24, '-': 0.07, '…': 0.42,
 };
 
 /**

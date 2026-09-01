@@ -47,7 +47,7 @@ const TALKS: readonly Talk[] = ['beat', 'roll', 'sweep', 'clasp', 'point', 'open
 /** The greetings that read as a goodbye: nothing that calls you over. */
 const FAREWELLS: readonly Greeting[] = ['bow', 'raise', 'press'];
 /** A gap between syllables this long is a sentence ending, and a new gesture. */
-const SENTENCE_GAP = 0.3;
+const SENTENCE_GAP = 0.2;
 
 /** The next of a list, never the one just used. */
 function another<T>(list: readonly T[], last: T): T {
