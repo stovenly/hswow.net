@@ -73,8 +73,6 @@ function another<T>(list: readonly T[], last: T): T {
 /** A line in the mouth: how long it lasts, and how far the voice has got. */
 export interface Spoken {
   readonly seconds: number;
-  /** Characters of the English line voiced so far. */
-  upTo(): number;
 }
 
 export interface World {
@@ -986,20 +984,7 @@ export class Creature {
       }
     }
     if (said.units.length === 0) return null;
-    return {
-      seconds: said.end - said.at,
-      // The reveal follows the voice's own schedule, so the text arrives with
-      // the sound rather than beside it.
-      upTo: () => {
-        const now = context.currentTime;
-        let at = 0;
-        for (const unit of said.units) {
-          if (unit.at > now) break;
-          at = unit.to;
-        }
-        return at;
-      },
-    };
+    return { seconds: said.end - said.at };
   }
 
   /** A few syllables of nothing: a short greeting or a run of talk. */

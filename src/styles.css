@@ -1234,6 +1234,12 @@ body:not(.is-playing) #prompt {
   pointer-events: auto;
 }
 
+/* On the way out the box keeps its contents until it has faded, so nothing
+   reflows under the name. A faded button is not a button. */
+#speech:not(.is-shown) .speech-choice {
+  pointer-events: none;
+}
+
 .speech-choice:hover,
 .speech-choice:focus-visible {
   opacity: 1;

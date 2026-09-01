@@ -7,11 +7,9 @@
  * real dialogue interface is a later pass; nothing here is precious.
  */
 
-/** A line being voiced: how long it lasts, and how far through it the voice is. */
+/** A line being voiced. */
 export interface Spoken {
   readonly seconds: number;
-  /** Characters of the line voiced so far. */
-  upTo(): number;
 }
 
 /** What the interface needs of whoever is being talked to. */
@@ -39,12 +37,18 @@ export interface DialogueHandlers {
 const READ_RATE = 0.032;
 const READ_LEAST = 0.9;
 /**
- * How much of the speaking the writing takes. Under 1, so the sentence is
- * finished and readable while the villager is still saying the end of it.
+ * Letters a second, flat. Not tied to the voice: reading is faster than
+ * speaking, and this is fast enough to finish a line while the villager is
+ * still saying the end of it.
  */
-const REVEAL_AHEAD = 0.7;
+const REVEAL_RATE = 45;
 /** Characters a letter takes to come up from nothing. */
 const FADE_CHARS = 7;
+/**
+ * Milliseconds the box takes to fade out. Matches `#speech`'s transition in
+ * `styles.css` — change both together, or it empties while still on screen.
+ */
+const FADE_OUT = 160;
 
 export class Dialogue {
   private readonly root: HTMLDivElement;
@@ -61,8 +65,10 @@ export class Dialogue {
   private chars: HTMLSpanElement[] = [];
   /** How many of them are fully up. Only ever moves forward. */
   private lit = 0;
-  /** What `waiting` started at, for the reveal when there is no voice to follow. */
-  private span = 0;
+  /** Seconds since the line was set. The reveal is written off this and nothing else. */
+  private elapsed = 0;
+  /** The pending empty-out, so reopening before it lands does not get wiped. */
+  private wiping = 0;
 
   constructor(
     overlay: HTMLElement,
@@ -109,6 +115,7 @@ export class Dialogue {
 
   open(speaker: Speaker): void {
     if (this.speaker) return;
+    window.clearTimeout(this.wiping);
     this.speaker = speaker;
     this.nameEl.textContent = speaker.name;
     document.body.classList.add('is-dialogue');
@@ -131,6 +138,7 @@ export class Dialogue {
   /** Drives the reveal and the wait on the line. Called from the frame loop. */
   update(dt: number): void {
     if (!this.speaker || this.waiting <= 0) return;
+    this.elapsed += dt;
     this.reveal();
     this.waiting -= dt;
     if (this.waiting > 0) return;
@@ -146,7 +154,7 @@ export class Dialogue {
     this.waiting = this.spoken
       ? this.spoken.seconds + 0.15
       : Math.max(READ_LEAST, text.length * READ_RATE);
-    this.span = this.waiting;
+    this.elapsed = 0;
   }
 
   /**
@@ -195,15 +203,9 @@ export class Dialogue {
     this.lineEl.replaceChildren(...out);
   }
 
-  /**
-   * How much of the line has arrived. A mute throat falls back to the wall
-   * clock, so the words still come when there is no voice to come with.
-   */
+  /** How much of the line has arrived: the wall clock, whether there is a voice or not. */
   private reveal(): void {
-    const through = this.spoken
-      ? this.spoken.upTo()
-      : this.line.length * (1 - this.waiting / this.span);
-    this.lightUp(through / REVEAL_AHEAD);
+    this.lightUp(this.elapsed * REVEAL_RATE);
   }
 
   /** Brings every letter up to where a reveal of `p` letters leaves it. */
@@ -254,14 +256,18 @@ export class Dialogue {
     this.speaker = null;
     this.waiting = 0;
     this.spoken = null;
-    this.line = '';
-    // Cleared, or the choices stay in the document as invisible buttons that
-    // can still be pressed.
-    this.choicesEl.replaceChildren();
-    this.lay();
     this.root.classList.remove('is-shown');
     this.scrim.hidden = true;
     document.body.classList.remove('is-dialogue');
+    // Emptied after it has gone, not before: dropping the line and the choices
+    // now would leave the name to fall into the space they were holding and
+    // the whole box would reflow on its way out.
+    this.wiping = window.setTimeout(() => {
+      this.line = '';
+      this.lay();
+      this.choicesEl.replaceChildren();
+      this.nameEl.textContent = '';
+    }, FADE_OUT);
     this.handlers.onClose();
   }
 
