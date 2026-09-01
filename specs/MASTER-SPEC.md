@@ -54,7 +54,6 @@ its reasoning. Open, at the time of writing:
 | `FOOTSTEPS.md` | Crouch, per-foot character, the surface derivation table |
 | `READABLES-POLISH.md` | Making the reading screen worth stopping for |
 | `ZONE-LOADING.md` | Migrating the remaining zones to lazy load |
-| `MORE-WORKER-TASKS.md` | The rest of the zone build onto the work pool |
 | `FUTURE-REFACTORS.md` | Understood, unblocked, unscheduled |
 | `BUGS.md` | Temporary, until there is a tracker |
 

@@ -1,5 +1,8 @@
 # More work off the main thread — spec
 
+**Built, all six phases.** Each step carries a note where what landed differs
+from the sketch under it, and those notes are the authority.
+
 The pool exists and has three tenants. This is the list of everything else that
 should be on it, in the order it is worth doing.
 
@@ -71,6 +74,12 @@ belonged.
 *Done when* the prop warm runs through the kind table with no change to what is
 warmed.
 
+**Built**, and it found a bug: the scan walked `doc.layers`, which is absent on
+every document written with `entries` instead — including the village, the one
+zone with enough props to be worth warming. So the warm had never run on it.
+It walks `layersOf` now, the same expression the build does, and applies the
+same `when` tests, so a layer the state has turned off is not warmed.
+
 ## Step 2 — scatter
 
 `placement.ts` grows `scatterAsks(rule)`, the draw sequence on its own, and
@@ -89,6 +98,10 @@ props to place some smaller number of them.
 *Done when* a zone of scatters builds off the pool and is identical to the one
 built inline.
 
+**Built** as `scatterCandidates` rather than `scatterAsks` — it returns the
+whole candidate, position and yaw included, and `scatterProps` filters the list
+instead of drawing inline. The over-warming was accepted; see *To settle*.
+
 ## Step 3 — the vista ring and the edge dressing
 
 Both are rejection samplers that place first and build second, and `vistaRing`
@@ -104,6 +117,11 @@ calls and keeps one source of truth for where things stand.
 
 *Done when* the ring and the dressing build off the pool, and the ring's merged
 chunks and its `vistaRanges` table are unchanged.
+
+**Built.** One thing the sketch missed: the ring warns when a band places none
+of what it was asked for, and the plan now runs twice, so the warning would
+have arrived twice. It is reported through a callback the build supplies and
+the warm does not.
 
 ## Step 4 — rigged creatures
 
@@ -126,6 +144,13 @@ Eight builders route through `finishRigged`: `figure`, `poultry`, and
 *Done when* a zone's villagers and livestock come off the pool, animate as they
 did, and `LifeActivity` finds the same rig and the same spec.
 
+**Built**, and the widening went further than rigs: the capture no longer
+refuses any builder for stamping `userData`, rigged or not. `plainData` decides
+— numbers, strings, booleans, arrays and object literals pass, anything with a
+prototype refuses — so the guard can only ever refuse a capture, never corrupt
+one. That also picked up whichever plain-mesh builders stamp metrics on
+themselves.
+
 ## Step 5 — the palette thumbnails
 
 `Thumbnails` draws one builder per frame because each frame builds a mesh *and*
@@ -137,6 +162,11 @@ No new job kind: `prop-geometry` with `{ builder, seed: 1 }` is exactly what a
 thumbnail asks for. Warm the queue ahead of the draw.
 
 *Done when* opening a palette tab fills it in visibly fewer frames.
+
+**Built.** Four a frame instead of one, and the drain takes the first entry the
+pool has answered for rather than the first in the queue — waiting on the head
+would have put the build straight back on the frame. The palette fills a little
+out of order as a result.
 
 ## Step 6 — the warm must not become the new stall
 
@@ -155,6 +185,12 @@ jobs:
 *Done when* a zone with four hundred props starts building on a fixed budget
 rather than on the pool's slowest job, and a crossing's index is not stuck
 behind a prewarm.
+
+**Built**, and landed second rather than last: the deadline and the jump are
+what keep every phase after them bounded, so they wanted to be in place before
+the flood rather than after it. The budget is 2.5 seconds and the jump is
+`urgent` on a `pool.run`, which only `Collider.warmAsync` passes, and only when
+a crossing is waiting on it.
 
 ## Looked at and left alone
 
@@ -189,13 +225,14 @@ behind a prewarm.
 
 ## To settle before building
 
-1. **Over-warming.** Step 2 builds every scattered prop a document asks for and
-   throws away the rejected ones. On the village that is 248 built against
-   however many land. The alternative is passing the terrain into the warm so
-   the accept tests can run there too, which makes the warm a second copy of the
-   scatter loop rather than a shared one. Worth it, or accept the waste?
-2. **Order.** Steps 1 and 2 are the bulk of the win for the least risk. Step 4
-   is the largest single builder and the largest change. Step 5 is small and
-   independent and could go first if the editor is what is annoying.
-3. **How far.** Steps 1–3 are one coherent piece of work. 4, 5 and 6 are three
-   separate ones and each could be its own sign-off.
+1. **Over-warming.** *Accepted.* The warm builds every scattered prop a
+   document asks for and `dropWarm` frees the rejected ones. Passing the
+   terrain in would have made the warm a second copy of the scatter loop
+   instead of a shared one, and the waste is on a background thread.
+2. **Order.** *Step 6 moved to second.* The deadline and the queue jump are the
+   safety valve for everything after them.
+3. **How far.** All six.
+
+Still open, and not a decision anybody can make from the code: whether any of
+this is faster. Nothing here has been timed, and the render is the only place
+that can say.

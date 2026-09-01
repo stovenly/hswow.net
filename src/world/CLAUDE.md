@@ -65,8 +65,14 @@ travel with it.
 
 A zone is a JSON file of verbs, never meshes: `document.ts` turns one into a
 `ZoneDefinition` and `world.json` into the portal graph. Before that walk runs,
-`warmProps.ts` scans the document for props and builds their geometry on the
-work pool; the walk claims what is ready and builds the rest itself. `entry.ts`
+`warmProps.ts` asks every entry kind what it is going to build and makes those
+geometries on the work pool; the walk claims what is ready and builds the rest
+itself. A kind says so by declaring `asks`, which has to list the same builder
+calls `build` makes, in the same order — so a kind that rolls its placement
+shares one function between the two rather than reproducing it. A kind needing
+anything the walk has not built yet, like a resolved anchor, declares none and
+builds on the frame. The warm gives up after a budget, because a miss is free
+and a stall is not. `entry.ts`
 holds the grammar and the kind table `registerEntryKind` extends; `kinds.ts`
 holds the kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
 the game ignores and the editor is built on.

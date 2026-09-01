@@ -78,8 +78,12 @@ the only half allowed to touch three, the renderer or the DOM. Callers await
 runs the same halves inline.
 
 Shader compilation, buffer upload and anything touching the renderer stay on
-the main thread. Its tenants are a prop's geometry, a zone's collision tree,
-and the groundcover sampler.
+the main thread. Its tenants are a zone's props — placed, scattered, dressed
+along the boundary, standing in the vista band, and its creatures — a zone's
+collision tree, the groundcover sampler, and the editor's palette thumbnails.
+
+A job may ask to jump the queue, which only a zone crossing's collision tree
+does. Nothing else has a deadline the player can see.
 
 ## Conventions
 

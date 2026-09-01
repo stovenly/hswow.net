@@ -12,6 +12,7 @@ being true, edit the line — do not append a correction.
 
 - `types.ts` — the contract: `MeshBuilder`, `BuildOptions`, the categories.
 - `assemble.ts` — `Part[]` to one merged geometry; `finish` wraps it in a mesh.
+- `rig.ts` — the same for a creature: bones, skinning, and one draw call.
 - `sway.ts` — the shared materials and the patch chain; `updateWind` per frame.
 - `palette.ts` — colours by material, with `shade` and `blend`.
 - `masonry.ts`, `building.ts` — the stone and the timber vocabularies.
@@ -63,6 +64,21 @@ ribbon, hashed per blade; the base geometry's `position.z` says which is which.
 
 **No two layers may share a plane.** Two faces at one depth is a z-fight the
 depth buffer cannot resolve at any distance; depth is made by stacking outward.
+
+## Built where it is asked for
+
+`assemble` returns a geometry and `finish` dresses it, and that seam is what
+lets a builder run on a worker. `capture` runs one with `finish` and
+`finishRigged` recording their arguments rather than making a mesh, so a
+builder whose whole body is one pure walk to one of them yields its geometry
+with no edit to the builder at all. Anything else — a light, a child mesh, a
+moved mesh, two finishes — comes back refused and is built on the frame as
+before.
+
+A builder may stamp `userData` after finishing and still be captured, but only
+plain data: numbers, strings, booleans, arrays and object literals. A class
+instance would arrive with its prototype gone, so it refuses the capture
+instead.
 
 ## Adding a builder
 
