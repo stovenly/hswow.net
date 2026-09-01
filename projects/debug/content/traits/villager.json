@@ -1,0 +1,35 @@
+{
+  "id": "villager",
+  "name": "Villager",
+  "greeting": [
+    "Good day to you.",
+    "You are about early.",
+    "Well met, stranger.",
+    "Come far, have you?"
+  ],
+  "farewell": [
+    "Mind the road.",
+    "Good day, then.",
+    "Off with you, and keep well."
+  ],
+  "topics": [
+    {
+      "key": "village",
+      "label": "Village",
+      "infos": [
+        {
+          "reply": "This is the whole of it. The well, the green, and the road out. We keep to ourselves and the season keeps to us."
+        }
+      ]
+    },
+    {
+      "key": "city",
+      "label": "City",
+      "infos": [
+        {
+          "reply": "The city? I went once. Too many walls and not one of them mine."
+        }
+      ]
+    }
+  ]
+}

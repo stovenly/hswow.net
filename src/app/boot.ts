@@ -19,7 +19,8 @@ import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction, type NpcMark } from '../world/Interaction';
 import { Dialogue } from '../ui/Dialogue';
-import { SCRIPTS, pick } from '../world/talk';
+import { converse, pick } from '../world/dialogue';
+import { worldState } from '../world/state';
 import type { Creature } from '../life/Creature';
 import { Reticle, Fade } from '../ui/Reticle';
 import { Crosshair } from '../ui/Crosshair';
@@ -334,15 +335,16 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     // Refused mid street meeting: the prompt still names them, E just does
     // nothing until they are finished with each other.
     if (!creature || creature.inConverse || creature.inMeeting) return;
-    const script = SCRIPTS[mark.folk];
+    const talk = converse(mark, worldState, creature.doing);
+    if (talk.greeting.length === 0) return;
     const turn = talkTurn++;
     talkingTo = creature;
     creature.beginConverse();
     dialogue.open({
       name: mark.name,
-      greeting: pick(script.greeting, creature.spec.seed, turn),
-      farewell: pick(script.farewell, creature.spec.seed, turn),
-      topics: script.topics,
+      greeting: pick(talk.greeting, creature.spec.seed, turn),
+      farewell: pick(talk.farewell, creature.spec.seed, turn),
+      topics: talk.topics,
       speak: (text, manner) => creature.say(text, manner),
       hush: () => creature.hush(),
       away: () => creature.mesh.position.distanceTo(player.position),

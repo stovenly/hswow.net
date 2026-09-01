@@ -97,6 +97,8 @@ export interface ZoneDocument {
   flat?: { size?: number } & FlatGroundOptions;
   /** Named lists of shapes, so a scatter or a ring can name one. */
   regions?: Record<string, readonly PatchShape[]>;
+  /** What this place makes of anybody standing in it: `villager`, and so on. */
+  traits?: readonly string[];
   /** Composed sets of entries this zone places by name. */
   prefabs?: Record<string, readonly Entry[]>;
   layers?: readonly Layer[];
@@ -314,6 +316,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       groundAt,
       slopeAt: (x, z) => (terrain ? terrain.slopeAt(x, z) : 0),
       regions: doc.regions ?? {},
+      traits: doc.traits ?? [],
       outline: outlineOf(doc),
       resolve: (id) => byId.get(id),
       collected,

@@ -1,0 +1,34 @@
+{
+  "id": "cityfolk",
+  "name": "Cityfolk",
+  "greeting": [
+    "You have business?",
+    "Speak, then.",
+    "A moment, no longer."
+  ],
+  "farewell": [
+    "We are finished.",
+    "Go on, then.",
+    "That will do."
+  ],
+  "topics": [
+    {
+      "key": "village",
+      "label": "Village",
+      "infos": [
+        {
+          "reply": "Out past the gate, where the roads give up. They grow things. It suits them."
+        }
+      ]
+    },
+    {
+      "key": "city",
+      "label": "City",
+      "infos": [
+        {
+          "reply": "You are standing in it. Keep to the lit streets and do not ask after the quarter below the cistern."
+        }
+      ]
+    }
+  ]
+}

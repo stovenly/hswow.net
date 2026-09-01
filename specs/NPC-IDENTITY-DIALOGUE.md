@@ -181,6 +181,23 @@ evaluates without a second clock existing anywhere.
 
 ## Step 2 — people and traits, in content
 
+**Built, and it took Step 3's resolver with it.** The village's visitor stands
+in a zone that grants `villager` and carries `cityfolk` of its own, so the two
+sets of topics collide on the same keys from the first commit — which cannot be
+answered by concatenation. So `dialogue.ts` arrived here with the pool, the
+ranks and the conditions in it, and Step 3 is left holding the `then` effects
+and the wiring that fires them.
+
+Ranks needed one thing the model above does not say: **a trait granted later
+outranks one granted earlier**, so the placement's `cityfolk` beats the zone's
+`villager` and the visitor keeps their own greetings. Grants are a list in
+grant order, not a set.
+
+Two things are not built. Nothing authors a **person** — the mechanism is there
+and unexercised, because naming somebody is content, not code. And a **region**
+does not grant traits yet: a creature roams, so that grant has to be evaluated
+where the resolver runs rather than where the mesh is built.
+
 Three new content families under `projects/<id>/content/`: `people/`, `traits/`,
 `quests/`. Three globs in `vite.config.ts` beside the one for `zones/`, read off
 the bundle in `src/app/content.ts`. An absent directory is an empty family.

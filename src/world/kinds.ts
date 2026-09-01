@@ -4,7 +4,7 @@ import { coerceFields } from '../art/schema';
 import { finishCaptured } from '../art/assemble';
 import { takeWarm } from './warmProps';
 import type { PropAsk } from '../engine/work/jobs';
-import { SCRIPTS, type Folk } from './talk';
+import { personById, traitById, type Folk } from './people';
 import type { NpcMark } from './Interaction';
 import type { LifeSpec } from '../life/spec';
 import { markCollidable } from '../player/Collider';
@@ -214,12 +214,14 @@ registerEntryKind<CreatureEntry>({
   kind: 'creature',
   palette: { tab: 'creatures', list: () => [] },
   asks(entry) {
-    const builder = builderByName(entry.builder);
-    return builder ? [creatureAsk(entry, builder)] : [];
+    const worn = wearing(entry);
+    const builder = builderByName(worn.builder);
+    return builder ? [creatureAsk(worn, builder)] : [];
   },
   build(entry, ctx) {
-    const builder = needBuilder(entry.builder);
-    const ask = creatureAsk(entry, builder);
+    const worn = wearing(entry);
+    const builder = needBuilder(worn.builder);
+    const ask = creatureAsk(worn, builder);
     // A rigged builder is captured too: the bones and the `LifeSpec` cross the
     // wire and the skeleton is bound here, where the materials are.
     const warm = takeWarm(ask);
@@ -233,24 +235,43 @@ registerEntryKind<CreatureEntry>({
     // shadowed.
     const life = mesh.userData.life as LifeSpec | undefined;
     if (life?.kind === 'biped') {
-      const folk: Folk = entry.folk === 'city' ? 'city' : 'country';
-      const proxy = new THREE.Mesh(
-        new THREE.CylinderGeometry(life.radius, life.radius, life.height, 8, 1, true),
-      );
-      proxy.name = 'npc-hover';
-      proxy.visible = false;
-      proxy.position.y = life.height / 2;
-      const name = entry.name ?? SCRIPTS[folk].name;
-      proxy.userData.label = name;
-      proxy.userData.npc = { folk, name } satisfies NpcMark;
-      proxy.userData.noCollide = true;
-      mesh.add(proxy);
+      const folk: Folk = worn.folk === 'city' ? 'city' : 'country';
+      const person = entry.person ? personById(entry.person) : undefined;
+      const traits = [...ctx.traits, ...(entry.traits ?? []), ...(person?.traits ?? [])];
+      const name = entry.name ?? person?.name ?? traitName(traits);
+      if (name) {
+        const proxy = new THREE.Mesh(
+          new THREE.CylinderGeometry(life.radius, life.radius, life.height, 8, 1, true),
+        );
+        proxy.name = 'npc-hover';
+        proxy.visible = false;
+        proxy.position.y = life.height / 2;
+        proxy.userData.label = name;
+        proxy.userData.npc = { folk, name, person: entry.person, traits } satisfies NpcMark;
+        proxy.userData.noCollide = true;
+        mesh.add(proxy);
+      }
     }
     // Creatures move: they are never in the octree, and `LifeActivity` picks
     // them up off `userData.life` and `userData.rig`.
     return mesh;
   },
 });
+
+/** The entry as its person wears it. A named body wins over the placement's. */
+function wearing(entry: CreatureEntry): CreatureEntry {
+  const body = entry.person ? personById(entry.person)?.body : undefined;
+  if (!body) return entry;
+  const kept = Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined));
+  return { ...entry, ...kept };
+}
+
+/** What to call somebody with no name of their own: the last trait that supplies one. */
+function traitName(traits: readonly string[]): string | undefined {
+  let name: string | undefined;
+  for (const id of traits) name = traitById(id)?.name ?? name;
+  return name;
+}
 
 /**
  * What a creature entry calls its builder with. The one place the options are

@@ -14,6 +14,7 @@
     "planks": true,
     "beams": 4
   },
+  "traits": ["villager"],
   "entries": [
     { "id": "window-s1", "kind": "prop", "builder": "window", "seed": 4441, "at": [-2.6, 3.4], "yaw": 3.141592653589793 },
     { "id": "window-s2", "kind": "prop", "builder": "window", "seed": 4442, "at": [2.4, 3.4], "yaw": 3.141592653589793 },

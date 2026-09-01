@@ -23,6 +23,7 @@
     "planks": true,
     "beams": 3
   },
+  "traits": ["villager"],
   "entries": [
     {
       "id": "hearth",

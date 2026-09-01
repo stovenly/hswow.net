@@ -77,6 +77,15 @@ holds the grammar and the kind table `registerEntryKind` extends; `kinds.ts`
 holds the kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
 the game ignores and the editor is built on.
 
+`people.ts` holds the other two content families: a **trait** is what somebody
+is and a **person** is who they are, and both contribute greetings, farewells
+and topics. `dialogue.ts` gathers them — every owner's topics into one pool, the
+highest-ranked survivor of each key, each answered by the first of its infos
+that holds. A person outranks a trait, and a trait granted later outranks one
+granted earlier, which is how a visitor's own trait beats the one the zone hands
+everybody standing in it. A creature naming a person wears that person's body,
+resolved before the warm pass so the warm and the walk ask for the same mesh.
+
 `state.ts` is what a `when` is judged against. Flags and quest stages are held
 in memory and remain a stub until the quest system exists; where the player
 stands and what the weather is doing are pushed in once a frame by

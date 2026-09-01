@@ -862,6 +862,11 @@ export class Creature {
    * Starts the gesture a line opens on: a greeting shape for a hello, the
    * calmer of them for a goodbye, one of the talking hands for anything else.
    */
+  /** What they are up to, for a `when` that asks. */
+  get doing(): string {
+    return this.state;
+  }
+
   private startGesture(manner: 'greeting' | 'talk' | 'farewell', seconds: number): void {
     if (manner === 'talk') {
       this.talkStyle = another(TALKS, this.talkStyle);

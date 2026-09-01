@@ -203,8 +203,12 @@ export interface CreatureEntry extends EntryBase {
   roam?: number;
   folk?: string;
   face?: string;
-  /** What the crosshair calls them. Absent falls back to what their people are called. */
+  /** What the crosshair calls them. Absent falls back to the person, then the trait. */
   name?: string;
+  /** A named person, whose body wins over every field above. */
+  person?: string;
+  /** Granted on top of the zone's, and under the person's own. */
+  traits?: readonly string[];
   options?: Record<string, unknown>;
 }
 
@@ -432,6 +436,8 @@ export interface EntryContext {
   slopeAt(x: number, z: number): number;
   /** Named regions the document declared, for anything that names one. */
   regions: Record<string, readonly PatchShape[]>;
+  /** What this zone makes of anybody standing in it. The lowest trait grant. */
+  traits: readonly string[];
   /** The level's outline as a closed polygon, when it has one. */
   outline: readonly Point[] | null;
   /** An entry built earlier in this pass. */

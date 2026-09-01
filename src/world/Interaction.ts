@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Collider } from '../player/Collider';
 import type { Item } from './items';
+import type { Folk } from './people';
 
 /**
  * What the player is looking at, and whether they can reach it. There is no mouse
@@ -70,8 +71,12 @@ export function markReadable<T extends THREE.Object3D>(
  * crosshair finds. The name itself is the ordinary `userData.label`.
  */
 export interface NpcMark {
-  readonly folk: 'country' | 'city';
+  readonly folk: Folk;
   readonly name: string;
+  /** The named person this is, when it is one. */
+  readonly person?: string;
+  /** Lowest grant first — the zone, then the placement, then the person. */
+  readonly traits: readonly string[];
 }
 
 /** The creature under a hovered object, if what was hit was an NPC's hover proxy. */

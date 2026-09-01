@@ -9,6 +9,7 @@ import {
 import type { ZoneDefinition } from '../world/Zone';
 import type { PortalDefinition } from '../world/Portal';
 import type { WorldState } from '../world/entry';
+import { holdCast, type PersonDocument, type TraitDocument } from '../world/people';
 
 /**
  * A project's documents, as zones.
@@ -70,6 +71,13 @@ function interpret(project: string, state?: WorldState): ContentWorld {
   const documents = Object.entries(bundle.zones)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, doc]) => doc as ZoneDocument);
+
+  // Before any zone is interpreted: a creature entry naming a person reads its
+  // body off that person, and the warm pass runs before the walk.
+  holdCast(
+    Object.values(bundle.people) as PersonDocument[],
+    Object.values(bundle.traits) as TraitDocument[],
+  );
 
   // Definitions first: a portal end reads the zone it stands in, and both
   // zones have to be registered before either door is placed.

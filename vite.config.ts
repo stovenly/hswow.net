@@ -61,6 +61,9 @@ function projectModule(pinned: string | null): Plugin {
           [
             `  ${JSON.stringify(name)}: {`,
             `    zones: import.meta.glob('${dir}/zones/*.json', { eager: true, import: 'default' }),`,
+            `    people: import.meta.glob('${dir}/people/*.json', { eager: true, import: 'default' }),`,
+            `    traits: import.meta.glob('${dir}/traits/*.json', { eager: true, import: 'default' }),`,
+            `    quests: import.meta.glob('${dir}/quests/*.json', { eager: true, import: 'default' }),`,
             `    world: import.meta.glob('${dir}/world.json', { eager: true, import: 'default' }),`,
             `    sidecars: import.meta.glob('${dir}/zones/*.{r32,u8}', { eager: true, query: '?url', import: 'default' }),`,
             `  },`,

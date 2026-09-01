@@ -545,6 +545,7 @@
       }
     ]
   },
+  "traits": ["villager"],
   "entries": [
     {
       "id": "arch",
@@ -1263,7 +1264,8 @@
       ],
       "yaw": 3,
       "roam": 2.5,
-      "folk": "city"
+      "folk": "city",
+      "traits": ["cityfolk"]
     },
     {
       "id": "oak-west",

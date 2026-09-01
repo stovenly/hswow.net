@@ -9,6 +9,9 @@ declare module 'virtual:project' {
     string,
     {
       zones: Record<string, unknown>;
+      people: Record<string, unknown>;
+      traits: Record<string, unknown>;
+      quests: Record<string, unknown>;
       world: Record<string, unknown>;
       /** Sidecar rasters, by path, as URLs to fetch. */
       sidecars: Record<string, string>;
