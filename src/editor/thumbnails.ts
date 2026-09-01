@@ -1,13 +1,16 @@
 import * as THREE from 'three';
 import type { App } from '../app/boot';
 import { builderByName } from '../art/registry';
+import { finishCaptured, type Finished } from '../art/assemble';
+import { pool } from '../engine/work/pool';
 
 /**
  * A picture of each builder, drawn once per session on demand.
  *
  * Rendered by the game's own renderer into a small target, a few per frame, so
  * a palette of two hundred builders never stalls a frame — and so a thumbnail
- * is made of the same material the world is.
+ * is made of the same material the world is. The geometry is made on the work
+ * pool, so the frame pays for the render and the readback and not the build.
  */
 
 /**
@@ -15,8 +18,11 @@ import { builderByName } from '../art/registry';
  * and no more: every pixel is read back off the GPU, which is a hard sync.
  */
 const SIZE = 64;
-/** How many are drawn per frame. One: each builds a mesh and stalls the pipe. */
-const PER_FRAME = 1;
+/**
+ * How many are drawn per frame. Still budgeted with the build off the frame,
+ * because reading the target back is a hard sync with the GPU.
+ */
+const PER_FRAME = 4;
 
 export class Thumbnails {
   private readonly app: App;
@@ -28,6 +34,8 @@ export class Thumbnails {
   private readonly cache = new Map<string, string>();
   private readonly queue: { name: string; onDone: (url: string) => void }[] = [];
   private readonly asked = new Set<string>();
+  /** Geometry the pool has answered for. Null is a builder the capture refused. */
+  private readonly made = new Map<string, Finished | null>();
 
   constructor(app: App) {
     this.app = app;
@@ -51,13 +59,27 @@ export class Thumbnails {
     if (this.asked.has(name)) return;
     this.asked.add(name);
     this.queue.push({ name, onDone });
+    void this.warm(name);
+  }
+
+  private async warm(name: string): Promise<void> {
+    try {
+      this.made.set(name, await pool.run('prop-geometry', { builder: name, seed: 1 }));
+    } catch {
+      this.made.set(name, null);
+    }
   }
 
   private drain(): void {
     for (let i = 0; i < PER_FRAME; i++) {
-      const next = this.queue.shift();
-      if (!next) return;
-      const url = this.draw(next.name);
+      // The first the pool has answered for, which is not always the first in
+      // the queue. Waiting on the head would put a build back on the frame.
+      const at = this.queue.findIndex((item) => this.made.has(item.name));
+      if (at < 0) return;
+      const [next] = this.queue.splice(at, 1);
+      const ready = this.made.get(next.name) ?? null;
+      this.made.delete(next.name);
+      const url = this.draw(next.name, ready);
       if (url) {
         this.cache.set(next.name, url);
         next.onDone(url);
@@ -70,13 +92,13 @@ export class Thumbnails {
     return this.queue.length;
   }
 
-  private draw(name: string): string | null {
+  private draw(name: string, ready: Finished | null): string | null {
     const builder = builderByName(name);
     if (!builder) return null;
 
     let mesh: THREE.Mesh;
     try {
-      mesh = builder.build({ seed: 1 });
+      mesh = ready ? finishCaptured(ready) : builder.build({ seed: 1 });
     } catch {
       return null;
     }
