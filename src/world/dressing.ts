@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
 import { createRng } from '../art/random';
+import { finishCaptured } from '../art/assemble';
+import { takeWarm } from './warmProps';
 import type { MeshBuilder } from '../art/types';
 import { outlineBounds, type Skirt } from './vista';
 import type { Terrain } from './terrain';
@@ -62,18 +64,29 @@ export interface DressingOptions {
   kinds: readonly DressingKind[];
 }
 
+/** One prop of the dressing, and where it stands. */
+export interface DressingPlacement {
+  builder: MeshBuilder;
+  seed: number;
+  scale: number;
+  x: number;
+  z: number;
+  yaw: number;
+  /** Metres from the level's outline, negative inside. Picks the ground and the solidity. */
+  distance: number;
+}
+
 /**
- * Builds the dressing. Not merged, unlike the ring: these are ordinary props at
- * ordinary scale, half of them are in the collider, and several move in the wind —
- * all three of which want a mesh of their own.
+ * Where everything stands, before any of it is built. Separated so the warm
+ * pass can run it and have the props made off the main thread while the build
+ * runs it again and stands them up, as the ring does.
  */
-export function edgeDressing(options: DressingOptions): THREE.Group {
-  const { terrain, skirt, band } = options;
+export function edgeDressingPlan(options: DressingOptions): DressingPlacement[] {
+  const { skirt, band } = options;
   const rng = createRng(options.seed);
   const bounds = outlineBounds(skirt.outline, Math.max(band.outer, 0));
 
-  const root = new THREE.Group();
-  root.name = 'edge-dressing';
+  const out: DressingPlacement[] = [];
   const taken: { x: number; z: number; keep: number }[] = [];
 
   for (const kind of options.kinds) {
@@ -90,8 +103,8 @@ export function edgeDressing(options: DressingOptions): THREE.Group {
     for (let attempt = 0; attempt < kind.count * 60 && landed < kind.count; attempt++) {
       const cx = rng.range(bounds.min[0], bounds.max[0]);
       const cz = rng.range(bounds.min[1], bounds.max[1]);
-      const out = skirt.outside(cx, cz);
-      if (out < range.inner || out > range.outer) continue;
+      const distance = skirt.outside(cx, cz);
+      if (distance < range.inner || distance > range.outer) continue;
 
       let clear = true;
       for (const other of taken) {
@@ -114,24 +127,51 @@ export function edgeDressing(options: DressingOptions): THREE.Group {
         const x = cx + Math.cos(angle) * away;
         const z = cz + Math.sin(angle) * away;
 
-        const distance = skirt.outside(x, z);
-        if (distance > range.outer + huddle) continue;
+        const reach = skirt.outside(x, z);
+        if (reach > range.outer + huddle) continue;
 
         const scale = kind.scale ? rng.range(kind.scale[0], kind.scale[1]) : 1;
-        const mesh = kind.builder.build({ seed: rng.int(1, 0x7fffffff), scale });
-        // Inside the level it stands on the level; outside it stands on the
-        // skirt. The collar makes the two agree across the boundary, so a clump
-        // straddling the line does not step.
-        mesh.position.set(x, distance <= 0 ? terrain.heightAt(x, z) : skirt.heightAt(x, z), z);
-        mesh.rotation.y = rng.range(0, Math.PI * 2);
-
-        const reachable =
-          options.solidWithin === undefined || distance <= options.solidWithin;
-        if (reachable && kind.builder.solid !== false) markCollidable(mesh);
-        else mesh.userData.noCollide = true;
-        root.add(mesh);
+        const seed = rng.int(1, 0x7fffffff);
+        out.push({
+          builder: kind.builder,
+          seed,
+          scale,
+          x,
+          z,
+          yaw: rng.range(0, Math.PI * 2),
+          distance: reach,
+        });
       }
     }
+  }
+
+  return out;
+}
+
+/**
+ * Builds the dressing. Not merged, unlike the ring: these are ordinary props at
+ * ordinary scale, half of them are in the collider, and several move in the wind —
+ * all three of which want a mesh of their own.
+ */
+export function edgeDressing(options: DressingOptions): THREE.Group {
+  const { terrain, skirt } = options;
+  const root = new THREE.Group();
+  root.name = 'edge-dressing';
+
+  for (const at of edgeDressingPlan(options)) {
+    const warm = takeWarm({ builder: at.builder.name, seed: at.seed, scale: at.scale });
+    const mesh = warm ? finishCaptured(warm) : at.builder.build({ seed: at.seed, scale: at.scale });
+    // Inside the level it stands on the level; outside it stands on the skirt.
+    // The collar makes the two agree across the boundary, so a clump straddling
+    // the line does not step.
+    const ground = at.distance <= 0 ? terrain.heightAt(at.x, at.z) : skirt.heightAt(at.x, at.z);
+    mesh.position.set(at.x, ground, at.z);
+    mesh.rotation.y = at.yaw;
+
+    const reachable = options.solidWithin === undefined || at.distance <= options.solidWithin;
+    if (reachable && at.builder.solid !== false) markCollidable(mesh);
+    else mesh.userData.noCollide = true;
+    root.add(mesh);
   }
 
   return root;

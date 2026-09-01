@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { finish } from '../art/assemble';
+import { finish, finishCaptured } from '../art/assemble';
 import { markVista } from '../art/vista';
 import { createRng } from '../art/random';
 import type { MeshBuilder } from '../art/types';
+import { takeWarm } from './warmProps';
 import { outlineBounds, type Outline, type Skirt } from './vista';
 import { VistaParallax, type ParallaxProp } from './vista-parallax';
 
@@ -119,11 +120,15 @@ function parallaxK(apparent: number | undefined, actual: number): number {
 }
 
 /**
- * Builds the ring: a group of merged chunk meshes plus a mesh for each moving prop,
- * every one tagged as scenery — out of the collider, out of the shadow box, and
- * not moving in the wind. The parallax controller rides on the group's `userData`.
+ * Where everything in the ring stands, before any of it is built. Separated so
+ * the warm pass can run it and have the props made off the main thread while
+ * the build runs it again and stands them up. Rejection sampling over numbers,
+ * so running it twice is cheap.
  */
-export function vistaRing(options: VistaRingOptions): THREE.Group {
+export function vistaRingPlan(
+  options: VistaRingOptions,
+  onEmpty?: (fill: VistaScatter, range: { inner: number; outer: number }) => void,
+): VistaProp[] {
   const { skirt, band } = options;
   const rng = createRng(options.seed);
 
@@ -182,16 +187,30 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
       landed++;
     }
 
-    // Landing nothing at all is a mistake in the numbers rather than a tight
-    // fit, and it is invisible from the outside — the band is simply empty and
-    // looks like a placement nobody got round to.
-    if (landed === 0) {
-      console.warn(
-        `vistaRing: ${fill.builder.name} placed none of ${fill.count} ` +
-          `in band ${range.inner}–${range.outer} m`,
-      );
-    }
+    // Reported by the caller rather than here, because the plan runs twice —
+    // once to warm the props and once to stand them up.
+    if (landed === 0) onEmpty?.(fill, range);
   }
+
+  return placed;
+}
+
+/**
+ * Builds the ring: a group of merged chunk meshes plus a mesh for each moving prop,
+ * every one tagged as scenery — out of the collider, out of the shadow box, and
+ * not moving in the wind. The parallax controller rides on the group's `userData`.
+ */
+export function vistaRing(options: VistaRingOptions): THREE.Group {
+  const { skirt } = options;
+  // Landing nothing at all is a mistake in the numbers rather than a tight fit,
+  // and it is invisible from the outside — the band is simply empty and looks
+  // like a placement nobody got round to.
+  const placed = vistaRingPlan(options, (fill, range) => {
+    console.warn(
+      `vistaRing: ${fill.builder.name} placed none of ${fill.count} ` +
+        `in band ${range.inner}–${range.outer} m`,
+    );
+  });
 
   const root = new THREE.Group();
   root.name = 'vista-ring';
@@ -291,7 +310,9 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
 
 /** One prop, built and stood on the skirt where it was placed. */
 function build(prop: VistaProp, skirt: Skirt): THREE.Mesh {
-  const mesh = prop.builder.build({ seed: prop.seed, scale: prop.scale ?? 1 });
+  const scale = prop.scale ?? 1;
+  const warm = takeWarm({ builder: prop.builder.name, seed: prop.seed, scale });
+  const mesh = warm ? finishCaptured(warm) : prop.builder.build({ seed: prop.seed, scale });
   mesh.position.set(prop.at[0], skirt.heightAt(prop.at[0], prop.at[1]), prop.at[1]);
   mesh.rotation.y = prop.yaw ?? createRng(prop.seed ^ 0x1a71)() * Math.PI * 2;
   return mesh;

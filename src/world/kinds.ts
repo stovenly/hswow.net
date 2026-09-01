@@ -18,12 +18,24 @@ import { stoneWall, WALL_MAX_SECTIONS, WALL_SECTION, wallHeight } from '../art/b
 import { stoneWallSquareColumn, COLUMN_REACH } from '../art/builders/stone-wall-square-column';
 import { fencePost } from '../art/builders/fence-post';
 import { hazel } from '../art/builders/hazel';
-import { vistaRing, type VistaProp, type VistaScatter } from './vista-ring';
-import { edgeDressing, type DressingKind } from './dressing';
+import {
+  vistaRing,
+  vistaRingPlan,
+  type VistaProp,
+  type VistaRingOptions,
+  type VistaScatter,
+} from './vista-ring';
+import {
+  edgeDressing,
+  edgeDressingPlan,
+  type DressingKind,
+  type DressingOptions,
+} from './dressing';
 import { shapeDistance, GROUND, COVER_TYPES, type PatchShape } from './ground';
+import type { Terrain } from './terrain';
 import { SURFACES } from '../audio/models/footsteps';
 import { doorways, doorwayFront } from '../art/building';
-import { dilateOutline } from './vista';
+import { dilateOutline, type Skirt } from './vista';
 import { DOOR_PROUD } from './Portal';
 import {
   insidePolygon,
@@ -162,7 +174,14 @@ registerEntryKind<PropEntry>({
   asks(entry) {
     const builder = builderByName(entry.builder);
     if (!builder) return [];
-    return [{ builder: entry.builder, seed: seedOf(entry), scale: entry.scale, extras: optionsOf(builder, entry.options) }];
+    return [
+      {
+        builder: entry.builder,
+        seed: seedOf(entry),
+        scale: entry.scale,
+        extras: optionsOf(builder, entry.options),
+      },
+    ];
   },
   build(entry, ctx) {
     const builder = needBuilder(entry.builder);
@@ -812,6 +831,16 @@ registerEntryKind<VistaRingEntry>({
   kind: 'vistaRing',
   schema: { chunk: { type: 'number', min: 40, max: 800, step: 10, label: 'merge cell (m)' } },
   defaults: () => ({ band: { inner: 30, outer: 160 }, place: [], scatter: [] }),
+  // `keepOut` is left off: it moves parallax props about after they are built
+  // and has no say in which props there are.
+  asks(entry, ctx) {
+    if (!ctx.skirt) return [];
+    return vistaRingPlan({ ...ringPlan(entry), skirt: ctx.skirt }).map((prop) => ({
+      builder: prop.builder.name,
+      seed: prop.seed,
+      scale: prop.scale ?? 1,
+    }));
+  },
   build(entry, ctx) {
     if (!ctx.skirt) throw new Error('a vista ring needs a skirt');
     const keepOut =
@@ -820,17 +849,20 @@ registerEntryKind<VistaRingEntry>({
         : entry.keepOut
           ? dilateOutline(ctx.skirt.outline, entry.keepOut.dilate)
           : undefined;
-    return vistaRing({
-      skirt: ctx.skirt,
-      seed: seedOf(entry),
-      band: entry.band,
-      place: (entry.place ?? []).map(namedVistaProp),
-      scatter: (entry.scatter ?? []).map(namedVistaScatter),
-      keepOut,
-      chunk: entry.chunk,
-    });
+    return vistaRing({ ...ringPlan(entry), skirt: ctx.skirt, keepOut });
   },
 });
+
+/** Everything about a ring except where it stands, which the two callers differ on. */
+function ringPlan(entry: VistaRingEntry): Omit<VistaRingOptions, 'skirt' | 'keepOut'> {
+  return {
+    seed: seedOf(entry),
+    band: entry.band,
+    place: (entry.place ?? []).map(namedVistaProp),
+    scatter: (entry.scatter ?? []).map(namedVistaScatter),
+    chunk: entry.chunk,
+  };
+}
 
 function namedVistaProp(raw: Record<string, unknown>): VistaProp {
   const { builder, ...rest } = raw as { builder: string } & Record<string, unknown>;
@@ -846,21 +878,33 @@ registerEntryKind<DressingEntry>({
   kind: 'dressing',
   schema: { solidWithin: { type: 'number', min: -200, max: 200, step: 1, label: 'solid inside (m)' } },
   defaults: () => ({ band: { inner: -4, outer: 14 }, kinds: [] }),
+  asks(entry, ctx) {
+    if (!ctx.terrain || !ctx.skirt) return [];
+    return edgeDressingPlan(dressingOptions(entry, ctx.terrain, ctx.skirt)).map((at) => ({
+      builder: at.builder.name,
+      seed: at.seed,
+      scale: at.scale,
+    }));
+  },
   build(entry, ctx) {
     if (!ctx.terrain || !ctx.skirt) throw new Error('edge dressing needs a terrain and a skirt');
-    return edgeDressing({
-      terrain: ctx.terrain,
-      skirt: ctx.skirt,
-      seed: seedOf(entry),
-      band: entry.band,
-      solidWithin: entry.solidWithin,
-      kinds: entry.kinds.map((raw) => {
-        const { builder, ...rest } = raw as { builder: string } & Record<string, unknown>;
-        return { builder: needBuilder(builder), ...rest } as DressingKind;
-      }),
-    });
+    return edgeDressing(dressingOptions(entry, ctx.terrain, ctx.skirt));
   },
 });
+
+function dressingOptions(entry: DressingEntry, terrain: Terrain, skirt: Skirt): DressingOptions {
+  return {
+    terrain,
+    skirt,
+    seed: seedOf(entry),
+    band: entry.band,
+    solidWithin: entry.solidWithin,
+    kinds: entry.kinds.map((raw) => {
+      const { builder, ...rest } = raw as { builder: string } & Record<string, unknown>;
+      return { builder: needBuilder(builder), ...rest } as DressingKind;
+    }),
+  };
+}
 
 /** Forces the registrations above to run. Imported for effect, called for clarity. */
 export function registerBuiltInKinds(): void {}
