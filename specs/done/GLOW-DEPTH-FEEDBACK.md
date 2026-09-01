@@ -1,6 +1,6 @@
 # A glowing thing may not sample the depth it is drawn against — spec
 
-**Proposed, not built.** Removes the `GL_INVALID_OPERATION: Feedback loop
+**Built through Step 3. Step 4 is a reading from the world.** Removes the `GL_INVALID_OPERATION: Feedback loop
 formed between Framebuffer and active Texture` raised on every frame that
 draws a star sparkle or an emissive particle, by splitting those draws so no
 shader samples a texture that is bound as the current target's depth
@@ -75,7 +75,8 @@ cadence untouched — which is the shape of the choppiness reported against a
 steady 120 fps readout.
 
 *Done when* the 1% low and the GPU pass timings are compared before and after,
-and the result is written down either way.
+and the result is written down either way. Outstanding: the comparison is a
+report from the running game, not something the code can answer.
 
 ## What this is not
 

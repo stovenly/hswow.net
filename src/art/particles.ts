@@ -11,8 +11,9 @@ import { createRng } from './random';
  * frame hitch cannot blow the field apart. What it costs is collision,
  * accumulation and events — nothing here can be fired. Four motions cover every
  * system. The lit variant is a patched `MeshLambertMaterial`, so particles take
- * the scene's lights, fog and palette; the emissive one is additive and on
- * `GLOW_LAYER`, which puts sparks through bloom with no code in `Bloom.ts`.
+ * the scene's lights, fog and palette; the emissive one is additive and draws
+ * a second copy of itself on `GLOW_LAYER`, which puts sparks through bloom with
+ * no code in `Bloom.ts`.
  */
 
 /** Which closed form a system moves by. See the table in PARTICLES.md §1. */
@@ -54,7 +55,7 @@ export interface ParticleSpec {
   gravity?: number;
   /** How much of the air's motion it takes, 0..1. See §4. */
   windDrag?: number;
-  /** Additive, on `GLOW_LAYER`, and it blooms. */
+  /** Additive, and drawn again on `GLOW_LAYER` so it blooms. */
   emissive?: boolean;
   /** Small per-instance wander, in metres. A plume that is not a fountain. */
   turbulence?: number;
@@ -426,12 +427,29 @@ const PARTICLE_FRAGMENT_BODY = /* glsl */ `
   if (diffuseColor.a <= 0.0) discard;
 `;
 
-/** The one place the two materials are patched, so they cannot drift apart. */
-function patchParticles(shader: {
-  vertexShader: string;
-  fragmentShader: string;
-  uniforms: Record<string, unknown>;
-}): void {
+/** The fragment tail with the depth work taken out, for the pass that cannot sample it. */
+const PARTICLE_FRAGMENT_PLAIN = /* glsl */ `
+  diffuseColor.rgb *= vParticle.rgb;
+  diffuseColor.a *= vParticle.a;
+  if (diffuseColor.a <= 0.0) discard;
+`;
+
+/**
+ * The one place the materials are patched, so they cannot drift apart.
+ *
+ * `sampled` is the particles pass, whose target carries a depth renderbuffer
+ * nothing fills, so it tests the scene's depth by hand. The bloom pass has that
+ * same texture *attached* — a mesh on `GLOW_LAYER` may not sample `tDepth`, or
+ * the draw is a feedback loop — and depth-tests in hardware instead.
+ */
+function patchParticles(
+  shader: {
+    vertexShader: string;
+    fragmentShader: string;
+    uniforms: Record<string, unknown>;
+  },
+  sampled: boolean,
+): void {
   Object.assign(shader.uniforms, windUniforms, particleUniforms);
 
   shader.vertexShader = shader.vertexShader
@@ -449,8 +467,11 @@ function patchParticles(shader: {
     );
 
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', `#include <common>\n${PARTICLE_FRAGMENT}`)
-    .replace('#include <color_fragment>', `#include <color_fragment>\n${PARTICLE_FRAGMENT_BODY}`);
+    .replace('#include <common>', `#include <common>\n${sampled ? PARTICLE_FRAGMENT : ''}`)
+    .replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>\n${sampled ? PARTICLE_FRAGMENT_BODY : PARTICLE_FRAGMENT_PLAIN}`,
+    );
 }
 
 /**
@@ -460,9 +481,8 @@ function patchParticles(shader: {
  * ping-pong targets an effect draws into have a depth renderbuffer nothing in
  * this pipeline fills meaningfully, so there is nothing to test against and the
  * shader tests against the scene's depth texture instead. Nothing about
- * occlusion is lost — that test runs in bloom's emitters pass too, where
- * `tDepth` is bound at the same resolution, so a spark behind a wall does not
- * bloom through it.
+ * occlusion is lost — the bloom pass binds that same texture as its own depth
+ * attachment, so a spark behind a wall does not bloom through it either.
  */
 export const PARTICLE_MATERIAL = new THREE.MeshLambertMaterial({
   flatShading: true,
@@ -471,7 +491,7 @@ export const PARTICLE_MATERIAL = new THREE.MeshLambertMaterial({
   depthWrite: false,
   side: THREE.DoubleSide,
 });
-PARTICLE_MATERIAL.onBeforeCompile = patchParticles;
+PARTICLE_MATERIAL.onBeforeCompile = (shader) => patchParticles(shader, true);
 // Lit flakes stand in the same air as the world they fall through.
 applyAerialFog(PARTICLE_MATERIAL);
 PARTICLE_MATERIAL.customProgramCacheKey = () => 'particles-lit';
@@ -491,8 +511,20 @@ export const PARTICLE_GLOW_MATERIAL = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   fog: false,
 });
-PARTICLE_GLOW_MATERIAL.onBeforeCompile = patchParticles;
+PARTICLE_GLOW_MATERIAL.onBeforeCompile = (shader) => patchParticles(shader, true);
 PARTICLE_GLOW_MATERIAL.customProgramCacheKey = () => 'particles-glow';
+
+/** The same sparks again in the bloom pass, depth-tested against the attachment it binds. */
+const PARTICLE_BLOOM_MATERIAL = new THREE.MeshBasicMaterial({
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthTest: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  fog: false,
+});
+PARTICLE_BLOOM_MATERIAL.onBeforeCompile = (shader) => patchParticles(shader, false);
+PARTICLE_BLOOM_MATERIAL.customProgramCacheKey = () => 'particles-bloom';
 
 /** Every system currently standing, so the density scale can reach them. */
 const live = new Set<THREE.Mesh>();
@@ -697,7 +729,16 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   // **Set, not enabled.** Layer 0 is cleared, which is what buys no outline, no
   // hole in anything else's outline, and no shadow. See `src/layers.ts`.
   mesh.layers.set(PARTICLE_LAYER);
-  if (spec.emissive) mesh.layers.enable(GLOW_LAYER);
+  if (spec.emissive) {
+    // One geometry, two draws: this one borrows it and is freed with its parent.
+    const bloom = new THREE.Mesh(geometry, PARTICLE_BLOOM_MATERIAL);
+    bloom.name = 'particles-bloom';
+    bloom.layers.set(GLOW_LAYER);
+    bloom.frustumCulled = false;
+    bloom.userData.noCollide = true;
+    bloom.userData.borrowedGeometry = true;
+    mesh.add(bloom);
+  }
   // Three computes the bounding sphere from the base quad at the origin and knows
   // nothing about where the instances are, so it would drop the whole system the
   // moment that origin left the frustum.

@@ -73,11 +73,15 @@ export class LightActivity {
           if (moves) child.matrixAutoUpdate = true;
           lights.push(child);
         } else if (child instanceof THREE.Mesh && child.layers.test(EMISSIVE)) {
+          // A second-pass copy of another mesh's geometry is on the glow layer
+          // too; what swells is the mesh that owns it, the copy riding along.
+          const owner = child.userData.borrowedGeometry === true ? child.parent : child;
+          if (!(owner instanceof THREE.Mesh)) return;
           // A zone's matrices are frozen once it is built — `freezeMatrices` in
           // `ZoneManager` — and `swell` moves this one every frame, so it takes
           // its own back.
-          child.matrixAutoUpdate = true;
-          glows.push(child);
+          owner.matrixAutoUpdate = true;
+          glows.push(owner);
         }
       });
       if (!lights.length && !glows.length) return;

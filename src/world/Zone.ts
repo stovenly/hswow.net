@@ -424,7 +424,9 @@ export class Zone {
         object instanceof THREE.LineSegments ||
         object instanceof THREE.Points
       ) {
-        object.geometry.dispose();
+        // A mesh drawing another's geometry in a second pass says so; freeing
+        // it here would pull the buffers out from under the owner.
+        if (object.userData.borrowedGeometry !== true) object.geometry.dispose();
         // Almost every material in the world is a shared module-level one and
         // must survive this. A per-instance clone says so — see `cloneGlow`.
         for (const material of [object.material].flat()) {

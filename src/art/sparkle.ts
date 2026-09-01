@@ -130,6 +130,9 @@ attribute vec4 iSpark;
 uniform float swayTime;
 uniform float uPixelsPerRadian;
 uniform float uSparkle;
+// Metres toward the eye, for the pass that depth-tests in hardware: a star lies
+// on the surface that scatters it and would fail the test against it.
+uniform float uDepthLift;
 
 varying vec2 vCorner;
 varying vec3 vColour;
@@ -173,7 +176,8 @@ void main() {
   vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
   vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
   vCorner = position.xy * 2.0;
-  vec3 placed = world + (right * position.x + up * position.y) * (2.0 * halfWidth * on);
+  vec3 placed = world + (right * position.x + up * position.y) * (2.0 * halfWidth * on)
+    + (toCam / dist) * uDepthLift;
 
   // The centre's screen position and depth, for the all-or-nothing test.
   vec4 mvCentre = viewMatrix * vec4(world, 1.0);
@@ -186,10 +190,26 @@ void main() {
 }
 `;
 
-const SPARKLE_FRAGMENT = /* glsl */ `
+const SPARKLE_DEPTH_TEST = /* glsl */ `
 uniform sampler2D tDepth;
 uniform float uNear;
 uniform float uFar;
+
+float sceneDistance(vec2 uv) {
+  float d = texture2D(tDepth, uv).x;
+  float ndc = d * 2.0 - 1.0;
+  return (2.0 * uNear * uFar) / (uFar + uNear - ndc * (uFar - uNear));
+}
+`;
+
+/**
+ * `sampled` is the particle pass, which draws into a target carrying a depth
+ * renderbuffer nothing fills and so tests the scene's depth by hand. The glow
+ * pass draws into the bloom target, which has the scene's depth *attached* — a
+ * mesh on `GLOW_LAYER` may not sample `tDepth`, or the draw is a feedback loop.
+ */
+const sparkleFragment = (sampled: boolean): string => /* glsl */ `
+${sampled ? SPARKLE_DEPTH_TEST : ''}
 
 varying vec2 vCorner;
 varying vec3 vColour;
@@ -199,17 +219,15 @@ varying float vCentreDepth;
 varying float vSprite;
 varying float vAngle;
 
-float sceneDistance(vec2 uv) {
-  float d = texture2D(tDepth, uv).x;
-  float ndc = d * 2.0 - 1.0;
-  return (2.0 * uNear * uFar) / (uFar + uNear - ndc * (uFar - uNear));
-}
-
 void main() {
   // Tested once, at the centre, so the star reaches the eye whole or not at
   // all. The margin keeps the site's own surface from swallowing it.
-  float sceneZ = sceneDistance(clamp(vCentreUV, 0.0, 1.0));
-  if (sceneZ < vCentreDepth - 0.08) discard;
+  ${
+    sampled
+      ? /* glsl */ `float sceneZ = sceneDistance(clamp(vCentreUV, 0.0, 1.0));
+  if (sceneZ < vCentreDepth - 0.08) discard;`
+      : ''
+  }
 
   // A bright core, four arms along the screen axes, a soft halo.
   vec2 s = vCorner * ${QUAD_UNITS.toFixed(1)};
@@ -243,10 +261,16 @@ void main() {
  * first use rather than at import: this module sits on the cycle
  * `particles → sway → assemble → sparkle`.
  */
-let sparkleMaterial: THREE.ShaderMaterial | null = null;
+const materials: Partial<Record<Pass, THREE.ShaderMaterial>> = {};
 
-function material(): THREE.ShaderMaterial {
-  sparkleMaterial ??= new THREE.ShaderMaterial({
+type Pass = 'particle' | 'glow';
+
+/** Metres a hardware-tested star is lifted off the surface it scatters from. */
+const DEPTH_LIFT = 0.08;
+
+function material(pass: Pass): THREE.ShaderMaterial {
+  const sampled = pass === 'particle';
+  materials[pass] ??= new THREE.ShaderMaterial({
     uniforms: {
       swayTime: windUniforms.swayTime,
       tDepth: particleUniforms.tDepth,
@@ -254,15 +278,16 @@ function material(): THREE.ShaderMaterial {
       uFar: particleUniforms.uFar,
       uPixelsPerRadian: particleUniforms.uPixelsPerRadian,
       uSparkle: sparkleUniforms.uSparkle,
+      uDepthLift: { value: sampled ? 0 : DEPTH_LIFT },
     },
     vertexShader: SPARKLE_VERTEX,
-    fragmentShader: SPARKLE_FRAGMENT,
+    fragmentShader: sparkleFragment(sampled),
     transparent: true,
     blending: THREE.AdditiveBlending,
-    depthTest: false,
+    depthTest: !sampled,
     depthWrite: false,
   });
-  return sparkleMaterial;
+  return materials[pass];
 }
 
 /**
@@ -348,13 +373,21 @@ export function buildZoneSparkles(root: THREE.Object3D): THREE.Mesh | null {
   geometry.setAttribute('iColour', new THREE.InstancedBufferAttribute(col, 3));
   geometry.setAttribute('iSpark', new THREE.InstancedBufferAttribute(spark, 4));
 
-  const mesh = new THREE.Mesh(geometry, material());
+  const mesh = new THREE.Mesh(geometry, material('particle'));
   mesh.name = 'sparkles';
-  // Particle layer only — no outline, no shadow — plus the glow layer, so the
-  // core blooms like any other emitter.
+  // Particle layer only: no outline, no shadow. See `src/layers.ts`.
   mesh.layers.set(PARTICLE_LAYER);
-  mesh.layers.enable(GLOW_LAYER);
   mesh.frustumCulled = false;
   mesh.userData.noCollide = true;
+
+  // The bloom pass draws the same stars again so the cores glow, through a
+  // material that samples no depth. One geometry, and this one borrows it.
+  const glow = new THREE.Mesh(geometry, material('glow'));
+  glow.name = 'sparkles-glow';
+  glow.layers.set(GLOW_LAYER);
+  glow.frustumCulled = false;
+  glow.userData.noCollide = true;
+  glow.userData.borrowedGeometry = true;
+  mesh.add(glow);
   return mesh;
 }

@@ -364,7 +364,7 @@ function release(root: THREE.Object3D): void {
       object instanceof THREE.LineSegments ||
       object instanceof THREE.Points
     ) {
-      object.geometry.dispose();
+      if (object.userData.borrowedGeometry !== true) object.geometry.dispose();
       for (const material of [object.material].flat()) {
         if (material.userData.owned) material.dispose();
       }

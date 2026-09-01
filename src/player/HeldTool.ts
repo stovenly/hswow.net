@@ -112,7 +112,7 @@ function stripLights(root: THREE.Object3D): void {
 function release(root: THREE.Object3D): void {
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) {
-      object.geometry.dispose();
+      if (object.userData.borrowedGeometry !== true) object.geometry.dispose();
       for (const material of [object.material].flat()) {
         if (material.userData.owned) material.dispose();
       }
