@@ -39,10 +39,11 @@ carry, and the topics only they know.
 **A quest** is a run of state with stages, a cast, and topics that appear while
 it is at particular stages.
 
-All three contribute topics to one pool with a priority. A trait sits at 0, a
-person a little above, a live quest higher still. Resolution is: collect every
-topic whose owner is live and whose condition holds for this speaker, sort by
-priority, keep the highest per `key`.
+All three contribute topics to one pool with a priority: a trait is 0, a person
+20, a live quest 60, and a topic may name its own to jump the order. The gaps
+are there to be filled. Resolution is: collect every topic whose owner is live
+and whose condition holds for this speaker, sort by priority, keep the highest
+per `key`.
 
 That is the whole mechanism. There is no separate system for generic dialogue
 and specific dialogue — the difference is a number.
@@ -54,6 +55,31 @@ and the person carries their own. Union of the four. Anyone standing in the
 village is a `villager` without being written as one; Mark is a `trader`
 wherever you put him.
 
+## Where, when, and what somebody is doing
+
+None of these is a trait. A trait is durable and granted; the hour and the
+weather change every minute and the zone changes at every doorway, and nothing
+would ever grant them. They are conditions, and `all`/`any`/`not` are already
+in the union, so "in the woods at night" costs nothing beyond the leaf cases.
+
+The ambient half is already gathered. `src/audio/ambience/conditions.ts` holds a
+`Conditions` snapshot the ambience director reads every frame — the sun's angle,
+the hour, the season, rain, snow, storm, wind, warmth, whether the listener is
+under a roof. Dialogue reads that snapshot rather than growing a second clock.
+
+Night is `{ ambient: 'sun', max: -6 }`, not an hour range. This world has a
+moving sun with a latitude and a season in it, so the sun's angle is night
+everywhere and all year, and an hour range is night in one month at one place.
+
+The interesting form of "why are you here?" is not about the hour at all — it is
+*you are not where you belong*, so a person carries a `home` and the condition
+is `{ atHome: false }`. Time and place are the flavour on top of it.
+
+**Prefer an ambient condition on an info over one on a topic.** A topic that
+disappears because it started raining reads as a bug; a reply that changes with
+the weather reads as a world that is awake. A line gated on three ambient axes
+at once is a line written for nobody.
+
 ## Topics and infos
 
 A **topic** is the option the player sees. An **info** is the reply. Conditions
@@ -63,6 +89,11 @@ holds is used.
 
 So "Village" stays one topic whose answer changes with the world, rather than
 four topics fighting over a label.
+
+**A topic whose infos all fail does not appear.** Having nothing to say is not
+the same as saying you have nothing to say: "I would not know about that" is a
+line somebody decided to write, so it is an info with no condition at the end of
+the list, which always holds. A topic that must always be offered ends with one.
 
 ```json
 {
@@ -98,12 +129,22 @@ not do it.
 reached) and `failed`. `WorldState` gains `stageDone(quest, index)` and
 `failed(quest)`, and `WorldFlags` implements them.
 
+It also gains the world's own state: `{ zone }`, `{ region }`, `{ atHome }`,
+`{ doing }` for what the speaker is up to, and `{ ambient, min?, max? }` over any
+field of the `Conditions` snapshot in `src/audio/ambience/conditions.ts`. That
+one case covers the clock, the season, every weather field and whether the
+speaker is under a roof, and it reads the snapshot the ambience director already
+builds instead of a second one. `doing` answers from `Creature`'s existing state
+machine for now — idle, walk, business, greet, talk — and is where a schedule
+will later answer from instead.
+
 `holds` takes an optional third argument, the subject it is being asked about.
 Every existing caller passes nothing, and a condition that needs a subject and
 has none is false.
 
-*Done when* a zone layer can still be gated on a flag, and `holds` can answer
-"does this person carry `trader`" when handed one.
+*Done when* a zone layer can still be gated on a flag, `holds` can answer "does
+this person carry `trader`" when handed one, and "in the woods after dark"
+evaluates without a second clock existing anywhere.
 
 ## Step 2 — people and traits, in content
 
@@ -114,7 +155,9 @@ the bundle in `src/app/content.ts`. An absent directory is an empty family.
 `CreatureEntry` gains `person`. A named person pins the body — builder, folk,
 seed, face, scale, voice all come with them, and the entry keeps its own as the
 fallback for the unnamed crowd, so the six creature entries in
-`countryside-village.json` do not move.
+`countryside-village.json` do not move. A person also carries a `home`, the zone
+they belong in, which is what makes "you are a long way from the village"
+askable.
 
 `folk` stops picking dialogue and goes back to meaning origin: dress, mask,
 lect. The `country` and `city` scripts in `src/world/talk.ts` become
@@ -189,14 +232,3 @@ at it.
   priority; nothing points at anything else.
 - Not a change to the body, the voice or the animation. `LifeSpec`, the
   builders, `gaits.ts` and the speech stack are all below this line.
-
-## Still to settle
-
-1. **Whether a person's body fields win or lose against the placement's.** They
-   win here, so Mark looks like Mark wherever he stands and a variant is a
-   second person rather than a dressed-up placement. The other way round buys
-   "Mark, but in the winter coat" and costs the guarantee.
-2. **Where the priority numbers sit.** Trait 0, person 10, quest 40 are picked
-   to leave room, not measured against anything.
-3. **What a topic with no matching info does.** Vanish from the list, or show
-   with a rebuff. Vanishing is simpler; a rebuff is usually better writing.
