@@ -55,6 +55,31 @@ and the person carries their own. Union of the four. Anyone standing in the
 village is a `villager` without being written as one; Mark is a `trader`
 wherever you put him.
 
+## One gate, and two things that answer it
+
+A trait is not a second system beside the conditions. It is a case in the same
+union, next to `flag` and `zone` and `ambient`, which is why the mixed forms
+need no combining logic — they were already the same kind of thing.
+
+**The union names the question; something else answers it, and there are two
+things that can.** The world answers `flag`, `quest`, `ambient` and, when there
+is an inventory, `carrying`. The subject answers `trait`, `person`, `doing`,
+`atHome` and, when there are stats, `health` and `stat`. Every condition worth
+wanting lands on one of those two surfaces, so `holds` never learns what health
+is: it dispatches to `WorldState` or to the subject, and each grows one method.
+A new kind of question is a row in the union and a method on one surface.
+
+**A condition nothing can answer is false, not an error.** A line gated on stats
+before stats exist simply does not show, which is what lets content be written
+against a system that is not built. The cost is that a misspelt condition hides
+a line silently and forever, so the *editor* checks names against the known set
+and says so. The runtime stays quiet; the tool complains.
+
+**Topics resolve when the choices are offered**, which is after every reply and
+not during one. Walking into the shade does not rewrite the menu mid-sentence,
+and an effect that changes the speaker re-resolves the list before they next
+speak.
+
 ## Where, when, and what somebody is doing
 
 None of these is a trait. A trait is durable and granted; the hour and the
