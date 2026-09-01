@@ -1,4 +1,5 @@
 import type { Item } from './items';
+import type { WorldStateData } from './state';
 
 /**
  * The world seed, the player's affected records, and the save slots.
@@ -116,6 +117,8 @@ export interface SaveData {
   tool: Item | null;
   accessories: (Item | null)[];
   delta: DeltaData;
+  /** Flags, quest stages and granted traits. Absent in a save written before quests. */
+  state?: WorldStateData;
   zone: string;
   at: [number, number, number];
   yaw: number;

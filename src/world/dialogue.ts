@@ -1,6 +1,15 @@
 import { holds, type Subject, type WorldState } from './entry';
 import type { NpcMark } from './Interaction';
-import { personById, traitById, type Effect, type Speech, type Topic } from './people';
+import {
+  everyQuest,
+  firstStage,
+  personById,
+  questById,
+  traitById,
+  type Effect,
+  type Speech,
+  type Topic,
+} from './people';
 import type { WorldFlags } from './state';
 
 /**
@@ -14,6 +23,7 @@ import type { WorldFlags } from './state';
 
 const TRAIT = 0;
 const PERSON = 20;
+const QUEST = 60;
 
 export interface Answered {
   key: string;
@@ -53,6 +63,10 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
     if (trait) owners.push({ speech: trait, rank: TRAIT });
   }
   if (person) owners.push({ speech: person, rank: PERSON });
+  for (const quest of everyQuest()) {
+    if (state.stage(quest.id) <= 0 || state.failed(quest.id)) continue;
+    owners.push({ speech: quest, rank: quest.priority ?? QUEST });
+  }
 
   let greeting = NOTHING;
   let farewell = NOTHING;
@@ -92,8 +106,14 @@ export function apply(
       case 'setFlag':
         state.setFlag(effect.flag, effect.on ?? true);
         break;
+      case 'startQuest': {
+        const quest = questById(effect.quest);
+        if (state.stage(effect.quest) > 0) break;
+        reach(state, effect.quest, quest ? firstStage(quest) : 10, speaker);
+        break;
+      }
       case 'setStage':
-        state.setStage(effect.quest, effect.stage);
+        reach(state, effect.quest, effect.stage, speaker);
         break;
       case 'failQuest':
         state.setFailed(effect.quest, true);
@@ -115,6 +135,15 @@ export function apply(
         break;
     }
   }
+}
+
+/** Moves a quest to a stage, and runs that stage's own effects the first time. */
+function reach(state: WorldFlags, quest: string, at: number, speaker?: string): void {
+  const first = !state.stageDone(quest, at);
+  state.setStage(quest, at);
+  if (!first) return;
+  const stage = questById(quest)?.stages?.find((one) => one.at === at);
+  apply(stage?.then, state, speaker);
 }
 
 /** One of a bank, chosen by the speaker's seed and how many lines have passed. */

@@ -23,6 +23,7 @@ export type Folk = 'country' | 'city';
  */
 export type Effect =
   | { do: 'setFlag'; flag: string; on?: boolean }
+  | { do: 'startQuest'; quest: string }
   | { do: 'setStage'; quest: string; stage: number }
   | { do: 'failQuest'; quest: string }
   | { do: 'grantTrait'; trait: string; person?: string }
@@ -78,18 +79,44 @@ export interface PersonDocument extends Speech {
   traits?: readonly string[];
 }
 
+/**
+ * One step of a quest. `at` is sparse — author 10, 20, 30 — so a step can be
+ * put between two later without renumbering what dialogue already names.
+ */
+export interface Stage {
+  at: number;
+  /** What the journal will read. Nothing reads it yet. */
+  log?: string;
+  /** Run once, the first time this stage is reached. */
+  then?: readonly Effect[];
+}
+
+export interface QuestDocument extends Speech {
+  id: string;
+  name: string;
+  /** Where its topics sit against a trait's and a person's. */
+  priority?: number;
+  /** Role name to person id, so recasting is one edit. */
+  cast?: Record<string, string>;
+  stages?: readonly Stage[];
+}
+
 const people = new Map<string, PersonDocument>();
 const traits = new Map<string, TraitDocument>();
+const quests = new Map<string, QuestDocument>();
 
-/** Replaces what is held: a project's people and traits, read off its bundle. */
+/** Replaces what is held: a project's people, traits and quests, off its bundle. */
 export function holdCast(
   peopleDocs: readonly PersonDocument[],
   traitDocs: readonly TraitDocument[],
+  questDocs: readonly QuestDocument[] = [],
 ): void {
   people.clear();
   traits.clear();
+  quests.clear();
   for (const doc of peopleDocs) people.set(doc.id, doc);
   for (const doc of traitDocs) traits.set(doc.id, doc);
+  for (const doc of questDocs) quests.set(doc.id, doc);
 }
 
 export function personById(id: string): PersonDocument | undefined {
@@ -98,4 +125,19 @@ export function personById(id: string): PersonDocument | undefined {
 
 export function traitById(id: string): TraitDocument | undefined {
   return traits.get(id);
+}
+
+export function questById(id: string): QuestDocument | undefined {
+  return quests.get(id);
+}
+
+export function everyQuest(): readonly QuestDocument[] {
+  return [...quests.values()];
+}
+
+/** The stage a quest opens at: its lowest authored step. */
+export function firstStage(quest: QuestDocument): number {
+  let first = Infinity;
+  for (const stage of quest.stages ?? []) first = Math.min(first, stage.at);
+  return Number.isFinite(first) ? first : 10;
 }

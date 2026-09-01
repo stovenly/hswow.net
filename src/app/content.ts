@@ -9,7 +9,12 @@ import {
 import type { ZoneDefinition } from '../world/Zone';
 import type { PortalDefinition } from '../world/Portal';
 import type { WorldState } from '../world/entry';
-import { holdCast, type PersonDocument, type TraitDocument } from '../world/people';
+import {
+  holdCast,
+  type PersonDocument,
+  type QuestDocument,
+  type TraitDocument,
+} from '../world/people';
 
 /**
  * A project's documents, as zones.
@@ -77,6 +82,7 @@ function interpret(project: string, state?: WorldState): ContentWorld {
   holdCast(
     Object.values(bundle.people) as PersonDocument[],
     Object.values(bundle.traits) as TraitDocument[],
+    Object.values(bundle.quests) as QuestDocument[],
   );
 
   // Definitions first: a portal end reads the zone it stands in, and both

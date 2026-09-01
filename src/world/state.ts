@@ -1,6 +1,7 @@
 import type { Conditions } from '../audio/ambience/conditions';
 import type { WorldState } from './entry';
 import { outlineDistance, type PatchShape } from './ground';
+import { questById } from './people';
 
 /**
  * What a `when` is evaluated against.
@@ -72,7 +73,7 @@ export class WorldFlags implements WorldState {
   }
 
   cast(quest: string, role: string): string | undefined {
-    return this.roles.get(`${quest}/${role}`);
+    return this.roles.get(`${quest}/${role}`) ?? questById(quest)?.cast?.[role];
   }
 
   traitsOf(person: string, placed: readonly string[]): readonly string[] {
@@ -137,6 +138,52 @@ export class WorldFlags implements WorldState {
   get quests(): readonly [string, number][] {
     return [...this.stages];
   }
+
+  /** Everything a save carries. Inspection state — the preview — is not in it. */
+  save(): WorldStateData {
+    return {
+      flags: [...this.raised],
+      stages: [...this.stages],
+      visited: [...this.visited].map(([quest, at]) => [quest, [...at]]),
+      failed: [...this.lost],
+      cast: [...this.roles],
+      given: [...this.given].map(([person, ids]) => [person, [...ids]]),
+      taken: [...this.taken].map(([person, ids]) => [person, [...ids]]),
+    };
+  }
+
+  restore(data: WorldStateData | undefined): void {
+    this.clear();
+    if (!data) return;
+    for (const flag of data.flags ?? []) this.raised.add(flag);
+    for (const [quest, at] of data.stages ?? []) this.stages.set(quest, at);
+    for (const [quest, at] of data.visited ?? []) this.visited.set(quest, new Set(at));
+    for (const quest of data.failed ?? []) this.lost.add(quest);
+    for (const [key, person] of data.cast ?? []) this.roles.set(key, person);
+    for (const [person, ids] of data.given ?? []) this.given.set(person, new Set(ids));
+    for (const [person, ids] of data.taken ?? []) this.taken.set(person, new Set(ids));
+  }
+
+  clear(): void {
+    this.raised.clear();
+    this.stages.clear();
+    this.visited.clear();
+    this.lost.clear();
+    this.roles.clear();
+    this.given.clear();
+    this.taken.clear();
+  }
+}
+
+/** `WorldFlags` as a save file holds it. Plain JSON, and every field optional on the way in. */
+export interface WorldStateData {
+  flags: string[];
+  stages: [string, number][];
+  visited: [string, number[]][];
+  failed: string[];
+  cast: [string, string][];
+  given: [string, string[]][];
+  taken: [string, string[]][];
 }
 
 /** The one the interpreter reads when nobody hands it another. */

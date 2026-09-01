@@ -255,6 +255,21 @@ when the dev panel raises it.
 
 ## Step 4 — quests
 
+**Built.** A stage is `at`, `log` and `then`, and nothing more: `completes` and
+`fails` are not fields, because reaching a stage that ends a quest is already
+sayable — a condition asks `{ quest, done: 90 }` for a stage ever visited, and a
+stage that fails one carries `failQuest` in its own `then`. Two ways to spell
+one thing is one way to get it wrong.
+
+A quest's `cast` is answered off its document, so `WorldFlags` only holds a
+recasting when something has actually recast. Its topics join the pool at rank
+60 while its stage is above zero and it has not failed.
+
+The save keeps its version. `state` is a new optional field, so a save written
+before this loads with an empty world state rather than being rejected.
+
+Nothing authors a quest, for the reason nothing authors a person.
+
 A quest document: `id`, `name`, `priority`, `cast`, `stages`, `topics`. A stage
 is a sparse index — authored 10, 20, 30, so there is room to insert — with a log
 line, optional `completes`/`fails` flags, and its own `then`.

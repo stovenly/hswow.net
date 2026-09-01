@@ -8,6 +8,7 @@ import { ItemIcons, PACE_IDLE, PACE_OPEN } from '../ui/ItemIcons';
 import { SaveSlots } from '../ui/SaveSlots';
 import { displayOf, isReadable, kindOf, type Item } from '../world/items';
 import { holdSatchel } from '../world/dialogue';
+import { worldState } from '../world/state';
 import { noteById } from '../world/notes';
 import { ItemAudio } from '../audio/models/items';
 import {
@@ -153,6 +154,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     if (!data || !app.zones.zones.has(data.zone)) return false;
     setWorldSeed(data.worldSeed);
     worldDelta.replace(data.delta);
+    worldState.restore(data.state);
     // A load re-seats every slot at once; that is restoration, not a gesture.
     restoring = true;
     inventory.replace(data.items, data.tool, data.accessories);
@@ -180,6 +182,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
         tool: inventory.tool,
         accessories: inventory.accessories,
         delta: worldDelta.serialize(),
+        state: worldState.save(),
         zone: zone.id,
         at: [at.x, at.y, at.z],
         yaw: app.player.heading,
@@ -248,6 +251,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
 
   const resetWorld = (): void => {
     worldDelta.replace({ removed: [], placed: [], containers: [] });
+    worldState.clear();
     restoring = true;
     inventory.replace([], null, []);
     restoring = false;
