@@ -48,7 +48,7 @@ export interface Voice extends OneShot {
   /** Says a score somebody else built — `say` without the parse. */
   speak(sc: Score, at: number): Utterance;
   /** Says nothing in particular: a short greeting, or a run of talk. */
-  babble(kind: 'greeting' | 'talk', at: number): Utterance;
+  babble(kind: 'greeting' | 'talk' | 'farewell', at: number): Utterance;
   /** Cuts whatever is being said, from `at`. */
   hush(at: number): void;
   readonly speaking: Utterance | null;

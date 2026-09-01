@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Creature, type World } from '../life/Creature';
+import { Meetings } from '../life/meetings';
 import type { Collider } from '../player/Collider';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Obstacle } from '../player/Controller';
@@ -28,6 +29,7 @@ export class LifeActivity {
   readonly obstacles: Obstacle[] = [];
   /** For readouts: creatures updated last frame. */
   awake = 0;
+  private readonly meetings = new Meetings();
 
   collect(id: string, root: THREE.Object3D): void {
     const creatures: Creature[] = [];
@@ -48,12 +50,14 @@ export class LifeActivity {
   }
 
   release(id: string): void {
+    this.meetings.clear();
     const creatures = this.zones.get(id);
     if (creatures) for (const creature of creatures) creature.dispose();
     this.zones.delete(id);
   }
 
   clear(): void {
+    this.meetings.clear();
     for (const creatures of this.zones.values()) for (const creature of creatures) creature.dispose();
     this.zones.clear();
     this.obstacles.length = 0;
@@ -93,6 +97,8 @@ export class LifeActivity {
       const p = creature.mesh.position;
       this.obstacles.push({ x: p.x, z: p.z, y: p.y, radius: creature.radius, height: creature.height });
     }
+    // After they have moved, so a pair is judged on where they actually are.
+    this.meetings.update(awake, performance.now() / 1000, audio?.context.currentTime ?? 0);
     this.awake = awake.length;
   }
 }

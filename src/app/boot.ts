@@ -331,7 +331,9 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
   const openTalk = (mesh: THREE.Object3D, mark: NpcMark): void => {
     if (dialogue.isOpen) return;
     const creature = zones.creatureFor(mesh);
-    if (!creature || creature.inConverse) return;
+    // Refused mid street meeting: the prompt still names them, E just does
+    // nothing until they are finished with each other.
+    if (!creature || creature.inConverse || creature.inMeeting) return;
     const script = SCRIPTS[mark.folk];
     const turn = talkTurn++;
     talkingTo = creature;

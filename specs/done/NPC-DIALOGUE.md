@@ -1,6 +1,6 @@
 # NPC dialogue — spec
 
-Talking to villagers and cityfolk: names on hover, E to converse, a slow
+**Built, all five phases.** Talking to villagers and cityfolk: names on hover, E to converse, a slow
 Skyrim-style turn into the exchange, English on screen while the throat speaks
 the people's own language, gestures on every line. Around it, three vibrance
 fixes: NPCs stop phasing through furniture, NPCs greet each other in the

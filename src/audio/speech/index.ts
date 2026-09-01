@@ -23,4 +23,4 @@ export {
 } from './phonemes';
 export { blank, score, spell, type Score, type Syllable, type Tune } from './parse';
 export { LECTS, lectOf, pick, type Draw, type Lect } from './lects';
-export { babbleScore, chatterScore, greetScore, GREETINGS } from './babble';
+export { babbleScore, chatterScore, farewellScore, greetScore, GREETINGS } from './babble';

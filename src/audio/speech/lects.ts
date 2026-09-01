@@ -50,6 +50,8 @@ export interface Lect {
   /** Scales every written pause. */
   pauseScale: number;
   greetings: readonly string[];
+  /** Goodbyes: falling, and longer on the last vowel. */
+  farewells: readonly string[];
   chatter: readonly string[];
 }
 
@@ -117,6 +119,11 @@ const country: Lect = {
     'gʱaːɾe', 'wɔ̀ndo', 'ɓɤːɾə̌?', 'laːnǀo',
     'sɑ̀ːŋo', 'ɦabudɐ',
   ],
+  farewells: [
+    'ɓoːlâ', 'mbaɾô', 'ǀuːmə̂', 'hɤ̀wô',
+    'ndaːlô', 'ɠoɾâ', 'wuːlô', 'ǃaǃô',
+    'dʱaːnô', 'ɫaʔô', 'ŋgumâ', 'jaːwô',
+  ],
   chatter: [
     'wàːlo ɓoɾə, mɐɰuːna.', 'ǀəme ǀəme, hɑːjo lɐ.',
     'ndoɾu bʱaːle, sɔ̀ŋgə wo.', 'ɠɤːma, ɠɤːma nɐʔo.',
@@ -167,6 +174,11 @@ const city: Lect = {
     'ʃɔ́rβi', 'kʰǽntsɔ!', 'βɪ́ʎɛr?', 'tʃø̂lki',
     'qɔ́ʃjɛ!', 'béʀtʃi', 'sʲɛ́ʀpa!', 'ɵ́ʃtʰɪn',
     'mʉ́ʔtsɛ?', 'ʒæ̂kʼʀɔ!',
+  ],
+  farewells: [
+    'ʀéxtsɔ̂', 'tʰɪ́ʃkø̂', 'pfœ́rtâ', 'tsǽʀdø̂',
+    'kʼɛ́stʃø̂', 'ʙǘmjê', 'çîrtʰø̂', 'ʒøkʼî',
+    'tɕɪ́ʔʀø̂', 'pʰɔ́rzê', 'xǽltʼø̂', 'ɸǿdzê',
   ],
   chatter: [
     'pʰɔ́rzɛ tɕímbɛ, kʰɔ́ntsɔ!', 'tʰɪ́ʃka ʀɛ́nti, ʒøgí βɛʀ.',

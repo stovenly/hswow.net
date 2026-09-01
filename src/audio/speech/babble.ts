@@ -57,6 +57,23 @@ export function greetScore(seed: number, lect: Lect): Score {
   return sc;
 }
 
+/**
+ * A villager's own goodbye: whatever it is written as, said as a statement, so
+ * the pitch falls across it rather than lifting at the end.
+ */
+export function farewellScore(seed: number, lect: Lect): Score {
+  const bank = lect.farewells.length ? lect.farewells : lect.greetings;
+  const sc = fromBank(bank, seed);
+  const last = sc.syllables.length - 1;
+  sc.syllables.forEach((s, k) => {
+    s.tune = 'statement';
+    s.final = false;
+    s.along = last > 0 ? k / last : 1;
+  });
+  if (last >= 0) sc.syllables[last].long = true;
+  return sc;
+}
+
 /** A written line of talk, or nothing if this people has none written. */
 export function chatterScore(seed: number, lect: Lect): Score | null {
   return lect.chatter.length ? fromBank(lect.chatter, seed) : null;

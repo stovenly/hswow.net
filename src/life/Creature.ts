@@ -121,6 +121,14 @@ let lastGreetAt = -Infinity;
 /** Seconds between one creature's greeting starting and the next's. */
 const GREET_GAP = 0.9;
 
+/** Whether anybody may start a hail this instant, and a stamp when one does. */
+export function hailClear(now: number): boolean {
+  return now - lastGreetAt > GREET_GAP;
+}
+export function stampHail(now: number): void {
+  lastGreetAt = now;
+}
+
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _at = new THREE.Vector3();
@@ -194,6 +202,10 @@ export class Creature {
   private listenIn = 0;
   /** Consecutive frames spent being pushed out of something solid. */
   private stuckFor = 0;
+  /** The other half of a street meeting, while one is running. */
+  private meetWith: Creature | null = null;
+  /** A line held until it has turned far enough to be saying it to somebody. */
+  private pending: 'greeting' | 'talk' | 'farewell' | null = null;
   private talkedThisVisit = false;
   private nearFor = 0;
 
@@ -225,6 +237,11 @@ export class Creature {
     // Bones and mesh move; the zone froze them.
     mesh.matrixAutoUpdate = true;
     for (const name of this.rig.names) this.rig.bones[name].matrixAutoUpdate = true;
+  }
+
+  /** Stable across rebuilds: what it is and where it was placed. */
+  get id(): string {
+    return `${this.spec.seed}@${this.home.x.toFixed(1)},${this.home.y.toFixed(1)}`;
   }
 
   /** The cylinder the player is pushed out of. */
@@ -317,6 +334,7 @@ export class Creature {
       looked &&
       !this.greeted &&
       !this.conversing &&
+      !this.meetWith &&
       this.greetCooldown === 0 &&
       now - lastGreetAt > GREET_GAP + (this.spec.seed % 5) * 0.15 &&
       (this.state === 'idle' || this.state === 'business' || this.state === 'walk')
@@ -349,7 +367,11 @@ export class Creature {
     let wantGraze = 0;
     switch (this.state) {
       case 'idle':
-        if (this.timer <= 0) {
+        if (this.timer <= 0 && this.meetWith) {
+          // Parked between turns of a street meeting. It does not wander off
+          // mid-exchange; `endMeet` is what lets it go.
+          this.timer = 1;
+        } else if (this.timer <= 0) {
           const busy = (spec.grazes || spec.kind === 'biped') && Math.random() < 0.5;
           if (!busy && spec.roam > 0 && this.pickTarget(world)) {
             this.begin('walk');
@@ -394,6 +416,10 @@ export class Creature {
       case 'greet':
       case 'talk': {
         this.turnT += dt;
+        // Whoever is being addressed: the other half of a street meeting, or
+        // the player.
+        const other = this.meetWith?.mesh.position;
+        const facing = other ? Math.atan2(other.x - pos.x, other.z - pos.z) : bearing;
         // The head goes first and the body follows it. The head has been
         // tracking since you came into notice range; the shoulders come after,
         // and only far enough to leave you off one shoulder — nobody squares up
@@ -402,7 +428,7 @@ export class Creature {
         // How far it has to go decides both the wait and the speed. Someone
         // stood behind you is not a leisurely quarter turn: the head cannot get
         // there alone, so the shoulders go almost at once and go quickly.
-        const off = angleTo(this.yaw, bearing);
+        const off = angleTo(this.yaw, facing);
         const away = Math.abs(off);
         const hurry = clamp01((away - 0.5) / 1.5);
         const settle = clamp01((this.turnT - BODY_LAG * (1 - 0.8 * hurry)) / 0.35);
@@ -417,7 +443,11 @@ export class Creature {
         if (this.state === 'talk' || away < GREET_FACING || this.turnT > 2.5) {
           if (!this.hailed) {
             this.hailed = true;
-            if (this.state === 'greet') {
+            if (this.pending) {
+              const said = this.babble(this.pending, world);
+              this.startGesture(this.pending, said ? said.end - said.at : 1.2);
+              this.pending = null;
+            } else if (this.state === 'greet') {
               if (spec.kind === 'biped') this.babble('greeting', world);
               else this.callOut(0.5, world);
             }
@@ -794,6 +824,7 @@ export class Creature {
    */
   beginConverse(): void {
     if (this.conversing) return;
+    this.endMeet();
     this.conversing = true;
     this.begin('talk');
     // Turned by the state machine, but never hailing off its own bat.
@@ -864,6 +895,42 @@ export class Creature {
     this.timer = this.fidgetLength;
   }
 
+  /**
+   * Turns to another creature and says one of its own lines to it. The line
+   * waits until it is round far enough to be addressing them — hailing the air
+   * behind you is worse than hailing a moment late.
+   */
+  meet(other: Creature, kind: 'greeting' | 'talk' | 'farewell'): void {
+    this.meetWith = other;
+    this.begin(kind === 'greeting' ? 'greet' : 'talk');
+    this.hailed = false;
+    this.pending = kind;
+    this.gestureLength = 6;
+  }
+
+  /** Ends a meeting, whether it finished or was interrupted. */
+  endMeet(): void {
+    if (!this.meetWith) return;
+    this.meetWith = null;
+    this.pending = null;
+    this.begin('idle');
+  }
+
+  get inMeeting(): boolean {
+    return this.meetWith !== null;
+  }
+
+  /** True while a line is still to come out or still coming out. */
+  saying(now: number): boolean {
+    if (this.pending) return true;
+    return this.said !== null && now < this.said.end;
+  }
+
+  /** Free to be pulled into a street meeting. */
+  get idleEnough(): boolean {
+    return !this.conversing && (this.state === 'idle' || this.state === 'business' || this.state === 'walk');
+  }
+
   get inConverse(): boolean {
     return this.conversing;
   }
@@ -924,7 +991,7 @@ export class Creature {
   }
 
   /** A few syllables of nothing: a short greeting or a run of talk. */
-  private babble(kind: 'greeting' | 'talk', world: World): Utterance | null {
+  private babble(kind: 'greeting' | 'talk' | 'farewell', world: World): Utterance | null {
     if (!world.audio || !world.audio.noise) return null;
     // A voice is kept for life, so it is worth missing one greeting rather
     // than being built on the old model a millisecond before the throat lands.

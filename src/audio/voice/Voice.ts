@@ -15,7 +15,7 @@
 
 import type { AudioEngine } from '../AudioEngine';
 import {
-  babbleScore, chatterScore, greetScore, pick, score, type Score, type Tune,
+  babbleScore, chatterScore, farewellScore, greetScore, pick, score, type Score, type Tune,
 } from '../speech';
 import type { Unit, Utterance, Voice, VoiceOptions } from './types';
 import { villagerBody } from './body';
@@ -186,6 +186,7 @@ function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
 
     babble(kind, at) {
       if (kind === 'greeting') return perform(greetScore(seed, lect), at);
+      if (kind === 'farewell') return perform(farewellScore(seed + ++turn, lect), at);
       // A written line if this people has any; otherwise a run of its own
       // sounds, which is what a people nobody has written lines for gets.
       const written = chatterScore(seed + ++turn, lect);
