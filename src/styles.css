@@ -1176,12 +1176,17 @@ body:not(.is-playing) #prompt {
 /* --- speech ---------------------------------------------------------------- */
 
 /* A villager's line while you are talking to them. No panel and no background:
-   the words are orphaned on the world, in the crosshair's register. */
+   the words are orphaned on the world, in the crosshair's register.
+
+   Nothing here is allowed to move once it is up. The width is fixed rather than
+   fitted, the line holds two lines' worth of height whether it needs them or
+   not, and the things you can say are taken out of flow entirely — the answer
+   is what you are reading, and a word arriving beneath it should not shift it. */
 #speech {
   position: fixed;
   bottom: 12%;
   left: 50%;
-  max-width: min(34rem, 80vw);
+  width: min(34rem, 80vw);
   font-size: 1rem;
   line-height: 1.45;
   letter-spacing: 0.04em;
@@ -1210,14 +1215,22 @@ body:not(.is-playing) #prompt {
 }
 
 .speech-line {
-  min-height: 1.45em;
+  min-height: 2.9em;
 }
 
+/* Off to the left of the answer, stacked up from its foot, and out of flow so
+   the count of them says nothing about where the line sits. */
 .speech-choices {
+  position: absolute;
+  right: calc(100% + 1.75rem);
+  bottom: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 0.15rem;
-  margin-top: 0.9rem;
+  width: max-content;
+  max-width: 13rem;
+  text-align: right;
 }
 
 .speech-choice {

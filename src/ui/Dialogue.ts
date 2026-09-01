@@ -19,8 +19,6 @@ export interface Speaker {
   speak(text: string, manner: 'greeting' | 'talk' | 'farewell'): Spoken | null;
   /** Cuts off whatever they are saying. */
   hush(): void;
-  /** True when they hailed the player in the open world a moment ago. */
-  readonly hailedRecently: boolean;
   readonly greeting: string;
   readonly farewell: string;
   readonly topics: readonly { key: string; label: string; reply: string }[];
@@ -122,17 +120,7 @@ export class Dialogue {
     this.scrim.hidden = false;
     this.root.classList.add('is-shown');
     this.handlers.onOpen();
-
-    // Skipped when they already hailed you in the street: repeating it a second
-    // later is what makes a village feel like a menu.
-    if (speaker.hailedRecently) {
-      this.line = '';
-      this.spoken = null;
-      this.lay();
-      this.offer();
-    } else {
-      this.say(speaker.greeting, 'greeting');
-    }
+    this.say(speaker.greeting, 'greeting');
   }
 
   /** Drives the reveal and the wait on the line. Called from the frame loop. */

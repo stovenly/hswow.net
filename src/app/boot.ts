@@ -340,7 +340,6 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     creature.beginConverse();
     dialogue.open({
       name: mark.name,
-      hailedRecently: creature.hailedRecently,
       greeting: pick(script.greeting, creature.spec.seed, turn),
       farewell: pick(script.farewell, creature.spec.seed, turn),
       topics: script.topics,

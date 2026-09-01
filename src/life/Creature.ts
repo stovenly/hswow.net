@@ -945,11 +945,6 @@ export class Creature {
     return this.conversing;
   }
 
-  /** Whether it hailed the player in the street a moment ago, so a second hello would be one too many. */
-  get hailedRecently(): boolean {
-    return this.greeted && this.greetCooldown > 0;
-  }
-
   /** Where a conversation's camera rests: the head, in world space. */
   head(out: THREE.Vector3): THREE.Vector3 {
     const pos = this.mesh.position;
