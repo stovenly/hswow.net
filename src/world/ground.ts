@@ -62,6 +62,10 @@ export const GROUND = {
   snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
   /** Damp shade under a canopy, or the north side of a stone. */
   moss: { color: 0x455c31, variation: 0.14, step: 'moss' },
+  /** Pebbles the tide sorts into a band. */
+  shingle: { color: 0x8a8272, variation: 0.18, step: 'gravel' },
+  /** Sand the last wave left. Darker, and even. */
+  wetsand: { color: 0x9d8c6c, variation: 0.05, step: 'sand' },
 } as const satisfies Record<string, GroundMaterial>;
 
 export type GroundName = keyof typeof GROUND;

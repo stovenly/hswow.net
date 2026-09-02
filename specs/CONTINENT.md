@@ -72,9 +72,10 @@ nothing in it reaches a place.
   put their woods above the banks, outside the playable line, and a scatter
   could only place inside it; a region named on the scatter is now the
   authority instead. `keepClear` does the rest.
-- **The corridor zones have no rim.** Their walls are channel banks and
-  scarps; the plains and the forest have rims on their outlines, with the
-  outline run out past each gate so the gate stands on flat ground.
+- **No zone has a rim.** The corridor zones are walled by channel banks and
+  scarps, the plains by field walls and fences the whole way round, the forest
+  by a treeline along its outline with unseen barriers behind it. The vista
+  goes on past every one of them.
 - **The beach path has no track.** Sand is the ground, and a `cover: none`
   path keeps the corridor bare.
 - **The river is seven reaches**, per the water decision, and the sea two

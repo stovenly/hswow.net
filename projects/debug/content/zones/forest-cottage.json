@@ -138,17 +138,6 @@
       "yaw": 0.1
     },
     {
-      "id": "curtain",
-      "kind": "prop",
-      "builder": "curtain",
-      "seed": 4981,
-      "at": [
-        3.4,
-        1.4
-      ],
-      "yaw": -1.5707963
-    },
-    {
       "id": "candle",
       "kind": "prop",
       "builder": "candle",

@@ -79,69 +79,6 @@
         "height": 1.5
       },
       {
-        "kind": "rim",
-        "inset": 10,
-        "height": 8,
-        "outline": [
-          {
-            "kind": "blot",
-            "at": [
-              0,
-              -30
-            ],
-            "radius": 30
-          },
-          {
-            "kind": "blot",
-            "at": [
-              2,
-              4
-            ],
-            "radius": 44
-          },
-          {
-            "kind": "blot",
-            "at": [
-              28,
-              30
-            ],
-            "radius": 24
-          },
-          {
-            "kind": "blot",
-            "at": [
-              34,
-              42
-            ],
-            "radius": 16
-          },
-          {
-            "kind": "blot",
-            "at": [
-              0,
-              -46
-            ],
-            "radius": 14
-          },
-          {
-            "kind": "blot",
-            "at": [
-              -30,
-              30
-            ],
-            "radius": 22
-          },
-          {
-            "kind": "blot",
-            "at": [
-              30,
-              -20
-            ],
-            "radius": 24
-          }
-        ]
-      },
-      {
         "kind": "terrace",
         "at": [
           1,
@@ -354,6 +291,656 @@
           1
         ],
         "radius": 6
+      }
+    ],
+    "edge": [
+      {
+        "kind": "blot",
+        "at": [
+          -30,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -25,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -20,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -15,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -10,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -5,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          5,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          15,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          25,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          30,
+          -58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          32.86,
+          -54
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          35.71,
+          -50
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          38.57,
+          -46
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          41.43,
+          -42
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          44.29,
+          -38
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          47.14,
+          -34
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          50,
+          -30
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          50.44,
+          -25.56
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          50.89,
+          -21.11
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          51.33,
+          -16.67
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          51.78,
+          -12.22
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          52.22,
+          -7.78
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          52.67,
+          -3.33
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          53.11,
+          1.11
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          53.56,
+          5.56
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          54,
+          10
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          53.11,
+          14.89
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          52.22,
+          19.78
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          51.33,
+          24.67
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          50.44,
+          29.56
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          49.56,
+          34.44
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          48.67,
+          39.33
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          47.78,
+          44.22
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          46.89,
+          49.11
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          46,
+          54
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          41.6,
+          54.8
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          37.2,
+          55.6
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          32.8,
+          56.4
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          28.4,
+          57.2
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          24,
+          58
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          19.11,
+          57.56
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14.22,
+          57.11
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9.33,
+          56.67
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          4.44,
+          56.22
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -0.44,
+          55.78
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -5.33,
+          55.33
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -10.22,
+          54.89
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -15.11,
+          54.44
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -20,
+          54
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -24,
+          52
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -28,
+          50
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -32,
+          48
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -36,
+          46
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -40,
+          44
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -44,
+          42
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -48,
+          40
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -48.67,
+          35.56
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -49.33,
+          31.11
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -50,
+          26.67
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -50.67,
+          22.22
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -51.33,
+          17.78
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -52,
+          13.33
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -52.67,
+          8.89
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -53.33,
+          4.44
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -54,
+          0
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -52.75,
+          -4.5
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -51.5,
+          -9
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -50.25,
+          -13.5
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -49,
+          -18
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -47.75,
+          -22.5
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -46.5,
+          -27
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -45.25,
+          -31.5
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -44,
+          -36
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -41.67,
+          -39.67
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -39.33,
+          -43.33
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -37,
+          -47
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -34.67,
+          -50.67
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -32.33,
+          -54.33
+        ],
+        "radius": 7
       }
     ]
   },
@@ -1362,6 +1949,218 @@
       "depth": 90,
       "chop": 0.8,
       "segment": 4
+    },
+    {
+      "id": "edge-slab-0",
+      "kind": "barrier",
+      "from": [
+        -30,
+        -58
+      ],
+      "to": [
+        30,
+        -58
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-1",
+      "kind": "barrier",
+      "from": [
+        30,
+        -58
+      ],
+      "to": [
+        50,
+        -30
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-2",
+      "kind": "barrier",
+      "from": [
+        50,
+        -30
+      ],
+      "to": [
+        54,
+        10
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-3",
+      "kind": "barrier",
+      "from": [
+        54,
+        10
+      ],
+      "to": [
+        46,
+        54
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-4",
+      "kind": "barrier",
+      "from": [
+        46,
+        54
+      ],
+      "to": [
+        24,
+        58
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-5",
+      "kind": "barrier",
+      "from": [
+        24,
+        58
+      ],
+      "to": [
+        -20,
+        54
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-6",
+      "kind": "barrier",
+      "from": [
+        -20,
+        54
+      ],
+      "to": [
+        -48,
+        40
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-7",
+      "kind": "barrier",
+      "from": [
+        -48,
+        40
+      ],
+      "to": [
+        -54,
+        0
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-8",
+      "kind": "barrier",
+      "from": [
+        -54,
+        0
+      ],
+      "to": [
+        -44,
+        -36
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-slab-9",
+      "kind": "barrier",
+      "from": [
+        -44,
+        -36
+      ],
+      "to": [
+        -30,
+        -58
+      ],
+      "height": 4
+    },
+    {
+      "id": "edge-thickets",
+      "kind": "scatter",
+      "builder": "thicket",
+      "seed": 5251,
+      "count": 60,
+      "within": 80,
+      "region": "edge",
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        1,
+        1.6
+      ]
+    },
+    {
+      "id": "edge-spruces",
+      "kind": "scatter",
+      "builder": "spruce",
+      "seed": 5252,
+      "count": 26,
+      "within": 80,
+      "region": "edge",
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        1,
+        1.4
+      ]
+    },
+    {
+      "id": "edge-brambles",
+      "kind": "scatter",
+      "builder": "bramble",
+      "seed": 5253,
+      "count": 24,
+      "within": 80,
+      "region": "edge",
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "maxSlope": 40
+    },
+    {
+      "id": "edge-bushes",
+      "kind": "scatter",
+      "builder": "bush",
+      "seed": 5254,
+      "count": 30,
+      "within": 80,
+      "region": "edge",
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        1,
+        1.6
+      ]
+    },
+    {
+      "id": "edge-hazels",
+      "kind": "scatter",
+      "builder": "hazel",
+      "seed": 5255,
+      "count": 14,
+      "within": 80,
+      "region": "edge",
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "maxSlope": 40
     },
     {
       "id": "ring",

@@ -19,7 +19,7 @@
   "spawn": {
     "at": [
       0,
-      -41
+      -31
     ],
     "yaw": 0
   },
@@ -47,7 +47,7 @@
     ]
   },
   "terrain": {
-    "size": 200,
+    "size": 130,
     "resolution": 3,
     "base": "sand",
     "rockAngle": 50,
@@ -56,106 +56,106 @@
         "kind": "hill",
         "at": [
           0,
-          -60
+          -52
         ],
-        "radius": 70,
-        "height": 3.2
+        "radius": 52,
+        "height": 3.4
       },
       {
         "kind": "hill",
         "at": [
-          -60,
-          -40
-        ],
-        "radius": 60,
-        "height": 3
-      },
-      {
-        "kind": "hill",
-        "at": [
-          60,
-          -40
-        ],
-        "radius": 60,
-        "height": 3
-      },
-      {
-        "kind": "hill",
-        "at": [
-          -40,
-          -32
-        ],
-        "radius": 10,
-        "height": 3
-      },
-      {
-        "kind": "hill",
-        "at": [
-          -22,
-          -36
-        ],
-        "radius": 11,
-        "height": 3.6
-      },
-      {
-        "kind": "hill",
-        "at": [
-          20,
+          -46,
           -34
         ],
-        "radius": 10,
-        "height": 3.2
+        "radius": 40,
+        "height": 3
       },
       {
         "kind": "hill",
         "at": [
-          44,
-          -30
+          46,
+          -34
         ],
-        "radius": 12,
-        "height": 3.8
+        "radius": 40,
+        "height": 3
+      },
+      {
+        "kind": "hill",
+        "at": [
+          -26,
+          -28
+        ],
+        "radius": 9,
+        "height": 2.6
+      },
+      {
+        "kind": "hill",
+        "at": [
+          -10,
+          -31
+        ],
+        "radius": 10,
+        "height": 3.4000000000000004
+      },
+      {
+        "kind": "hill",
+        "at": [
+          12,
+          -31
+        ],
+        "radius": 9,
+        "height": 2.6
+      },
+      {
+        "kind": "hill",
+        "at": [
+          28,
+          -26
+        ],
+        "radius": 10,
+        "height": 3.4000000000000004
       },
       {
         "kind": "basin",
         "at": [
-          -60,
-          36
+          -30,
+          26
         ],
-        "radius": 44,
-        "depth": 1.7
+        "radius": 34,
+        "depth": 1.6
       },
       {
         "kind": "basin",
         "at": [
           0,
-          36
+          28
         ],
-        "radius": 44,
-        "depth": 1.7
+        "radius": 36,
+        "depth": 1.6
       },
       {
         "kind": "basin",
         "at": [
-          60,
-          36
+          30,
+          26
         ],
-        "radius": 44,
-        "depth": 1.7
+        "radius": 34,
+        "depth": 1.6
       },
       {
         "kind": "basin",
         "at": [
           0,
-          90
+          78
         ],
-        "radius": 80,
+        "radius": 66,
         "depth": 7
       },
       {
         "kind": "basin",
         "at": [
-          -50,
-          -10
+          -26,
+          -18
         ],
         "radius": 5,
         "depth": 0.5
@@ -165,8 +165,102 @@
       {
         "kind": "blot",
         "at": [
-          -50,
-          -10
+          -26,
+          -28
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -10,
+          -31
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          12,
+          -31
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          28,
+          -26
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "path",
+        "through": [
+          [
+            -40,
+            -14
+          ],
+          [
+            -24,
+            -12
+          ],
+          [
+            -8,
+            -11
+          ],
+          [
+            8,
+            -11
+          ],
+          [
+            22,
+            -12
+          ],
+          [
+            40,
+            -15
+          ]
+        ],
+        "width": 6,
+        "material": "shingle"
+      },
+      {
+        "kind": "path",
+        "through": [
+          [
+            -40,
+            -8
+          ],
+          [
+            -20,
+            -6
+          ],
+          [
+            0,
+            -5
+          ],
+          [
+            20,
+            -6
+          ],
+          [
+            40,
+            -9
+          ]
+        ],
+        "width": 7,
+        "material": "wetsand"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -26,
+          -18
         ],
         "radius": 4,
         "material": "mire"
@@ -174,34 +268,50 @@
     ],
     "cover": [
       {
-        "kind": "path",
-        "through": [
-          [
-            0,
-            -60
-          ],
-          [
-            0,
-            -44
-          ],
-          [
-            -4,
-            -20
-          ],
-          [
-            0,
-            -4
-          ]
+        "kind": "blot",
+        "at": [
+          -26,
+          -28
         ],
-        "width": 4,
-        "cover": "none",
+        "radius": 6,
+        "cover": "tussock",
         "edge": "feather"
       },
       {
         "kind": "blot",
         "at": [
-          -50,
-          -10
+          -10,
+          -31
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          12,
+          -31
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          28,
+          -26
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -26,
+          -18
         ],
         "radius": 6,
         "cover": "sedge",
@@ -212,30 +322,30 @@
       {
         "at": [
           0,
-          -10
+          -12
         ],
-        "radius": 60,
+        "radius": 44,
         "level": 2
       },
       {
         "at": [
           0,
-          -44
+          -32
         ],
-        "radius": 10,
+        "radius": 12,
         "level": 4
       },
       {
         "at": [
-          44,
-          -4
+          32,
+          -6
         ],
-        "radius": 16,
+        "radius": 14,
         "level": 3
       }
     ],
     "edgeFade": {
-      "band": 30
+      "band": 22
     }
   },
   "skirt": {
@@ -258,28 +368,28 @@
         "width": 0.1,
         "through": [
           [
-            -60,
-            -60
+            -38,
+            -44
           ],
           [
-            60,
-            -60
+            38,
+            -44
           ],
           [
-            62,
-            -30
+            40,
+            -20
           ],
           [
-            60,
-            18
+            38,
+            12
           ],
           [
-            -60,
-            18
+            -38,
+            12
           ],
           [
-            -62,
-            -30
+            -40,
+            -20
           ]
         ]
       }
@@ -289,23 +399,23 @@
         "kind": "blot",
         "at": [
           0,
-          -44
+          -34
         ],
-        "radius": 7
+        "radius": 6
       },
       {
         "kind": "blot",
         "at": [
-          44,
-          -4
+          32,
+          -6
         ],
-        "radius": 10
+        "radius": 9
       },
       {
         "kind": "blot",
         "at": [
-          -50,
-          -10
+          -26,
+          -18
         ],
         "radius": 5
       },
@@ -313,7 +423,7 @@
         "kind": "blot",
         "at": [
           -12,
-          -13
+          -17
         ],
         "radius": 4
       }
@@ -322,222 +432,190 @@
       {
         "kind": "blot",
         "at": [
-          -40,
-          -32
+          -26,
+          -28
         ],
-        "radius": 9
+        "radius": 8
       },
       {
         "kind": "blot",
         "at": [
-          -22,
-          -36
+          -10,
+          -31
         ],
-        "radius": 9
+        "radius": 8
       },
       {
         "kind": "blot",
         "at": [
-          20,
-          -34
+          12,
+          -31
         ],
-        "radius": 9
+        "radius": 8
       },
       {
         "kind": "blot",
         "at": [
-          44,
-          -30
+          28,
+          -26
         ],
-        "radius": 9
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -30,
-          -48
-        ],
-        "radius": 9
-      },
-      {
-        "kind": "blot",
-        "at": [
-          30,
-          -46
-        ],
-        "radius": 9
+        "radius": 8
       }
     ],
     "tideline": [
       {
         "kind": "blot",
         "at": [
-          -54,
-          -8
-        ],
-        "radius": 4
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -49.33,
-          -7.33
-        ],
-        "radius": 4
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -44.67,
-          -6.67
-        ],
-        "radius": 4
-      },
-      {
-        "kind": "blot",
-        "at": [
           -40,
-          -6
+          -14
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -34.67,
-          -5.67
+          -13.33
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -29.33,
-          -5.33
+          -12.67
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -24,
-          -5
+          -12
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -18.67,
-          -4.67
+          -11.67
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -13.33,
-          -4.33
+          -11.33
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -8,
-          -4
+          -11
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           -2.67,
-          -4
+          -11
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           2.67,
-          -4
+          -11
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           8,
-          -4
+          -11
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           12.67,
-          -4.33
+          -11.33
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           17.33,
-          -4.67
+          -11.67
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
           22,
-          -5
+          -12
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
-          26,
-          -5.67
+          26.5,
+          -12.75
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
-          30,
-          -6.33
+          31,
+          -13.5
         ],
-        "radius": 4
+        "radius": 3.5
       },
       {
         "kind": "blot",
         "at": [
-          34,
-          -7
+          35.5,
+          -14.25
         ],
-        "radius": 4
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          40,
+          -15
+        ],
+        "radius": 3.5
       }
     ],
     "headland": [
       {
         "kind": "blot",
         "at": [
-          45,
-          -2
+          33,
+          -4
         ],
-        "radius": 8
+        "radius": 7
       }
     ],
     "stream": [
       {
         "kind": "blot",
         "at": [
-          -50,
-          -10
+          -26,
+          -18
         ],
         "radius": 5
       }
@@ -545,13 +623,44 @@
   },
   "entries": [
     {
+      "id": "way",
+      "kind": "track",
+      "through": [
+        [
+          0,
+          -48
+        ],
+        [
+          0,
+          -34
+        ],
+        [
+          -4,
+          -24
+        ],
+        [
+          3,
+          -16
+        ],
+        [
+          0,
+          -11
+        ]
+      ],
+      "width": 2.4,
+      "surface": "gravel",
+      "edge": "none",
+      "wear": 0.5,
+      "seed": 7252
+    },
+    {
       "id": "gate-outcrop-w",
       "kind": "prop",
       "builder": "outcrop",
       "seed": 4991,
       "at": [
         -6,
-        -44
+        -34
       ],
       "yaw": 0.3
     },
@@ -562,7 +671,7 @@
       "seed": 4992,
       "at": [
         6,
-        -44
+        -34
       ],
       "yaw": 2.2
     },
@@ -571,11 +680,11 @@
       "kind": "barrier",
       "from": [
         -8,
-        -47
+        -37
       ],
       "to": [
         8,
-        -47
+        -37
       ]
     },
     {
@@ -584,10 +693,10 @@
       "at": [
         0,
         0.3,
-        20
+        14
       ],
-      "width": 132,
-      "depth": 70,
+      "width": 92,
+      "depth": 62,
       "chop": 1.8,
       "taper": 1.6,
       "flow": [
@@ -602,9 +711,9 @@
       "at": [
         0,
         0.3,
-        145
+        135
       ],
-      "width": 240,
+      "width": 220,
       "depth": 200,
       "chop": 1.2,
       "flow": [
@@ -617,12 +726,12 @@
       "id": "reach-slab",
       "kind": "barrier",
       "from": [
-        -62,
-        18
+        -42,
+        12
       ],
       "to": [
-        62,
-        18
+        42,
+        12
       ],
       "height": 4
     },
@@ -632,12 +741,12 @@
       "builder": "rock-shelf",
       "seed": 5001,
       "at": [
-        42,
-        -12
+        30,
+        -14
       ],
       "yaw": -1.26,
       "options": {
-        "sections": 4
+        "sections": 3
       }
     },
     {
@@ -646,8 +755,8 @@
       "builder": "rock-shelf",
       "seed": 5002,
       "at": [
-        44.5,
-        -4
+        32.5,
+        -6
       ],
       "yaw": -1.2,
       "options": {
@@ -660,8 +769,8 @@
       "builder": "rock-shelf",
       "seed": 5003,
       "at": [
-        47,
-        4
+        35,
+        2
       ],
       "yaw": -1.32,
       "options": {
@@ -674,8 +783,8 @@
       "builder": "outcrop",
       "seed": 5004,
       "at": [
-        40,
-        -17
+        28,
+        -19
       ],
       "yaw": 0.8
     },
@@ -685,8 +794,8 @@
       "builder": "scree",
       "seed": 5005,
       "at": [
-        38,
-        -10
+        26,
+        -12
       ],
       "yaw": 0.2
     },
@@ -696,8 +805,8 @@
       "builder": "boulder",
       "seed": 5006,
       "at": [
-        48,
-        -8
+        36,
+        -10
       ],
       "yaw": 0.4
     },
@@ -707,8 +816,8 @@
       "builder": "boulder",
       "seed": 5007,
       "at": [
-        50,
-        2
+        38,
+        0
       ],
       "yaw": 1.5
     },
@@ -718,8 +827,8 @@
       "builder": "boulder",
       "seed": 5008,
       "at": [
-        43,
-        8
+        31,
+        6
       ],
       "yaw": 2.6
     },
@@ -729,8 +838,8 @@
       "builder": "boulder",
       "seed": 5009,
       "at": [
-        36,
-        -2
+        24,
+        -4
       ],
       "yaw": 0.9
     },
@@ -740,8 +849,8 @@
       "builder": "cairn",
       "seed": 5010,
       "at": [
-        37,
-        -20
+        25,
+        -22
       ],
       "yaw": 0.3
     },
@@ -756,13 +865,24 @@
       "maxSlope": 60
     },
     {
+      "id": "skiff",
+      "kind": "prop",
+      "builder": "skiff",
+      "seed": 5014,
+      "at": [
+        -12,
+        -17
+      ],
+      "yaw": 0.35
+    },
+    {
       "id": "drift-log-1",
       "kind": "prop",
       "builder": "fallen-log",
       "seed": 5011,
       "at": [
         -20,
-        -6
+        -13
       ],
       "yaw": 0.1
     },
@@ -772,21 +892,10 @@
       "builder": "fallen-log",
       "seed": 5012,
       "at": [
-        18,
-        -7
+        14,
+        -14
       ],
       "yaw": 2.9
-    },
-    {
-      "id": "skiff",
-      "kind": "prop",
-      "builder": "skiff",
-      "seed": 5014,
-      "at": [
-        -12,
-        -13
-      ],
-      "yaw": 0.35
     },
     {
       "id": "dune-deadfall",
@@ -794,8 +903,8 @@
       "builder": "deadfall",
       "seed": 5013,
       "at": [
-        -30,
-        -40
+        -20,
+        -36
       ],
       "yaw": 1.4
     },
@@ -804,9 +913,12 @@
       "kind": "scatter",
       "builder": "sticks",
       "seed": 5232,
-      "count": 15,
-      "within": 80,
+      "count": 14,
+      "within": 60,
       "region": "tideline",
+      "avoid": [
+        "way"
+      ],
       "maxSlope": 30
     },
     {
@@ -814,9 +926,12 @@
       "kind": "scatter",
       "builder": "rock",
       "seed": 5233,
-      "count": 24,
-      "within": 80,
+      "count": 20,
+      "within": 60,
       "region": "tideline",
+      "avoid": [
+        "way"
+      ],
       "maxSlope": 40,
       "scale": [
         0.6,
@@ -838,9 +953,12 @@
       "kind": "scatter",
       "builder": "large-grass-clump",
       "seed": 5235,
-      "count": 36,
-      "within": 80,
+      "count": 30,
+      "within": 60,
       "region": "dunes",
+      "avoid": [
+        "way"
+      ],
       "maxSlope": 40,
       "scale": [
         0.9,
@@ -852,9 +970,12 @@
       "kind": "scatter",
       "builder": "reeds",
       "seed": 5236,
-      "count": 10,
-      "within": 80,
+      "count": 8,
+      "within": 60,
       "region": "dunes",
+      "avoid": [
+        "way"
+      ],
       "maxSlope": 40
     },
     {
@@ -863,31 +984,34 @@
       "builder": "gorse",
       "seed": 5237,
       "count": 6,
-      "within": 80,
+      "within": 60,
       "region": "dunes",
+      "avoid": [
+        "way"
+      ],
       "maxSlope": 30
     },
     {
       "id": "surf-w",
       "kind": "sound",
       "at": [
-        -36,
+        -28,
         0.5,
-        -2
+        -9
       ],
       "spec": {
         "model": "surf",
         "id": "surf-w",
         "options": {
           "gain": 0.22,
-          "shingle": 0.5,
+          "shingle": 0.6,
           "period": [
             8,
             13
           ]
         },
         "refDistance": 8,
-        "maxDistance": 90,
+        "maxDistance": 80,
         "rolloff": 1.1,
         "reverb": 0.5
       }
@@ -898,21 +1022,21 @@
       "at": [
         0,
         0.5,
-        -2
+        -8
       ],
       "spec": {
         "model": "surf",
         "id": "surf-m",
         "options": {
           "gain": 0.22,
-          "shingle": 0.45,
+          "shingle": 0.55,
           "period": [
             9,
             15
           ]
         },
         "refDistance": 8,
-        "maxDistance": 90,
+        "maxDistance": 80,
         "rolloff": 1.1,
         "reverb": 0.5
       }
@@ -921,23 +1045,23 @@
       "id": "surf-e",
       "kind": "sound",
       "at": [
-        36,
+        26,
         0.5,
-        -3
+        -9
       ],
       "spec": {
         "model": "surf",
         "id": "surf-e",
         "options": {
           "gain": 0.22,
-          "shingle": 0.75,
+          "shingle": 0.8,
           "period": [
             10,
             14
           ]
         },
         "refDistance": 8,
-        "maxDistance": 90,
+        "maxDistance": 80,
         "rolloff": 1.1,
         "reverb": 0.5
       }
@@ -946,8 +1070,8 @@
       "id": "stream",
       "kind": "sound",
       "at": [
-        -50,
-        -10
+        -26,
+        -18
       ],
       "lift": 0.2,
       "spec": {
@@ -967,8 +1091,8 @@
       "id": "dune-grass",
       "kind": "sound",
       "at": [
-        -22,
-        -36
+        -10,
+        -31
       ],
       "lift": 0.6,
       "spec": {
@@ -989,8 +1113,8 @@
       "id": "dune-grass-2",
       "kind": "sound",
       "at": [
-        20,
-        -34
+        28,
+        -26
       ],
       "lift": 0.6,
       "spec": {

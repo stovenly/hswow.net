@@ -240,6 +240,8 @@ const OTHER_DIAGONAL = [1, 2, 3, 1, 3, 0];
 const SPLIT_BIAS = 0.04;
 /** Slope in degrees past which a base cell counts as steep ground. */
 const STEEP_DEG = 12;
+/** Degrees either side of `rockAngle` over which ground turns to rock and its cover thins to nothing. */
+const ROCK_BAND: [number, number] = [9, 3];
 
 /** Shared empty bucket, so a query off the field allocates nothing. */
 const EMPTY: readonly number[] = [];
@@ -641,6 +643,15 @@ export class Terrain {
     return this.detail;
   }
 
+  /** 0 on ground that keeps its material, 1 on rock, blended over the band about `rockAngle`. */
+  private rockiness(x: number, z: number): number {
+    const slope = this.slopeAt(x, z, 1);
+    const from = this.rockAngle - ROCK_BAND[0];
+    const to = this.rockAngle + ROCK_BAND[1];
+    const t = Math.min(1, Math.max(0, (slope - from) / (to - from)));
+    return t * t * (3 - 2 * t);
+  }
+
   /** The steepest of five slope samples over a cell: its centre and its corners. */
   private steepestIn(cx: number, cz: number, res: number): number {
     const h = res / 2;
@@ -723,6 +734,7 @@ export class Terrain {
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
     const c = new THREE.Vector3();
+    const rockColor = new THREE.Color();
     const ab = new THREE.Vector3();
     const ac = new THREE.Vector3();
     const normal = new THREE.Vector3();
@@ -794,7 +806,9 @@ export class Terrain {
               const midX = (a.x + b.x + c.x) / 3;
               const midZ = (a.z + b.z + c.z) / 3;
               const name = this.faceMaterial(midX, midZ);
-              color.set(this.faceColor(name, (a.y + b.y + c.y) / 3, midX, midZ));
+              const midY = (a.y + b.y + c.y) / 3;
+              color.set(this.faceColor(name, midY, midX, midZ));
+              rockColor.set(name === 'rock' ? color : this.faceColor('rock', midY, midX, midZ));
               // Type per face, so its edges stay hard; feather and blend per corner, so
               // they interpolate — cover runs out onto bare ground over a couple of
               // metres, and two grown types interleave rather than thinning to a gap.
@@ -803,9 +817,13 @@ export class Terrain {
               for (let k = 0; k < 3; k++) {
                 const corner = points[k];
                 this.coverEdge(cover, corner.x, corner.z, edge);
+                // How far into rock this corner is. Per corner, so the line where
+                // grass gives way to stone runs across the facets as a gradient
+                // rather than along their edges as a saw.
+                const rocky = this.rockiness(corner.x, corner.z);
                 // Thinned toward the level's edge, where the skirt takes over
-                // and nothing grows. See `TerrainOptions.edgeFade`.
-                const stand = edge.feather * this.edgeDensity(corner.x, corner.z);
+                // and nothing grows, and to nothing on rock. See `TerrainOptions.edgeFade`.
+                const stand = edge.feather * this.edgeDensity(corner.x, corner.z) * (1 - rocky);
                 covers[at4] = cover;
                 covers[at4 + 1] = stand;
                 covers[at4 + 2] = coverSwell(corner.x, corner.z);
@@ -822,9 +840,9 @@ export class Terrain {
                 normals[at3] = normal.x;
                 normals[at3 + 1] = normal.y;
                 normals[at3 + 2] = normal.z;
-                colors[at3] = color.r * floor;
-                colors[at3 + 1] = color.g * floor;
-                colors[at3 + 2] = color.b * floor;
+                colors[at3] = (color.r + (rockColor.r - color.r) * rocky) * floor;
+                colors[at3 + 1] = (color.g + (rockColor.g - color.g) * rocky) * floor;
+                colors[at3 + 2] = (color.b + (rockColor.b - color.b) * rocky) * floor;
                 at3 += 3;
               }
             }

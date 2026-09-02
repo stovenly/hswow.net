@@ -70,25 +70,16 @@ export interface Continent {
   rivers: River[];
 }
 
-/** The field a place is built on and what the kind of place does to it. */
-interface Shape {
-  radius: number;
-  lift: number;
-}
-const SHAPES: Record<Family | 'none', Shape> = {
-  none: { radius: 0.9, lift: 1 },
-  village: { radius: 0.9, lift: 1 },
-  farm: { radius: 1, lift: 0.95 },
-  forest: { radius: 0.95, lift: 1.05 },
-  riverside: { radius: 0.9, lift: 0.9 },
-  cave: { radius: 0.85, lift: 1.25 },
-  factory: { radius: 0.9, lift: 1 },
-  sewer: { radius: 0.9, lift: 0.95 },
-  scrapyard: { radius: 0.9, lift: 1 },
-  substation: { radius: 0.9, lift: 1 },
-  beach: { radius: 0.72, lift: 0.68 },
-  plains: { radius: 1.15, lift: 0.9 },
-};
+/**
+ * How far the mainland reaches past a place before the coast can fall, in
+ * roads. Every place stands on one broad mass rather than on a disc of its
+ * own; where the coast runs is then the noise's decision, out here.
+ */
+const BULK_REACH = 2.4;
+/** A beach draws the sea in: a bay taken out of the mass this far past it, this wide, this deep. */
+const BAY_OUT = 0.75;
+const BAY_REACH = 1.25;
+const BAY_DEPTH = 0.75;
 
 const INDUSTRY: ReadonlySet<Family> = new Set(['factory', 'sewer', 'scrapyard', 'substation']);
 
@@ -98,10 +89,11 @@ const PEAK_REACH = 0.5;
 const EDGE_FADE = 1.1;
 
 /** Where the sea sits in the land field, and how far the noise reaches either side of it. */
-const SEA = 0.16;
-const NOISE = 0.55;
+const SEA = 0.42;
+const NOISE = 0.8;
 /** Wavelengths, in roads. */
-const COAST_WAVE = 0.9;
+const COAST_WAVE = 1.6;
+const UPLAND_WAVE = 1.8;
 const ISLE_WAVE = 0.55;
 const HEIGHT_WAVE = 0.5;
 const WET_WAVE = 0.4;
@@ -135,16 +127,27 @@ export function buildContinent(sites: readonly Site[], roads: readonly [number, 
   ];
 
   // --- land ---------------------------------------------------------------
+  // One mass under everything, the roads ridged across it, and a bay bitten
+  // out past every beach on the side facing away from the rest.
   const field = new Float32Array(n);
   const ridge = new Float32Array(n);
+  const bays = new Float32Array(n);
   for (const site of sites) {
-    const shape = SHAPES[site.family ?? 'none'];
-    stamp(field, cols, rows, span, cell, site.x, site.y, shape.radius * ROAD, shape.lift, false);
+    stamp(field, cols, rows, span, cell, site.x, site.y, BULK_REACH * ROAD, 1, true);
   }
   for (const road of roads) {
     for (const [x, y] of road) {
       stamp(ridge, cols, rows, span, cell, x, y, RIDGE_RADIUS * ROAD, RIDGE_LIFT, true);
     }
+  }
+  const known = sites.filter((site) => site.family !== null);
+  const middle = known.reduce((sum, site) => [sum[0] + site.x / known.length, sum[1] + site.y / known.length], [0, 0]);
+  for (const site of known) {
+    if (site.family !== 'beach') continue;
+    const away = Math.hypot(site.x - middle[0], site.y - middle[1]) || 1;
+    const ox = ((site.x - middle[0]) / away) * BAY_OUT * ROAD;
+    const oy = ((site.y - middle[1]) / away) * BAY_OUT * ROAD;
+    stamp(bays, cols, rows, span, cell, site.x + ox, site.y + oy, BAY_REACH * ROAD, BAY_DEPTH, true);
   }
   const land = new Uint8Array(n);
   for (let row = 0; row < rows; row++) {
@@ -155,7 +158,7 @@ export function buildContinent(sites: readonly Site[], roads: readonly [number, 
       const toEdge = Math.min(x - span.x, span.x + span.w - x, y - span.y, span.y + span.h - y);
       const inland = Math.min(1, Math.max(0, toEdge / (EDGE_FADE * ROAD)));
       const value =
-        (field[i] + ridge[i] + isle) * inland * inland * (3 - 2 * inland) +
+        (field[i] * 0.85 + ridge[i] * 0.35 + isle - bays[i]) * inland * inland * (3 - 2 * inland) +
         (fbm(x / COAST_WAVE, y / COAST_WAVE, seed, 3) - 0.5) * NOISE -
         SEA;
       const rim = col < 2 || row < 2 || col >= cols - 2 || row >= rows - 2;
@@ -197,6 +200,11 @@ export function buildContinent(sites: readonly Site[], roads: readonly [number, 
       const [x, y] = at(col, row);
       let h = Math.pow(Math.min(1, shore[i] / peak), 0.8);
       h *= 0.55 + 0.45 * fbm(x / HEIGHT_WAVE, y / HEIGHT_WAVE, seed + 3, 3);
+      // Uplands are regional: most of a broad mass is low country, and the
+      // high ground gathers where a slow field says so.
+      const upland = fbm(x / UPLAND_WAVE, y / UPLAND_WAVE, seed + 5, 2);
+      const lift = Math.min(1, Math.max(0, (upland - 0.38) / 0.3));
+      h *= 0.3 + 0.7 * lift * lift * (3 - 2 * lift);
       // A place sits in its own valley; a cave is the exception, and is a peak.
       for (const site of sites) {
         const d = Math.hypot(x - site.x, y - site.y);

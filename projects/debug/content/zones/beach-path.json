@@ -172,39 +172,93 @@
     ],
     "cover": [
       {
-        "kind": "path",
-        "through": [
-          [
-            -36,
-            -46
-          ],
-          [
-            -24,
-            -34
-          ],
-          [
-            -10,
-            -16
-          ],
-          [
-            -2,
-            4
-          ],
-          [
-            10,
-            22
-          ],
-          [
-            10,
-            36
-          ],
-          [
-            12,
-            54
-          ]
+        "kind": "blot",
+        "at": [
+          -22,
+          -18
         ],
-        "width": 5,
-        "cover": "none",
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6,
+          -14
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -14,
+          12
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          22,
+          10
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -6,
+          30
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          24,
+          34
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -34,
+          -26
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -10,
+          -42
+        ],
+        "radius": 6,
+        "cover": "tussock",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -3,
+          8
+        ],
+        "radius": 5,
+        "cover": "sedge",
         "edge": "feather"
       }
     ],
@@ -252,7 +306,90 @@
     ],
     "edgeFade": {
       "band": 20
-    }
+    },
+    "patches": [
+      {
+        "kind": "blot",
+        "at": [
+          -22,
+          -18
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6,
+          -14
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -14,
+          12
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          22,
+          10
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -6,
+          30
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          24,
+          34
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -34,
+          -26
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -10,
+          -42
+        ],
+        "radius": 5,
+        "material": "meadow"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -3,
+          8
+        ],
+        "radius": 4,
+        "material": "mire"
+      }
+    ]
   },
   "skirt": {
     "reach": 300,
@@ -885,6 +1022,45 @@
   },
   "entries": [
     {
+      "id": "way",
+      "kind": "track",
+      "through": [
+        [
+          -36,
+          -46
+        ],
+        [
+          -24,
+          -34
+        ],
+        [
+          -10,
+          -16
+        ],
+        [
+          -2,
+          4
+        ],
+        [
+          10,
+          22
+        ],
+        [
+          10,
+          36
+        ],
+        [
+          12,
+          54
+        ]
+      ],
+      "width": 2.4,
+      "surface": "gravel",
+      "edge": "none",
+      "wear": 0.5,
+      "seed": 7251
+    },
+    {
       "id": "gate-nw-shelf-w",
       "kind": "prop",
       "builder": "rock-shelf",
@@ -957,6 +1133,78 @@
         18,
         40
       ]
+    },
+    {
+      "id": "top-cairn",
+      "kind": "prop",
+      "builder": "cairn",
+      "seed": 4989,
+      "at": [
+        -20,
+        -30
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "bend-crag",
+      "kind": "prop",
+      "builder": "crag",
+      "seed": 4990,
+      "at": [
+        -19,
+        -11
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "bend-boulder",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4991,
+      "at": [
+        4,
+        -9
+      ],
+      "yaw": 1.7
+    },
+    {
+      "id": "hollow-log",
+      "kind": "prop",
+      "builder": "fallen-log",
+      "seed": 4992,
+      "at": [
+        -8,
+        9
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "hollow-reeds",
+      "kind": "scatter",
+      "builder": "reeds",
+      "seed": 5227,
+      "count": 8,
+      "within": 5,
+      "from": [
+        -3,
+        8
+      ],
+      "avoid": [
+        "way"
+      ],
+      "maxSlope": 30,
+      "inset": 1
+    },
+    {
+      "id": "descent-boulder",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4993,
+      "at": [
+        17,
+        30
+      ],
+      "yaw": 0.3
     },
     {
       "id": "bend-shelf",
@@ -1051,7 +1299,8 @@
       "within": 56,
       "region": "dunes",
       "avoid": [
-        "keepClear"
+        "keepClear",
+        "way"
       ],
       "maxSlope": 40,
       "scale": [
@@ -1068,7 +1317,8 @@
       "within": 56,
       "region": "dunes",
       "avoid": [
-        "keepClear"
+        "keepClear",
+        "way"
       ],
       "maxSlope": 40
     },
@@ -1081,7 +1331,8 @@
       "within": 56,
       "region": "dunes",
       "avoid": [
-        "keepClear"
+        "keepClear",
+        "way"
       ],
       "maxSlope": 30
     },
@@ -1094,7 +1345,8 @@
       "within": 56,
       "region": "dunes",
       "avoid": [
-        "keepClear"
+        "keepClear",
+        "way"
       ],
       "maxSlope": 46,
       "scale": [

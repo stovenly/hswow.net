@@ -101,77 +101,6 @@
         "depth": 1
       },
       {
-        "kind": "rim",
-        "inset": 12,
-        "height": 9,
-        "outline": [
-          {
-            "kind": "blot",
-            "at": [
-              0,
-              -30
-            ],
-            "radius": 40
-          },
-          {
-            "kind": "blot",
-            "at": [
-              10,
-              0
-            ],
-            "radius": 46
-          },
-          {
-            "kind": "blot",
-            "at": [
-              -28,
-              20
-            ],
-            "radius": 32
-          },
-          {
-            "kind": "blot",
-            "at": [
-              32,
-              22
-            ],
-            "radius": 28
-          },
-          {
-            "kind": "blot",
-            "at": [
-              -48,
-              36
-            ],
-            "radius": 20
-          },
-          {
-            "kind": "blot",
-            "at": [
-              0,
-              -46
-            ],
-            "radius": 16
-          },
-          {
-            "kind": "blot",
-            "at": [
-              -40,
-              -20
-            ],
-            "radius": 24
-          },
-          {
-            "kind": "blot",
-            "at": [
-              40,
-              -20
-            ],
-            "radius": 22
-          }
-        ]
-      },
-      {
         "kind": "terrace",
         "at": [
           0,
@@ -442,7 +371,7 @@
       }
     },
     {
-      "id": "north-wall",
+      "id": "boundary",
       "kind": "chain",
       "seed": 6800,
       "runs": [
@@ -464,6 +393,48 @@
               "to": [
                 44,
                 -42
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                54,
+                -20
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                56,
+                20
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                40,
+                44
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -10,
+                48
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -38,
+                46
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                -46,
+                43
               ],
               "kind": "wall"
             }
@@ -489,6 +460,41 @@
                 -42
               ],
               "kind": "wall"
+            },
+            {
+              "to": [
+                -50,
+                -30
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                -54,
+                0
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                -60,
+                22
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -52,
+                26
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -44,
+                31
+              ],
+              "kind": "fence"
             }
           ]
         }
@@ -1319,17 +1325,17 @@
       "kind": "dressing",
       "seed": 6200,
       "band": {
-        "inner": -62,
-        "outer": -38
+        "inner": -44,
+        "outer": -16
       },
-      "solidWithin": -52,
+      "solidWithin": -40,
       "kinds": [
         {
           "builder": "gorse",
           "count": 6,
           "band": {
-            "inner": -60,
-            "outer": -50
+            "inner": -44,
+            "outer": -28
           },
           "clump": [
             2,
@@ -1345,8 +1351,8 @@
           "builder": "bush",
           "count": 8,
           "band": {
-            "inner": -58,
-            "outer": -40
+            "inner": -42,
+            "outer": -18
           },
           "clump": [
             3,
@@ -1362,8 +1368,8 @@
           "builder": "thicket",
           "count": 8,
           "band": {
-            "inner": -52,
-            "outer": -40
+            "inner": -36,
+            "outer": -18
           },
           "clump": [
             2,
@@ -1379,8 +1385,8 @@
           "builder": "rock",
           "count": 8,
           "band": {
-            "inner": -60,
-            "outer": -40
+            "inner": -44,
+            "outer": -18
           },
           "clump": [
             3,
@@ -1396,8 +1402,8 @@
           "builder": "boulder",
           "count": 4,
           "band": {
-            "inner": -58,
-            "outer": -42
+            "inner": -42,
+            "outer": -20
           },
           "clump": [
             1,
