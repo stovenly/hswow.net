@@ -68,6 +68,9 @@
             0,
             -0.2
           ]
+        },
+        "prompt": {
+          "title": "Dirt Path"
         }
       },
       "material": "timber",

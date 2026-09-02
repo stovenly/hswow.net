@@ -66,20 +66,17 @@ crosshair, as you come up the road) and what a ladder inside one cell wants:
 `Ladder / to / Countryside Village Demo` is a lie about where you are going.
 
 An end may state both halves. Defaults: a door titles itself from its material
-as it does now, a prop end from its builder's display name, a volume not at all;
-the second line is the destination zone's name unless the end overrides it.
+as it does now and a prop end from its builder's display name; the second line
+is the destination zone's name unless the end overrides it. A volume has no
+fitting to name itself after, so it states its own first line — the road you are
+stepping onto, `Dirt Path / to / Demo Showcase`.
 
-## Reach is per target
+## Reach
 
-`Interaction` has one `reach` for everything, 2.2 m — arm's length, which is the
-right number for a door and the wrong one for the name of a place at the end of
-a street that should reach you while you are still walking toward it.
-
-A target may carry its own `userData.reach`. The ray is cast at the widest reach
-in the set and the hit list is walked in order, taking the first hit within *its
-own* reach; anything beyond its own reach is scenery you cannot use yet rather
-than an occluder. The collider's occlusion test is unchanged and still has the
-final say, so a trigger behind a wall stays silent.
+Unchanged, and deliberately: 2.2 m for everything, measured to the surface the
+ray actually hits. A trigger box spanning a road is therefore named from most of
+the way across it while a door is named from arm's length, with one number
+behind both.
 
 ## Walking in
 
@@ -122,10 +119,12 @@ says "a metre and a half beyond me" without knowing which way north is.
 `src/world/document.ts` carries the same fields onto `ManifestEnd`, and `endOf`
 starts honouring a per-end label, which today exists only per portal.
 
-## Step 2 — Reach is per target
+## Step 2 — Reach
 
-`src/world/Interaction.ts`, as above. One number becomes a number and an
-override.
+Nothing. This step wanted a per-target reach so a trigger could name itself from
+nine metres off, and nine metres against everything else's 2.2 read as a bug in
+the world rather than as a feature. The box is large and the ray hits its near
+face, which gives the approach the name arrives on without a second number.
 
 ## Step 3 — The trapdoor has an underside
 

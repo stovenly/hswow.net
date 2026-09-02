@@ -17,19 +17,6 @@ import type { Folk } from './people';
 export const DEFAULT_REACH = 2.2;
 
 /**
- * A target may reach further than arm's length by carrying `userData.reach`.
- * Arm's length is right for a door and wrong for the name of a place at the end
- * of a street, which should reach you while you are still walking toward it.
- */
-function reachOf(object: THREE.Object3D, fallback: number): number {
-  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
-    const reach = node.userData.reach;
-    if (typeof reach === 'number') return reach;
-  }
-  return fallback;
-}
-
-/**
  * Slack when comparing the interaction ray against the collision ray. Doors are
  * solid, so the collider's nearest hit is normally the door itself at very nearly
  * the same distance; only something meaningfully nearer counts as being in the
@@ -162,8 +149,6 @@ export class Interaction {
 
   private readonly raycaster = new THREE.Raycaster();
   private targets: THREE.Object3D[] = [];
-  /** The widest reach in the set, which is how far the ray has to be cast at all. */
-  private farthest = DEFAULT_REACH;
 
   constructor() {
     this.raycaster.far = this.reach;
@@ -172,7 +157,6 @@ export class Interaction {
   /** Replaces the interactable set. Called whenever the active zone changes. */
   setTargets(objects: THREE.Object3D[]): void {
     this.targets = objects;
-    this.farthest = objects.reduce((most, object) => Math.max(most, reachOf(object, 0)), 0);
   }
 
   get targetCount(): number {
@@ -189,7 +173,7 @@ export class Interaction {
     if (this.targets.length === 0) return null;
 
     camera.updateWorldMatrix(true, false);
-    this.raycaster.far = Math.max(this.reach, this.farthest);
+    this.raycaster.far = this.reach;
     if (through) {
       // The free cursor while a screen is open: the same ray and the same
       // occlusion, aimed through the pointer instead of down the view axis.
@@ -205,13 +189,9 @@ export class Interaction {
     // `true` — doors are merged into a single mesh but are parented into the
     // zone's group, and a caller may well register a group rather than a mesh.
     const hits = this.raycaster.intersectObjects(this.targets, true);
-    // The first hit inside *its own* reach. Something beyond its own reach is
-    // scenery you cannot use yet rather than an occluder, so the ray carries on
-    // past it — the collider below is what actually says you cannot see through
-    // a wall.
-    const hit = hits.find((candidate) => candidate.distance <= reachOf(candidate.object, this.reach));
-    if (!hit) return null;
+    if (hits.length === 0) return null;
 
+    const hit = hits[0];
     const blocker = collider.raycast(_origin, _direction);
     if (blocker !== null && blocker < hit.distance - OCCLUSION_SLACK) return null;
 

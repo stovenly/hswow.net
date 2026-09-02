@@ -25,8 +25,9 @@ import type { DoorMaterial } from '../audio/models/door';
  * findable and a hatch in a ceiling usable without the link layer knowing which
  * way up it is.
  *
- * `volume` — nothing stands there. An invisible box that names where it goes
- * from further off than arm's length, and fires when you walk into it.
+ * `volume` — nothing stands there. An invisible box that fires when you walk
+ * into it. Reached like anything else, off its own surface, which for a box
+ * spanning a road is most of the way across it.
  *
  * `none` — nothing stands there and nothing can be touched. A one-way link's
  * far end: somewhere to arrive, and no way back.
@@ -37,18 +38,18 @@ export type EndUse = 'door' | 'prop' | 'volume' | 'none';
 export interface EndVolume {
   size: readonly [number, number, number];
   offset?: readonly [number, number, number];
-  /** Metres the name carries. Defaults to `VOLUME_REACH`. */
-  reach?: number;
 }
 
 /**
- * What the crosshair says. With no `title` the prompt is one line of `label`,
- * which is what a place-name over the crosshair wants and what a ladder inside
- * one cell wants — "to Countryside Village Demo" is a lie when you are already
- * standing in it.
+ * What the crosshair says: what the thing is, and where it goes. A volume has
+ * no fitting to name itself after, so it says here what it is — the road you
+ * are stepping onto, not the fact of a trigger.
+ *
+ * Explicit `null` drops the first line and the prompt is one line of `label`,
+ * which is what a ladder inside one cell wants: "to Countryside Village Demo"
+ * is a lie when you are already standing in it.
  */
 export interface EndPrompt {
-  /** Explicitly `null` for one line, absent for whatever the fitting calls itself. */
   title?: string | null;
   label?: string;
 }
@@ -101,13 +102,6 @@ export const ARRIVAL_STANDOFF = 1.15;
  * built from another has its way out inside a wall.
  */
 export const DOOR_PROUD = 0.07;
-
-/**
- * How far off a walk-in trigger names itself, in metres. Far enough that the
- * place at the end of the road has a name before you are in the archway, near
- * enough that it is not a caption on the horizon.
- */
-export const VOLUME_REACH = 9;
 
 /** Metres the adopted box is grown by, so a crosshair near a ladder rail still lands on it. */
 export const PROP_PROXY_GROW = 0.14;

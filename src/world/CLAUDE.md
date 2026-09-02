@@ -70,11 +70,16 @@ there. `door` builds a door mesh and the mesh is what the crosshair finds.
 non-colliding box over its extent, which is what makes two ladder rails findable
 and a hatch in a ceiling usable without this layer knowing which way up it is;
 `half` takes the bottom or top of that box, which is a ladder that goes up a
-level inside one cell. `volume` builds a box and nothing else: it names where it
-goes from further off than arm's length, and fires on the rising edge of the
-player being inside it *while it is the hovered target* — the crosshair is the
-view axis, so a volume you are reversing into or sliding past is not the one
-under it. `none` is somewhere to arrive and nothing else, for a one-way link.
+level inside one cell. `volume` builds a box and nothing else, fires on the
+rising edge of the player being inside it *while it is the hovered target* — the
+crosshair is the view axis, so a volume you are reversing into or sliding past
+is not the one under it — and, having no fitting to name itself after, says in
+its prompt what it is. `none` is somewhere to arrive and nothing else, for a
+one-way link.
+
+Everything is reached at arm's length, off its own surface. A trigger spanning a
+road is therefore named from most of the way across it and a door is not, with
+one number behind both.
 
 An end whose landing nobody could write down names what it stands `on`, and the
 height is measured off that entry when the zone is built. `Placement.exact`

@@ -3,7 +3,6 @@ import { SETTLE_CLEARANCE, Zone, type ZoneDefinition, type ZoneId, type Placemen
 import {
   PortalGraph,
   PROP_PROXY_GROW,
-  VOLUME_REACH,
   arrivalFor,
   type EndVolume,
   type PortalDefinition,
@@ -1016,7 +1015,6 @@ export class ZoneManager {
       _centre.set(ox, oy, oz).applyAxisAngle(UP, end.yaw).add(end.position);
       _centre.y += sy / 2;
       const proxy = boxProxy(_box.setFromCenterAndSize(_centre, _size.set(sx, sy, sz)));
-      proxy.userData.reach = volume.reach ?? VOLUME_REACH;
       root.add(proxy);
       side.trigger = _box.clone();
       this.portals.bind(side, proxy, null);
