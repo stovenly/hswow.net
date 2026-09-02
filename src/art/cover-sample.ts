@@ -11,6 +11,7 @@ import {
   type PropLayer,
 } from '../world/ground';
 import { floats, movable } from '../engine/work/shared';
+import { maskAt, type MaskWire } from '../world/coverMask';
 
 /**
  * Where a field of groundcover is decided: the CPU sampler, and nothing else.
@@ -186,6 +187,8 @@ function chunkKey(kind: number, x: number, z: number): number {
 export interface CoverRequest {
   /** `userData.cover`, or the type passed at the call site. */
   cover?: CoverName;
+  /** Where the zone's own footprints forbid growth. Absent for a mesh with no zone, which grows everywhere. */
+  mask?: MaskWire;
   /** `matrixWorld`, in three's column-major order. */
   matrix: number[];
   attributes: Record<string, { data: Float32Array; size: number }>;
@@ -214,7 +217,7 @@ export function meshFor(request: CoverRequest): THREE.Mesh {
   return mesh;
 }
 
-export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSample | null {
+export function sampleCover(ground: THREE.Mesh, uniform?: CoverName, mask?: MaskWire): CoverSample | null {
   const source = ground.geometry;
   const painted = source.getAttribute(COVER_ATTRIBUTE);
   const blended = painted ? source.getAttribute(COVER_BLEND_ATTRIBUTE) : null;
@@ -356,6 +359,7 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
 
         const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
         const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
+        if (mask && hat(f, i, 113) >= maskAt(mask, wx, wz)) continue;
 
         // Near a soft boundary, some of this face's blades are rolled as the
         // neighbouring type instead — from both sides, so the boundary is an
@@ -461,6 +465,7 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
 
         const wx = wa.x * w0 + wb.x * r1 + wc.x * r2;
         const wz = wa.z * w0 + wb.z * r1 + wc.z * r2;
+        if (mask && !walls && hat(f, i, 113 + salt) >= maskAt(mask, wx, wz)) continue;
         const h1 = hat(f, i, 89 + salt);
         const h2 = hat(f, i, 97 + salt);
         const h3 = hat(f, i, 101 + salt);

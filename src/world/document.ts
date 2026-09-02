@@ -473,14 +473,12 @@ function stripUndefined<T extends object>(value: T): Partial<T> {
 function terrainOptions(spec: TerrainSpec, tracks: readonly TrackEntry[]): TerrainOptions {
   const patches: GroundPatch[] = [...(spec.patches ?? [])];
   const verges: CoverPatch[] = [];
-  const bare: CoverPatch[] = [];
   for (const track of tracks) {
     const shape = { kind: 'path', through: track.through, width: track.width } as const;
     patches.push({ ...shape, material: TRACK_GROUND[track.surface] });
     if (track.edge === 'verge') verges.push({ ...shape, width: track.width + 2, cover: 'tussock', edge: 'feather' });
-    bare.push({ ...shape, cover: 'none', edge: 'hard' });
   }
-  const grown: CoverPatch[] = [...(spec.cover ?? []), ...verges, ...bare];
+  const grown: CoverPatch[] = [...(spec.cover ?? []), ...verges];
   const rasters: TerrainRasters = {};
   const sculpt = spec.sculpt && sidecars.get(spec.sculpt.file);
   if (spec.sculpt && sculpt) {

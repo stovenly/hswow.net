@@ -189,7 +189,7 @@ export const JOBS = {
 
   'cover-sample': job<CoverRequest, CoverChunks | null, CoverChunks | null>({
     inWorker: (request) => {
-      const sample = sampleCover(meshFor(request), request.cover);
+      const sample = sampleCover(meshFor(request), request.cover, request.mask);
       const chunks =
         sample && (sample.bladeCount > 0 || sample.propCount > 0) ? packSample(sample) : null;
       return { result: chunks, transfer: chunks ? buffersOf(chunks) : [] };

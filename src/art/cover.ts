@@ -11,6 +11,7 @@ import {
   type SphereWire,
 } from './cover-sample';
 import { pool } from '../engine/work/pool';
+import type { CoverMask, MaskWire } from '../world/coverMask';
 import { windUniforms } from './sway';
 import { applyAerialFog } from '../engine/fog';
 import { COVER_LAYER } from '../layers';
@@ -52,7 +53,6 @@ export interface CoverLod {
 const SEGMENTS = 4;
 
 /** Placed items that may part the cover at once. The shaders spell this too. */
-const TREADS = 16;
 
 /** How dark a root is, and how much of that the tip recovers. */
 const ROOT = 0.6;
@@ -66,9 +66,9 @@ export const coverUniforms = {
   coverPixel: { value: 0 },
   /** The player's feet, for treading a path through the blades. */
   coverPlayer: { value: new THREE.Vector3(0, -1000, 0) },
-  /** Placed items pressing the cover open: xyz the rest point, w the radius in metres. Zero w is an empty slot. */
-  coverTreads: { value: Array.from({ length: TREADS }, () => new THREE.Vector4(0, 0, 0, 0)) },
-  coverTreadCount: { value: 0 },
+  /** Where nothing grows: the active zone's cover mask, and its corner and scale. w is 0 with no zone. */
+  coverMask: { value: null as THREE.Texture | null },
+  coverMaskSpan: { value: new THREE.Vector4(0, 0, 1, 0) },
   /** Toward the sun, and the plume backlight colour, premultiplied. */
   coverSunDir: { value: new THREE.Vector3(0, 1, 0) },
   coverGlow: { value: new THREE.Color(0, 0, 0) },
@@ -120,28 +120,16 @@ export function setCoverWeather(snow: number, wet: number, sky: THREE.Color): vo
   coverUniforms.coverSky.value.copy(sky);
 }
 
-/** Placed items press the cover open: xz an outward push 0..1, y how flat, 0..1. */
-const TREAD_FIELD = /* glsl */ `
-uniform vec4 coverTreads[${TREADS}];
-uniform int coverTreadCount;
+/** Whether the active zone's mask lets anything grow at a root. Hard-edged: the sampler already thinned the verges. */
+const MASK_FIELD = /* glsl */ `
+uniform sampler2D coverMask;
+uniform vec4 coverMaskSpan;
 
-vec3 coverTread(vec3 worldRoot) {
-  vec3 acc = vec3(0.0);
-  for (int i = 0; i < ${TREADS}; i++) {
-    if (i >= coverTreadCount) break;
-    vec4 tr = coverTreads[i];
-    if (tr.w <= 0.0) continue;
-    vec2 from = worldRoot.xz - tr.xz;
-    float d = length(from);
-    float near = (1.0 - smoothstep(tr.w * 0.3, tr.w, d))
-               * (1.0 - smoothstep(0.5, 1.0, abs(worldRoot.y - tr.y)));
-    if (near <= 0.0) continue;
-    acc.y = max(acc.y, near);
-    if (d > 0.001) acc.xz += (from / d) * near;
-  }
-  float spread = length(acc.xz);
-  if (spread > 1.0) acc.xz /= spread;
-  return acc;
+float coverKept(vec3 worldRoot) {
+  if (coverMaskSpan.w < 0.5) return 1.0;
+  vec2 uv = (worldRoot.xz - coverMaskSpan.xy) * coverMaskSpan.z;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 1.0;
+  return step(0.5, texture2D(coverMask, uv).r);
 }
 `;
 
@@ -190,7 +178,7 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
       uniform float swayAmount;
       varying vec3 vCoverTint;
       ${TO_OBJECT}
-      ${TREAD_FIELD}
+      ${MASK_FIELD}
       `,
     )
     .replace(
@@ -220,7 +208,7 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
         vec3 groundUp = normalize(c0 * iNormal.x + c1 * iNormal.y + c2 * iNormal.z);
         float facing = pow(max(dot(groundUp, toCam / away), 0.02), 0.5 * coverGrazing);
         float keepD = iKeep * coverLodScale * facing / max(coverPixel, 1e-6);
-        float grow = 1.0 - smoothstep(keepD * (1.0 - coverSprout), keepD, away);
+        float grow = (1.0 - smoothstep(keepD * (1.0 - coverSprout), keepD, away)) * coverKept(worldRoot);
         // One mesh draws each blade: the base geometry's z is 1 on the far,
         // one-triangle blade, and the switch is hashed per blade.
         if (coverSwap > 0.0) {
@@ -255,11 +243,6 @@ const patchBladeVertex = (shader: { vertexShader: string }): void => {
                     * (1.0 - smoothstep(1.0, 1.6, abs(worldRoot.y - coverPlayer.y)));
         if (tread > 0.0 && treadD > 0.001) tip += (fromPlayer / treadD) * (tread * len * 0.9);
 
-        // A placed item parts cover of any height, and presses it down as well
-        // as aside: short grass leans too little to show a dimple otherwise.
-        vec3 press = coverTread(worldRoot);
-        tip += press.xz * (len * 0.8);
-        len *= mix(1.0, 0.3, press.y);
 
         // Cantilever: displacement grows with t squared, and the tip dips to pay.
         float bend = length(tip) / max(len, 0.001);
@@ -366,7 +349,7 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
       varying vec4 vTuftGrain; // stipple uv, solidity, glow
       varying vec3 vTuftWorld;
       ${TO_OBJECT}
-      ${TREAD_FIELD}
+      ${MASK_FIELD}
       `,
     )
     .replace(
@@ -396,16 +379,13 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
 
         vec3 worldRoot = (modelMatrix * vec4(iPlace.xyz, 1.0)).xyz;
 
-        vec3 press = coverTread(worldRoot);
-        p.y *= mix(1.0, 0.45, press.y);
-
         // Distance LOD, as the blades do it: the authored mesh scales from its root.
         vec3 toCam = cameraPosition - worldRoot;
         float away = max(length(toCam), 0.001);
         vec3 propUp = normalize(c0 * iNormalP.x + c1 * iNormalP.y + c2 * iNormalP.z);
         float facing = pow(max(dot(propUp, toCam / away), 0.02), 0.5 * coverGrazing);
         float keepD = iKeepP * coverLodScale * facing / max(coverPixel, 1e-6);
-        float grow = 1.0 - smoothstep(keepD * (1.0 - coverSprout), keepD, away);
+        float grow = (1.0 - smoothstep(keepD * (1.0 - coverSprout), keepD, away)) * coverKept(worldRoot);
         p *= grow;
 
         // The same gust, sampled a beat behind: a heavy head answers late.
@@ -429,7 +409,6 @@ const patchTuftVertex = (shader: { vertexShader: string }): void => {
                     * (1.0 - smoothstep(1.0, 1.8, abs(worldRoot.y - coverPlayer.y)));
         tread *= smoothstep(0.4, 0.6, reach);
         if (tread > 0.0 && treadD > 0.001) push += (fromPlayer / treadD) * (tread * reach * 0.55);
-        push += press.xz * (reach * 0.5);
         p.xz += push;
 
         transformed = iPlace.xyz + coverToObject(p, c0, c1, c2, scaleSq);
@@ -1144,29 +1123,11 @@ function refreshDraw(mesh: THREE.Mesh): void {
   if (pool.resident !== pool.wanted) upload(mesh, pool.wanted);
 }
 
-/**
- * What the cover parts around besides the player. Nearest the player wins when
- * there are more than the shaders hold; past a dozen drops in one place the
- * pile is its own landmark. Called on a change, never per frame.
- */
-export function setCoverTreads(items: readonly { at: THREE.Vector3Like; radius: number }[]): void {
-  const near = coverUniforms.coverPlayer.value;
-  const sorted = items
-    .filter((item) => item.radius > 0)
-    .sort(
-      (a, b) =>
-        (a.at.x - near.x) ** 2 +
-        (a.at.z - near.z) ** 2 -
-        ((b.at.x - near.x) ** 2 + (b.at.z - near.z) ** 2),
-    )
-    .slice(0, TREADS);
-  const slots = coverUniforms.coverTreads.value;
-  for (let i = 0; i < TREADS; i += 1) {
-    const item = sorted[i];
-    if (item) slots[i].set(item.at.x, item.at.y, item.at.z, item.radius);
-    else slots[i].set(0, 0, 0, 0);
-  }
-  coverUniforms.coverTreadCount.value = sorted.length;
+/** The active zone's cover mask, or none. Called on a zone change, never per frame. */
+export function setCoverMask(mask: CoverMask | null): void {
+  coverUniforms.coverMask.value = mask ? mask.texture : null;
+  if (mask) mask.span(coverUniforms.coverMaskSpan.value);
+  else coverUniforms.coverMaskSpan.value.set(0, 0, 1, 0);
 }
 
 /** Sets the distance LOD. The shader reads the uniforms; the chunk cap reads the rest per frame. */
@@ -1426,6 +1387,7 @@ export async function coverFor(
   ground: THREE.Mesh,
   type?: CoverName,
   cache?: string,
+  mask?: CoverMask,
 ): Promise<THREE.Object3D | null> {
   // Asked here as well as in the sampler, so a mesh that grows nothing — which
   // is most of them — costs a property read rather than a round trip.
@@ -1434,15 +1396,15 @@ export async function coverFor(
     return null;
   }
 
-  const chunks = await sampleOnPool(ground, type, cache);
+  const chunks = await sampleOnPool(ground, type, cache, mask);
   return chunks ? assemble(chunks) : null;
 }
 
 // --- the worker --------------------------------------------------------------
 
 /** Samples on this thread. The fallback, and what this all used to be. */
-function sampleHere(ground: THREE.Mesh, type?: CoverName): CoverChunks | null {
-  const sample = sampleCover(ground, type);
+function sampleHere(ground: THREE.Mesh, type?: CoverName, mask?: MaskWire): CoverChunks | null {
+  const sample = sampleCover(ground, type, mask);
   return sample && (sample.bladeCount > 0 || sample.propCount > 0) ? packSample(sample) : null;
 }
 
@@ -1455,7 +1417,12 @@ function sampleHere(ground: THREE.Mesh, type?: CoverName): CoverChunks | null {
  * depends on nothing but a mesh's attributes and a seed, so the fade animates
  * while it runs instead of freezing for the length of a field.
  */
-async function sampleOnPool(ground: THREE.Mesh, type?: CoverName, cache?: string): Promise<CoverChunks | null> {
+async function sampleOnPool(
+  ground: THREE.Mesh,
+  type?: CoverName,
+  cache?: string,
+  mask?: CoverMask,
+): Promise<CoverChunks | null> {
   const source = ground.geometry;
   const attributes: CoverRequest['attributes'] = {};
   for (const name of ['position', 'color', COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE]) {
@@ -1486,17 +1453,19 @@ async function sampleOnPool(ground: THREE.Mesh, type?: CoverName, cache?: string
     matrix: ground.matrixWorld.toArray(),
     attributes,
     index,
+    mask: mask?.wire(),
   };
   const transfer: Transferable[] = Object.values(attributes).map(
     (attribute) => attribute.data.buffer,
   );
   if (index) transfer.push(index.buffer);
+  if (request.mask) transfer.push(request.mask.data.buffer);
   try {
     return await pool.run('cover-sample', request, { transfer, cache });
   } catch {
     // The buffers went with the failed job, so the mesh is resampled from the
     // graph rather than from what was packed for the crossing.
-    return sampleHere(ground, type);
+    return sampleHere(ground, type, mask?.wire());
   }
 }
 

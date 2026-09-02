@@ -148,6 +148,9 @@ export function buildTrack(options: TrackOptions): THREE.Group {
   const skin = finish(assemble(parts), `track-${surface}`, 0, underfoot);
   skin.name = 'track';
   skin.userData.ground = true;
+  // The strip's print on the cover mask: bare under the track, thinning over the verge.
+  skin.userData.footprint = samples.map((sample) => [sample.x, sample.z, sample.half]);
+  skin.userData.footprintSoft = options.edge === 'verge' ? 0.9 : 0.3;
   group.add(markCollidable(skin));
 
   if (bedTop > 0) {

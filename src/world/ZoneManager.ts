@@ -25,7 +25,8 @@ import { isReadable } from './items';
 import { noteById, type Note } from './notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { builderByName } from '../art/registry';
-import { coverFor } from '../art/cover';
+import { coverFor, setCoverMask } from '../art/cover';
+import { CoverMask } from './coverMask';
 import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
 import { setGlitchVolumes } from '../art/glitch';
@@ -261,6 +262,8 @@ export class ZoneManager {
   private readonly preparing = new Map<ZoneId, Promise<THREE.Group>>();
   /** The clutter in each built zone, collected while it was prepared rather than searched for each frame. */
   private readonly clutter = new Map<ZoneId, THREE.Mesh[]>();
+  /** Where each built zone's cover may not grow. See `coverMask.ts`. */
+  private readonly masks = new Map<ZoneId, CoverMask>();
   /** Parallax controllers per zone, collected on prepare. See `slideVista`. */
   private readonly parallax = new Map<ZoneId, VistaParallax[]>();
   /** Collision geometry that is never drawn, per zone. See `showBarriers`. */
@@ -674,6 +677,8 @@ export class ZoneManager {
     this.preparing.delete(zone.id);
     this.warmed.delete(zone.id);
     this.clutter.delete(zone.id);
+    this.masks.get(zone.id)?.dispose();
+    this.masks.delete(zone.id);
     this.parallax.delete(zone.id);
     this.barriers.delete(zone.id);
     this.casters.delete(zone.id);
@@ -819,6 +824,7 @@ export class ZoneManager {
     }
     scene.add(root);
     this.active = zone;
+    setCoverMask(this.masks.get(zone.id) ?? null);
     // Keyed by zone, so re-entering a place the player has been before costs
     // nothing. See `Collider.build`.
     collider.build(root, zone.id);
@@ -1108,6 +1114,41 @@ export class ZoneManager {
   }
 
   /**
+   * The zone's cover mask, stamped afresh from everything standing on its
+   * ground. A moving thing leaves no print: creatures, and the player's own
+   * pickables once they are placed, are the placed layer's business.
+   */
+  private maskFor(zone: Zone, root: THREE.Group): CoverMask {
+    this.masks.get(zone.id)?.dispose();
+    const plan = zone.plan;
+    const mask = plan ? new CoverMask(plan.min, plan.max) : new CoverMask([-100, -100], [100, 100]);
+    mask.stampObject(root, 'built', (mesh) => {
+      const data = mesh.userData;
+      return (
+        !mesh.visible ||
+        data.vista === true ||
+        data.water === true ||
+        data.noCollide === true ||
+        data.coverField === true ||
+        data.sparkleField === true ||
+        data.npc !== undefined ||
+        (data.ground === true && data.footprint === undefined) ||
+        mesh.name === 'terrain' ||
+        mesh.name === 'flatGround'
+      );
+    });
+    mask.commit();
+    this.masks.set(zone.id, mask);
+    if (this.active === zone) setCoverMask(mask);
+    return mask;
+  }
+
+  /** The cover mask of a built zone, for whoever puts things down on it. */
+  coverMask(zone: ZoneId): CoverMask | undefined {
+    return this.masks.get(zone);
+  }
+
+  /**
    * Everything dressing does that is not the doors: shadows, the light census,
    * the clutter and barrier lists, the cover, the sparkles.
    *
@@ -1191,8 +1232,9 @@ export class ZoneManager {
     const bare = grounds.filter(
       (mesh) => !mesh.children.some((child) => child.userData.coverField === true),
     );
+    const mask = this.maskFor(zone, root);
     const covers = await Promise.all(
-      bare.map((mesh, i) => coverFor(mesh, undefined, cacheKey(zone.id, `cover${i}`, zone.fingerprint))),
+      bare.map((mesh, i) => coverFor(mesh, undefined, cacheKey(zone.id, `cover${i}:m1`, zone.fingerprint), mask)),
     );
     bare.forEach((mesh, i) => {
       const cover = covers[i];
@@ -1591,6 +1633,7 @@ export class ZoneManager {
     await this.options.fade.cover(async () => {
       if (this.active) this.options.scene.remove(this.active.root());
       this.active = null;
+      setCoverMask(null);
       this.cameFrom = null;
       for (const held of this.zones.values()) {
         if (held.isBuilt) this.release(held, false);
@@ -1614,6 +1657,7 @@ export class ZoneManager {
     await this.options.fade.cover(() => {
       if (this.active) this.options.scene.remove(this.active.root());
       this.active = null;
+      setCoverMask(null);
       this.cameFrom = null;
       for (const held of this.zones.values()) {
         if (held.isBuilt) this.release(held, false);

@@ -171,9 +171,17 @@ that subject by whoever is asking; asked without one, it is false.
   polyline: setts, slabs, gravel, a rutted dirt strip or a boardwalk, with an
   unseen level bed over the surfaces made of pieces. A `track` entry declares
   its ground once — `document.ts` paints the terrain its surface under the
-  strip and grows nothing there, and names the strip as a region under the
-  track's id — so the polyline lives in the track and nowhere else. Editing a
-  track's line therefore repaints the terrain only on a full rebuild.
+  strip and names the strip as a region under the track's id, and the skin
+  carries its own print for the cover mask — so the polyline lives in the
+  track and nowhere else. Editing a track's line therefore repaints the
+  terrain only on a full rebuild.
+- **`coverMask.ts`** — where cover may not grow, a byte per quarter metre.
+  `ZoneManager.decorate` stamps it from the print of everything the zone built
+  — each mesh's triangles within a third of a metre of its own base — before
+  the cover is sampled, so nothing is rolled under a wall, a rock or a lane;
+  `ItemWorld` restamps the placed layer as things are put down and picked up,
+  and the blades read that layer as a texture. Cover is otherwise decided per
+  terrain vertex, which is far too coarse for a footprint.
 - **`raster.ts`** — the sculpted layer over a heightfield. Shapes for what is
   deliberate, rasters for what is brushed, and the two compose.
 - **`vista*.ts`** — everything past the boundary, in three bands: ordinary props
