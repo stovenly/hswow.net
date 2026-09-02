@@ -16,35 +16,6 @@
         color: #dcdcc8;
         font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
       }
-      #loading {
-        position: fixed;
-        inset: 0;
-        z-index: 40;
-        display: grid;
-        align-content: center;
-        justify-items: center;
-        gap: 1.1rem;
-        background: #0a0a0f;
-      }
-      .loading-track {
-        width: min(19rem, 56vw);
-        height: 1px;
-        overflow: hidden;
-        background: rgb(220 220 200 / 18%);
-      }
-      .loading-bar {
-        width: 100%;
-        height: 100%;
-        background: #dcdcc8;
-        transform: scaleX(0);
-        transform-origin: left center;
-      }
-      .loading-label {
-        font-size: 0.68rem;
-        letter-spacing: 0.22em;
-        text-transform: lowercase;
-        color: rgb(220 220 200 / 55%);
-      }
     </style>
   </head>
   <body class="is-loading is-editor">
@@ -52,10 +23,12 @@
     <div id="overlay">
       <div id="crosshair"></div>
     </div>
-    <div id="loading">
-      <div class="loading-track"><div class="loading-bar"></div></div>
-      <div class="loading-label">starting</div>
-    </div>
+    <!--
+      No boot screen here. `ui/Loader` builds its own when the page has none,
+      and a tool page can afford to wait the one module evaluation that costs —
+      the alternative is a third copy of the markup drifting out of step with
+      index.html and the stylesheet.
+    -->
     <script type="module" src="/src/editor/main.ts"></script>
   </body>
 </html>
