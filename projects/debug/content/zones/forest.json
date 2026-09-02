@@ -1,0 +1,1666 @@
+{
+  "id": "forest",
+  "name": "Forest",
+  "group": "countryside",
+  "place": {
+    "at": [
+      -1.5,
+      4.5
+    ],
+    "altitude": 10
+  },
+  "environment": {
+    "base": "outdoor",
+    "fogNear": 55,
+    "fogFar": 280,
+    "firstPersonReverb": 0.6,
+    "vibe": "forest a"
+  },
+  "spawn": {
+    "at": [
+      0,
+      -42
+    ],
+    "yaw": 0
+  },
+  "floor": -20,
+  "soundscape": {
+    "bed": [
+      {
+        "model": "wind",
+        "id": "wind",
+        "options": {
+          "gain": 0.12,
+          "tone": 2800
+        }
+      },
+      {
+        "model": "rain",
+        "id": "rain",
+        "options": {
+          "gain": 0.17,
+          "intensity": 0,
+          "surface": "earth",
+          "articulation": 0.3
+        }
+      }
+    ]
+  },
+  "terrain": {
+    "size": 160,
+    "resolution": 3,
+    "rockAngle": 40,
+    "landforms": [
+      {
+        "kind": "basin",
+        "at": [
+          -10,
+          -26
+        ],
+        "radius": 14,
+        "depth": 0.8
+      },
+      {
+        "kind": "basin",
+        "at": [
+          6,
+          4
+        ],
+        "radius": 16,
+        "depth": 0.6
+      },
+      {
+        "kind": "basin",
+        "at": [
+          28,
+          30
+        ],
+        "radius": 12,
+        "depth": 0.5
+      },
+      {
+        "kind": "hill",
+        "at": [
+          -22,
+          12
+        ],
+        "radius": 20,
+        "height": 2.5
+      },
+      {
+        "kind": "hill",
+        "at": [
+          30,
+          -20
+        ],
+        "radius": 18,
+        "height": 2
+      },
+      {
+        "kind": "hill",
+        "at": [
+          -30,
+          40
+        ],
+        "radius": 16,
+        "height": 1.5
+      },
+      {
+        "kind": "rim",
+        "inset": 10,
+        "height": 8,
+        "outline": [
+          {
+            "kind": "path",
+            "through": [
+              [
+                -30,
+                -58
+              ],
+              [
+                30,
+                -58
+              ],
+              [
+                50,
+                -30
+              ],
+              [
+                54,
+                10
+              ],
+              [
+                46,
+                54
+              ],
+              [
+                24,
+                58
+              ],
+              [
+                -20,
+                54
+              ],
+              [
+                -48,
+                40
+              ],
+              [
+                -54,
+                0
+              ],
+              [
+                -44,
+                -36
+              ]
+            ],
+            "width": 0.1
+          }
+        ]
+      },
+      {
+        "kind": "terrace",
+        "at": [
+          1,
+          1
+        ],
+        "radius": 5.5,
+        "height": -0.5,
+        "blend": 3
+      }
+    ],
+    "patches": [
+      {
+        "kind": "blot",
+        "at": [
+          -14,
+          -22
+        ],
+        "radius": 5,
+        "material": "moss"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          36,
+          46
+        ],
+        "radius": 13,
+        "material": "sand"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          1,
+          1
+        ],
+        "radius": 5,
+        "material": "dirt"
+      }
+    ],
+    "cover": [
+      {
+        "kind": "blot",
+        "at": [
+          -14,
+          -22
+        ],
+        "radius": 7,
+        "cover": "moss",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6,
+          4
+        ],
+        "radius": 15,
+        "cover": "clover",
+        "edge": "feather"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          1,
+          1
+        ],
+        "radius": 5,
+        "cover": "none",
+        "edge": "feather"
+      }
+    ],
+    "detail": [
+      {
+        "at": [
+          0,
+          0
+        ],
+        "radius": 40,
+        "level": 2
+      },
+      {
+        "at": [
+          4,
+          2
+        ],
+        "radius": 16,
+        "level": 4
+      },
+      {
+        "at": [
+          34,
+          42
+        ],
+        "radius": 12,
+        "level": 4
+      }
+    ],
+    "edgeFade": {
+      "band": 26
+    }
+  },
+  "skirt": {
+    "reach": 300,
+    "resolution": 14,
+    "collar": 8,
+    "apron": 24,
+    "roll": 0,
+    "flatten": {
+      "from": 60,
+      "to": 150
+    },
+    "seed": 7461
+  },
+  "regions": {
+    "outline": [
+      {
+        "kind": "path",
+        "through": [
+          [
+            -30,
+            -58
+          ],
+          [
+            30,
+            -58
+          ],
+          [
+            50,
+            -30
+          ],
+          [
+            54,
+            10
+          ],
+          [
+            46,
+            54
+          ],
+          [
+            24,
+            58
+          ],
+          [
+            -20,
+            54
+          ],
+          [
+            -48,
+            40
+          ],
+          [
+            -54,
+            0
+          ],
+          [
+            -44,
+            -36
+          ]
+        ],
+        "width": 0.1
+      }
+    ],
+    "keepClear": [
+      {
+        "kind": "blot",
+        "at": [
+          -10,
+          -26
+        ],
+        "radius": 8
+      },
+      {
+        "kind": "blot",
+        "at": [
+          4,
+          3
+        ],
+        "radius": 12
+      },
+      {
+        "kind": "blot",
+        "at": [
+          28,
+          30
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -46
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          34,
+          42
+        ],
+        "radius": 8
+      }
+    ],
+    "house": [
+      {
+        "kind": "blot",
+        "at": [
+          1,
+          1
+        ],
+        "radius": 6
+      }
+    ]
+  },
+  "traits": [
+    "villager"
+  ],
+  "entries": [
+    {
+      "id": "path",
+      "kind": "track",
+      "through": [
+        [
+          0,
+          -62
+        ],
+        [
+          0,
+          -46
+        ],
+        [
+          -8,
+          -28
+        ],
+        [
+          -4,
+          -10
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          16,
+          18
+        ],
+        [
+          26,
+          30
+        ],
+        [
+          34,
+          42
+        ],
+        [
+          44,
+          57
+        ]
+      ],
+      "width": 2.4,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.4,
+      "seed": 7241
+    },
+    {
+      "id": "gate-n-oak-w",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4911,
+      "at": [
+        -6.5,
+        -47
+      ],
+      "yaw": 0.4,
+      "scale": 1.2
+    },
+    {
+      "id": "gate-n-oak-e",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4912,
+      "at": [
+        6.5,
+        -45
+      ],
+      "yaw": 1.9,
+      "scale": 1.15
+    },
+    {
+      "id": "gate-n-deadfall",
+      "kind": "prop",
+      "builder": "deadfall",
+      "seed": 4913,
+      "at": [
+        -10,
+        -51
+      ],
+      "yaw": 1.3
+    },
+    {
+      "id": "gate-n-slab",
+      "kind": "barrier",
+      "from": [
+        -8,
+        -50
+      ],
+      "to": [
+        8,
+        -50
+      ]
+    },
+    {
+      "id": "gate-se-shelf-w",
+      "kind": "prop",
+      "builder": "rock-shelf",
+      "seed": 4921,
+      "at": [
+        29.8,
+        44.8
+      ],
+      "yaw": 2.156,
+      "options": {
+        "sections": 3
+      }
+    },
+    {
+      "id": "gate-se-shelf-e",
+      "kind": "prop",
+      "builder": "rock-shelf",
+      "seed": 4922,
+      "at": [
+        38.2,
+        39.2
+      ],
+      "yaw": -0.985,
+      "options": {
+        "sections": 3
+      }
+    },
+    {
+      "id": "gate-se-gorse-1",
+      "kind": "prop",
+      "builder": "gorse",
+      "seed": 4923,
+      "at": [
+        26,
+        40
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "gate-se-gorse-2",
+      "kind": "prop",
+      "builder": "gorse",
+      "seed": 4924,
+      "at": [
+        42,
+        34
+      ],
+      "yaw": 1.8
+    },
+    {
+      "id": "gate-se-spruce-1",
+      "kind": "prop",
+      "builder": "small-spruce",
+      "seed": 4925,
+      "at": [
+        24,
+        46
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "gate-se-spruce-2",
+      "kind": "prop",
+      "builder": "small-spruce",
+      "seed": 4926,
+      "at": [
+        44,
+        36
+      ],
+      "yaw": 2.6
+    },
+    {
+      "id": "gate-se-slab",
+      "kind": "barrier",
+      "from": [
+        30.7,
+        47.8
+      ],
+      "to": [
+        40.7,
+        41.2
+      ]
+    },
+    {
+      "id": "house",
+      "kind": "prop",
+      "builder": "cottage",
+      "seed": 4931,
+      "at": [
+        1,
+        1
+      ],
+      "yaw": 1.2
+    },
+    {
+      "id": "garden-fence",
+      "kind": "run",
+      "builder": "fence",
+      "seed": 4932,
+      "points": [
+        [
+          -6,
+          -4
+        ],
+        [
+          -6,
+          8
+        ],
+        [
+          5,
+          9.5
+        ]
+      ],
+      "cap": "post"
+    },
+    {
+      "id": "gate-post",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4933,
+      "at": [
+        7.4,
+        9.6
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "gate-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4934,
+      "at": [
+        7.4,
+        9.6
+      ],
+      "yaw": 0.9,
+      "on": "gate-post"
+    },
+    {
+      "id": "log-pile",
+      "kind": "prop",
+      "builder": "log-pile",
+      "seed": 4935,
+      "at": [
+        -3.6,
+        -3.2
+      ],
+      "yaw": 1.2
+    },
+    {
+      "id": "well",
+      "kind": "prop",
+      "builder": "well",
+      "seed": 4936,
+      "at": [
+        9.5,
+        -3
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "trough",
+      "kind": "prop",
+      "builder": "trough",
+      "seed": 4937,
+      "at": [
+        -3.6,
+        5.6
+      ],
+      "yaw": 1.1
+    },
+    {
+      "id": "bale-1",
+      "kind": "prop",
+      "builder": "hay-bale",
+      "seed": 4938,
+      "at": [
+        -4,
+        1
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "bale-2",
+      "kind": "prop",
+      "builder": "hay-bale",
+      "seed": 4939,
+      "at": [
+        -3.8,
+        2.2
+      ],
+      "yaw": 1.6
+    },
+    {
+      "id": "door-sticks",
+      "kind": "prop",
+      "builder": "sticks",
+      "seed": 4940,
+      "at": [
+        4.2,
+        4.8
+      ],
+      "yaw": 0.6
+    },
+    {
+      "id": "lavender",
+      "kind": "scatter",
+      "builder": "lavender",
+      "seed": 5181,
+      "count": 6,
+      "within": 4,
+      "from": [
+        -2,
+        6
+      ],
+      "avoid": [
+        "house",
+        "path"
+      ],
+      "inset": 3,
+      "maxSlope": 24
+    },
+    {
+      "id": "garden-daisies",
+      "kind": "scatter",
+      "builder": "daisy",
+      "seed": 5182,
+      "count": 6,
+      "within": 4,
+      "from": [
+        -3,
+        4
+      ],
+      "avoid": [
+        "house",
+        "path"
+      ],
+      "inset": 3,
+      "maxSlope": 24
+    },
+    {
+      "id": "clearing-bluebells",
+      "kind": "scatter",
+      "builder": "bluebell",
+      "seed": 5183,
+      "count": 40,
+      "within": 9,
+      "from": [
+        -10,
+        -26
+      ],
+      "avoid": [
+        "path"
+      ],
+      "inset": 3,
+      "maxSlope": 24
+    },
+    {
+      "id": "clearing-mushrooms",
+      "kind": "scatter",
+      "builder": "mushroom",
+      "seed": 5184,
+      "count": 12,
+      "within": 9,
+      "from": [
+        -10,
+        -24
+      ],
+      "avoid": [
+        "path"
+      ],
+      "inset": 3,
+      "maxSlope": 24
+    },
+    {
+      "id": "clearing-moss",
+      "kind": "scatter",
+      "builder": "moss",
+      "seed": 5185,
+      "count": 10,
+      "within": 7,
+      "from": [
+        -14,
+        -22
+      ],
+      "avoid": [
+        "path"
+      ],
+      "inset": 3,
+      "maxSlope": 24
+    },
+    {
+      "id": "south-ferns",
+      "kind": "scatter",
+      "builder": "fern",
+      "seed": 5186,
+      "count": 12,
+      "within": 8,
+      "from": [
+        28,
+        30
+      ],
+      "avoid": [
+        "path"
+      ],
+      "inset": 3,
+      "maxSlope": 24
+    },
+    {
+      "id": "oak-1",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4951,
+      "at": [
+        -24,
+        -12
+      ],
+      "yaw": 0.5,
+      "scale": 1.2
+    },
+    {
+      "id": "oak-2",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4952,
+      "at": [
+        22,
+        8
+      ],
+      "yaw": 1.7,
+      "scale": 1.15
+    },
+    {
+      "id": "spruce-1",
+      "kind": "prop",
+      "builder": "spruce",
+      "seed": 4953,
+      "at": [
+        -30,
+        24
+      ],
+      "yaw": 0.9,
+      "scale": 1.25
+    },
+    {
+      "id": "spruce-2",
+      "kind": "prop",
+      "builder": "spruce",
+      "seed": 4954,
+      "at": [
+        40,
+        -6
+      ],
+      "yaw": 2.3,
+      "scale": 1.2
+    },
+    {
+      "id": "oaks",
+      "kind": "scatter",
+      "builder": "oak",
+      "seed": 5191,
+      "count": 8,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.2
+      ]
+    },
+    {
+      "id": "spruces",
+      "kind": "scatter",
+      "builder": "spruce",
+      "seed": 5192,
+      "count": 12,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.3
+      ]
+    },
+    {
+      "id": "birches",
+      "kind": "scatter",
+      "builder": "birch",
+      "seed": 5193,
+      "count": 10,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30,
+      "scale": [
+        0.85,
+        1.2
+      ]
+    },
+    {
+      "id": "small-oaks",
+      "kind": "scatter",
+      "builder": "small-oak",
+      "seed": 5194,
+      "count": 6,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "small-spruces",
+      "kind": "scatter",
+      "builder": "small-spruce",
+      "seed": 5195,
+      "count": 8,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "small-birches",
+      "kind": "scatter",
+      "builder": "small-birch",
+      "seed": 5196,
+      "count": 6,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "hazels",
+      "kind": "scatter",
+      "builder": "hazel",
+      "seed": 5197,
+      "count": 8,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "elders",
+      "kind": "scatter",
+      "builder": "elder",
+      "seed": 5198,
+      "count": 5,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "bushes",
+      "kind": "scatter",
+      "builder": "bush",
+      "seed": 5199,
+      "count": 18,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30,
+      "scale": [
+        1,
+        1.5
+      ]
+    },
+    {
+      "id": "brambles",
+      "kind": "scatter",
+      "builder": "bramble",
+      "seed": 5200,
+      "count": 10,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "ferns",
+      "kind": "scatter",
+      "builder": "fern",
+      "seed": 5201,
+      "count": 30,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 36
+    },
+    {
+      "id": "mushrooms",
+      "kind": "scatter",
+      "builder": "mushroom",
+      "seed": 5202,
+      "count": 25,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "moss",
+      "kind": "scatter",
+      "builder": "moss",
+      "seed": 5203,
+      "count": 20,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 40
+    },
+    {
+      "id": "sticks",
+      "kind": "scatter",
+      "builder": "sticks",
+      "seed": 5204,
+      "count": 15,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "pinecones",
+      "kind": "scatter",
+      "builder": "pinecone",
+      "seed": 5205,
+      "count": 20,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "stumps",
+      "kind": "scatter",
+      "builder": "stump",
+      "seed": 5206,
+      "count": 6,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "logs",
+      "kind": "scatter",
+      "builder": "fallen-log",
+      "seed": 5207,
+      "count": 3,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "deadfalls",
+      "kind": "scatter",
+      "builder": "deadfall",
+      "seed": 5208,
+      "count": 2,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "snags",
+      "kind": "scatter",
+      "builder": "snag",
+      "seed": 5209,
+      "count": 2,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "roots",
+      "kind": "scatter",
+      "builder": "root-tangle",
+      "seed": 5210,
+      "count": 3,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 30
+    },
+    {
+      "id": "boulders",
+      "kind": "scatter",
+      "builder": "boulder",
+      "seed": 5211,
+      "count": 3,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 34
+    },
+    {
+      "id": "rocks",
+      "kind": "scatter",
+      "builder": "rock",
+      "seed": 5212,
+      "count": 20,
+      "within": 58,
+      "avoid": [
+        "keepClear",
+        "path"
+      ],
+      "inset": 5,
+      "maxSlope": 44,
+      "scale": [
+        0.7,
+        1.5
+      ]
+    },
+    {
+      "id": "leaves-1",
+      "kind": "sound",
+      "ref": "oak-1",
+      "lift": 5,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 260,
+          "tone": 0.8,
+          "gain": 0.34,
+          "articulation": 0.2
+        },
+        "refDistance": 3,
+        "maxDistance": 26,
+        "rolloff": 1.6,
+        "reverb": 0.35
+      }
+    },
+    {
+      "id": "leaves-2",
+      "kind": "sound",
+      "ref": "oak-2",
+      "lift": 5,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 240,
+          "tone": 0.88,
+          "gain": 0.32,
+          "articulation": 0.22
+        },
+        "refDistance": 3,
+        "maxDistance": 26,
+        "rolloff": 1.6,
+        "reverb": 0.35
+      }
+    },
+    {
+      "id": "needles-1",
+      "kind": "sound",
+      "ref": "spruce-1",
+      "lift": 6,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 300,
+          "tone": 1.3,
+          "gain": 0.3,
+          "articulation": 0.14
+        },
+        "refDistance": 3,
+        "maxDistance": 26,
+        "rolloff": 1.6,
+        "reverb": 0.35
+      }
+    },
+    {
+      "id": "needles-2",
+      "kind": "sound",
+      "ref": "spruce-2",
+      "lift": 6,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 280,
+          "tone": 1.25,
+          "gain": 0.3,
+          "articulation": 0.15
+        },
+        "refDistance": 3,
+        "maxDistance": 26,
+        "rolloff": 1.6,
+        "reverb": 0.35
+      }
+    },
+    {
+      "id": "bird-n",
+      "kind": "sound",
+      "at": [
+        -20,
+        7,
+        -40
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 2500,
+          "interval": 7,
+          "gain": 0.07,
+          "tone": 2700
+        },
+        "refDistance": 5,
+        "maxDistance": 46,
+        "rolloff": 1.3,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "bird-e",
+      "kind": "sound",
+      "at": [
+        40,
+        7,
+        10
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 3100,
+          "interval": 11,
+          "gain": 0.06,
+          "tone": 3000
+        },
+        "refDistance": 5,
+        "maxDistance": 44,
+        "rolloff": 1.35,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "bird-w",
+      "kind": "sound",
+      "at": [
+        -40,
+        6,
+        30
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 2800,
+          "interval": 15,
+          "gain": 0.055,
+          "tone": 2800
+        },
+        "refDistance": 5,
+        "maxDistance": 44,
+        "rolloff": 1.35,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "garden-hedge",
+      "kind": "sound",
+      "at": [
+        -6,
+        2
+      ],
+      "lift": 0.8,
+      "spec": {
+        "model": "hedge",
+        "options": {
+          "density": 160,
+          "tone": 1.2,
+          "woody": 0.45,
+          "gain": 0.18
+        },
+        "refDistance": 1.4,
+        "maxDistance": 12,
+        "reverb": 0.2
+      }
+    },
+    {
+      "id": "hearth",
+      "kind": "sound",
+      "ref": "house",
+      "lift": 5.5,
+      "spec": {
+        "model": "fire",
+        "id": "hearth",
+        "options": {
+          "gain": 0.14,
+          "intensity": 0.45,
+          "tone": 1,
+          "crackle": 0.4,
+          "draught": 0.2
+        },
+        "refDistance": 2,
+        "maxDistance": 14,
+        "rolloff": 1.6,
+        "reverb": 0.3
+      }
+    },
+    {
+      "id": "garden-gate",
+      "kind": "sound",
+      "at": [
+        7.4,
+        1.2,
+        9.6
+      ],
+      "spec": {
+        "model": "friction",
+        "options": {
+          "motion": "weather",
+          "speed": 0.2,
+          "force": 0.7,
+          "pitch": 170,
+          "decay": 1,
+          "bright": 0.25,
+          "roughness": 0.18,
+          "gain": 0.2
+        },
+        "refDistance": 2.5,
+        "maxDistance": 24,
+        "rolloff": 1.5,
+        "reverb": 0.4
+      }
+    },
+    {
+      "id": "sea-glint",
+      "kind": "water",
+      "at": [
+        120,
+        0.05,
+        135
+      ],
+      "width": 220,
+      "depth": 90,
+      "chop": 0.8,
+      "segment": 4
+    },
+    {
+      "id": "ring",
+      "kind": "vistaRing",
+      "seed": 9190,
+      "band": {
+        "inner": 14,
+        "outer": 70
+      },
+      "keepOut": {
+        "dilate": 99
+      },
+      "place": [
+        {
+          "builder": "vista-forest",
+          "at": [
+            -130,
+            -40
+          ],
+          "scale": 1.5,
+          "seed": 5701
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -100,
+            90
+          ],
+          "scale": 1.4,
+          "seed": 5702
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            0,
+            -140
+          ],
+          "scale": 1.6,
+          "seed": 5703
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            110,
+            -80
+          ],
+          "scale": 1.5,
+          "seed": 5704
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -40,
+            130
+          ],
+          "scale": 1.4,
+          "seed": 5705
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            140,
+            20
+          ],
+          "scale": 1.3,
+          "seed": 5706
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            60,
+            100
+          ],
+          "scale": 1.1,
+          "seed": 5707
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            100,
+            60
+          ],
+          "scale": 1,
+          "seed": 5708
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            -110,
+            20
+          ],
+          "scale": 1.2,
+          "seed": 5709
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            70,
+            -120
+          ],
+          "scale": 1.1,
+          "seed": 5710
+        },
+        {
+          "builder": "vista-crag",
+          "at": [
+            96,
+            104
+          ],
+          "scale": 1.4,
+          "seed": 5711
+        },
+        {
+          "builder": "vista-crag",
+          "at": [
+            66,
+            124
+          ],
+          "scale": 1.2,
+          "seed": 5712
+        },
+        {
+          "builder": "vista-tower",
+          "at": [
+            104,
+            92
+          ],
+          "scale": 1.5,
+          "seed": 5713,
+          "apparent": 300
+        }
+      ],
+      "scatter": [
+        {
+          "builder": "vista-forest",
+          "count": 5,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            200,
+            260
+          ],
+          "scale": [
+            1.2,
+            1.7
+          ],
+          "spacing": 34
+        },
+        {
+          "builder": "vista-hill",
+          "count": 4,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            190,
+            250
+          ],
+          "scale": [
+            1.2,
+            1.7
+          ],
+          "spacing": 30
+        },
+        {
+          "builder": "vista-forest",
+          "count": 5,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            300,
+            380
+          ],
+          "scale": [
+            1.4,
+            1.9
+          ],
+          "spacing": 38
+        },
+        {
+          "builder": "vista-hill",
+          "count": 4,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            300,
+            380
+          ],
+          "scale": [
+            1.5,
+            2
+          ],
+          "spacing": 34
+        }
+      ]
+    },
+    {
+      "id": "edge-dressing",
+      "kind": "dressing",
+      "seed": 6230,
+      "band": {
+        "inner": -34,
+        "outer": -8
+      },
+      "solidWithin": -28,
+      "kinds": [
+        {
+          "builder": "spruce",
+          "count": 10,
+          "band": {
+            "inner": -32,
+            "outer": -14
+          },
+          "clump": [
+            2,
+            3
+          ],
+          "huddle": 4,
+          "scale": [
+            1,
+            1.4
+          ]
+        },
+        {
+          "builder": "thicket",
+          "count": 12,
+          "band": {
+            "inner": -34,
+            "outer": -12
+          },
+          "clump": [
+            2,
+            4
+          ],
+          "huddle": 3.4,
+          "scale": [
+            1,
+            1.6
+          ]
+        },
+        {
+          "builder": "bush",
+          "count": 10,
+          "band": {
+            "inner": -30,
+            "outer": -9
+          },
+          "clump": [
+            3,
+            5
+          ],
+          "huddle": 3,
+          "scale": [
+            1,
+            1.7
+          ]
+        },
+        {
+          "builder": "rock",
+          "count": 6,
+          "band": {
+            "inner": -30,
+            "outer": -9
+          },
+          "clump": [
+            3,
+            5
+          ],
+          "huddle": 2.6,
+          "scale": [
+            1.2,
+            2.6
+          ]
+        }
+      ]
+    }
+  ]
+}

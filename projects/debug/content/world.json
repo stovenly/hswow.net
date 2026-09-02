@@ -495,6 +495,84 @@
           "title": "Wood Road"
         }
       }
+    },
+    {
+      "id": "forest-path-forest",
+      "a": {
+        "zone": "forest-path",
+        "at": [
+          -2,
+          60
+        ],
+        "yaw": 3.1415927,
+        "arrival": {
+          "at": [
+            -2,
+            57
+          ],
+          "yaw": 3.1415927
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            6,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Wood Road"
+        }
+      },
+      "b": {
+        "zone": "forest",
+        "at": [
+          0,
+          -46
+        ],
+        "yaw": 0,
+        "arrival": {
+          "at": [
+            0,
+            -43
+          ],
+          "yaw": 0
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            6,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Wood Road"
+        }
+      }
+    },
+    {
+      "id": "forest-cottage-door",
+      "a": {
+        "zone": "forest",
+        "doorOf": "house"
+      },
+      "b": {
+        "zone": "forest-cottage",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8831
     }
   ]
 }
