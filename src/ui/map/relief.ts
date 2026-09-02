@@ -155,7 +155,8 @@ export function placeRelief(c: Continent, sites: readonly Site[], seed: number):
     return r() < wood ? r.range(0.016, 0.022) * ROAD : 0;
   });
   lattice('field', (i, x, y, r) => {
-    if (near('farm', x, y, 0.55) < 0.3 || c.height[i] > 0.5 || woodland(c, i) > 0.5) return 0;
+    const tilled = Math.max(near('farm', x, y, 0.7), near('village', x, y, 0.55));
+    if (tilled < 0.3 || c.height[i] > 0.5 || woodland(c, i) > 0.5) return 0;
     return r.chance(0.8) ? 0.03 * ROAD : 0;
   });
   lattice('marsh', (i, x, y, r) => {

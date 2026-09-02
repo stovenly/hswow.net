@@ -19,9 +19,9 @@ import { inPixels, type ChartView, type Sheet } from './view';
  * cellar and the store are inside the village node, and a chain of interiors
  * joining two outdoor zones is one road.
  *
- * The layout is derived, never authored: same zones and same portals, same
- * picture, on every machine and every load. Adding a zone may move its
- * neighbours, which is the price of not authoring positions.
+ * A zone that declares a `place` stands where it says, in kilometres; the
+ * distances the weather already believes are the distances the map draws.
+ * Only a zone with no place is laid out, sprung off its neighbours.
  */
 
 export { ROAD };
@@ -31,6 +31,9 @@ export const LAND_NAME = 'Arkstin';
 
 /** Relaxation steps. Fixed, because the layout has to be the same everywhere. */
 const STEPS = 400;
+
+/** Kilometres of a zone's `place` to one road. */
+const KM_PER_ROAD = 1.6;
 
 /** How hard a road pulls its ends together, and how hard every pair pushes apart. */
 const PULL = 0.06;
@@ -200,9 +203,8 @@ function outdoorsBeyond(
 }
 
 /**
- * Springs on the roads, repulsion everywhere else. Started from a hash of each
- * zone's id, or from its declared `place` where somebody has bothered to say
- * where it is — a seed, not a pin.
+ * A placed zone is pinned where its `place` says. The rest start from a hash
+ * of their id and relax: springs on the roads, repulsion everywhere else.
  */
 function relax(
   nodes: Map<ZoneId, WorldNode>,
@@ -210,13 +212,13 @@ function relax(
   zones: Map<ZoneId, Zone>,
 ): void {
   const list = [...nodes.values()];
+  const pinned = new Set<ZoneId>();
   for (const node of list) {
     const place = zones.get(node.id)?.place;
     if (place) {
-      // Kilometres to roads. A world laid out by hand is rarely more than a few
-      // across, and the relaxation takes it from here in any case.
-      node.x = place.at[0] / 2;
-      node.y = place.at[1] / 2;
+      node.x = place.at[0] / KM_PER_ROAD;
+      node.y = place.at[1] / KM_PER_ROAD;
+      pinned.add(node.id);
       continue;
     }
     const hash = hashString(`world:${node.id}`);
@@ -235,10 +237,14 @@ function relax(
       const dy = b.y - a.y;
       const away = Math.hypot(dx, dy) || 0.001;
       const move = ((away - ROAD) / away) * PULL;
-      a.x += dx * move;
-      a.y += dy * move;
-      b.x -= dx * move;
-      b.y -= dy * move;
+      if (!pinned.has(a.id)) {
+        a.x += dx * move;
+        a.y += dy * move;
+      }
+      if (!pinned.has(b.id)) {
+        b.x -= dx * move;
+        b.y -= dy * move;
+      }
     }
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
@@ -249,10 +255,14 @@ function relax(
         const away = Math.hypot(dx, dy) || 0.001;
         if (away >= ROAD * 1.7) continue;
         const move = ((ROAD * 1.7 - away) / away) * PUSH;
-        a.x -= dx * move;
-        a.y -= dy * move;
-        b.x += dx * move;
-        b.y += dy * move;
+        if (!pinned.has(a.id)) {
+          a.x -= dx * move;
+          a.y -= dy * move;
+        }
+        if (!pinned.has(b.id)) {
+          b.x += dx * move;
+          b.y += dy * move;
+        }
       }
     }
   }
@@ -298,9 +308,11 @@ export interface Discovery {
 }
 
 /** Type size of a place's name, in print pixels, what a road out adds to it, and the clear space kept around it. */
-const NAME = 15;
+const NAME = 19;
 const NAME_PER_ROAD = 1.5;
-const NAME_MOST = 22;
+const NAME_MOST = 26;
+/** Window pixels a name never drops below, however far out the view is. */
+const NAME_LEAST = 13;
 const NAME_GAP = 9;
 const NAME_PAD = 7;
 
@@ -367,7 +379,7 @@ export function drawWorld(
   for (const node of places) {
     const [x, y] = at(node);
     const text = node.name;
-    const size = Math.min(NAME_MOST, NAME + NAME_PER_ROAD * Math.max(0, node.degree - 1)) * k;
+    const size = Math.max(NAME_LEAST, Math.min(NAME_MOST, NAME + NAME_PER_ROAD * Math.max(0, node.degree - 1)) * k);
     context.font = `600 ${size}px ${ink.prose}`;
     const width = context.measureText(text).width;
     const under = y + radius + NAME_GAP * k;
@@ -407,10 +419,10 @@ export function drawWorld(
   context.lineJoin = 'round';
   for (const placed of named) {
     context.font = `600 ${placed.size}px ${ink.prose}`;
-    context.lineWidth = 4 * k;
+    context.lineWidth = Math.max(3, 4 * k);
     context.strokeStyle = PALETTE.parchment;
     context.strokeText(placed.text, placed.x, placed.top);
-    context.fillStyle = PALETTE.ink;
+    context.fillStyle = placed.node.id === seen.here ? PALETTE.road : PALETTE.ink;
     context.fillText(placed.text, placed.x, placed.top);
   }
 
@@ -683,17 +695,30 @@ function drawRoads(
 
 /**
  * A place: a red disc in a pale ring in an ink ring, four ticks at the
- * cardinals, and a second ring around the one you are standing in.
+ * cardinals. The one you are standing in sits in a red halo under a heavy
+ * double ring, and its name is set in red.
  */
 function drawTown(context: CanvasRenderingContext2D, x: number, y: number, r: number, here: boolean, k: number): void {
   context.lineCap = 'butt';
   context.strokeStyle = PALETTE.ink;
 
   if (here) {
-    context.globalAlpha = 0.5;
-    context.lineWidth = 1.2 * k;
+    const reach = Math.max(r * 2.6, 14);
     context.beginPath();
-    context.arc(x, y, r * 1.85, 0, Math.PI * 2);
+    context.arc(x, y, reach, 0, Math.PI * 2);
+    context.fillStyle = PALETTE.road;
+    context.globalAlpha = 0.22;
+    context.fill();
+    context.globalAlpha = 1;
+    context.lineWidth = Math.max(2, 2.4 * k);
+    context.strokeStyle = PALETTE.road;
+    context.beginPath();
+    context.arc(x, y, reach, 0, Math.PI * 2);
+    context.stroke();
+    context.lineWidth = Math.max(1.5, 1.8 * k);
+    context.strokeStyle = PALETTE.ink;
+    context.beginPath();
+    context.arc(x, y, Math.max(r * 1.85, 10), 0, Math.PI * 2);
     context.stroke();
   }
 

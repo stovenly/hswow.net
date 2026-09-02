@@ -83,6 +83,24 @@ const BAY_DEPTH = 0.75;
 
 const INDUSTRY: ReadonlySet<Family> = new Set(['factory', 'sewer', 'scrapyard', 'substation']);
 
+/** How far a place keeps the high ground off, in roads, and how much of the height it takes. */
+const LOWLAND: Record<Family | 'none', [number, number]> = {
+  none: [0.5, 0.55],
+  village: [1.1, 0.8],
+  farm: [1.1, 0.8],
+  plains: [1.3, 0.85],
+  riverside: [0.9, 0.7],
+  beach: [0.9, 0.8],
+  forest: [0.8, 0.6],
+  factory: [0.6, 0.55],
+  sewer: [0.6, 0.55],
+  scrapyard: [0.6, 0.55],
+  substation: [0.6, 0.55],
+  cave: [0, 0],
+};
+/** How much of the height a road takes, at its middle. */
+const ROAD_LOW = 0.7;
+
 /** Roads inland at which the ground is as high as it gets. */
 const PEAK_REACH = 0.5;
 /** Roads from the sheet's edge over which the land dies away, so no coast runs along the edge. */
@@ -192,7 +210,6 @@ export function buildContinent(sites: readonly Site[], roads: readonly [number, 
   const height = new Float32Array(n);
   // Cells from the coast at which the land is as high as it gets.
   const peak = Math.max(1, (PEAK_REACH * ROAD) / cell);
-  const flat = sites.filter((site) => site.family === 'plains');
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const i = row * cols + col;
@@ -205,14 +222,19 @@ export function buildContinent(sites: readonly Site[], roads: readonly [number, 
       const upland = fbm(x / UPLAND_WAVE, y / UPLAND_WAVE, seed + 5, 2);
       const lift = Math.min(1, Math.max(0, (upland - 0.38) / 0.3));
       h *= 0.3 + 0.7 * lift * lift * (3 - 2 * lift);
-      // A place sits in its own valley; a cave is the exception, and is a peak.
+      // The settled country is low, and so is the country a road crosses; a
+      // cave is the exception, and is a peak.
+      let low = (ridge[i] / RIDGE_LIFT) * ROAD_LOW;
       for (const site of sites) {
         const d = Math.hypot(x - site.x, y - site.y);
-        if (site.family === 'cave') h += 0.9 * kernel(d, 0.45 * ROAD);
-        else h *= 1 - 0.55 * kernel(d, 0.4 * ROAD);
+        if (site.family === 'cave') {
+          h += 0.9 * kernel(d, 0.45 * ROAD);
+          continue;
+        }
+        const [reach, depth] = LOWLAND[site.family ?? 'none'];
+        low = Math.max(low, depth * kernel(d, reach * ROAD));
       }
-      for (const site of flat) h *= 1 - 0.6 * kernel(Math.hypot(x - site.x, y - site.y), 1.0 * ROAD);
-      height[i] = Math.min(1, h);
+      height[i] = Math.min(1, h * (1 - low));
     }
   }
 
@@ -328,7 +350,11 @@ export function buildContinent(sites: readonly Site[], roads: readonly [number, 
             w += 0.3 * kernel(d, 0.6 * ROAD);
             break;
           case 'plains':
-            w -= 0.5 * kernel(d, 1.0 * ROAD);
+            // Open grass: too dry for a wood, too wet for bare ground.
+            w += (0.35 - w) * kernel(d, 1.0 * ROAD);
+            break;
+          case 'village':
+            w += 0.2 * kernel(d, 0.7 * ROAD);
             break;
           default:
             if (site.family && INDUSTRY.has(site.family)) spoil += kernel(d, 0.6 * ROAD);
