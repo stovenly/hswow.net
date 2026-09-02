@@ -73,7 +73,7 @@ export type Landform =
    *
    * `run` is the horizontal distance the step takes, centred on the line, so the
    * bank is `run` wide and `height` tall. `side` says which way is up: +1 raises the
-   * left of the direction of travel.
+   * right of the direction of travel.
    *
    * It dies out past its ends over `run`, but not sideways, and that is `reach`.
    * Without it the high side stays high for ever, which is what a scarp is — the
@@ -174,6 +174,13 @@ export interface TerrainOptions {
   cover?: readonly CoverPatch[];
   /** Slope in degrees past which a face falls back to rock, whatever is painted. */
   rockAngle?: number;
+  /**
+   * Sub-quads per base quad edge on steep ground — a bank, a rim, a scarp —
+   * without anyone drawing a detail region round it. A three-metre facet on a
+   * forty-degree bank spans two metres of height and saws the slope into
+   * wedges; finer facets follow the curve. 1 leaves steep ground coarse.
+   */
+  steepDetail?: number;
   /** What unpainted, unsteep ground is made of. */
   base?: GroundName;
   /**
@@ -225,6 +232,14 @@ export function terrainFromWire(wire: TerrainWire): Terrain {
 
 /** The levelling landforms, which run in their own pass. */
 type Terrace = Extract<Landform, { kind: 'terrace' }>;
+
+/** Corner order is (u0,v0), (u0,v1), (u1,v1), (u1,v0); both splits wind anticlockwise from above. */
+const MAIN_DIAGONAL = [0, 1, 2, 0, 2, 3];
+const OTHER_DIAGONAL = [1, 2, 3, 1, 3, 0];
+/** Metres the other diagonal has to fit the surface better by before it is taken over the field's own. */
+const SPLIT_BIAS = 0.04;
+/** Slope in degrees past which a base cell counts as steep ground. */
+const STEEP_DEG = 12;
 
 /** Shared empty bucket, so a query off the field allocates nothing. */
 const EMPTY: readonly number[] = [];
@@ -368,6 +383,7 @@ export class Terrain {
   private readonly cover: readonly CoverPatch[];
   private readonly detail: readonly DetailRegion[];
   private readonly rockAngle: number;
+  private readonly steepDetail: number;
   /** Mutable: the editor writes into these while a stroke is under way. */
   private readonly rasters: TerrainRasters;
   private readonly base: GroundName;
@@ -401,6 +417,7 @@ export class Terrain {
     this.cover = options.cover ?? [];
     this.detail = options.detail ?? [];
     this.rockAngle = options.rockAngle ?? 34;
+    this.steepDetail = options.steepDetail ?? 3;
     this.base = options.base ?? 'turf';
     this.edgeFade = options.edgeFade?.band ?? 0;
     this.rasters = options.rasters ?? {};
@@ -470,6 +487,7 @@ export class Terrain {
       patches: this.patches,
       cover: this.cover,
       rockAngle: this.rockAngle,
+      steepDetail: this.steepDetail,
       base: this.base,
       edgeFade: { band: this.edgeFade, outline: this.edgeOutline },
       rasters: {
@@ -623,6 +641,18 @@ export class Terrain {
     return this.detail;
   }
 
+  /** The steepest of five slope samples over a cell: its centre and its corners. */
+  private steepestIn(cx: number, cz: number, res: number): number {
+    const h = res / 2;
+    return Math.max(
+      this.slopeAt(cx, cz, 1),
+      this.slopeAt(cx - h, cz - h, 1),
+      this.slopeAt(cx + h, cz - h, 1),
+      this.slopeAt(cx - h, cz + h, 1),
+      this.slopeAt(cx + h, cz + h, 1),
+    );
+  }
+
   /** Steepest slope at a position, in degrees. Sampled, not analytic. */
   slopeAt(x: number, z: number, step = this.resolution): number {
     const dx = (this.heightAt(x + step, z) - this.heightAt(x - step, z)) / (2 * step);
@@ -667,6 +697,9 @@ export class Terrain {
             best = Math.max(best, region.level);
           }
         }
+        if (this.steepDetail > 1 && this.steepestIn(cx, cz, res) > STEEP_DEG) {
+          best = Math.max(best, this.steepDetail);
+        }
         levels[row * cells + col] = best;
         quads += best * best;
       }
@@ -696,7 +729,6 @@ export class Terrain {
     const color = new THREE.Color();
     // The four corners of one quad, x y z each, and which three make each triangle.
     const corners = new Float64Array(12);
-    const triangles = [0, 1, 2, 0, 2, 3];
     const points = [a, b, c];
     const edge = this.edge;
 
@@ -728,9 +760,10 @@ export class Terrain {
             const v0 = sv / n;
             const v1 = (sv + 1) / n;
 
-            // Two triangles per quad, split along the same diagonal
-            // throughout. A consistent split gives the field one faceting
-            // direction, which reads as deliberate; alternating looks woven.
+            // Two triangles per quad, split along one diagonal throughout on
+            // gentle ground, which reads as deliberate where alternating looks
+            // woven. Where the ground bends, the diagonal that lies closest to
+            // the surface wins: the other one saws a bank into wedges.
             corners[0] = x0 + u0 * res;
             corners[1] = at(u0, v0);
             corners[2] = z0 + v0 * res;
@@ -744,9 +777,13 @@ export class Terrain {
             corners[10] = at(u1, v0);
             corners[11] = z0 + v0 * res;
 
+            const centre = this.heightAt(x0 + ((u0 + u1) / 2) * res, z0 + ((v0 + v1) / 2) * res);
+            const alongMain = Math.abs((corners[1] + corners[7]) / 2 - centre);
+            const alongOther = Math.abs((corners[4] + corners[10]) / 2 - centre);
+            const split = alongOther + SPLIT_BIAS < alongMain ? OTHER_DIAGONAL : MAIN_DIAGONAL;
             for (let tri = 0; tri < 6; tri += 3) {
               for (let k = 0; k < 3; k++) {
-                const p = triangles[tri + k] * 3;
+                const p = split[tri + k] * 3;
                 points[k].set(corners[p], corners[p + 1], corners[p + 2]);
               }
               ab.subVectors(b, a);
@@ -756,7 +793,7 @@ export class Terrain {
 
               const midX = (a.x + b.x + c.x) / 3;
               const midZ = (a.z + b.z + c.z) / 3;
-              const name = this.faceMaterial(normal.y, midX, midZ);
+              const name = this.faceMaterial(midX, midZ);
               color.set(this.faceColor(name, (a.y + b.y + c.y) / 3, midX, midZ));
               // Type per face, so its edges stay hard; feather and blend per corner, so
               // they interpolate — cover runs out onto bare ground over a couple of
@@ -888,9 +925,10 @@ export class Terrain {
    * is turf while shading it as a cliff looks like a bug in the lighting. Answered
    * once for the colour and the cover together.
    */
-  private faceMaterial(normalY: number, x: number, z: number): GroundName {
-    const slope = (Math.acos(Math.min(1, Math.max(-1, normalY))) * 180) / Math.PI;
-    return slope > this.rockAngle
+  private faceMaterial(x: number, z: number): GroundName {
+    // The surface's own slope at a fixed metre, not the facet's: two facets of
+    // one quad then agree, and the rock line is a contour rather than a saw.
+    return this.slopeAt(x, z, 1) > this.rockAngle
       ? 'rock'
       : (patchAt(this.patches, x, z) ?? this.paintedAt(x, z) ?? this.base);
   }
