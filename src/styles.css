@@ -5,14 +5,21 @@
   /* One stack, named once, so the accessibility option can swap it for the
      whole interface by overriding a single property rather than by finding
      every rule that sets a face. Everything else uses `font: inherit`. */
-  --type: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  /* And one for prose, which is a different job. `--type` is the chrome:
-     monospace, because it labels switches and reads back numbers, and a
-     proportional face makes a column of readouts jitter as the digits change.
-     A page of a book is the opposite — nobody reads three hundred words of
-     monospace by choice — so the reading screen gets a serif and nothing else
-     does. Named here for `--type`'s reason: the accessibility option has one
-     place to reach, not two families of rules to find. */
+  /* Humanist rather than grotesque, and never monospace: this is a game, and a
+     fixed advance makes every name in it read as a terminal. Optima and Candara
+     are the two faces doing the work — calligraphic, on essentially every Mac
+     and every Windows machine respectively — with Gill Sans behind them and the
+     platform's own face last. Nothing is downloaded for it.
+
+     A readout of live numbers is the one thing a proportional face costs, and
+     `#perf` pays for it with `tabular-nums` rather than the whole interface
+     paying with a typewriter. */
+  --type: Optima, Candara, "Gill Sans", "Gill Sans MT", "Trebuchet MS", "Segoe UI",
+    system-ui, sans-serif;
+  /* And one for prose, which is a different job. `--type` is the chrome; a page
+     of a book is a different register, so the reading screen gets a serif and
+     nothing else does. Named here for `--type`'s reason: the accessibility
+     option has one place to reach, not two families of rules to find. */
   --prose: ui-serif, Georgia, "Iowan Old Style", Palatino, "Palatino Linotype",
     "Times New Roman", serif;
 
@@ -24,7 +31,7 @@
   --pause-top: max(2.5rem, 9vh);
 }
 
-/* The dyslexia-friendly face, once it has arrived. The monospace stack stays
+/* The dyslexia-friendly face, once it has arrived. The ordinary stack stays
    behind it as the fallback, so the interface is never unstyled while the file
    is in flight — and stays readable if it never turns up at all.
    Set on `body` rather than on `:root` so the class the loader adds is the
@@ -35,7 +42,7 @@
    accessibility option that skipped it would be a switch that misses the only
    place anybody needed it. */
 body.is-dyslexic {
-  --type: "OpenDyslexic", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --type: "OpenDyslexic", Optima, Candara, "Gill Sans", "Trebuchet MS", sans-serif;
   --prose: "OpenDyslexic", ui-serif, Georgia, Palatino, "Times New Roman", serif;
 }
 
@@ -332,7 +339,7 @@ body.is-touch.is-options #options-open {
      was wrong in both directions at once: too narrow for the tab strip, which
      put "Accessibility" hard against its neighbours, and unable to grow when
      the dyslexia-friendly typeface is switched on — that face is
-     substantially wider than the monospace stack at the same size, so the
+     substantially wider than the ordinary stack at the same size, so the
      panel clipped its own contents.
 
      `fit-content` between a `min` and a `max` lets the box follow whatever is
