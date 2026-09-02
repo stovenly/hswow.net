@@ -191,15 +191,30 @@ Unrelated to the rest. The boot screen is a one-pixel rule and a lowercase word,
 and the zone-building indicator is the same rule in the middle of the screen.
 Honest, and anonymous.
 
-It becomes the thing the title names: a standing stone, raised course by course
-as the boot sequence advances. Each step lays another course, drawn between
-steps while the main thread is free — the only window there is, since every step
-blocks. Anything that has to keep moving *during* a step stays a compositor
-animation, because a load step freezes the main thread completely and a
-JavaScript-driven animation would stop dead at the moment it most needs to look
-alive.
+It becomes a dawn over the thing the title names. The screen is a sky in the
+same terms the renderer states everything else in — six flat levels rather than
+a smooth ramp, the steps between them dithered at the three-pixel block the game
+is quantized to — over a horizon that runs the width of the window, with a stone
+standing on it in silhouette. The stone goes up course by course and the night
+lifts off the sky, both off the same fraction, so loading *is* the light coming
+up on what is being built. The title and the step sit under the horizon at the
+left margin, as a caption rather than as a status line in the middle of a void.
+
+The dither is two posterised gradients half a band apart with the upper one
+checkerboarded: in the middle of a band they agree and it is flat, at a step
+they disagree and half the pixels take the level above. No assets, no canvas.
+
+A step that cannot report its own progress works the one course above whatever
+is standing, which is the stone actually being lifted; a band sweeping over
+stones already standing is a progress bar wearing a costume. That, and the
+night, are compositor animations, because a load step freezes the main thread
+completely and anything driven from script would stop dead at the moment it most
+needs to look alive. Everything else moves only between steps, which is when the
+thread is free.
 
 Constraints that do not move: it is inline in `index.html` so it paints before
-any module runs, the progress stays the honest position in a known sequence, and
-there are no assets. The zone indicator keeps sharing its face, so a doorway
-that takes a moment still looks like this game loading.
+any module runs — at `--lit: 0` that first frame is black with a horizon and a
+caption, which is what wants to be up instantly — the progress stays the honest
+position in a known sequence, and there are no assets. The zone indicator takes
+the stone and the ground but not the sky, since it only ever appears inside a
+transition already at full black.

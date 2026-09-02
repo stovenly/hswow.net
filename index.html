@@ -30,8 +30,8 @@
       than built in script for the same reason — it has to exist before any
       script runs. `ui/Loader.ts` adopts these elements instead of creating its
       own, and `styles.css` restates these rules for the rest of the session.
-      The glimmer's animation is not here: it belongs to the zone indicator,
-      which cannot exist this early.
+      The transitions are not here: at `--lit: 0` this is a black screen with a
+      horizon and a caption, which is the frame that wants to be up instantly.
     -->
     <style>
       html,
@@ -48,31 +48,87 @@
       .is-loading #capture-hint {
         opacity: 0;
       }
+      /* Six flat levels rather than a smooth ramp, with the steps between them
+         dithered at the three-pixel block the whole game is quantized to: two
+         posterised gradients half a band apart, the upper one checkerboarded.
+         In the middle of a band they agree and it is flat; at a step they
+         disagree and half the pixels take the level above. */
       #loading {
         position: fixed;
         inset: 0;
         z-index: 40;
-        display: grid;
-        align-content: center;
-        justify-items: center;
-        gap: 1.1rem;
         background: #0a0a0f;
+        --lit: 0;
         --raised: 0;
-        --stone: #dcdcc8;
-        --stone-edge: #9a958a;
-        --stone-ghost: rgb(220 220 200 / 8%);
+        --sky-0: #0a0a0f;
+        --sky-1: #101018;
+        --sky-2: #171620;
+        --sky-3: #221c23;
+        --sky-4: #332624;
+        --sky-5: #4b3428;
+        --land: #07070b;
+        --stone: #07070b;
+        --stone-edge: rgb(220 220 200 / 9%);
+        --stone-ghost: rgb(7 7 11 / 16%);
+      }
+      .sky {
+        position: absolute;
+        inset: 0 0 42% 0;
+      }
+      .sky-bands,
+      .sky-dither,
+      .sky-night {
+        position: absolute;
+        inset: 0;
+      }
+      .sky-bands {
+        background: linear-gradient(
+          to bottom,
+          var(--sky-0) 0 16.667%,
+          var(--sky-1) 0 33.333%,
+          var(--sky-2) 0 50%,
+          var(--sky-3) 0 66.667%,
+          var(--sky-4) 0 83.333%,
+          var(--sky-5) 0 100%
+        );
+      }
+      .sky-dither {
+        background: linear-gradient(
+          to bottom,
+          var(--sky-0) 0 8.333%,
+          var(--sky-1) 0 25%,
+          var(--sky-2) 0 41.667%,
+          var(--sky-3) 0 58.333%,
+          var(--sky-4) 0 75%,
+          var(--sky-5) 0 100%
+        );
+        mask-image: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%);
+        mask-size: 6px 6px;
+      }
+      .sky-night {
+        background: #0a0a0f;
+        opacity: calc(1 - var(--lit) * 0.88);
+      }
+      .land {
+        position: absolute;
+        inset: 58% 0 0 0;
+        background: var(--land);
       }
       .raise {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 42%;
         display: grid;
         justify-items: center;
-        gap: 0.5rem;
+        font-size: clamp(1.5rem, 4.4vh, 3.2rem);
       }
       .raise-field {
-        position: relative;
         display: flex;
+        width: 100%;
         align-items: flex-end;
-        gap: 0.55rem;
-        overflow: hidden;
+        justify-content: center;
+        gap: 0.55em;
       }
       .raise-pile {
         display: flex;
@@ -83,7 +139,7 @@
       .raise-course {
         position: relative;
         width: var(--w);
-        height: 0.6rem;
+        height: 0.6em;
         margin: 1px 0 0 var(--x);
         background: var(--stone-ghost);
       }
@@ -92,20 +148,32 @@
         position: absolute;
         inset: 0;
         background: var(--stone);
-        box-shadow: inset -0.14rem 0 0 var(--stone-edge);
+        box-shadow: inset -0.14em 0 0 var(--stone-edge);
         opacity: calc((var(--raised) - var(--c)) * 2.5);
-        transition: opacity 240ms ease-out;
       }
       .raise-ground {
-        width: 10.5rem;
+        width: 100%;
         height: 1px;
-        background: rgb(220 220 200 / 22%);
+        background: rgb(220 220 200 / 16%);
+      }
+      .boot-caption {
+        position: absolute;
+        left: clamp(1.5rem, 6vw, 5rem);
+        bottom: clamp(2rem, 12vh, 7rem);
+        display: grid;
+        gap: 0.85rem;
+      }
+      .boot-title {
+        font-size: 0.94rem;
+        letter-spacing: 0.34em;
+        text-transform: lowercase;
+        color: rgb(220 220 200 / 82%);
       }
       .loading-label {
         font-size: 0.68rem;
         letter-spacing: 0.22em;
         text-transform: lowercase;
-        color: rgb(220 220 200 / 55%);
+        color: rgb(220 220 200 / 48%);
       }
     </style>
   </head>
@@ -158,20 +226,29 @@
       </div>
     </div>
     <!--
-      The stone that goes up while the game loads. Static for the same reason
-      the styles above are: it has to be on screen before any module has run.
-      `ui/raise.ts` builds the same thing for the zone indicator and for the
-      fallback path, and `--c` is the order the courses are laid in — not the
-      order they are written in, which is bottom-up per pile.
+      The boot screen: a dithered sky over a horizon, with a stone going up on it
+      course by course as the sequence advances. Static for the same reason the
+      styles above are — it has to be on screen before any module has run.
+      `ui/raise.ts` builds the same thing for the zone indicator, which gets the
+      stones and the ground but no sky, and for the fallback path here.
+
+      `--c` is the order the courses are laid in, not the order they are written
+      in, which is bottom-up per pile.
     -->
     <div id="loading">
+      <div class="sky" aria-hidden="true">
+        <div class="sky-bands"></div>
+        <div class="sky-dither"></div>
+        <div class="sky-night"></div>
+      </div>
+      <div class="land" aria-hidden="true"></div>
       <div class="raise" aria-hidden="true">
         <div class="raise-field">
-          <div class="raise-pile" style="--pw: 1.5rem">
+          <div class="raise-pile" style="--pw: 1.5em">
             <span class="raise-course" style="--c: 1; --w: 100%; --x: 0"></span>
             <span class="raise-course" style="--c: 4; --w: 86%; --x: 7%"></span>
           </div>
-          <div class="raise-pile" style="--pw: 4.4rem">
+          <div class="raise-pile" style="--pw: 4.4em">
             <span class="raise-course" style="--c: 0; --w: 96%; --x: 2%"></span>
             <span class="raise-course" style="--c: 2; --w: 92%; --x: 4%"></span>
             <span class="raise-course" style="--c: 3; --w: 90%; --x: 5%"></span>
@@ -181,14 +258,16 @@
             <span class="raise-course" style="--c: 9; --w: 70%; --x: 16%"></span>
             <span class="raise-course" style="--c: 10; --w: 60%; --x: 21%"></span>
           </div>
-          <div class="raise-pile" style="--pw: 1.1rem">
+          <div class="raise-pile" style="--pw: 1.1em">
             <span class="raise-course" style="--c: 6; --w: 100%; --x: 0"></span>
           </div>
-          <div class="raise-glimmer"></div>
         </div>
         <div class="raise-ground"></div>
       </div>
-      <div class="loading-label">starting</div>
+      <div class="boot-caption">
+        <div class="boot-title">here stands what once was</div>
+        <div class="loading-label">starting</div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

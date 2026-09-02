@@ -827,12 +827,9 @@ body.is-touch #perf {
   position: fixed;
   inset: 0;
   z-index: 40;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 1.1rem;
   background: var(--void);
   transition: opacity 350ms linear;
+  --lit: 0;
 }
 
 #loading.is-gone {
@@ -840,11 +837,81 @@ body.is-touch #perf {
   pointer-events: none;
 }
 
+/* The sky, in the same terms the renderer states everything else in: six flat
+   levels rather than a smooth ramp, with the steps between them dithered at the
+   three-pixel block the whole game is quantized to.
+
+   **Two posterised gradients, half a band apart, one of them checkerboarded.**
+   In the middle of a band both layers agree and the result is flat; at a step
+   they disagree, and half the pixels take the level above — which is an ordered
+   dither of two levels, made out of nothing but gradients. */
+#loading {
+  --sky-0: #0a0a0f;
+  --sky-1: #101018;
+  --sky-2: #171620;
+  --sky-3: #221c23;
+  --sky-4: #332624;
+  --sky-5: #4b3428;
+  --land: #07070b;
+}
+
+.sky {
+  position: absolute;
+  inset: 0 0 42% 0;
+}
+
+.sky-bands,
+.sky-dither,
+.sky-night {
+  position: absolute;
+  inset: 0;
+}
+
+.sky-bands {
+  background: linear-gradient(
+    to bottom,
+    var(--sky-0) 0 16.667%,
+    var(--sky-1) 0 33.333%,
+    var(--sky-2) 0 50%,
+    var(--sky-3) 0 66.667%,
+    var(--sky-4) 0 83.333%,
+    var(--sky-5) 0 100%
+  );
+}
+
+.sky-dither {
+  background: linear-gradient(
+    to bottom,
+    var(--sky-0) 0 8.333%,
+    var(--sky-1) 0 25%,
+    var(--sky-2) 0 41.667%,
+    var(--sky-3) 0 58.333%,
+    var(--sky-4) 0 75%,
+    var(--sky-5) 0 100%
+  );
+  mask-image: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%);
+  mask-size: 6px 6px;
+}
+
+/* Night over the whole sky, lifting as the sequence advances. Opacity on one
+   element, so the lightening is a compositor property and not six colours being
+   interpolated on the main thread. */
+.sky-night {
+  background: var(--void);
+  opacity: calc(1 - var(--lit) * 0.88);
+  transition: opacity 320ms ease-out;
+}
+
+.land {
+  position: absolute;
+  inset: 58% 0 0 0;
+  background: var(--land);
+}
+
 /* The readout: a stone going up, a course for each step of a sequence whose
-   length is known before it starts. `--raised` is the only thing that ever
-   changes, and it is written once per step, between steps — a load step blocks
-   the main thread completely, so nothing here may be driven from script while
-   one is running. */
+   length is known before it starts. `--raised` is written once per step,
+   between steps — a load step blocks the main thread completely, so nothing
+   here may be driven from script while one is running. */
 #loading,
 #building {
   --raised: 0;
@@ -853,18 +920,45 @@ body.is-touch #perf {
   --stone-ghost: rgb(220 220 200 / 8%);
 }
 
+/* On the boot screen the stones are a silhouette against the sky rather than a
+   thing drawn on black, so they take the land's colour and the sun behind them
+   catches one edge. */
+#loading {
+  --stone: var(--land);
+  --stone-edge: rgb(220 220 200 / 9%);
+  --stone-ghost: rgb(7 7 11 / 16%);
+}
+
 .raise {
   display: grid;
   justify-items: center;
   gap: 0.5rem;
+  font-size: 1rem;
+}
+
+/* Standing on the horizon and reaching the width of the screen: the ground rule
+   is the horizon here, not a rule under a widget. */
+#loading .raise {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 42%;
+  gap: 0;
+  /* Tied to the window's height, because the stones stand on a horizon that is
+     a fraction of it: a fixed size reads as a widget on a big screen and fills
+     a small one. */
+  font-size: clamp(1.5rem, 4.4vh, 3.2rem);
 }
 
 .raise-field {
-  position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 0.55rem;
-  overflow: hidden;
+  justify-content: center;
+  gap: 0.55em;
+}
+
+#loading .raise-field {
+  width: 100%;
 }
 
 .raise-pile {
@@ -877,7 +971,7 @@ body.is-touch #perf {
 .raise-course {
   position: relative;
   width: var(--w);
-  height: 0.6rem;
+  height: 0.6em;
   margin: 1px 0 0 var(--x);
   background: var(--stone-ghost);
 }
@@ -890,9 +984,34 @@ body.is-touch #perf {
   position: absolute;
   inset: 0;
   background: var(--stone);
-  box-shadow: inset -0.14rem 0 0 var(--stone-edge);
+  box-shadow: inset -0.14em 0 0 var(--stone-edge);
   opacity: calc((var(--raised) - var(--c)) * 2.5);
   transition: opacity 240ms ease-out;
+}
+
+/* The course being lifted, for a step that cannot report its own progress. The
+   one course, not a band travelling over the whole pile: what is happening is
+   one stone being manoeuvred into place, and anything sweeping across stones
+   that are already standing is a progress bar wearing a costume.
+
+   **Animating `opacity` on one element is the whole trick.** It is handed to
+   the compositor, which runs on its own thread, so it keeps moving while the
+   main thread is blocked building a zone. Anything driven from JavaScript, or
+   animating a property that forces layout, would freeze at exactly the moment
+   it most needs to look alive. */
+.raise-course.is-lifting::after {
+  animation: raise-lift 1500ms ease-in-out infinite;
+}
+
+@keyframes raise-lift {
+  0%,
+  100% {
+    opacity: 0.12;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .raise-ground {
@@ -901,16 +1020,38 @@ body.is-touch #perf {
   background: rgb(220 220 200 / 22%);
 }
 
+#loading .raise-ground {
+  width: 100%;
+  background: rgb(220 220 200 / 16%);
+}
+
+/* Under the horizon and against the left margin, where a caption goes. Centred
+   under the stones it would read as their label rather than as the name of the
+   thing being started. */
+.boot-caption {
+  position: absolute;
+  left: clamp(1.5rem, 6vw, 5rem);
+  bottom: clamp(2rem, 12vh, 7rem);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.boot-title {
+  font-size: 0.94rem;
+  letter-spacing: 0.34em;
+  text-transform: lowercase;
+  color: rgb(220 220 200 / 82%);
+}
+
 .loading-label {
   font-size: 0.68rem;
   letter-spacing: 0.22em;
   text-transform: lowercase;
-  color: rgb(220 220 200 / 55%);
+  color: rgb(220 220 200 / 48%);
 }
 
-#loading.is-failed {
-  --stone: #9a4a3a;
-  --stone-edge: #6d3327;
+#loading.is-failed .loading-label {
+  color: #b5695a;
 }
 
 /* The capture hint would otherwise sit behind the boot screen and appear the
@@ -945,48 +1086,6 @@ body.is-loading #capture-hint {
 
 #building.is-shown {
   opacity: 1;
-}
-
-/* The glimmer, for a step that cannot report its own progress: light running up
-   the face of what is already standing.
-
-   **Animating `transform` is the whole trick.** A transform animation is handed
-   to the compositor, which runs on its own thread, so it keeps moving while the
-   main thread is blocked building a zone. Anything driven from JavaScript, or
-   animating a property that forces layout, would freeze at exactly the moment
-   it most needs to look alive. `.raise-field` clips it. */
-.raise-glimmer {
-  position: absolute;
-  inset: auto 0 0;
-  height: 1.4rem;
-  background: linear-gradient(
-    to top,
-    rgb(220 220 200 / 0%),
-    rgb(220 220 200 / 20%),
-    rgb(220 220 200 / 0%)
-  );
-  opacity: 0;
-  pointer-events: none;
-}
-
-#building.is-working .raise-glimmer {
-  animation: raise-glimmer 1150ms ease-in-out infinite;
-}
-
-@keyframes raise-glimmer {
-  0% {
-    transform: translateY(1.4rem);
-    opacity: 0;
-  }
-
-  30% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateY(-6.4rem);
-    opacity: 0;
-  }
 }
 
 /* --- interaction prompt -------------------------------------------------- */

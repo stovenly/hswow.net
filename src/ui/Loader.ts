@@ -1,4 +1,4 @@
-import { buildRaise, raisedTo } from './raise';
+import { buildBootScreen, setProgress } from './raise';
 
 /**
  * The boot screen.
@@ -11,9 +11,10 @@ import { buildRaise, raisedTo } from './raise';
  *
  * **A real readout is possible precisely because there is nothing to download.**
  * Loading is a fixed known sequence rather than bytes arriving at an unknown
- * rate, so what is shown is the honest position in that sequence, laid out as
- * courses of a stone going up. Steps are weighted by roughly how long they
- * take, which is why the numbers below are not evenly spaced.
+ * rate, so what is shown is the honest position in that sequence — courses of a
+ * stone going up, and the sky behind it coming light. Steps are weighted by
+ * roughly how long they take, which is why the numbers below are not evenly
+ * spaced.
  *
  * A browser will not repaint in the middle of synchronous work, so every step
  * waits for two animation frames before starting — one to apply the style
@@ -25,7 +26,6 @@ const FADE = 0.35;
 
 export class Loader {
   private readonly root: HTMLElement;
-  private readonly raise: HTMLElement;
   private readonly label: HTMLElement;
 
   /**
@@ -37,22 +37,15 @@ export class Loader {
    */
   constructor(parent: HTMLElement) {
     const existing = document.getElementById('loading');
-    const raise = existing?.querySelector<HTMLElement>('.raise') ?? null;
     const label = existing?.querySelector<HTMLElement>('.loading-label') ?? null;
 
-    if (existing && raise && label) {
+    if (existing && label) {
       this.root = existing;
-      this.raise = raise;
       this.label = label;
     } else {
-      this.root = document.createElement('div');
-      this.root.id = 'loading';
-
-      this.raise = buildRaise();
-      this.label = document.createElement('div');
-      this.label.className = 'loading-label';
-
-      this.root.append(this.raise, this.label);
+      const built = buildBootScreen('here stands what once was');
+      this.root = built.root;
+      this.label = built.label;
       parent.appendChild(this.root);
     }
 
@@ -66,14 +59,14 @@ export class Loader {
    */
   async step<T>(label: string, progress: number, work: () => T | Promise<T>): Promise<T> {
     this.label.textContent = label;
-    this.raise.style.setProperty('--raised', raisedTo(progress));
+    setProgress(this.root, progress);
     await paint();
     return work();
   }
 
   /** Tops the stone out, holds for a beat, then fades and removes itself. */
   async done(): Promise<void> {
-    this.raise.style.setProperty('--raised', raisedTo(1));
+    setProgress(this.root, 1);
     this.label.textContent = 'ready';
     await paint();
     await wait(0.18);

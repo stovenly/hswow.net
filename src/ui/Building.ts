@@ -1,4 +1,4 @@
-import { buildRaise, raisedTo } from './raise';
+import { COURSES, buildRaise, lifting, setProgress } from './raise';
 
 /**
  * The indicator shown while a zone is being built.
@@ -35,6 +35,8 @@ export class Building {
   private readonly raise: HTMLElement;
   private readonly label: HTMLElement;
   private shown = false;
+  /** The last fraction anything reported, for naming the course above it. */
+  private at = 0;
 
   /**
    * Builds the boot screen's markup, in the boot screen's classes. Stone first
@@ -60,8 +62,9 @@ export class Building {
    */
   async show(label: string): Promise<void> {
     this.label.textContent = label;
-    this.raise.style.setProperty('--raised', raisedTo(0.15));
-    this.root.classList.remove('is-working');
+    this.at = 0.15;
+    setProgress(this.root, this.at);
+    lifting(this.raise, null);
     this.root.classList.add('is-shown');
     this.shown = true;
     await paint();
@@ -72,24 +75,27 @@ export class Building {
    *
    * Pass `progress` when a real fraction is known. Omit it for a step whose
    * cost cannot be reported from inside — `Zone.build()` is one synchronous
-   * call — and the glimmer runs over the stone instead.
+   * call — and the course above whatever is standing works instead.
    *
    * **A readout that stops moving is worse than none at all**: on a slow
-   * machine it sits at one height and reads as a hang. The glimmer is a
+   * machine it sits at one height and reads as a hang. That course is a
    * compositor animation, so it carries on while the main thread is blocked.
    */
   async step(label: string, progress?: number): Promise<void> {
     if (!this.shown) return;
     this.label.textContent = label;
-    this.root.classList.toggle('is-working', progress === undefined);
-    if (progress !== undefined) this.raise.style.setProperty('--raised', raisedTo(progress));
+    if (progress !== undefined) {
+      this.at = progress;
+      setProgress(this.root, progress);
+    }
+    lifting(this.raise, progress === undefined ? Math.floor(this.at * COURSES) : null);
     await paint();
   }
 
   hide(): void {
     if (!this.shown) return;
     this.shown = false;
-    this.root.classList.remove('is-working');
+    lifting(this.raise, null);
     this.root.classList.remove('is-shown');
   }
 
