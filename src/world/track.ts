@@ -294,10 +294,11 @@ function ribbon(
 
 // --- pieces -----------------------------------------------------------------
 
-/** A block with its top drawn in, standing on the skin at (s, u). Five faces. */
+/** A block with its top drawn in, on the skin `advance` metres past its sample at station `u`. Five faces. */
 function block(
   sample: Sample,
   u: number,
+  advance: number,
   groundAt: GroundAt,
   profile: Profile,
   index: number,
@@ -309,7 +310,9 @@ function block(
   rng: Rng,
   jitter: number,
 ): THREE.BufferGeometry {
-  const [cx, cz] = at(sample, u);
+  const [sx, sz] = at(sample, u);
+  const cx = sx + sample.tx * advance;
+  const cz = sz + sample.tz * advance;
   const base = groundAt(cx, cz) + profile(u, index) - sink;
   const corner = (a: number, b: number, y: number): THREE.Vector3 =>
     new THREE.Vector3(
@@ -387,6 +390,7 @@ function setts(
         geometry: block(
           sample,
           u,
+          s - sample.s,
           groundAt,
           profile,
           index,
@@ -424,13 +428,15 @@ function slabs(
     let s = rng.range(0, 0.6);
     while (s < length) {
       const along = rng.range(0.85, 1.3);
-      const [sample, index] = sampleAt(samples, Math.min(length - 0.01, s + along / 2));
+      const mid = Math.min(length - 0.01, s + along / 2);
+      const [sample, index] = sampleAt(samples, mid);
       const reach = sample.half - inset;
       const u = (-reach + across * (row + 0.5)) / sample.half;
       parts.push({
         geometry: block(
           sample,
           u,
+          mid - sample.s,
           groundAt,
           profile,
           index,
@@ -459,12 +465,14 @@ function kerbs(samples: Sample[], groundAt: GroundAt, profile: Profile, rng: Rng
     let s = rng.range(0, 0.3);
     while (s < length) {
       const along = rng.range(0.45, 0.65);
-      const [sample, index] = sampleAt(samples, Math.min(length - 0.01, s + along / 2));
+      const mid = Math.min(length - 0.01, s + along / 2);
+      const [sample, index] = sampleAt(samples, mid);
       const u = (side * (sample.half - KERB_WIDTH / 2)) / sample.half;
       parts.push({
         geometry: block(
           sample,
           u,
+          mid - sample.s,
           groundAt,
           profile,
           index,
@@ -497,11 +505,12 @@ function embeddedStones(
   const length = samples[samples.length - 1].s;
   const count = Math.round(length * samples[0].half * 2 * perSquareMetre);
   for (let n = 0; n < count; n++) {
-    const [sample, index] = sampleAt(samples, rng.range(0, length));
+    const s = rng.range(0, length);
+    const [sample, index] = sampleAt(samples, s);
     const u = rng.range(-0.9, 0.9);
     const size = rng.range(0.08, 0.22);
     parts.push({
-      geometry: block(sample, u, groundAt, profile, index, size, size * rng.range(0.6, 1), size * 0.35, 0.6, size * 0.15, rng, size * 0.1),
+      geometry: block(sample, u, s - sample.s, groundAt, profile, index, size, size * rng.range(0.6, 1), size * 0.35, 0.6, size * 0.15, rng, size * 0.1),
       color: colour(),
       sway: 0,
     });
@@ -515,12 +524,13 @@ function pebbles(samples: Sample[], groundAt: GroundAt, profile: Profile, rng: R
   const length = samples[samples.length - 1].s;
   const count = Math.round(length * samples[0].half * 2 * 2.5);
   for (let n = 0; n < count; n++) {
-    const [sample, index] = sampleAt(samples, rng.range(0, length));
+    const s = rng.range(0, length);
+    const [sample, index] = sampleAt(samples, s);
     // Kicked to the sides: the middle is walked.
     const u = rng.pick([-1, 1]) * Math.sqrt(rng.range(0.15, 1)) * 0.92;
     const size = rng.range(0.035, 0.07);
     parts.push({
-      geometry: block(sample, u, groundAt, profile, index, size, size * rng.range(0.7, 1), size * 0.5, 0.5, 0, rng, size * 0.1),
+      geometry: block(sample, u, s - sample.s, groundAt, profile, index, size, size * rng.range(0.7, 1), size * 0.5, 0.5, 0, rng, size * 0.1),
       color: shade(base, rng.range(0.8, 1.25)),
       sway: 0,
     });

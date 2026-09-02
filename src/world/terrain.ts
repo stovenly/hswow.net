@@ -61,7 +61,9 @@ export type Landform =
    * measured by Chebyshev distance to the field's own edge, so it follows the square
    * the heightfield is stored in. It is a `PatchShape[]`, the same union the ground
    * patches, the cover patches and the parallax keep-out are written in, so the
-   * shape a level is can be stated once and used by all of them.
+   * shape a level is can be stated once and used by all of them. Measured as an
+   * area: a `path` here is a strip of its width, not a polygon, so a level's
+   * shape is a union of blots and fields.
    */
   | { kind: 'rim'; inset: number; height: number; outline?: readonly PatchShape[] }
   /**
