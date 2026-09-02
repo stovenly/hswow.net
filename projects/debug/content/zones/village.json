@@ -1226,22 +1226,6 @@
       "roam": 5
     },
     {
-      "id": "villager-3",
-      "kind": "creature",
-      "person": "hob",
-      "traits": [
-        "farmhand"
-      ],
-      "builder": "figure",
-      "seed": 3303,
-      "at": [
-        6.4,
-        -3.4
-      ],
-      "yaw": -0.8,
-      "roam": 4
-    },
-    {
       "id": "villager-4",
       "kind": "creature",
       "person": "nell",

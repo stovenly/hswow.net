@@ -1,0 +1,233 @@
+{
+  "id": "barn",
+  "name": "Barn",
+  "group": "countryside",
+  "environment": {
+    "base": "barn"
+  },
+  "spawn": {
+    "at": [
+      0,
+      0.1,
+      0.5
+    ],
+    "yaw": 3.1415927
+  },
+  "floor": -5,
+  "shell": {
+    "width": 12,
+    "depth": 6.5,
+    "height": 5,
+    "seed": 4840,
+    "style": "barn",
+    "planks": true,
+    "beams": 4
+  },
+  "traits": [
+    "villager"
+  ],
+  "entries": [
+    {
+      "id": "bales-1",
+      "kind": "prop",
+      "builder": "hay-bale-stack",
+      "seed": 4841,
+      "at": [
+        -4.6,
+        -1.6
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "bales-2",
+      "kind": "prop",
+      "builder": "hay-bale-stack",
+      "seed": 4842,
+      "at": [
+        -4.4,
+        1.4
+      ],
+      "yaw": 1.7
+    },
+    {
+      "id": "bale-1",
+      "kind": "prop",
+      "builder": "hay-bale",
+      "seed": 4843,
+      "at": [
+        -2.2,
+        2.3
+      ],
+      "yaw": 0.8
+    },
+    {
+      "id": "bale-2",
+      "kind": "prop",
+      "builder": "hay-bale",
+      "seed": 4844,
+      "at": [
+        -1.4,
+        -2.5
+      ],
+      "yaw": 2.1
+    },
+    {
+      "id": "bale-3",
+      "kind": "prop",
+      "builder": "hay-bale",
+      "seed": 4845,
+      "at": [
+        -2.9,
+        0.1
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "crates",
+      "kind": "prop",
+      "builder": "crate-stack",
+      "seed": 4846,
+      "at": [
+        4.8,
+        2.2
+      ],
+      "yaw": 0.1
+    },
+    {
+      "id": "sack-1",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4847,
+      "at": [
+        3.6,
+        2.6
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "sack-2",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4848,
+      "at": [
+        3,
+        2.1
+      ],
+      "yaw": 1.4
+    },
+    {
+      "id": "sack-3",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4849,
+      "at": [
+        3.9,
+        1.8
+      ],
+      "yaw": 2.3
+    },
+    {
+      "id": "sack-4",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4850,
+      "at": [
+        4.4,
+        -2.7
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "barrel-1",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 4851,
+      "at": [
+        5.2,
+        -2.4
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "barrel-2",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 4852,
+      "at": [
+        5.4,
+        -1.3
+      ],
+      "yaw": 1.1
+    },
+    {
+      "id": "plough",
+      "kind": "prop",
+      "builder": "plough",
+      "seed": 4853,
+      "at": [
+        1.6,
+        -1.8
+      ],
+      "yaw": -1.2
+    },
+    {
+      "id": "ladder",
+      "kind": "prop",
+      "builder": "ladder",
+      "seed": 4854,
+      "at": [
+        0.4,
+        -3.05
+      ],
+      "yaw": 3.1415927,
+      "options": {
+        "height": 4.2
+      }
+    },
+    {
+      "id": "pitchfork",
+      "kind": "prop",
+      "builder": "pitchfork",
+      "seed": 4855,
+      "at": [
+        -0.6,
+        2.9
+      ],
+      "yaw": 2.9
+    },
+    {
+      "id": "crate",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 4856,
+      "at": [
+        2.4,
+        2.7
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4857,
+      "at": [
+        2.4,
+        2.7
+      ],
+      "yaw": 0.7,
+      "on": "crate"
+    },
+    {
+      "id": "sticks",
+      "kind": "prop",
+      "builder": "sticks",
+      "seed": 4858,
+      "at": [
+        -5.2,
+        -2.7
+      ],
+      "yaw": 0.9
+    }
+  ]
+}

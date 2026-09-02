@@ -1,0 +1,1909 @@
+{
+  "id": "farm",
+  "name": "Farm",
+  "group": "countryside",
+  "place": {
+    "at": [
+      -1.7,
+      0.2
+    ],
+    "altitude": 0
+  },
+  "environment": {
+    "base": "outdoor",
+    "fogNear": 70,
+    "fogFar": 320,
+    "firstPersonReverb": 0.5,
+    "vibe": "farm"
+  },
+  "spawn": {
+    "at": [
+      22,
+      0
+    ],
+    "yaw": -1.5707963
+  },
+  "floor": -20,
+  "soundscape": {
+    "bed": [
+      {
+        "model": "wind",
+        "id": "wind",
+        "options": {
+          "gain": 0.17,
+          "tone": 3200
+        }
+      },
+      {
+        "model": "rain",
+        "id": "rain",
+        "options": {
+          "gain": 0.17,
+          "intensity": 0,
+          "surface": "earth",
+          "articulation": 0.3
+        }
+      }
+    ]
+  },
+  "terrain": {
+    "size": 120,
+    "resolution": 3,
+    "landforms": [
+      {
+        "kind": "hill",
+        "at": [
+          -34,
+          -32
+        ],
+        "radius": 26,
+        "height": 2.2
+      },
+      {
+        "kind": "hill",
+        "at": [
+          34,
+          28
+        ],
+        "radius": 22,
+        "height": 1.6
+      },
+      {
+        "kind": "hill",
+        "at": [
+          40,
+          -30
+        ],
+        "radius": 20,
+        "height": 1.2
+      },
+      {
+        "kind": "channel",
+        "through": [
+          [
+            -62,
+            49
+          ],
+          [
+            -20,
+            52
+          ],
+          [
+            20,
+            56
+          ],
+          [
+            62,
+            58
+          ]
+        ],
+        "width": 8,
+        "depth": 3,
+        "bank": 6
+      },
+      {
+        "kind": "terrace",
+        "at": [
+          0,
+          -2
+        ],
+        "radius": 27,
+        "height": 0.3,
+        "blend": 8
+      },
+      {
+        "kind": "terrace",
+        "at": [
+          -20,
+          14
+        ],
+        "radius": 4,
+        "height": 0.05,
+        "blend": 3
+      }
+    ],
+    "patches": [
+      {
+        "kind": "field",
+        "min": [
+          -6,
+          -24
+        ],
+        "max": [
+          14,
+          -16
+        ],
+        "material": "meadow"
+      },
+      {
+        "kind": "field",
+        "min": [
+          9,
+          3
+        ],
+        "max": [
+          21,
+          13
+        ],
+        "material": "crop"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -16.5,
+          11.5
+        ],
+        "radius": 5.5,
+        "material": "dirt"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -20,
+          14
+        ],
+        "radius": 3,
+        "material": "mire"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          0
+        ],
+        "radius": 11,
+        "material": "dirt"
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -9,
+          -2
+        ],
+        "radius": 4,
+        "material": "dirt"
+      }
+    ],
+    "detail": [
+      {
+        "at": [
+          0,
+          0
+        ],
+        "radius": 32,
+        "level": 2
+      },
+      {
+        "at": [
+          0,
+          0
+        ],
+        "radius": 22,
+        "level": 4
+      }
+    ],
+    "edgeFade": {
+      "band": 34
+    }
+  },
+  "skirt": {
+    "reach": 320,
+    "resolution": 14,
+    "collar": 8,
+    "apron": 24,
+    "roll": 0,
+    "flatten": {
+      "from": 70,
+      "to": 160
+    },
+    "seed": 7421
+  },
+  "regions": {
+    "outline": [
+      {
+        "kind": "path",
+        "through": [
+          [
+            26,
+            -12
+          ],
+          [
+            20,
+            -24
+          ],
+          [
+            -20,
+            -24
+          ],
+          [
+            -26,
+            -12
+          ],
+          [
+            -26,
+            12
+          ],
+          [
+            -17,
+            23
+          ],
+          [
+            17,
+            23
+          ],
+          [
+            26,
+            12
+          ]
+        ],
+        "width": 0.1
+      }
+    ],
+    "keepClear": [
+      {
+        "kind": "blot",
+        "at": [
+          4,
+          -13
+        ],
+        "radius": 5.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          4,
+          -20
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -15,
+          -2
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          0
+        ],
+        "radius": 12
+      },
+      {
+        "kind": "blot",
+        "at": [
+          26,
+          0
+        ],
+        "radius": 6
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          24
+        ],
+        "radius": 6
+      },
+      {
+        "kind": "blot",
+        "at": [
+          15,
+          8
+        ],
+        "radius": 8.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -16.5,
+          11.5
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -6,
+          8
+        ],
+        "radius": 4
+      }
+    ]
+  },
+  "traits": [
+    "villager"
+  ],
+  "entries": [
+    {
+      "id": "arch-east",
+      "kind": "prop",
+      "builder": "stone-wall-archway",
+      "seed": 4721,
+      "at": [
+        26,
+        0
+      ],
+      "yaw": 1.5707963
+    },
+    {
+      "id": "arch-east-slab",
+      "kind": "barrier",
+      "from": {
+        "ref": "arch-east",
+        "edge": "-z",
+        "offset": [
+          0.9,
+          0
+        ]
+      },
+      "to": {
+        "ref": "arch-east",
+        "edge": "+z",
+        "offset": [
+          0.9,
+          0
+        ]
+      }
+    },
+    {
+      "id": "boundary",
+      "kind": "chain",
+      "close": "hedge",
+      "closeSeed": 6700,
+      "runs": [
+        {
+          "seed": 6710,
+          "start": {
+            "ref": "arch-east",
+            "edge": "-z"
+          },
+          "edges": [
+            {
+              "to": [
+                26,
+                -12
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                20,
+                -24
+              ],
+              "kind": "wall"
+            }
+          ]
+        },
+        {
+          "seed": 6720,
+          "start": {
+            "ref": "arch-east",
+            "edge": "+z"
+          },
+          "edges": [
+            {
+              "to": [
+                26,
+                12
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                17,
+                23
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                1.6,
+                24
+              ],
+              "kind": "fence"
+            }
+          ]
+        },
+        {
+          "seed": 6730,
+          "start": [
+            -1.6,
+            24
+          ],
+          "edges": [
+            {
+              "to": [
+                -17,
+                23
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -26,
+                12
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                -26,
+                -12
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                -20,
+                -24
+              ],
+              "kind": "wall"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gate-post-e",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 5231,
+      "at": [
+        1.6,
+        24.2
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "gate-post-w",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 5232,
+      "at": [
+        -1.6,
+        24.2
+      ],
+      "yaw": -0.4
+    },
+    {
+      "id": "gate-hazel-e",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 5233,
+      "at": [
+        3.6,
+        24.6
+      ],
+      "yaw": 0.8
+    },
+    {
+      "id": "gate-hazel-w",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 5234,
+      "at": [
+        -3.6,
+        24.6
+      ],
+      "yaw": 2.3
+    },
+    {
+      "id": "gate-slab",
+      "kind": "barrier",
+      "from": [
+        -1.6,
+        25.2
+      ],
+      "to": [
+        1.6,
+        25.2
+      ]
+    },
+    {
+      "id": "yard-road",
+      "kind": "track",
+      "through": [
+        [
+          36,
+          0
+        ],
+        [
+          26,
+          0
+        ],
+        [
+          14,
+          -1
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          -9.6,
+          -1.4
+        ]
+      ],
+      "width": 3,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.65,
+      "seed": 7201
+    },
+    {
+      "id": "south-road",
+      "kind": "track",
+      "through": [
+        [
+          0,
+          0
+        ],
+        [
+          -1.5,
+          12
+        ],
+        [
+          0,
+          24
+        ],
+        [
+          0,
+          34
+        ]
+      ],
+      "width": 2.8,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.5,
+      "seed": 7202
+    },
+    {
+      "id": "farmhouse",
+      "kind": "prop",
+      "builder": "cottage",
+      "seed": 4730,
+      "at": [
+        4,
+        -13
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "barn",
+      "kind": "prop",
+      "builder": "barn",
+      "seed": 4731,
+      "at": [
+        -15,
+        -2
+      ],
+      "yaw": 1.5707963
+    },
+    {
+      "id": "pen-fence",
+      "kind": "run",
+      "builder": "fence",
+      "seed": 4740,
+      "points": [
+        [
+          -11.5,
+          9
+        ],
+        [
+          -11.5,
+          16.5
+        ],
+        [
+          -22.5,
+          16.5
+        ],
+        [
+          -22.5,
+          7
+        ],
+        [
+          -19,
+          7
+        ]
+      ],
+      "cap": "post"
+    },
+    {
+      "id": "pen-post",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4741,
+      "at": [
+        -11.5,
+        7
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "pen-trough",
+      "kind": "prop",
+      "builder": "trough",
+      "seed": 4742,
+      "at": [
+        -14,
+        12.5
+      ],
+      "yaw": 0.1
+    },
+    {
+      "id": "dung-heap",
+      "kind": "prop",
+      "builder": "dung-heap",
+      "seed": 4743,
+      "at": [
+        -9.6,
+        10.4
+      ],
+      "yaw": 0.6
+    },
+    {
+      "id": "straw-pile",
+      "kind": "prop",
+      "builder": "straw-pile",
+      "seed": 4744,
+      "at": [
+        -19.5,
+        11.5
+      ],
+      "yaw": 1.1
+    },
+    {
+      "id": "sheep",
+      "kind": "scatter",
+      "builder": "ovine",
+      "seed": 8811,
+      "count": 4,
+      "within": 3.2,
+      "from": [
+        -16.5,
+        12.2
+      ],
+      "maxSlope": 20
+    },
+    {
+      "id": "pigs",
+      "kind": "scatter",
+      "builder": "porcine",
+      "seed": 8812,
+      "count": 2,
+      "within": 1.8,
+      "from": [
+        -20,
+        14
+      ],
+      "maxSlope": 20
+    },
+    {
+      "id": "crop-fence",
+      "kind": "run",
+      "builder": "fence",
+      "seed": 4750,
+      "points": [
+        [
+          13.2,
+          3
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          9,
+          13
+        ],
+        [
+          21,
+          13
+        ],
+        [
+          21,
+          3
+        ],
+        [
+          16.2,
+          3
+        ]
+      ],
+      "cap": "post"
+    },
+    {
+      "id": "crop-post",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4751,
+      "at": [
+        13.2,
+        3
+      ],
+      "yaw": 0.1
+    },
+    {
+      "id": "scarecrow",
+      "kind": "prop",
+      "builder": "scarecrow",
+      "seed": 4752,
+      "at": [
+        15,
+        8.5
+      ],
+      "yaw": -0.3
+    },
+    {
+      "id": "plough",
+      "kind": "prop",
+      "builder": "plough",
+      "seed": 4753,
+      "at": [
+        12,
+        0.9
+      ],
+      "yaw": 1.2
+    },
+    {
+      "id": "sunflower-1",
+      "kind": "prop",
+      "builder": "sunflower",
+      "seed": 4754,
+      "at": [
+        10.2,
+        4.2
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "sunflower-2",
+      "kind": "prop",
+      "builder": "sunflower",
+      "seed": 4755,
+      "at": [
+        11.6,
+        4.4
+      ],
+      "yaw": 1.4
+    },
+    {
+      "id": "sunflower-3",
+      "kind": "prop",
+      "builder": "sunflower",
+      "seed": 4756,
+      "at": [
+        17.2,
+        4.3
+      ],
+      "yaw": 2.6
+    },
+    {
+      "id": "sunflower-4",
+      "kind": "prop",
+      "builder": "sunflower",
+      "seed": 4757,
+      "at": [
+        18.6,
+        4.5
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "sunflower-5",
+      "kind": "prop",
+      "builder": "sunflower",
+      "seed": 4758,
+      "at": [
+        20,
+        4.2
+      ],
+      "yaw": 1.9
+    },
+    {
+      "id": "sunflower-6",
+      "kind": "prop",
+      "builder": "sunflower",
+      "seed": 4759,
+      "at": [
+        19.6,
+        11.8
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "hay-rick",
+      "kind": "prop",
+      "builder": "hay-rick",
+      "seed": 4760,
+      "at": [
+        -6.5,
+        8
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "hay-bales",
+      "kind": "prop",
+      "builder": "hay-bale-stack",
+      "seed": 4761,
+      "at": [
+        -8.2,
+        4.6
+      ],
+      "yaw": 1.3
+    },
+    {
+      "id": "well",
+      "kind": "prop",
+      "builder": "well",
+      "seed": 4770,
+      "at": [
+        -3,
+        -4.5
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "cart",
+      "kind": "prop",
+      "builder": "cart",
+      "seed": 4771,
+      "at": [
+        6,
+        -5.5
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "log-pile",
+      "kind": "prop",
+      "builder": "log-pile",
+      "seed": 4772,
+      "at": [
+        9.4,
+        -12.2
+      ],
+      "yaw": 1.5707963
+    },
+    {
+      "id": "sack-1",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4773,
+      "at": [
+        -9.4,
+        -4.6
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "sack-2",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4774,
+      "at": [
+        -9,
+        -5.3
+      ],
+      "yaw": 1.1
+    },
+    {
+      "id": "sack-3",
+      "kind": "prop",
+      "builder": "sack",
+      "seed": 4775,
+      "at": [
+        -9.9,
+        -3.9
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "porch-barrel",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 4776,
+      "at": [
+        -9.2,
+        1.6
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "pail",
+      "kind": "prop",
+      "builder": "pail",
+      "seed": 4777,
+      "at": [
+        -1.6,
+        -5.4
+      ],
+      "yaw": 0.7
+    },
+    {
+      "id": "pitchfork",
+      "kind": "prop",
+      "builder": "pitchfork",
+      "seed": 4778,
+      "at": [
+        -4.2,
+        8.6
+      ],
+      "yaw": 2.1
+    },
+    {
+      "id": "rake",
+      "kind": "prop",
+      "builder": "rake",
+      "seed": 4779,
+      "at": [
+        0.4,
+        -10.8
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "fowl",
+      "kind": "scatter",
+      "builder": "poultry",
+      "seed": 8813,
+      "count": 5,
+      "within": 5,
+      "from": [
+        1,
+        -6
+      ],
+      "maxSlope": 18
+    },
+    {
+      "id": "yard-dog",
+      "kind": "creature",
+      "builder": "dog",
+      "seed": 5911,
+      "at": [
+        3,
+        3
+      ],
+      "yaw": 2.4,
+      "roam": 2.6
+    },
+    {
+      "id": "hob",
+      "kind": "creature",
+      "person": "hob",
+      "traits": [
+        "farmhand"
+      ],
+      "builder": "figure",
+      "seed": 3303,
+      "at": [
+        -4,
+        4
+      ],
+      "yaw": -0.6,
+      "roam": 5
+    },
+    {
+      "id": "elder-1",
+      "kind": "prop",
+      "builder": "elder",
+      "seed": 4780,
+      "at": [
+        -24,
+        -18
+      ]
+    },
+    {
+      "id": "elder-2",
+      "kind": "prop",
+      "builder": "elder",
+      "seed": 4781,
+      "at": [
+        23,
+        18
+      ],
+      "yaw": 1.2
+    },
+    {
+      "id": "hazel-1",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4782,
+      "at": [
+        -24.5,
+        20
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "hazel-2",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4783,
+      "at": [
+        24,
+        -21
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "yard-oak",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4784,
+      "at": [
+        -2,
+        19
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "cowparsley",
+      "kind": "scatter",
+      "builder": "cowparsley",
+      "seed": 5051,
+      "count": 8,
+      "within": 24,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ]
+    },
+    {
+      "id": "nettles",
+      "kind": "scatter",
+      "builder": "nettle",
+      "seed": 5052,
+      "count": 7,
+      "within": 12,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ],
+      "from": [
+        -16,
+        4
+      ]
+    },
+    {
+      "id": "daisies",
+      "kind": "scatter",
+      "builder": "daisy",
+      "seed": 5053,
+      "count": 10,
+      "within": 9,
+      "maxSlope": 26,
+      "avoid": [
+        "yard-road",
+        "south-road"
+      ],
+      "from": [
+        4,
+        -20
+      ]
+    },
+    {
+      "id": "wildflowers",
+      "kind": "scatter",
+      "builder": "wildflower",
+      "seed": 5054,
+      "count": 6,
+      "within": 9,
+      "maxSlope": 26,
+      "avoid": [
+        "yard-road",
+        "south-road"
+      ],
+      "from": [
+        4,
+        -20
+      ]
+    },
+    {
+      "id": "grass-large",
+      "kind": "scatter",
+      "builder": "large-grass-clump",
+      "seed": 5055,
+      "count": 6,
+      "within": 26,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ]
+    },
+    {
+      "id": "grass-small",
+      "kind": "scatter",
+      "builder": "small-grass-clump",
+      "seed": 5056,
+      "count": 40,
+      "within": 26,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ]
+    },
+    {
+      "id": "bushes",
+      "kind": "scatter",
+      "builder": "bush",
+      "seed": 5057,
+      "count": 8,
+      "within": 26,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ]
+    },
+    {
+      "id": "rocks",
+      "kind": "scatter",
+      "builder": "rock",
+      "seed": 5058,
+      "count": 10,
+      "within": 26,
+      "maxSlope": 40,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ],
+      "scale": [
+        0.7,
+        1.3
+      ]
+    },
+    {
+      "id": "thistles",
+      "kind": "scatter",
+      "builder": "thistle",
+      "seed": 5059,
+      "count": 5,
+      "within": 24,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ]
+    },
+    {
+      "id": "mushrooms",
+      "kind": "scatter",
+      "builder": "mushroom",
+      "seed": 5060,
+      "count": 6,
+      "within": 20,
+      "maxSlope": 26,
+      "avoid": [
+        "keepClear",
+        "yard-road",
+        "south-road"
+      ]
+    },
+    {
+      "id": "wood-elder",
+      "kind": "sound",
+      "ref": "elder-1",
+      "lift": 3,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 220,
+          "tone": 0.9,
+          "gain": 0.32,
+          "articulation": 0.22
+        },
+        "refDistance": 3,
+        "maxDistance": 22,
+        "rolloff": 1.6,
+        "reverb": 0.3
+      }
+    },
+    {
+      "id": "wood-oak",
+      "kind": "sound",
+      "ref": "yard-oak",
+      "lift": 4,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 240,
+          "tone": 0.8,
+          "gain": 0.34,
+          "articulation": 0.2
+        },
+        "refDistance": 3,
+        "maxDistance": 24,
+        "rolloff": 1.6,
+        "reverb": 0.3
+      }
+    },
+    {
+      "id": "hedge",
+      "kind": "sound",
+      "at": [
+        0,
+        -24
+      ],
+      "lift": 1,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 150,
+          "tone": 1.5,
+          "gain": 0.24,
+          "articulation": 0.34
+        },
+        "refDistance": 1.4,
+        "maxDistance": 14,
+        "reverb": 0.22
+      }
+    },
+    {
+      "id": "bird-north",
+      "kind": "sound",
+      "at": [
+        -20,
+        6,
+        -30
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 2500,
+          "interval": 8,
+          "gain": 0.07,
+          "tone": 2700
+        },
+        "refDistance": 5,
+        "maxDistance": 46,
+        "rolloff": 1.3,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "bird-south",
+      "kind": "sound",
+      "at": [
+        22,
+        5.5,
+        30
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 3100,
+          "interval": 12,
+          "gain": 0.055,
+          "tone": 3000
+        },
+        "refDistance": 5,
+        "maxDistance": 44,
+        "rolloff": 1.35,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "gate",
+      "kind": "sound",
+      "at": [
+        26.9,
+        1.7,
+        0
+      ],
+      "spec": {
+        "model": "friction",
+        "options": {
+          "motion": "weather",
+          "speed": 0.22,
+          "force": 0.85,
+          "pitch": 150,
+          "decay": 1.1,
+          "bright": 0.2,
+          "roughness": 0.15,
+          "gain": 0.3
+        },
+        "refDistance": 3,
+        "maxDistance": 40,
+        "rolloff": 1.4,
+        "reverb": 0.5
+      }
+    },
+    {
+      "id": "hearth",
+      "kind": "sound",
+      "ref": "farmhouse",
+      "lift": 5.5,
+      "spec": {
+        "model": "fire",
+        "id": "hearth",
+        "options": {
+          "gain": 0.16,
+          "intensity": 0.5,
+          "tone": 1,
+          "crackle": 0.4,
+          "draught": 0.2
+        },
+        "refDistance": 2,
+        "maxDistance": 14,
+        "rolloff": 1.6,
+        "reverb": 0.3
+      }
+    },
+    {
+      "id": "barn-work",
+      "kind": "soundScatter",
+      "at": [
+        -9.5,
+        1,
+        -1.5
+      ],
+      "spec": {
+        "sound": "clatter",
+        "spread": [
+          1.5,
+          0.5,
+          3
+        ],
+        "every": 24,
+        "force": [
+          0.3,
+          0.8
+        ],
+        "options": {
+          "material": "wood",
+          "gain": 0.42,
+          "tone": 1
+        },
+        "refDistance": 2.5,
+        "maxDistance": 30,
+        "rolloff": 1.25,
+        "reverb": 0.35
+      }
+    },
+    {
+      "id": "sheep-calls",
+      "kind": "soundScatter",
+      "at": [
+        -16.5,
+        0.9,
+        12
+      ],
+      "spec": {
+        "id": "sheep",
+        "sound": "animal",
+        "spread": [
+          3.5,
+          0.2,
+          3.5
+        ],
+        "every": 27,
+        "force": [
+          0.4,
+          0.85
+        ],
+        "voices": 1,
+        "options": {
+          "kind": "sheep",
+          "gain": 0.42,
+          "tone": 1.06
+        },
+        "refDistance": 3.5,
+        "maxDistance": 40,
+        "rolloff": 1.2,
+        "reverb": 0.45
+      }
+    },
+    {
+      "id": "pig-calls",
+      "kind": "soundScatter",
+      "at": [
+        -20,
+        0.8,
+        14
+      ],
+      "spec": {
+        "id": "pigs",
+        "sound": "animal",
+        "spread": [
+          2,
+          0.2,
+          2
+        ],
+        "every": 38,
+        "force": [
+          0.4,
+          0.9
+        ],
+        "voices": 1,
+        "options": {
+          "kind": "pig",
+          "gain": 0.4,
+          "tone": 1
+        },
+        "refDistance": 3,
+        "maxDistance": 36,
+        "rolloff": 1.2,
+        "reverb": 0.45
+      }
+    },
+    {
+      "id": "fowl-calls",
+      "kind": "soundScatter",
+      "at": [
+        1,
+        0.7,
+        -6
+      ],
+      "spec": {
+        "sound": "animal",
+        "id": "fowl",
+        "spread": [
+          5,
+          0.15,
+          5
+        ],
+        "every": 16,
+        "force": [
+          0.3,
+          0.7
+        ],
+        "voices": 1,
+        "options": {
+          "kind": "fowl",
+          "gain": 0.3,
+          "tone": 1
+        },
+        "refDistance": 2.5,
+        "maxDistance": 26,
+        "rolloff": 1.35,
+        "reverb": 0.35
+      }
+    },
+    {
+      "id": "dog",
+      "kind": "soundScatter",
+      "ref": "yard-dog",
+      "lift": 0.4,
+      "spec": {
+        "sound": "animal",
+        "spread": [
+          2.2,
+          0.2,
+          2.2
+        ],
+        "every": 40,
+        "force": [
+          0.45,
+          1
+        ],
+        "voices": 1,
+        "options": {
+          "kind": "dog",
+          "gain": 0.5,
+          "tone": 0.94
+        },
+        "refDistance": 4,
+        "maxDistance": 50,
+        "rolloff": 1.15,
+        "reverb": 0.55
+      }
+    },
+    {
+      "id": "river",
+      "kind": "water",
+      "at": [
+        0,
+        -1.7,
+        54
+      ],
+      "width": 130,
+      "depth": 16,
+      "chop": 0.3,
+      "flow": [
+        0.5,
+        0.05
+      ],
+      "segment": 1.2
+    },
+    {
+      "id": "ring",
+      "kind": "vistaRing",
+      "seed": 9150,
+      "band": {
+        "inner": 14,
+        "outer": 70
+      },
+      "keepOut": {
+        "dilate": 99
+      },
+      "place": [
+        {
+          "builder": "vista-hamlet",
+          "at": [
+            92,
+            2
+          ],
+          "scale": 1.3,
+          "seed": 5621
+        },
+        {
+          "builder": "vista-castle",
+          "at": [
+            170,
+            -140
+          ],
+          "scale": 1.6,
+          "seed": 5622,
+          "apparent": 360
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            -28,
+            62
+          ],
+          "scale": 1.1,
+          "seed": 5623
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            30,
+            66
+          ],
+          "scale": 1.2,
+          "seed": 5624
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            -4,
+            80
+          ],
+          "scale": 1,
+          "seed": 5625
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -60,
+            200
+          ],
+          "scale": 1.5,
+          "seed": 5626,
+          "apparent": 320
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            20,
+            230
+          ],
+          "scale": 1.6,
+          "seed": 5627,
+          "apparent": 320
+        },
+        {
+          "builder": "vista-hill",
+          "at": [
+            -100,
+            -40
+          ],
+          "scale": 1.2,
+          "seed": 5628
+        },
+        {
+          "builder": "vista-field-wall",
+          "at": [
+            -80,
+            10
+          ],
+          "scale": 1.2,
+          "seed": 5629
+        },
+        {
+          "builder": "vista-field-wall",
+          "at": [
+            40,
+            -85
+          ],
+          "scale": 1.1,
+          "seed": 5630
+        }
+      ],
+      "scatter": [
+        {
+          "builder": "vista-copse",
+          "count": 4,
+          "band": {
+            "inner": 14,
+            "outer": 55
+          },
+          "scale": [
+            0.9,
+            1.3
+          ],
+          "spacing": 18
+        },
+        {
+          "builder": "vista-hill",
+          "count": 4,
+          "band": {
+            "inner": 30,
+            "outer": 70
+          },
+          "scale": [
+            0.8,
+            1.3
+          ],
+          "spacing": 28
+        },
+        {
+          "builder": "vista-field-wall",
+          "count": 3,
+          "band": {
+            "inner": 14,
+            "outer": 45
+          },
+          "scale": [
+            0.9,
+            1.3
+          ],
+          "spacing": 26
+        },
+        {
+          "builder": "vista-copse",
+          "count": 6,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            180,
+            230
+          ],
+          "scale": [
+            1.2,
+            1.7
+          ],
+          "spacing": 24
+        },
+        {
+          "builder": "vista-hill",
+          "count": 5,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            190,
+            250
+          ],
+          "scale": [
+            1.2,
+            1.7
+          ],
+          "spacing": 30
+        },
+        {
+          "builder": "vista-forest",
+          "count": 3,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            200,
+            260
+          ],
+          "scale": [
+            1.1,
+            1.6
+          ],
+          "spacing": 34
+        },
+        {
+          "builder": "vista-hill",
+          "count": 6,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            300,
+            380
+          ],
+          "scale": [
+            1.5,
+            2
+          ],
+          "spacing": 34
+        },
+        {
+          "builder": "vista-forest",
+          "count": 4,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            300,
+            380
+          ],
+          "scale": [
+            1.4,
+            1.9
+          ],
+          "spacing": 38
+        },
+        {
+          "builder": "vista-crag",
+          "count": 2,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            310,
+            390
+          ],
+          "scale": [
+            2,
+            2.5
+          ],
+          "spacing": 36
+        },
+        {
+          "builder": "vista-range",
+          "count": 3,
+          "band": {
+            "inner": 195,
+            "outer": 210
+          },
+          "apparent": [
+            420,
+            500
+          ],
+          "scale": [
+            0.85,
+            1.15
+          ],
+          "spacing": 70
+        }
+      ]
+    },
+    {
+      "id": "edge-dressing",
+      "kind": "dressing",
+      "seed": 6190,
+      "band": {
+        "inner": -37,
+        "outer": -16
+      },
+      "solidWithin": -34,
+      "kinds": [
+        {
+          "builder": "gorse",
+          "count": 3,
+          "band": {
+            "inner": -37,
+            "outer": -33
+          },
+          "clump": [
+            2,
+            3
+          ],
+          "huddle": 3.2,
+          "scale": [
+            0.9,
+            1.3
+          ]
+        },
+        {
+          "builder": "bramble",
+          "count": 3,
+          "band": {
+            "inner": -37,
+            "outer": -32
+          },
+          "clump": [
+            2,
+            3
+          ],
+          "huddle": 2.8,
+          "scale": [
+            0.9,
+            1.2
+          ]
+        },
+        {
+          "builder": "bush",
+          "count": 8,
+          "band": {
+            "inner": -35,
+            "outer": -17
+          },
+          "clump": [
+            3,
+            6
+          ],
+          "huddle": 3,
+          "scale": [
+            1,
+            1.7
+          ]
+        },
+        {
+          "builder": "reeds",
+          "count": 5,
+          "band": {
+            "inner": -36,
+            "outer": -17
+          },
+          "clump": [
+            3,
+            5
+          ],
+          "huddle": 2.4,
+          "scale": [
+            1,
+            1.4
+          ]
+        },
+        {
+          "builder": "rock",
+          "count": 6,
+          "band": {
+            "inner": -36,
+            "outer": -17
+          },
+          "clump": [
+            3,
+            5
+          ],
+          "huddle": 2.6,
+          "scale": [
+            1.2,
+            2.6
+          ]
+        }
+      ]
+    }
+  ]
+}

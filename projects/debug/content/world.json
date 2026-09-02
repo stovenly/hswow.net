@@ -144,6 +144,97 @@
       },
       "material": "timber",
       "seed": 8801
+    },
+    {
+      "id": "village-farm",
+      "a": {
+        "zone": "village",
+        "at": [
+          -22.2,
+          -2
+        ],
+        "yaw": 1.5707963,
+        "arrival": {
+          "at": [
+            -19,
+            -2
+          ],
+          "yaw": 1.5707963
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            2.2,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Farm Track"
+        }
+      },
+      "b": {
+        "zone": "farm",
+        "at": [
+          26,
+          0
+        ],
+        "yaw": -1.5707963,
+        "arrival": {
+          "at": [
+            23,
+            0
+          ],
+          "yaw": -1.5707963
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            2.2,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Farm Track"
+        }
+      }
+    },
+    {
+      "id": "farmhouse-door",
+      "a": {
+        "zone": "farm",
+        "doorOf": "farmhouse"
+      },
+      "b": {
+        "zone": "farmhouse",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8821
+    },
+    {
+      "id": "barn-door",
+      "a": {
+        "zone": "farm",
+        "doorOf": "barn"
+      },
+      "b": {
+        "zone": "barn",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8822
     }
   ]
 }
