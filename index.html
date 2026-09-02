@@ -30,8 +30,9 @@
       than built in script for the same reason — it has to exist before any
       script runs. `ui/Loader.ts` adopts these elements instead of creating its
       own, and `styles.css` restates these rules for the rest of the session.
-      The transitions are not here: at `--lit: 0` this is a black screen with a
-      horizon and a caption, which is the frame that wants to be up instantly.
+      The transitions are not here: at `--lit: 0` this is the sky at half
+      light with the stones already standing against it, which is the frame that
+      wants to be up instantly.
     -->
     <style>
       html,
@@ -60,20 +61,20 @@
         background: #0a0a0f;
         --lit: 0;
         --raised: 0;
-        --sky-0: #0a0a0f;
-        --sky-1: #101018;
-        --sky-2: #171620;
-        --sky-3: #221c23;
-        --sky-4: #332624;
-        --sky-5: #4b3428;
-        --land: #07070b;
-        --stone: #07070b;
-        --stone-edge: rgb(220 220 200 / 9%);
-        --stone-ghost: rgb(7 7 11 / 16%);
+        --sky-0: #12131c;
+        --sky-1: #191a24;
+        --sky-2: #23212d;
+        --sky-3: #302733;
+        --sky-4: #452f2c;
+        --sky-5: #5e4231;
+        --land: #06060a;
+        --stone: #050509;
+        --stone-edge: rgb(220 220 200 / 10%);
+        --stone-ghost: rgb(5 5 9 / 30%);
       }
       .sky {
         position: absolute;
-        inset: 0 0 42% 0;
+        inset: 0 0 34% 0;
       }
       .sky-bands,
       .sky-dither,
@@ -107,18 +108,18 @@
       }
       .sky-night {
         background: #0a0a0f;
-        opacity: calc(1 - var(--lit) * 0.88);
+        opacity: calc(0.5 - var(--lit) * 0.5);
       }
       .land {
         position: absolute;
-        inset: 58% 0 0 0;
+        inset: 66% 0 0 0;
         background: var(--land);
       }
       .raise {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: 42%;
+        bottom: 34%;
         display: grid;
         justify-items: center;
         font-size: clamp(1.5rem, 4.4vh, 3.2rem);
@@ -154,7 +155,7 @@
       .raise-ground {
         width: 100%;
         height: 1px;
-        background: rgb(220 220 200 / 16%);
+        background: rgb(220 220 200 / 26%);
       }
       .boot-caption {
         position: absolute;
