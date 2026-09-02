@@ -39,7 +39,7 @@ import type { Weather } from '../audio/weather';
 import { COLLISION_LAYER, HELD_LAYER, PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { VistaParallax } from './vista-parallax';
-import { Building } from '../ui/Building';
+import { loadingScreen } from '../ui/LoadingScreen';
 import type { Controller } from '../player/Controller';
 import type { PostFX } from '../engine/PostFX';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -242,9 +242,7 @@ export class ZoneManager {
   private readonly warmFinish = new Map<string, { done: boolean; wait: Promise<void> }>();
   /** Guards against a second `enter` arriving mid-transition. See `enter`. */
   private entering = 0;
-  private readonly building = new Building(document.body);
-  /** Whether the player has arrived anywhere yet. The first entry is silent, because boot already has a loading bar. */
-  private arrived = false;
+  private readonly loading = loadingScreen();
   /** Whether a frame has been drawn with a zone standing in the scene. See the prewarm in `enter`. */
   private drawn = false;
 
@@ -752,13 +750,13 @@ export class ZoneManager {
     const stale = (): boolean => token !== this.entering;
 
     const { scene, collider, player, postfx } = this.options;
-    const cold = !this.warmed.has(zone.id) && this.arrived;
+    const cold = !this.warmed.has(zone.id);
 
     if (cold) {
-      await this.building.show(`entering ${zone.name.toLowerCase()}`);
-      // Sweeping rather than sitting at a width: the step about to run is one
-      // synchronous `build()` that cannot report its own progress.
-      await this.building.step('raising the world');
+      await this.loading.show(`entering ${zone.name.toLowerCase()}`);
+      // Indeterminate: the step about to run is one synchronous `build()` that
+      // cannot report its own progress.
+      await this.loading.working('raising the world');
       if (stale()) return;
     }
 
@@ -772,7 +770,7 @@ export class ZoneManager {
     if (cold) {
       // Still indeterminate: neither the compile below nor the octree can say
       // how far through they are.
-      await this.building.step('settling the ground');
+      await this.loading.working('settling the ground');
       if (stale()) return;
     }
 
@@ -788,16 +786,16 @@ export class ZoneManager {
     // Compiled before anything is swapped. Every frame this yields still shows
     // the old zone with the player standing on its collider; compiling after the
     // swap put rendered frames between the collider changing and the teleport.
-    if (cold) await this.building.step('almost there', 0.96);
+    if (cold) await this.loading.working('almost there', 0.96);
     // Before the compile: it decides which variant the compile builds.
     setGlitchErode(this.glitch.erodes(zone.id));
-    // On the cold path the building screen is up and this line is unseen.
-    const slow = window.setTimeout(() => this.options.fade.note('compiling materials…'), 250);
+    // Only when it runs long: a compile that takes a frame is covered by the
+    // fade already, and a screen that appears for one frame is a flicker.
+    const slow = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
     try {
       await this.compile(root);
     } finally {
       window.clearTimeout(slow);
-      this.options.fade.note(null);
     }
     if (stale()) return;
     this.markWarm(zone.id, root);
@@ -862,12 +860,11 @@ export class ZoneManager {
     // Again, with the zone in the scene. The compile above ran the root against
     // a stand-in, and a parameter that differs between the two is one a mesh
     // compiles the first frame it is drawn — whenever the player turns to it.
-    const late = window.setTimeout(() => this.options.fade.note('compiling materials…'), 250);
+    const late = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
     try {
       await this.compile(root);
     } finally {
       window.clearTimeout(late);
-      this.options.fade.note(null);
     }
     if (stale()) return;
 
@@ -877,8 +874,7 @@ export class ZoneManager {
     this.seedVolumes(zone);
 
     this.onZoneChange?.(zone);
-    this.arrived = true;
-    this.building.hide();
+    this.loading.hide();
 
     // Last, and only once the arrival is complete: everything above holds live
     // references into both zones, so releasing earlier frees buffers still in hand.
@@ -1615,11 +1611,6 @@ export class ZoneManager {
   private doorArrival(id: ZoneId): Placement | undefined {
     const side = this.portals.in(id)[0];
     return side ? arrivalFor(side.end) : undefined;
-  }
-
-  /** Says no loading bar covers the next entry, so a cold one raises the building indicator like any other. */
-  announceEntries(): void {
-    this.arrived = true;
   }
 
   /** Puts the player back on the current zone's spawn. */

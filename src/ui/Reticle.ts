@@ -129,20 +129,11 @@ export class Reticle {
  */
 export class Fade {
   private readonly element: HTMLElement;
-  private readonly line: HTMLElement;
 
   constructor(parent: HTMLElement) {
     this.element = document.createElement('div');
     this.element.id = 'fade';
-    this.line = document.createElement('div');
-    this.line.className = 'fade-note';
-    this.element.appendChild(this.line);
     parent.appendChild(this.element);
-  }
-
-  /** A line shown only at full black — what the wait under the cover is. Null clears it. */
-  note(text: string | null): void {
-    this.line.textContent = text ?? '';
   }
 
   /**
@@ -159,7 +150,6 @@ export class Fade {
     this.element.classList.add('is-black');
     await wait(FADE_TIME);
     await during();
-    this.note(null);
     // `hold` is how long the cover lasts *in total*, counted from the moment it
     // started: a caller holding the black over a sound wants that sound covered,
     // not that many seconds added to however long the rebuild took.

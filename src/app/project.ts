@@ -1,7 +1,7 @@
 import type GUI from 'lil-gui';
 import type { ZoneDefinition, ZoneGroup, ZoneId } from '../world/Zone';
 import type { PortalDefinition } from '../world/Portal';
-import type { Loader } from '../ui/Loader';
+import type { LoadingScreen } from '../ui/LoadingScreen';
 import type { App } from './boot';
 
 /**
@@ -33,7 +33,7 @@ export interface ProjectCode {
    * and the portals between them. Built inside loader steps, since a project's
    * fixtures can be as expensive as its content.
    */
-  world?(loader: Loader): Promise<ProjectWorld> | ProjectWorld;
+  world?(loader: LoadingScreen): Promise<ProjectWorld> | ProjectWorld;
   /** Built behind the loading screen, before the first frame. */
   prebuild?: readonly ZoneId[];
   /** Shader-compiled in the background once the loop is running. */
@@ -56,7 +56,10 @@ export type Project = ProjectConfig & ProjectCode;
 const EMPTY: ProjectWorld = { zones: [], portals: [] };
 
 /** The world a project declares, code and documents together. */
-export async function projectWorld(project: Project, loader: Loader): Promise<ProjectWorld> {
+export async function projectWorld(
+  project: Project,
+  loader: LoadingScreen,
+): Promise<ProjectWorld> {
   if (!project.world) return { zones: [...EMPTY.zones], portals: [...EMPTY.portals] };
   return project.world(loader);
 }

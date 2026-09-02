@@ -5,6 +5,7 @@ import { loadProject } from './app/loadProject';
 import { Title } from './ui/Title';
 import { QuitToTitle } from './ui/QuitToTitle';
 import { applyTextSize, loadOptions } from './ui/options';
+import { loadingScreen } from './ui/LoadingScreen';
 
 const canvas = document.getElementById('viewport');
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -24,6 +25,9 @@ applyTextSize(loadOptions());
 let title: Title | null = null;
 
 const showTitle = (): void => {
+  // Boot carries on behind the title, and a readout of it is not a reason to
+  // cover the thing the player is meant to be clicking on.
+  loadingScreen().hide();
   title = new Title(overlay, project.title, {
     newGame: async () => {
       const { app } = await ready;

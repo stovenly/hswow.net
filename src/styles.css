@@ -819,22 +819,45 @@ body.is-touch #perf {
   text-align: right;
 }
 
-/* --- boot ---------------------------------------------------------------- */
+/* --- the loading screen -------------------------------------------------- */
 
-/* Above everything, including the zone fade — this is the first thing drawn and
-   nothing should ever be composited over it. */
+/* One screen, for everything that makes you wait: boot, a new game raising the
+   world, a doorway into a zone never built, and a compile that runs long.
+   Above everything, including the zone fade, because it is what the player is
+   waiting on and nothing should ever be composited over it. */
 #loading {
   position: fixed;
   inset: 0;
   z-index: 40;
   background: var(--void);
-  transition: opacity 350ms linear;
+  transition: opacity 250ms linear;
+
   --lit: 0;
+  --raised: 0;
+  --sky-0: #12131c;
+  --sky-1: #191a24;
+  --sky-2: #23212d;
+  --sky-3: #302733;
+  --sky-4: #452f2c;
+  --sky-5: #5e4231;
+  --land: #06060a;
+  /* The stones are a silhouette against the sky, so they take the land's colour
+     and the sun behind them catches one edge. */
+  --stone: #050509;
+  --stone-edge: rgb(220 220 200 / 10%);
+  --stone-ghost: rgb(5 5 9 / 30%);
 }
 
+/* Visibility as well as opacity, on a delay the length of the fade: at zero
+   opacity alone the screen is still a composited layer over the world for the
+   rest of the session. */
 #loading.is-gone {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    opacity 250ms linear,
+    visibility 0s linear 250ms;
 }
 
 /* The sky, in the same terms the renderer states everything else in: six flat
@@ -845,16 +868,6 @@ body.is-touch #perf {
    In the middle of a band both layers agree and the result is flat; at a step
    they disagree, and half the pixels take the level above — which is an ordered
    dither of two levels, made out of nothing but gradients. */
-#loading {
-  --sky-0: #12131c;
-  --sky-1: #191a24;
-  --sky-2: #23212d;
-  --sky-3: #302733;
-  --sky-4: #452f2c;
-  --sky-5: #5e4231;
-  --land: #06060a;
-}
-
 .sky {
   position: absolute;
   inset: 0 0 34% 0;
@@ -893,6 +906,13 @@ body.is-touch #perf {
   mask-size: 6px 6px;
 }
 
+/* A fresh wait starts at the bottom of the stone, and that reset is not
+   something to watch happen. */
+#loading.is-settling .sky-night,
+#loading.is-settling .raise-course::after {
+  transition: none;
+}
+
 /* Night over the whole sky, lifting as the sequence advances. Half of it at
    most: the sky has to be there from the first frame, because the stones are a
    silhouette and a silhouette against a sky that has not arrived is a black
@@ -912,55 +932,28 @@ body.is-touch #perf {
 
 /* The readout: a stone going up, a course for each step of a sequence whose
    length is known before it starts. `--raised` is written once per step,
-   between steps — a load step blocks the main thread completely, so nothing
-   here may be driven from script while one is running. */
-#loading,
-#building {
-  --raised: 0;
-  --stone: var(--ink);
-  --stone-edge: #9a958a;
-  --stone-ghost: rgb(220 220 200 / 8%);
-}
+   between steps — a step blocks the main thread completely, so nothing here may
+   be driven from script while one is running.
 
-/* On the boot screen the stones are a silhouette against the sky rather than a
-   thing drawn on black, so they take the land's colour and the sun behind them
-   catches one edge. */
-#loading {
-  --stone: #050509;
-  --stone-edge: rgb(220 220 200 / 10%);
-  --stone-ghost: rgb(5 5 9 / 30%);
-}
-
+   Standing on the horizon and reaching the width of the screen, and sized off
+   the window's height, because the stones stand on a horizon that is a fraction
+   of it: a fixed size reads as a widget on a big screen and fills a small one. */
 .raise {
-  display: grid;
-  justify-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-}
-
-/* Standing on the horizon and reaching the width of the screen: the ground rule
-   is the horizon here, not a rule under a widget. */
-#loading .raise {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 34%;
-  gap: 0;
-  /* Tied to the window's height, because the stones stand on a horizon that is
-     a fraction of it: a fixed size reads as a widget on a big screen and fills
-     a small one. */
+  display: grid;
+  justify-items: center;
   font-size: clamp(1.5rem, 4.4vh, 3.2rem);
 }
 
 .raise-field {
   display: flex;
+  width: 100%;
   align-items: flex-end;
   justify-content: center;
   gap: 0.55em;
-}
-
-#loading .raise-field {
-  width: 100%;
 }
 
 .raise-pile {
@@ -1016,14 +1009,10 @@ body.is-touch #perf {
   }
 }
 
+/* The horizon. */
 .raise-ground {
-  width: 10.5rem;
-  height: 1px;
-  background: rgb(220 220 200 / 22%);
-}
-
-#loading .raise-ground {
   width: 100%;
+  height: 1px;
   background: rgb(220 220 200 / 26%);
 }
 
@@ -1060,34 +1049,6 @@ body.is-touch #perf {
    instant it clears, before the player has seen anything of the world. */
 body.is-loading #capture-hint {
   opacity: 0;
-}
-
-/* --- zone transitions ----------------------------------------------------- */
-
-/* The same stone, the same size, the same place on screen as the boot screen
-   above — a doorway that takes a moment should look like this game loading and
-   not like a second piece of UI from a different game. It reuses the `.raise-*`
-   rules wholesale; all that is different is where the box sits and that it
-   fades rather than being removed.
-
-   No backdrop of its own. This only ever appears inside a transition that has
-   already faded to black, so a panel behind it would be a darker rectangle on
-   black. Under `#loading`, so the two can never fight during boot. */
-#building {
-  position: fixed;
-  inset: 0;
-  z-index: 39;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 1.1rem;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 140ms linear;
-}
-
-#building.is-shown {
-  opacity: 1;
 }
 
 /* --- interaction prompt -------------------------------------------------- */
@@ -1366,24 +1327,6 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 }
 
 #fade.is-black {
-  opacity: 1;
-}
-
-/* What the wait under the cover is. Only readable at full black. */
-#fade .fade-note {
-  position: absolute;
-  bottom: 22%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.68rem;
-  letter-spacing: 0.22em;
-  text-transform: lowercase;
-  color: rgb(220 220 200 / 55%);
-  opacity: 0;
-  transition: opacity 160ms linear;
-}
-
-#fade.is-black .fade-note {
   opacity: 1;
 }
 
@@ -1741,12 +1684,6 @@ body.is-touch #pause {
 .title-button:focus-visible {
   outline: 1px solid var(--ink);
   outline-offset: 2px;
-}
-
-/* The title owns the screen, and carries half these buttons itself. */
-/* Boot runs behind the title; the bar covers only the window before it. */
-body.is-title #loading {
-  display: none;
 }
 
 /* The quit confirm: the slot picker's panel, two answers and the warning. */

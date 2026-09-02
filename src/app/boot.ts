@@ -29,7 +29,7 @@ import { updateCover } from '../art/cover';
 import { updateParticles } from '../art/particles';
 import { installReloadBanner } from '../dev/HotReload';
 import { watchCompiles } from '../dev/compileWatch';
-import { Loader } from '../ui/Loader';
+import { loadingScreen } from '../ui/LoadingScreen';
 import {
   audioLatencyHint,
   installOptions,
@@ -133,7 +133,7 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
   // None of this is a download — every triangle and every sample is generated
   // here — so there is no network progress to report, but there is easily a
   // second of work, and a second of blank page looks like a fault.
-  const loader = new Loader(document.body);
+  const loader = loadingScreen();
 
 
   // --- zones ------------------------------------------------------------------
@@ -185,9 +185,6 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     await loader.step('settling the world', 0.55, () => zones.prebuild(project.entry));
     // The entry of a built zone is its compile, so the wait carries its name.
     await loader.step('compiling materials', 0.7, () => zones.enter(project.entry));
-  } else {
-    // Nothing covers the first entry here; the title hands straight to a fade.
-    zones.announceEntries();
   }
 
   // Built now rather than on first entry, so a doorway into it is instant. Only
