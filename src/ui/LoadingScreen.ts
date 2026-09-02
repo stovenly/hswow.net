@@ -6,7 +6,7 @@
  * them ends up looking like a different game.
  *
  * A dithered sky with the sun and the moon turning on one wheel about the
- * middle of the horizon, and the horizon itself as the bar. `--lit` is how far
+ * middle of the horizon, over a bar beside the caption. `--lit` is how far
  * through the sequence everything is, 0..1, and it is the only thing this
  * writes. **The sky is not progress and never pretends to be** — it runs on its
  * own clock, which is what says the game has not hung, and it is left alone
@@ -63,9 +63,9 @@ export class LoadingScreen {
       return;
     }
     this.shown = true;
-    // The bar goes back to the start with its transitions off, or it slides
-    // backwards across the whole horizon as the screen arrives. The sky is on
-    // its own clock and is not reset at all.
+    // The bar goes back to the start with its transitions off, or it runs
+    // backwards as the screen arrives. The sky is on its own clock and is not
+    // reset at all.
     this.root.classList.add('is-settling');
     this.set(FIRST);
     this.root.classList.remove('is-gone');
@@ -186,8 +186,6 @@ function build(): HTMLElement {
 
   const horizon = div('horizon');
   horizon.setAttribute('aria-hidden', 'true');
-  div('horizon-fill', horizon);
-  div('horizon-cap', horizon);
 
   const land = div('land');
   land.setAttribute('aria-hidden', 'true');
@@ -196,6 +194,7 @@ function build(): HTMLElement {
   // wants one carries the markup itself.
   const caption = div('boot-caption');
   caption.append(labelEl());
+  div('bar-fill', div('bar', caption));
 
   root.append(sky, horizon, land, caption);
   return root;

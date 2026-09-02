@@ -215,24 +215,8 @@
         left: 0;
         right: 0;
         top: 68%;
-        height: 2px;
-        background: rgb(220 220 200 / 13%);
-      }
-      .horizon-fill {
-        position: absolute;
-        inset: 0;
-        background: rgb(220 220 200 / 62%);
-        transform-origin: left center;
-        transform: scaleX(var(--lit));
-      }
-      .horizon-cap {
-        position: absolute;
-        left: 0;
-        top: -3px;
-        width: 3px;
-        height: 8px;
-        background: #dcdcc8;
-        transform: translateX(calc(var(--lit) * (100vw - 3px)));
+        height: 1px;
+        background: rgb(220 220 200 / 22%);
       }
       .land {
         position: absolute;
@@ -258,6 +242,20 @@
         letter-spacing: 0.22em;
         text-transform: lowercase;
         color: rgb(220 220 200 / 48%);
+      }
+      .bar {
+        position: relative;
+        width: clamp(9rem, 22vw, 14rem);
+        height: 0.45rem;
+        background: rgb(220 220 200 / 14%);
+        mask-image: repeating-linear-gradient(to right, #000 0 0.3rem, transparent 0.3rem 0.46rem);
+      }
+      .bar-fill {
+        position: absolute;
+        inset: 0;
+        background: #dcdcc8;
+        transform-origin: left center;
+        transform: scaleX(var(--lit));
       }
     </style>
   </head>
@@ -332,14 +330,12 @@
           <div class="orb is-moon"></div>
         </div>
       </div>
-      <div class="horizon" aria-hidden="true">
-        <div class="horizon-fill"></div>
-        <div class="horizon-cap"></div>
-      </div>
+      <div class="horizon" aria-hidden="true"></div>
       <div class="land" aria-hidden="true"></div>
       <div class="boot-caption">
         <div class="boot-title">here stands what once was</div>
         <div class="loading-label">starting</div>
+        <div class="bar"><div class="bar-fill"></div></div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

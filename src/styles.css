@@ -855,8 +855,7 @@ body.is-touch #perf {
 /* A fresh wait starts the bar back at the beginning, and that reset is not
    something to watch happen. The sky is on its own clock and is not reset at
    all — it carries on from wherever the last wait left it. */
-#loading.is-settling .horizon-fill,
-#loading.is-settling .horizon-cap {
+#loading.is-settling .bar-fill {
   transition: none;
 }
 
@@ -1055,38 +1054,13 @@ body.is-touch #perf {
   }
 }
 
-/* **The horizon is the bar.** A rule across the world it is standing in, filling
-   from the left, with a mark riding the leading edge so the position reads while
-   it is still. Scaled and translated rather than resized — the browser hands
-   both to the compositor, and a step that blocks the main thread cannot freeze
-   them mid-glide. */
 .horizon {
   position: absolute;
   left: 0;
   right: 0;
   top: 68%;
-  height: 2px;
-  background: rgb(220 220 200 / 13%);
-}
-
-.horizon-fill {
-  position: absolute;
-  inset: 0;
-  background: rgb(220 220 200 / 62%);
-  transform-origin: left center;
-  transform: scaleX(var(--lit));
-  transition: transform 260ms ease-out;
-}
-
-.horizon-cap {
-  position: absolute;
-  left: 0;
-  top: -3px;
-  width: 3px;
-  height: 8px;
-  background: var(--ink);
-  transform: translateX(calc(var(--lit) * (100vw - 3px)));
-  transition: transform 260ms ease-out;
+  height: 1px;
+  background: rgb(220 220 200 / 22%);
 }
 
 .land {
@@ -1120,8 +1094,32 @@ body.is-touch #perf {
   color: rgb(220 220 200 / 48%);
 }
 
-#loading.is-failed .horizon-cap,
-#loading.is-failed .horizon-fill {
+
+/* Quantized, because everything the renderer draws is: a mask of hard cells over
+   the track and the fill together, so what advances is blocks and not a rule
+   sliding. It lives with the caption and stays about a hand's width — a bar the
+   width of the screen throws its leading edge hundreds of pixels on every step,
+   and progress arrives in jumps. Scaled rather than resized, so the browser
+   hands it to the compositor and a blocked main thread cannot freeze it
+   mid-glide. */
+.bar {
+  position: relative;
+  width: clamp(9rem, 22vw, 14rem);
+  height: 0.45rem;
+  background: rgb(220 220 200 / 14%);
+  mask-image: repeating-linear-gradient(to right, #000 0 0.3rem, transparent 0.3rem 0.46rem);
+}
+
+.bar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform-origin: left center;
+  transform: scaleX(var(--lit));
+  transition: transform 260ms ease-out;
+}
+
+#loading.is-failed .bar-fill {
   background: #9a4a3a;
 }
 
