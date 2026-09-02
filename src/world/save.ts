@@ -153,10 +153,41 @@ export function readSave(slot: number): SaveData | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as SaveData;
     if (data.version !== 1) return null;
-    return data;
+    return renamed(data);
   } catch {
     return null;
   }
+}
+
+/** Zone ids a save may still carry, and what they are called now. Portal ids dropped the same prefix. */
+const RENAMED_ZONES: Record<string, string> = {
+  'countryside-village': 'village',
+  'countryside-cottage': 'cottage',
+  'countryside-workshop': 'workshop',
+  'countryside-store': 'store',
+  'countryside-cellar': 'cellar',
+};
+
+function renamed(data: SaveData): SaveData {
+  const zone = (id: string): string => RENAMED_ZONES[id] ?? id;
+  const key = (value: string): string => {
+    const colon = value.indexOf(':');
+    return colon < 0 ? value : zone(value.slice(0, colon)) + value.slice(colon);
+  };
+  const portal = (id: string): string => (id in RENAMED_ZONES ? id : id.replace(/^countryside-/, ''));
+  return {
+    ...data,
+    zone: zone(data.zone),
+    delta: {
+      removed: data.delta.removed.map(key),
+      placed: data.delta.placed.map((record) => ({ ...record, zone: zone(record.zone) })),
+      containers: data.delta.containers.map(([name, items]) => [key(name), items]),
+    },
+    chart: data.chart && {
+      seen: Object.fromEntries(Object.entries(data.chart.seen).map(([id, raster]) => [zone(id), raster])),
+      found: data.chart.found.map(portal),
+    },
+  };
 }
 
 /** One entry per slot, in slot order; null where nothing is saved. */
