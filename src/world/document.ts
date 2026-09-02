@@ -7,7 +7,6 @@ import { FLAT_SIZE, flatGround, type FlatGroundOptions } from './floor';
 import { Terrain, type TerrainOptions, type TerrainRasters } from './terrain';
 import { heightRaster, indexRaster } from './raster';
 import { Skirt, type SkirtOptions } from './vista';
-import type { PatchShape } from './ground';
 import {
   DOOR_PROUD,
   type EndPrompt,
@@ -40,6 +39,7 @@ import {
   type EntryContext,
   type PropEntry,
   type ShellSpec,
+  type TrackEntry,
   type WorldState,
   type Yaw,
 } from './entry';
@@ -48,6 +48,8 @@ import { dropWarm, useWarm, warmDocument, takeWarm, TERRAIN_ASK, SKIRT_ASK } fro
 import { finishCaptured } from '../art/dress';
 import { markVista } from '../art/vista';
 import { hashString } from './loot';
+import { TRACK_GROUND } from './track';
+import type { CoverPatch, GroundPatch, PatchShape } from './ground';
 
 /**
  * The interpreter. A zone document in, a `ZoneDefinition` out.
@@ -259,7 +261,9 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
   delete (environment as { base?: string }).base;
 
   const fingerprint = fingerprintOf(doc);
-  const terrain = doc.terrain ? new Terrain(terrainOptions(doc.terrain)) : null;
+  const tracks = tracksOf(doc);
+  const regions = { ...(doc.regions ?? {}), ...trackRegions(tracks) };
+  const terrain = doc.terrain ? new Terrain(terrainOptions(doc.terrain, tracks)) : null;
   const skirt = terrain && doc.skirt ? new Skirt({ ...doc.skirt, terrain }) : null;
   const shell = doc.shell ?? null;
   const groundAt = (x: number, z: number): number => (terrain ? terrain.heightAt(x, z) : 0);
@@ -349,7 +353,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       shell,
       groundAt,
       slopeAt: (x, z) => (terrain ? terrain.slopeAt(x, z) : 0),
-      regions: doc.regions ?? {},
+      regions,
       traits: doc.traits ?? [],
       outline: outlineOf(doc),
       resolve: (id) => byId.get(id),
@@ -425,7 +429,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     floor: doc.floor,
     surfaceAt: terrain ? (x, z) => terrain.stepAt(x, z) : undefined,
     groundAt: terrain ? (x, z) => terrain.heightAt(x, z) : undefined,
-    regions: doc.regions,
+    regions,
     plan: planOf(doc),
     get fogVolumes() {
       return collected.fogVolumes;
@@ -462,7 +466,21 @@ function stripUndefined<T extends object>(value: T): Partial<T> {
   return out as Partial<T>;
 }
 
-function terrainOptions(spec: TerrainSpec): TerrainOptions {
+/**
+ * A track declares its ground once: the terrain is painted its surface at its
+ * width and grows nothing there, with a band of tussock outside a verge.
+ */
+function terrainOptions(spec: TerrainSpec, tracks: readonly TrackEntry[]): TerrainOptions {
+  const patches: GroundPatch[] = [...(spec.patches ?? [])];
+  const verges: CoverPatch[] = [];
+  const bare: CoverPatch[] = [];
+  for (const track of tracks) {
+    const shape = { kind: 'path', through: track.through, width: track.width } as const;
+    patches.push({ ...shape, material: TRACK_GROUND[track.surface] });
+    if (track.edge === 'verge') verges.push({ ...shape, width: track.width + 2, cover: 'tussock', edge: 'feather' });
+    bare.push({ ...shape, cover: 'none', edge: 'hard' });
+  }
+  const grown: CoverPatch[] = [...(spec.cover ?? []), ...verges, ...bare];
   const rasters: TerrainRasters = {};
   const sculpt = spec.sculpt && sidecars.get(spec.sculpt.file);
   if (spec.sculpt && sculpt) {
@@ -476,7 +494,7 @@ function terrainOptions(spec: TerrainSpec): TerrainOptions {
   if (spec.coverPaint && cover) {
     rasters.cover = indexRaster(cover, spec.size, spec.coverPaint.resolution ?? spec.resolution);
   }
-  return { ...spec, landforms: spec.landforms ?? [], rasters };
+  return { ...spec, landforms: spec.landforms ?? [], patches, cover: grown, rasters };
 }
 
 /**
@@ -627,6 +645,23 @@ function doorwayAnchor(zone: string, entryId: string): { position: THREE.Vector3
     position: new THREE.Vector3(x, registered.groundAt(x, z), z),
     yaw: yaw + way.yaw,
   };
+}
+
+function tracksOf(doc: ZoneDocument): TrackEntry[] {
+  const out: TrackEntry[] = [];
+  for (const layer of layersOf(doc)) {
+    for (const entry of layer.entries) if (entry.kind === 'track') out.push(entry as TrackEntry);
+  }
+  return out;
+}
+
+/** Each track's strip as a region under its id, so a scatter can keep off it by name. */
+function trackRegions(tracks: readonly TrackEntry[]): Record<string, readonly PatchShape[]> {
+  const out: Record<string, readonly PatchShape[]> = {};
+  for (const track of tracks) {
+    if (track.id) out[track.id] = [{ kind: 'path', through: track.through, width: track.width }];
+  }
+  return out;
 }
 
 function findEntry(doc: ZoneDocument, id: string): Entry | undefined {

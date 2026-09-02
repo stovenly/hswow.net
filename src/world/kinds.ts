@@ -12,6 +12,7 @@ import { markLabelled, markReadable } from './Interaction';
 import { markGlitched } from '../art/glitch';
 import { markHaunted } from '../art/horror';
 import { waterPlane } from '../art/water';
+import { buildTrack, TRACK_SURFACES } from './track';
 import { createParticles, type ParticleSpec } from '../art/particles';
 import { createRng } from '../art/random';
 import { fence, FENCE_MAX_SECTIONS, FENCE_SECTION } from '../art/builders/fence';
@@ -71,6 +72,7 @@ import {
   type ChainRun,
   type ScatterEntry,
   type SoundEntry,
+  type TrackEntry,
   type SoundScatterEntry,
   type VistaRingEntry,
   type WaterEntry,
@@ -721,6 +723,32 @@ registerEntryKind<WaterEntry>({
           : chop,
       flow: entry.flow ? new THREE.Vector2(entry.flow[0], entry.flow[1]) : undefined,
       segment: entry.segment,
+    });
+  },
+});
+
+// --- track ------------------------------------------------------------------
+
+registerEntryKind<TrackEntry>({
+  kind: 'track',
+  schema: {
+    width: { type: 'number', min: 0.6, max: 12, step: 0.1 },
+    surface: { type: 'choice', options: () => [...TRACK_SURFACES] },
+    edge: { type: 'choice', options: ['none', 'kerb', 'verge'] },
+    wear: { type: 'number', min: 0, max: 1, step: 0.05 },
+  },
+  defaults: () => ({ through: [[0, 0], [8, 0]], width: 2.4, surface: 'dirt', edge: 'verge', wear: 0.5 }),
+  build(entry, ctx) {
+    const beside = GROUND[ctx.terrain?.baseMaterial ?? 'turf'].color;
+    return buildTrack({
+      through: entry.through,
+      width: entry.width,
+      surface: entry.surface,
+      edge: entry.edge,
+      wear: entry.wear,
+      seed: seedOf(entry),
+      groundAt: ctx.groundAt,
+      beside,
     });
   },
 });

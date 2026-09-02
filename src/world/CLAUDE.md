@@ -167,6 +167,13 @@ that subject by whoever is asking; asked without one, it is false.
   several rooms joined where they touch: every wall is built as panels that tile
   it exactly with the openings taken out, so the shell is watertight by
   construction rather than by care.
+- **`track.ts`** — a path's surface as geometry, draped on the ground along a
+  polyline: setts, slabs, gravel, a rutted dirt strip or a boardwalk, with an
+  unseen level bed over the surfaces made of pieces. A `track` entry declares
+  its ground once — `document.ts` paints the terrain its surface under the
+  strip and grows nothing there, and names the strip as a region under the
+  track's id — so the polyline lives in the track and nowhere else. Editing a
+  track's line therefore repaints the terrain only on a full rebuild.
 - **`raster.ts`** — the sculpted layer over a heightfield. Shapes for what is
   deliberate, rasters for what is brushed, and the two compose.
 - **`vista*.ts`** — everything past the boundary, in three bands: ordinary props

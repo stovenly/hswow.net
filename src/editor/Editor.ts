@@ -421,6 +421,7 @@ export class Editor {
         if (!entry) return;
         if (shape.kind === 'polyline') {
           if (entry.kind === 'run') entry.points = shape.points;
+          else if (entry.kind === 'track') entry.through = shape.points;
           else if (entry.kind === 'chain') {
             entry.start = shape.points[0];
             entry.edges = shape.points.slice(1).map((to) => ({ to, kind: 'fence' }));
@@ -937,12 +938,21 @@ export class Editor {
     this.chrome.say(`deleted ${id} — reload to clear it from the world`);
   }
 
-  /** A selected run or chain gets a draggable handle on each of its points. */
+  /** A selected run, chain or track gets a draggable handle on each of its points. */
   private showHandles(tag: { zone: string; id: string } | null): void {
     const entry = tag ? this.session.entry(tag.zone, tag.id) : undefined;
     const record = entry as unknown as Record<string, unknown> | undefined;
     if (!tag || !record) {
       this.shapes.edit(null);
+      return;
+    }
+    if (record.kind === 'track' && Array.isArray(record.through)) {
+      this.shapes.edit(record.through as [number, number][], (points) => {
+        this.session.commit(tag.zone, 'zone', (doc) => {
+          const held = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
+          if (held) held.through = points;
+        });
+      });
       return;
     }
     if (record.kind === 'run' && Array.isArray(record.points)) {

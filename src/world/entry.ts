@@ -329,6 +329,17 @@ export interface GroundEntry extends EntryBase {
   underfoot?: SurfaceName;
 }
 
+export interface TrackEntry extends EntryBase {
+  kind: 'track';
+  through: readonly Point[];
+  width: number;
+  surface: 'cobble' | 'flagstone' | 'gravel' | 'dirt' | 'boards';
+  edge?: 'kerb' | 'verge' | 'none';
+  /** 0..1 */
+  wear?: number;
+  seed?: number;
+}
+
 export interface WaterEntry extends EntryBase {
   kind: 'water';
   width: number;
@@ -410,6 +421,7 @@ export type Entry =
   | PrefabEntry
   | GroundEntry
   | WaterEntry
+  | TrackEntry
   | ParticlesEntry
   | FogVolumeEntry
   | EffectVolumeEntry
