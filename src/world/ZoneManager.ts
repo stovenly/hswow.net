@@ -187,13 +187,11 @@ const SPOT_TIERS = [0, 2] as const;
 const PROBE_INTERVAL = 1 / 18;
 
 /**
- * Footfalls heard leaving through something with nothing to open: four out
- * through a gate at the end of a road, two down a ladder or a hatch. Seconds
- * between them, and the tail of the last one, so the black can be held for
- * exactly as long as they take.
+ * Footfalls heard leaving through something with nothing to open — a gap in a
+ * wall at the end of a road. Seconds between them, and the tail of the last
+ * one, so the black can be held for exactly as long as they take.
  */
 const WALK_AWAY_STEPS = 4;
-const CLIMB_STEPS = 2;
 const WALK_AWAY_SPACING = 0.34;
 const WALK_AWAY_TAIL = 0.35;
 
@@ -848,6 +846,10 @@ export class ZoneManager {
     // right if the ground happens to be level there.
     const placement = zone.settle(at ?? zone.spawn);
     player.teleport(placement.position, placement.yaw);
+    // Level, not just turned. An arrival states which way you are looking, and
+    // dropping into a cellar still staring at the hatch you came through is not
+    // a direction anybody chose.
+    player.aim(placement.yaw, 0);
 
     // `compile` above covers surface materials only, and a pass compiles what it
     // draws. `teleport` moves the capsule; only an update places the camera.
@@ -1501,12 +1503,13 @@ export class ZoneManager {
     this.transitioning = true;
     this.options.reticle.set(null);
 
-    // A door swings. A hatch, a ladder and a gap in a wall do not, so what is
-    // heard leaving through one is the player's own feet going away.
+    // A hatch has a leaf and hinges and a ladder is timber underfoot, so both
+    // are heard the way a door is. A gap in a wall has nothing to open, and
+    // what you hear leaving through one is your own feet going away.
     const leaf = isDoorEnd(side) ? (side.node as THREE.Mesh | null) : null;
-    const steps = leaf ? 0 : side.end.use === 'volume' ? WALK_AWAY_STEPS : CLIMB_STEPS;
-    if (leaf) this.doorAudio?.play(doorMetrics(leaf).material);
-    else this.audio?.footsteps?.walkAway(steps, WALK_AWAY_SPACING);
+    const steps = side.end.use === 'volume' ? WALK_AWAY_STEPS : 0;
+    if (steps) this.audio?.footsteps?.walkAway(steps, WALK_AWAY_SPACING);
+    else this.doorAudio?.play(leaf ? doorMetrics(leaf).material : 'timber');
 
     // Same zone: the fade and the teleport, without the entry. Re-entering the
     // zone you are standing in would rebuild its audio, its targets and its
@@ -1516,6 +1519,7 @@ export class ZoneManager {
       if (hop) {
         const landing = hop.settle(side.arrival);
         this.options.player.teleport(landing.position, landing.yaw);
+        this.options.player.aim(landing.yaw, 0);
       } else {
         await this.enter(side.target.zone, side.arrival);
       }

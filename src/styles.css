@@ -829,23 +829,21 @@ body.is-touch #perf {
   position: fixed;
   inset: 0;
   z-index: 40;
+  overflow: hidden;
   background: var(--void);
   transition: opacity 250ms linear;
 
   --lit: 0;
-  --raised: 0;
   --sky-0: #12131c;
   --sky-1: #191a24;
   --sky-2: #23212d;
   --sky-3: #302733;
   --sky-4: #452f2c;
   --sky-5: #5e4231;
-  --land: #06060a;
-  /* The stones are a silhouette against the sky, so they take the land's colour
-     and the sun behind them catches one edge. */
-  --stone: #050509;
-  --stone-edge: rgb(220 220 200 / 10%);
-  --stone-ghost: rgb(5 5 9 / 30%);
+  --land: #08080c;
+  --road: #191410;
+  --rut: #0e0b09;
+  --post: #030306;
 }
 
 /* Visibility as well as opacity, on a delay the length of the fade: at zero
@@ -860,6 +858,13 @@ body.is-touch #perf {
     visibility 0s linear 250ms;
 }
 
+/* A fresh wait starts back at the beginning, and that reset is not something to
+   watch happen. */
+#loading.is-settling .sky-night,
+#loading.is-settling .bar-fill {
+  transition: none;
+}
+
 /* The sky, in the same terms the renderer states everything else in: six flat
    levels rather than a smooth ramp, with the steps between them dithered at the
    three-pixel block the whole game is quantized to.
@@ -870,7 +875,7 @@ body.is-touch #perf {
    dither of two levels, made out of nothing but gradients. */
 .sky {
   position: absolute;
-  inset: 0 0 34% 0;
+  inset: 0 0 54% 0;
 }
 
 .sky-bands,
@@ -906,125 +911,124 @@ body.is-touch #perf {
   mask-size: 6px 6px;
 }
 
-/* A fresh wait starts at the bottom of the stone, and that reset is not
-   something to watch happen. */
-#loading.is-settling .sky-night,
-#loading.is-settling .raise-course::after {
-  transition: none;
-}
-
 /* Night over the whole sky, lifting as the sequence advances. Half of it at
-   most: the sky has to be there from the first frame, because the stones are a
-   silhouette and a silhouette against a sky that has not arrived is a black
-   screen. Opacity on one element, so the lightening is a compositor property
-   and not six colours being interpolated on the main thread. */
+   most: the sky has to be there from the first frame, or the screen is black
+   for every wait short enough to matter. Opacity on one element, so the
+   lightening is a compositor property and not six colours interpolated on the
+   main thread. */
 .sky-night {
   background: var(--void);
   opacity: calc(0.5 - var(--lit) * 0.5);
   transition: opacity 320ms ease-out;
 }
 
-.land {
-  position: absolute;
-  inset: 66% 0 0 0;
-  background: var(--land);
-}
-
-/* The readout: a stone going up, a course for each step of a sequence whose
-   length is known before it starts. `--raised` is written once per step,
-   between steps — a step blocks the main thread completely, so nothing here may
-   be driven from script while one is running.
-
-   Standing on the horizon and reaching the width of the screen, and sized off
-   the window's height, because the stones stand on a horizon that is a fraction
-   of it: a fixed size reads as a widget on a big screen and fills a small one. */
-.raise {
+.horizon {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 34%;
-  display: grid;
-  justify-items: center;
-  font-size: clamp(1.5rem, 4.4vh, 3.2rem);
-}
-
-.raise-field {
-  display: flex;
-  width: 100%;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.55em;
-}
-
-.raise-pile {
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: flex-start;
-  width: var(--pw);
-}
-
-.raise-course {
-  position: relative;
-  width: var(--w);
-  height: 0.6em;
-  margin: 1px 0 0 var(--x);
-  background: var(--stone-ghost);
-}
-
-/* `opacity` clamps for us, so the arithmetic needs no bounds: a course below
-   the line resolves past 1 and one above it below 0, and the only course ever
-   part-way is the one being laid. */
-.raise-course::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--stone);
-  box-shadow: inset -0.14em 0 0 var(--stone-edge);
-  opacity: calc((var(--raised) - var(--c)) * 2.5);
-  transition: opacity 240ms ease-out;
-}
-
-/* The course being lifted, for a step that cannot report its own progress. The
-   one course, not a band travelling over the whole pile: what is happening is
-   one stone being manoeuvred into place, and anything sweeping across stones
-   that are already standing is a progress bar wearing a costume.
-
-   **Animating `opacity` on one element is the whole trick.** It is handed to
-   the compositor, which runs on its own thread, so it keeps moving while the
-   main thread is blocked building a zone. Anything driven from JavaScript, or
-   animating a property that forces layout, would freeze at exactly the moment
-   it most needs to look alive. */
-.raise-course.is-lifting::after {
-  animation: raise-lift 1500ms ease-in-out infinite;
-}
-
-@keyframes raise-lift {
-  0%,
-  100% {
-    opacity: 0.12;
-  }
-
-  50% {
-    opacity: 0.55;
-  }
-}
-
-/* The horizon. */
-.raise-ground {
-  width: 100%;
+  top: 46%;
   height: 1px;
   background: rgb(220 220 200 / 26%);
 }
 
-/* Under the horizon and against the left margin, where a caption goes. Centred
-   under the stones it would read as their label rather than as the name of the
-   thing being started. */
+.land {
+  position: absolute;
+  inset: 46% 0 0 0;
+  overflow: hidden;
+  background: var(--land);
+}
+
+/* The track. A straight road is a trapezoid on screen, so the clip is the whole
+   of the perspective; the vanishing point is the middle of the horizon and
+   every path below is drawn to it. */
+.road {
+  position: absolute;
+  inset: 0;
+  background: var(--road);
+  clip-path: polygon(48.6% 0, 51.4% 0, 78% 100%, 22% 100%);
+}
+
+.rut {
+  position: absolute;
+  inset: 0;
+  background: var(--rut);
+}
+
+.rut.is-left {
+  clip-path: polygon(49.4% 0, 49.9% 0, 42% 100%, 36.5% 100%);
+}
+
+.rut.is-right {
+  clip-path: polygon(50.1% 0, 50.6% 0, 63.5% 100%, 58% 100%);
+}
+
+/* Fence posts coming past, and the only thing here that moves of its own
+   accord. **A transform animation is handed to the compositor**, which runs on
+   its own thread, so they carry on while the main thread is blocked building a
+   zone; anything driven from script would stop dead at exactly the moment it
+   most needs to look alive.
+
+   A straight road puts them on a straight line in screen space, so interpolating
+   the transform linearly is the right path and only the pace needs a curve —
+   barely moving at the horizon, quick as they go by. Each post sits with its
+   foot on the vanishing point and is scaled and carried down from there. */
+.post {
+  position: absolute;
+  left: 50%;
+  top: -7vh;
+  width: 0.42vw;
+  height: 7vh;
+  margin-left: -0.21vw;
+  background: var(--post);
+  transform-origin: center bottom;
+  opacity: 0;
+  animation: post-pass 5s cubic-bezier(0.45, 0, 0.75, 0.35) infinite;
+  animation-delay: calc(var(--i) * -1s);
+}
+
+.post.is-left {
+  --out: -34vw;
+}
+
+.post.is-right {
+  --out: 34vw;
+}
+
+@keyframes post-pass {
+  0% {
+    transform: translate(0, 0) scale(0.035);
+    opacity: 0;
+  }
+
+  8% {
+    opacity: 0.95;
+  }
+
+  100% {
+    transform: translate(var(--out), 54vh) scale(1);
+    opacity: 0.95;
+  }
+}
+
+/* So the caption stays readable over the near end of the track, which is the
+   lightest thing on the screen. */
+.scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 34%;
+  background: linear-gradient(to top, var(--void) 10%, rgb(10 10 15 / 0%));
+  pointer-events: none;
+}
+
+/* Against the left margin, where a caption goes. Centred it would read as a
+   label on the road rather than as the name of the thing being started. */
 .boot-caption {
   position: absolute;
   left: clamp(1.5rem, 6vw, 5rem);
-  bottom: clamp(2rem, 12vh, 7rem);
+  bottom: clamp(2rem, 10vh, 5.5rem);
   display: grid;
-  gap: 0.85rem;
+  justify-items: start;
+  gap: 0.8rem;
 }
 
 .boot-title {
@@ -1039,6 +1043,32 @@ body.is-touch #perf {
   letter-spacing: 0.22em;
   text-transform: lowercase;
   color: rgb(220 220 200 / 48%);
+}
+
+/* Quantized, because everything the renderer draws is: a mask of hard cells
+   over the track and the fill together, so what advances is blocks and not a
+   rule sliding. Scaled rather than resized — the browser hands a transform to
+   the compositor, and a step that blocks the main thread cannot freeze it
+   mid-glide. */
+.bar {
+  position: relative;
+  width: clamp(9rem, 24vw, 15rem);
+  height: 0.5rem;
+  background: rgb(220 220 200 / 14%);
+  mask-image: repeating-linear-gradient(to right, #000 0 0.34rem, transparent 0.34rem 0.5rem);
+}
+
+.bar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform-origin: left center;
+  transform: scaleX(var(--lit));
+  transition: transform 240ms ease-out;
+}
+
+#loading.is-failed .bar-fill {
+  background: #9a4a3a;
 }
 
 #loading.is-failed .loading-label {

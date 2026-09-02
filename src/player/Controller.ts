@@ -422,9 +422,8 @@ export class Controller {
   }
 
   /**
-   * Points the view. Only the editor's orbit camera uses this — the player
-   * looks with the mouse, and a second way to set the same two numbers would be
-   * a second place for them to disagree.
+   * Points the view. The editor's orbit camera, and an arrival, which states
+   * which way you are looking and not only which way you are standing.
    */
   aim(yaw: number, pitch: number): void {
     const limit = Math.PI / 2 - 0.001;
