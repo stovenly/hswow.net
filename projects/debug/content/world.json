@@ -300,6 +300,201 @@
           "title": "Cart Road"
         }
       }
+    },
+    {
+      "id": "farm-riverside",
+      "a": {
+        "zone": "farm",
+        "at": [
+          0,
+          24
+        ],
+        "yaw": 3.1415927,
+        "arrival": {
+          "at": [
+            0,
+            21
+          ],
+          "yaw": 3.1415927
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            2.6,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "River Path"
+        }
+      },
+      "b": {
+        "zone": "riverside",
+        "at": [
+          0,
+          -62
+        ],
+        "yaw": 0,
+        "arrival": {
+          "at": [
+            0,
+            -59
+          ],
+          "yaw": 0
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            6,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "River Path"
+        }
+      }
+    },
+    {
+      "id": "riverside-forest-path",
+      "a": {
+        "zone": "riverside",
+        "at": [
+          18,
+          62
+        ],
+        "yaw": -2.45,
+        "arrival": {
+          "at": [
+            15.5,
+            59
+          ],
+          "yaw": -2.45
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            7,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "River Path"
+        }
+      },
+      "b": {
+        "zone": "forest-path",
+        "at": [
+          -58,
+          -9
+        ],
+        "yaw": 1.3,
+        "arrival": {
+          "at": [
+            -55,
+            -8.2
+          ],
+          "yaw": 1.3
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            7,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "River Path"
+        }
+      }
+    },
+    {
+      "id": "plains-forest-path",
+      "a": {
+        "zone": "plains",
+        "at": [
+          -48,
+          36
+        ],
+        "yaw": 1.93,
+        "arrival": {
+          "at": [
+            -45.2,
+            35
+          ],
+          "yaw": 1.93
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            4.5,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Wood Road"
+        }
+      },
+      "b": {
+        "zone": "forest-path",
+        "at": [
+          36,
+          -60
+        ],
+        "yaw": -0.29,
+        "arrival": {
+          "at": [
+            35.1,
+            -57
+          ],
+          "yaw": -0.29
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            6,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Wood Road"
+        }
+      }
     }
   ]
 }

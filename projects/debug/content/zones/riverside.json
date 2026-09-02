@@ -1,0 +1,2510 @@
+{
+  "id": "riverside",
+  "name": "Riverside",
+  "group": "countryside",
+  "place": {
+    "at": [
+      -2.6,
+      1.8
+    ],
+    "altitude": 5
+  },
+  "environment": {
+    "base": "outdoor",
+    "fogNear": 70,
+    "fogFar": 320,
+    "firstPersonReverb": 0.5,
+    "vibe": "riverside"
+  },
+  "spawn": {
+    "at": [
+      0,
+      -58
+    ],
+    "yaw": 0
+  },
+  "floor": -20,
+  "soundscape": {
+    "bed": [
+      {
+        "model": "wind",
+        "id": "wind",
+        "options": {
+          "gain": 0.12,
+          "tone": 3000
+        }
+      },
+      {
+        "model": "rain",
+        "id": "rain",
+        "options": {
+          "gain": 0.17,
+          "intensity": 0,
+          "surface": "earth",
+          "articulation": 0.3
+        }
+      }
+    ]
+  },
+  "terrain": {
+    "size": 170,
+    "resolution": 3,
+    "rockAngle": 44,
+    "landforms": [
+      {
+        "kind": "channel",
+        "through": [
+          [
+            10,
+            -90
+          ],
+          [
+            10,
+            -62
+          ],
+          [
+            6,
+            -40
+          ],
+          [
+            16,
+            -20
+          ],
+          [
+            8,
+            2
+          ],
+          [
+            20,
+            22
+          ],
+          [
+            14,
+            42
+          ],
+          [
+            26,
+            58
+          ],
+          [
+            36,
+            72
+          ],
+          [
+            44,
+            90
+          ]
+        ],
+        "width": 9,
+        "depth": 2.8,
+        "bank": 3.5
+      },
+      {
+        "kind": "scarp",
+        "through": [
+          [
+            -9,
+            -88
+          ],
+          [
+            -9,
+            -62
+          ],
+          [
+            -13,
+            -40
+          ],
+          [
+            -3,
+            -20
+          ],
+          [
+            -11,
+            2
+          ],
+          [
+            1,
+            22
+          ],
+          [
+            -5,
+            42
+          ],
+          [
+            5,
+            58
+          ],
+          [
+            15,
+            70
+          ],
+          [
+            25,
+            88
+          ]
+        ],
+        "run": 4,
+        "height": 2.5,
+        "side": 1,
+        "reach": 40
+      },
+      {
+        "kind": "scarp",
+        "through": [
+          [
+            19,
+            -90
+          ],
+          [
+            19,
+            -62
+          ],
+          [
+            15,
+            -40
+          ],
+          [
+            25,
+            -20
+          ],
+          [
+            17,
+            2
+          ],
+          [
+            29,
+            22
+          ],
+          [
+            23,
+            42
+          ],
+          [
+            35,
+            58
+          ],
+          [
+            45,
+            72
+          ],
+          [
+            53,
+            90
+          ]
+        ],
+        "run": 4,
+        "height": 3,
+        "side": -1,
+        "reach": 40
+      },
+      {
+        "kind": "hill",
+        "at": [
+          -50,
+          30
+        ],
+        "radius": 30,
+        "height": 2
+      },
+      {
+        "kind": "hill",
+        "at": [
+          50,
+          -30
+        ],
+        "radius": 30,
+        "height": 2.5
+      }
+    ],
+    "patches": [
+      {
+        "kind": "blot",
+        "at": [
+          2,
+          -20
+        ],
+        "radius": 4,
+        "material": "gravel"
+      }
+    ],
+    "detail": [
+      {
+        "at": [
+          0,
+          -62
+        ],
+        "radius": 18,
+        "level": 3
+      },
+      {
+        "at": [
+          -4,
+          -40
+        ],
+        "radius": 18,
+        "level": 3
+      },
+      {
+        "at": [
+          6,
+          -20
+        ],
+        "radius": 18,
+        "level": 3
+      },
+      {
+        "at": [
+          -2,
+          2
+        ],
+        "radius": 18,
+        "level": 3
+      },
+      {
+        "at": [
+          10,
+          22
+        ],
+        "radius": 18,
+        "level": 3
+      },
+      {
+        "at": [
+          4,
+          42
+        ],
+        "radius": 18,
+        "level": 3
+      },
+      {
+        "at": [
+          14,
+          58
+        ],
+        "radius": 18,
+        "level": 3
+      }
+    ],
+    "edgeFade": {
+      "band": 24
+    }
+  },
+  "skirt": {
+    "reach": 330,
+    "resolution": 14,
+    "collar": 8,
+    "apron": 24,
+    "roll": 0,
+    "flatten": {
+      "from": 70,
+      "to": 160
+    },
+    "seed": 7451
+  },
+  "regions": {
+    "outline": [
+      {
+        "kind": "path",
+        "width": 0.1,
+        "through": [
+          [
+            -7,
+            -62
+          ],
+          [
+            -11,
+            -40
+          ],
+          [
+            -1,
+            -20
+          ],
+          [
+            -9,
+            2
+          ],
+          [
+            3,
+            22
+          ],
+          [
+            -3,
+            42
+          ],
+          [
+            7,
+            58
+          ],
+          [
+            33,
+            58
+          ],
+          [
+            21,
+            42
+          ],
+          [
+            27,
+            22
+          ],
+          [
+            15,
+            2
+          ],
+          [
+            23,
+            -20
+          ],
+          [
+            13,
+            -40
+          ],
+          [
+            17,
+            -62
+          ]
+        ]
+      }
+    ],
+    "keepClear": [
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -88
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -82.8
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -77.6
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -72.4
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -67.2
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -62
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -1,
+          -56.5
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -2,
+          -51
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -3,
+          -45.5
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -4,
+          -40
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -1.5,
+          -35
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          1,
+          -30
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          3.5,
+          -25
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6,
+          -20
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          4,
+          -14.5
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          2,
+          -9
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          -3.5
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -2,
+          2
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          1,
+          7
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          4,
+          12
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          7,
+          17
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          22
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8.5,
+          27
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          7,
+          32
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          5.5,
+          37
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          4,
+          42
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6.5,
+          46
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9,
+          50
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          11.5,
+          54
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          58
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          17.33,
+          62
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20.67,
+          66
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          24,
+          70
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          26.5,
+          74.5
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          29,
+          79
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          31.5,
+          83.5
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          34,
+          88
+        ],
+        "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -90
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -84.4
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -78.8
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -73.2
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -67.6
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -62
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9,
+          -56.5
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8,
+          -51
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          7,
+          -45.5
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6,
+          -40
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8.5,
+          -35
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          11,
+          -30
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          13.5,
+          -25
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          16,
+          -20
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          -14.5
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          12,
+          -9
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -3.5
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8,
+          2
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          11,
+          7
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          12
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          17,
+          17
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20,
+          22
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          18.5,
+          27
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          17,
+          32
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          15.5,
+          37
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          42
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          17,
+          46
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20,
+          50
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          23,
+          54
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          26,
+          58
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          29.33,
+          62.67
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          32.67,
+          67.33
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          36,
+          72
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          38,
+          76.5
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          40,
+          81
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          42,
+          85.5
+        ],
+        "radius": 9.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          44,
+          90
+        ],
+        "radius": 9.5
+      }
+    ],
+    "bank": [
+      {
+        "kind": "blot",
+        "at": [
+          5,
+          -62
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          7,
+          -54
+        ],
+        "radius": 3
+      },
+      {
+        "kind": "blot",
+        "at": [
+          1,
+          -40
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          3,
+          -32
+        ],
+        "radius": 3
+      },
+      {
+        "kind": "blot",
+        "at": [
+          11,
+          -20
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          13,
+          -12
+        ],
+        "radius": 3
+      },
+      {
+        "kind": "blot",
+        "at": [
+          3,
+          2
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          5,
+          10
+        ],
+        "radius": 3
+      },
+      {
+        "kind": "blot",
+        "at": [
+          15,
+          22
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          17,
+          30
+        ],
+        "radius": 3
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9,
+          42
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          11,
+          50
+        ],
+        "radius": 3
+      },
+      {
+        "kind": "blot",
+        "at": [
+          21,
+          58
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          23,
+          66
+        ],
+        "radius": 3
+      }
+    ],
+    "river": [
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          -62
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9.33,
+          -58.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8.67,
+          -54.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8,
+          -51
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          7.33,
+          -47.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6.67,
+          -43.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          6,
+          -40
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          7.67,
+          -36.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9.33,
+          -33.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          11,
+          -30
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          12.67,
+          -26.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14.33,
+          -23.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          16,
+          -20
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14.67,
+          -16.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          13.33,
+          -12.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          12,
+          -9
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10.67,
+          -5.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9.33,
+          -1.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          8,
+          2
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          10,
+          5.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          12,
+          8.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          12
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          16,
+          15.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          18,
+          18.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20,
+          22
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          19,
+          25.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          18,
+          28.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          17,
+          32
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          16,
+          35.33
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          15,
+          38.67
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          42
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          16.4,
+          45.2
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          18.8,
+          48.4
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          21.2,
+          51.6
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          23.6,
+          54.8
+        ],
+        "radius": 3.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          26,
+          58
+        ],
+        "radius": 3.5
+      }
+    ],
+    "wood-west": [
+      {
+        "kind": "field",
+        "min": [
+          -82,
+          -82
+        ],
+        "max": [
+          -16,
+          82
+        ]
+      }
+    ],
+    "wood-east": [
+      {
+        "kind": "field",
+        "min": [
+          22,
+          -82
+        ],
+        "max": [
+          82,
+          82
+        ]
+      }
+    ]
+  },
+  "entries": [
+    {
+      "id": "path",
+      "kind": "track",
+      "through": [
+        [
+          0,
+          -88
+        ],
+        [
+          0,
+          -62
+        ],
+        [
+          -4,
+          -40
+        ],
+        [
+          6,
+          -20
+        ],
+        [
+          -2,
+          2
+        ],
+        [
+          10,
+          22
+        ],
+        [
+          4,
+          42
+        ],
+        [
+          14,
+          58
+        ],
+        [
+          24,
+          70
+        ],
+        [
+          34,
+          88
+        ]
+      ],
+      "width": 2.6,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.5,
+      "seed": 7231
+    },
+    {
+      "id": "reach-1",
+      "kind": "water",
+      "at": [
+        8,
+        -1.2,
+        -64
+      ],
+      "width": 22,
+      "depth": 50,
+      "chop": 0.35,
+      "flow": [
+        0,
+        0.5
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "reach-2",
+      "kind": "water",
+      "at": [
+        11,
+        -1.2,
+        -30
+      ],
+      "width": 26,
+      "depth": 30,
+      "chop": 0.35,
+      "flow": [
+        0.15,
+        0.5
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "reach-3",
+      "kind": "water",
+      "at": [
+        12,
+        -1.2,
+        -8
+      ],
+      "width": 24,
+      "depth": 26,
+      "chop": 0.35,
+      "flow": [
+        -0.15,
+        0.5
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "reach-4",
+      "kind": "water",
+      "at": [
+        14,
+        -1.2,
+        12
+      ],
+      "width": 28,
+      "depth": 26,
+      "chop": 0.35,
+      "flow": [
+        0.2,
+        0.5
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "reach-5",
+      "kind": "water",
+      "at": [
+        17,
+        -1.2,
+        32
+      ],
+      "width": 22,
+      "depth": 26,
+      "chop": 0.35,
+      "flow": [
+        -0.1,
+        0.5
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "reach-6",
+      "kind": "water",
+      "at": [
+        20,
+        -1.2,
+        50
+      ],
+      "width": 28,
+      "depth": 22,
+      "chop": 0.35,
+      "flow": [
+        0.2,
+        0.5
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "reach-7",
+      "kind": "water",
+      "at": [
+        35,
+        -1.2,
+        74
+      ],
+      "width": 34,
+      "depth": 38,
+      "chop": 0.35,
+      "flow": [
+        0.25,
+        0.45
+      ],
+      "segment": 0.6
+    },
+    {
+      "id": "gate-n-hazel-w0",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4870,
+      "at": [
+        -4.6,
+        -62
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "gate-n-hazel-e0",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4880,
+      "at": [
+        4.4,
+        -62
+      ],
+      "yaw": 1.7
+    },
+    {
+      "id": "gate-n-hazel-w1",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4871,
+      "at": [
+        -5.8,
+        -59
+      ],
+      "yaw": 1.2
+    },
+    {
+      "id": "gate-n-hazel-e1",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4881,
+      "at": [
+        5.6000000000000005,
+        -59
+      ],
+      "yaw": 2.6
+    },
+    {
+      "id": "gate-n-hazel-w2",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4872,
+      "at": [
+        -4.6,
+        -65
+      ],
+      "yaw": 2.1
+    },
+    {
+      "id": "gate-n-hazel-e2",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4882,
+      "at": [
+        4.4,
+        -65
+      ],
+      "yaw": 3.5
+    },
+    {
+      "id": "gate-n-hazel-w3",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4873,
+      "at": [
+        -5.8,
+        -56
+      ],
+      "yaw": 3
+    },
+    {
+      "id": "gate-n-hazel-e3",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 4883,
+      "at": [
+        5.6000000000000005,
+        -56
+      ],
+      "yaw": 4.4
+    },
+    {
+      "id": "gate-n-slab",
+      "kind": "barrier",
+      "from": [
+        -9,
+        -66
+      ],
+      "to": [
+        20,
+        -66
+      ]
+    },
+    {
+      "id": "gate-se-oak-w",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4891,
+      "at": [
+        11.5,
+        65
+      ],
+      "yaw": 0.6,
+      "scale": 1.15
+    },
+    {
+      "id": "gate-se-oak-e",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 4892,
+      "at": [
+        23.5,
+        60.5
+      ],
+      "yaw": 1.8,
+      "scale": 1.1
+    },
+    {
+      "id": "gate-se-roots",
+      "kind": "prop",
+      "builder": "root-tangle",
+      "seed": 4893,
+      "at": [
+        10.5,
+        67.5
+      ],
+      "yaw": 2.4
+    },
+    {
+      "id": "gate-se-slab",
+      "kind": "barrier",
+      "from": [
+        6,
+        67
+      ],
+      "to": [
+        42,
+        67
+      ]
+    },
+    {
+      "id": "cairn",
+      "kind": "prop",
+      "builder": "cairn",
+      "seed": 4901,
+      "at": [
+        2.5,
+        -21
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "gully-log",
+      "kind": "prop",
+      "builder": "fallen-log",
+      "seed": 4902,
+      "at": [
+        -6,
+        30
+      ],
+      "yaw": 1.2
+    },
+    {
+      "id": "boulder-1",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4903,
+      "at": [
+        12,
+        -45
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "boulder-2",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4904,
+      "at": [
+        21,
+        24
+      ],
+      "yaw": 1.5
+    },
+    {
+      "id": "boulder-3",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4905,
+      "at": [
+        15,
+        47
+      ],
+      "yaw": 2.6
+    },
+    {
+      "id": "elder-1",
+      "kind": "prop",
+      "builder": "elder",
+      "seed": 4906,
+      "at": [
+        -9,
+        -30
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "elder-2",
+      "kind": "prop",
+      "builder": "elder",
+      "seed": 4907,
+      "at": [
+        -4,
+        18
+      ],
+      "yaw": 1.6
+    },
+    {
+      "id": "elder-3",
+      "kind": "prop",
+      "builder": "elder",
+      "seed": 4908,
+      "at": [
+        1,
+        52
+      ],
+      "yaw": 2.4
+    },
+    {
+      "id": "reeds",
+      "kind": "scatter",
+      "builder": "reeds",
+      "seed": 5151,
+      "count": 14,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 40
+    },
+    {
+      "id": "cowparsley",
+      "kind": "scatter",
+      "builder": "cowparsley",
+      "seed": 5152,
+      "count": 8,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 34
+    },
+    {
+      "id": "foxgloves",
+      "kind": "scatter",
+      "builder": "foxglove",
+      "seed": 5153,
+      "count": 6,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 34
+    },
+    {
+      "id": "nettles",
+      "kind": "scatter",
+      "builder": "nettle",
+      "seed": 5154,
+      "count": 8,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 34
+    },
+    {
+      "id": "bank-moss",
+      "kind": "scatter",
+      "builder": "moss",
+      "seed": 5155,
+      "count": 10,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 44
+    },
+    {
+      "id": "river-rocks",
+      "kind": "scatter",
+      "builder": "rock",
+      "seed": 5156,
+      "count": 20,
+      "within": 80,
+      "region": "river",
+      "maxSlope": 60,
+      "scale": [
+        0.6,
+        1.3
+      ]
+    },
+    {
+      "id": "path-grass",
+      "kind": "scatter",
+      "builder": "small-grass-clump",
+      "seed": 5157,
+      "count": 30,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "path-daisies",
+      "kind": "scatter",
+      "builder": "daisy",
+      "seed": 5158,
+      "count": 8,
+      "within": 80,
+      "region": "bank",
+      "avoid": [
+        "path"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "west-oaks",
+      "kind": "scatter",
+      "builder": "oak",
+      "seed": 5161,
+      "count": 8,
+      "within": 84,
+      "region": "wood-west",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.2
+      ]
+    },
+    {
+      "id": "west-hazels",
+      "kind": "scatter",
+      "builder": "hazel",
+      "seed": 5162,
+      "count": 10,
+      "within": 84,
+      "region": "wood-west",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "west-brambles",
+      "kind": "scatter",
+      "builder": "bramble",
+      "seed": 5163,
+      "count": 8,
+      "within": 84,
+      "region": "wood-west",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "west-bushes",
+      "kind": "scatter",
+      "builder": "bush",
+      "seed": 5164,
+      "count": 14,
+      "within": 84,
+      "region": "wood-west",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "west-birches",
+      "kind": "scatter",
+      "builder": "birch",
+      "seed": 5165,
+      "count": 6,
+      "within": 84,
+      "region": "wood-west",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "east-hazels",
+      "kind": "scatter",
+      "builder": "hazel",
+      "seed": 5171,
+      "count": 12,
+      "within": 84,
+      "region": "wood-east",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "east-elders",
+      "kind": "scatter",
+      "builder": "elder",
+      "seed": 5172,
+      "count": 8,
+      "within": 84,
+      "region": "wood-east",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "east-brambles",
+      "kind": "scatter",
+      "builder": "bramble",
+      "seed": 5173,
+      "count": 10,
+      "within": 84,
+      "region": "wood-east",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "east-bushes",
+      "kind": "scatter",
+      "builder": "bush",
+      "seed": 5174,
+      "count": 14,
+      "within": 84,
+      "region": "wood-east",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "east-oaks",
+      "kind": "scatter",
+      "builder": "oak",
+      "seed": 5175,
+      "count": 6,
+      "within": 84,
+      "region": "wood-east",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.2
+      ]
+    },
+    {
+      "id": "east-ferns",
+      "kind": "scatter",
+      "builder": "fern",
+      "seed": 5176,
+      "count": 16,
+      "within": 84,
+      "region": "wood-east",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "river-1",
+      "kind": "sound",
+      "at": [
+        8,
+        -40
+      ],
+      "lift": -0.9,
+      "spec": {
+        "model": "water",
+        "options": {
+          "flow": "stream",
+          "gain": 0.3,
+          "tone": 1
+        },
+        "refDistance": 4,
+        "maxDistance": 30,
+        "rolloff": 1.4,
+        "reverb": 0.4
+      }
+    },
+    {
+      "id": "river-2",
+      "kind": "sound",
+      "at": [
+        12,
+        2
+      ],
+      "lift": -0.9,
+      "spec": {
+        "model": "water",
+        "options": {
+          "flow": "stream",
+          "gain": 0.32,
+          "tone": 0.95
+        },
+        "refDistance": 4,
+        "maxDistance": 30,
+        "rolloff": 1.4,
+        "reverb": 0.4
+      }
+    },
+    {
+      "id": "river-3",
+      "kind": "sound",
+      "at": [
+        16,
+        42
+      ],
+      "lift": -0.9,
+      "spec": {
+        "model": "water",
+        "options": {
+          "flow": "stream",
+          "gain": 0.3,
+          "tone": 1.05
+        },
+        "refDistance": 4,
+        "maxDistance": 30,
+        "rolloff": 1.4,
+        "reverb": 0.4
+      }
+    },
+    {
+      "id": "elder-leaves-1",
+      "kind": "sound",
+      "ref": "elder-1",
+      "lift": 3,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 200,
+          "tone": 1.1,
+          "gain": 0.3,
+          "articulation": 0.26
+        },
+        "refDistance": 2.5,
+        "maxDistance": 20,
+        "rolloff": 1.6,
+        "reverb": 0.3
+      }
+    },
+    {
+      "id": "elder-leaves-2",
+      "kind": "sound",
+      "ref": "elder-3",
+      "lift": 3,
+      "spec": {
+        "model": "foliage",
+        "options": {
+          "density": 210,
+          "tone": 1,
+          "gain": 0.3,
+          "articulation": 0.24
+        },
+        "refDistance": 2.5,
+        "maxDistance": 20,
+        "rolloff": 1.6,
+        "reverb": 0.3
+      }
+    },
+    {
+      "id": "bird-w",
+      "kind": "sound",
+      "at": [
+        -30,
+        7,
+        -10
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 2600,
+          "interval": 8,
+          "gain": 0.07,
+          "tone": 2700
+        },
+        "refDistance": 5,
+        "maxDistance": 46,
+        "rolloff": 1.3,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "bird-e",
+      "kind": "sound",
+      "at": [
+        40,
+        7,
+        30
+      ],
+      "spec": {
+        "model": "bird",
+        "options": {
+          "pitch": 3000,
+          "interval": 12,
+          "gain": 0.055,
+          "tone": 3000
+        },
+        "refDistance": 5,
+        "maxDistance": 44,
+        "rolloff": 1.35,
+        "reverb": 0.9
+      }
+    },
+    {
+      "id": "ring",
+      "kind": "vistaRing",
+      "seed": 9180,
+      "band": {
+        "inner": 14,
+        "outer": 70
+      },
+      "keepOut": {
+        "dilate": 99
+      },
+      "place": [
+        {
+          "builder": "vista-copse",
+          "at": [
+            24,
+            -110
+          ],
+          "scale": 1.1,
+          "seed": 5681
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            -8,
+            -120
+          ],
+          "scale": 1,
+          "seed": 5682
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            60,
+            110
+          ],
+          "scale": 1.2,
+          "seed": 5683
+        },
+        {
+          "builder": "vista-hill",
+          "at": [
+            -130,
+            -30
+          ],
+          "scale": 1.2,
+          "seed": 5684
+        },
+        {
+          "builder": "vista-hill",
+          "at": [
+            -120,
+            50
+          ],
+          "scale": 1,
+          "seed": 5685
+        },
+        {
+          "builder": "vista-field-wall",
+          "at": [
+            -110,
+            10
+          ],
+          "scale": 1.2,
+          "seed": 5686
+        },
+        {
+          "builder": "vista-field-wall",
+          "at": [
+            -100,
+            -80
+          ],
+          "scale": 1.1,
+          "seed": 5687
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            130,
+            40
+          ],
+          "scale": 1.5,
+          "seed": 5688
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            110,
+            120
+          ],
+          "scale": 1.6,
+          "seed": 5689
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            140,
+            -60
+          ],
+          "scale": 1.4,
+          "seed": 5690
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            20,
+            150
+          ],
+          "scale": 1.5,
+          "seed": 5691
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -60,
+            140
+          ],
+          "scale": 1.3,
+          "seed": 5692
+        },
+        {
+          "builder": "vista-tower",
+          "at": [
+            80,
+            260
+          ],
+          "scale": 1.5,
+          "seed": 5693,
+          "apparent": 480
+        }
+      ],
+      "scatter": [
+        {
+          "builder": "vista-copse",
+          "count": 4,
+          "band": {
+            "inner": 14,
+            "outer": 55
+          },
+          "scale": [
+            0.9,
+            1.3
+          ],
+          "spacing": 20
+        },
+        {
+          "builder": "vista-hill",
+          "count": 3,
+          "band": {
+            "inner": 30,
+            "outer": 70
+          },
+          "scale": [
+            0.8,
+            1.3
+          ],
+          "spacing": 28
+        },
+        {
+          "builder": "vista-forest",
+          "count": 4,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            200,
+            260
+          ],
+          "scale": [
+            1.1,
+            1.6
+          ],
+          "spacing": 34
+        },
+        {
+          "builder": "vista-hill",
+          "count": 5,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "apparent": [
+            190,
+            250
+          ],
+          "scale": [
+            1.2,
+            1.7
+          ],
+          "spacing": 30
+        },
+        {
+          "builder": "vista-hill",
+          "count": 5,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            300,
+            380
+          ],
+          "scale": [
+            1.5,
+            2
+          ],
+          "spacing": 34
+        },
+        {
+          "builder": "vista-forest",
+          "count": 4,
+          "band": {
+            "inner": 160,
+            "outer": 180
+          },
+          "apparent": [
+            300,
+            380
+          ],
+          "scale": [
+            1.4,
+            1.9
+          ],
+          "spacing": 38
+        },
+        {
+          "builder": "vista-range",
+          "count": 2,
+          "band": {
+            "inner": 195,
+            "outer": 210
+          },
+          "apparent": [
+            420,
+            500
+          ],
+          "scale": [
+            0.85,
+            1.15
+          ],
+          "spacing": 70
+        }
+      ]
+    },
+    {
+      "id": "edge-dressing",
+      "kind": "dressing",
+      "seed": 6220,
+      "band": {
+        "inner": -22,
+        "outer": -2
+      },
+      "solidWithin": -22,
+      "kinds": [
+        {
+          "builder": "bush",
+          "count": 10,
+          "band": {
+            "inner": -20,
+            "outer": -3
+          },
+          "clump": [
+            3,
+            5
+          ],
+          "huddle": 3,
+          "scale": [
+            1,
+            1.7
+          ]
+        },
+        {
+          "builder": "thicket",
+          "count": 6,
+          "band": {
+            "inner": -20,
+            "outer": -6
+          },
+          "clump": [
+            2,
+            4
+          ],
+          "huddle": 3.4,
+          "scale": [
+            1,
+            1.5
+          ]
+        },
+        {
+          "builder": "rock",
+          "count": 6,
+          "band": {
+            "inner": -18,
+            "outer": -3
+          },
+          "clump": [
+            3,
+            5
+          ],
+          "huddle": 2.6,
+          "scale": [
+            1.2,
+            2.6
+          ]
+        }
+      ]
+    }
+  ]
+}

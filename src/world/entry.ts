@@ -291,7 +291,7 @@ export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
   avoid?: string | readonly AvoidItem[];
   /** Metres of clearance from the level outline. */
   inset?: number;
-  /** A region name the candidates must fall inside. */
+  /** A region name the candidates must fall inside, in place of the level outline. */
   region?: string;
   /** Uniform scale range, rolled per instance. */
   scale?: readonly [number, number];

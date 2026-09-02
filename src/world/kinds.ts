@@ -568,7 +568,7 @@ registerEntryKind<ScatterEntry>({
         groundAt: ctx.groundAt,
         slopeAt: ctx.slopeAt,
         accept: (x, z) => {
-          if (region && !region.some((shape) => shapeDistance(shape, x, z) <= 0)) return false;
+          if (region) return region.some((shape) => shapeDistance(shape, x, z) <= 0);
           if (ctx.outline) return insidePolygon(ctx.outline, x, z, inset);
           return true;
         },
