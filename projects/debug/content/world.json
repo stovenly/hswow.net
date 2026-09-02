@@ -573,6 +573,136 @@
       },
       "material": "timber",
       "seed": 8831
+    },
+    {
+      "id": "forest-beach-path",
+      "a": {
+        "zone": "forest",
+        "at": [
+          34,
+          42
+        ],
+        "yaw": -2.56,
+        "arrival": {
+          "at": [
+            32.3,
+            39.5
+          ],
+          "yaw": -2.56
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            6,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Sand Track"
+        }
+      },
+      "b": {
+        "zone": "beach-path",
+        "at": [
+          -24,
+          -34
+        ],
+        "yaw": 0.71,
+        "arrival": {
+          "at": [
+            -22,
+            -31.7
+          ],
+          "yaw": 0.71
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            7,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Sand Track"
+        }
+      }
+    },
+    {
+      "id": "beach-path-beach",
+      "a": {
+        "zone": "beach-path",
+        "at": [
+          10,
+          36
+        ],
+        "yaw": 3.1415927,
+        "arrival": {
+          "at": [
+            10,
+            33
+          ],
+          "yaw": 3.1415927
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            7,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Sand Track"
+        }
+      },
+      "b": {
+        "zone": "beach",
+        "at": [
+          0,
+          -44
+        ],
+        "yaw": 0,
+        "arrival": {
+          "at": [
+            0,
+            -41
+          ],
+          "yaw": 0
+        },
+        "use": "volume",
+        "volume": {
+          "size": [
+            7,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Sand Track"
+        }
+      }
     }
   ]
 }
