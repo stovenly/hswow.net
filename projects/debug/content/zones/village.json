@@ -532,7 +532,7 @@
             {
               "to": {
                 "ref": "arch-west",
-                "edge": "-z"
+                "edge": "+z"
               },
               "kind": "wall"
             }
@@ -542,7 +542,7 @@
           "seed": 6500,
           "start": {
             "ref": "arch-west",
-            "edge": "+z"
+            "edge": "-z"
           },
           "edges": [
             {
