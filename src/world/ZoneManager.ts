@@ -201,6 +201,10 @@ const WALK_AWAY_TAIL = 0.35;
 
 /** Where the camera is looking, refilled each life update. */
 const _gaze = new THREE.Vector3();
+const _tread = new THREE.Vector3();
+const DOWN = new THREE.Vector3(0, -1, 0);
+/** Metres a creature steps up onto whatever stands on the ground: a cobbled bed, a boardwalk, a sill. */
+const STEP_UP = 0.35;
 
 /** The cursor, for `cursorLabel`. */
 const _ndc = new THREE.Vector2();
@@ -1682,7 +1686,16 @@ export class ZoneManager {
   /** Moves the active zone's creatures. Called after the sound update, so a voice is placed after the listener and before the wind ships. */
   updateLife(dt: number, retestOcclusion: boolean): void {
     const { player, collider } = this.options;
-    const ground = this.active?.definition.groundAt ?? (() => 0);
+    const terrain = this.active?.definition.groundAt ?? (() => 0);
+    // The heightfield, or whatever collidable stands on it within a step — the
+    // setts of a lane are solid, and a creature snapped to the ground beneath
+    // them is pushed off their sides every frame.
+    const ground = (x: number, z: number): number => {
+      const base = terrain(x, z);
+      _tread.set(x, base + STEP_UP, z);
+      const down = collider.raycast(_tread, DOWN);
+      return down !== null && down < STEP_UP ? base + STEP_UP - down : base;
+    };
     this.life.update(
       this.active?.id ?? null,
       dt,

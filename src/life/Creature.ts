@@ -148,6 +148,8 @@ const _capsule = new Capsule();
 const UNSTICK_PASSES = 2;
 /** Frames of being pushed before a walk gives up on the way it was going. */
 const UNSTICK_PATIENCE = 12;
+/** Metres above its feet the push-out starts, so a kerb or a cobbled bed is stepped onto rather than walked into. Under the ground snap's own step. */
+const STEP_OVER = 0.3;
 
 export class Creature {
   readonly mesh: THREE.SkinnedMesh;
@@ -743,8 +745,8 @@ export class Creature {
     const foot = this.spec.radius;
     let pushed = false;
     for (let pass = 0; pass < UNSTICK_PASSES; pass += 1) {
-      _capsule.start.set(pos.x, pos.y + foot, pos.z);
-      _capsule.end.set(pos.x, pos.y + Math.max(this.spec.height - foot, foot), pos.z);
+      _capsule.start.set(pos.x, pos.y + STEP_OVER + foot, pos.z);
+      _capsule.end.set(pos.x, pos.y + Math.max(this.spec.height - foot, STEP_OVER + foot), pos.z);
       _capsule.radius = foot;
       const contact = world.collider.intersectCapsule(_capsule);
       if (!contact) break;
