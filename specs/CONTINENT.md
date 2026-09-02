@@ -1,7 +1,7 @@
 # The continent — spec
 
-Not built. Eight zones and three interiors, hand placed, that together are the
-demo: a village with a farm and a plain at its gates, a river and a crossroads
+**Built, phases 0–7.** What came out differently is under *Built* below. Eight
+zones and three interiors, hand placed, that together are the demo: a village with a farm and a plain at its gates, a river and a crossroads
 past those, a wood with a house in it, and the sea at the end.
 
 The debug hall is cut loose. Documents connect only to documents; everything
@@ -64,6 +64,27 @@ nothing in it reaches a place.
 - **The map takes care of itself.** Zone families come off the vibe, the beach
   family already sits low on the land field, and `place` seeds the layout, so
   the continent is drawn from the same eight files.
+
+## Built
+
+- **A scatter's `region` stands in for the level outline.** The corridor zones
+  put their woods above the banks, outside the playable line, and a scatter
+  could only place inside it; a region named on the scatter is now the
+  authority instead. `keepClear` does the rest.
+- **The corridor zones have no rim.** Their walls are channel banks and
+  scarps; the plains and the forest have rims on their outlines, with the
+  outline run out past each gate so the gate stands on flat ground.
+- **The beach path has no track.** Sand is the ground, and a `cover: none`
+  path keeps the corridor bare.
+- **The river is seven reaches**, per the water decision, and the sea two
+  planes. The farm's river and the sea seen from the forest and the beach path
+  are single planes on the flat skirt.
+- **The skirt bows away under the sea** (`curve`) on the shore zones, so the
+  offing deepens with distance rather than staying a hand deep.
+- **Dressing bands** are measured from the terrain square, not the playable
+  outline, so on the corridor zones they sit only in the last twenty metres.
+- **Nothing suggested under *Builders the zones want* is built yet**, and every
+  zone uses the stand-in named there.
 
 ## Open
 
