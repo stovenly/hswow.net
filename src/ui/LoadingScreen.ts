@@ -5,11 +5,12 @@
  * second, smaller indicator for the shorter waits — two of them is how one of
  * them ends up looking like a different game.
  *
- * A dithered dawn over a horizon, with a cart track running away to it and
- * fence posts coming past. `--lit` is how far through the sequence everything
- * is, 0..1, and it is the only thing this writes: the sky lightens by it and
- * the bar fills by it. The posts are not progress and never pretend to be —
- * they carry on at their own pace, which is what says the game has not hung.
+ * A dithered sky with the sun and the moon turning on one wheel about the
+ * middle of the horizon, and the horizon itself as the bar. `--lit` is how far
+ * through the sequence everything is, 0..1, and it is the only thing this
+ * writes. **The sky is not progress and never pretends to be** — it runs on its
+ * own clock, which is what says the game has not hung, and it is left alone
+ * between waits so it picks up where it was rather than snapping back to dawn.
  *
  * **A real bar is possible precisely because there is nothing to download.**
  * Every triangle and every sample is generated here, so loading is a fixed known
@@ -31,9 +32,6 @@ const FADE = 0.25;
 
 /** Where a fresh wait starts, so the bar is not empty on its first frame. */
 const FIRST = 0.06;
-
-/** Fence posts a side. Their stagger is a fraction of one post's travel. */
-const POSTS = 5;
 
 export class LoadingScreen {
   private readonly root: HTMLElement;
@@ -65,9 +63,9 @@ export class LoadingScreen {
       return;
     }
     this.shown = true;
-    // Back to the start with the transitions off. Left on, the sky runs its
-    // lightening backwards over a third of a second as the screen arrives,
-    // which is a sunset played to announce a load.
+    // The bar goes back to the start with its transitions off, or it slides
+    // backwards across the whole horizon as the screen arrives. The sky is on
+    // its own clock and is not reset at all.
     this.root.classList.add('is-settling');
     this.set(FIRST);
     this.root.classList.remove('is-gone');
@@ -84,7 +82,7 @@ export class LoadingScreen {
    * `progress` is omitted for a step whose cost cannot be reported from inside
    * — `Zone.build()` is one synchronous call — and the bar simply holds. **A bar
    * that stops moving reads as a hang, so something else has to be moving**:
-   * here that is the road, which is a compositor animation and carries on while
+   * here that is the sky, which is a compositor animation and carries on while
    * the main thread is blocked.
    */
   async working(label: string, progress?: number): Promise<void> {
@@ -176,32 +174,29 @@ function build(): HTMLElement {
 
   const sky = div('sky');
   sky.setAttribute('aria-hidden', 'true');
-  div('sky-bands', sky);
-  div('sky-dither', sky);
-  div('sky-night', sky);
-
-  const land = div('land');
-  land.setAttribute('aria-hidden', 'true');
-  div('road', land);
-  div('rut is-left', land);
-  div('rut is-right', land);
-  for (const side of ['is-left', 'is-right']) {
-    for (let i = 0; i < POSTS; i++) {
-      div(`post ${side}`, land).style.setProperty('--i', String(i));
-    }
+  for (const tier of ['is-dawn', 'is-day']) {
+    const layer = div(`sky-tier ${tier}`, sky);
+    div('tier-bands', layer);
+    div('tier-dither', layer);
   }
+  div('sky-veil', sky);
+  const wheel = div('wheel', sky);
+  div('orb is-sun', wheel);
+  div('orb is-moon', wheel);
 
   const horizon = div('horizon');
   horizon.setAttribute('aria-hidden', 'true');
-  const scrim = div('scrim');
-  scrim.setAttribute('aria-hidden', 'true');
+  div('horizon-fill', horizon);
+  div('horizon-cap', horizon);
+
+  const land = div('land');
+  land.setAttribute('aria-hidden', 'true');
 
   // No title line: which game this is belongs to the page, and the page that
   // wants one carries the markup itself.
   const caption = div('boot-caption');
   caption.append(labelEl());
-  div('bar-fill', div('bar', caption));
 
-  root.append(sky, land, horizon, scrim, caption);
+  root.append(sky, horizon, land, caption);
   return root;
 }
