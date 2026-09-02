@@ -542,6 +542,57 @@
       }
     },
     {
+      "id": "plains-beach-path",
+      "a": {
+        "zone": "plains",
+        "at": [
+          22,
+          45.4
+        ],
+        "yaw": 3.1415927,
+        "use": "volume",
+        "volume": {
+          "size": [
+            3.4,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Gravel Path"
+        }
+      },
+      "b": {
+        "zone": "beach-path",
+        "at": [
+          26,
+          -34
+        ],
+        "yaw": -0.52,
+        "use": "volume",
+        "volume": {
+          "size": [
+            7,
+            2.6,
+            1.5
+          ],
+          "offset": [
+            0,
+            0,
+            -0.2
+          ]
+        },
+        "prompt": {
+          "title": "Dirt Path"
+        }
+      }
+    },
+    {
       "id": "beach-path-beach",
       "a": {
         "zone": "beach-path",

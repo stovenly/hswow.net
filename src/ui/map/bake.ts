@@ -58,6 +58,16 @@ const SOFTEN = 1;
 const LINE = 0.42;
 
 /**
+ * Radius, in picture pixels, over which colour is averaged with its neighbours,
+ * and the metres of height difference past which a neighbour is a different
+ * surface and is left out. The terrain is drawn in facets, each its own flat
+ * colour, and a map wants the ground and not the mesh; a roof or a wall top
+ * stands well clear of the ground and keeps its edge.
+ */
+const SMOOTH = 5;
+const SMOOTH_STEP = 0.5;
+
+/**
  * How high the camera stands outdoors, and how far down it sees, in metres.
  * Stated rather than measured off the built world: a bounding box of a zone is
  * a full traversal that computes one for every geometry in it, and the packed
@@ -251,12 +261,18 @@ export class MapBake {
     const context = canvas.getContext('2d');
     if (!context) return canvas;
     const image = context.createImageData(SIZE, SIZE);
+    const px = SIZE * SIZE;
+    const colour = new Float32Array(px * 3);
+    const level = new Float32Array(px);
+    const ink = new Float32Array(px);
+    const cover = new Uint8Array(px);
 
     for (let y = 0; y < SIZE; y++) {
       for (let x = 0; x < SIZE; x++) {
         let r = 0;
         let g = 0;
         let b = 0;
+        let h = 0;
         let line = 0;
         let on = 0;
         for (let sy = 0; sy < SUPER; sy++) {
@@ -270,25 +286,39 @@ export class MapBake {
             r += this.colour[src * 4];
             g += this.colour[src * 4 + 1];
             b += this.colour[src * 4 + 2];
+            h += height[src];
             line += lines[src] / 255;
           }
         }
-        const at = (y * SIZE + x) * 4;
-        if (on === 0) {
-          image.data[at + 3] = 0;
-          continue;
-        }
-        // The world's own colour, and nothing done to it but the line. Anything
-        // that quantizes the three channels separately moves the hue: two woods
-        // a few values apart land on olive and on maroon.
-        const shade = 1 - (line / on) * (1 - LINE);
-        image.data[at] = (r / on) * shade;
-        image.data[at + 1] = (g / on) * shade;
-        image.data[at + 2] = (b / on) * shade;
-        // The silhouette fades out over the samples that missed it, rather than
-        // ending on a staircase of whole pixels.
-        image.data[at + 3] = (on / (SUPER * SUPER)) * 255;
+        const i = y * SIZE + x;
+        cover[i] = on;
+        if (on === 0) continue;
+        colour[i * 3] = r / on;
+        colour[i * 3 + 1] = g / on;
+        colour[i * 3 + 2] = b / on;
+        level[i] = h / on;
+        ink[i] = line / on;
       }
+    }
+
+    smooth(colour, level, cover);
+
+    for (let i = 0; i < px; i++) {
+      const at = i * 4;
+      if (cover[i] === 0) {
+        image.data[at + 3] = 0;
+        continue;
+      }
+      // The world's own colour, and nothing done to it but the line. Anything
+      // that quantizes the three channels separately moves the hue: two woods
+      // a few values apart land on olive and on maroon.
+      const shade = 1 - ink[i] * (1 - LINE);
+      image.data[at] = colour[i * 3] * shade;
+      image.data[at + 1] = colour[i * 3 + 1] * shade;
+      image.data[at + 2] = colour[i * 3 + 2] * shade;
+      // The silhouette fades out over the samples that missed it, rather than
+      // ending on a staircase of whole pixels.
+      image.data[at + 3] = (cover[i] / (SUPER * SUPER)) * 255;
     }
     context.putImageData(image, 0, 0);
     return canvas;
@@ -336,6 +366,42 @@ function edges(height: Float32Array, there: Uint8Array): Uint8Array {
     }
   }
   return out;
+}
+
+/**
+ * Averages each pixel's colour with the neighbours that stand at about its own
+ * height, in place. Separable: once along the rows, once down the columns.
+ */
+function smooth(colour: Float32Array, level: Float32Array, cover: Uint8Array): void {
+  const pass = (stride: number, count: number, other: number): void => {
+    const held = new Float32Array(colour);
+    for (let a = 0; a < other; a++) {
+      for (let b = 0; b < count; b++) {
+        const i = stride === 1 ? a * SIZE + b : b * SIZE + a;
+        if (cover[i] === 0) continue;
+        const mine = level[i];
+        let r = 0;
+        let g = 0;
+        let bl = 0;
+        let n = 0;
+        for (let d = -SMOOTH; d <= SMOOTH; d++) {
+          const k = b + d;
+          if (k < 0 || k >= count) continue;
+          const j = i + d * stride;
+          if (cover[j] === 0 || Math.abs(level[j] - mine) > SMOOTH_STEP) continue;
+          r += held[j * 3];
+          g += held[j * 3 + 1];
+          bl += held[j * 3 + 2];
+          n++;
+        }
+        colour[i * 3] = r / n;
+        colour[i * 3 + 1] = g / n;
+        colour[i * 3 + 2] = bl / n;
+      }
+    }
+  };
+  pass(1, SIZE, SIZE);
+  pass(SIZE, SIZE, SIZE);
 }
 
 /** A separable box smear over the lines, so a rim comes out continuous rather than dotted. */

@@ -107,22 +107,23 @@ nothing in it reaches a place.
             Farm ──── Riverside
              │            │
           Village      Forest Path ──── Forest ──── Beach Path ──── Beach
-             │            │
-           Plains ────────┘
+             │            │                            │
+           Plains ────────┘────────────────────────────┘
 ```
 
-A loop and a tail. The loop is village → plains → crossroads → riverside →
-farm → village, walkable either way; the tail is the crossroads' third arm.
+Two loops. The first is village → plains → crossroads → riverside → farm →
+village; the second is plains → crossroads → forest → beach path → plains,
+by the beach path's third arm. The beach is the tail.
 
 | zone | id | vibe | `place` (km, east/south) | gates |
 | --- | --- | --- | --- | --- |
 | Village | `village` | `village 1` | 0, 0 | S → plains · W → farm |
 | Farm | `farm` | `farm` | −1.7, 0.2 | E → village · S → riverside |
-| Plains | `plains` | `plains 1` | 0.3, 1.6 | N → village · SW → forest path |
+| Plains | `plains` | `plains 1` | 0.3, 1.6 | N → village · SW → forest path · S → beach path |
 | Riverside | `riverside` | `riverside` | −2.6, 1.8 | N → farm · SE → forest path |
 | Forest Path | `forest-path` | `forest path a` | −1.3, 3.0 | NE → plains · W → riverside · S → forest |
 | Forest | `forest` | `forest a` | −1.5, 4.5 | N → forest path · SE → beach path |
-| Beach Path | `beach-path` | `beach path` | −0.6, 5.7 | NW → forest · S → beach |
+| Beach Path | `beach-path` | `beach path` | −0.6, 5.7 | NW → forest · NE → plains · S → beach |
 | Beach | `beach` | `beach` | 0.2, 6.8 | N → beach path |
 
 Interiors, all `doorOf` ends on the building placed in the zone:

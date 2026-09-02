@@ -119,6 +119,16 @@
         "radius": 6,
         "height": 3.4,
         "blend": 3
+      },
+      {
+        "kind": "terrace",
+        "at": [
+          22,
+          45.4
+        ],
+        "radius": 5,
+        "height": 0.2,
+        "blend": 4
       }
     ],
     "patches": [
@@ -193,6 +203,14 @@
         "at": [
           -46,
           34
+        ],
+        "radius": 12,
+        "level": 4
+      },
+      {
+        "at": [
+          22,
+          44
         ],
         "radius": 12,
         "level": 4
@@ -335,6 +353,22 @@
           18
         ],
         "radius": 9
+      },
+      {
+        "kind": "blot",
+        "at": [
+          22,
+          45.4
+        ],
+        "radius": 7
+      },
+      {
+        "kind": "blot",
+        "at": [
+          13.5,
+          1.5
+        ],
+        "radius": 2.5
       }
     ]
   },
@@ -369,6 +403,33 @@
           -0.9
         ]
       }
+    },
+    {
+      "id": "south-gate",
+      "kind": "prop",
+      "builder": "gate",
+      "seed": 4772,
+      "at": [
+        22,
+        45.4
+      ],
+      "yaw": 0.08,
+      "options": {
+        "width": 3.2,
+        "open": 1
+      }
+    },
+    {
+      "id": "south-gate-slab",
+      "kind": "barrier",
+      "from": [
+        20.4,
+        46.7
+      ],
+      "to": [
+        23.6,
+        46.5
+      ]
     },
     {
       "id": "boundary",
@@ -417,6 +478,22 @@
               ],
               "kind": "fence"
             },
+            {
+              "to": {
+                "ref": "south-gate",
+                "edge": "+x"
+              },
+              "kind": "fence"
+            }
+          ]
+        },
+        {
+          "seed": 6830,
+          "start": {
+            "ref": "south-gate",
+            "edge": "-x"
+          },
+          "edges": [
             {
               "to": [
                 -10,
@@ -560,6 +637,84 @@
       "edge": "verge",
       "wear": 0.5,
       "seed": 7211
+    },
+    {
+      "id": "road-south",
+      "kind": "track",
+      "through": [
+        [
+          10,
+          0
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          20,
+          30
+        ],
+        [
+          22,
+          45.4
+        ],
+        [
+          22.4,
+          56
+        ]
+      ],
+      "width": 2.4,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.45,
+      "seed": 7212
+    },
+    {
+      "id": "south-gorse-e",
+      "kind": "prop",
+      "builder": "gorse",
+      "seed": 4773,
+      "at": [
+        27,
+        47
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "south-gorse-w",
+      "kind": "prop",
+      "builder": "gorse",
+      "seed": 4774,
+      "at": [
+        17,
+        47.6
+      ],
+      "yaw": 2.4
+    },
+    {
+      "id": "south-thicket",
+      "kind": "prop",
+      "builder": "thicket",
+      "seed": 4775,
+      "at": [
+        30,
+        41
+      ],
+      "yaw": 1.3
+    },
+    {
+      "id": "fork-post",
+      "kind": "prop",
+      "builder": "fingerpost",
+      "seed": 4776,
+      "at": [
+        13.5,
+        1.5
+      ],
+      "yaw": 0,
+      "options": {
+        "text": "Beach @16\nVillage @218\nForest @312"
+      }
     },
     {
       "id": "gate-crag-n",
@@ -775,7 +930,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6,
       "from": [
@@ -792,7 +948,8 @@
       "within": 5,
       "maxSlope": 28,
       "avoid": [
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 2,
       "from": [
@@ -810,7 +967,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6
     },
@@ -824,7 +982,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6
     },
@@ -838,7 +997,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6
     },
@@ -852,7 +1012,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6
     },
@@ -866,7 +1027,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6,
       "from": [
@@ -884,7 +1046,8 @@
       "maxSlope": 44,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6,
       "scale": [
@@ -902,7 +1065,8 @@
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6
     },
@@ -916,7 +1080,8 @@
       "maxSlope": 36,
       "avoid": [
         "keepClear",
-        "road"
+        "road",
+        "road-south"
       ],
       "inset": 6
     },
@@ -1020,6 +1185,29 @@
           "bright": 0.2,
           "roughness": 0.15,
           "gain": 0.28
+        },
+        "refDistance": 3,
+        "maxDistance": 40,
+        "rolloff": 1.4,
+        "reverb": 0.5
+      }
+    },
+    {
+      "id": "south-gate-creak",
+      "kind": "sound",
+      "ref": "south-gate",
+      "lift": 0.9,
+      "spec": {
+        "model": "friction",
+        "options": {
+          "motion": "weather",
+          "speed": 0.22,
+          "force": 0.85,
+          "pitch": 150,
+          "decay": 1.1,
+          "bright": 0.2,
+          "roughness": 0.15,
+          "gain": 0.3
         },
         "refDistance": 3,
         "maxDistance": 40,

@@ -8,10 +8,11 @@ import type { Fields } from '../schema';
 
 // A fingerpost: one post, and an arm for every line of `text`, each pointing its
 // own way and lettered on one face. The arms are spaced evenly round the post,
-// the first along +Z, so the placer's yaw aims the first and the rest follow.
+// the first along +Z, so the placer's yaw aims the first and the rest follow —
+// unless a line ends `@<degrees>`, which aims that arm itself, from +Z toward +X.
 
 export interface FingerpostOptions extends BuildOptions {
-  /** One name a line, one arm a name. */
+  /** One name a line, one arm a name; `Beach @120` aims the arm. */
   text?: string;
 }
 
@@ -38,10 +39,14 @@ export const fingerpost: MeshBuilder = {
     cap.translate(0, height + 0.08, 0);
     parts.push({ geometry: cap, color: shade(wood, 0.9), sway: 0 });
 
-    const names = text.split('\n').filter((line) => line.trim().length > 0);
+    const names = text
+      .split('\n')
+      .map((line) => /^(.*?)\s*(?:@\s*(-?\d+(?:\.\d+)?))?\s*$/.exec(line) as RegExpExecArray)
+      .map(([, name, degrees]) => ({ name, bearing: degrees === undefined ? undefined : (Number(degrees) * Math.PI) / 180 }))
+      .filter(({ name }) => name.trim().length > 0);
     const inks: THREE.BufferGeometry[] = [];
-    names.forEach((name, i) => {
-      const yaw = (i / names.length) * Math.PI * 2;
+    names.forEach(({ name, bearing }, i) => {
+      const yaw = bearing ?? (i / names.length) * Math.PI * 2;
       const y = height - 0.35 - i * (ARM_HEIGHT + 0.08);
       // The arm, along +Z from the post, cut to a point.
       const arm = new THREE.BoxGeometry(0.04, ARM_HEIGHT, ARM_LENGTH);
