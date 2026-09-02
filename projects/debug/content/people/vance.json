@@ -1,7 +1,7 @@
 {
   "id": "vance",
   "name": "Vance",
-  "home": "countryside-village",
+  "home": "village",
   "body": {
     "builder": "figure",
     "seed": 3311,

@@ -1,7 +1,7 @@
 {
   "id": "nell",
   "name": "Nell",
-  "home": "countryside-village",
+  "home": "village",
   "body": {
     "builder": "figure",
     "seed": 3304,

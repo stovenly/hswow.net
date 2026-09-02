@@ -1,85 +1,48 @@
 {
   "portals": [
     {
-      "id": "countryside-cottage-door",
+      "id": "cottage-door",
       "a": {
-        "zone": "countryside-village",
+        "zone": "village",
         "doorOf": "hut-cottage"
       },
       "b": {
-        "zone": "countryside-cottage",
+        "zone": "cottage",
         "wall": "-z"
       },
       "material": "timber",
       "seed": 8811
     },
     {
-      "id": "countryside-workshop-door",
+      "id": "workshop-door",
       "a": {
-        "zone": "countryside-village",
+        "zone": "village",
         "doorOf": "hut-workshop"
       },
       "b": {
-        "zone": "countryside-workshop",
+        "zone": "workshop",
         "wall": "-z"
       },
       "material": "timber",
       "seed": 8812
     },
     {
-      "id": "countryside-store-door",
+      "id": "store-door",
       "a": {
-        "zone": "countryside-village",
+        "zone": "village",
         "doorOf": "hut-store"
       },
       "b": {
-        "zone": "countryside-store",
+        "zone": "store",
         "wall": "-z"
       },
       "material": "timber",
       "seed": 8813
     },
     {
-      "id": "countryside-gate",
-      "a": {
-        "zone": "demos",
-        "at": [
-          -18,
-          0
-        ],
-        "yaw": 0
-      },
-      "b": {
-        "zone": "countryside-village",
-        "at": [
-          0,
-          22
-        ],
-        "yaw": 3.1415927,
-        "use": "volume",
-        "volume": {
-          "size": [
-            2.2,
-            2.6,
-            1.5
-          ],
-          "offset": [
-            0,
-            0,
-            -0.2
-          ]
-        },
-        "prompt": {
-          "title": "Dirt Path"
-        }
-      },
-      "material": "timber",
-      "seed": 4713
-    },
-    {
       "id": "cottage-cellar-hatch",
       "a": {
-        "zone": "countryside-cottage",
+        "zone": "cottage",
         "use": "prop",
         "propOf": "cellar-hatch",
         "arrival": {
@@ -91,7 +54,7 @@
         }
       },
       "b": {
-        "zone": "countryside-cellar",
+        "zone": "cellar",
         "use": "prop",
         "propOf": "ceiling-hatch",
         "arrival": {
@@ -100,13 +63,14 @@
             0.9
           ],
           "yaw": 0.93
-        }
+        },
+        "accessory": true
       }
     },
     {
       "id": "cellar-ladder-up",
       "a": {
-        "zone": "countryside-cellar",
+        "zone": "cellar",
         "use": "prop",
         "propOf": "cellar-ladder",
         "arrival": {
@@ -118,7 +82,7 @@
         }
       },
       "b": {
-        "zone": "countryside-cottage",
+        "zone": "cottage",
         "use": "none",
         "arrival": {
           "at": [
@@ -126,13 +90,14 @@
             1.5
           ],
           "yaw": 1
-        }
+        },
+        "accessory": true
       }
     },
     {
       "id": "village-crate-tower",
       "a": {
-        "zone": "countryside-village",
+        "zone": "village",
         "use": "prop",
         "propOf": "tower-ladder",
         "half": "lower",
@@ -149,7 +114,7 @@
         }
       },
       "b": {
-        "zone": "countryside-village",
+        "zone": "village",
         "use": "prop",
         "propOf": "tower-ladder",
         "half": "upper",

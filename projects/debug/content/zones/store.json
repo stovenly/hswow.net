@@ -1,6 +1,6 @@
 {
-  "id": "countryside-store",
-  "name": "Countryside Store Demo",
+  "id": "store",
+  "name": "Store",
   "group": "countryside",
   "environment": { "base": "countryside-store" },
   "spawn": { "at": [0, 0.1, 0.4], "yaw": 3.141592653589793 },

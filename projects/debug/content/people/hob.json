@@ -1,7 +1,7 @@
 {
   "id": "hob",
   "name": "Hob",
-  "home": "countryside-village",
+  "home": "farm",
   "body": {
     "builder": "figure",
     "seed": 3303,

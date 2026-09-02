@@ -1,6 +1,6 @@
 {
-  "id": "countryside-cottage",
-  "name": "Countryside Cottage Demo",
+  "id": "cottage",
+  "name": "Cottage",
   "group": "countryside",
   "environment": {
     "base": "countryside-house"

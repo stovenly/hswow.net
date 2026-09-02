@@ -1,6 +1,6 @@
 {
-  "id": "countryside-workshop",
-  "name": "Countryside Workshop Demo",
+  "id": "workshop",
+  "name": "Workshop",
   "group": "countryside",
   "environment": { "base": "countryside-house" },
   "spawn": { "at": [0, 0.1, 0.5], "yaw": 3.141592653589793 },

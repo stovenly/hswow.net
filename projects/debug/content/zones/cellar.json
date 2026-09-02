@@ -1,5 +1,5 @@
 {
-  "id": "countryside-cellar",
+  "id": "cellar",
   "name": "Cottage Cellar",
   "group": "countryside",
   "environment": { "base": "countryside-cellar" },

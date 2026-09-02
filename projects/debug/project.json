@@ -2,8 +2,8 @@
   "id": "debug",
   "title": "Here Stands What Once Was",
   "entry": "exterior",
-  "start": "countryside-village",
-  "editorEntry": "countryside-village",
+  "start": "village",
+  "editorEntry": "village",
   "groups": [
     "countryside",
     "industrial",

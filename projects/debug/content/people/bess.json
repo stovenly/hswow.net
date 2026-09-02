@@ -1,7 +1,7 @@
 {
   "id": "bess",
   "name": "Bess",
-  "home": "countryside-workshop",
+  "home": "workshop",
   "body": {
     "builder": "figure",
     "seed": 4444,
