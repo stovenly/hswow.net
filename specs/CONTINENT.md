@@ -1,8 +1,9 @@
 # The continent — spec
 
 **Built, phases 0–7.** What came out differently is under *Built* below. Eight
-zones and three interiors, hand placed, that together are the demo: a village with a farm and a plain at its gates, a river and a crossroads
-past those, a wood with a house in it, and the sea at the end.
+zones and three interiors, hand placed, that together are the demo: a village
+with a farm and a plain at its gates, a river and a crossroads past those, a
+wood with a house in it, and the sea at the end.
 
 The debug hall is cut loose. Documents connect only to documents; everything
 under `projects/debug/code/` stays reachable from the proving ground and
@@ -94,9 +95,8 @@ nothing in it reaches a place.
 
 - `villager-hut` is a document reached from the debug hall. It is a demo of the
   hut, not a place, so it keeps its door. Say if it should be cut too.
-- The plains' one built thing — a cairn on the high ground, below — and the
-  crossroads' signboard both carry text the builders can render. What the
-  board says is yours; the spec leaves it blank.
+- The crossroads' fingerpost carries the three zone names as they stand. The
+  words are yours.
 
 ---
 
@@ -580,12 +580,12 @@ walk finds goes in the zone it was found in, not in a check.
 
 Suggestions, by the zone that first misses each. Slugs are provisional and the
 names are yours. Each says what stands in for it in the phases above, so
-nothing waits on any of these; the ones marked **first** are the ones whose
-absence shows most.
+nothing waits on any of these; the ones marked **built** exist and stand in
+their zones.
 
 | zone | builder | reads as | stands in today |
 | --- | --- | --- | --- |
-| Village, Farm | `gate` **first** | a five-bar field gate, hung open, in a fence or wall gap | two `post`s and a gap |
+| Village, Farm | `gate` **built** | a five-bar field gate, hung open, in a fence or wall gap | two `post`s and a gap |
 | Village | `stile` | steps over a fence — the goat quest names one | nothing |
 | Village | `bench` | a plank on two stones by the well | a `stool` |
 | Farm | `hen-house` | a boarded coop on legs with a ramp | the hens roam loose |
@@ -593,16 +593,16 @@ absence shows most.
 | Farm | `wheelbarrow` | tipped on its nose by the dung heap | a `pail` |
 | Farm | `water-butt` | a barrel under a downpipe at the house corner | a `barrel` |
 | Farm | `stook` | a sheaf of cut corn stood in a cone; a field of them is a harvest | `hay-bale` |
-| Plains | `windmill` **first** | a post mill on the ridge — a landmark for a zone that has none | a `cairn` |
+| Plains | `windmill` **built** | a post mill on the ridge — a landmark for a zone that has none | a `cairn` |
 | Plains | `sheepfold` | a round drystone fold with one gap | `stone-wall-ruin` |
 | Plains | `waymarker` | a milestone or a wind-bent post with a mark cut in | a `post` |
 | Plains | `hawthorn` | a small wind-bent tree, the only tree that lives up here | `small-tree` |
-| Riverside | `footbridge` **first** | a plank bridge on two posts over a side stream | a `fallen-log` |
+| Riverside | `footbridge` **built** | a plank bridge on two posts over a side stream | a `fallen-log` |
 | Riverside | `stepping-stones` | five flat stones across a shallow | nothing |
 | Riverside | `willow` | the tree that belongs at water, trailing | `elder` |
 | Riverside | `rowboat` | pulled up on the bank, oars in | nothing |
 | Riverside | `weir` | a step in the river with the water tech spilling over it — engine work as much as art | nothing |
-| Forest Path | `fingerpost` **first** | a post with three arms, each with a name — the crossroads' one built thing | a `signboard` |
+| Forest Path | `fingerpost` **built** | a post with three arms, each with a name — the crossroads' one built thing | a `signboard` |
 | Forest Path | `wayside-shrine` | a niche on a post with a candle in it | a `cairn` |
 | Forest | `chopping-block` | a stump with an axe stood in it, by the log pile | a `stump` |
 | Forest | `charcoal-clamp` | a low turf mound with a smoke mount — a woodsman's living | nothing |
@@ -610,7 +610,7 @@ absence shows most.
 | Forest | `deer` | one wild creature — a life builder, so the biggest ask here | nothing |
 | Beach Path | `marram` | the stiff dune grass in tufts, paler than a meadow clump | `large-grass-clump` |
 | Beach Path, Beach | `driftwood` | a bleached, bare log; the tideline's deadfall | `fallen-log` |
-| Beach | `skiff` **first** | a boat pulled up above the tide, the one built thing on the sand | nothing |
+| Beach | `skiff` **built** | a boat pulled up above the tide, the one built thing on the sand | nothing |
 | Beach | `groyne` | a row of posts running into the sea; the showcase makes one in code | nothing |
 | Beach | `lobster-pot` | a wicker pot, two or three stacked | `crate` |
 | Beach | `wrack` | a clump of weed at the tideline | `moss` |

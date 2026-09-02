@@ -308,6 +308,14 @@
           -10
         ],
         "radius": 5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -12,
+          -13
+        ],
+        "radius": 4
       }
     ],
     "dunes": [
@@ -768,6 +776,17 @@
         -7
       ],
       "yaw": 2.9
+    },
+    {
+      "id": "skiff",
+      "kind": "prop",
+      "builder": "skiff",
+      "seed": 5014,
+      "at": [
+        -12,
+        -13
+      ],
+      "yaw": 0.35
     },
     {
       "id": "dune-deadfall",

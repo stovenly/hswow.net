@@ -214,6 +214,30 @@
         ],
         "radius": 30,
         "height": 2.5
+      },
+      {
+        "kind": "channel",
+        "through": [
+          [
+            -26,
+            30
+          ],
+          [
+            -4,
+            31
+          ],
+          [
+            8,
+            31
+          ],
+          [
+            13,
+            30
+          ]
+        ],
+        "width": 1.6,
+        "depth": 0.9,
+        "bank": 1.2
       }
     ],
     "patches": [
@@ -1730,6 +1754,37 @@
         30
       ],
       "yaw": 1.2
+    },
+    {
+      "id": "footbridge",
+      "kind": "prop",
+      "builder": "footbridge",
+      "seed": 4909,
+      "at": [
+        7.5,
+        31
+      ],
+      "yaw": -1.86,
+      "options": {
+        "length": 5
+      }
+    },
+    {
+      "id": "gully-water",
+      "kind": "water",
+      "at": [
+        -8,
+        -0.5,
+        30.5
+      ],
+      "width": 22,
+      "depth": 4,
+      "chop": 0.2,
+      "flow": [
+        0.3,
+        0
+      ],
+      "segment": 0.5
     },
     {
       "id": "boulder-1",

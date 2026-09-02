@@ -180,6 +180,16 @@
         "radius": 5,
         "height": 1.1,
         "blend": 5
+      },
+      {
+        "kind": "terrace",
+        "at": [
+          40,
+          18
+        ],
+        "radius": 6,
+        "height": 3.4,
+        "blend": 3
       }
     ],
     "patches": [
@@ -388,6 +398,14 @@
           2
         ],
         "radius": 4
+      },
+      {
+        "kind": "blot",
+        "at": [
+          40,
+          18
+        ],
+        "radius": 9
       }
     ]
   },
@@ -625,6 +643,17 @@
         12
       ],
       "yaw": 0.3
+    },
+    {
+      "id": "windmill",
+      "kind": "prop",
+      "builder": "windmill",
+      "seed": 4771,
+      "at": [
+        40,
+        18
+      ],
+      "yaw": -1.5707963
     },
     {
       "id": "lone-oak",
@@ -990,6 +1019,29 @@
         "maxDistance": 40,
         "rolloff": 1.4,
         "reverb": 0.5
+      }
+    },
+    {
+      "id": "mill-creak",
+      "kind": "sound",
+      "ref": "windmill",
+      "lift": 9,
+      "spec": {
+        "model": "friction",
+        "options": {
+          "motion": "weather",
+          "speed": 0.16,
+          "force": 0.9,
+          "pitch": 90,
+          "decay": 1.6,
+          "bright": 0.15,
+          "roughness": 0.2,
+          "gain": 0.3
+        },
+        "refDistance": 6,
+        "maxDistance": 70,
+        "rolloff": 1.2,
+        "reverb": 0.6
       }
     },
     {

@@ -468,28 +468,6 @@
       ]
     },
     {
-      "id": "gate-post-e",
-      "kind": "prop",
-      "builder": "post",
-      "seed": 5231,
-      "at": [
-        1.6,
-        24.2
-      ],
-      "yaw": 0.3
-    },
-    {
-      "id": "gate-post-w",
-      "kind": "prop",
-      "builder": "post",
-      "seed": 5232,
-      "at": [
-        -1.6,
-        24.2
-      ],
-      "yaw": -0.4
-    },
-    {
       "id": "gate-hazel-e",
       "kind": "prop",
       "builder": "hazel",
@@ -510,6 +488,21 @@
         24.6
       ],
       "yaw": 2.3
+    },
+    {
+      "id": "south-gate",
+      "kind": "prop",
+      "builder": "gate",
+      "seed": 4747,
+      "at": [
+        0,
+        24
+      ],
+      "yaw": 0,
+      "options": {
+        "width": 3.2,
+        "open": 1
+      }
     },
     {
       "id": "gate-slab",
@@ -633,15 +626,19 @@
       "cap": "post"
     },
     {
-      "id": "pen-post",
+      "id": "pen-gate",
       "kind": "prop",
-      "builder": "post",
-      "seed": 4741,
+      "builder": "gate",
+      "seed": 4745,
       "at": [
         -11.5,
-        7
+        8
       ],
-      "yaw": 0.2
+      "yaw": 1.5707963,
+      "options": {
+        "width": 2,
+        "open": 0.6
+      }
     },
     {
       "id": "pen-trough",
@@ -736,15 +733,19 @@
       "cap": "post"
     },
     {
-      "id": "crop-post",
+      "id": "crop-gate",
       "kind": "prop",
-      "builder": "post",
-      "seed": 4751,
+      "builder": "gate",
+      "seed": 4746,
       "at": [
-        13.2,
+        14.7,
         3
       ],
-      "yaw": 0.1
+      "yaw": 0,
+      "options": {
+        "width": 3,
+        "open": 0.8
+      }
     },
     {
       "id": "scarecrow",
@@ -1321,11 +1322,6 @@
     {
       "id": "gate",
       "kind": "sound",
-      "at": [
-        26.9,
-        1.7,
-        0
-      ],
       "spec": {
         "model": "friction",
         "options": {
@@ -1342,7 +1338,9 @@
         "maxDistance": 40,
         "rolloff": 1.4,
         "reverb": 0.5
-      }
+      },
+      "ref": "south-gate",
+      "lift": 0.9
     },
     {
       "id": "hearth",

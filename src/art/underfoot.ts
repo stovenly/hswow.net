@@ -25,6 +25,7 @@ import type { SurfaceName } from '../audio/models/footsteps';
 export const MATERIALS: Record<string, SurfaceName | null> = {
   // --- stone ---------------------------------------------------------------
   'stone-wall-archway': 'stone',
+  windmill: 'stone',
   cairn: 'stone',
   cistern: 'stone',
   'platinum-column': 'stone',
@@ -99,6 +100,10 @@ export const MATERIALS: Record<string, SurfaceName | null> = {
   well: 'wood',
   fence: 'wood',
   'fence-post': 'wood',
+  fingerpost: 'wood',
+  footbridge: 'wood',
+  gate: 'wood',
+  skiff: 'wood',
   'hut-door': 'wood',
   'hut-trapdoor': 'wood',
   lectern: 'wood',

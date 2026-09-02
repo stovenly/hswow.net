@@ -1056,17 +1056,17 @@
       "on": "post"
     },
     {
-      "id": "signboard",
+      "id": "fingerpost",
       "kind": "prop",
-      "builder": "signboard",
+      "builder": "fingerpost",
       "seed": 4803,
       "at": [
         4.4,
         -1.2
       ],
-      "yaw": -0.5,
+      "yaw": 0,
       "options": {
-        "text": ""
+        "text": "Forest\nPlains\nRiverside"
       }
     },
     {
@@ -1894,8 +1894,8 @@
     {
       "id": "board-creak",
       "kind": "sound",
-      "ref": "signboard",
-      "lift": 1.4,
+      "ref": "fingerpost",
+      "lift": 2.2,
       "spec": {
         "model": "friction",
         "options": {
