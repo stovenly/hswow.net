@@ -1159,7 +1159,7 @@ function round(value: number, places = 3): number {
 /** Every kind the isolate filter can name. */
 function entryKindNames(): string[] {
   return [
-    'prop', 'creature', 'run', 'chain', 'scatter', 'barrier', 'prefab', 'ground',
+    'prop', 'creature', 'run', 'chain', 'track', 'scatter', 'barrier', 'prefab', 'ground',
     'water', 'particles', 'fogVolume', 'glitch', 'horror', 'sound', 'soundScatter',
     'vistaRing', 'dressing',
   ].filter((kind) => entryKind(kind) !== undefined);
