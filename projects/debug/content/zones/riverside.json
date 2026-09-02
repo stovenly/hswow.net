@@ -2331,6 +2331,19 @@
       ],
       "scatter": [
         {
+          "builder": "vista-tree",
+          "count": 8,
+          "band": {
+            "inner": 14,
+            "outer": 50
+          },
+          "scale": [
+            0.9,
+            1.3
+          ],
+          "spacing": 14
+        },
+        {
           "builder": "vista-copse",
           "count": 4,
           "band": {

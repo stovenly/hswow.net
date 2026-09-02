@@ -83,8 +83,12 @@ nothing in it reaches a place.
   offing deepens with distance rather than staying a hand deep.
 - **Dressing bands** are measured from the terrain square, not the playable
   outline, so on the corridor zones they sit only in the last twenty metres.
-- **Nothing suggested under *Builders the zones want* is built yet**, and every
-  zone uses the stand-in named there.
+- **The five vista builders are built** and placed: the farmstead west of the
+  village, trees along the plains' wood edge and in the near band of the
+  corridor zones, the headland with the tower on it from the forest, the beach
+  path and the beach, dunes west of the shore, and one sail on the offing.
+- **The builders under *Builders the zones want*** are built as far as the
+  table below says; every other zone uses the stand-in named there.
 
 ## Open
 

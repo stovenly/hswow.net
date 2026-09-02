@@ -2012,6 +2012,19 @@
       ],
       "scatter": [
         {
+          "builder": "vista-tree",
+          "count": 10,
+          "band": {
+            "inner": 14,
+            "outer": 50
+          },
+          "scale": [
+            0.9,
+            1.3
+          ],
+          "spacing": 12
+        },
+        {
           "builder": "vista-copse",
           "count": 6,
           "band": {
