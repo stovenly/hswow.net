@@ -308,11 +308,11 @@ export interface Discovery {
 }
 
 /** Type size of a place's name, in print pixels, what a road out adds to it, and the clear space kept around it. */
-const NAME = 19;
+const NAME = 24;
 const NAME_PER_ROAD = 1.5;
-const NAME_MOST = 26;
+const NAME_MOST = 32;
 /** Window pixels a name never drops below, however far out the view is. */
-const NAME_LEAST = 13;
+const NAME_LEAST = 16;
 const NAME_GAP = 9;
 const NAME_PAD = 7;
 

@@ -530,8 +530,15 @@ export class InventoryUI {
       this.hide();
       return;
     }
-    if (event.code === 'KeyE' && this.hovered && !this.ghost) {
+    if (event.code !== 'KeyE' || this.ghost) return;
+    if (this.hovered) {
       if (this.handlers.readItem(this.hovered)) event.preventDefault();
+      return;
+    }
+    // The key that opened the container closes it again.
+    if (this.container) {
+      event.preventDefault();
+      this.hide();
     }
   };
 }
