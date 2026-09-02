@@ -112,173 +112,6 @@
           -6
         ],
         "material": "crop"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            0,
-            22
-          ],
-          [
-            0,
-            12
-          ],
-          [
-            0,
-            3
-          ]
-        ],
-        "width": 3,
-        "material": "dirt"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            -10,
-            8
-          ],
-          [
-            -3,
-            4
-          ],
-          [
-            9,
-            9
-          ]
-        ],
-        "width": 2.2,
-        "material": "cobble"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            -9,
-            -6
-          ],
-          [
-            0,
-            0
-          ],
-          [
-            14,
-            -1
-          ]
-        ],
-        "width": 2.2,
-        "material": "cobble"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            2,
-            -10
-          ],
-          [
-            0,
-            -2
-          ],
-          [
-            0,
-            3
-          ]
-        ],
-        "width": 2.2,
-        "material": "cobble"
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -15,
-          -11
-        ],
-        "radius": 5,
-        "material": "mire"
-      }
-    ],
-    "cover": [
-      {
-        "kind": "path",
-        "through": [
-          [
-            0,
-            22
-          ],
-          [
-            0,
-            12
-          ],
-          [
-            0,
-            3
-          ]
-        ],
-        "width": 3,
-        "cover": "none",
-        "edge": "hard"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            -10,
-            8
-          ],
-          [
-            -3,
-            4
-          ],
-          [
-            9,
-            9
-          ]
-        ],
-        "width": 2.2,
-        "cover": "none",
-        "edge": "hard"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            -9,
-            -6
-          ],
-          [
-            0,
-            0
-          ],
-          [
-            14,
-            -1
-          ]
-        ],
-        "width": 2.2,
-        "cover": "none",
-        "edge": "hard"
-      },
-      {
-        "kind": "path",
-        "through": [
-          [
-            2,
-            -10
-          ],
-          [
-            0,
-            -2
-          ],
-          [
-            0,
-            3
-          ]
-        ],
-        "width": 2.2,
-        "cover": "none",
-        "edge": "hard"
       }
     ],
     "detail": [
@@ -400,14 +233,6 @@
       {
         "kind": "blot",
         "at": [
-          -15,
-          -11
-        ],
-        "radius": 8
-      },
-      {
-        "kind": "blot",
-        "at": [
           -10,
           8
         ],
@@ -492,6 +317,14 @@
           -21.5
         ],
         "radius": 6
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -22,
+          -2
+        ],
+        "radius": 6
       }
     ],
     "keepClearSoft": [
@@ -545,7 +378,9 @@
       }
     ]
   },
-  "traits": ["villager"],
+  "traits": [
+    "villager"
+  ],
   "entries": [
     {
       "id": "arch",
@@ -557,6 +392,37 @@
         22
       ],
       "yaw": 3.1415927
+    },
+    {
+      "id": "arch-west",
+      "kind": "prop",
+      "builder": "stone-wall-archway",
+      "seed": 4715,
+      "at": [
+        -22.2,
+        -2
+      ],
+      "yaw": -1.5707963
+    },
+    {
+      "id": "arch-west-slab",
+      "kind": "barrier",
+      "from": {
+        "ref": "arch-west",
+        "edge": "-z",
+        "offset": [
+          -0.9,
+          0
+        ]
+      },
+      "to": {
+        "ref": "arch-west",
+        "edge": "+z",
+        "offset": [
+          -0.9,
+          0
+        ]
+      }
     },
     {
       "id": "arch-slab",
@@ -664,11 +530,27 @@
               "kind": "wall"
             },
             {
+              "to": {
+                "ref": "arch-west",
+                "edge": "-z"
+              },
+              "kind": "wall"
+            }
+          ]
+        },
+        {
+          "seed": 6500,
+          "start": {
+            "ref": "arch-west",
+            "edge": "+z"
+          },
+          "edges": [
+            {
               "to": [
                 -21,
                 -15
               ],
-              "kind": "fence"
+              "kind": "wall"
             },
             {
               "to": [
@@ -680,6 +562,129 @@
           ]
         }
       ]
+    },
+    {
+      "id": "gate-road",
+      "kind": "track",
+      "through": [
+        [
+          0,
+          30
+        ],
+        [
+          0,
+          22
+        ],
+        [
+          0,
+          12
+        ],
+        [
+          0,
+          3
+        ]
+      ],
+      "width": 3,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.6,
+      "seed": 7101
+    },
+    {
+      "id": "lane-north",
+      "kind": "track",
+      "through": [
+        [
+          -7.6,
+          6.6
+        ],
+        [
+          -3,
+          4
+        ],
+        [
+          6.4,
+          7.9
+        ]
+      ],
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "kerb",
+      "wear": 0.5,
+      "seed": 7102
+    },
+    {
+      "id": "lane-cross",
+      "kind": "track",
+      "through": [
+        [
+          -7,
+          -4.6
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          11.4,
+          -0.8
+        ]
+      ],
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "kerb",
+      "wear": 0.55,
+      "seed": 7103
+    },
+    {
+      "id": "lane-south",
+      "kind": "track",
+      "through": [
+        [
+          1.4,
+          -7.5
+        ],
+        [
+          0,
+          -2
+        ],
+        [
+          0,
+          3
+        ]
+      ],
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "kerb",
+      "wear": 0.45,
+      "seed": 7104
+    },
+    {
+      "id": "west-road",
+      "kind": "track",
+      "through": [
+        [
+          -11.6,
+          -5.2
+        ],
+        [
+          -17,
+          -3.6
+        ],
+        [
+          -22.2,
+          -2
+        ],
+        [
+          -30,
+          -1.2
+        ]
+      ],
+      "width": 2.6,
+      "surface": "dirt",
+      "edge": "verge",
+      "wear": 0.5,
+      "seed": 7105
     },
     {
       "id": "welcome-banner",
@@ -875,8 +880,8 @@
       "builder": "crate",
       "seed": 5405,
       "at": [
-        3.0,
-        10.0
+        3,
+        10
       ],
       "yaw": 0.7
     },
@@ -909,7 +914,7 @@
       "seed": 5601,
       "at": [
         4.2,
-        -13.0
+        -13
       ],
       "yaw": 0.5
     },
@@ -930,7 +935,7 @@
       "seed": 5603,
       "at": [
         5.4,
-        -12.0
+        -12
       ],
       "yaw": 0.9
     },
@@ -1112,27 +1117,6 @@
       "solid": false
     },
     {
-      "id": "pen-fence",
-      "kind": "run",
-      "builder": "fence",
-      "seed": 400,
-      "points": [
-        [
-          -19,
-          -6
-        ],
-        [
-          -19,
-          -14
-        ],
-        [
-          -11,
-          -14
-        ]
-      ],
-      "cap": "post"
-    },
-    {
       "id": "pen-trough",
       "kind": "prop",
       "builder": "trough",
@@ -1142,45 +1126,6 @@
         -13
       ],
       "yaw": 0.4
-    },
-    {
-      "id": "cattle",
-      "kind": "scatter",
-      "builder": "bovine",
-      "seed": 8801,
-      "count": 2,
-      "within": 3.5,
-      "from": [
-        -15,
-        -11
-      ],
-      "maxSlope": 20
-    },
-    {
-      "id": "sheep",
-      "kind": "scatter",
-      "builder": "ovine",
-      "seed": 8802,
-      "count": 4,
-      "within": 4,
-      "from": [
-        -15,
-        -11
-      ],
-      "maxSlope": 20
-    },
-    {
-      "id": "pigs",
-      "kind": "scatter",
-      "builder": "porcine",
-      "seed": 8803,
-      "count": 2,
-      "within": 3.5,
-      "from": [
-        -16,
-        -9
-      ],
-      "maxSlope": 20
     },
     {
       "id": "fowl",
@@ -1284,7 +1229,9 @@
       "id": "villager-3",
       "kind": "creature",
       "person": "hob",
-      "traits": ["farmhand"],
+      "traits": [
+        "farmhand"
+      ],
       "builder": "figure",
       "seed": 3303,
       "at": [
@@ -1320,7 +1267,9 @@
       "yaw": 3,
       "roam": 2.5,
       "folk": "city",
-      "traits": ["cityfolk"]
+      "traits": [
+        "cityfolk"
+      ]
     },
     {
       "id": "oak-west",
@@ -1374,7 +1323,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ],
       "scale": [
         0.85,
@@ -1409,7 +1363,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ],
       "scale": [
         0.8,
@@ -1444,7 +1403,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ],
       "scale": [
         0.8,
@@ -1479,7 +1443,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ],
       "scale": [
         0.8,
@@ -1510,7 +1479,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ],
       "scale": [
         0.8,
@@ -1541,7 +1515,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ],
       "scale": [
         0.8,
@@ -1572,7 +1551,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1603,7 +1587,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1634,7 +1623,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1661,7 +1655,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1688,7 +1687,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1715,7 +1719,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1742,7 +1751,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1769,7 +1783,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1796,7 +1815,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1827,38 +1851,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
-      ]
-    },
-    {
-      "id": "nettles",
-      "kind": "scatter",
-      "builder": "nettle",
-      "seed": 5034,
-      "count": 8,
-      "within": 8,
-      "from": [
-        -15,
-        -11
-      ],
-      "maxSlope": 26,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
         },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        }
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1885,7 +1883,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1912,21 +1915,13 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
-    },
-    {
-      "id": "reeds",
-      "kind": "scatter",
-      "builder": "reeds",
-      "seed": 5038,
-      "count": 5,
-      "within": 4,
-      "from": [
-        -17,
-        -13
-      ],
-      "maxSlope": 22
     },
     {
       "id": "daisies",
@@ -1956,7 +1951,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -1987,7 +1987,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -2018,7 +2023,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -2049,7 +2059,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -2080,7 +2095,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -2107,7 +2127,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -2138,7 +2163,12 @@
           "ref": "hut-store",
           "ahead": 2.2,
           "radius": 2.4
-        }
+        },
+        "gate-road",
+        "lane-north",
+        "lane-cross",
+        "lane-south",
+        "west-road"
       ]
     },
     {
@@ -2156,11 +2186,96 @@
         {
           "builder": "vista-hamlet",
           "at": [
-            0,
-            95
+            -95,
+            10
+          ],
+          "scale": 1.1,
+          "seed": 5601
+        },
+        {
+          "builder": "vista-copse",
+          "at": [
+            -88,
+            26
+          ],
+          "scale": 1.1,
+          "seed": 5604
+        },
+        {
+          "builder": "vista-hill",
+          "at": [
+            -20,
+            85
+          ],
+          "scale": 1,
+          "seed": 5605
+        },
+        {
+          "builder": "vista-hill",
+          "at": [
+            30,
+            100
           ],
           "scale": 1.2,
-          "seed": 5601
+          "seed": 5606
+        },
+        {
+          "builder": "vista-hill",
+          "at": [
+            5,
+            130
+          ],
+          "scale": 1.3,
+          "seed": 5607,
+          "apparent": 200
+        },
+        {
+          "builder": "vista-field-wall",
+          "at": [
+            -40,
+            75
+          ],
+          "scale": 1.1,
+          "seed": 5608
+        },
+        {
+          "builder": "vista-field-wall",
+          "at": [
+            45,
+            80
+          ],
+          "scale": 1.2,
+          "seed": 5609
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -150,
+            190
+          ],
+          "scale": 1.5,
+          "seed": 5610,
+          "apparent": 300
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -200,
+            150
+          ],
+          "scale": 1.6,
+          "seed": 5611,
+          "apparent": 300
+        },
+        {
+          "builder": "vista-forest",
+          "at": [
+            -110,
+            230
+          ],
+          "scale": 1.4,
+          "seed": 5612,
+          "apparent": 300
         },
         {
           "builder": "vista-hamlet",
@@ -2696,72 +2811,6 @@
         "maxDistance": 34,
         "rolloff": 1.25,
         "reverb": 0.4
-      }
-    },
-    {
-      "id": "cattle-calls",
-      "kind": "soundScatter",
-      "at": [
-        -15,
-        1.1,
-        -11
-      ],
-      "spec": {
-        "id": "cattle",
-        "sound": "animal",
-        "spread": [
-          3.5,
-          0.2,
-          3.5
-        ],
-        "every": 44,
-        "force": [
-          0.5,
-          0.9
-        ],
-        "voices": 1,
-        "options": {
-          "kind": "cow",
-          "gain": 0.55,
-          "tone": 0.97
-        },
-        "refDistance": 4,
-        "maxDistance": 48,
-        "rolloff": 1.1,
-        "reverb": 0.5
-      }
-    },
-    {
-      "id": "sheep-calls",
-      "kind": "soundScatter",
-      "at": [
-        -15.5,
-        0.9,
-        -12
-      ],
-      "spec": {
-        "id": "sheep",
-        "sound": "animal",
-        "spread": [
-          4,
-          0.2,
-          4
-        ],
-        "every": 27,
-        "force": [
-          0.4,
-          0.85
-        ],
-        "voices": 1,
-        "options": {
-          "kind": "sheep",
-          "gain": 0.42,
-          "tone": 1.06
-        },
-        "refDistance": 3.5,
-        "maxDistance": 40,
-        "rolloff": 1.2,
-        "reverb": 0.45
       }
     },
     {

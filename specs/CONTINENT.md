@@ -596,13 +596,14 @@ absence shows most.
 The roster is nine profiles of one mass function, and it was written for a
 valley of hills. This country has a coast, a farm, and woods seen from close
 enough that a blob is a blob. Five more, all under the roster's budgets and
-built on the same grammar; the phases above use the stand-ins until they
-exist.
+built on the same grammar, and each **one large thing** — a builder makes a
+mass, never an arrangement of masses; how many stand together and where is the
+ring's decision. The phases above use the stand-ins until they exist.
 
 | builder | reads as | for | stands in today |
 | --- | --- | --- | --- |
-| `vista-farmstead` | one long low roof, a stack, a rick beside it | the farm from the village's west arch and from the river | `vista-hamlet`, which is a cluster and reads as another village |
-| `vista-treeline` | a row of eight to twelve simple trees — trunk and two or three canopy blobs, forty triangles each — heights uneven, spacing uneven | the 50–110 m band, between real trees at 2,000 triangles and the merged mass at 100 m+; the plains' south-west wall, the crossroads' banks | `vista-forest`, whose blobs read as blobs inside 100 m |
+| `vista-farmstead` | one long low roof with a stack — a barn seen far off, and nothing beside it | the farm from the village's west arch and from the river | `vista-hamlet`, which is a cluster and reads as another village |
+| `vista-tree` | one large tree — a trunk and two or three canopy blobs, forty triangles — that the ring's scatter places one at a time into a line or a wood edge | the 50–110 m band, between real trees at 2,000 triangles and the merged mass at 100 m+; the plains' south-west wall, the crossroads' banks | `vista-forest`, whose blobs read as blobs inside 100 m |
 | `vista-dune` | a long low sand-coloured mass, flatter than a hill, with a darker fringe along the crest for the grass | the beach path and the beach, west | `vista-hill`, which is green |
 | `vista-headland` | a `vista-range` that steps down into the water: four or five crag masses on a line, the last lowest, stone-coloured, cut flat at the surface | the coast east of the beach, seen from the forest, the beach path and the beach | three `vista-crag`s in a line, which do not step |
 | `vista-sail` | a hull and one triangular sail, twelve triangles, pale against the sea | the beach's far particular — a boat out on the offing at apparent 400, the one thing in the zone that says someone else is out there | nothing |
