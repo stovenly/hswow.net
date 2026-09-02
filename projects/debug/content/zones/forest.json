@@ -52,33 +52,6 @@
     "rockAngle": 40,
     "landforms": [
       {
-        "kind": "basin",
-        "at": [
-          -10,
-          -26
-        ],
-        "radius": 14,
-        "depth": 0.8
-      },
-      {
-        "kind": "basin",
-        "at": [
-          6,
-          4
-        ],
-        "radius": 16,
-        "depth": 0.6
-      },
-      {
-        "kind": "basin",
-        "at": [
-          28,
-          30
-        ],
-        "radius": 12,
-        "depth": 0.5
-      },
-      {
         "kind": "hill",
         "at": [
           -22,
@@ -164,9 +137,9 @@
           1,
           1
         ],
-        "radius": 5.5,
-        "height": -0.5,
-        "blend": 3
+        "radius": 6,
+        "height": 0.15,
+        "blend": 4
       }
     ],
     "patches": [

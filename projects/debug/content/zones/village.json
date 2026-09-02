@@ -581,7 +581,7 @@
         ],
         [
           0,
-          3
+          6.5
         ]
       ],
       "width": 3,
@@ -609,7 +609,7 @@
       ],
       "width": 2.2,
       "surface": "cobble",
-      "edge": "kerb",
+      "edge": "none",
       "wear": 0.5,
       "seed": 7102
     },
@@ -632,12 +632,12 @@
       ],
       "width": 2.2,
       "surface": "cobble",
-      "edge": "kerb",
+      "edge": "none",
       "wear": 0.55,
       "seed": 7103
     },
     {
-      "id": "lane-south",
+      "id": "lane-south-a",
       "kind": "track",
       "through": [
         [
@@ -650,14 +650,33 @@
         ],
         [
           0,
-          3
+          -1
         ]
       ],
       "width": 2.2,
       "surface": "cobble",
-      "edge": "kerb",
+      "edge": "none",
       "wear": 0.45,
       "seed": 7104
+    },
+    {
+      "id": "lane-south-b",
+      "kind": "track",
+      "through": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          4.3
+        ]
+      ],
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "none",
+      "wear": 0.45,
+      "seed": 7106
     },
     {
       "id": "west-road",
@@ -1311,7 +1330,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ],
       "scale": [
@@ -1351,7 +1371,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ],
       "scale": [
@@ -1391,7 +1412,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ],
       "scale": [
@@ -1431,7 +1453,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ],
       "scale": [
@@ -1467,7 +1490,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ],
       "scale": [
@@ -1503,7 +1527,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ],
       "scale": [
@@ -1539,7 +1564,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1575,7 +1601,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1611,7 +1638,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1643,7 +1671,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1675,7 +1704,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1707,7 +1737,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1739,7 +1770,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1771,7 +1803,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1803,7 +1836,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1839,7 +1873,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1871,7 +1906,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1903,7 +1939,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1939,7 +1976,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -1975,7 +2013,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -2011,7 +2050,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -2047,7 +2087,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -2083,7 +2124,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -2115,7 +2157,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },
@@ -2151,7 +2194,8 @@
         "gate-road",
         "lane-north",
         "lane-cross",
-        "lane-south",
+        "lane-south-a",
+        "lane-south-b",
         "west-road"
       ]
     },

@@ -155,7 +155,7 @@ export const DEFAULT_CLIMATE: ClimateSettings = {
   dayLength: 24 * 60,
   yearLength: 96,
   latitude: 52,
-  seed: 1337,
+  seed: 8093,
   baseWind: 0.5,
   pace: 1,
   frontSpeed: 11,
@@ -656,10 +656,16 @@ export class Climate {
       4 * Math.sin((this.timeOfDay - 0.25) * Math.PI * 2) -
       altitude * 0.0065;
 
+    // The seed moves every field, so a different seed is a different weather.
+    const seed = this.settings.seed;
+    const seedT = hash(seed) * 100;
+    const seedU = hash(seed + 1) * 50;
+    const seedV = hash(seed + 2) * 50;
+
     // One precipitation draw split by temperature: it cannot rain and snow at once.
     const wet = (dayAt: number, uAt: number, vAt: number): number =>
-      smoothstep(0.46, 0.6, slowField(dayAt * 0.55, 17.7))
-      * smoothstep(0.32, 0.78, noise2(uAt + 3.1, vAt - 1.7));
+      smoothstep(0.46, 0.6, slowField(dayAt * 0.55 + seedT, 17.7))
+      * smoothstep(0.32, 0.78, noise2(uAt + 3.1 + seedU, vAt - 1.7 + seedV));
 
     // The same field a few hours upwind and downwind. What is coming is what
     // decides the sky ahead of the rain, and it costs two more lookups.
@@ -689,10 +695,10 @@ export class Climate {
       if (kind.precipitation) {
         amount = precipitation * (kind.precipitation === 'cold' ? cold : 1 - cold);
       } else {
-        const level = slowField(days * kind.pace, 53.9 * (i + 1));
+        const level = slowField(days * kind.pace + seedT, 53.9 * (i + 1));
         const bias = (kind.season ? kind.season(phase) : 1)
           * (kind.daily ? kind.daily(this.timeOfDay) : 1);
-        const here = smoothstep(0.3, 0.8, noise2(u * 1.4 + i * 11.3, v * 1.4 - i * 7.1));
+        const here = smoothstep(0.3, 0.8, noise2(u * 1.4 + i * 11.3 + seedU, v * 1.4 - i * 7.1 + seedV));
         amount = smoothstep(kind.onset, kind.onset + 0.12, level * bias) * here;
       }
       // Anything that throws lightning needs water in the air, and the same

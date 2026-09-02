@@ -369,16 +369,20 @@ function setts(
 ): Part[] {
   const parts: Part[] = [];
   const colour = stoneColours(rng, 0.1);
-  const pitch = 0.26;
+  // Tight courses with a finger's joint, and the tops nearly the full stone.
+  const pitch = 0.21;
   const length = samples[samples.length - 1].s;
-  for (let s = pitch / 2; s < length; s += pitch) {
+  for (let s = pitch / 2, course = 0; s < length; s += pitch, course++) {
     const [sample, index] = sampleAt(samples, s);
     const reach = sample.half - inset;
-    const across = 0.2;
-    const count = Math.max(1, Math.floor((reach * 2) / (across + 0.03)));
+    const across = 0.16;
+    const count = Math.max(1, Math.floor((reach * 2) / (across + 0.015)));
     const gap = (reach * 2) / count;
+    // Alternate courses half a stone over, as setts are laid.
+    const stagger = course % 2 === 0 ? 0 : gap / 2;
     for (let k = 0; k < count; k++) {
-      const u = (-reach + gap * (k + 0.5) + rng.around(0, 0.015)) / sample.half;
+      const u = (-reach + gap * (k + 0.5) + stagger + rng.around(0, 0.004)) / sample.half;
+      if (Math.abs(u) > 1 - (gap * 0.5) / sample.half) continue;
       parts.push({
         geometry: block(
           sample,
@@ -386,13 +390,13 @@ function setts(
           groundAt,
           profile,
           index,
-          pitch * rng.range(0.8, 0.92),
-          gap * rng.range(0.8, 0.92),
-          SETT_HEIGHT + rng.around(0, 0.01),
-          0.72 - 0.15 * wear,
+          pitch * 0.93,
+          gap * 0.9,
+          SETT_HEIGHT + rng.around(0, 0.003),
+          0.9 - 0.06 * wear,
           0.015,
           rng,
-          0.006,
+          0.002,
         ),
         color: colour(),
         sway: 0,
