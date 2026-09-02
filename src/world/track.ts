@@ -365,6 +365,12 @@ function sampleAt(samples: Sample[], s: number): [Sample, number] {
   return [samples[lo], lo];
 }
 
+/**
+ * Setts as the wall builder lays its stones: sites scattered over the strip,
+ * jittered off a staggered grid, and every stone the patch nearer its own site
+ * than any other, so no joint runs straight and two stones share exactly one.
+ * Each is a flat-topped prism with a finger's joint round it.
+ */
 function setts(
   samples: Sample[],
   groundAt: GroundAt,
@@ -375,42 +381,191 @@ function setts(
 ): Part[] {
   const parts: Part[] = [];
   const colour = stoneColours(rng, 0.1);
-  // Tight courses with a finger's joint, and the tops nearly the full stone.
-  const pitch = 0.21;
+  const pitch = 0.2;
+  const joint = 0.015;
+  const chamfer = 0.012 + 0.02 * wear;
   const length = samples[samples.length - 1].s;
-  for (let s = pitch / 2, course = 0; s < length; s += pitch, course++) {
-    const [sample, index] = sampleAt(samples, s);
+
+  // Sites in the strip's own plane: s along, t across.
+  const rows: { s: number; t: number }[][] = [];
+  for (let s = pitch / 2, row = 0; s < length; s += pitch * 0.92, row++) {
+    const [sample] = sampleAt(samples, s);
     const reach = sample.half - inset;
-    const across = 0.16;
-    const count = Math.max(1, Math.floor((reach * 2) / (across + 0.015)));
+    const count = Math.max(1, Math.floor((reach * 2) / pitch));
     const gap = (reach * 2) / count;
-    // Alternate courses half a stone over, as setts are laid.
-    const stagger = course % 2 === 0 ? 0 : gap / 2;
+    const stagger = row % 2 === 0 ? 0 : gap / 2;
+    const sites: { s: number; t: number }[] = [];
     for (let k = 0; k < count; k++) {
-      const u = (-reach + gap * (k + 0.5) + stagger + rng.around(0, 0.004)) / sample.half;
-      if (Math.abs(u) > 1 - (gap * 0.5) / sample.half) continue;
-      parts.push({
-        geometry: block(
-          sample,
-          u,
-          s - sample.s,
-          groundAt,
-          profile,
-          index,
-          pitch * 0.93,
-          gap * 0.9,
-          SETT_HEIGHT + rng.around(0, 0.003),
-          0.9 - 0.06 * wear,
-          0.015,
-          rng,
-          0.002,
-        ),
-        color: colour(),
-        sway: 0,
-      });
+      const t = -reach + gap * (k + 0.5) + stagger + rng.around(0, gap * 0.2);
+      if (Math.abs(t) > reach - gap * 0.2) continue;
+      sites.push({ s: s + rng.around(0, pitch * 0.2), t });
+    }
+    rows.push(sites);
+  }
+
+  const near = pitch * 2.4;
+  rows.forEach((sites, row) => {
+    for (const site of sites) {
+      const [sample] = sampleAt(samples, site.s);
+      const reach = sample.half - inset;
+      let cell: Cell = [
+        { x: site.s - near, y: Math.max(-reach, site.t - near) },
+        { x: site.s + near, y: Math.max(-reach, site.t - near) },
+        { x: site.s + near, y: Math.min(reach, site.t + near) },
+        { x: site.s - near, y: Math.min(reach, site.t + near) },
+      ];
+      for (let r = Math.max(0, row - 3); r <= Math.min(rows.length - 1, row + 3) && cell.length >= 3; r++) {
+        for (const other of rows[r]) {
+          if (other === site) continue;
+          const dx = other.s - site.s;
+          const dy = other.t - site.t;
+          const away = Math.hypot(dx, dy);
+          if (away < 1e-9 || away > near) continue;
+          const nx = dx / away;
+          const ny = dy / away;
+          cell = halfPlane(cell, nx, ny, (nx * (site.s + other.s) + ny * (site.t + other.t)) / 2);
+          if (cell.length < 3) break;
+        }
+      }
+      if (cell.length < 3) continue;
+      const geometry = sett(cell, samples, groundAt, profile, joint, chamfer, SETT_HEIGHT + rng.around(0, 0.003), rng);
+      if (geometry) parts.push({ geometry, color: colour(), sway: 0 });
+    }
+  });
+  return parts;
+}
+
+interface Cell2 {
+  x: number;
+  y: number;
+}
+type Cell = Cell2[];
+
+/** The part of a convex polygon on the near side of a bisector. */
+function halfPlane(cell: Cell, nx: number, ny: number, c: number): Cell {
+  const out: Cell = [];
+  for (let i = 0; i < cell.length; i++) {
+    const a = cell[i];
+    const b = cell[(i + 1) % cell.length];
+    const da = nx * a.x + ny * a.y - c;
+    const db = nx * b.x + ny * b.y - c;
+    if (da <= 0) out.push(a);
+    if (da <= 0 !== db <= 0) {
+      const t = da / (da - db);
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
     }
   }
-  return parts;
+  return out;
+}
+
+/** A cell drawn in toward its middle by `by` metres on every side. */
+function drawIn(cell: Cell, by: number): Cell {
+  let cx = 0;
+  let cy = 0;
+  for (const p of cell) {
+    cx += p.x / cell.length;
+    cy += p.y / cell.length;
+  }
+  const out: Cell = [];
+  for (let i = 0; i < cell.length; i++) {
+    const a = cell[(i + cell.length - 1) % cell.length];
+    const b = cell[i];
+    const c = cell[(i + 1) % cell.length];
+    // Inward normals of the two edges at this corner, in a ring wound either way.
+    const wind = Math.sign((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) || 1;
+    const n1 = inward(a, b, wind);
+    const n2 = inward(b, c, wind);
+    const nx = n1.x + n2.x;
+    const ny = n1.y + n2.y;
+    const dot = 1 + n1.x * n2.x + n1.y * n2.y;
+    const mx = (nx / dot) * by;
+    const my = (ny / dot) * by;
+    // Never past the middle, so a sliver does not turn inside out.
+    const toMid = Math.hypot(cx - b.x, cy - b.y);
+    const move = Math.hypot(mx, my);
+    const k = move > toMid * 0.8 ? (toMid * 0.8) / move : 1;
+    out.push({ x: b.x + mx * k, y: b.y + my * k });
+  }
+  return out;
+}
+
+function inward(a: Cell2, b: Cell2, wind: number): Cell2 {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: (-dy / len) * wind, y: (dx / len) * wind };
+}
+
+/** One sett: a flat-topped prism over a cell of the strip's plane, stood on the skin. */
+function sett(
+  cell: Cell,
+  samples: Sample[],
+  groundAt: GroundAt,
+  profile: Profile,
+  joint: number,
+  chamfer: number,
+  height: number,
+  rng: Rng,
+): THREE.BufferGeometry | null {
+  const foot = drawIn(cell, joint / 2);
+  const crown = drawIn(cell, joint / 2 + chamfer);
+  if (foot.length < 3 || crown.length < 3) return null;
+  let cs = 0;
+  let ct = 0;
+  for (const p of cell) {
+    cs += p.x / cell.length;
+    ct += p.y / cell.length;
+  }
+  const [sample, index] = sampleAt(samples, cs);
+  const u = ct / sample.half;
+  const [mx, mz] = at(sample, u);
+  const cx = mx + sample.tx * (cs - sample.s);
+  const cz = mz + sample.tz * (cs - sample.s);
+  const base = groundAt(cx, cz) + profile(u, index) - 0.015;
+  const top = base + height;
+  const world = (p: Cell2, y: number): THREE.Vector3 => {
+    const [wsample] = sampleAt(samples, p.x);
+    const advance = p.x - wsample.s;
+    return new THREE.Vector3(
+      wsample.x + wsample.tx * advance + wsample.nx * p.y + rng.around(0, 0.002),
+      y + rng.around(0, 0.001),
+      wsample.z + wsample.tz * advance + wsample.nz * p.y + rng.around(0, 0.002),
+    );
+  };
+  const b = foot.map((p) => world(p, base));
+  const t = crown.map((p) => world(p, top));
+  const position: number[] = [];
+  const tri = (p: THREE.Vector3, q: THREE.Vector3, r: THREE.Vector3): void => {
+    position.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z);
+  };
+  // Wound so the outside faces out: the ring's own sense decides which way round.
+  let twice = 0;
+  for (let i = 0; i < cell.length; i++) {
+    const a = cell[i];
+    const c = cell[(i + 1) % cell.length];
+    twice += a.x * c.y - c.x * a.y;
+  }
+  // (s, t) maps to (x, z) with no reflection, and a ring with negative area
+  // there is counter-clockwise seen from above: its cap faces up as it is.
+  const up = twice < 0;
+  const n = cell.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (up) {
+      tri(b[i], t[j], t[i]);
+      tri(b[i], b[j], t[j]);
+    } else {
+      tri(b[i], t[i], t[j]);
+      tri(b[i], t[j], b[j]);
+    }
+  }
+  for (let i = 1; i + 1 < n; i++) {
+    if (up) tri(t[0], t[i], t[i + 1]);
+    else tri(t[0], t[i + 1], t[i]);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+  return geometry;
 }
 
 function slabs(
