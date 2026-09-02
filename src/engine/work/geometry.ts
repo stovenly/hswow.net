@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { movable } from './shared';
 
 /** A geometry as buffers a worker can hand back, and the way back to one. */
 
@@ -44,7 +45,7 @@ export function toWire(geometry: THREE.BufferGeometry): {
       // Plain data only — a mask, a part table, a strip of sparkle sites.
       userData: geometry.userData as Record<string, unknown>,
     },
-    transfer: [...buffers],
+    transfer: movable(buffers),
   };
 }
 

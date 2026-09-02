@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { releaseStatic } from '../engine/statics';
+import { COVER_LAYER } from '../layers';
 import type { RoomName } from '../audio/reverb';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { SILENCE, type SoundscapeSpec } from '../audio/Soundscape';
@@ -183,6 +185,30 @@ export interface Placement {
 }
 
 /**
+ * What a map needs to know about a zone's shape, and the one thing about it
+ * that no traversal of the built world can answer: how far the *level* reaches.
+ * A bounding box would take in the skirt, which is three hundred metres of
+ * scenery nobody walks on.
+ *
+ * `min`/`max` are the zone's extent in x and z, in metres. `outline` is the
+ * playable area where the level states one, as a closed polygon. `ceiling` is
+ * the height a view from straight above is cut at, so a sealed shell shows its
+ * floor and its furniture rather than the underside of its roof.
+ */
+export interface ZonePlan {
+  readonly min: readonly [number, number];
+  readonly max: readonly [number, number];
+  readonly outline?: readonly (readonly [number, number])[];
+  /**
+   * How far inside the outline the ground climbs past the slope limit — the rim's
+   * own `inset`. The playable line is the outline pulled in by this much, and
+   * there is no invisible wall anywhere else to disagree with it.
+   */
+  readonly inset?: number;
+  readonly ceiling?: number;
+}
+
+/**
  * Which family of rooms a zone belongs to — the same three the prop halls are split
  * into, deliberately, since a second grouping that disagreed with them would be a
  * second answer. Declared on the zone rather than derived from which hall its door
@@ -230,6 +256,8 @@ export interface ZoneDefinition {
   readonly groundAt?: (x: number, z: number) => number;
   /** The named regions the document declared, for a `when` that names one. */
   readonly regions?: Record<string, readonly PatchShape[]>;
+  /** The zone's shape, for the map. See `ZonePlan`. */
+  readonly plan?: ZonePlan;
   /**
    * Placed fog volumes, in this zone's world space. On the definition rather than in
    * `ZoneEnvironment`, because a volume has a centre and a size and so cannot be
@@ -267,6 +295,8 @@ export interface ZoneDefinition {
    * without it is only slower, never wrong.
    */
   readonly warm?: () => Promise<void>;
+  /** A hash of everything the build reads, for the on-disk cache. Absent, nothing is cached. */
+  readonly fingerprint?: string;
 }
 
 /**
@@ -286,6 +316,8 @@ export class Zone {
   private builder: (() => THREE.Group) | null;
   /** The in-flight `load()`, so concurrent callers share one import. */
   private loading: Promise<void> | null = null;
+  /** Measured off the built world for a zone that states none. See `plan`. */
+  private measured: ZonePlan | null = null;
   /** Set when the zone is built, by looking. See `hasWater`. */
   private water = false;
   /** The same, for the transmissive pass. See `hasGlass`. */
@@ -304,6 +336,10 @@ export class Zone {
     return this.definition.name;
   }
 
+  get fingerprint(): string | undefined {
+    return this.definition.fingerprint;
+  }
+
   get environment(): ZoneEnvironment {
     return this.definition.environment;
   }
@@ -315,6 +351,18 @@ export class Zone {
   /** Undefined for every zone that stands outside the weather. See `ZoneDefinition`. */
   get place(): ZonePlace | undefined {
     return this.definition.place;
+  }
+
+  /**
+   * How far this zone reaches. Stated where a document interpreted it, measured
+   * off the built world otherwise — a zone written in code says nothing about
+   * its own extent, and asking it to would be a second declaration to keep in
+   * step with the geometry. Undefined until the zone is built.
+   */
+  get plan(): ZonePlan | undefined {
+    if (this.definition.plan) return this.definition.plan;
+    if (!this.group) return undefined;
+    return (this.measured ??= measurePlan(this.group, this.environment.sky));
   }
 
   /** Empty for every zone that has not placed any. See `ZoneDefinition`. */
@@ -447,11 +495,40 @@ export class Zone {
         }
       }
     });
+    releaseStatic(this.group);
     this.group.clear();
     this.group = null;
+    this.measured = null;
     // Recomputed on the next build. Left true, a released zone would have the
     // water pass running in whatever room the player walked into instead.
     this.water = false;
     this.glass = false;
   }
 }
+
+/**
+ * How far a zone reaches, read off what it built. Scenery is excluded — the
+ * skirt runs three hundred metres out and the ring stands beyond that, and
+ * neither is anywhere the player can go, so a plain bounding box would say the
+ * level is a village in the middle of a county.
+ */
+function measurePlan(root: THREE.Group, outdoors: boolean): ZonePlan {
+  const box = new THREE.Box3();
+  const one = new THREE.Box3();
+  root.traverse((object) => {
+    if (!object.visible || object.userData.vista === true) return;
+    if (!(object instanceof THREE.Mesh) || object.layers.isEnabled(COVER_LAYER)) return;
+    box.union(one.setFromObject(object));
+  });
+  if (box.isEmpty()) return { min: [-20, -20], max: [20, 20] };
+  return {
+    min: [box.min.x, box.min.z],
+    max: [box.max.x, box.max.z],
+    // The topmost surface of a sealed shell is its ceiling slab, so the cut
+    // goes under it. Nothing measurable says where the inside of a roof is.
+    ceiling: outdoors ? undefined : box.max.y - CEILING_SLAB,
+  };
+}
+
+/** How thick the thing over an interior's head is taken to be, in metres, where nobody has said. */
+const CEILING_SLAB = 0.4;

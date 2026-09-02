@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { App } from '../app/boot';
 import { builderByName } from '../art/registry';
-import { finishCaptured, type Finished } from '../art/assemble';
+import { finishCaptured } from '../art/dress';
+import type { Finished } from '../art/assemble';
 import { pool } from '../engine/work/pool';
 
 /**

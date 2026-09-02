@@ -1,20 +1,19 @@
 import * as THREE from 'three';
 import { COLLISION_LAYER } from '../layers';
-import { Octree } from 'three/examples/jsm/math/Octree.js';
 import { planOctree, type OctreePlan } from './octreePlan';
 import { pool } from '../engine/work/pool';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
- * The static collision world: three's `Octree` for storage, and everything
- * that decides what a query costs is ours.
+ * The static collision world: a flat triangle soup and the octree plan over
+ * it, with nothing allocated per triangle.
  *
  * Triangles are the common denominator, so authored walls, ramps, stairs and
  * sculpted terrain all reduce to them and there is one collision path to
- * reason about. `split` below decides where the tree stops dividing and
- * `claim` collects candidates; both are the difference between a fast query
- * and a slow one.
+ * reason about. The plan decides where the tree stops dividing and `claim`
+ * collects candidates; both are the difference between a fast query and a
+ * slow one.
  *
  * The narrow phase is ours too. `Octree.capsuleIntersect` decides penetration
  * from the capsule's distance to the triangle's *plane*, which is wrong
@@ -39,28 +38,26 @@ export interface Contact {
   depth: number;
   /**
    * What the triangle is made of, or null if it is ground or has no material of
-   * its own. See `SurfacedTriangle`.
+   * its own. Every triangle remembers the prop it was cut from, which is how
+   * the game knows what it is standing on: the collider is already the
+   * authority, so there is no second opinion about contact.
    */
   surface: SurfaceName | null;
 }
 
-/**
- * A collision triangle that remembers which prop it was cut from — how the
- * game knows what it is standing on.
- *
- * One field, because the collider is already the authority: the thing holding
- * the player up is by definition the thing they last pushed out of. There is
- * no second opinion about contact to disagree with the physics at the instant
- * of landing, on a curve, or on anything narrow.
- */
-interface SurfacedTriangle extends THREE.Triangle {
-  surface: SurfaceName | null;
-  /**
-   * The id of the last query that claimed this triangle. See `claim`. A
-   * triangle straddling a node boundary is stored in every node it touches, so
-   * one query reaches it many times over and has to notice.
-   */
-  stamp: number;
+/** Surface names by id, so a triangle's is one byte. Id 0 is none. */
+const surfaceNames: (SurfaceName | null)[] = [null];
+const surfaceIds = new Map<SurfaceName, number>();
+
+function surfaceId(name: SurfaceName | null): number {
+  if (name === null) return 0;
+  let id = surfaceIds.get(name);
+  if (id === undefined) {
+    id = surfaceNames.length;
+    surfaceNames.push(name);
+    surfaceIds.set(name, id);
+  }
+  return id;
 }
 
 /**
@@ -88,7 +85,9 @@ function mark(node: THREE.Object3D): void {
   for (const child of node.children) mark(child);
 }
 
-const _candidates: SurfacedTriangle[] = [];
+/** Triangle indices, gathered per query. */
+const _candidates: number[] = [];
+const _triangle = new THREE.Triangle();
 const _ray = new THREE.Ray();
 const _point = new THREE.Vector3();
 const _axis = new THREE.Vector3();
@@ -107,9 +106,38 @@ const COLLIDABLE = new THREE.Layers();
 COLLIDABLE.disableAll();
 COLLIDABLE.enable(COLLISION_LAYER);
 
+/**
+ * One zone's collision world: the plan's boxes and per-node triangle lists,
+ * over world-space corners nine floats a triangle. A triangle straddling a
+ * node boundary is listed in every node it touches, so `stamps` says which
+ * query last saw it.
+ */
 interface Index {
-  octree: Octree;
+  plan: OctreePlan;
+  positions: Float32Array;
+  surfaces: Uint8Array;
+  stamps: Uint32Array;
+  /** One per plan node, for the intersect tests. */
+  boxes: THREE.Box3[];
   triangles: number;
+}
+
+function emptyIndex(): Index {
+  return {
+    plan: {
+      boxes: new Float32Array(0),
+      firstChild: new Int32Array(0),
+      childCount: new Int32Array(0),
+      triStart: new Int32Array(0),
+      triCount: new Int32Array(0),
+      triIndices: new Int32Array(0),
+    },
+    positions: new Float32Array(0),
+    surfaces: new Uint8Array(0),
+    stamps: new Uint32Array(0),
+    boxes: [],
+    triangles: 0,
+  };
 }
 
 /**
@@ -124,21 +152,20 @@ interface Index {
 let query = 0;
 
 /**
- * Takes the triangles a node holds, each one only once per query.
- *
- * Three's own gatherers dedupe with `indexOf`, a linear scan of everything
- * found so far per entry visited — in a dense interior, tens of thousands of
- * entries scanned against hundreds of candidates, for one query. A stamp
- * answers the same question in one comparison.
- *
- * Internal nodes hold no triangles of their own, so this does nothing above a
- * leaf.
+ * Takes the triangles a node holds, each one only once per query. A stamp
+ * answers "seen already" in one comparison; internal nodes hold none of their
+ * own, so this does nothing above a leaf.
  */
-function claim(node: Octree, out: SurfacedTriangle[]): void {
-  for (const triangle of node.triangles as SurfacedTriangle[]) {
-    if (triangle.stamp === query) continue;
-    triangle.stamp = query;
-    out.push(triangle);
+function claim(index: Index, node: number, out: number[]): void {
+  const { triStart, triCount, triIndices } = index.plan;
+  const start = triStart[node];
+  const end = start + triCount[node];
+  const stamps = index.stamps;
+  for (let i = start; i < end; i++) {
+    const t = triIndices[i];
+    if (stamps[t] === query) continue;
+    stamps[t] = query;
+    out.push(t);
   }
 }
 
@@ -148,23 +175,39 @@ function claim(node: Octree, out: SurfacedTriangle[]): void {
  * Two walks rather than one taking a box test: one closure per query is one
  * allocation per query, and this runs about three hundred times a frame.
  */
-function gatherCapsule(node: Octree, capsule: Capsule, out: SurfacedTriangle[]): void {
-  claim(node, out);
-  for (const subTree of node.subTrees) {
-    if (subTree.box && capsule.intersectsBox(subTree.box)) gatherCapsule(subTree, capsule, out);
+function gatherCapsule(index: Index, node: number, capsule: Capsule, out: number[]): void {
+  claim(index, node, out);
+  const first = index.plan.firstChild[node];
+  if (first < 0) return;
+  const count = index.plan.childCount[node];
+  for (let child = first; child < first + count; child++) {
+    if (capsule.intersectsBox(index.boxes[child])) gatherCapsule(index, child, capsule, out);
   }
 }
 
 /** Candidates for a ray. `gatherCapsule`, with the other box test. */
-function gatherRay(node: Octree, ray: THREE.Ray, out: SurfacedTriangle[]): void {
-  claim(node, out);
-  for (const subTree of node.subTrees) {
-    if (subTree.box && ray.intersectsBox(subTree.box)) gatherRay(subTree, ray, out);
+function gatherRay(index: Index, node: number, ray: THREE.Ray, out: number[]): void {
+  claim(index, node, out);
+  const first = index.plan.firstChild[node];
+  if (first < 0) return;
+  const count = index.plan.childCount[node];
+  for (let child = first; child < first + count; child++) {
+    if (ray.intersectsBox(index.boxes[child])) gatherRay(index, child, ray, out);
   }
 }
 
+/** Loads one triangle's corners into the scratch triangle. */
+function load(index: Index, t: number): THREE.Triangle {
+  const p = index.positions;
+  const at = t * 9;
+  _triangle.a.set(p[at], p[at + 1], p[at + 2]);
+  _triangle.b.set(p[at + 3], p[at + 4], p[at + 5]);
+  _triangle.c.set(p[at + 6], p[at + 7], p[at + 8]);
+  return _triangle;
+}
+
 export class Collider {
-  private index: Index = { octree: new Octree(), triangles: 0 };
+  private index: Index = emptyIndex();
   /**
    * One index per zone, kept. Zones are entered far more often than they
    * change, and indexing the exterior takes longer than the fade's third of a
@@ -211,8 +254,8 @@ export class Collider {
   }
 
   private static index(root: THREE.Object3D): Index {
-    const { triangles, positions } = carve(root);
-    return assemble(planOctree(positions), triangles);
+    const { positions, surfaces } = carve(root);
+    return assemble(planOctree(positions), positions, surfaces);
   }
 
   /**
@@ -220,21 +263,19 @@ export class Collider {
    * a crossing may not yield between the swap and the teleport, so `build` has
    * to find this already in the cache or do it inline itself.
    */
-  async warmAsync(root: THREE.Object3D, key: string, urgent = false): Promise<void> {
+  async warmAsync(root: THREE.Object3D, key: string, urgent = false, cache?: string): Promise<void> {
     if (this.cache.has(key)) return;
-    const { triangles, positions } = carve(root);
+    const { positions, surfaces } = carve(root);
     let plan;
     try {
-      plan = await pool.run(
-        'collision-index',
-        { positions },
-        { transfer: [positions.buffer], urgent },
-      );
+      // The corners go over and come back: the plan job hands them back in its
+      // transfer list, so the buffer is moved twice and copied never.
+      plan = await pool.run('collision-index', { positions }, { transfer: [positions.buffer], urgent, cache });
     } catch {
       return;
     }
     if (this.cache.has(key)) return;
-    this.cache.set(key, assemble(plan, triangles));
+    this.cache.set(key, assemble(plan, plan.positions, surfaces));
   }
 
   /**
@@ -256,34 +297,39 @@ export class Collider {
    * The returned object is reused between calls.
    */
   intersectCapsule(capsule: Capsule): Contact | null {
+    const index = this.index;
+    if (index.triangles === 0) return null;
     _candidates.length = 0;
     query++;
-    gatherCapsule(this.index.octree, capsule, _candidates);
+    gatherCapsule(index, 0, capsule, _candidates);
 
     let deepest = 0;
-    let hit: SurfacedTriangle | null = null;
+    let hit = -1;
 
-    for (const triangle of _candidates) {
-      const depth = penetration(capsule, triangle);
+    for (let i = 0; i < _candidates.length; i++) {
+      const t = _candidates[i];
+      const depth = penetration(capsule, load(index, t));
       if (depth <= deepest) continue;
       deepest = depth;
-      hit = triangle;
+      hit = t;
       _contact.normal.copy(_offset);
     }
 
-    if (deepest === 0 || !hit) return null;
+    if (deepest === 0 || hit < 0) return null;
     _contact.depth = deepest;
-    _contact.surface = hit.surface ?? null;
+    _contact.surface = surfaceNames[index.surfaces[hit]] ?? null;
     return _contact;
   }
 
   /** True if the capsule is inside anything. Stops at the first hit. */
   overlaps(capsule: Capsule): boolean {
+    const index = this.index;
+    if (index.triangles === 0) return false;
     _candidates.length = 0;
     query++;
-    gatherCapsule(this.index.octree, capsule, _candidates);
-    for (const triangle of _candidates) {
-      if (penetration(capsule, triangle) > 0) return true;
+    gatherCapsule(index, 0, capsule, _candidates);
+    for (let i = 0; i < _candidates.length; i++) {
+      if (penetration(capsule, load(index, _candidates[i])) > 0) return true;
     }
     return false;
   }
@@ -300,12 +346,15 @@ export class Collider {
     if (direction.lengthSq() === 0) return null;
     _ray.set(origin, direction);
 
+    const index = this.index;
+    if (index.triangles === 0) return null;
     _candidates.length = 0;
     query++;
-    gatherRay(this.index.octree, _ray, _candidates);
+    gatherRay(index, 0, _ray, _candidates);
 
     let nearest = Infinity;
-    for (const triangle of _candidates) {
+    for (let i = 0; i < _candidates.length; i++) {
+      const triangle = load(index, _candidates[i]);
       // Backface culled, as three's own does: every collidable is a closed
       // solid, so a face turned away is the far wall of something.
       if (!_ray.intersectTriangle(triangle.a, triangle.b, triangle.c, true, _point)) continue;
@@ -367,70 +416,65 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
 }
 
 /**
- * Cuts every collidable mesh under `root` into triangles and adds them to the
- * octree, each carrying its mesh's material.
- *
- * A copy of three's `Octree.fromGraphNode` — same traversal, same layer test,
- * same handling of indexed geometry — with the surface stamped on and without
- * the `build()` at the end, so the caller can add from more than one root.
+ * Cuts every collidable mesh under `root` into world-space triangles, nine
+ * floats each, with the surface it was cut from beside them. Counted first
+ * and written once: nothing grows.
  */
-function carve(root: THREE.Object3D): { triangles: SurfacedTriangle[]; positions: Float32Array } {
+function carve(root: THREE.Object3D): { positions: Float32Array; surfaces: Uint8Array } {
   root.updateWorldMatrix(true, true);
-  const triangles: SurfacedTriangle[] = [];
-  const coordinates: number[] = [];
+
+  let total = 0;
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !COLLIDABLE.test(object.layers)) return;
+    const geometry = object.geometry;
+    const count = geometry.index ? geometry.index.count : geometry.getAttribute('position').count;
+    total += Math.floor(count / 3);
+  });
+
+  const positions = new Float32Array(total * 9);
+  const surfaces = new Uint8Array(total);
+  let triangle = 0;
 
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh) || !COLLIDABLE.test(object.layers)) return;
-
-    const indexed = object.geometry.index !== null;
-    const geometry = indexed ? object.geometry.toNonIndexed() : object.geometry;
+    const geometry = object.geometry;
     const position = geometry.getAttribute('position');
-    // Set once per mesh rather than per triangle: it is the same string for
-    // every face of a prop, and a prop is thousands of faces.
-    const surface = (object.userData.underfoot as SurfaceName | undefined) ?? null;
+    const index = geometry.index;
+    const count = index ? index.count : position.count;
+    // Set once per mesh rather than per triangle: it is the same for every
+    // face of a prop, and a prop is thousands of faces.
+    const surface = surfaceId((object.userData.underfoot as SurfaceName | undefined) ?? null);
+    const matrix = object.matrixWorld;
 
-    for (let i = 0; i + 2 < position.count; i += 3) {
-      const triangle = new THREE.Triangle() as SurfacedTriangle;
-      for (const [corner, target] of [triangle.a, triangle.b, triangle.c].entries()) {
-        target
-          .copy(_corner.fromBufferAttribute(position, i + corner))
-          .applyMatrix4(object.matrixWorld);
-        coordinates.push(target.x, target.y, target.z);
+    for (let i = 0; i + 2 < count; i += 3) {
+      let at = triangle * 9;
+      for (let corner = 0; corner < 3; corner++) {
+        const vertex = index ? index.getX(i + corner) : i + corner;
+        _corner.fromBufferAttribute(position, vertex).applyMatrix4(matrix);
+        positions[at] = _corner.x;
+        positions[at + 1] = _corner.y;
+        positions[at + 2] = _corner.z;
+        at += 3;
       }
-      triangle.surface = surface;
-      triangle.stamp = 0;
-      triangles.push(triangle);
+      surfaces[triangle] = surface;
+      triangle++;
     }
-
-    if (indexed) geometry.dispose();
   });
 
-  return { triangles, positions: Float32Array.from(coordinates) };
+  return { positions, surfaces };
 }
 
-/** Hangs the carved triangles on the plan's boxes, as one `Octree` per node. */
-function assemble(plan: OctreePlan, triangles: SurfacedTriangle[]): Index {
-  const nodes: Octree[] = [];
-  for (let i = 0; i < plan.firstChild.length; i += 1) {
-    const box = new THREE.Box3(
+/** The plan's boxes as objects the intersect tests can take, over the flat corners. */
+function assemble(plan: OctreePlan, positions: Float32Array, surfaces: Uint8Array): Index {
+  const boxes: THREE.Box3[] = new Array(plan.firstChild.length);
+  for (let i = 0; i < boxes.length; i++) {
+    boxes[i] = new THREE.Box3(
       new THREE.Vector3(plan.boxes[i * 6], plan.boxes[i * 6 + 1], plan.boxes[i * 6 + 2]),
       new THREE.Vector3(plan.boxes[i * 6 + 3], plan.boxes[i * 6 + 4], plan.boxes[i * 6 + 5]),
     );
-    const node = new Octree(box);
-    const start = plan.triStart[i];
-    const held: SurfacedTriangle[] = new Array(plan.triCount[i]);
-    for (let t = 0; t < held.length; t += 1) held[t] = triangles[plan.triIndices[start + t]];
-    node.triangles = held;
-    nodes.push(node);
   }
-  for (let i = 0; i < nodes.length; i += 1) {
-    const first = plan.firstChild[i];
-    if (first < 0) continue;
-    for (let c = 0; c < plan.childCount[i]; c += 1) nodes[i].subTrees.push(nodes[first + c]);
-  }
-  const octree = nodes[0] ?? new Octree();
-  octree.layers.disableAll();
-  octree.layers.enable(COLLISION_LAYER);
-  return { octree, triangles: triangles.length };
+  const triangles = surfaces.length;
+  if (boxes.length === 0) return emptyIndex();
+  return { plan, positions, surfaces, stamps: new Uint32Array(triangles), boxes, triangles };
 }
 

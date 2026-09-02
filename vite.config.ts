@@ -6,6 +6,15 @@ import { defineConfig, type Plugin } from 'vite';
 import { editorRoutes } from './scripts/editor-middleware.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+
+/** Set natively where a server can; the deployed site gets them from `public/isolate.js`. */
+const ISOLATION = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+};
+
+/** Stamped into every build, so a zone cached by one build is a miss for the next. */
+const BUILD = Date.now().toString(36);
 const PROJECTS = 'projects';
 
 /** Every folder under `projects/` carrying a `project.json`. */
@@ -191,6 +200,7 @@ export default defineConfig(({ command, mode }) => {
   const written = new Set<string>();
   return {
     plugins: [projectModule(pinned), projectPublic(pinned), editorSave(written), noAutoReload(written)],
+    define: { __BUILD__: JSON.stringify(BUILD) },
     resolve: {
       alias: { '@engine': path.join(ROOT, 'src') },
     },
@@ -199,7 +209,14 @@ export default defineConfig(({ command, mode }) => {
     base: './',
     build: {
       // The editor is a dev-server page only; a site's build lists one input.
-      rollupOptions: { input: 'index.html' },
+      rollupOptions: {
+        input: 'index.html',
+        output: {
+          // Three's core in its own hashed file, so a content change does not
+          // re-download it. The addons stay with whoever imports them.
+          manualChunks: (id) => (id.includes('node_modules/three/build/') ? 'three' : undefined),
+        },
+      },
       outDir,
       emptyOutDir: true,
       // es2022 for top-level await, which the boot uses to sequence itself
@@ -207,9 +224,12 @@ export default defineConfig(({ command, mode }) => {
       target: 'es2022',
       chunkSizeWarningLimit: 1500,
     },
+    // The pool's worker loads builders one module at a time, which needs ES output.
+    worker: { format: 'es' },
     server: {
-      // Exposed on the LAN so a phone can hit the dev server if that ever becomes useful.
       host: true,
+      headers: ISOLATION,
     },
+    preview: { headers: ISOLATION },
   };
 });

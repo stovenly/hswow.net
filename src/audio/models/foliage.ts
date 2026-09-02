@@ -2,7 +2,7 @@ import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
 import { createEventClock, poissonGap } from '../dsp/clock';
-import { createGrainBed, scheduleGrain } from '../dsp/grain';
+import { createGrainBed } from '../dsp/grain';
 
 /**
  * Leaves. A continuous band-limited hush carrying almost all the level, and
@@ -70,7 +70,7 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
   grainBus.gain.value = 0;
   grainBus.connect(output);
 
-  const grains = createGrainBed(context, CHANNELS, grainBus, tone);
+  const grains = createGrainBed(context, noise.white, CHANNELS, grainBus, tone);
 
   // The hush: the layer that actually carries the sound. Pink rather than
   // white because foliage is weighted to the middle, and a gentle Q so it is a
@@ -92,7 +92,7 @@ export function createFoliage(engine: AudioEngine, options: FoliageOptions = {})
   // Long grains, so they overlap heavily and blur into one another. Short
   // grains are what make a canopy sound like a rainstick.
   const fire = (at: number): void =>
-    scheduleGrain(context, noise.white, grains.pick(), at, {
+    grains.grain(at, {
       minDuration: 0.055,
       maxDuration: 0.165,
     });

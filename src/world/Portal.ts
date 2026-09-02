@@ -79,6 +79,13 @@ export interface PortalEnd {
    * it is, is. Takes the height only — the rest of `arrival` is untouched.
    */
   landOn?: string;
+  /**
+   * Another way through a threshold something else already covers — the hatch
+   * in a cellar's ceiling beside the ladder that reaches it. Fully usable; it
+   * is simply not what a chart marks, because one way out of a place should be
+   * one mark on the map.
+   */
+  accessory?: boolean;
   prompt?: EndPrompt;
 }
 
@@ -159,6 +166,19 @@ export interface PortalSide {
    * rising edge, so arriving inside one is not a crossing.
    */
   inside: boolean;
+}
+
+/**
+ * Where a side actually stands in its zone.
+ *
+ * The fitting's own place, not the end's: an end that adopts an entry the
+ * document put down has no coordinate of its own, and a volume's box is centred
+ * off its foot. An end with nothing built there is where arriving at it puts
+ * you, which is the only thing a one-way exit means.
+ */
+export function sideAt(side: PortalSide, out = new THREE.Vector3()): THREE.Vector3 {
+  if (side.node) return side.node.getWorldPosition(out);
+  return out.copy(side.end.arrival?.position ?? side.end.position);
 }
 
 /**

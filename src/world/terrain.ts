@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FIELD_ATTRIBUTE, finish } from '../art/assemble';
-import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE, COVER_FLOOR } from '../art/cover';
+import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE, COVER_FLOOR } from '../art/cover-sample';
 import { shade } from '../art/palette';
 import {
   GROUND,
@@ -23,6 +23,7 @@ import {
 } from './ground';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { Raster, type HeightRaster, type IndexRaster } from './raster';
+import { floats } from '../engine/work/shared';
 
 /**
  * The painted tables, as indices. One-based, so zero can mean unpainted; the
@@ -192,6 +193,34 @@ export interface TerrainOptions {
   rasters?: TerrainRasters;
 }
 
+/** A raster as plain data, for a worker. */
+export interface RasterWire<T extends Float32Array | Uint8Array> {
+  data: T;
+  size: number;
+  resolution: number;
+}
+
+/** Everything a terrain is, as data a worker can be handed. */
+export interface TerrainWire extends Omit<TerrainOptions, 'rasters'> {
+  rasters: {
+    sculpt?: RasterWire<Float32Array>;
+    paint?: RasterWire<Uint8Array>;
+    cover?: RasterWire<Uint8Array>;
+  };
+}
+
+export function terrainFromWire(wire: TerrainWire): Terrain {
+  const { rasters, ...options } = wire;
+  return new Terrain({
+    ...options,
+    rasters: {
+      sculpt: rasters.sculpt && new Raster(rasters.sculpt.data, rasters.sculpt.size, rasters.sculpt.resolution),
+      paint: rasters.paint && new Raster(rasters.paint.data, rasters.paint.size, rasters.paint.resolution),
+      cover: rasters.cover && new Raster(rasters.cover.data, rasters.cover.size, rasters.cover.resolution),
+    },
+  });
+}
+
 /** The levelling landforms, which run in their own pass. */
 type Terrace = Extract<Landform, { kind: 'terrace' }>;
 
@@ -357,6 +386,10 @@ export class Terrain {
   private readonly always: readonly number[];
   /** The levelling pass, in list order — a later terrace cuts into an earlier one. */
   private readonly levellers: readonly Terrace[];
+  /** Scratch for the build's per-corner probes. */
+  private readonly edge: CoverEdge = { feather: 1, neighbor: 0, blend: 0 };
+  private readonly there = { index: 0, hard: false };
+  private readonly votes = new Uint8Array(COVER_ORDER.length);
 
   constructor(options: TerrainOptions) {
     this.size = options.size;
@@ -423,6 +456,28 @@ export class Terrain {
    * reads it on the next vertex, which is what makes a stroke visible while the
    * mouse is still down.
    */
+  /** This terrain as data, with the rasters as they stand now. */
+  wire(): TerrainWire {
+    const raster = <T extends Float32Array | Uint8Array>(held?: Raster<T>): RasterWire<T> | undefined =>
+      held && { data: held.data, size: held.size, resolution: held.resolution };
+    return {
+      size: this.size,
+      resolution: this.resolution,
+      landforms: this.landforms,
+      detail: this.detail,
+      patches: this.patches,
+      cover: this.cover,
+      rockAngle: this.rockAngle,
+      base: this.base,
+      edgeFade: { band: this.edgeFade, outline: this.edgeOutline },
+      rasters: {
+        sculpt: raster(this.rasters.sculpt),
+        paint: raster(this.rasters.paint),
+        cover: raster(this.rasters.cover),
+      },
+    };
+  }
+
   sculptRaster(resolution: number): HeightRaster {
     this.rasters.sculpt ??= Raster.blank((n) => new Float32Array(n), this.size, resolution);
     return this.rasters.sculpt;
@@ -599,6 +654,7 @@ export class Terrain {
 
     // Subdivision per base cell, decided up front so neighbours can be asked.
     const levels = new Uint8Array(cells * cells);
+    let quads = 0;
     for (let row = 0; row < cells; row++) {
       for (let col = 0; col < cells; col++) {
         const cx = -half + (col + 0.5) * res;
@@ -610,19 +666,24 @@ export class Terrain {
           }
         }
         levels[row * cells + col] = best;
+        quads += best * best;
       }
     }
     // Off the map counts as coarse, which is right: there is nothing there.
     const levelAt = (row: number, col: number): number =>
       row < 0 || col < 0 || row >= cells || col >= cells ? 1 : levels[row * cells + col];
 
-    const positions: number[] = [];
-    const normals: number[] = [];
-    const colors: number[] = [];
+    const vertices = quads * 6;
+    const positions = floats(vertices * 3);
+    const normals = floats(vertices * 3);
+    const colors = floats(vertices * 3);
     // Type, feather, and the two broad fields, per vertex, for the cover sampler.
-    const covers: number[] = [];
+    const covers = floats(vertices * 4);
     // And who the neighbour across a boundary is, with how much of it to mix in.
-    const blends: number[] = [];
+    const blends = floats(vertices * 2);
+    let at3 = 0;
+    let at4 = 0;
+    let at2 = 0;
 
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -631,12 +692,11 @@ export class Terrain {
     const ac = new THREE.Vector3();
     const normal = new THREE.Vector3();
     const color = new THREE.Color();
-
-    const emit = (p: THREE.Vector3, n: THREE.Vector3, floor: number): void => {
-      positions.push(p.x, p.y, p.z);
-      normals.push(n.x, n.y, n.z);
-      colors.push(color.r * floor, color.g * floor, color.b * floor);
-    };
+    // The four corners of one quad, x y z each, and which three make each triangle.
+    const corners = new Float64Array(12);
+    const triangles = [0, 1, 2, 0, 2, 3];
+    const points = [a, b, c];
+    const edge = this.edge;
 
     for (let row = 0; row < cells; row++) {
       for (let col = 0; col < cells; col++) {
@@ -669,20 +729,24 @@ export class Terrain {
             // Two triangles per quad, split along the same diagonal
             // throughout. A consistent split gives the field one faceting
             // direction, which reads as deliberate; alternating looks woven.
-            const corners: [number, number, number][] = [
-              [x0 + u0 * res, at(u0, v0), z0 + v0 * res],
-              [x0 + u0 * res, at(u0, v1), z0 + v1 * res],
-              [x0 + u1 * res, at(u1, v1), z0 + v1 * res],
-              [x0 + u1 * res, at(u1, v0), z0 + v0 * res],
-            ];
+            corners[0] = x0 + u0 * res;
+            corners[1] = at(u0, v0);
+            corners[2] = z0 + v0 * res;
+            corners[3] = x0 + u0 * res;
+            corners[4] = at(u0, v1);
+            corners[5] = z0 + v1 * res;
+            corners[6] = x0 + u1 * res;
+            corners[7] = at(u1, v1);
+            corners[8] = z0 + v1 * res;
+            corners[9] = x0 + u1 * res;
+            corners[10] = at(u1, v0);
+            corners[11] = z0 + v0 * res;
 
-            for (const [p, q, r] of [
-              [0, 1, 2],
-              [0, 2, 3],
-            ]) {
-              a.set(...corners[p]);
-              b.set(...corners[q]);
-              c.set(...corners[r]);
+            for (let tri = 0; tri < 6; tri += 3) {
+              for (let k = 0; k < 3; k++) {
+                const p = triangles[tri + k] * 3;
+                points[k].set(corners[p], corners[p + 1], corners[p + 2]);
+              }
               ab.subVectors(b, a);
               ac.subVectors(c, a);
               normal.crossVectors(ab, ac).normalize();
@@ -697,15 +761,32 @@ export class Terrain {
               // metres, and two grown types interleave rather than thinning to a gap.
               const cover = this.faceCover(name, midX, midZ);
               const grows = (COVER_TYPES[COVER_ORDER[cover]] as CoverType).blades !== undefined;
-              for (const corner of [a, b, c]) {
-                const [feather, neighbor, blend] = this.coverEdge(cover, corner.x, corner.z);
+              for (let k = 0; k < 3; k++) {
+                const corner = points[k];
+                this.coverEdge(cover, corner.x, corner.z, edge);
                 // Thinned toward the level's edge, where the skirt takes over
                 // and nothing grows. See `TerrainOptions.edgeFade`.
-                const stand = feather * this.edgeDensity(corner.x, corner.z);
-                covers.push(cover, stand, coverSwell(corner.x, corner.z), coverThickness(corner.x, corner.z));
-                blends.push(neighbor, blend);
+                const stand = edge.feather * this.edgeDensity(corner.x, corner.z);
+                covers[at4] = cover;
+                covers[at4 + 1] = stand;
+                covers[at4 + 2] = coverSwell(corner.x, corner.z);
+                covers[at4 + 3] = coverThickness(corner.x, corner.z);
+                at4 += 4;
+                blends[at2] = edge.neighbor;
+                blends[at2 + 1] = edge.blend;
+                at2 += 2;
                 // The floor under a stand of blades is in their shade. The sampler divides this back out of the tint it reads.
-                emit(corner, normal, grows ? 1 - (1 - COVER_FLOOR) * stand : 1);
+                const floor = grows ? 1 - (1 - COVER_FLOOR) * stand : 1;
+                positions[at3] = corner.x;
+                positions[at3 + 1] = corner.y;
+                positions[at3 + 2] = corner.z;
+                normals[at3] = normal.x;
+                normals[at3 + 1] = normal.y;
+                normals[at3 + 2] = normal.z;
+                colors[at3] = color.r * floor;
+                colors[at3 + 1] = color.g * floor;
+                colors[at3 + 2] = color.b * floor;
+                at3 += 3;
               }
             }
           }
@@ -714,20 +795,17 @@ export class Terrain {
     }
 
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     // Ground does not move in the wind. The attribute still has to exist —
-    // Phase 7 patches one shared material, and a mesh missing the attribute it
-    // reads is a mesh that fails to draw.
-    geometry.setAttribute(
-      FIELD_ATTRIBUTE,
-      new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3),
-    );
+    // the sway patch reads it on one shared material, and a mesh missing the
+    // attribute it reads is a mesh that fails to draw.
+    geometry.setAttribute(FIELD_ATTRIBUTE, new THREE.BufferAttribute(floats(vertices * 3), 3));
     // Read by the cover sampler on the CPU and by nothing else. The ground's
     // own material never declares it, so it costs a buffer and no draw.
-    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.Float32BufferAttribute(covers, 4));
-    geometry.setAttribute(COVER_BLEND_ATTRIBUTE, new THREE.Float32BufferAttribute(blends, 2));
+    geometry.setAttribute(COVER_ATTRIBUTE, new THREE.BufferAttribute(covers, 4));
+    geometry.setAttribute(COVER_BLEND_ATTRIBUTE, new THREE.BufferAttribute(blends, 2));
 
     return finish(geometry, 'terrain', 0);
   }
@@ -835,12 +913,19 @@ export class Terrain {
     return COVER_ORDER.indexOf(painted ?? COVER[name] ?? 'none');
   }
 
-  /** The cover at a probe point, and whether a hard-edged patch put it there. */
+  /** The cover at a probe point, and whether a hard-edged patch put it there. One record, rewritten per probe. */
   private coverThere(x: number, z: number): { index: number; hard: boolean } {
+    const there = this.there;
     const patch = coverPatchWinner(this.cover, x, z);
-    if (patch) return { index: COVER_ORDER.indexOf(patch.cover), hard: patch.edge === 'hard' };
+    if (patch) {
+      there.index = COVER_ORDER.indexOf(patch.cover);
+      there.hard = patch.edge === 'hard';
+      return there;
+    }
     const name = COVER[patchAt(this.patches, x, z) ?? this.base] ?? 'none';
-    return { index: COVER_ORDER.indexOf(name), hard: false };
+    there.index = COVER_ORDER.indexOf(name);
+    there.hard = false;
+    return there;
   }
 
   /**
@@ -852,45 +937,47 @@ export class Terrain {
    * than a line or a gap. A `hard` patch opts out of both, from both sides. Slope is
    * left out, so the rock line on a cliff stays hard.
    */
-  private coverEdge(cover: number, x: number, z: number): [number, number, number] {
+  private coverEdge(cover: number, x: number, z: number, out: CoverEdge): void {
+    out.feather = 1;
+    out.neighbor = 0;
+    out.blend = 0;
     const own = coverPatchWinner(this.cover, x, z);
-    if (own?.edge === 'hard') return [1, 0, 0];
+    if (own?.edge === 'hard') return;
 
     let same = 0;
     for (let i = 0; i < FEATHER_PROBES; i++) {
-      const angle = (i / FEATHER_PROBES) * Math.PI * 2;
-      const there = this.coverThere(
-        x + Math.cos(angle) * FEATHER_REACH,
-        z + Math.sin(angle) * FEATHER_REACH,
-      );
+      const there = this.coverThere(x + FEATHER_RING[i * 2], z + FEATHER_RING[i * 2 + 1]);
       if (there.index === cover || there.index > 0 || there.hard) same++;
     }
     // Remapped so a point on the boundary, where half its ring disagrees, comes
     // out near nothing rather than near half.
-    const feather = Math.min(Math.max((same / FEATHER_PROBES - 0.45) / 0.55, 0), 1);
+    out.feather = Math.min(Math.max((same / FEATHER_PROBES - 0.45) / 0.55, 0), 1);
 
-    const votes = new Map<number, number>();
+    const votes = this.votes;
+    votes.fill(0);
     for (let i = 0; i < BLEND_PROBES; i++) {
-      const angle = ((i + 0.5) / BLEND_PROBES) * Math.PI * 2;
-      const there = this.coverThere(
-        x + Math.cos(angle) * BLEND_REACH,
-        z + Math.sin(angle) * BLEND_REACH,
-      );
-      if (there.index > 0 && there.index !== cover && !there.hard) {
-        votes.set(there.index, (votes.get(there.index) ?? 0) + 1);
-      }
+      const there = this.coverThere(x + BLEND_RING[i * 2], z + BLEND_RING[i * 2 + 1]);
+      if (there.index > 0 && there.index !== cover && !there.hard) votes[there.index]++;
     }
     let neighbor = 0;
     let best = 0;
-    for (const [index, count] of votes) {
-      if (count > best) {
-        best = count;
+    for (let index = 1; index < votes.length; index++) {
+      if (votes[index] > best) {
+        best = votes[index];
         neighbor = index;
       }
     }
+    out.neighbor = neighbor;
     // Capped: a strip narrower than the ring keeps at least half its own kind.
-    return [feather, neighbor, Math.min(best / BLEND_PROBES, 0.5)];
+    out.blend = Math.min(best / BLEND_PROBES, 0.5);
   }
+}
+
+/** What happens to the cover at one corner. One record, rewritten per corner. */
+interface CoverEdge {
+  feather: number;
+  neighbor: number;
+  blend: number;
 }
 
 /** How far out the feather looks, and how many ways. */
@@ -899,3 +986,16 @@ const FEATHER_PROBES = 8;
 /** The blend looks further: an interleaved boundary is a band, not a seam. */
 const BLEND_REACH = 1.8;
 const BLEND_PROBES = 10;
+
+/** The probe offsets, x z pairs: the feather on the axes, the blend between them. */
+function ring(probes: number, reach: number, offset: number): Float64Array {
+  const out = new Float64Array(probes * 2);
+  for (let i = 0; i < probes; i++) {
+    const angle = ((i + offset) / probes) * Math.PI * 2;
+    out[i * 2] = Math.cos(angle) * reach;
+    out[i * 2 + 1] = Math.sin(angle) * reach;
+  }
+  return out;
+}
+const FEATHER_RING = ring(FEATHER_PROBES, FEATHER_REACH, 0);
+const BLEND_RING = ring(BLEND_PROBES, BLEND_REACH, 0.5);

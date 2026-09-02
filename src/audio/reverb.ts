@@ -1,3 +1,5 @@
+import { pool } from '../engine/work/pool';
+
 /**
  * Impulse responses, generated rather than recorded — this project has no
  * files. A synthesised IR is noise shaped by an exponential decay: noise
@@ -92,7 +94,14 @@ export async function generateImpulseResponse(
   const offline = new OfflineAudioContext(2, length, sampleRate);
 
   const source = offline.createBufferSource();
-  source.buffer = decayingNoise(offline, length, sampleRate, room);
+  const channels = await pool.run('room-noise', {
+    length,
+    sampleRate,
+    preDelay: room.preDelay,
+    rt60: room.rt60,
+  });
+  source.buffer = offline.createBuffer(2, length, sampleRate);
+  channels.forEach((data, channel) => source.buffer!.copyToChannel(data, channel));
 
   // A one-pole-ish lowpass standing in for absorption. It shapes the whole tail
   // rather than the decay curve — real damping is a frequency-dependent decay
@@ -112,30 +121,4 @@ export async function generateImpulseResponse(
   source.start(0);
 
   return offline.startRendering();
-}
-
-function decayingNoise(
-  context: BaseAudioContext,
-  length: number,
-  sampleRate: number,
-  room: RoomAcoustics,
-): AudioBuffer {
-  const buffer = context.createBuffer(2, length, sampleRate);
-  const preDelay = Math.floor(room.preDelay * sampleRate);
-  // -60 dB is a factor of 1000, so this is the per-sample decay that reaches
-  // it exactly at rt60.
-  const decay = Math.exp(-Math.log(1000) / (room.rt60 * sampleRate));
-
-  for (let channel = 0; channel < 2; channel++) {
-    const data = buffer.getChannelData(channel);
-    let envelope = 1;
-    for (let i = preDelay; i < length; i++) {
-      // Independent noise per channel: this is the decorrelation, and without
-      // it the reverb plays in mono up the middle of your skull.
-      data[i] = (Math.random() * 2 - 1) * envelope;
-      envelope *= decay;
-    }
-  }
-
-  return buffer;
 }

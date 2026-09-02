@@ -3,6 +3,8 @@ import type { PropAsk } from '../engine/work/jobs';
 import type { Finished } from '../art/assemble';
 import { entryKind, holds, type WarmContext, type WorldState } from './entry';
 import type { Layer } from './document';
+import type { SkirtOptions } from './vista';
+import { cacheKey } from '../engine/work/cache';
 
 /**
  * A zone's props, built off the main thread before the document walk runs.
@@ -30,6 +32,26 @@ const BUDGET = 2500;
 
 function keyOf(ask: PropAsk): string {
   return `${ask.builder}|${ask.seed}|${ask.scale ?? 1}|${JSON.stringify(ask.extras ?? {})}`;
+}
+
+/** The ground's two meshes, claimed under names no builder has. */
+export const TERRAIN_ASK: PropAsk = { builder: '#terrain', seed: 0 };
+export const SKIRT_ASK: PropAsk = { builder: '#skirt', seed: 0 };
+
+/** Plans the warm made and the walk can take rather than make again. */
+const plans = new Map<string, unknown>();
+
+/** Keeps a plan under its entry, for `takePlan`. */
+export function keepPlan(key: string, plan: unknown): void {
+  plans.set(key, plan);
+}
+
+/** Claims a plan the warm kept. Taken, not read: a rebuilt zone plans afresh. */
+export function takePlan<T>(key: string): T | null {
+  const held = plans.get(key);
+  if (held === undefined) return null;
+  plans.delete(key);
+  return held as T;
 }
 
 /**
@@ -64,32 +86,82 @@ export async function warmDocument(
   layers: readonly Layer[],
   ctx: WarmContext,
   state: WorldState,
+  skirt?: Omit<SkirtOptions, 'terrain'>,
+  fingerprint?: string,
 ): Promise<void> {
   const found = planDocument(layers, ctx, state);
-  if (found.length === 0) return;
+  const ground = ctx.terrain !== null;
+  if (found.length === 0 && !ground) return;
 
   const bank = new Map<string, Finished[]>();
   banks.set(zone, bank);
   const giveUp = new AbortController();
-  const timer = setTimeout(() => giveUp.abort(), BUDGET);
+  // Scaled by the queue: one machine's number is another's timeout, and a
+  // warm that gives up early lands its props back on the walk.
+  const timer = setTimeout(() => giveUp.abort(), budgetFor(found.length + (ground ? 2 : 0)));
 
-  await Promise.all(
-    found.map(async (ask) => {
-      try {
-        const made = await pool.run('prop-geometry', ask, { signal: giveUp.signal });
-        if (!made) return;
-        const key = keyOf(ask);
-        const waiting = bank.get(key);
-        if (waiting) waiting.push(made);
-        else bank.set(key, [made]);
-      } catch {
-        // Cancelled, refused or failed: all the same from here, and the walk
-        // builds it, which is what it did before any of this existed.
-      }
-    }),
+  const keep = (ask: PropAsk, made: Finished | null): void => {
+    if (!made) return;
+    const key = keyOf(ask);
+    const waiting = bank.get(key);
+    if (waiting) waiting.push(made);
+    else bank.set(key, [made]);
+  };
+  const quietly = async (work: () => Promise<void>): Promise<void> => {
+    try {
+      await work();
+    } catch {
+      // Cancelled, refused or failed: all the same from here, and the walk
+      // builds it, which is what it did before any of this existed.
+    }
+  };
+
+  const jobs = found.map((ask) =>
+    quietly(async () => keep(ask, await pool.run('prop-geometry', ask, { signal: giveUp.signal }))),
   );
+  if (ctx.terrain) {
+    // First in the queue: the ground is the biggest single build and the one
+    // every prop stands on.
+    const terrain = ctx.terrain.wire();
+    jobs.unshift(
+      quietly(async () =>
+        keep(
+          TERRAIN_ASK,
+          await pool.run('terrain-mesh', terrain, {
+            signal: giveUp.signal,
+            urgent: true,
+            cache: cacheKey(zone, 'terrain', fingerprint),
+          }),
+        ),
+      ),
+    );
+    if (skirt) {
+      jobs.unshift(
+        quietly(async () =>
+          keep(
+            SKIRT_ASK,
+            await pool.run('skirt-mesh', { skirt, terrain }, {
+              signal: giveUp.signal,
+              urgent: true,
+              cache: cacheKey(zone, 'skirt', fingerprint),
+            }),
+          ),
+        ),
+      );
+    }
+  }
+  await Promise.all(jobs);
   clearTimeout(timer);
 }
+
+/** Milliseconds a warm of `jobs` may take: the floor, or longer when the queue is deep for the workers there are. */
+function budgetFor(jobs: number): number {
+  const perWorker = jobs / Math.max(1, pool.size);
+  return Math.max(BUDGET, perWorker * PER_JOB);
+}
+
+/** Milliseconds one job is allowed on one worker before the budget grows. */
+const PER_JOB = 40;
 
 /** Opens the zone's bank for the walk about to run. Closed by `dropWarm`. */
 export function useWarm(zone: string): void {

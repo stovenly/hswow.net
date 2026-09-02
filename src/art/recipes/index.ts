@@ -2,6 +2,7 @@ import { indent, reindent } from '../glsl/text';
 import { RAMP_V } from '../glsl/ramp';
 import { RECIPE_SHARED } from './shared';
 import {
+  FIELD_SPAN,
   KNOB_ROWS,
   PLAIN_KNOBS,
   VARIANT_INDEX,
@@ -46,9 +47,12 @@ import { auroral } from './auroral';
  */
 
 export {
+  FIELD_SPAN,
   RECIPE_ATTRIBUTE,
+  VARIANT_FIELD,
   VARIANT_INDEX,
   PLAIN_KNOBS,
+  type FieldSpan,
   type FinishFeatureName,
   type Recipe,
   type RecipeKnobs,
@@ -73,34 +77,6 @@ export const RECIPES: readonly Recipe[] = [
 
 /** Every look, in byte order. */
 export const VARIANTS: readonly RecipeVariant[] = RECIPES.flatMap((recipe) => recipe.variants);
-
-/**
- * A field's byte range, and the check that it is one.
- *
- * **A gap here is silent and severe**: the guard is a range test, so a byte
- * belonging to nobody that falls between two of a field's variants would run
- * that field's shader against a row of zeros. Asserted at module load rather
- * than tested, because there is no version of this that should ship broken.
- */
-export interface FieldSpan {
-  readonly lo: number;
-  readonly hi: number;
-}
-
-export const FIELD_SPAN = Object.fromEntries(
-  RECIPES.map((recipe) => {
-    const bytes = recipe.variants.map((variant) => VARIANT_INDEX[variant.name]);
-    const lo = Math.min(...bytes);
-    const hi = Math.max(...bytes);
-    if (hi - lo + 1 !== bytes.length) {
-      throw new Error(`recipe '${recipe.name}': bytes ${lo}..${hi} are not contiguous`);
-    }
-    if (hi >= KNOB_ROWS) {
-      throw new Error(`recipe '${recipe.name}': byte ${hi} is past KNOB_ROWS`);
-    }
-    return [recipe.name, { lo, hi }];
-  }),
-) as Record<RecipeName, FieldSpan>;
 
 /** Which field a byte belongs to, if any. Zero and unclaimed bytes are none. */
 export function fieldOfByte(byte: number): RecipeName | undefined {
@@ -137,11 +113,6 @@ export const RECIPE_KNOBS = Object.fromEntries(
 export const RECIPE_PARAMS = Object.fromEntries(
   VARIANTS.map((variant) => [variant.name, [...variant.params] as [number, number, number]]),
 ) as Record<VariantName, [number, number, number]>;
-
-/** Which field owns each look, for the dev panel's folders and for labels. */
-export const VARIANT_FIELD = Object.fromEntries(
-  RECIPES.flatMap((recipe) => recipe.variants.map((variant) => [variant.name, recipe.name])),
-) as Record<VariantName, RecipeName>;
 
 function writeKnobRow(row: number, knobs: RecipeKnobs): void {
   const at = row * 4;

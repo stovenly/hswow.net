@@ -1,11 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CLUTTER } from './clutter';
-import { MATERIALS } from './underfoot';
 import type { SurfaceName } from '../audio/models/footsteps';
-import { FLEX } from './flex';
-import { SWAY_DEPTH_MATERIAL, dressArtMesh } from './sway';
-import { dressRigged, type Rig } from './rig';
+import type { Rig } from './rig';
 import { WEAR_TINT_ATTRIBUTE } from './weathering';
 import { DETAIL_TINT_ATTRIBUTE } from './detail';
 import {
@@ -17,9 +13,9 @@ import {
   type Finish,
   type FinishName,
   type Grain,
-} from './finish';
-import { RECIPE_ATTRIBUTE } from './recipes';
-import { collectSparkleSites } from './sparkle';
+} from './finishes';
+import { RECIPE_ATTRIBUTE } from './recipes/types';
+import { collectSparkleSites } from './sparkle-sites';
 import { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
 
 /**
@@ -36,11 +32,26 @@ import { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields'
 
 export { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
 
-/** One material for the entire art kit. Phase 7 patches this and nothing else. */
-export const ART_MATERIAL = new THREE.MeshLambertMaterial({
-  vertexColors: true,
-  flatShading: true,
-});
+/**
+ * Where a finished geometry goes when nothing is capturing it. The main thread
+ * installs the one that dresses a mesh (`art/dress.ts`); a worker installs
+ * nothing, so a builder there can only be run under `capture`.
+ */
+export interface FinishSink {
+  mesh(geometry: THREE.BufferGeometry, name: string, phase: number, underfoot?: SurfaceName): THREE.Mesh;
+  rigged(geometry: THREE.BufferGeometry, rig: Rig, name: string, phase: number, scale: number): THREE.SkinnedMesh;
+}
+
+let sink: FinishSink | null = null;
+
+export function installFinish(installed: FinishSink): void {
+  sink = installed;
+}
+
+export function finishSink(): FinishSink {
+  if (!sink) throw new Error('assemble: finish called with no sink installed and no capture running');
+  return sink;
+}
 
 export interface Part {
   geometry: THREE.BufferGeometry;
@@ -283,13 +294,6 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
 }
 
 /**
- * Finishes a merged geometry into a mesh, and where the species' stiffness is
- * applied: the per-vertex weights say where a thing bends, `FLEX` says whether it
- * bends at all, and multiplying them here keeps the kit on one material and so
- * one draw call. `swayPhase` is stamped for anything wanting a stable
- * per-instance number.
- */
-/**
  * What `finish` was handed, which is everything the dressing needs. A builder
  * whose whole body is a pure walk to one `finish` call can therefore be run
  * anywhere — see `capture`.
@@ -402,15 +406,6 @@ export function capture(run: () => THREE.Object3D): Finished | null {
   }
 }
 
-/** Dresses what `capture` took, on the thread that owns the materials. */
-export function finishCaptured(taken: Finished): THREE.Mesh {
-  const mesh = taken.rig
-    ? dressRigged(taken.geometry, taken.rig, taken.name, taken.phase, taken.scale ?? 1)
-    : finish(taken.geometry, taken.name, taken.phase, taken.underfoot);
-  if (taken.userData) Object.assign(mesh.userData, taken.userData);
-  return mesh;
-}
-
 /** True while a builder is being run for its geometry alone. Read by `rig.ts`. */
 export function capturingNow(): boolean {
   return capturing;
@@ -451,50 +446,7 @@ export function finish(
     captured = { geometry, name, phase, underfoot };
     return STUB;
   }
-  return finishMesh(new THREE.Mesh(geometry, ART_MATERIAL), name, phase, underfoot);
-}
-
-/**
- * The body of `finish`, on a mesh the caller made — a `SkinnedMesh` for a
- * rigged creature (`art/rig.ts`), a plain one for everything else.
- */
-export function finishMesh<T extends THREE.Mesh>(
-  mesh: T,
-  name: string,
-  phase: number,
-  underfoot?: SurfaceName,
-): T {
-  const geometry = mesh.geometry;
-  // Baked into the attribute rather than passed as a uniform: a uniform would
-  // need a material per species, and the whole kit sharing one material is what
-  // keeps a prop to a single draw call.
-  const flex = FLEX[name] ?? 0;
-  const fields = geometry.getAttribute(FIELD_ATTRIBUTE);
-  if (fields && flex !== 1) {
-    const array = fields.array as Float32Array;
-    for (let i = FIELD_SWAY; i < array.length; i += 3) array[i] *= flex;
-    fields.needsUpdate = true;
-  }
-
-  // The lean material, and a note of what this prop's parts declared.
-  dressArtMesh(mesh, (geometry.userData.finishMask as number | undefined) ?? 0);
-  mesh.name = name;
-  mesh.userData.swayPhase = phase;
-  // Stamped here rather than looked up in the zone manager: by the time the
-  // manager walks a built zone the builder is long gone, and the name on the mesh
-  // is the only thing left that says what this is.
-  if (CLUTTER.has(name)) mesh.userData.clutter = true;
-  // What standing on it sounds like, declared by name in `art/underfoot.ts`. The
-  // collider carries it onto every triangle, so what holds the player up is what
-  // they hear.
-  const material = underfoot ?? MATERIALS[name];
-  if (material) mesh.userData.underfoot = material;
-  // So the sun sees what the camera sees: without it the shadow map is drawn from
-  // undisplaced geometry and every swaying plant casts a still shadow of where it
-  // is not. Set on everything rather than only on things that bend — a rigid
-  // prop's displacement is zero, and a rule would have to be remembered.
-  mesh.customDepthMaterial = SWAY_DEPTH_MATERIAL;
-  return mesh;
+  return finishSink().mesh(geometry, name, phase, underfoot);
 }
 
 /**

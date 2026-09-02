@@ -70,6 +70,8 @@ export function audioLatencyHint(options: Options): AudioContextLatencyCategory 
   return options.audioBuffer === 'large' ? 'playback' : 'interactive';
 }
 
+import { platform } from '../../platform';
+
 export function applyOptions(stored: Options, targets: OptionTargets): void {
   // `performance` is a global; bound to a short name here rather than
   // destructured under its own, so nothing in this function can reach for the
@@ -116,6 +118,9 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
     options.viewDistance >= VIEW_UNLIMITED ? null : options.viewDistance,
   );
   zones.setShadows(options.shadows);
+  // Asked, not forced: outside a click the browser refuses, and the switch
+  // simply takes on the next one.
+  void platform.window.fullscreen(options.fullscreen).catch(() => {});
   // `uncapped` is not a number, and anything else stored there would be, so a
   // failed parse and the deliberate case land in the same place.
   const cap = Number.parseInt(options.fpsCap, 10);

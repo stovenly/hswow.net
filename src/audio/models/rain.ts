@@ -3,7 +3,6 @@ import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
 import { createEventClock, poissonGap } from '../dsp/clock';
 import { createGrainBed } from '../dsp/grain';
-import { excite } from '../dsp/impact';
 import { popBubble, bubbleRadius } from '../dsp/bubble';
 
 /**
@@ -145,7 +144,7 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
   const dropBus = context.createGain();
   dropBus.gain.value = 0;
   dropBus.connect(output);
-  const drops = createGrainBed(context, surface.channels, dropBus, tone);
+  const drops = createGrainBed(context, noise.white, surface.channels, dropBus, tone);
 
   // The bed. Pink rather than white: the aggregate of a very large number of
   // small impacts falls off with frequency, and white noise here is the single
@@ -240,14 +239,7 @@ export function createRain(engine: AudioEngine, options: RainOptions = {}): Rain
       return;
     }
     const [low, high] = surface.contact;
-    excite(
-      context,
-      noise.white,
-      drops.pick(),
-      at,
-      surface.drop * (0.35 + Math.random() * 0.65),
-      low + Math.random() * (high - low),
-    );
+    drops.strike(at, surface.drop * (0.35 + Math.random() * 0.65), low + Math.random() * (high - low));
   };
 
   // Runoff: the fat, slow, individually audible drops off an edge. These *are*

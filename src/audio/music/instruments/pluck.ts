@@ -21,6 +21,11 @@ import { human, type Instrument } from './voice';
  * strike by the director's whole lookahead, during which the voice is at its
  * oldest and faintest.
  *
+ * The pool is grown, not built: the first note makes one voice, and a note
+ * landing while every voice is still ringing adds another, up to `voices`.
+ * An instrument never played holds nothing, and a voice silent for a few
+ * seconds lets its worklet go and is rebuilt on the next note.
+ *
  * When the Faust tier fails to arrive, notes fall back to a short additive
  * pluck: a lightly stretched harmonic series with per-partial decays. It lacks
  * the ring-down's changing timbre, same as every native stand-in for this
@@ -55,20 +60,16 @@ export interface PluckInstrument extends Instrument {
   readonly usingFaust: boolean;
 }
 
-async function loadPool(context: BaseAudioContext, count: number): Promise<FaustNode[] | null> {
+type Loader = () => Promise<FaustNode | null>;
+
+/** The Faust tier, fetched once; null when it cannot be had and the fallback plays. */
+async function loadTier(context: BaseAudioContext): Promise<Loader | null> {
   try {
     const [{ createFaustNode }, { waveguideMeta, waveguideUrl }] = await Promise.all([
       import('../../faust/FaustNode'),
       import('../../faust/built/waveguide'),
     ]);
-    const nodes = await Promise.all(
-      Array.from({ length: count }, () => createFaustNode(context, waveguideUrl, waveguideMeta)),
-    );
-    if (nodes.some((node) => node === null)) {
-      for (const node of nodes) node?.dispose();
-      return null;
-    }
-    return nodes as FaustNode[];
+    return () => createFaustNode(context, waveguideUrl, waveguideMeta, { sleeps: true });
   } catch (error) {
     console.warn('pluck: faust tier unavailable — using the additive fallback', error);
     return null;
@@ -121,18 +122,34 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
   interface Voice {
     input: BiquadFilterNode;
     node: FaustNode;
+    /** When its last note stops ringing, on the audio clock. */
+    quietAt: number;
   }
   const voices: Voice[] = [];
   let next = 0;
   let disposed = false;
+  let loader: Loader | null = null;
+  let growing = false;
 
-  const ready = loadPool(context, count).then((nodes) => {
-    if (!nodes) return;
-    if (disposed) {
-      for (const node of nodes) node.dispose();
-      return;
-    }
-    for (const node of nodes) {
+  const ready = loadTier(context).then((tier) => {
+    if (!disposed) loader = tier;
+  });
+
+  /** Adds a voice, once per call and never past `count`. */
+  function grow(): void {
+    if (!loader || growing || voices.length >= count) return;
+    growing = true;
+    void loader().then((node) => {
+      growing = false;
+      // Refused: the additive fallback plays from here on.
+      if (!node) {
+        loader = null;
+        return;
+      }
+      if (disposed) {
+        node.dispose();
+        return;
+      }
       // Per-voice brightness on the excitation: velocity decides how much of
       // the noise burst's top reaches the string, which is where a pluck's
       // hardness actually lives.
@@ -140,16 +157,16 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
       input.type = 'lowpass';
       input.frequency.value = 4000;
       input.Q.value = 0.4;
-      input.connect(node.node);
-      node.node.connect(faustBus);
+      input.connect(node.input as GainNode);
+      node.output.connect(faustBus);
       node.set('decay', decay);
       node.set('bright', bright);
       node.set('closed', 0);
       node.set('place', place);
       node.set('gain', 0.7);
-      voices.push({ input, node });
-    }
-  });
+      voices.push({ input, node, quietAt: 0 });
+    });
+  }
 
   /** The stand-in: a stretched harmonic series, struck. */
   function fallback(at: number, freq: number, velocity: number): void {
@@ -183,11 +200,13 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
     ready,
 
     get usingFaust() {
-      return voices.length > 0;
+      return loader !== null;
     },
 
     noteOn(at, freq, velocity) {
       const n = human(context, at, freq, velocity);
+      // A note landing while every voice still rings asks for one more.
+      if (voices.length < courses || voices.every((voice) => voice.quietAt > n.at)) grow();
       if (voices.length === 0) {
         fallback(n.at, n.freq, n.velocity);
         return;
@@ -195,6 +214,7 @@ export function createPluck(engine: AudioEngine, options: PluckOptions = {}): Pl
       const strings = Math.min(courses, voices.length);
       for (let course = 0; course < strings; course++) {
         const voice = voices[next++ % voices.length];
+        voice.quietAt = n.at + decay;
         const spread = strings > 1 ? (course === 0 ? -courseCents / 2 : courseCents / 2) : 0;
         // The second string of a course lands a breath late and softer —
         // the hammer's bounce, not a chorus effect.

@@ -125,6 +125,8 @@ export class SaveSlots {
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || !this.shown) return;
+    // Claimed, so the pause stack's own Escape does not also resume.
+    event.preventDefault();
     this.hide();
   };
 }

@@ -1,11 +1,10 @@
-import GUI from 'lil-gui';
-import Stats from 'three/examples/jsm/libs/stats.module.js';
+import type GUI from 'lil-gui';
+import type Stats from 'three/examples/jsm/libs/stats.module.js';
 import { flags } from './flags';
 
 /**
- * The `?debug` overlay: frame stats plus a live tuning panel that later phases
- * hang their parameters off. Returns nulls when the flag is absent so callers
- * can no-op without branching everywhere.
+ * The `?debug` overlay: frame stats plus a live tuning panel. Nulls without the
+ * flag, and the two libraries are only fetched with it.
  */
 export interface DevTools {
   gui: GUI | null;
@@ -14,10 +13,14 @@ export interface DevTools {
   dispose(): void;
 }
 
-export function createDevTools(): DevTools {
+export async function createDevTools(): Promise<DevTools> {
   if (!flags.debug) {
     return { gui: null, stats: null, update: () => {}, dispose: () => {} };
   }
+  const [{ default: GUI }, { default: Stats }] = await Promise.all([
+    import('lil-gui'),
+    import('three/examples/jsm/libs/stats.module.js'),
+  ]);
 
   const stats = new Stats();
   stats.dom.style.position = 'fixed';

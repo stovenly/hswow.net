@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { withStaticHidden } from './statics';
+import { showSurfaces } from './surfaces';
 import { applySway } from '../art/sway';
-import { applyGlitchDisplacement } from '../art/glitch';
-import { applyHorrorDisplacement } from '../art/horror';
+import { applyGlitchDisplacement, glitchVariant } from '../art/glitch';
+import { applyHorrorDisplacement, horrorVariant } from '../art/horror';
 import { EFFECT_ATTRIBUTE, maskUniforms } from '../art/effectId';
 import { EFFECT_MASK_LAYER } from '../layers';
 import type { PixelEffect, EffectContext } from './PixelStage';
@@ -76,7 +78,9 @@ export class EffectMaskPass implements PixelEffect {
     renderer.clear(true, false, false);
     scene.overrideMaterial = this.material;
     camera.layers.set(EFFECT_MASK_LAYER);
-    renderer.render(scene, camera);
+    showSurfaces(false);
+    withStaticHidden(() => renderer.render(scene, camera));
+    showSurfaces(true);
     scene.overrideMaterial = priorOverride;
     camera.layers.mask = priorLayers;
     renderer.autoClear = priorAutoClear;
@@ -138,7 +142,7 @@ function createMaskMaterial(): THREE.MeshBasicMaterial {
       .replace('#include <opaque_fragment>', 'gl_FragColor = vec4(vMaskId, 0.0, 0.0, 1.0);');
   };
 
-  material.customProgramCacheKey = () => 'sway-glitch-horror-mask';
+  material.customProgramCacheKey = () => `sway-glitch-horror-mask:${glitchVariant()}:${horrorVariant()}`;
   material.needsUpdate = true;
   return material;
 }

@@ -160,7 +160,10 @@ export interface FlatGroundOptions {
  * `groundAt: () => 0` and a `floor` well below zero. Deliberately does not do
  * painted ground cover or height variation: a gallery is a dev room.
  */
-export function flatGround(size = 400, options: FlatGroundOptions = {}): THREE.Mesh {
+/** Metres across, where a zone asks for a plain floor and says nothing about its size. */
+export const FLAT_SIZE = 400;
+
+export function flatGround(size = FLAT_SIZE, options: FlatGroundOptions = {}): THREE.Mesh {
   const segments = options.segments ?? Math.max(8, Math.round(size / QUAD));
 
   const geometry = new THREE.PlaneGeometry(size, size, segments, segments);

@@ -10,6 +10,7 @@ import {
   type BladeLayer,
   type PropLayer,
 } from '../world/ground';
+import { floats, movable } from '../engine/work/shared';
 
 /**
  * Where a field of groundcover is decided: the CPU sampler, and nothing else.
@@ -97,31 +98,82 @@ export function hat(a: number, b: number, c: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** A float array that grows by doubling, so a field of a million blades never boxes a number. */
+class Grow {
+  data = new Float32Array(256);
+  length = 0;
+
+  private room(n: number): void {
+    if (this.length + n <= this.data.length) return;
+    let size = this.data.length * 2;
+    while (size < this.length + n) size *= 2;
+    const next = new Float32Array(size);
+    next.set(this.data);
+    this.data = next;
+  }
+
+  push1(a: number): void {
+    this.room(1);
+    this.data[this.length++] = a;
+  }
+
+  push3(a: number, b: number, c: number): void {
+    this.room(3);
+    const d = this.data;
+    let at = this.length;
+    d[at++] = a;
+    d[at++] = b;
+    d[at++] = c;
+    this.length = at;
+  }
+
+  push4(a: number, b: number, c: number, e: number): void {
+    this.room(4);
+    const d = this.data;
+    let at = this.length;
+    d[at++] = a;
+    d[at++] = b;
+    d[at++] = c;
+    d[at++] = e;
+    this.length = at;
+  }
+}
+
 export interface BladeChunk {
-  place: number[];
-  shape: number[];
-  tint: number[];
-  wild: number[];
-  normal: number[];
+  place: Grow;
+  shape: Grow;
+  tint: Grow;
+  wild: Grow;
+  normal: Grow;
 }
 
 export interface PropChunk {
   kind: PropLayer['kind'];
-  place: number[];
-  prop: number[];
-  tint: number[];
-  normal: number[];
-  roll: number[];
+  place: Grow;
+  prop: Grow;
+  tint: Grow;
+  normal: Grow;
+  roll: Grow;
   /** Square metres one prop of its layer accounts for in the full pool. Zero where the kind never thins. */
-  area: number[];
+  area: Grow;
 }
 
 export interface CoverSample {
-  blades: Map<string, BladeChunk>;
-  props: Map<string, PropChunk>;
+  /** Keyed by `chunkKey`. */
+  blades: Map<number, BladeChunk>;
+  props: Map<number, PropChunk>;
   bladeCount: number;
   propCount: number;
   maxLen: number;
+}
+
+/** Chunk cells within ±2048 of the origin, which at 24 m a cell is further than any level reaches. */
+const CELLS = 4096;
+const KINDS: readonly PropLayer['kind'][] = ['plume', 'bloom', 'leaf', 'ivy', 'posy', 'raceme'];
+
+/** One integer per cull tile, and per kind for props: no string per blade. */
+function chunkKey(kind: number, x: number, z: number): number {
+  return (kind * CELLS + (Math.floor(x / CHUNK) + CELLS / 2)) * CELLS + (Math.floor(z / CHUNK) + CELLS / 2);
 }
 
 /**
@@ -356,19 +408,19 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
         const shade =
           clumpShade * (0.92 + 0.16 * h2) * (1 + mound * (crest - 0.3) * 0.45);
 
-        const key = `${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
+        const key = chunkKey(0, wx, wz);
         let chunk = sample.blades.get(key);
         if (!chunk) {
-          chunk = { place: [], shape: [], tint: [], wild: [], normal: [] };
+          chunk = { place: new Grow(), shape: new Grow(), tint: new Grow(), wild: new Grow(), normal: new Grow() };
           sample.blades.set(key, chunk);
         }
-        chunk.place.push(
+        chunk.place.push4(
           va.x * w0 + vb.x * r1 + vc.x * r2,
           va.y * w0 + vb.y * r1 + vc.y * r2,
           va.z * w0 + vb.z * r1 + vc.z * r2,
           clumpYaw + (h3 - 0.5) * 2.6,
         );
-        chunk.shape.push(
+        chunk.shape.push4(
           length,
           // Wider still on a mound's crest, so the chunk fuses into one mass.
           layer.width * (0.85 + 0.3 * h2) * (1 + 0.5 * mound * crest),
@@ -376,10 +428,10 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
           // Blunt for mounds, so neighbours merge into a mass.
           0.8 - 0.5 * mound,
         );
-        chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
+        chunk.tint.push3(tint.r * shade, tint.g * shade, tint.b * shade);
         // w: square metres this blade accounts for in the full pool. The LOD reads it.
-        chunk.wild.push(h1 * 6.2831, h4 * 31, layer.give, 1 / (layer.density * COVER_POOL_SCALE));
-        chunk.normal.push(normal.x, normal.y, normal.z);
+        chunk.wild.push4(h1 * 6.2831, h4 * 31, layer.give, 1 / (layer.density * COVER_POOL_SCALE));
+        chunk.normal.push3(normal.x, normal.y, normal.z);
         sample.bladeCount++;
       }
     }
@@ -417,29 +469,37 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
         tint.set(palette[Math.floor(h3 * palette.length) % palette.length]);
         const shade = 0.9 + 0.2 * hat(f, i, 103 + salt);
 
-        const key = `${props.kind}:${Math.floor(wx / CHUNK)},${Math.floor(wz / CHUNK)}`;
+        const key = chunkKey(1 + KINDS.indexOf(props.kind), wx, wz);
         let chunk = sample.props.get(key);
         if (!chunk) {
-          chunk = { kind: props.kind, place: [], prop: [], tint: [], normal: [], roll: [], area: [] };
+          chunk = {
+            kind: props.kind,
+            place: new Grow(),
+            prop: new Grow(),
+            tint: new Grow(),
+            normal: new Grow(),
+            roll: new Grow(),
+            area: new Grow(),
+          };
           sample.props.set(key, chunk);
         }
         // Wall props sit just off their face and yaw to it, give or take;
         // ground props spin freely.
         const lift = walls ? WALL_LIFT : 0;
-        chunk.place.push(
+        chunk.place.push4(
           va.x * w0 + vb.x * r1 + vc.x * r2 + normal.x * lift,
           va.y * w0 + vb.y * r1 + vc.y * r2 + normal.y * lift,
           va.z * w0 + vb.z * r1 + vc.z * r2 + normal.z * lift,
           walls ? yawWall + (h2 - 0.5) * PROP_TURN[props.kind] : h2 * Math.PI * 2,
         );
-        chunk.prop.push(props.scale * (0.8 + 0.4 * h1), 0.8 + 0.9 * h3, h3, PROP_GLOW[props.kind]);
-        chunk.tint.push(tint.r * shade, tint.g * shade, tint.b * shade);
-        if (walls) chunk.normal.push(normal.x, normal.y, normal.z);
-        else chunk.normal.push(0, 1, 0);
-        chunk.roll.push(
+        chunk.prop.push4(props.scale * (0.8 + 0.4 * h1), 0.8 + 0.9 * h3, h3, PROP_GLOW[props.kind]);
+        chunk.tint.push3(tint.r * shade, tint.g * shade, tint.b * shade);
+        if (walls) chunk.normal.push3(normal.x, normal.y, normal.z);
+        else chunk.normal.push3(0, 1, 0);
+        chunk.roll.push1(
           walls && PROP_ROLLS[props.kind] ? hat(f, i, 107 + salt) * Math.PI * 2 : 0,
         );
-        chunk.area.push(PROP_LOD[props.kind] ? 1 / (props.density * COVER_POOL_SCALE) : 0);
+        chunk.area.push1(PROP_LOD[props.kind] ? 1 / (props.density * COVER_POOL_SCALE) : 0);
         sample.propCount++;
       }
     }
@@ -448,10 +508,18 @@ export function sampleCover(ground: THREE.Mesh, uniform?: CoverName): CoverSampl
   return sample;
 }
 
+/** A bounding sphere as four numbers. */
+export interface SphereWire {
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+}
+
 /**
- * A sample as it crosses a thread boundary: typed arrays instead of Maps of
- * plain arrays, with every buffer in `transfer` so the crossing is a handover
- * rather than a copy.
+ * A sample as it crosses a thread boundary: shuffled, gathered and measured
+ * on the sampling thread, so the main thread wraps buffers and nothing else.
+ * Every buffer is in `buffersOf` for the transfer list.
  */
 export interface CoverChunks {
   blades: {
@@ -460,6 +528,10 @@ export interface CoverChunks {
     tint: Float32Array;
     wild: Float32Array;
     normal: Float32Array;
+    keep: Float32Array;
+    sphere: SphereWire;
+    /** The widest area any blade in the chunk accounts for. */
+    area: number;
   }[];
   props: {
     kind: PropLayer['kind'];
@@ -469,44 +541,129 @@ export interface CoverChunks {
     normal: Float32Array;
     roll: Float32Array;
     area: Float32Array;
+    keep: Float32Array;
+    sphere: SphereWire;
+    widest: number;
   }[];
   maxLen: number;
 }
 
-/** Every buffer in a packed sample, for the transfer list. */
-export function buffersOf(chunks: CoverChunks): ArrayBufferLike[] {
+/** Every buffer in a packed sample that a transfer list may move. */
+export function buffersOf(chunks: CoverChunks): ArrayBuffer[] {
+  return movable(allBuffers(chunks));
+}
+
+function allBuffers(chunks: CoverChunks): ArrayBufferLike[] {
   const out: ArrayBufferLike[] = [];
   for (const chunk of chunks.blades) {
-    out.push(chunk.place.buffer, chunk.shape.buffer, chunk.tint.buffer, chunk.wild.buffer, chunk.normal.buffer);
+    out.push(
+      chunk.place.buffer, chunk.shape.buffer, chunk.tint.buffer, chunk.wild.buffer,
+      chunk.normal.buffer, chunk.keep.buffer,
+    );
   }
   for (const chunk of chunks.props) {
     out.push(
       chunk.place.buffer, chunk.prop.buffer, chunk.tint.buffer, chunk.normal.buffer,
-      chunk.roll.buffer, chunk.area.buffer,
+      chunk.roll.buffer, chunk.area.buffer, chunk.keep.buffer,
     );
   }
   return out;
 }
 
-/** Packs a sample for the crossing. Chunk order is the Maps' insertion order. */
+/**
+ * Packs a sample for the crossing: each chunk shuffled so a prefix is an even
+ * scatter, its keep threshold and bounding sphere worked out here. Chunk order
+ * is the Maps' insertion order, and the shuffle seeds run blades then props.
+ */
 export function packSample(sample: CoverSample): CoverChunks {
-  return {
-    blades: [...sample.blades.values()].map((chunk) => ({
-      place: new Float32Array(chunk.place),
-      shape: new Float32Array(chunk.shape),
-      tint: new Float32Array(chunk.tint),
-      wild: new Float32Array(chunk.wild),
-      normal: new Float32Array(chunk.normal),
-    })),
-    props: [...sample.props.values()].map((chunk) => ({
+  let seed = 0;
+  const blades = [...sample.blades.values()].map((chunk) => {
+    const count = chunk.place.length / 4;
+    const order = shuffledOrder(count, hat(seed++, count, 7));
+    const place = gather(chunk.place, order, 4);
+    const wild = gather(chunk.wild, order, 4);
+    let area = 0;
+    for (let i = 0; i < count; i++) area = Math.max(area, wild[i * 4 + 3]);
+    const keep = floats(count);
+    for (let i = 0; i < count; i++) keep[i] = keepFor(wild[i * 4 + 3], i, count);
+    return {
+      place,
+      shape: gather(chunk.shape, order, 4),
+      tint: gather(chunk.tint, order, 3),
+      wild,
+      normal: gather(chunk.normal, order, 3),
+      keep,
+      sphere: sphereOf(place, count, sample.maxLen * 2 + 0.5),
+      area,
+    };
+  });
+  const props = [...sample.props.values()].map((chunk) => {
+    const count = chunk.place.length / 4;
+    const order = shuffledOrder(count, hat(seed++, count, 11));
+    const place = gather(chunk.place, order, 4);
+    const area = gather(chunk.area, order, 1);
+    const keep = floats(count);
+    let widest = 0;
+    for (let i = 0; i < count; i++) {
+      keep[i] = keepFor(area[i], i, count);
+      widest = Math.max(widest, area[i]);
+    }
+    return {
       kind: chunk.kind,
-      place: new Float32Array(chunk.place),
-      prop: new Float32Array(chunk.prop),
-      tint: new Float32Array(chunk.tint),
-      normal: new Float32Array(chunk.normal),
-      roll: new Float32Array(chunk.roll),
-      area: new Float32Array(chunk.area),
-    })),
-    maxLen: sample.maxLen,
-  };
+      place,
+      prop: gather(chunk.prop, order, 4),
+      tint: gather(chunk.tint, order, 3),
+      normal: gather(chunk.normal, order, 3),
+      roll: gather(chunk.roll, order, 1),
+      area,
+      keep,
+      sphere: sphereOf(place, count, 3),
+      widest: PROP_LOD[chunk.kind] ? widest : 0,
+    };
+  });
+  return { blades, props, maxLen: sample.maxLen };
+}
+
+/** Deterministic shuffle, so thinning by prefix stays an even scatter. */
+function shuffledOrder(count: number, seed: number): Uint32Array {
+  const order = new Uint32Array(count);
+  for (let i = 0; i < count; i++) order[i] = i;
+  let s = (seed * 4294967296) | 0;
+  for (let i = count - 1; i > 0; i--) {
+    s = (Math.imul(s ^ (s >>> 15), 0x85ebca6b) + 0x6d2b79f5) | 0;
+    const j = (s >>> 0) % (i + 1);
+    const swap = order[i];
+    order[i] = order[j];
+    order[j] = swap;
+  }
+  return order;
+}
+
+function gather(src: Grow, order: Uint32Array, stride: number): Float32Array {
+  const from = src.data;
+  const out = floats(src.length);
+  for (let i = 0; i < order.length; i++) {
+    const at = order[i] * stride;
+    for (let k = 0; k < stride; k++) out[i * stride + k] = from[at + k];
+  }
+  return out;
+}
+
+/** `sqrt(area / rank)` per instance, after the shuffle: the keep test's right-hand side. Zero area never thins. */
+function keepFor(area: number, rank: number, count: number): number {
+  return area > 0 ? Math.sqrt(area / ((rank + 0.5) / count)) : 1e9;
+}
+
+/** A sphere over every root in the chunk, opened by the tallest thing in it. */
+function sphereOf(place: Float32Array, count: number, margin: number): SphereWire {
+  const box = new THREE.Box3();
+  const at = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    box.expandByPoint(at.set(place[i * 4], place[i * 4 + 1], place[i * 4 + 2]));
+  }
+  const sphere = new THREE.Sphere();
+  box.getBoundingSphere(sphere);
+  // An empty box gives back a radius of −1, and a negative radius is a trap
+  // for whatever reads it next.
+  return { x: sphere.center.x, y: sphere.center.y, z: sphere.center.z, radius: Math.max(sphere.radius, 0) + margin };
 }

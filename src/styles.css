@@ -63,23 +63,18 @@ body {
 body {
   font-family: var(--type);
   color: var(--ink);
-  /* Kill pull-to-refresh, rubber-banding and double-tap zoom on touch devices. */
   overscroll-behavior: none;
-  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Fixed rather than sized by flow, so mobile browser chrome appearing and
-   disappearing never changes the canvas box. */
 #viewport {
   position: fixed;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  touch-action: none;
 }
 
 #overlay {
@@ -96,7 +91,7 @@ body {
 /* --- crosshair ---------------------------------------------------------- */
 
 /* Hidden until the mouse is captured, so it isn't a floating dot on a screen
-   you can't yet steer. Touch has no capture step, so it's shown immediately. */
+   you can't yet steer. */
 #crosshair {
   position: fixed;
   top: 50%;
@@ -132,8 +127,7 @@ body.is-playing #crosshair {
   opacity: 0.85;
 }
 
-/* The capture panel — the closest thing to a pause screen. Desktop only: there
-   is nothing to capture on a phone, so TouchControls hides it.
+/* The capture panel — the closest thing to a pause screen.
 
    This is where the controls are taught, which is why the interaction tooltip
    no longer carries a key cap of its own. A prompt that repeats the key every
@@ -255,9 +249,7 @@ body.is-playing #crosshair {
    element. */
 #options-open {
   position: fixed;
-  /* Above the touch layer, which covers the whole screen to catch drags and
-     would otherwise swallow every tap aimed at this. Below the zone fade,
-     which is meant to cover everything. */
+  /* Below the zone fade, which is meant to cover everything. */
   z-index: 15;
   top: var(--pause-top);
   left: 50%;
@@ -282,25 +274,7 @@ body.is-playing #crosshair {
   border-color: var(--ink);
 }
 
-/* Touch never leaves the playing state — there is no capture to lose — so the
-   button needs somewhere permanent. Out of the way of both thumbs: the stick
-   is the left half and the jump pad is bottom right. */
-body.is-touch #options-open {
-  top: max(1rem, env(safe-area-inset-top));
-  right: max(1rem, env(safe-area-inset-right));
-  bottom: auto;
-  left: auto;
-  opacity: 0.7;
-  pointer-events: auto;
-  transform: none;
-}
-
-body.is-touch.is-options #options-open {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Under the boot screen, over the zone fade and the touch controls. */
+/* Under the boot screen, over the zone fade. */
 #options {
   position: fixed;
   z-index: 30;
@@ -762,8 +736,7 @@ body.is-touch.is-options #options-open {
 
 /* --- performance monitor -------------------------------------------------- */
 
-/* Top right, and above the touch layer for the same reason the options button
-   is. Not interactive at all — it is a readout, and a box that eats clicks in
+/* Top right. Not interactive at all — it is a readout, and a box that eats clicks in
    the corner of the screen is a box that will eat one that mattered.
 
    With `?debug` the tuning panel occupies this corner and covers it. That is
@@ -793,12 +766,6 @@ body.is-touch.is-options #options-open {
   background: rgb(10 10 15 / 62%);
   border: 1px solid rgb(220 220 200 / 20%);
   pointer-events: none;
-}
-
-/* The touch build keeps its options button in this corner, so the readout
-   moves down to sit under it rather than on top of it. */
-body.is-touch #perf {
-  top: calc(max(0.75rem, env(safe-area-inset-top)) + 2.6rem);
 }
 
 /* In frame-rate-only mode there is one number and it should read as one
@@ -1400,8 +1367,7 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 
 /* --- zone transition ----------------------------------------------------- */
 
-/* Covers everything during a zone swap. Above the touch controls, because a
-   thumb resting on the stick should not be drawn over the fade. */
+/* Covers everything during a zone swap. */
 #fade {
   position: fixed;
   inset: 0;
@@ -1416,68 +1382,6 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 }
 
 #fade.is-black {
-  opacity: 1;
-}
-
-/* --- touch controls ----------------------------------------------------- */
-
-/* Covers the viewport so drags anywhere are caught; the visible parts opt into
-   hit-testing individually. */
-.touch {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  touch-action: none;
-}
-
-/* The stick is drawn where the thumb lands, so it has no resting position. */
-.touch-stick {
-  position: absolute;
-  width: 128px;
-  height: 128px;
-  margin: -64px 0 0 -64px;
-  border: 1px solid rgb(220 220 200 / 22%);
-  border-radius: 50%;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms linear;
-}
-
-.touch-stick.is-active {
-  opacity: 1;
-}
-
-.touch-stick-knob {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 52px;
-  height: 52px;
-  transform: translate(-50%, -50%);
-  background: rgb(220 220 200 / 16%);
-  border: 1px solid rgb(220 220 200 / 35%);
-  border-radius: 50%;
-}
-
-.touch-jump {
-  position: absolute;
-  right: max(2rem, env(safe-area-inset-right));
-  bottom: max(2.5rem, env(safe-area-inset-bottom));
-  display: grid;
-  place-items: center;
-  width: 76px;
-  height: 76px;
-  font-size: 1.5rem;
-  color: var(--ink);
-  background: rgb(220 220 200 / 8%);
-  border: 1px solid rgb(220 220 200 / 28%);
-  border-radius: 50%;
-  opacity: 0.7;
-  pointer-events: auto;
-}
-
-.touch-jump.is-active {
-  background: rgb(220 220 200 / 22%);
   opacity: 1;
 }
 
@@ -1647,11 +1551,11 @@ body.is-slots #pause,
 body.is-reading #pause,
 body.is-dialogue #pause,
 body.is-inventory #pause,
+body.is-map #pause,
 body.is-quitting #pause,
 body.is-title #pause,
 body.is-capturing #pause,
-body.is-identifying #pause,
-body.is-touch #pause {
+body.is-identifying #pause {
   display: none;
 }
 
@@ -2243,4 +2147,73 @@ body.is-inventory #prompt {
   letter-spacing: 0.14em;
   text-transform: lowercase;
   color: rgb(220 220 200 / 38%);
+}
+
+/* --- the map -------------------------------------------------------------- */
+
+/* Two windows over the world, in the inventory's register and on the same
+   layer: neither is ever open at the same time as the other. */
+#map {
+  position: fixed;
+  z-index: 31;
+  inset: 0;
+}
+
+#map[hidden] {
+  display: none;
+}
+
+/* Catches the clicks that would otherwise land on the canvas and take pointer
+   lock back, and dims the world behind it — nothing is reached through this one
+   the way an item is reached through the inventory's. */
+.map-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(10 10 15 / 46%);
+}
+
+/* The window's body is one canvas and nothing else, so it takes no padding and
+   never scrolls — a chart is panned, not scrolled. */
+#map .inv-window-body {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
+.map-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-canvas:active {
+  cursor: grabbing;
+}
+
+/* Nothing else on screen while the map is open, the reading screen's rule. */
+body.is-map #prompt {
+  display: none;
+}
+
+/* What a door on the local map is called, in the crosshair's own words and the
+   crosshair's own classes — see `#prompt`, whose three lines these are. Beside
+   the cursor rather than over the crosshair, because the cursor is what asked. */
+#map-tip {
+  position: fixed;
+  z-index: 2;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.86rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  white-space: nowrap;
+  background: rgb(10 10 15 / 88%);
+  border: 1px solid rgb(220 220 200 / 28%);
+  pointer-events: none;
+  transform: translate(16px, 16px);
+}
+
+#map-tip[hidden] {
+  display: none;
 }

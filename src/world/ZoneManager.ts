@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { partitionStatic } from '../engine/statics';
+import { cacheKey } from '../engine/work/cache';
 import { SETTLE_CLEARANCE, Zone, type ZoneDefinition, type ZoneId, type Placement } from './Zone';
 import {
   PortalGraph,
@@ -26,7 +28,8 @@ import { builderByName } from '../art/registry';
 import { coverFor } from '../art/cover';
 import { buildZoneSparkles } from '../art/sparkle';
 import { setZoneWind } from '../art/sway';
-import { setGlitchErode } from '../art/glitch';
+import { setGlitchVolumes } from '../art/glitch';
+import { setHorrorVolumes } from '../art/horror';
 import { LightActivity } from '../engine/LightActivity';
 import { WindowLight } from '../engine/WindowLight';
 import type { Daylight } from '../engine/daylight';
@@ -49,6 +52,7 @@ import { Soundscape } from '../audio/Soundscape';
 import { MusicDirector } from '../audio/music/director';
 import { musicFor } from '../audio/vibes';
 import { AmbienceDirector } from '../audio/ambience/director';
+import { linkPrompt } from '../ui/Reticle';
 import type { Reticle, Fade } from '../ui/Reticle';
 
 // Owns which place you are in. Exactly one zone is in the scene and in the
@@ -311,6 +315,9 @@ export class ZoneManager {
   /** Fired once per build of a zone, after dressing, with the finished root — where the item systems mark and correct what was built. */
   onDressed: ((zone: Zone, root: THREE.Group) => void) | null = null;
 
+  /** Fired as a zone's geometry goes, for anything holding a picture of it. */
+  onZoneRelease: ((id: ZoneId) => void) | null = null;
+
   constructor(options: ZoneManagerOptions) {
     this.options = options;
 
@@ -329,9 +336,9 @@ export class ZoneManager {
     // directional light's shadow camera is orthographic and has to be sized by
     // hand — three's 10 m default stops everything past a few paces casting.
     const shadow = this.lights.sun.shadow;
-    // Texels rather than bias: at 4096 over 96 m one texel is 2.3 cm, which
-    // needs a fraction of the bias a lower resolution does.
-    shadow.mapSize.set(4096, 4096);
+    // Texels rather than bias: at 2048 over 96 m one texel is 4.6 cm, then
+    // resampled to the chunky frame.
+    shadow.mapSize.set(2048, 2048);
     const extent = 48;
     shadow.camera.left = -extent;
     shadow.camera.right = extent;
@@ -344,7 +351,7 @@ export class ZoneManager {
     shadow.bias = -0.00008;
     // `normalBias` grows the shadow-free margin around every silhouette, which
     // is the bright seam between a thing and its own shadow. Small enough to hide.
-    shadow.normalBias = 0.006;
+    shadow.normalBias = 0.012;
     // How dark a shadow gets, 0..1. Not full strength: the sun is only part of
     // the light here, and the pipeline quantizes, so a dark shadow drives
     // everything under it onto the bottom level.
@@ -478,7 +485,7 @@ export class ZoneManager {
     await zone.ensureLoaded();
     const root = await this.prepare(zone);
     root.updateWorldMatrix(true, true);
-    await this.options.collider.warmAsync(root, zone.id);
+    await this.options.collider.warmAsync(root, zone.id, false, cacheKey(zone.id, 'collision', zone.fingerprint));
     // Prebuilding pays the cost up front, so entering later takes the silent path.
     this.warmed.add(zone.id);
   }
@@ -657,6 +664,7 @@ export class ZoneManager {
   /** Everything eviction drops, for one zone. */
   private release(zone: Zone, sound: boolean): void {
     zone.dispose();
+    this.onZoneRelease?.(zone.id);
     this.options.collider.invalidate(zone.id);
     this.doored.delete(zone.id);
     this.preparing.delete(zone.id);
@@ -778,7 +786,7 @@ export class ZoneManager {
 
     // Indexed here, where yielding is still allowed, so the swap below finds it
     // cached. A pool that refuses the work leaves `build` to do it inline.
-    await collider.warmAsync(root, zone.id, true);
+    await collider.warmAsync(root, zone.id, true, cacheKey(zone.id, 'collision', zone.fingerprint));
     if (stale()) return;
 
     // Compiled before anything is swapped. Every frame this yields still shows
@@ -786,7 +794,8 @@ export class ZoneManager {
     // swap put rendered frames between the collider changing and the teleport.
     if (cold) await this.loading.working('almost there', 0.96);
     // Before the compile: it decides which variant the compile builds.
-    setGlitchErode(this.glitch.erodes(zone.id));
+    setGlitchVolumes(this.glitch.glitches(zone.id));
+    setHorrorVolumes(this.horror.haunts(zone.id));
     // Only when it runs long: a compile that takes a frame is covered by the
     // fade already, and a screen that appears for one frame is a flicker.
     const slow = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
@@ -1178,7 +1187,9 @@ export class ZoneManager {
     const bare = grounds.filter(
       (mesh) => !mesh.children.some((child) => child.userData.coverField === true),
     );
-    const covers = await Promise.all(bare.map((mesh) => coverFor(mesh)));
+    const covers = await Promise.all(
+      bare.map((mesh, i) => coverFor(mesh, undefined, cacheKey(zone.id, `cover${i}`, zone.fingerprint))),
+    );
     bare.forEach((mesh, i) => {
       const cover = covers[i];
       if (!cover) return;
@@ -1218,6 +1229,8 @@ export class ZoneManager {
     // placements, and whatever a builder marked with `markGlitched`.
     this.glitch.collect(zone.id, root, zone.glitches);
     this.horror.collect(zone.id, root, zone.horrors);
+    // After every layer and light is decided, so the sort is honest.
+    partitionStatic(root);
 
     return root;
   }
@@ -1408,7 +1421,7 @@ export class ZoneManager {
       // crosshair, which is what a walk-in trigger and a ladder inside one cell
       // both want.
       const { title, label } = this.hovered;
-      reticle.set({ title: title ?? label, target: title ? label : undefined });
+      reticle.set(linkPrompt(title, label));
       return { kind: 'door', side: this.hovered };
     }
 

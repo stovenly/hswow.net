@@ -9,101 +9,26 @@
  * shared buffer betrays itself as a repeating hiss. See `playNoise`.
  */
 
-/** Long enough that a loop is not audible as a loop, short enough to be cheap. */
-const SECONDS = 6;
+import { pool } from '../engine/work/pool';
 
 export type NoiseColour = 'white' | 'pink' | 'brown';
 
 export type NoiseBuffers = Record<NoiseColour, AudioBuffer>;
 
 /**
- * Builds white, pink and brown noise. The three differ by spectral slope:
- * white is flat, pink falls at 3 dB per octave, brown at 6. That is also
+ * White, pink and brown noise, filled on the pool. The three differ by spectral
+ * slope: white is flat, pink falls at 3 dB per octave, brown at 6, which is also
  * roughly an ordering of scale — hiss and detail, the middle of things, weight
  * and distance — which is why the wind model wants all three at once.
  */
-export function createNoiseBuffers(context: BaseAudioContext): NoiseBuffers {
-  const length = Math.floor(context.sampleRate * SECONDS);
-  return {
-    white: fill(context, length, whiteGenerator()),
-    pink: fill(context, length, pinkGenerator()),
-    brown: fill(context, length, brownGenerator()),
+export async function createNoiseBuffers(context: BaseAudioContext): Promise<NoiseBuffers> {
+  const tables = await pool.run('noise-tables', { sampleRate: context.sampleRate });
+  const wrap = (data: Float32Array<ArrayBuffer>): AudioBuffer => {
+    const buffer = context.createBuffer(1, data.length, context.sampleRate);
+    buffer.copyToChannel(data, 0);
+    return buffer;
   };
-}
-
-function fill(context: BaseAudioContext, length: number, next: () => number): AudioBuffer {
-  const fade = Math.min(2048, (length / 4) | 0);
-  // Generated `fade` samples longer than the buffer, and the overrun is what
-  // the head is faded into. Blending the *last* samples into the head instead
-  // leaves the wrap discontinuous — the sample after the final one becomes a
-  // value from `fade` samples earlier, which is a step, and a step in noise is
-  // a click you can hear once a second forever.
-  const source = new Float32Array(length + fade);
-  for (let i = 0; i < source.length; i++) source[i] = next();
-
-  const buffer = context.createBuffer(1, length, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  data.set(source.subarray(0, length));
-  for (let i = 0; i < fade; i++) {
-    const t = i / fade;
-    data[i] = source[i] * t + source[length + i] * (1 - t);
-  }
-
-  normalise(data);
-  return buffer;
-}
-
-/** Scales to just under full range: filtering later can only reduce level. */
-function normalise(data: Float32Array): void {
-  let peak = 0;
-  for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
-  if (peak === 0) return;
-  const scale = 0.95 / peak;
-  for (let i = 0; i < data.length; i++) data[i] *= scale;
-}
-
-function whiteGenerator(): () => number {
-  return () => Math.random() * 2 - 1;
-}
-
-/**
- * Pink noise by Paul Kellett's filter: one-pole filters at spaced corner
- * frequencies, summed. Accurate to about ±0.05 dB across the audible band.
- */
-function pinkGenerator(): () => number {
-  let b0 = 0;
-  let b1 = 0;
-  let b2 = 0;
-  let b3 = 0;
-  let b4 = 0;
-  let b5 = 0;
-  let b6 = 0;
-
-  return () => {
-    const white = Math.random() * 2 - 1;
-    b0 = 0.99886 * b0 + white * 0.0555179;
-    b1 = 0.99332 * b1 + white * 0.0750759;
-    b2 = 0.969 * b2 + white * 0.153852;
-    b3 = 0.8665 * b3 + white * 0.3104856;
-    b4 = 0.55 * b4 + white * 0.5329522;
-    b5 = -0.7616 * b5 - white * 0.016898;
-    const pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-    b6 = white * 0.115926;
-    return pink * 0.11;
-  };
-}
-
-/**
- * Brown noise: integrated white, leaked so it cannot wander off to a DC offset
- * and silently eat all the headroom.
- */
-function brownGenerator(): () => number {
-  let last = 0;
-  return () => {
-    const white = Math.random() * 2 - 1;
-    last = (last + 0.02 * white) / 1.02;
-    return last * 3.5;
-  };
+  return { white: wrap(tables.white), pink: wrap(tables.pink), brown: wrap(tables.brown) };
 }
 
 export interface NoiseVoice {

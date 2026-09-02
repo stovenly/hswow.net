@@ -66,6 +66,14 @@ export class WorldFlags implements WorldState {
     return shapes !== undefined && outlineDistance(shapes, this.x, this.z) < 0;
   }
 
+  /** Asks the pack, once the item systems have handed one over. */
+  pack: ((builder: string) => boolean) | null = null;
+
+  carries(builder: string): boolean {
+    if (this.preview !== 'live') return this.preview === 'all';
+    return this.pack?.(builder) ?? false;
+  }
+
   ambient(field: string): number | undefined {
     const value = this.now?.[field as keyof Conditions];
     if (typeof value === 'boolean') return value ? 1 : 0;

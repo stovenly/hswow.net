@@ -21,8 +21,8 @@ import type { HorrorEffectName, HorrorSpec } from '../engine/Horror';
  * to — `shatter` separating faces is the point there.
  */
 
-/** Sixteen, matching glitch: the showcase walks a rank past eight. */
-export const MAX_HORRORS = 16;
+/** Matching glitch. */
+export const MAX_HORRORS = 8;
 
 /**
  * Where each effect wakes up on the master dial. One table serves the shader
@@ -361,11 +361,33 @@ if (uHorrorCount > 0) {
 const OUTGOING_LIGHT =
   'vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;';
 
+/** Whether the programs being compiled now carry the horror stage at all. */
+let present = false;
+
+/** Materials carrying any part of the stage, so the switch can recompile them. */
+const surfaces = new Set<THREE.Material>();
+
+/** Which variant a program is, for every carrying material's cache key. */
+export function horrorVariant(): string {
+  return present ? 'horror' : 'plain';
+}
+
+/**
+ * Whether the zone being drawn has any horror volume in it. Off, the stage is
+ * out of the source entirely. `PostFX.prewarm` compiles both.
+ */
+export function setHorrorVolumes(on: boolean): void {
+  if (on === present) return;
+  present = on;
+  for (const material of surfaces) material.needsUpdate = true;
+}
+
 /** Adds the full horror stage — displacement and surface — to the art material. */
 export function applyHorror(material: THREE.Material): void {
   const prior = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
+    if (!present) return;
 
     Object.assign(shader.uniforms, horrorUniforms);
 
@@ -378,8 +400,9 @@ export function applyHorror(material: THREE.Material): void {
       .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${FRAGMENT_CHUNK}`);
   };
 
+  surfaces.add(material);
   defaultEffectAttribute(material);
-  material.customProgramCacheKey = () => 'sway-wear-detail-finish-glitch-horror';
+  material.customProgramCacheKey = () => `sway-wear-detail-finish-glitch-horror:${horrorVariant()}`;
   material.needsUpdate = true;
 }
 
@@ -391,6 +414,7 @@ export function applyHorrorDisplacement(material: THREE.Material): void {
   const prior = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
+    if (!present) return;
 
     Object.assign(shader.uniforms, horrorUniforms);
 
@@ -399,8 +423,9 @@ export function applyHorrorDisplacement(material: THREE.Material): void {
       .replace('#include <skinning_vertex>', `#include <skinning_vertex>\n${vertexChunk(false)}`);
   };
 
+  surfaces.add(material);
   defaultEffectAttribute(material);
-  material.customProgramCacheKey = () => 'sway-glitch-horror';
+  material.customProgramCacheKey = () => `sway-glitch-horror:${horrorVariant()}`;
   material.needsUpdate = true;
 }
 

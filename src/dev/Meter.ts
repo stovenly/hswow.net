@@ -64,6 +64,8 @@ export function createMeter(engine: AudioEngine): Meter {
   const analyser = engine.analyser;
   const bins = new Uint8Array(analyser.frequencyBinCount);
   const samples = new Float32Array(analyser.fftSize);
+  engine.releaseAnalyser();
+  let shown = false;
 
   // Peak, held and decayed. An instantaneous peak on a 60 Hz display is
   // unreadable — the number worth seeing is the loudest thing in the last
@@ -75,6 +77,12 @@ export function createMeter(engine: AudioEngine): Meter {
 
     update() {
       canvas.style.display = this.visible ? 'block' : 'none';
+      // On the bus only while it is being looked at: an FFT per frame is not free.
+      if (shown !== this.visible) {
+        shown = this.visible;
+        if (shown) void engine.analyser;
+        else engine.releaseAnalyser();
+      }
       if (!this.visible || !context) return;
 
       analyser.getByteFrequencyData(bins);

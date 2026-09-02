@@ -400,26 +400,42 @@ export class Skirt {
     const stepX = spanX / cols;
     const stepZ = spanZ / rows;
 
-    const positions: number[] = [];
-    const corner = (x: number, z: number): void => {
-      positions.push(x, this.heightAt(x, z), z);
-    };
-
+    // Kept if any corner is within reach — a cell straddling the edge has
+    // to be drawn or the sheet ends in a staircase of missing quads.
+    const kept = new Uint8Array(rows * cols);
+    let count = 0;
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const x0 = bounds.min[0] + col * stepX;
         const z0 = bounds.min[1] + row * stepZ;
         const x1 = x0 + stepX;
         const z1 = z0 + stepZ;
-        // Kept if any corner is within reach — a cell straddling the edge has
-        // to be drawn or the sheet ends in a staircase of missing quads.
         const near =
           this.outside(x0, z0) <= this.reach ||
           this.outside(x1, z0) <= this.reach ||
           this.outside(x0, z1) <= this.reach ||
           this.outside(x1, z1) <= this.reach;
         if (!near) continue;
+        kept[row * cols + col] = 1;
+        count++;
+      }
+    }
 
+    const positions = new Float32Array(count * 18);
+    let at = 0;
+    const corner = (x: number, z: number): void => {
+      positions[at] = x;
+      positions[at + 1] = this.heightAt(x, z);
+      positions[at + 2] = z;
+      at += 3;
+    };
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (!kept[row * cols + col]) continue;
+        const x0 = bounds.min[0] + col * stepX;
+        const z0 = bounds.min[1] + row * stepZ;
+        const x1 = x0 + stepX;
+        const z1 = z0 + stepZ;
         // One diagonal throughout, as the terrain does: a consistent split
         // gives the whole sheet one faceting direction.
         corner(x0, z0);
@@ -432,7 +448,7 @@ export class Skirt {
     }
 
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const merged = assemble([{ geometry, color: this.color, sway: 0 }]);
     return markVista(finish(merged, 'vista-skirt', 0));
   }

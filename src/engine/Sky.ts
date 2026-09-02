@@ -633,11 +633,12 @@ export class Sky {
       uniforms: skyUniforms,
       vertexShader: SkyShader.vertexShader,
       fragmentShader: SkyShader.fragmentShader,
-      // Seen from inside, and never occluding anything: it writes no depth and
-      // is drawn first, so it is a backdrop rather than a very large object.
+      // Seen from inside and drawn after every opaque: it writes no depth and
+      // tests against the frame's, so the cloud march only runs where nothing
+      // else was drawn.
       side: THREE.BackSide,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       // Fogging the sky would pull it toward the fog colour, which is the
       // colour taken *from* the sky. The horizon band does that job honestly.
       fog: false,
@@ -645,7 +646,7 @@ export class Sky {
 
     this.mesh = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 32, 16), this.material);
     this.mesh.name = 'Sky';
-    this.mesh.renderOrder = -1;
+    this.mesh.renderOrder = 10;
     // Nothing about the sky changes with where it is, and recentring it every
     // frame would otherwise cost a needless bounds recalculation.
     this.mesh.frustumCulled = false;

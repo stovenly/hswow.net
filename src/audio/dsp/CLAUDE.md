@@ -33,6 +33,13 @@ code.
 Nodes are self-terminating. A scheduled event owns the sources and gains it
 built and lets them fall off the graph; nothing here holds a handle for later.
 
+**Grains, collisions and bubbles are records, not nodes.** A grain bed, a
+particle bed and every node bubbles are popped into own one
+`particle-processor` (`audio/particles/`), fed ten-float records the worklet
+renders into the bed's own filter channels — batched per task on the port, or
+through a shared ring when the page is isolated. Every writer keeps the
+node-per-event path for a context where the worklet was refused.
+
 Filters, beds and buffers that describe a *material* are built once and kept —
 gravel does not acquire new resonances each time it is disturbed. Filters that
 describe a *gesture* are built per event.

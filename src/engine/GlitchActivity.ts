@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { glitchUniforms, MAX_GLITCHES, setGlitchErode } from '../art/glitch';
+import { glitchUniforms, MAX_GLITCHES, setGlitchVolumes } from '../art/glitch';
 import { ownerIdFor, maskState } from '../art/effectId';
 import type { GlitchEffectName, GlitchPlacement, GlitchSpec } from './Glitch';
 
@@ -110,8 +110,8 @@ export class GlitchActivity {
     this.zones.clear();
   }
 
-  /** Whether this zone compiles the erode discard in. Asked before entry, so the compile builds the variant that will be drawn. */
-  erodes(id: string | null): boolean {
+  /** Whether this zone compiles the glitch stage in. Asked before entry, so the compile builds the variant that will be drawn. */
+  glitches(id: string | null): boolean {
     return id !== null && this.zones.get(id) !== undefined;
   }
 
@@ -127,9 +127,8 @@ export class GlitchActivity {
     let count = 0;
 
     // Per frame and free when nothing changed, which is every frame but the one
-    // you walk through a door on: the erode discard is compiled out of the art
-    // materials wherever there is nothing to erode. See `setGlitchErode`.
-    setGlitchErode(tracked !== undefined);
+    // you walk through a door on. See `setGlitchVolumes`.
+    setGlitchVolumes(tracked !== undefined);
 
     if (tracked) {
       const near = this.near;

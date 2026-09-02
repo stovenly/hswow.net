@@ -12,6 +12,7 @@
  */
 
 import { strike } from './envelopes';
+import { STRIKE, particleNode, particlesReady, type ParticleNode } from '../particles/Particles';
 
 export interface Particles {
   /** Collisions in the burst. More is coarser, louder and heavier underfoot. */
@@ -64,6 +65,8 @@ export interface Particles {
 export interface ParticleBed {
   /** One per voice. Each collision goes into exactly one of them. */
   readonly inputs: GainNode[];
+  /** The worklet feeding those inputs, where there is one. */
+  readonly worklet: ParticleNode | null;
   dispose(): void;
 }
 
@@ -97,9 +100,15 @@ export function createParticleBed(
     return input;
   });
 
+  const worklet = particlesReady(context)
+    ? particleNode(context, voices, (node) => inputs.forEach((input, i) => node.connect(input, i)))
+    : null;
+
   return {
     inputs,
+    worklet,
     dispose() {
+      worklet?.dispose();
       for (const node of nodes) node.disconnect();
     },
   };
@@ -134,12 +143,8 @@ export function scatterParticles(
     const level = force * particles.level * energy * (0.35 + Math.random() * 0.65);
     if (level < 0.002) continue;
 
-    const source = context.createBufferSource();
-    source.buffer = noise;
     // Per-collision detune: pitch variety for the cost of a float.
-    source.playbackRate.value = 0.7 + Math.random() * 0.7;
-
-    const envelope = context.createGain();
+    const detune = 0.7 + Math.random() * 0.7;
     const when = at + t;
     // Varied per collision around the material's own figure, and shortening as
     // the burst runs down: a stone's later contacts are briefer, not merely
@@ -147,11 +152,21 @@ export function scatterParticles(
     const bounce = particles.bounce ?? 1;
     const grain = (particles.grain ?? 0.012) * (1 - bounce * 0.5 * (1 - energy));
     const rise = Math.min(particles.attack ?? 0.0008, grain * 0.6);
-    strike(envelope.gain, when, level, rise, grain * (0.6 + Math.random() * 0.8));
-
+    const decay = grain * (0.6 + Math.random() * 0.8);
     // One voice, chosen per collision — see `Particles.voices`.
-    const target = bed.inputs[(Math.random() * bed.inputs.length) | 0];
-    source.connect(envelope).connect(target);
+    const voice = (Math.random() * bed.inputs.length) | 0;
+
+    if (bed.worklet) {
+      bed.worklet.write(STRIKE, when, 0.06, level, voice, detune, Math.random() * 1.5, rise, decay / 3);
+      continue;
+    }
+
+    const source = context.createBufferSource();
+    source.buffer = noise;
+    source.playbackRate.value = detune;
+    const envelope = context.createGain();
+    strike(envelope.gain, when, level, rise, decay);
+    source.connect(envelope).connect(bed.inputs[voice]);
     source.start(when, Math.random() * Math.max(noise.duration - 0.2, 0), 0.06);
     source.stop(when + 0.07);
   }

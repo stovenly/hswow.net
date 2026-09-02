@@ -2,6 +2,7 @@ import { createApp } from '../app/boot';
 import { loadProject } from '../app/loadProject';
 import { contentWorld, loadSidecars } from '../app/content';
 import { Editor } from './Editor';
+import { zoneCache } from '../engine/work/cache';
 
 const canvas = document.getElementById('viewport');
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -30,6 +31,8 @@ const entry =
   content.documents[0]?.id ??
   project.entry;
 
+// The editor rebuilds what it has just changed; a cached zone would be the old one.
+zoneCache.on = false;
 const app = await createApp({ canvas, overlay, project: { ...project, entry }, enter: true });
 new Editor(app, content);
 await app.start();

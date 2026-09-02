@@ -26,6 +26,8 @@ zone declares data ─► Soundscape ─► Emitter ─► AudioEngine ─► ou
 - `noise.ts`, `reverb.ts` — the shared buffers and the generated IRs.
 - `dsp/` — the substrate. `models/` — continuous things. `oneshots/` — brief
   ones. `music/` — the score. `voice/` — the throat. `faust/` — the wasm tier.
+  `particles/` — the worklet that renders grains, strikes and bubbles from
+  records.
 
 ## Conventions
 
@@ -49,7 +51,11 @@ filters and panner processed every quantum.
 
 **The Faust tier is never load-bearing.** Every caller keeps a native path and
 says which one is playing. A wasm fetch can fail, and a missing room is worse
-than a simpler one.
+than a simpler one. A Faust module is compiled once on the main thread and the
+`Module` cloned into each node; parameters go over a shared ring when the
+page is isolated and as messages otherwise, and only on change. A node made
+with `sleeps` lets its processor go after a few seconds of silence and builds
+another on the next write — the pluck pools do, the reverb never does.
 
 ## Adding a sound
 

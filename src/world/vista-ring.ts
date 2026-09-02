@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { finish, finishCaptured } from '../art/assemble';
+import { finish } from '../art/assemble';
+import { finishCaptured } from '../art/dress';
 import { markVista } from '../art/vista';
 import { createRng } from '../art/random';
 import type { MeshBuilder } from '../art/types';
@@ -78,6 +79,8 @@ export interface VistaRingOptions {
   /** The ground it stands on, and the outline everything is measured from. */
   skirt: Skirt;
   seed: number;
+  /** A plan the warm already made, so the build does not make it again. */
+  plan?: VistaProp[];
   /** Metres out from the level's outline. */
   band: { inner: number; outer: number };
   /**
@@ -121,9 +124,8 @@ function parallaxK(apparent: number | undefined, actual: number): number {
 
 /**
  * Where everything in the ring stands, before any of it is built. Separated so
- * the warm pass can run it and have the props made off the main thread while
- * the build runs it again and stands them up. Rejection sampling over numbers,
- * so running it twice is cheap.
+ * the warm pass can run it and have the props made off the main thread, and
+ * hand the plan on for the build to stand up (`VistaRingOptions.plan`).
  */
 export function vistaRingPlan(
   options: VistaRingOptions,
@@ -205,12 +207,14 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
   // Landing nothing at all is a mistake in the numbers rather than a tight fit,
   // and it is invisible from the outside — the band is simply empty and looks
   // like a placement nobody got round to.
-  const placed = vistaRingPlan(options, (fill, range) => {
-    console.warn(
-      `vistaRing: ${fill.builder.name} placed none of ${fill.count} ` +
-        `in band ${range.inner}–${range.outer} m`,
-    );
-  });
+  const placed =
+    options.plan ??
+    vistaRingPlan(options, (fill, range) => {
+      console.warn(
+        `vistaRing: ${fill.builder.name} placed none of ${fill.count} ` +
+          `in band ${range.inner}–${range.outer} m`,
+      );
+    });
 
   const root = new THREE.Group();
   root.name = 'vista-ring';

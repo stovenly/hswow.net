@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { builderByName } from '../art/registry';
 import { coerceFields } from '../art/schema';
-import { finishCaptured } from '../art/assemble';
-import { takeWarm } from './warmProps';
+import { finishCaptured } from '../art/dress';
+import { keepPlan, takePlan, takeWarm } from './warmProps';
 import type { PropAsk } from '../engine/work/jobs';
 import { personById, traitById, type Folk } from './people';
 import type { NpcMark } from './Interaction';
@@ -31,6 +31,7 @@ import {
   edgeDressingPlan,
   type DressingKind,
   type DressingOptions,
+  type DressingPlacement,
 } from './dressing';
 import { shapeDistance, GROUND, COVER_TYPES, type PatchShape } from './ground';
 import type { Terrain } from './terrain';
@@ -881,7 +882,9 @@ registerEntryKind<VistaRingEntry>({
   // and has no say in which props there are.
   asks(entry, ctx) {
     if (!ctx.skirt) return [];
-    return vistaRingPlan({ ...ringPlan(entry), skirt: ctx.skirt }).map((prop) => ({
+    const plan = vistaRingPlan({ ...ringPlan(entry), skirt: ctx.skirt });
+    keepPlan(planKey(entry), plan);
+    return plan.map((prop) => ({
       builder: prop.builder.name,
       seed: prop.seed,
       scale: prop.scale ?? 1,
@@ -895,9 +898,19 @@ registerEntryKind<VistaRingEntry>({
         : entry.keepOut
           ? dilateOutline(ctx.skirt.outline, entry.keepOut.dilate)
           : undefined;
-    return vistaRing({ ...ringPlan(entry), skirt: ctx.skirt, keepOut });
+    return vistaRing({
+      ...ringPlan(entry),
+      skirt: ctx.skirt,
+      keepOut,
+      plan: takePlan<VistaProp[]>(planKey(entry)) ?? undefined,
+    });
   },
 });
+
+/** What a kept plan is filed under: the entry as written, so an edit plans afresh. */
+function planKey(entry: Entry): string {
+  return JSON.stringify(entry);
+}
 
 /** Everything about a ring except where it stands, which the two callers differ on. */
 function ringPlan(entry: VistaRingEntry): Omit<VistaRingOptions, 'skirt' | 'keepOut'> {
@@ -926,7 +939,9 @@ registerEntryKind<DressingEntry>({
   defaults: () => ({ band: { inner: -4, outer: 14 }, kinds: [] }),
   asks(entry, ctx) {
     if (!ctx.terrain || !ctx.skirt) return [];
-    return edgeDressingPlan(dressingOptions(entry, ctx.terrain, ctx.skirt)).map((at) => ({
+    const plan = edgeDressingPlan(dressingOptions(entry, ctx.terrain, ctx.skirt));
+    keepPlan(planKey(entry), plan);
+    return plan.map((at) => ({
       builder: at.builder.name,
       seed: at.seed,
       scale: at.scale,
@@ -934,7 +949,10 @@ registerEntryKind<DressingEntry>({
   },
   build(entry, ctx) {
     if (!ctx.terrain || !ctx.skirt) throw new Error('edge dressing needs a terrain and a skirt');
-    return edgeDressing(dressingOptions(entry, ctx.terrain, ctx.skirt));
+    return edgeDressing({
+      ...dressingOptions(entry, ctx.terrain, ctx.skirt),
+      plan: takePlan<DressingPlacement[]>(planKey(entry)) ?? undefined,
+    });
   },
 });
 

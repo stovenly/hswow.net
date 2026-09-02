@@ -3,7 +3,7 @@ import type { SoundModel } from '../Emitter';
 import { playNoise, type NoiseVoice } from '../noise';
 import { createEventClock, poissonGap } from '../dsp/clock';
 import { createGrainBed } from '../dsp/grain';
-import { excite, thump } from '../dsp/impact';
+import { thump } from '../dsp/impact';
 
 /**
  * Fire, as three sounds at very different timescales, mixed roughly
@@ -178,7 +178,7 @@ export function createFire(engine: AudioEngine, options: FireOptions = {}): Fire
   const crackleBus = context.createGain();
   crackleBus.gain.value = CRACKLE_MIX * crackle;
   crackleBus.connect(output);
-  const crackles = createGrainBed(context, CRACKLE_CHANNELS, crackleBus, tone);
+  const crackles = createGrainBed(context, noise.white, CRACKLE_CHANNELS, crackleBus, tone);
 
   let intensity = options.intensity ?? 0.7;
   let active = true;
@@ -196,7 +196,7 @@ export function createFire(engine: AudioEngine, options: FireOptions = {}): Fire
     // bursts; spits are a larger, softer failure and get longer ones.
     const duration = spit ? 0.006 + Math.random() * 0.014 : 0.0015 + Math.random() * 0.005;
 
-    excite(context, noise.white, crackles.pick(), at, level, duration);
+    crackles.strike(at, level, duration);
 
     // A spit displaces enough gas to be felt as well as heard. Straight into
     // the bus, bypassing the crackle bands, which are far too high to pass it.

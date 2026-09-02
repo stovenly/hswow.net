@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
 import { createRng } from '../art/random';
-import { finishCaptured } from '../art/assemble';
+import { finishCaptured } from '../art/dress';
 import { takeWarm } from './warmProps';
 import type { MeshBuilder } from '../art/types';
 

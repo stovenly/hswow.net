@@ -512,6 +512,7 @@ export const rampUniforms = {
  * than thirty vec4.
  */
 export function uploadRamps(): void {
+  baked = true;
   const half = THREE.DataUtils.toHalfFloat;
   RAMPS.forEach((entry, row) => {
     const head = row * LUT_WIDTH * 4;
@@ -529,7 +530,12 @@ export function uploadRamps(): void {
   LUT_TEXTURE.needsUpdate = true;
 }
 
-uploadRamps();
+let baked = false;
+
+/** The first bake, on a loader step rather than at import so it lands on the bar. */
+export function warmRamps(): void {
+  if (!baked) uploadRamps();
+}
 
 /**
  * The reader. Spliced by `applyFinish` wherever a ramp is read — the recipes

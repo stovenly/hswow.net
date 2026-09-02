@@ -2,7 +2,12 @@ import * as THREE from 'three';
 import { assemble, finish, type Part } from '../art/assemble';
 import { createRng, type Rng } from '../art/random';
 import { shade } from '../art/palette';
-import { HOUSE_STYLE, interiorStyleByName, type InteriorStyle } from './interior';
+import {
+  HOUSE_STYLE,
+  SHELL_THICKNESS,
+  interiorStyleByName,
+  type InteriorStyle,
+} from './interior';
 
 /**
  * A shell of several rooms, joined where they touch.
@@ -80,7 +85,7 @@ const DEFAULTS: Record<JoinKind, { width: number; height: number }> = {
 
 export function buildRooms(graph: ShellGraph): THREE.Mesh {
   const rng = createRng(graph.seed ?? 1);
-  const t = graph.thickness ?? 0.35;
+  const t = graph.thickness ?? SHELL_THICKNESS;
   const base = interiorStyleByName(graph.style ?? 'house') ?? HOUSE_STYLE;
   const parts: Part[] = [];
 

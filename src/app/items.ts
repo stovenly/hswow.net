@@ -9,6 +9,7 @@ import { ItemIcons, PACE_IDLE, PACE_OPEN } from '../ui/ItemIcons';
 import { SaveSlots } from '../ui/SaveSlots';
 import { displayOf, isReadable, kindOf, type Item } from '../world/items';
 import { holdSatchel } from '../world/dialogue';
+import { worldChart } from '../world/chart';
 import { worldState } from '../world/state';
 import { noteById } from '../world/notes';
 import { ItemAudio } from '../audio/models/items';
@@ -52,6 +53,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   // What a line of dialogue reaches for when it hands something over. The pack
   // is behind a key and the speech box covers the middle, so it says so.
   const notices = new Notices(overlay);
+  worldState.pack = (builder) => inventory.items.some((item) => item.builder === builder);
   holdSatchel({
     give: (builder, seed = 0, from) => {
       const name = displayOf(builder, seed);
@@ -170,6 +172,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     setWorldSeed(data.worldSeed);
     worldDelta.replace(data.delta);
     worldState.restore(data.state);
+    worldChart.restore(data.chart);
     notices.clear();
     // A load re-seats every slot at once; that is restoration, not a gesture.
     restoring = true;
@@ -199,6 +202,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
         accessories: inventory.accessories,
         delta: worldDelta.serialize(),
         state: worldState.save(),
+        chart: worldChart.save(),
         zone: zone.id,
         at: [at.x, at.y, at.z],
         yaw: app.player.heading,
@@ -242,7 +246,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
 
   window.addEventListener('keydown', (event) => {
     if (event.code !== 'Tab' || event.repeat) return;
-    if (app.reading.shown) return;
+    if (app.reading.shown || document.body.classList.contains('is-map')) return;
     if (ui.shown) {
       event.preventDefault();
       ui.hide();
@@ -268,6 +272,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   const resetWorld = (): void => {
     worldDelta.replace({ removed: [], placed: [], containers: [] });
     worldState.clear();
+    worldChart.clear();
     notices.clear();
     restoring = true;
     inventory.replace([], null, []);

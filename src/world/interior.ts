@@ -82,6 +82,9 @@ export interface InteriorOptions {
   thickness?: number;
 }
 
+/** Wall thickness where none is stated, in metres. Shared with `rooms.ts` and with whatever measures how far a shell reaches. */
+export const SHELL_THICKNESS = 0.35;
+
 /**
  * Builds an interior shell centred on the origin, floor at y = 0. Centred rather
  * than cornered because a portal door is placed against a wall by measuring out
@@ -96,7 +99,7 @@ export function buildInterior(options: InteriorOptions): THREE.Mesh {
     style = HOUSE_STYLE,
     planks = true,
     beams = 3,
-    thickness = 0.35,
+    thickness = SHELL_THICKNESS,
   } = options;
 
   const rng = createRng(seed);

@@ -75,7 +75,81 @@ export const VARIANT_INDEX = {
 
 export type VariantName = keyof typeof VARIANT_INDEX;
 
+/** Rows in the knob tables. Bytes index them directly, so it spans them; each further row is two vec4 on every recipe-carrying program. */
+export const KNOB_ROWS = 28;
+
 export type FinishFeatureName = 'glint' | 'film' | 'translucency' | 'anisotropy';
+
+/** The fields in splice order, which is the order the sections compile in and the order of the mask bits. */
+export const RECIPE_NAMES: readonly RecipeName[] = [
+  'schiller',
+  'quickmetal',
+  'tenebrescent',
+  'nacreous',
+  'stainedGlass',
+  'voidstone',
+  'overcast',
+  'duskfall',
+  'auroral',
+];
+
+/** Which field owns each look. A field's looks must be contiguous in `VARIANT_INDEX`. */
+export const VARIANT_FIELD: Record<VariantName, RecipeName> = {
+  labradorite: 'schiller',
+  spectrolite: 'schiller',
+  moonsheen: 'schiller',
+  sunstone: 'schiller',
+  quicksilver: 'quickmetal',
+  nightsilver: 'quickmetal',
+  slowbrass: 'quickmetal',
+  stillglass: 'quickmetal',
+  violetbloom: 'tenebrescent',
+  emberstone: 'tenebrescent',
+  verdigrist: 'tenebrescent',
+  nacreous: 'nacreous',
+  lunacreous: 'nacreous',
+  oceanglass: 'stainedGlass',
+  rosewindow: 'stainedGlass',
+  ivyglass: 'stainedGlass',
+  lapispane: 'stainedGlass',
+  voidstone: 'voidstone',
+  overcast: 'overcast',
+  lakestill: 'overcast',
+  duskstone: 'duskfall',
+  dawnstone: 'duskfall',
+  daystone: 'duskfall',
+  auroral: 'auroral',
+};
+
+/** Finish features a field's shader cannot stand without. */
+export const RECIPE_IMPLIES: Partial<Record<RecipeName, readonly FinishFeatureName[]>> = {
+  nacreous: ['film'],
+};
+
+export interface FieldSpan {
+  readonly lo: number;
+  readonly hi: number;
+}
+
+/**
+ * Each field's byte range. A gap would be silent and severe: the shader's guard
+ * is a range test, so an unclaimed byte inside a field would run its shader
+ * against a row of zeros.
+ */
+export const FIELD_SPAN = Object.fromEntries(
+  RECIPE_NAMES.map((name) => {
+    const bytes = (Object.keys(VARIANT_FIELD) as VariantName[])
+      .filter((variant) => VARIANT_FIELD[variant] === name)
+      .map((variant) => VARIANT_INDEX[variant]);
+    const lo = Math.min(...bytes);
+    const hi = Math.max(...bytes);
+    if (hi - lo + 1 !== bytes.length) {
+      throw new Error(`recipe '${name}': bytes ${lo}..${hi} are not contiguous`);
+    }
+    if (hi >= KNOB_ROWS) throw new Error(`recipe '${name}': byte ${hi} is past KNOB_ROWS`);
+    return [name, { lo, hi }];
+  }),
+) as Record<RecipeName, FieldSpan>;
 
 /**
  * How a look answers the shared lighting stage.
@@ -132,15 +206,6 @@ export interface RecipeKnobs {
  * answers. The GLSL globals are initialised from here, so they cannot drift.
  */
 export const PLAIN_KNOBS: RecipeKnobs = { gloss: 1, rim: 1, sunGlare: 1, envGain: 1 };
-
-/**
- * Rows in the tables. Bytes index them directly, so it spans them.
- *
- * Twenty-four are claimed and four are spare. Each further row is two vec4 on
- * every recipe-carrying program — see MATERIAL-SYSTEM.md R6b for what the
- * fragment stage has left, which is the number that decides how far this can go.
- */
-export const KNOB_ROWS = 28;
 
 /**
  * Where a recipe joins the finish stage.
@@ -257,6 +322,4 @@ export interface Recipe {
   readonly variants: readonly RecipeVariant[];
   /** What p0, p1 and p2 mean here. For the dev panel, and for readers. */
   readonly params: readonly [string, string, string];
-  /** Finish features the field's shader cannot stand without. */
-  readonly implies?: readonly FinishFeatureName[];
 }

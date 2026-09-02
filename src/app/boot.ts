@@ -4,13 +4,14 @@ import { Viewport } from '../engine/Viewport';
 import { Loop } from '../engine/Loop';
 import { PostFX } from '../engine/PostFX';
 import { useAerialFog } from '../engine/fog';
-import { Input, isTouchDevice } from '../engine/Input';
+import { Input } from '../engine/Input';
 import { Collider } from '../player/Collider';
 import { Controller } from '../player/Controller';
-import { TouchControls } from '../ui/TouchControls';
 import { Footsteps } from '../audio/models/footsteps';
 import { AudioEngine } from '../audio/AudioEngine';
 import { createDevTools, type DevTools } from '../dev/DevPanel';
+import { warmRamps } from '../art/glsl/ramp';
+import { zoneCache } from '../engine/work/cache';
 import { Identify } from '../dev/Identify';
 import { ZoneManager, type Focus } from '../world/ZoneManager';
 import type { Project } from './project';
@@ -94,9 +95,10 @@ export interface App {
 }
 
 export async function createApp({ canvas, overlay, project, enter = false }: AppOptions): Promise<App> {
-  const viewport = new Viewport(canvas);
+  const viewport = new Viewport(canvas, loadOptions().lowLatency);
+  zoneCache.project = project.id;
   const loop = new Loop();
-  const dev = createDevTools();
+  const dev = await createDevTools();
   // The debug picker, and the last clock the loop saw — held while it is up so nothing moves.
   const identify = new Identify(viewport.scene, viewport.camera, canvas);
   let clock = 0;
@@ -159,7 +161,10 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
   // Documents first, then the project's code zones: a portal end reads the
   // document zone it stands in, and the manager throws on a link to a zone it
   // has not been given.
-  await loader.step('reading the ground', 0.08, () => loadSidecars(project.id));
+  await loader.step('reading the ground', 0.08, () => {
+    warmRamps();
+    return loadSidecars(project.id);
+  });
   const documents = contentWorld(project.id);
   const code = (await project.world?.(loader)) ?? { zones: [], portals: [] };
   const world = {
@@ -257,13 +262,7 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     zones.attachAudio({ engine: audio, footsteps });
   });
 
-  // On touch there is no capture step, so the game is live from the first frame.
-  if (isTouchDevice()) {
-    new TouchControls(input, overlay);
-    document.body.classList.add('is-touch', 'is-playing');
-  } else {
-    input.onLockChange = (locked) => document.body.classList.toggle('is-playing', locked);
-  }
+  input.onLockChange = (locked) => document.body.classList.toggle('is-playing', locked);
 
   // --- options ----------------------------------------------------------------
   //

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createNoiseBuffers, type NoiseBuffers } from './noise';
+import { awaitParticles } from './particles/Particles';
 import { generateImpulseResponse, ROOM_PRESETS, type RoomName, type RoomAcoustics } from './reverb';
 import { Weather } from './weather';
 import type { Emitter } from './Emitter';
@@ -179,6 +180,7 @@ export class AudioEngine {
   private faustWet: GainNode | null = null;
   /** Built on demand by `analyser`. Nothing in the game proper asks for it. */
   private tap: AnalyserNode | null = null;
+  private tapped = false;
 
   /**
    * @param latencyHint How big a buffer to ask the device for. `'interactive'`
@@ -263,7 +265,11 @@ export class AudioEngine {
   }
 
   private async build(): Promise<void> {
-    this.noise = createNoiseBuffers(this.context);
+    const noise = await createNoiseBuffers(this.context);
+    // Before `noise` is published: a bed built after this point may take the
+    // worklet, and one built before it schedules nodes for life.
+    await awaitParticles(this.context, noise.white);
+    this.noise = noise;
 
     // Tried first, because if it arrives the convolvers never make a sound and
     // there is no point paying for their impulse responses to be crossfaded.
@@ -426,6 +432,10 @@ export class AudioEngine {
    * sent. Never created unless something asks — an FFT per frame is not free.
    */
   get analyser(): AnalyserNode {
+    if (this.tap && !this.tapped) {
+      this.master.connect(this.tap);
+      this.tapped = true;
+    }
     if (!this.tap) {
       const analyser = this.context.createAnalyser();
       // 1024 bins over 24 kHz is about 23 Hz apiece — enough to see a
@@ -437,8 +447,16 @@ export class AudioEngine {
       analyser.smoothingTimeConstant = 0.6;
       this.master.connect(analyser);
       this.tap = analyser;
+      this.tapped = true;
     }
     return this.tap;
+  }
+
+  /** Takes the analyser off the bus while nothing is reading it. `analyser` puts it back. */
+  releaseAnalyser(): void {
+    if (!this.tap || !this.tapped) return;
+    this.master.disconnect(this.tap);
+    this.tapped = false;
   }
 
   get room(): RoomName | null {
@@ -560,6 +578,11 @@ export class AudioEngine {
     return { hrtf, panned, virtual };
   }
 
+  /** Where the listener was last put, so a still camera sends nothing. */
+  private readonly heardAt = new THREE.Vector3(NaN, NaN, NaN);
+  private readonly heardFacing = new THREE.Vector3();
+  private readonly heardUp = new THREE.Vector3();
+
   private updateListener(camera: THREE.Camera): void {
     const listener = this.context.listener;
     camera.updateWorldMatrix(true, false);
@@ -567,6 +590,15 @@ export class AudioEngine {
     _position.setFromMatrixPosition(camera.matrixWorld);
     _orientation.set(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(_quaternion));
     _up.set(0, 1, 0).applyQuaternion(_quaternion);
+
+    // Nine ramps are nine messages to the audio thread, and a still camera has
+    // nothing to say.
+    if (_position.equals(this.heardAt) && _orientation.equals(this.heardFacing) && _up.equals(this.heardUp)) {
+      return;
+    }
+    this.heardAt.copy(_position);
+    this.heardFacing.copy(_orientation);
+    this.heardUp.copy(_up);
 
     // Web Audio is y-up and right-handed, same as three, so the vectors carry
     // straight across with no conversion.

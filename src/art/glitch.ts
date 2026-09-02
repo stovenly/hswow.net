@@ -21,7 +21,7 @@ import type { GlitchEffectName, GlitchSpec } from '../engine/Glitch';
  */
 
 /** Sixteen rather than fog's eight: the showcase walks a rank of sixty-odd stations and packs the nearest. The shader loop breaks at the live count. */
-export const MAX_GLITCHES = 16;
+export const MAX_GLITCHES = 8;
 
 /** Where each effect wakes up on the master dial. The shader chunks interpolate these and the showcase reads them, so rooms and shaders cannot drift apart. */
 export const GLITCH_ONSETS: Record<GlitchEffectName, number> = {
@@ -226,7 +226,7 @@ ${HASH}
  * Erode, the one effect that removes a fragment rather than grading it. Split out
  * because a driver disables early depth rejection for any shader that can
  * discard, whether or not it ever does — so left in the source unconditionally
- * this costs every opaque pixel in the game its early-Z. See `setGlitchErode`.
+ * this costs every opaque pixel in the game its early-Z. See `setGlitchVolumes`.
  */
 const ERODE = /* glsl */ `
     // Erode: faces vanish on a hash schedule and holes open through the object.
@@ -319,30 +319,30 @@ ${erode ? ERODE : ''}
 const OUTGOING_LIGHT =
   'vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;';
 
-/** Whether the programs being compiled now carry the erode discard. */
-let eroding = false;
+/** Whether the programs being compiled now carry the glitch stage at all. */
+let present = false;
 
-/** Materials carrying the fragment stage, so the switch can recompile them. */
+/** Materials carrying any part of the stage, so the switch can recompile them. */
 const surfaces = new Set<THREE.Material>();
 
 /**
- * Which erode variant a program is. Belongs in the art materials' cache keys —
+ * Which variant a program is. Belongs in every carrying material's cache key —
  * three's own key knows nothing about an `onBeforeCompile`, so without this the
  * two variants would ask for the same program and one would get the other's.
  */
 export function glitchVariant(): string {
-  return eroding ? 'erode' : 'solid';
+  return present ? 'glitch' : 'plain';
 }
 
 /**
- * Whether the zone being drawn has any glitch volume in it at all. Off, the erode
- * discard is not in the source and every opaque pixel gets its early depth
- * rejection back. The trade is a program variant, which `PostFX.prewarm`
- * compiles up front so it never lands on a door.
+ * Whether the zone being drawn has any glitch volume in it at all. Off, the
+ * whole stage — the volume uniforms, the vertex loop, the surface grading and
+ * its erode discard — is out of the source. The trade is a program variant,
+ * which `PostFX.prewarm` compiles up front so it never lands on a door.
  */
-export function setGlitchErode(on: boolean): void {
-  if (on === eroding) return;
-  eroding = on;
+export function setGlitchVolumes(on: boolean): void {
+  if (on === present) return;
+  present = on;
   for (const material of surfaces) material.needsUpdate = true;
 }
 
@@ -355,6 +355,7 @@ export function applyGlitch(material: THREE.Material): void {
   const prior = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
+    if (!present) return;
 
     Object.assign(shader.uniforms, glitchUniforms);
 
@@ -364,7 +365,7 @@ export function applyGlitch(material: THREE.Material): void {
 
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAGMENT_DECLS}`)
-      .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${fragmentChunk(eroding)}`);
+      .replace(OUTGOING_LIGHT, `${OUTGOING_LIGHT}\n${fragmentChunk(true)}`);
   };
 
   surfaces.add(material);
@@ -382,6 +383,7 @@ export function applyGlitchDisplacement(material: THREE.Material): void {
   const prior = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     prior?.call(material, shader, renderer);
+    if (!present) return;
 
     Object.assign(shader.uniforms, glitchUniforms);
 
@@ -390,8 +392,9 @@ export function applyGlitchDisplacement(material: THREE.Material): void {
       .replace('#include <skinning_vertex>', `#include <skinning_vertex>\n${vertexChunk(false)}`);
   };
 
+  surfaces.add(material);
   defaultEffectAttribute(material);
-  material.customProgramCacheKey = () => 'sway-glitch';
+  material.customProgramCacheKey = () => `sway-glitch:${glitchVariant()}`;
   material.needsUpdate = true;
 }
 

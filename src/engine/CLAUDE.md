@@ -44,7 +44,19 @@ Two effects draw rather than filter: bloom's emitters pass, and every
 layer-restricted pass (water, glass, particles). Each blits the chain's colour
 forward and re-renders the scene with the camera on its own layer, so it costs
 its own draw calls and a scene-graph walk — which is why each is gated on what
-the entered zone actually built, observed rather than declared.
+the entered zone actually built, observed rather than declared. The walk is
+short: `statics.ts` gathers every zone subtree that carries no light and no
+layer but the default under one group, and each of those passes hides that
+group around its render (`withStaticHidden`).
+
+`surfaces.ts` is the one visibility flip left: glow, cover and the bolt are
+hidden for the normal pass and the effect mask, which read geometry as
+geometry, and shown again straight after. Nothing flips per render otherwise.
+
+The glitch and horror stages are compiled out of every art, depth, normal and
+mask program while the zone being drawn has no volume of that kind
+(`setGlitchVolumes`, `setHorrorVolumes`); the variant rides in every carrying
+material's cache key, and `PostFX.prewarm` compiles both ends.
 
 ## The sky
 
@@ -62,7 +74,9 @@ Dawn is tinted cooler and pinker than dusk over the same rows.
 Clouds are three decks, high to low, each a row of the genus table in
 `art/glsl/clouds.ts`. The dome runs the full function; **everything else runs a
 single cheap layer**, because `skyColour` is evaluated on every lit fragment
-through `finishEnv` and on every reflection miss in the water.
+through `finishEnv` and on every reflection miss in the water. The dome is
+drawn after every opaque with the depth test on, so the deck march only runs
+where nothing else was drawn. The cloud shadow is evaluated per vertex.
 
 Every new sky layer must be either invisible at `direction.y = 0` or present
 identically in `skyAir`. That one line is what the vista band cannot afford a
@@ -80,10 +94,28 @@ runs the same halves inline.
 Shader compilation, buffer upload and anything touching the renderer stay on
 the main thread. Its tenants are a zone's props — placed, scattered, dressed
 along the boundary, standing in the vista band, and its creatures — a zone's
-collision tree, the groundcover sampler, and the editor's palette thumbnails.
+collision tree, the groundcover sampler, the audio noise tables, and the
+editor's palette thumbnails.
+
+The worker loads builders one module at a time. `pool.prime` sends every
+worker the builder-name index before its first job, and a job's `inWorker` may
+return a promise.
 
 A job may ask to jump the queue, which only a zone crossing's collision tree
 does. Nothing else has a deadline the player can see.
+
+A job may also name a cache key (`work/cache.ts`): the worker reads the result
+off the origin private file system under it before building, and writes it
+there after. Keys carry the project, the zone, the document's fingerprint and
+the build stamp, so any change is a miss; the cache is off on the dev server
+and in the editor. Under cross-origin isolation — `public/isolate.js` on the
+deployed site, headers on the dev server — the big result arrays are
+`SharedArrayBuffer`s (`work/shared.ts`) and cross without a copy.
+
+`src/platform/` is what the page runs on: `isolated`, fullscreen, keyboard
+lock. Pointer lock asks for the keyboard lock too, so in fullscreen Escape,
+Tab and Alt reach the game; Escape releases the pointer, which raises the
+pause stack, and Escape on the stack takes it back.
 
 ## Conventions
 

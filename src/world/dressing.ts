@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { markCollidable } from '../player/Collider';
 import { createRng } from '../art/random';
-import { finishCaptured } from '../art/assemble';
+import { finishCaptured } from '../art/dress';
 import { takeWarm } from './warmProps';
 import type { MeshBuilder } from '../art/types';
 import { outlineBounds, type Skirt } from './vista';
@@ -48,6 +48,8 @@ export interface DressingKind {
 }
 
 export interface DressingOptions {
+  /** A plan the warm already made, so the build does not make it again. */
+  plan?: DressingPlacement[];
   /** Ground inside the level. */
   terrain: Terrain;
   /** Ground outside it, and the outline everything is measured from. */
@@ -158,7 +160,7 @@ export function edgeDressing(options: DressingOptions): THREE.Group {
   const root = new THREE.Group();
   root.name = 'edge-dressing';
 
-  for (const at of edgeDressingPlan(options)) {
+  for (const at of options.plan ?? edgeDressingPlan(options)) {
     const warm = takeWarm({ builder: at.builder.name, seed: at.seed, scale: at.scale });
     const mesh = warm ? finishCaptured(warm) : at.builder.build({ seed: at.seed, scale: at.scale });
     // Inside the level it stands on the level; outside it stands on the skirt.

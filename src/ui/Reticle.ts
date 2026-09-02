@@ -39,6 +39,15 @@ export interface Prompt {
   kind?: 'link' | 'read';
 }
 
+/**
+ * What a portal says when you point at it: the fitting's name, and where it
+ * goes under it. One function, because the crosshair and the map both ask, and
+ * a door named two ways is two answers.
+ */
+export function linkPrompt(title: string | null, label: string): Prompt {
+  return { title: title ?? label, target: title ? label : undefined };
+}
+
 export class Reticle {
   private readonly element: HTMLElement;
   private readonly title: HTMLElement;

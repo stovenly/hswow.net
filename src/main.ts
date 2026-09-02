@@ -1,6 +1,6 @@
 import { createApp } from './app/boot';
-import { installDevPanel } from './app/devPanel';
 import { installGameItems } from './app/items';
+import { installMap } from './app/map';
 import { loadProject } from './app/loadProject';
 import { Title } from './ui/Title';
 import { QuitToTitle } from './ui/QuitToTitle';
@@ -52,9 +52,24 @@ const ready = (async () => {
   // The game page only: the editor keeps Tab for its fly toggle and installs
   // none of the item systems.
   const items = installGameItems(app, overlay);
+  installMap(app, overlay);
   // Before `start`, so the readout folder's loop is registered ahead of the
   // frame loop and reports the frame just drawn rather than the one in progress.
-  if (app.dev.gui && project.debug !== false) installDevPanel(app.dev.gui, app);
+  if (app.dev.gui && project.debug !== false) {
+    const { installDevPanel } = await import('./app/devPanel');
+    installDevPanel(app.dev.gui, app);
+  }
+
+  // Escape from the pause stack resumes, the way it raised the stack. After
+  // every panel has claimed its own Escape, so a closing panel is not also a
+  // capture; and only while the stack is what is showing.
+  const pause = document.getElementById('pause');
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Escape' || event.defaultPrevented || event.repeat || app.input.locked) return;
+    if (!app.zones.current || !pause || getComputedStyle(pause).display === 'none') return;
+    document.body.classList.add('is-capturing');
+    void app.input.capture().finally(() => document.body.classList.remove('is-capturing'));
+  });
 
   new QuitToTitle(overlay, () => {
     void (async () => {

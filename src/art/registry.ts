@@ -1,4 +1,6 @@
 import type { MeshBuilder } from './types';
+import { pool } from '../engine/work/pool';
+import { isBuilder } from './registry-lazy';
 
 /**
  * Every builder in `builders/`, found automatically.
@@ -18,21 +20,18 @@ import type { MeshBuilder } from './types';
 
 const modules = import.meta.glob<Record<string, unknown>>('./builders/*.ts', { eager: true });
 
-function isBuilder(value: unknown): value is MeshBuilder {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<MeshBuilder>;
-  return (
-    typeof candidate.name === 'string' &&
-    typeof candidate.radius === 'number' &&
-    typeof candidate.build === 'function'
-  );
-}
-
 /** Sorted by name, so the gallery's layout is stable between runs. */
 export const builders: MeshBuilder[] = Object.values(modules)
   .flatMap((module) => Object.values(module))
   .filter(isBuilder)
   .sort((a, b) => a.name.localeCompare(b.name));
+
+/** Builder name → glob key, which is how a worker finds the one module it needs. */
+const byName: Record<string, string> = {};
+for (const [key, module] of Object.entries(modules)) {
+  for (const value of Object.values(module)) if (isBuilder(value)) byName[value.name] = key;
+}
+pool.prime({ builders: byName });
 
 export function builderByName(name: string): MeshBuilder | undefined {
   return builders.find((builder) => builder.name === name);

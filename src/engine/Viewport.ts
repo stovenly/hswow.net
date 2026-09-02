@@ -20,11 +20,21 @@ export class Viewport {
   private readonly canvas: HTMLCanvasElement;
   private readonly handleResize = (): void => this.resize();
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, lowLatency = false) {
     this.canvas = canvas;
 
+    // The context is made here rather than by three so it can be asked for
+    // `desynchronized`, which three's options do not carry.
+    const context = canvas.getContext('webgl2', {
+      antialias: false,
+      powerPreference: 'high-performance',
+      stencil: false,
+      desynchronized: lowLatency,
+    });
+    if (!context) throw new Error('WebGL2 is not available');
     this.renderer = new THREE.WebGLRenderer({
       canvas,
+      context,
       // Antialiasing is off on purpose: Phase 2 renders through a pixelation
       // pass, and smoothed edges fight the effect. It also costs nothing to skip.
       antialias: false,

@@ -8,7 +8,7 @@
  */
 
 /** Distinct peak levels available. More is smoother and buys nothing audible. */
-const STEPS = 8;
+export const STEPS = 8;
 /** Points per curve. Enough that the interpolation between them is inaudible. */
 const POINTS = 48;
 

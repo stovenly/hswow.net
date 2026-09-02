@@ -55,9 +55,6 @@ lit surface and the water light up together; the channel is `art/bolt.ts`, and
 the peal is a `WeatherRig`-owned one-shot that *causes* the ambience director's
 hush rather than being subject to it.
 
-`skymap.ts` bakes one orthographic pass straight down over each zone as it is
-built. The finish stage reads it to tell a roof from the ground under its eave.
-
 **The sun moves, so nothing may bake or rate-limit what depends on its
 direction.** The shadow map is rebuilt every frame; the light and the fill both
 travel with it.
@@ -85,9 +82,41 @@ An end whose landing nobody could write down names what it stands `on`, and the
 height is measured off that entry when the zone is built. `Placement.exact`
 stops the landing being settled onto the ground three metres below it.
 
+An end marked `accessory` is another way through a threshold something else
+already covers — the hatch in a cellar's ceiling beside the ladder that reaches
+it. Fully usable, and simply not what a chart marks: one way out of a place is
+one mark on the map.
+
 Leaving through a door plays a door. Leaving through anything else plays the
 player's own footsteps receding, scheduled on the audio clock in one go so the
 tail carries across the cut, and the black is held for as long as they take.
+
+## The map
+
+`chart.ts` is what the player has found: one fog raster per zone ever stood in,
+coarser than the terrain because it records where you walked rather than what
+you saw, and the set of portals whose door the fog has reached — which is what
+names a door on the local map and draws its road on the world map, so the two
+cannot disagree. It is beside `state.ts` and not in it: a raster is not a
+condition and nothing may branch on one. Saved as an optional field, so a save
+written before it opens with an empty chart.
+
+`ZoneDefinition.plan` is the one thing about a zone's shape no traversal of the
+built world can answer — how far the *level* reaches, as against the three
+hundred metres of skirt around it. The outline in it is the playable line, and
+`ceiling` is where a view from straight above is cut so a sealed shell shows its
+floor. `document.ts` states it; `ui/map` draws it.
+
+The world map under `ui/map` is a continent raised from the zone graph:
+`world.ts` lays the graph out on the main thread and draws the chart;
+`raise.ts` is the pure remainder, run on the pool from boot as the
+`world-chart` job — it runs the sheet out past the known places with phantom
+places that raise unreachable country, then `continent.ts` builds the land,
+height, rivers and lakes on the raster, `paint.ts` colours it and `relief.ts`
+sets the pen marks. The chart is revealed about the places and roads
+`chart.ts` says have been found, and drawn as one printed sheet: every weight
+and size is in print pixels times the zoom. All of it is seeded from the zone
+ids, so the same content is the same map everywhere.
 
 ## Documents
 
@@ -99,8 +128,12 @@ itself. A kind says so by declaring `asks`, which has to list the same builder
 calls `build` makes, in the same order — so a kind that rolls its placement
 shares one function between the two rather than reproducing it. A kind needing
 anything the walk has not built yet, like a resolved anchor, declares none and
-builds on the frame. The warm gives up after a budget, because a miss is free
-and a stall is not. `entry.ts`
+builds on the frame. A kind whose placement is a plan keeps the plan it made
+(`keepPlan`) and the walk takes it (`takePlan`) rather than rolling it again.
+The terrain and the skirt go the same way: the warm sends the terrain's options
+to the pool (`terrain-mesh`, `skirt-mesh`) and the walk claims the finished
+mesh under `TERRAIN_ASK` / `SKIRT_ASK`. The warm gives up after a budget that
+grows with the queue, because a miss is free and a stall is not. `entry.ts`
 holds the grammar and the kind table `registerEntryKind` extends; `kinds.ts`
 holds the kinds themselves. Every mesh an entry produces is tagged `userData.entry`, which
 the game ignores and the editor is built on.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { PARTICLE_LAYER } from '../layers';
 import { particleUniforms } from '../art/particles';
@@ -99,7 +100,7 @@ export class ParticlesEffect implements PixelEffect {
 
     renderer.autoClear = false;
     camera.layers.set(PARTICLE_LAYER);
-    renderer.render(scene, camera);
+    withStaticHidden(() => renderer.render(scene, camera));
 
     camera.layers.mask = priorMask;
     renderer.autoClear = priorAutoClear;

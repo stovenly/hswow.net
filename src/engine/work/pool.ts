@@ -1,4 +1,4 @@
-import { JOBS, type JobName, type JobPayload, type JobValue } from './jobs';
+import { JOBS, primeJobs, type JobName, type JobPayload, type JobValue, type Prime } from './jobs';
 
 /**
  * A fixed set of module workers with a queue in front of them. Callers never
@@ -6,12 +6,14 @@ import { JOBS, type JobName, type JobPayload, type JobValue } from './jobs';
  * queues, transfers and failure, and nothing about art, zones or collision.
  *
  * Minus one so the main thread keeps a core to render on; floored at two
- * because the count is an anti-fingerprinting surface and some browsers return
- * 2 whatever the hardware is; capped at six because each worker parses its own
- * copy of three, and past that this work is bandwidth bound rather than
- * compute bound.
+ * because the count is an anti-fingerprinting surface unless the page is
+ * isolated, where it is exact; capped at six because past that this work is
+ * bandwidth bound rather than compute bound.
  */
-const SIZE = Math.min(Math.max((navigator.hardwareConcurrency || 4) - 1, 2), 6);
+const SIZE = Math.min(
+  Math.max((navigator.hardwareConcurrency || 4) - 1, crossOriginIsolated ? 1 : 2),
+  6,
+);
 
 /** What a cancelled job rejects with. The caller asked; it is not a failure. */
 export const CANCELLED = 'work: cancelled';
@@ -20,6 +22,7 @@ interface Pending {
   id: number;
   kind: JobName;
   payload: unknown;
+  cache?: string;
   transfer: Transferable[];
   settle(wire: unknown): void;
   fail(error: unknown): void;
@@ -43,6 +46,8 @@ export interface RunOptions {
    * the player can see: a zone crossing, waiting behind the next zone's warm.
    */
   urgent?: boolean;
+  /** A key the worker reads the result under before it builds, and writes it under after. See `work/cache.ts`. */
+  cache?: string;
 }
 
 export class WorkPool {
@@ -54,6 +59,7 @@ export class WorkPool {
   private next = 1;
   /** Set once a worker cannot be made or dies. Everything runs inline after. */
   private broken = false;
+  private primed: Prime | null = null;
 
   get size(): number {
     return SIZE;
@@ -76,6 +82,7 @@ export class WorkPool {
         id: this.next++,
         kind,
         payload,
+        cache: options.cache,
         transfer: options.transfer ?? [],
         settle: (wire) => resolve(JOBS[kind].onMain(wire as never) as JobValue<K>),
         fail: reject,
@@ -86,6 +93,14 @@ export class WorkPool {
       else this.queue.push(pending);
       this.pump();
     });
+  }
+
+  /** Told to every worker before its first job, and to the inline path. */
+  prime(prime: Prime): void {
+    this.primed = prime;
+    primeJobs(prime);
+    for (const worker of this.idle) worker.postMessage({ id: 0, kind: 'prime', payload: prime });
+    for (const worker of this.owner.keys()) worker.postMessage({ id: 0, kind: 'prime', payload: prime });
   }
 
   /** Frees every worker. The pool still runs, inline, after this. */
@@ -108,7 +123,7 @@ export class WorkPool {
     kind: K,
     payload: JobPayload<K>,
   ): Promise<JobValue<K>> {
-    const { result } = JOBS[kind].inWorker(payload as never);
+    const { result } = await JOBS[kind].inWorker(payload as never);
     return JOBS[kind].onMain(result as never) as JobValue<K>;
   }
 
@@ -133,7 +148,7 @@ export class WorkPool {
       this.running.set(pending.id, pending);
       this.owner.set(worker, pending.id);
       worker.postMessage(
-        { id: pending.id, kind: pending.kind, payload: pending.payload },
+        { id: pending.id, kind: pending.kind, payload: pending.payload, cache: pending.cache },
         pending.transfer,
       );
     }
@@ -154,6 +169,7 @@ export class WorkPool {
       worker.onmessage = (event: MessageEvent<Answer>) => this.answer(worker, event.data);
       worker.onerror = () => this.collapse();
       worker.onmessageerror = () => this.collapse();
+      if (this.primed) worker.postMessage({ id: 0, kind: 'prime', payload: this.primed });
       return worker;
     } catch {
       this.collapse();
@@ -186,11 +202,9 @@ export class WorkPool {
     this.running.clear();
     for (const pending of stranded) {
       if (pending.signal?.aborted) continue;
-      try {
-        pending.settle(JOBS[pending.kind].inWorker(pending.payload as never).result);
-      } catch (error) {
-        pending.fail(error);
-      }
+      Promise.resolve()
+        .then(() => JOBS[pending.kind].inWorker(pending.payload as never))
+        .then((made) => pending.settle(made.result), pending.fail);
     }
   }
 }

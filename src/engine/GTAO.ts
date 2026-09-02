@@ -41,8 +41,13 @@ export class GTAOEffect implements PixelEffect {
   private fogRamp = 1.5;
 
   constructor() {
+    // One byte per pixel: the visibility is a scalar, and nothing reads a depth here.
     const target = (): THREE.WebGLRenderTarget => {
-      const t = new THREE.WebGLRenderTarget();
+      const t = new THREE.WebGLRenderTarget(1, 1, {
+        format: THREE.RedFormat,
+        type: THREE.UnsignedByteType,
+        depthBuffer: false,
+      });
       t.texture.minFilter = THREE.NearestFilter;
       t.texture.magFilter = THREE.NearestFilter;
       return t;

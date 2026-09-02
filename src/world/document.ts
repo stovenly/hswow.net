@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import type { SoundscapeSpec } from '../audio/Soundscape';
-import { buildInterior, interiorStyleByName } from './interior';
+import { SHELL_THICKNESS, buildInterior, interiorStyleByName } from './interior';
 import { buildRooms } from './rooms';
 import { markCollidable } from '../player/Collider';
-import { flatGround, type FlatGroundOptions } from './floor';
+import { FLAT_SIZE, flatGround, type FlatGroundOptions } from './floor';
 import { Terrain, type TerrainOptions, type TerrainRasters } from './terrain';
 import { heightRaster, indexRaster } from './raster';
 import { Skirt, type SkirtOptions } from './vista';
@@ -23,6 +23,7 @@ import {
   type ZoneDefinition,
   type ZoneEnvironment,
   type ZoneGroup,
+  type ZonePlan,
 } from './Zone';
 import { environmentByName } from './environments';
 import type { ZonePlace } from './climate';
@@ -43,7 +44,10 @@ import {
   type Yaw,
 } from './entry';
 import { needBuilder, seedOf } from './kinds';
-import { dropWarm, useWarm, warmDocument } from './warmProps';
+import { dropWarm, useWarm, warmDocument, takeWarm, TERRAIN_ASK, SKIRT_ASK } from './warmProps';
+import { finishCaptured } from '../art/dress';
+import { markVista } from '../art/vista';
+import { hashString } from './loot';
 
 /**
  * The interpreter. A zone document in, a `ZoneDefinition` out.
@@ -147,6 +151,8 @@ export interface ManifestEnd {
   yaw?: Yaw;
   arrival?: { at: readonly number[]; yaw?: Yaw; on?: string };
   use?: EndUse;
+  /** Another way through a threshold something else already covers. See `PortalEnd`. */
+  accessory?: boolean;
   /** The entry in this zone the end adopts, for `use: "prop"`. */
   propOf?: string;
   half?: 'lower' | 'upper';
@@ -176,6 +182,15 @@ const rebuilders = new Map<string, (id: string) => THREE.Object3D | null>();
  */
 export function rebuildEntry(zone: string, id: string): THREE.Object3D | null {
   return rebuilders.get(zone)?.(id) ?? null;
+}
+
+/**
+ * Whether a zone was interpreted from a document. The world map is a chart of
+ * authored places, and the galleries and showcases written in code are not
+ * places — they are rooms built to judge one system in.
+ */
+export function isDocumentZone(zone: string): boolean {
+  return registry.has(zone);
 }
 
 /** The live heightfield a document built, for the brushes that write into it. */
@@ -243,6 +258,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
   };
   delete (environment as { base?: string }).base;
 
+  const fingerprint = fingerprintOf(doc);
   const terrain = doc.terrain ? new Terrain(terrainOptions(doc.terrain)) : null;
   const skirt = terrain && doc.skirt ? new Skirt({ ...doc.skirt, terrain }) : null;
   const shell = doc.shell ?? null;
@@ -281,7 +297,8 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     for (const spec of doc.soundscape?.scatter ?? []) collected.scatters.push(spec);
 
     if (terrain) {
-      const ground = terrain.build();
+      const warm = takeWarm(TERRAIN_ASK);
+      const ground = warm ? finishCaptured(warm) : terrain.build();
       ground.name = 'terrain';
       root.add(markCollidable(ground));
     } else if (!shell) {
@@ -289,7 +306,10 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       root.add(flatGround(size, rest));
     }
     // The skirt is out of bounds by definition: seen, never walked on.
-    if (skirt) root.add(skirt.build());
+    if (skirt) {
+      const warm = takeWarm(SKIRT_ASK);
+      root.add(warm ? markVista(finishCaptured(warm)) : skirt.build());
+    }
     if (shell?.rooms) {
       root.add(
         markCollidable(
@@ -406,6 +426,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     surfaceAt: terrain ? (x, z) => terrain.stepAt(x, z) : undefined,
     groundAt: terrain ? (x, z) => terrain.heightAt(x, z) : undefined,
     regions: doc.regions,
+    plan: planOf(doc),
     get fogVolumes() {
       return collected.fogVolumes;
     },
@@ -415,9 +436,22 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     get horrors() {
       return collected.horrors;
     },
-    warm: () => warmDocument(doc.id, layersOf(doc), { terrain, skirt, groundAt }, state),
+    warm: () => warmDocument(doc.id, layersOf(doc), { terrain, skirt, groundAt }, state, doc.skirt, fingerprint),
+    fingerprint,
     build,
   };
+}
+
+/** The document and every sidecar it names, hashed. What the on-disk cache keys a zone on. */
+function fingerprintOf(doc: ZoneDocument): string {
+  let hash = hashString(JSON.stringify(doc));
+  for (const layer of [doc.terrain?.sculpt, doc.terrain?.paint, doc.terrain?.coverPaint]) {
+    const bytes = layer && sidecars.get(layer.file);
+    if (!bytes) continue;
+    const view = new Uint8Array(bytes);
+    for (let i = 0; i < view.length; i++) hash = Math.imul(hash ^ view[i], 16777619) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 function stripUndefined<T extends object>(value: T): Partial<T> {
@@ -443,6 +477,45 @@ function terrainOptions(spec: TerrainSpec): TerrainOptions {
     rasters.cover = indexRaster(cover, spec.size, spec.coverPaint.resolution ?? spec.resolution);
   }
   return { ...spec, landforms: spec.landforms ?? [], rasters };
+}
+
+/**
+ * How far the level reaches, and what shape it is. Read off the document rather
+ * than measured from the built world, because a bounding box of an outdoor zone
+ * takes in three hundred metres of skirt nobody can walk on.
+ *
+ * The shell forms are grown by the wall thickness, so an interior's extent ends
+ * at the outer face of its walls and not at the inside of the room.
+ */
+function planOf(doc: ZoneDocument): ZonePlan | undefined {
+  const outline = outlineOf(doc) ?? undefined;
+  if (doc.terrain) {
+    const half = doc.terrain.size / 2;
+    const rim = doc.terrain.landforms?.find((form) => form.kind === 'rim');
+    return { min: [-half, -half], max: [half, half], outline, inset: rim?.inset };
+  }
+  const shell = doc.shell;
+  if (shell) {
+    const t = shell.thickness ?? SHELL_THICKNESS;
+    if (shell.rooms && shell.rooms.length > 0) {
+      const min: [number, number] = [Infinity, Infinity];
+      const max: [number, number] = [-Infinity, -Infinity];
+      let ceiling = 0;
+      for (const room of shell.rooms) {
+        min[0] = Math.min(min[0], room.at[0] - room.width / 2 - t);
+        min[1] = Math.min(min[1], room.at[1] - room.depth / 2 - t);
+        max[0] = Math.max(max[0], room.at[0] + room.width / 2 + t);
+        max[1] = Math.max(max[1], room.at[1] + room.depth / 2 + t);
+        ceiling = Math.max(ceiling, (room.level ?? 0) + room.height);
+      }
+      return { min, max, outline, ceiling };
+    }
+    const width = (shell.width ?? 8) / 2 + t;
+    const depth = (shell.depth ?? 6) / 2 + t;
+    return { min: [-width, -depth], max: [width, depth], outline, ceiling: shell.height ?? 3 };
+  }
+  const half = (doc.flat?.size ?? FLAT_SIZE) / 2;
+  return { min: [-half, -half], max: [half, half], outline };
 }
 
 /** The level's outline as a closed polygon, when its skirt or terrain states one. */
@@ -472,6 +545,7 @@ function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
     position: new THREE.Vector3(),
     yaw: yawOf(end.yaw),
     use: end.use,
+    accessory: end.accessory,
     propOf: end.propOf,
     half: end.half,
     volume: end.volume,

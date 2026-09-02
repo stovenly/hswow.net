@@ -10,6 +10,10 @@
  * may allocate, and nothing here may throw once running — a single exception
  * kills the processor and the node goes permanently silent.
  *
+ * Parameters arrive one of two ways: a message per change, or — when the page
+ * is isolated — a shared ring the main thread writes and `process` drains at
+ * the top of every quantum. See `FaustNode.ts`.
+ *
  * ## Why this is hand-written
  *
  * `@grame/faustwasm` ships a runtime that does this, and it is ~195 KB of
@@ -38,6 +42,10 @@
 
 /** Web Audio's render quantum. Fixed by the spec, not a preference. */
 const QUANTUM = 128;
+/** Quanta of silence in and out before a sleeping model lets itself be collected. About three seconds. */
+const SETTLE = 1100;
+/** Below this the output counts as silent. */
+const HUSH = 1e-5;
 /** Byte size of an f32. Faust is built single-precision here. */
 const SAMPLE = 4;
 
@@ -73,12 +81,15 @@ function mathImports() {
 class FaustProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    const { wasm, meta } = options.processorOptions;
+    const { wasm, meta, ring, sleeps } = options.processorOptions;
+    // Whether silence past the settle window ends this processor. The node
+    // side rebuilds one on the next write. Never for a reverb.
+    this.sleeps = sleeps === true;
+    this.quiet = 0;
 
-    // Synchronous compilation. Forbidden on the main thread for modules over
-    // 4 KB, permitted here — which is one of the reasons the bytes are ferried
-    // in rather than fetched: this is the only place the compile is free.
-    const module = new WebAssembly.Module(wasm);
+    // Compiled on the main thread and cloned in as a Module; the bytes are the
+    // fallback for a browser that cannot clone one.
+    const module = options.processorOptions.module ?? new WebAssembly.Module(wasm);
     this.instance = new WebAssembly.Instance(module, mathImports());
     this.api = this.instance.exports;
 
@@ -126,37 +137,58 @@ class FaustProcessor extends AudioWorkletProcessor {
 
     this.api.init(0, sampleRate);
 
+    // The controls in declared order, which is the ring's order too.
+    this.controls = Object.values(this.params);
+    // The shared ring: a value per control and a dirty flag beside it.
+    this.ringValues = ring ? ring.values : null;
+    this.ringDirty = ring ? ring.dirty : null;
+
     // Parameters arrive as messages rather than as `AudioParam`s. Faust's
     // controls are not sample-accurate and do not need to be — they are room
     // sizes and damping factors, not envelopes — and a k-rate write per
     // control per quantum would cost more than the DSP.
     this.port.onmessage = (event) => {
       const { type, key, value } = event.data;
-      if (type === 'param') {
-        const control = this.params[key];
-        // Clamped here rather than trusted. A control driven outside its
-        // declared range is not merely wrong — for anything inside a feedback
-        // loop it is the difference between a model and a runaway, and this is
-        // the last place before it reaches the DSP.
-        if (control !== undefined) {
-          const clamped = Math.min(control.max, Math.max(control.min, value));
-          this.api.setParamValue(0, control.at, clamped);
-        }
-      }
+      if (type === 'param') this.write(this.params[key], value);
     };
 
     this.alive = true;
   }
 
+  /**
+   * Clamped here rather than trusted. A control driven outside its declared
+   * range is not merely wrong — for anything inside a feedback loop it is the
+   * difference between a model and a runaway, and this is the last place
+   * before it reaches the DSP.
+   */
+  write(control, value) {
+    if (control === undefined) return;
+    const clamped = Math.min(control.max, Math.max(control.min, value));
+    this.api.setParamValue(0, control.at, clamped);
+  }
+
+  /** Takes every control the main thread has written since the last quantum. */
+  drain() {
+    const dirty = this.ringDirty;
+    const values = this.ringValues;
+    for (let i = 0; i < this.controls.length; i++) {
+      if (Atomics.exchange(dirty, i, 0) !== 0) this.write(this.controls[i], values[i]);
+    }
+  }
+
   process(inputs, outputs) {
     if (!this.alive) return false;
+    if (this.ringDirty) this.drain();
 
     const input = inputs[0];
+    let fed = false;
     for (let c = 0; c < this.numIn; c++) {
       const channel = input && input[c];
       // A disconnected input arrives as an empty array, not as silence.
-      if (channel) this.ins[c].set(channel);
-      else this.ins[c].fill(0);
+      if (channel) {
+        this.ins[c].set(channel);
+        if (this.sleeps && !fed) fed = peak(channel) > HUSH;
+      } else this.ins[c].fill(0);
     }
 
     this.api.compute(0, QUANTUM, this.ptrIn, this.ptrOut);
@@ -168,10 +200,27 @@ class FaustProcessor extends AudioWorkletProcessor {
       output[c].set(this.outs[Math.min(c, this.numOut - 1)]);
     }
 
-    // Never returns false while alive: a reverb has a tail, and a processor
-    // that stops when its input goes quiet cuts that tail off.
+    if (this.sleeps) {
+      if (fed || peak(this.outs[0]) > HUSH) this.quiet = 0;
+      else if (++this.quiet > SETTLE) {
+        this.alive = false;
+        this.port.postMessage({ type: 'asleep' });
+        return false;
+      }
+    }
+    // A reverb never returns false: it has a tail, and a processor that stops
+    // when its input goes quiet cuts that tail off.
     return true;
   }
+}
+
+function peak(samples) {
+  let most = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const v = samples[i] < 0 ? -samples[i] : samples[i];
+    if (v > most) most = v;
+  }
+  return most;
 }
 
 registerProcessor('faust-processor', FaustProcessor);

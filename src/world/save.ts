@@ -1,3 +1,4 @@
+import type { ChartData } from './chart';
 import type { Item } from './items';
 import type { WorldStateData } from './state';
 
@@ -119,6 +120,8 @@ export interface SaveData {
   delta: DeltaData;
   /** Flags, quest stages and granted traits. Absent in a save written before quests. */
   state?: WorldStateData;
+  /** The fog rasters and the doors that have been found. Absent in a save written before the map. */
+  chart?: ChartData;
   zone: string;
   at: [number, number, number];
   yaw: number;

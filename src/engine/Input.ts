@@ -1,13 +1,9 @@
-import { flags } from '../dev/flags';
+import { platform } from '../platform';
 
-/**
- * Aggregated player input.
- *
- * Keyboard and mouse write into it directly; `TouchControls` writes into the
- * same fields. The controller reads the result and never learns which device
- * is driving it, which is the only reason one movement implementation can
- * serve both a desktop pointer lock and a thumb on glass.
- */
+/** Aggregated player input: keyboard and mouse write into it, the controller reads it. */
+
+/** Claimed from the browser while captured and fullscreen, so they reach the game. */
+const LOCKED_KEYS = ['Escape', 'Tab', 'AltLeft', 'AltRight'];
 
 const FORWARD_KEYS = ['KeyW', 'ArrowUp'];
 const BACK_KEYS = ['KeyS', 'ArrowDown'];
@@ -56,15 +52,8 @@ export class Input {
   lookX = 0;
   lookY = 0;
 
-  /** True when the mouse is captured, or when capture isn't a concept here. */
+  /** True while the mouse is captured. */
   locked = false;
-
-  /**
-   * Whether the controller has to wait for pointer lock before it will move.
-   * Pointer lock does not exist on mobile Safari or Chrome for Android, so on
-   * touch devices the answer has to be no — otherwise the game never starts.
-   */
-  readonly needsCapture: boolean;
 
   /**
    * The mouse is free and the keyboard still steers — the editor's fly camera,
@@ -96,11 +85,6 @@ export class Input {
   private readonly canvas: HTMLCanvasElement;
   private readonly keys = new Set<string>();
 
-  /** Touch stick, in the same -1..1 space as the keyboard axes. */
-  private stickX = 0;
-  private stickZ = 0;
-  private stickSprint = false;
-
   private sprintMode: HoldMode = 'hold';
   private crouchMode: HoldMode = 'hold';
   /** Only read while the matching mode is `toggle`. */
@@ -121,7 +105,6 @@ export class Input {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    this.needsCapture = !isTouchDevice();
 
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
@@ -129,32 +112,23 @@ export class Input {
     // to the tab already sprinting forward.
     window.addEventListener('blur', this.handleBlur);
 
-    if (this.needsCapture) {
-      canvas.addEventListener('pointerdown', this.handleCanvasPointerDown);
-      document.addEventListener('pointerlockchange', this.handleLockChange);
-      document.addEventListener('mousemove', this.handleMouseMove);
-    } else {
-      this.locked = true;
-    }
+    canvas.addEventListener('pointerdown', this.handleCanvasPointerDown);
+    document.addEventListener('pointerlockchange', this.handleLockChange);
+    document.addEventListener('mousemove', this.handleMouseMove);
   }
 
-  /** -1 left .. +1 right. Analog, because a thumb stick is not a key. */
+  /** -1 left .. +1 right. */
   get moveX(): number {
-    const keyed = axis(this.pressed(RIGHT_KEYS), this.pressed(LEFT_KEYS));
-    return clamp(keyed + this.stickX, -1, 1);
+    return axis(this.pressed(RIGHT_KEYS), this.pressed(LEFT_KEYS));
   }
 
   /** -1 back .. +1 forward. */
   get moveZ(): number {
-    const keyed = axis(this.pressed(FORWARD_KEYS), this.pressed(BACK_KEYS));
-    return clamp(keyed + this.stickZ, -1, 1);
+    return axis(this.pressed(FORWARD_KEYS), this.pressed(BACK_KEYS));
   }
 
   get sprint(): boolean {
-    const keyed = this.sprintMode === 'toggle' ? this.sprintLatch : this.pressed(SPRINT_KEYS);
-    // The stick is always a hold. A thumb at full deflection *is* the sprint,
-    // and there is no key to press twice.
-    return keyed || this.stickSprint;
+    return this.sprintMode === 'toggle' ? this.sprintLatch : this.pressed(SPRINT_KEYS);
   }
 
   /** True while crouch is held — or until the key is pressed again, if the player has asked for that. */
@@ -231,31 +205,13 @@ export class Input {
     this.lookY = 0;
   }
 
-  // --- written to by TouchControls ----------------------------------------
-
-  setStick(x: number, z: number, sprint: boolean): void {
-    this.stickX = x;
-    this.stickZ = z;
-    this.stickSprint = sprint;
-  }
-
-  addLook(dx: number, dy: number): void {
-    this.lookX += dx;
-    this.lookY += dy;
-  }
-
-  pressJump(): void {
+  private pressJump(): void {
     this.jumpPressedAt = performance.now();
     this.jumpHeld = true;
   }
 
-  releaseJump(): void {
+  private releaseJump(): void {
     this.jumpHeld = false;
-  }
-
-  /** Touch taps route here, so glass and keyboard share one path. */
-  pressInteract(): void {
-    this.interactPressed = true;
   }
 
   /**
@@ -270,7 +226,7 @@ export class Input {
    * wrong, and it needs to know when that window shuts.
    */
   async capture(): Promise<void> {
-    if (this.locked || !this.needsCapture) return;
+    if (this.locked) return;
     await this.requestLock();
   }
 
@@ -289,14 +245,20 @@ export class Input {
       event.preventDefault();
       return;
     }
+    // Under keyboard lock Escape is the game's: it releases the pointer, which
+    // raises the pause stack, the same as the browser did unlocked.
+    if (event.code === 'Escape' && this.locked) {
+      event.preventDefault();
+      document.exitPointerLock();
+      return;
+    }
 
     if (event.repeat) return;
 
     // Nothing on the keyboard reaches the player while the mouse is free: there is a
     // menu out there to be typed into, and without this, nudging a slider with the
-    // arrow keys walks the player forwards behind the panel. Only where capture is a
-    // concept — on touch `locked` is permanently true and this is a no-op.
-    if (this.needsCapture && !this.locked && !this.free) return;
+    // arrow keys walks the player forwards behind the panel.
+    if (!this.locked && !this.free) return;
 
     this.keys.add(event.code);
     if (JUMP_KEYS.includes(event.code)) {
@@ -313,7 +275,7 @@ export class Input {
     if (this.crouchMode === 'toggle' && CROUCH_KEYS.includes(event.code)) {
       this.crouchLatch = !this.crouchLatch;
     }
-    if (INTERACT_KEYS.includes(event.code)) this.pressInteract();
+    if (INTERACT_KEYS.includes(event.code)) this.interactPressed = true;
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
@@ -377,6 +339,9 @@ export class Input {
 
   private readonly handleLockChange = (): void => {
     this.locked = document.pointerLockElement === this.canvas;
+    // Keyboard lock only takes in fullscreen, and asking outside it is free.
+    if (this.locked) void platform.keys.lock(LOCKED_KEYS).catch(() => {});
+    else platform.keys.unlock();
     if (!this.locked) this.keys.clear();
     // Anything accumulated across a lock change is stale by definition — it
     // describes a cursor that was somewhere else, under different rules.
@@ -407,11 +372,6 @@ export class Input {
     document.removeEventListener('pointerlockchange', this.handleLockChange);
     document.removeEventListener('mousemove', this.handleMouseMove);
   }
-}
-
-/** `?touch` forces the mobile path on so it can be tested with a mouse. */
-export function isTouchDevice(): boolean {
-  return flags.touch || window.matchMedia('(pointer: coarse)').matches;
 }
 
 function wait(ms: number): Promise<void> {

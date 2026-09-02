@@ -377,9 +377,8 @@ export class OptionsMenu {
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || !this.shown) return;
-    // Never reached while captured — the browser takes Escape to release
-    // pointer lock, and the menu is not open at that point — so this only ever
-    // closes a panel the player opened deliberately.
+    // Claimed, so the pause stack's own Escape does not also resume.
+    event.preventDefault();
     this.hide();
   };
 

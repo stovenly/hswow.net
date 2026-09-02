@@ -8,10 +8,13 @@
  * which the ear resolves single events and the texture collapses.
  *
  * Grains route into a few fixed filter channels rather than each building its
- * own, which would be hundreds of filter nodes a second.
+ * own, which would be hundreds of filter nodes a second. Where the particle
+ * worklet is registered the grains are records it renders into those
+ * channels; elsewhere each grain is a source and a gain, scheduled here.
  */
 
-import { anyCurve, HANN } from './envelopes';
+import { anyCurve, HANN, STEPS } from './envelopes';
+import { GRAIN, STRIKE, particleNode, particlesReady, type ParticleNode } from '../particles/Particles';
 
 export interface GrainChannel {
   hz: number;
@@ -21,8 +24,10 @@ export interface GrainChannel {
 }
 
 export interface GrainBed {
-  /** Picks a channel by weight. One call per grain. */
-  pick(): BiquadFilterNode;
+  /** One grain of noise under a smooth window, into a channel picked by weight. */
+  grain(at: number, options?: GrainOptions): void;
+  /** One burst of noise struck rather than windowed — `impact.excite` into a channel. */
+  strike(at: number, level: number, duration: number, attack?: number): void;
   /** Shifts every channel together. Below 1 is broader and wetter. */
   setTone(tone: number, when: number): void;
   /** Overlap at a given rate and mean grain length. Keep above 10. */
@@ -32,6 +37,7 @@ export interface GrainBed {
 
 export function createGrainBed(
   context: BaseAudioContext,
+  noise: AudioBuffer,
   channels: readonly GrainChannel[],
   destination: AudioNode,
   tone = 1,
@@ -45,14 +51,47 @@ export function createGrainBed(
     return { filter, weight: channel.weight, hz: channel.hz };
   });
 
+  const worklet: ParticleNode | null = particlesReady(context)
+    ? particleNode(context, built.length, (node) => built.forEach((channel, i) => node.connect(channel.filter, i)))
+    : null;
+
+  const pick = (): number => {
+    let roll = Math.random();
+    for (let i = 0; i < built.length; i++) {
+      roll -= built[i].weight;
+      if (roll <= 0) return i;
+    }
+    return built.length - 1;
+  };
+
   return {
-    pick() {
-      let roll = Math.random();
-      for (const channel of built) {
-        roll -= channel.weight;
-        if (roll <= 0) return channel.filter;
+    grain(at, options = {}) {
+      const channel = pick();
+      if (!worklet) {
+        scheduleGrain(context, noise, built[channel].filter, at, options);
+        return;
       }
-      return built[built.length - 1].filter;
+      const min = options.minDuration ?? 0.055;
+      const max = options.maxDuration ?? 0.165;
+      const duration = min + Math.random() * (max - min);
+      const minRate = options.minRate ?? 0.7;
+      const maxRate = options.maxRate ?? 1.4;
+      const rate = minRate + Math.random() * (maxRate - minRate);
+      // The same quantised peaks the curve pool has: most grains sit low.
+      const peak = ((Math.floor(Math.random() * STEPS) + 1) / STEPS) ** 2;
+      worklet.write(GRAIN, at, duration, peak, channel, rate, Math.random() * 1.5);
+    },
+
+    strike(at, level, duration, attack) {
+      if (level <= 0.0005) return;
+      const channel = pick();
+      const rise = Math.min(attack ?? Math.min(0.0012, duration * 0.3), duration * 2);
+      const window = rise + duration * 2.5 + 0.05;
+      if (!worklet) {
+        strikeNodes(context, noise, built[channel].filter, at, level, rise, duration * 1.6, window);
+        return;
+      }
+      worklet.write(STRIKE, at, window, level, channel, 1, Math.random() * 1.5, rise, (duration * 1.6) / 3);
     },
 
     setTone(next, when) {
@@ -66,9 +105,32 @@ export function createGrainBed(
     },
 
     dispose() {
+      worklet?.dispose();
       for (const channel of built) channel.filter.disconnect();
     },
   };
+}
+
+/** A struck burst as nodes, for a bed with no worklet. The shape `impact.excite` schedules. */
+function strikeNodes(
+  context: BaseAudioContext,
+  noise: AudioBuffer,
+  target: AudioNode,
+  at: number,
+  level: number,
+  rise: number,
+  decay: number,
+  window: number,
+): void {
+  const source = context.createBufferSource();
+  source.buffer = noise;
+  const envelope = context.createGain();
+  envelope.gain.setValueAtTime(0, at);
+  envelope.gain.linearRampToValueAtTime(level, at + rise);
+  envelope.gain.setTargetAtTime(0, at + rise, decay / 3);
+  source.connect(envelope).connect(target);
+  source.start(at, Math.random() * Math.max(noise.duration - window, 0), window);
+  source.stop(at + window + 0.01);
 }
 
 export interface GrainOptions {

@@ -24,6 +24,16 @@ being true, edit the line — do not append a correction.
 - `flex.ts`, `clutter.ts`, `underfoot.ts`, `fabrics.ts` — per-species tables.
   Comparative judgements, so they live in one list, not on the builders.
 - `registry.ts` — Vite-only. Nothing the headless tools reach may import it.
+  `registry-lazy.ts` is the worker's copy, one module at a time, found through
+  the name index the main thread sends over.
+
+`assemble.ts` is pure: it merges parts and hands the geometry to whichever
+**finish sink** is installed. `dress.ts` is the main thread's sink — the art
+material, the depth twin, the rig — and importing it installs it. A worker
+imports nothing that installs one, so a builder there runs only under
+`capture`. Anything a builder's import graph reaches must stay off the shader
+side: the lane data lives in `finishes.ts` and `recipes/types.ts`, and
+`finish.ts` re-exports it.
 
 ## Conventions
 

@@ -1,14 +1,14 @@
 import * as THREE from 'three';
+import { withStaticHidden } from '../engine/statics';
 import { type CoverName, type PropLayer } from '../world/ground';
 import {
-  hat,
   packSample,
   sampleCover,
   COVER_ATTRIBUTE,
   COVER_BLEND_ATTRIBUTE,
-  PROP_LOD,
   type CoverChunks,
   type CoverRequest,
+  type SphereWire,
 } from './cover-sample';
 import { pool } from '../engine/work/pool';
 import { windUniforms } from './sway';
@@ -1303,61 +1303,13 @@ export function drawCoverNormals(
     const autoClear = renderer.autoClear;
     camera.layers.set(COVER_LAYER);
     renderer.autoClear = false;
-    renderer.render(scene, camera);
+    withStaticHidden(() => renderer.render(scene, camera));
     renderer.autoClear = autoClear;
     camera.layers.mask = mask;
   }
   for (const mesh of live) {
     mesh.material = mesh.userData.coverTuft ? TUFT_MATERIAL : COVER_MATERIAL;
   }
-}
-
-/** Deterministic shuffle, so thinning by prefix stays an even scatter. */
-function shuffledOrder(count: number, seed: number): Uint32Array {
-  const order = new Uint32Array(count);
-  for (let i = 0; i < count; i++) order[i] = i;
-  let s = (seed * 4294967296) | 0;
-  for (let i = count - 1; i > 0; i--) {
-    s = (Math.imul(s ^ (s >>> 15), 0x85ebca6b) + 0x6d2b79f5) | 0;
-    const j = (s >>> 0) % (i + 1);
-    const swap = order[i];
-    order[i] = order[j];
-    order[j] = swap;
-  }
-  return order;
-}
-
-function gather(src: ArrayLike<number>, order: Uint32Array, stride: number): Float32Array {
-  const out = new Float32Array(src.length);
-  for (let i = 0; i < order.length; i++) {
-    for (let k = 0; k < stride; k++) out[i * stride + k] = src[order[i] * stride + k];
-  }
-  return out;
-}
-
-/** A sphere over every root in the chunk, opened by the tallest thing in it. */
-function chunkSphere(place: Float32Array, count: number, margin: number): THREE.Sphere {
-  const box = new THREE.Box3();
-  const at = new THREE.Vector3();
-  for (let i = 0; i < count; i++) {
-    box.expandByPoint(at.set(place[i * 4], place[i * 4 + 1], place[i * 4 + 2]));
-  }
-  const sphere = new THREE.Sphere();
-  box.getBoundingSphere(sphere);
-  // An empty box gives back a radius of −1, and a negative radius is a trap
-  // for whatever reads it next.
-  sphere.radius = Math.max(sphere.radius, 0) + margin;
-  return sphere;
-}
-
-/** `sqrt(area / rank)` per instance, after the shuffle: the keep test's right-hand side. Zero area never thins. */
-function keepOf(area: Float32Array | ((i: number) => number), count: number): Float32Array {
-  const keep = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    const a = typeof area === 'function' ? area(i) : area[i];
-    keep[i] = a > 0 ? Math.sqrt(a / ((i + 0.5) / count)) : 1e9;
-  }
-  return keep;
 }
 
 function chunkMesh(
@@ -1413,27 +1365,24 @@ function assemble(chunks: CoverChunks): THREE.Object3D {
   const group = new THREE.Group();
   group.name = 'cover';
 
-  let seed = 0;
+  const sphereOf = (wire: SphereWire): THREE.Sphere =>
+    new THREE.Sphere(new THREE.Vector3(wire.x, wire.y, wire.z), wire.radius);
+
   for (const chunk of chunks.blades) {
     const count = chunk.place.length / 4;
-    const order = shuffledOrder(count, hat(seed++, count, 7));
-    const place = gather(chunk.place, order, 4);
-    const wild = gather(chunk.wild, order, 4);
-    let area = 0;
-    for (let i = 0; i < count; i++) area = Math.max(area, wild[i * 4 + 3]);
     const attributes: Record<string, [Float32Array, number]> = {
-      iShape: [gather(chunk.shape, order, 4), 4],
-      iTint: [gather(chunk.tint, order, 3), 3],
-      iWild: [wild, 4],
-      iNormal: [gather(chunk.normal, order, 3), 3],
-      iKeep: [keepOf((i) => wild[i * 4 + 3], count), 1],
+      iShape: [chunk.shape, 4],
+      iTint: [chunk.tint, 3],
+      iWild: [chunk.wild, 4],
+      iNormal: [chunk.normal, 3],
+      iKeep: [chunk.keep, 1],
     };
-    const sphere = chunkSphere(place, count, chunks.maxLen * 2 + 0.5);
+    const sphere = sphereOf(chunk.sphere);
     // Two meshes over the same arrays: the ribbon and the far triangle. Each
     // upload owns its attributes, because disposing a geometry deletes the
     // buffers behind every attribute it holds.
-    const ribbon = chunkMesh(BLADE_GEOMETRY, COVER_MATERIAL, 'cover-blades', count, sphere, place, attributes, area);
-    const far = chunkMesh(TRI_GEOMETRY, COVER_MATERIAL, 'cover-blades', count, sphere, place, attributes, area, true);
+    const ribbon = chunkMesh(BLADE_GEOMETRY, COVER_MATERIAL, 'cover-blades', count, sphere, chunk.place, attributes, chunk.area);
+    const far = chunkMesh(TRI_GEOMETRY, COVER_MATERIAL, 'cover-blades', count, sphere, chunk.place, attributes, chunk.area, true);
     ribbon.userData.coverPair = true;
     far.userData.coverPair = true;
     group.add(ribbon, far);
@@ -1442,24 +1391,21 @@ function assemble(chunks: CoverChunks): THREE.Object3D {
   for (const chunk of chunks.props) {
     const base = (propGeometry[chunk.kind] ??= PROP_GEOMETRY[chunk.kind]());
     const count = chunk.place.length / 4;
-    const order = shuffledOrder(count, hat(seed++, count, 11));
-    const place = gather(chunk.place, order, 4);
-    const area = gather(chunk.area, order, 1);
     const mesh = chunkMesh(
       base,
       TUFT_MATERIAL,
       `cover-${chunk.kind}`,
       count,
-      chunkSphere(place, count, 3),
-      place,
+      sphereOf(chunk.sphere),
+      chunk.place,
       {
-        iProp: [gather(chunk.prop, order, 4), 4],
-        iTintP: [gather(chunk.tint, order, 3), 3],
-        iNormalP: [gather(chunk.normal, order, 3), 3],
-        iRoll: [gather(chunk.roll, order, 1), 1],
-        iKeepP: [keepOf(area, count), 1],
+        iProp: [chunk.prop, 4],
+        iTintP: [chunk.tint, 3],
+        iNormalP: [chunk.normal, 3],
+        iRoll: [chunk.roll, 1],
+        iKeepP: [chunk.keep, 1],
       },
-      PROP_LOD[chunk.kind] ? area.reduce((m, a) => Math.max(m, a), 0) : 0,
+      chunk.widest,
     );
     mesh.userData.coverTuft = true;
     group.add(mesh);
@@ -1479,6 +1425,7 @@ function assemble(chunks: CoverChunks): THREE.Object3D {
 export async function coverFor(
   ground: THREE.Mesh,
   type?: CoverName,
+  cache?: string,
 ): Promise<THREE.Object3D | null> {
   // Asked here as well as in the sampler, so a mesh that grows nothing — which
   // is most of them — costs a property read rather than a round trip.
@@ -1487,7 +1434,7 @@ export async function coverFor(
     return null;
   }
 
-  const chunks = await sampleOnPool(ground, type);
+  const chunks = await sampleOnPool(ground, type, cache);
   return chunks ? assemble(chunks) : null;
 }
 
@@ -1500,24 +1447,29 @@ function sampleHere(ground: THREE.Mesh, type?: CoverName): CoverChunks | null {
 }
 
 /**
- * Flattens a ground mesh and samples it on the work pool. Attributes are read
- * through `getComponent` rather than copied off `attribute.array`: a ground mesh
- * that turned out interleaved, or shorts, would otherwise arrive as noise.
+ * Flattens a ground mesh and samples it on the work pool. A plain float
+ * attribute is copied whole; anything else — interleaved, shorts — is read
+ * through `getComponent` so it does not arrive as noise.
  *
  * The sampler is the longest purely arithmetic step in building a zone and
  * depends on nothing but a mesh's attributes and a seed, so the fade animates
  * while it runs instead of freezing for the length of a field.
  */
-async function sampleOnPool(ground: THREE.Mesh, type?: CoverName): Promise<CoverChunks | null> {
+async function sampleOnPool(ground: THREE.Mesh, type?: CoverName, cache?: string): Promise<CoverChunks | null> {
   const source = ground.geometry;
   const attributes: CoverRequest['attributes'] = {};
   for (const name of ['position', 'color', COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE]) {
     const attribute = source.getAttribute(name);
     if (!attribute) continue;
     const size = attribute.itemSize;
-    const data = new Float32Array(attribute.count * size);
-    for (let i = 0; i < attribute.count; i++) {
-      for (let k = 0; k < size; k++) data[i * size + k] = attribute.getComponent(i, k);
+    let data: Float32Array;
+    if (attribute instanceof THREE.BufferAttribute && attribute.array instanceof Float32Array) {
+      data = attribute.array.slice(0, attribute.count * size);
+    } else {
+      data = new Float32Array(attribute.count * size);
+      for (let i = 0; i < attribute.count; i++) {
+        for (let k = 0; k < size; k++) data[i * size + k] = attribute.getComponent(i, k);
+      }
     }
     attributes[name] = { data, size };
   }
@@ -1540,7 +1492,7 @@ async function sampleOnPool(ground: THREE.Mesh, type?: CoverName): Promise<Cover
   );
   if (index) transfer.push(index.buffer);
   try {
-    return await pool.run('cover-sample', request, { transfer });
+    return await pool.run('cover-sample', request, { transfer, cache });
   } catch {
     // The buffers went with the failed job, so the mesh is resampled from the
     // graph rather than from what was packed for the crossing.

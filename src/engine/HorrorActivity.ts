@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { horrorUniforms, MAX_HORRORS } from '../art/horror';
+import { horrorUniforms, MAX_HORRORS, setHorrorVolumes } from '../art/horror';
 import { ownerIdFor, maskState } from '../art/effectId';
 import type { HorrorEffectName, HorrorPlacement, HorrorSpec } from './Horror';
 
@@ -90,6 +90,11 @@ export class HorrorActivity {
     this.zones.delete(id);
   }
 
+  /** Whether this zone compiles the horror stage in. Asked before entry. */
+  haunts(id: string | null): boolean {
+    return id !== null && this.zones.get(id) !== undefined;
+  }
+
   clear(): void {
     this.zones.clear();
   }
@@ -104,6 +109,8 @@ export class HorrorActivity {
     const u = horrorUniforms;
     const tracked = id ? this.zones.get(id) : undefined;
     let count = 0;
+
+    setHorrorVolumes(tracked !== undefined);
 
     if (tracked) {
       const near = this.near;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { WATER_LAYER } from '../layers';
 import { WATER_MATERIAL } from '../art/water';
@@ -156,7 +157,7 @@ export class WaterEffect implements PixelEffect {
 
     renderer.autoClear = false;
     camera.layers.set(WATER_LAYER);
-    renderer.render(scene, camera);
+    withStaticHidden(() => renderer.render(scene, camera));
 
     camera.layers.mask = this.priorMask;
     renderer.autoClear = priorAutoClear;

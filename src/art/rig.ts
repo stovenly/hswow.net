@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { assemble, captureRigged, capturingNow, finishMesh, type Part } from './assemble';
+import { assemble, captureRigged, capturingNow, finishSink, type Part } from './assemble';
 
 /**
  * Rigged creatures: one merged mesh, one draw call, and a skeleton of hinges.
@@ -55,7 +55,7 @@ export function finishRigged(
 ): THREE.SkinnedMesh {
   const geometry = riggedGeometry(parts, rig, scale);
   if (capturingNow()) return captureRigged({ geometry, name, phase, rig, scale });
-  return dressRigged(geometry, rig, name, phase, scale);
+  return finishSink().rigged(geometry, rig, name, phase, scale);
 }
 
 /** The pure half: the parts merged against the rig's bones, at the builder's scale. */
@@ -63,68 +63,4 @@ export function riggedGeometry(parts: Part[], rig: Rig, scale = 1): THREE.Buffer
   const geometry = assemble(parts, boneNames(rig));
   if (scale !== 1) geometry.scale(scale, scale, scale);
   return geometry;
-}
-
-/**
- * The half that needs the main thread: the bones, the skeleton and the
- * material. The pivots are in the builder's unscaled space, so `scale` has to
- * be the same one `riggedGeometry` was given or the two disagree.
- */
-export function dressRigged(
-  geometry: THREE.BufferGeometry,
-  rig: Rig,
-  name: string,
-  phase: number,
-  scale = 1,
-): THREE.SkinnedMesh {
-  const names = boneNames(rig);
-
-  const bones: Record<string, THREE.Bone> = {};
-  const rest: Record<string, THREE.Vector3> = {};
-  const list: THREE.Bone[] = [];
-  let root: THREE.Bone | null = null;
-
-  for (const spec of rig.bones) {
-    const bone = new THREE.Bone();
-    bone.name = spec.name;
-    const at = new THREE.Vector3(...spec.at).multiplyScalar(scale);
-    if (spec.parent) {
-      const parent = bones[spec.parent];
-      if (!parent) throw new Error(`rig: bone "${spec.name}" listed before its parent`);
-      const parentAt = new THREE.Vector3(...rig.bones.find((b) => b.name === spec.parent)!.at)
-        .multiplyScalar(scale);
-      bone.position.copy(at).sub(parentAt);
-      parent.add(bone);
-    } else {
-      if (root) throw new Error('rig: more than one root bone');
-      bone.position.copy(at);
-      root = bone;
-    }
-    bones[spec.name] = bone;
-    rest[spec.name] = bone.position.clone();
-    list.push(bone);
-  }
-  if (!root) throw new Error('rig: no root bone');
-
-  const mesh = new THREE.SkinnedMesh(geometry);
-  finishMesh(mesh, name, phase);
-  // Bound at the origin, so the bind matrix is identity and the bones' inverse
-  // bind matrices are simply their pivots undone. `attached` mode then follows
-  // the mesh wherever it is placed.
-  mesh.add(root);
-  mesh.updateMatrixWorld(true);
-  mesh.bind(new THREE.Skeleton(list));
-  // The bind-pose sphere, widened: a head turned to watch the player is still
-  // inside it, and it is never recomputed after this.
-  geometry.computeBoundingSphere();
-  mesh.boundingSphere = geometry.boundingSphere!.clone();
-  mesh.boundingSphere.radius *= 1.35;
-
-  // Never in the static collider: the octree is cut once per zone from the
-  // built pose, and a creature that walked off would leave a ghost of itself
-  // there. The player is stopped by the creature's own footprint instead.
-  mesh.userData.noCollide = true;
-  const handle: RigHandle = { mesh, bones, rest, names };
-  mesh.userData.rig = handle;
-  return mesh;
 }

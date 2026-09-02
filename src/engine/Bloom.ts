@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLOW_LAYER } from '../layers';
 import type { PixelEffect, EffectContext } from './PixelStage';
@@ -52,9 +53,9 @@ export class BloomEffect implements PixelEffect {
   private priorMask = 1;
 
   constructor() {
-    this.emitters = half();
-    for (let i = 0; i < LEVELS; i++) this.down.push(half());
-    for (let i = 0; i < LEVELS - 1; i++) this.up.push(half());
+    this.emitters = half(true);
+    for (let i = 0; i < LEVELS; i++) this.down.push(half(false));
+    for (let i = 0; i < LEVELS - 1; i++) this.up.push(half(false));
 
     this.downMaterial = createDownMaterial();
     this.upMaterial = createUpMaterial();
@@ -164,7 +165,7 @@ export class BloomEffect implements PixelEffect {
     renderer.clearColor();
 
     camera.layers.set(GLOW_LAYER);
-    renderer.render(scene, camera);
+    withStaticHidden(() => renderer.render(scene, camera));
 
     camera.layers.mask = this.priorMask;
     renderer.setClearColor(this.priorClear, priorAlpha);
@@ -189,8 +190,8 @@ export class BloomEffect implements PixelEffect {
  * pipeline uses — this is the one place sampling between chunky pixels is correct,
  * because the whole job is to spread light across them.
  */
-function half(): THREE.WebGLRenderTarget {
-  const target = new THREE.WebGLRenderTarget(1, 1);
+function half(depth: boolean): THREE.WebGLRenderTarget {
+  const target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: depth });
   target.texture.minFilter = THREE.LinearFilter;
   target.texture.magFilter = THREE.LinearFilter;
   target.texture.type = THREE.HalfFloatType;

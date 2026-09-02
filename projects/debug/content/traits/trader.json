@@ -53,6 +53,9 @@
       },
       "infos": [
         {
+          "when": {
+            "carries": "candle"
+          },
           "reply": "Changed your mind. Well, it is mine again and you are no richer for it.",
           "then": [
             {
@@ -65,6 +68,9 @@
               "on": false
             }
           ]
+        },
+        {
+          "reply": "Give it back with what? Your hands are empty. Find it, or find your way out."
         }
       ]
     }

@@ -49,5 +49,6 @@ with the mistake.
 ## Adding a field
 
 One file, exporting a `Recipe`. Declare its slots, its variants and its knob
-rows, add it to `index.ts`'s registry and its name to `RecipeName`. Adding a
-*look* to an existing field is a variant entry and a ramp, and touches no GLSL.
+rows, add it to `index.ts`'s registry and its name to `RecipeName` and
+`RECIPE_NAMES` in `types.ts`. Adding a *look* to an existing field is a
+variant entry in `VARIANT_INDEX` and `VARIANT_FIELD`, a ramp, and no GLSL.

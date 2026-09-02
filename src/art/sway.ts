@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { ART_MATERIAL, FIELD_ATTRIBUTE } from './assemble';
+import { FIELD_ATTRIBUTE } from './fields';
+import { ART_MATERIAL } from './material';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
 import { applyAerialFog } from '../engine/fog';
 import { applyFinish } from './finish';
 import { applyGlitch, applyGlitchDisplacement, glitchVariant } from './glitch';
-import { applyHorror, applyHorrorDisplacement } from './horror';
+import { applyHorror, applyHorrorDisplacement, horrorVariant } from './horror';
 import type { Weather } from '../audio/weather';
 
 /**
@@ -247,10 +248,9 @@ export function patchArtMaterial(): void {
   // wind out of this module.
   applyAerialFog(ART_MATERIAL);
 
-  // The erode variant rides in the key: glitch compiles its `discard` out
-  // where nothing is glitched, and the two programs must not be confused for
-  // each other. See `setGlitchErode`.
-  ART_MATERIAL.customProgramCacheKey = () => `art:0:${glitchVariant()}`;
+  // The volume variants ride in the key: each stage is compiled out where the
+  // zone has none of it, and the programs must not be confused for each other.
+  ART_MATERIAL.customProgramCacheKey = () => `art:0:${glitchVariant()}:${horrorVariant()}`;
 }
 
 /** The compiled variants, by finish mask. Mask 0 is the lean shared material. */
@@ -271,7 +271,7 @@ export function artMaterialFor(mask: number): THREE.Material {
   applyHorror(material);
   applyAerialFog(material);
   // After the chain: each stage sets its own constant key and the last wins.
-  material.customProgramCacheKey = () => `art:${mask}:${glitchVariant()}`;
+  material.customProgramCacheKey = () => `art:${mask}:${glitchVariant()}:${horrorVariant()}`;
   variants.set(mask, material);
   return material;
 }

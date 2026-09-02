@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { HELD_LAYER } from '../layers';
 import type { PixelEffect, EffectContext } from './PixelStage';
@@ -60,7 +61,7 @@ export class HeldEffect implements PixelEffect {
     // The write target's own depth, which nothing downstream reads.
     renderer.clearDepth();
     camera.layers.set(HELD_LAYER);
-    renderer.render(scene, camera);
+    withStaticHidden(() => renderer.render(scene, camera));
 
     camera.layers.mask = priorMask;
     renderer.autoClear = priorAutoClear;

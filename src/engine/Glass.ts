@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLASS_LAYER } from '../layers';
 import { GLASS_MATERIAL } from '../art/glass';
@@ -106,7 +107,7 @@ export class GlassEffect implements PixelEffect {
 
     renderer.autoClear = false;
     camera.layers.set(GLASS_LAYER);
-    renderer.render(scene, camera);
+    withStaticHidden(() => renderer.render(scene, camera));
 
     camera.layers.mask = priorMask;
     renderer.autoClear = priorAutoClear;

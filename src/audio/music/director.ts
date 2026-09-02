@@ -288,6 +288,23 @@ interface Kit {
   readonly hat: Instrument;
 }
 
+/** Racks kept built. The current one, the one fading under it, and one more. */
+const RESIDENT_RACKS = 3;
+
+function disposeRack(rack: Rack): void {
+  rack.drone.dispose();
+  rack.texture.dispose();
+  rack.melody.dispose();
+  rack.altTexture?.dispose();
+  rack.altMelody?.dispose();
+  if (rack.kit) {
+    rack.kit.kick.dispose();
+    rack.kit.snare.dispose();
+    rack.kit.hat.dispose();
+  }
+  rack.gain.disconnect();
+}
+
 /** A zone's instruments and the fader its border crossfades ride. */
 interface Rack {
   readonly drone: Instrument;
@@ -306,9 +323,13 @@ export class MusicDirector {
   private readonly out: GainNode;
   private readonly reverb: GainNode;
 
-  /** One rack per spec, kept like soundscapes: built once, silenced often. */
+  /** One rack per spec, kept while recent: past `RESIDENT_RACKS` the least recently heard goes. */
   private readonly racks = new Map<MusicSpec, Rack>();
+  /** Most recently heard last. */
+  private readonly heard: MusicSpec[] = [];
   private rack: Rack | null = null;
+  /** The rack fading under the current one, kept until it has gone quiet. */
+  private fading: MusicSpec | null = null;
   private spec: MusicSpec | null = null;
 
   /** The only clock. Every part of every bar is placed from it. */
@@ -442,6 +463,7 @@ export class MusicDirector {
       this.rack.gain.gain.setTargetAtTime(0, now, spec ? 0.9 : 0.35);
     }
 
+    this.fading = this.spec;
     this.spec = spec;
     this.rack = spec ? this.rackFor(spec) : null;
 
@@ -569,20 +591,9 @@ export class MusicDirector {
 
   dispose(): void {
     this.ticker.stop();
-    for (const rack of this.racks.values()) {
-      rack.drone.dispose();
-      rack.texture.dispose();
-      rack.melody.dispose();
-      rack.altTexture?.dispose();
-      rack.altMelody?.dispose();
-      if (rack.kit) {
-        rack.kit.kick.dispose();
-        rack.kit.snare.dispose();
-        rack.kit.hat.dispose();
-      }
-      rack.gain.disconnect();
-    }
+    for (const rack of this.racks.values()) disposeRack(rack);
     this.racks.clear();
+    this.heard.length = 0;
     this.rack = null;
     this.reverb.disconnect();
     this.out.disconnect();
@@ -770,8 +781,12 @@ export class MusicDirector {
   }
 
   private rackFor(spec: MusicSpec): Rack {
+    const heard = this.heard.indexOf(spec);
+    if (heard >= 0) this.heard.splice(heard, 1);
+    this.heard.push(spec);
     let rack = this.racks.get(spec);
     if (!rack) {
+      this.evict();
       const gain = this.engine.context.createGain();
       gain.gain.value = 0;
       gain.connect(this.out);
@@ -807,6 +822,18 @@ export class MusicDirector {
       this.racks.set(spec, rack);
     }
     return rack;
+  }
+
+  /** Lets the least recently heard racks go, keeping the one fading now. */
+  private evict(): void {
+    while (this.racks.size >= RESIDENT_RACKS) {
+      const stale = this.heard.find((spec) => spec !== this.spec && spec !== this.fading);
+      if (!stale) return;
+      const rack = this.racks.get(stale);
+      this.heard.splice(this.heard.indexOf(stale), 1);
+      this.racks.delete(stale);
+      if (rack) disposeRack(rack);
+    }
   }
 
   // --- the bar --------------------------------------------------------------

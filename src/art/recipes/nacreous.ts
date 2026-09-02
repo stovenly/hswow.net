@@ -62,7 +62,6 @@ export const nacreous: Recipe = {
   name: 'nacreous',
   glsl: GLSL,
   params: ['wash', 'hue', 'grain'],
-  implies: ['film'],
   variants: [
     {
       name: 'nacreous',

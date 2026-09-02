@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { drawCoverNormals } from '../art/cover';
 import { RetroShader } from './RetroShader';
+import { showSurfaces } from './surfaces';
 import type { GpuClock } from './GpuClock';
 
 /**
@@ -69,7 +70,7 @@ export interface PixelEffect {
  * surface facing the camera. It has to decode to a unit vector, and the renderer's
  * own clear colour does not — it is about 0.66 long, and the sky dome is culled out
  * of the normal pass, so every pixel the geometry misses would carry a normal
- * nobody meant. Linear on purpose: the target is raw half-float.
+ * nobody meant. Linear on purpose: the target carries no colour space.
  */
 export const FLAT_NORMAL = new THREE.Color().setRGB(0.5, 0.5, 1, THREE.LinearSRGBColorSpace);
 
@@ -117,6 +118,8 @@ export class PixelStage extends Pass {
 
   /** Scratch for the clear colour the normal render borrows and gives back. */
   private readonly priorClear = new THREE.Color();
+  /** Handed to every effect, mutated rather than rebuilt per pass. */
+  private readonly context: EffectContext;
 
   private readonly outputMaterial: THREE.ShaderMaterial;
   private readonly fsQuad: FullScreenQuad;
@@ -138,11 +141,23 @@ export class PixelStage extends Pass {
     this.colourTarget = chunky();
     this.depthTexture = new THREE.DepthTexture(1, 1);
     this.colourTarget.depthTexture = this.depthTexture;
+    // Eight bits a lane: it holds a packed normal, not light.
     this.normalTarget = chunky();
+    this.normalTarget.texture.type = THREE.UnsignedByteType;
     this.ping = [chunky(), chunky()];
 
     this.outputMaterial = createOutputMaterial();
     this.fsQuad = new FullScreenQuad(this.outputMaterial);
+    this.context = {
+      colour: this.colourTarget.texture,
+      depth: this.depthTexture,
+      normal: this.normalTarget.texture,
+      write: this.ping[0],
+      camera,
+      size: this.renderResolution,
+      scene,
+      time: 0,
+    };
   }
 
   /** The look's dials, written by `PostFX.apply`. See `RetroShader`. */
@@ -216,6 +231,8 @@ export class PixelStage extends Pass {
     // the geometry misses, which outdoors is the whole sky.
     renderer.setClearColor(FLAT_NORMAL, 1);
     this.scene.overrideMaterial = this.normalMaterial;
+    // Glow and cover out, for the one pass that reads geometry as geometry.
+    showSurfaces(false);
     renderer.render(this.scene, this.camera);
 
     this.scene.overrideMaterial = priorOverride;
@@ -224,26 +241,22 @@ export class PixelStage extends Pass {
     // instanced construction, so a normal buffer left to the override alone
     // ends at the ground under every blade and plume.
     drawCoverNormals(renderer, this.scene, this.camera);
+    showSurfaces(true);
     gpu?.end();
 
     let colour: THREE.Texture = this.colourTarget.texture;
     let next = 0;
 
     // --- the effect chain ---------------------------------------------------
+    const context = this.context;
+    context.time = this.time;
     for (const effect of this.effects) {
       if (!effect.enabled) continue;
       gpu?.begin(effect.label);
       const write = this.ping[next];
-      effect.render(renderer, {
-        colour,
-        depth: this.depthTexture,
-        normal: this.normalTarget.texture,
-        write,
-        camera: this.camera,
-        size: this.renderResolution,
-        scene: this.scene,
-        time: this.time,
-      });
+      context.colour = colour;
+      context.write = write;
+      effect.render(renderer, context);
       gpu?.end();
       // A passthrough effect drew to its own target; the chain's colour is
       // untouched and the ping-pong slot stays free.

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { AudioEngine } from '../AudioEngine';
 import type { SoundModel } from '../Emitter';
 import { createNoiseBuffers } from '../noise';
+import { awaitParticles } from '../particles/Particles';
 import { Weather } from '../weather';
 import { DEFAULT_AUDIO } from '../AudioEngine';
 
@@ -70,12 +71,15 @@ const ORIGIN = new THREE.Vector3();
  * Models only touch `context`, `noise`, `weather` and — for the two that
  * connect themselves — `dry` and `send`, so those are what this provides.
  */
-function standIn(context: OfflineAudioContext, destination: AudioNode): AudioEngine {
+async function standIn(context: OfflineAudioContext, destination: AudioNode): Promise<AudioEngine> {
   const engine = {
     context,
     settings: { ...DEFAULT_AUDIO },
     weather: new Weather(),
-    noise: createNoiseBuffers(context),
+    noise: await createNoiseBuffers(context).then(async (noise) => {
+      await awaitParticles(context, noise.white);
+      return noise;
+    }),
     // The two self-connecting models get a bus each. Both land in the same
     // place: a measurement of footsteps wants the reverb send included,
     // because that is what the player hears.
@@ -103,7 +107,7 @@ export async function render(
   const length = Math.ceil((seconds * sampleRate) / STEP_SAMPLES) * STEP_SAMPLES;
   const context = new OfflineAudioContext(1, length, sampleRate);
 
-  const engine = standIn(context, context.destination);
+  const engine = await standIn(context, context.destination);
   const model = subject.build(engine);
   model.output.connect(context.destination);
 

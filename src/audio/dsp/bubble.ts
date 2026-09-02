@@ -7,6 +7,8 @@
  * shrinks. A decaying sine at constant pitch is a blip, not water.
  */
 
+import { BUBBLE, particleNode, particlesReady, type ParticleNode } from '../particles/Particles';
+
 /** Minnaert resonance. `r` in metres. */
 export function bubbleHz(radius: number): number {
   return 3.26 / Math.max(radius, 5e-5);
@@ -41,6 +43,22 @@ export function dampingFor(hz: number): number {
   return 0.043 * hz + 0.0014 * Math.pow(hz, 1.5);
 }
 
+/**
+ * The worklet behind each node bubbles are popped into, made on first use.
+ * A target that goes away takes its worklet with it: the map is weak.
+ */
+const spouts = new WeakMap<AudioNode, ParticleNode>();
+
+function spoutFor(context: BaseAudioContext, target: AudioNode): ParticleNode | null {
+  if (!particlesReady(context)) return null;
+  let spout = spouts.get(target);
+  if (!spout) {
+    spout = particleNode(context, 1, (node) => node.connect(target));
+    spouts.set(target, spout);
+  }
+  return spout;
+}
+
 /** Schedules one bubble at audio time `at`. Returns its length in seconds. */
 export function popBubble(
   context: BaseAudioContext,
@@ -54,6 +72,12 @@ export function popBubble(
     bubble.damping === undefined
       ? (bubble.cycles ?? CYCLES) / hz
       : 1 / (dampingFor(hz) * bubble.damping);
+
+  const spout = spoutFor(context, target);
+  if (spout) {
+    spout.write(BUBBLE, at, decay + 0.01, bubble.level, 0, hz, rise, decay);
+    return decay;
+  }
 
   const osc = context.createOscillator();
   osc.type = 'sine';

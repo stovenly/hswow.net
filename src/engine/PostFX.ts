@@ -14,18 +14,17 @@ import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
 import { HeldEffect } from './HeldOverlay';
 import { GlitchEffect } from './Glitch';
-import { applyGlitchDisplacement, glitchUniforms, glitchVariant, setGlitchErode } from '../art/glitch';
+import { applyGlitchDisplacement, glitchUniforms, glitchVariant, setGlitchVolumes } from '../art/glitch';
 import { HorrorEffect } from './Horror';
-import { applyHorrorDisplacement, horrorUniforms } from '../art/horror';
+import { applyHorrorDisplacement, horrorUniforms, horrorVariant, setHorrorVolumes } from '../art/horror';
 import { EffectMaskPass } from './EffectMask';
 import { maskState } from '../art/effectId';
 import { COLORBLIND_CODE, type ColorblindMode } from './RetroShader';
 import { Sky, DEFAULT_SKY, type SkySettings, type DeckState } from './Sky';
 import { fogUniforms } from './fog';
 import { loadPreset, savePreset, clearPreset } from '../dev/presets';
-import { setGlowVisible } from '../art/glow';
-import { COVER_MATERIAL, TUFT_MATERIAL, setCoverDraw, setCoverLod, type CoverLod } from '../art/cover';
-import { BOLT_MATERIAL } from '../art/bolt';
+import { setCoverDraw, setCoverLod, type CoverLod } from '../art/cover';
+import { showSurfaces } from './surfaces';
 import { COVER_POOL_SCALE } from '../art/cover-sample';
 import { detailUniforms } from '../art/detail';
 import { finishUniforms } from '../art/finish';
@@ -336,7 +335,6 @@ export class PostFX {
     if (!(this.settings.quantize in QUANTIZE_CODE)) this.settings.quantize = 'levels';
 
     viewport.scene.add(this.sky.mesh);
-    this.hideGlowFromNormals(viewport.scene);
 
     this.pixelStage = new PixelStage(1, viewport.scene, viewport.camera);
     this.gpu = new GpuClock(viewport.renderer);
@@ -746,24 +744,6 @@ export class PostFX {
     this.gtao.setFog(fog.near, fog.far, fogUniforms.uFogRamp.value);
   }
 
-  /**
-   * Keeps glow and groundcover out of the normal pass, which is what the
-   * ambient occlusion reads. It has no concept of transparency, and cover
-   * builds its blades in its own vertex shader, so both come back wrong.
-   * `overrideMaterial` being set identifies the pass.
-   */
-  private hideGlowFromNormals(scene: THREE.Scene): void {
-    scene.onBeforeRender = (_renderer, rendered) => {
-      const colourPass = (rendered as THREE.Scene).overrideMaterial === null;
-      // Every glow, the per-prop copies included: a window's beam left in the
-      // normal pass occludes as if it were a solid box.
-      setGlowVisible(colourPass);
-      COVER_MATERIAL.visible = colourPass;
-      TUFT_MATERIAL.visible = colourPass;
-      BOLT_MATERIAL.visible = colourPass;
-    };
-  }
-
   /** Render height in chunky pixels, for the groundcover width clamp. */
   get artHeight(): number {
     return this.pixelStage.renderHeight;
@@ -811,13 +791,16 @@ export class PostFX {
     const held = this.pixelStage.effects.map((effect) => effect.enabled);
     // Restored, not left where the loop ends: the switch invalidates every art
     // material, and only what these two frames draw is warmed again.
-    const wasEroding = glitchVariant() === 'erode';
+    const hadGlitch = glitchVariant() === 'glitch';
+    const hadHorror = horrorVariant() === 'horror';
     this.warming = true;
-    for (const eroding of [true, false]) {
-      setGlitchErode(eroding);
+    for (const on of [true, false]) {
+      setGlitchVolumes(on);
+      setHorrorVolumes(on);
       this.render(0);
     }
-    setGlitchErode(wasEroding);
+    setGlitchVolumes(hadGlitch);
+    setHorrorVolumes(hadHorror);
     this.warming = false;
     this.pixelStage.effects.forEach((effect, i) => {
       effect.enabled = held[i];
@@ -873,9 +856,7 @@ export class PostFX {
   }
 
   dispose(): void {
-    // Left set, the hook would keep flipping a shared material for a dead pipeline.
-    this.viewport.scene.onBeforeRender = () => {};
-    setGlowVisible(true);
+    showSurfaces(true);
     this.viewport.scene.remove(this.sky.mesh);
     this.sky.dispose();
     this.pixelStage.dispose();

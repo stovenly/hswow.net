@@ -11,11 +11,12 @@ import type * as THREE from 'three';
  * another mid grey.
  *
  * `gl.readPixels` on the default framebuffer, one pixel, immediately after the
- * composer has drawn. A one-pixel readback forces the GPU pipeline to
- * synchronise, so it runs `INTERVAL` frames apart — and only while the camera
- * is moving, since a still camera is looking at the same pixel. A still camera
- * drops to `STILL_INTERVAL`, slow enough to be nearly free and often enough
- * that a flame guttering behind the dot is noticed.
+ * composer has drawn — into a pixel pack buffer behind a fence, so the frame
+ * never waits on the GPU: the pixel is collected a frame or two later, once the
+ * fence reports done. It runs `INTERVAL` frames apart while the camera is
+ * moving, since a still camera is looking at the same pixel, and drops to
+ * `STILL_INTERVAL` otherwise, often enough that a flame guttering behind the
+ * dot is noticed.
  *
  * The pipeline chunks the image to three-pixel blocks before this runs, so the
  * sample is the colour of the block the crosshair sits in rather than a lone
@@ -47,6 +48,9 @@ export class Crosshair {
   private readonly element: HTMLElement | null;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly pixel = new Uint8Array(4);
+  private buffer: WebGLBuffer | null = null;
+  /** The read in flight, if any. One at a time. */
+  private fence: WebGLSync | null = null;
   private countdown = 0;
   private onLight = false;
   /** Where the camera stood last frame, for the still test. */
@@ -76,14 +80,17 @@ export class Crosshair {
     this.at.copy(_position);
     this.facing.copy(_quaternion);
 
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (this.fence) this.collect(gl);
+
     this.countdown--;
     // A view that has just started moving does not sit out the rest of a still
     // interval — the dot would be a second behind the first flick of the mouse.
     if (moved && this.countdown > INTERVAL) this.countdown = INTERVAL;
     if (this.countdown > 0) return;
     this.countdown = moved ? INTERVAL : STILL_INTERVAL;
+    if (this.fence) return;
 
-    const gl = this.renderer.getContext();
     // The pipeline may have left a target bound, and reading the wrong buffer
     // would sample an intermediate pass — the failure looks like the dot
     // deciding at random.
@@ -93,15 +100,27 @@ export class Crosshair {
     const height = gl.drawingBufferHeight;
     if (width === 0 || height === 0) return;
 
-    gl.readPixels(
-      width >> 1,
-      height >> 1,
-      1,
-      1,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      this.pixel,
-    );
+    this.buffer ??= gl.createBuffer();
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
+    // A fresh store per sample, so the driver's readback copy is never written
+    // over before it has been read.
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, 4, gl.STREAM_READ);
+    gl.readPixels(width >> 1, height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+  }
+
+  /** Takes the pixel if the read has landed. Never waits. */
+  private collect(gl: WebGL2RenderingContext): void {
+    if (!this.fence || !this.element) return;
+    const status = gl.clientWaitSync(this.fence, 0, 0);
+    if (status !== gl.ALREADY_SIGNALED && status !== gl.CONDITION_SATISFIED) return;
+    gl.deleteSync(this.fence);
+    this.fence = null;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.pixel);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
 
     // Rec. 709 luma on the sRGB values as they sit in the buffer, deliberately
     // not linearised: the question is how bright this looks to a person, and
