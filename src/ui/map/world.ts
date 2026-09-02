@@ -146,6 +146,7 @@ export function layoutWorld(zones: Map<ZoneId, Zone>, portals: PortalGraph): Wor
     b.degree++;
     return { ...edge, path: route(a.x, a.y, b.x, b.y, roadSeed(edge)) };
   });
+  uncross(list, nodes);
 
   const span = spanOf(nodes);
   const seed = hashString([...nodes.keys()].sort().join('|'));
@@ -168,6 +169,56 @@ export function chartFrom(layout: WorldLayout, raised: WorldRaised): WorldChart 
 
 function roadSeed(edge: { a: ZoneId; b: ZoneId }): number {
   return hashString(`road:${edge.a}|${edge.b}`);
+}
+
+/** Bends tried for a road that crosses another, after its own: less and less, then none. */
+const STRAIGHTER = [0.13, 0.13, 0.13, 0.08, 0.08, 0.04, 0];
+
+/**
+ * Two roads may meet at a place and nowhere else. A road that crosses another
+ * is redrawn with a different wander, then a lesser one, then straight, until
+ * it clears — in document order, so the result is the same everywhere.
+ */
+function uncross(list: WorldEdge[], nodes: Map<ZoneId, WorldNode>): void {
+  const crossesAny = (i: number): boolean => list.some((other, j) => j !== i && crosses(list[i].path, other.path));
+  for (let sweep = 0; sweep < 3; sweep++) {
+    let clean = true;
+    for (let i = 0; i < list.length; i++) {
+      if (!crossesAny(i)) continue;
+      clean = false;
+      const edge = list[i];
+      const a = nodes.get(edge.a) as WorldNode;
+      const b = nodes.get(edge.b) as WorldNode;
+      for (let attempt = 0; attempt < STRAIGHTER.length; attempt++) {
+        edge.path = route(a.x, a.y, b.x, b.y, roadSeed(edge) + attempt * 7919, STRAIGHTER[attempt]);
+        if (!crossesAny(i)) break;
+      }
+    }
+    if (clean) return;
+  }
+}
+
+/** Whether two polylines cross anywhere but at a shared end. */
+function crosses(p: readonly [number, number][], q: readonly [number, number][]): boolean {
+  for (let i = 0; i + 1 < p.length; i++) {
+    for (let j = 0; j + 1 < q.length; j++) {
+      if (segmentsCross(p[i], p[i + 1], q[j], q[j + 1])) return true;
+    }
+  }
+  return false;
+}
+
+function segmentsCross(a: [number, number], b: [number, number], c: [number, number], d: [number, number]): boolean {
+  const rx = b[0] - a[0];
+  const ry = b[1] - a[1];
+  const sx = d[0] - c[0];
+  const sy = d[1] - c[1];
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return false;
+  const t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / den;
+  const u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / den;
+  const inside = 1e-6;
+  return t > inside && t < 1 - inside && u > inside && u < 1 - inside;
 }
 
 /**

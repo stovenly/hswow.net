@@ -173,16 +173,6 @@
         ],
         "radius": 26,
         "height": 2
-      },
-      {
-        "kind": "terrace",
-        "at": [
-          0,
-          0
-        ],
-        "radius": 12,
-        "height": -3.2,
-        "blend": 3
       }
     ],
     "patches": [

@@ -543,9 +543,17 @@ export class Terrain {
     let height = this.rasters.sculpt ? this.rasters.sculpt.sample(x, z) : 0;
 
     // First pass: everything that adds. Order does not matter, which is why it
-    // can be split between the always-list and one bucket.
-    for (const index of this.always) height += this.riseAt(this.landforms[index], x, z);
-    for (const index of this.bucketAt(x, z)) height += this.riseAt(this.landforms[index], x, z);
+    // can be split between the always-list and one bucket. Channels are the
+    // exception: where two meet the ground is dug to the deeper, not to both.
+    let dug = 0;
+    for (const list of [this.always, this.bucketAt(x, z)]) {
+      for (const index of list) {
+        const form = this.landforms[index];
+        if (form.kind === 'channel') dug = Math.min(dug, this.riseAt(form, x, z));
+        else height += this.riseAt(form, x, z);
+      }
+    }
+    height += dug;
 
     // Second pass: levelling. Separate from the sum above because blending
     // toward a target is not something that can be added in — a terrace has to
