@@ -83,3 +83,29 @@ registerInteriorStyle('countryside-cellar', {
   ceiling: PALETTE.TIMBER_DARK,
   beam: PALETTE.BARK,
 });
+
+/**
+ * The barn: boards underfoot and boards on every wall, up to an eave with the
+ * sky in the gaps, so the fog is the store's and the vibe the hard room's.
+ */
+const BARN: ZoneEnvironment = {
+  ...COUNTRYSIDE_STORE,
+  surface: 'wood',
+  fogColor: '#1a1610',
+  fogNear: 7,
+  fogFar: 28,
+  ambientSky: 0xb0a48a,
+  ambientIntensity: 2.5,
+  firstPersonReverb: 0.6,
+};
+registerEnvironment('barn', BARN);
+
+/** Boarded all round; the timber is the wall. */
+registerInteriorStyle('barn', {
+  floor: PALETTE.TIMBER_DARK,
+  floorSeam: 0x14110d,
+  wall: PALETTE.TIMBER,
+  wallTrim: PALETTE.BARK,
+  ceiling: PALETTE.TIMBER_DARK,
+  beam: PALETTE.BARK,
+});

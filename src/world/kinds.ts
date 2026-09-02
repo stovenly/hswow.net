@@ -698,17 +698,27 @@ registerEntryKind<WaterEntry>({
     width: { type: 'number', min: 0.5, max: 200, step: 0.1 },
     depth: { type: 'number', min: 0.5, max: 200, step: 0.1 },
     chop: { type: 'number', min: 0, max: 3, step: 0.01 },
+    taper: { type: 'number', min: 0, max: 8, step: 0.1, label: 'fade over (m)' },
     segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
   },
   defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
   build(entry, ctx) {
     const holder = new THREE.Object3D();
     applyPlacement(holder, entry, ctx);
+    const at = holder.position.clone();
+    const chop = entry.chop ?? 1;
+    const taper = entry.taper ?? 0;
     return waterPlane({
       width: entry.width,
       depth: entry.depth,
-      at: holder.position.clone(),
-      chop: entry.chop,
+      at,
+      chop:
+        taper > 0
+          ? (x, z) => {
+              const t = Math.min(1, Math.max(0, (at.y - ctx.groundAt(x, z)) / taper));
+              return chop * t * t * (3 - 2 * t);
+            }
+          : chop,
       flow: entry.flow ? new THREE.Vector2(entry.flow[0], entry.flow[1]) : undefined,
       segment: entry.segment,
     });

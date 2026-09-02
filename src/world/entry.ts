@@ -334,6 +334,8 @@ export interface WaterEntry extends EntryBase {
   width: number;
   depth: number;
   chop?: number;
+  /** Metres of column over which the chop fades in from nothing at the bed. */
+  taper?: number;
   flow?: readonly [number, number];
   segment?: number;
 }
