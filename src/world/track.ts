@@ -744,10 +744,12 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
       const reach = sample.half - strip.inset;
       const count = Math.max(1, Math.floor((reach * 2) / pitch));
       const gap = (reach * 2) / count;
-      const stagger = row % 2 === 0 ? 0 : gap / 2;
-      for (let k = 0; k < count; k++) {
-        const t = -reach + gap * (k + 0.5) + stagger + rng.around(0, gap * 0.2);
-        if (Math.abs(t) > reach - gap * 0.2) continue;
+      // Alternate rows carry one site fewer, set half a gap over, so both
+      // edges are met the same way — a row shifted whole loses its last site
+      // over one edge and the edge stones there stretch across two rows.
+      const odd = row % 2 === 1;
+      for (let k = 0; k < (odd ? count - 1 : count); k++) {
+        const t = -reach + gap * (k + (odd ? 1 : 0.5)) + rng.around(0, gap * 0.2);
         const advance = s - sample.s + rng.around(0, pitch * 0.2);
         settle(sample.x + sample.tx * advance + sample.nx * t, sample.z + sample.tz * advance + sample.nz * t, strip.surface);
       }
