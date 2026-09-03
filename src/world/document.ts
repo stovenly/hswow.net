@@ -48,7 +48,6 @@ import { dropWarm, useWarm, warmDocument, takeWarm, TERRAIN_ASK, SKIRT_ASK } fro
 import { finishCaptured } from '../art/dress';
 import { markVista } from '../art/vista';
 import { hashString } from './loot';
-import { TRACK_GROUND } from './track';
 import type { CoverPatch, GroundPatch, PatchShape } from './ground';
 
 /**
@@ -475,9 +474,8 @@ function terrainOptions(spec: TerrainSpec, tracks: readonly TrackEntry[]): Terra
   const patches: GroundPatch[] = [...(spec.patches ?? [])];
   const verges: CoverPatch[] = [];
   for (const track of tracks) {
-    const shape = { kind: 'path', through: track.through, width: track.width } as const;
-    patches.push({ ...shape, material: TRACK_GROUND[track.surface] });
-    if (track.edge === 'verge') verges.push({ ...shape, width: track.width + 2, cover: 'tussock', edge: 'feather' });
+    if (track.edge !== 'verge') continue;
+    verges.push({ kind: 'path', through: track.through, width: track.width + 2, cover: 'tussock', edge: 'feather' });
   }
   const grown: CoverPatch[] = [...(spec.cover ?? []), ...verges];
   const rasters: TerrainRasters = {};

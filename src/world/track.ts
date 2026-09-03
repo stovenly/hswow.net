@@ -4,7 +4,7 @@ import { createRng, type Rng } from '../art/random';
 import { PALETTE, blend, shade } from '../art/palette';
 import { stoneColours } from '../art/masonry';
 import { markCollidable } from '../player/Collider';
-import { GROUND, type GroundName } from './ground';
+import { GROUND } from './ground';
 import type { SurfaceName } from '../audio/models/footsteps';
 import type { GroundAt, Point } from './placement';
 
@@ -44,15 +44,6 @@ export function liftOf(surface: TrackSurface, width: number): number {
 }
 
 export const TRACK_SURFACES: readonly TrackSurface[] = ['cobble', 'flagstone', 'gravel', 'dirt', 'boards'];
-
-/** What the terrain is painted under each surface. */
-export const TRACK_GROUND: Record<TrackSurface, GroundName> = {
-  cobble: 'cobble',
-  flagstone: 'flagstone',
-  gravel: 'gravel',
-  dirt: 'dirt',
-  boards: 'boards',
-};
 
 const UNDERFOOT: Record<TrackSurface, SurfaceName> = {
   cobble: 'cobble-fixed',
@@ -800,6 +791,14 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   return group;
 }
 
+function toEdge(x: number, y: number, a: Cell2, b: Cell2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared));
+  return Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t));
+}
+
 /** An angle folded into -π..π. */
 function turn(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -825,36 +824,49 @@ function ringPaving(
   const nz = tx;
   const toPlane = (x: number, z: number): Cell2 => ({ x: (x - cx) * tx + (z - cz) * tz, y: (x - cx) * nx + (z - cz) * nz });
   const toWorld = (p: Cell2): [number, number] => [cx + tx * p.x + nx * p.y, cz + tz * p.x + nz * p.y];
-  const edges = ring.map((p, i) => {
-    const a = toPlane(p[0], p[1]);
-    const q = ring[(i + 1) % ring.length];
-    const b = toPlane(q[0], q[1]);
-    // The inside is where the middle is.
-    let ex = -(b.y - a.y);
-    let ey = b.x - a.x;
-    const l = Math.hypot(ex, ey) || 1;
-    ex /= l;
-    ey /= l;
-    if (ex * (0 - a.x) + ey * (0 - a.y) < 0) {
-      ex = -ex;
-      ey = -ey;
-    }
-    // Everything on the far side of the edge from the middle is cut: n·p >= c.
-    return { nx: -ex, ny: -ey, c: -(ex * a.x + ey * a.y) };
+  const flat = ring.map((p) => toPlane(p[0], p[1]));
+  // Which side of its edges the ring keeps: to the left of travel when it is
+  // wound counter-clockwise in the plane, to the right otherwise. The ring
+  // need not be convex, so a cell is cut only by the edges near its own site.
+  let twice = 0;
+  for (let i = 0; i < flat.length; i++) {
+    const a = flat[i];
+    const b = flat[(i + 1) % flat.length];
+    twice += a.x * b.y - b.x * a.y;
+  }
+  const side = twice >= 0 ? 1 : -1;
+  const edges = flat.map((a, i) => {
+    const b = flat[(i + 1) % flat.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l = Math.hypot(dx, dy) || 1;
+    const ex = (-dy / l) * side;
+    const ey = (dx / l) * side;
+    // Everything on the far side of the edge from the inside is cut: n·p >= c.
+    return { a, b, nx: -ex, ny: -ey, c: -(ex * a.x + ey * a.y) };
   });
+  const inside = (x: number, y: number): boolean => {
+    let crossings = 0;
+    for (const { a, b } of edges) {
+      if (a.y > y !== b.y > y && x < a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y)) crossings++;
+    }
+    return crossings % 2 === 1;
+  };
   let s0 = Infinity;
   let s1 = -Infinity;
   let t0 = Infinity;
   let t1 = -Infinity;
-  for (const p of ring) {
-    const q = toPlane(p[0], p[1]);
+  for (const q of flat) {
     s0 = Math.min(s0, q.x);
     s1 = Math.max(s1, q.x);
     t0 = Math.min(t0, q.y);
     t1 = Math.max(t1, q.y);
   }
-  const cells = pavingCells(rng, paving, s0, s1, () => [t0, t1], (cell) => {
+  const reach = paving.pitch * 3;
+  const cells = pavingCells(rng, paving, s0, s1, () => [t0, t1], (cell, s, t) => {
+    if (!inside(s, t)) return [];
     for (const edge of edges) {
+      if (toEdge(s, t, edge.a, edge.b) > reach) continue;
       cell = halfPlane(cell, edge.nx, edge.ny, edge.c);
       if (cell.length < 3) break;
     }

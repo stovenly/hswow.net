@@ -169,11 +169,10 @@ that subject by whoever is asking; asked without one, it is false.
   construction rather than by care.
 - **`track.ts`** — a path's surface as geometry, draped on the ground along a
   polyline: setts, slabs, gravel, a rutted dirt strip or a boardwalk, with an
-  unseen level bed over the surfaces made of pieces. A `track` entry declares
-  its ground once — `document.ts` paints the terrain its surface under the
-  strip and names the strip as a region under the track's id, and the skin
-  carries its own print for the cover mask — so the polyline lives in the
-  track and nowhere else.
+  unseen level bed over the surfaces made of pieces. The strip is the whole
+  of the path: the terrain under it is not painted, the skin carries its own
+  print for the cover mask, and `document.ts` names the strip as a region
+  under the track's id — so the polyline lives in the track and nowhere else.
 - **`trackNetwork.ts`** — a zone's tracks built together. Every line is cut
   where it crosses or ends on another, each cut is a junction paved once in
   the winning surface (cobble, flagstone, boards, gravel, dirt, the wider on
