@@ -35,13 +35,16 @@ export interface Answered {
   quest?: boolean;
 }
 
+/** What a line hands over or asks for: a written item, or any builder's making. */
+export type Handed = { item: string } | { builder: string; seed?: number };
+
 /**
  * What `giveItem` and `takeItem` reach for. Held by whoever owns the pack.
  * `from` is a named person's name, and absent for anybody who is not one.
  */
 export interface Satchel {
-  give(builder: string, seed?: number, from?: string): void;
-  take(builder: string, from?: string): boolean;
+  give(what: Handed, from?: string): void;
+  take(what: Handed, from?: string): boolean;
 }
 
 /** Who a line is being said by, for the effects that care. */
@@ -148,13 +151,18 @@ export function apply(
         break;
       }
       case 'giveItem':
-        if (satchel) satchel.give(effect.builder, effect.seed, from);
-        else console.warn(`dialogue: no pack to give "${effect.builder}" into`);
+      case 'takeItem': {
+        const what: Handed | null = effect.item
+          ? { item: effect.item }
+          : effect.builder
+            ? { builder: effect.builder, seed: effect.do === 'giveItem' ? effect.seed : undefined }
+            : null;
+        if (!what) console.warn(`dialogue: ${effect.do} names neither an item nor a builder`);
+        else if (!satchel) console.warn(`dialogue: no pack to ${effect.do === 'giveItem' ? 'give into' : 'take from'}`);
+        else if (effect.do === 'giveItem') satchel.give(what, from);
+        else satchel.take(what, from);
         break;
-      case 'takeItem':
-        if (satchel) satchel.take(effect.builder, from);
-        else console.warn(`dialogue: no pack to take "${effect.builder}" from`);
-        break;
+      }
     }
   }
 }

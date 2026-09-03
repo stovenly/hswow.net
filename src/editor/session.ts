@@ -8,6 +8,7 @@ import {
 } from '../world/document';
 import type { Entry } from '../world/entry';
 import { applyPlacement, type EntryPlacement } from '../world/entry';
+import { holdItems, type ItemDocument } from '../world/items';
 import { holdCast, type PersonDocument, type QuestDocument, type TraitDocument } from '../world/people';
 import type { ContentWorld } from '../app/content';
 import { Api, SaveConflict, type Family, type Named } from './api';
@@ -51,7 +52,7 @@ export class Session {
   readonly api: Api;
   private readonly docs = new Map<string, ZoneDocument>();
   /** The flat families, in the order the panel lists them. Shared with `holdCast`. */
-  private readonly families: Record<Family, Named[]> = { people: [], traits: [], quests: [] };
+  private readonly families: Record<Family, Named[]> = { people: [], traits: [], quests: [], items: [] };
   private readonly castCanon = new Map<string, string>();
   private readonly castDirty = new Set<string>();
   private manifest: PortalManifest = { portals: [] };
@@ -113,12 +114,13 @@ export class Session {
     void this.api.zones().catch(() => {});
   }
 
-  /** Adopts the people, traits and quests the page booted with, for the same reason. */
+  /** Adopts the people, traits, quests and items the page booted with, for the same reason. */
   adoptCast(world: ContentWorld): void {
     this.families.people = world.people;
     this.families.traits = world.traits;
     this.families.quests = world.quests;
-    for (const family of ['people', 'traits', 'quests'] as const) {
+    this.families.items = world.items;
+    for (const family of ['people', 'traits', 'quests', 'items'] as const) {
       for (const doc of this.families[family]) {
         this.castCanon.set(`${family}/${doc.id}`, JSON.stringify(doc));
       }
@@ -208,6 +210,7 @@ export class Session {
       this.families.traits as TraitDocument[],
       this.families.quests as QuestDocument[],
     );
+    holdItems(this.families.items as ItemDocument[]);
   }
 
   get zones(): readonly ZoneDocument[] {

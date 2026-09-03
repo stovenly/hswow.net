@@ -28,8 +28,9 @@ export type Effect =
   | { do: 'failQuest'; quest: string }
   | { do: 'grantTrait'; trait: string; person?: string }
   | { do: 'revokeTrait'; trait: string; person?: string }
-  | { do: 'giveItem'; builder: string; seed?: number }
-  | { do: 'takeItem'; builder: string };
+  /** A written item by id, or any builder's making. */
+  | { do: 'giveItem'; item?: string; builder?: string; seed?: number }
+  | { do: 'takeItem'; item?: string; builder?: string };
 
 export interface Info {
   when?: Condition;

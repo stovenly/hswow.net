@@ -72,11 +72,16 @@ export class WorldFlags implements WorldState {
   }
 
   /** Asks the pack, once the item systems have handed one over. */
-  pack: ((builder: string) => boolean) | null = null;
+  pack: { carries(builder: string): boolean; holds(item: string): boolean } | null = null;
 
   carries(builder: string): boolean {
     if (this.preview !== 'live') return this.preview === 'all';
-    return this.pack?.(builder) ?? false;
+    return this.pack?.carries(builder) ?? false;
+  }
+
+  holds(item: string): boolean {
+    if (this.preview !== 'live') return this.preview === 'all';
+    return this.pack?.holds(item) ?? false;
   }
 
   ambient(field: string): number | undefined {

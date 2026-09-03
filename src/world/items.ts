@@ -1,16 +1,20 @@
 import type * as THREE from 'three';
 import { builderByName } from '../art/registry';
+import { questById } from './people';
 
 /**
  * The item and container tables: which builders make one hand-sized thing a
  * person could stow in a pack, which of those are tools, and which builders
  * make something stock is kept in. Comparative judgements, so they live in one
- * list, not on the builders.
+ * list, not on the builders. And the catalogue: the items a project writes as
+ * documents, which are a builder's art under a name of their own.
  */
 
 export type ItemKind = 'tool' | 'accessory' | 'stuff';
 
 export interface Item {
+  /** The catalogue document it was made from. Absent for a thing the world rolled. */
+  id?: string;
   /** What the player reads: the list row and the crosshair tooltip. */
   name: string;
   /** Which slots it fits: only a tool in the tool slot, only an accessory in an accessory slot. */
@@ -21,6 +25,50 @@ export interface Item {
   seed?: number;
   /** Everything else the thing knows about itself. Plain JSON; see ITEM_STATE. */
   state?: Record<string, unknown>;
+}
+
+/** A written item: a builder's art under its own name, and what it is for. */
+export interface ItemDocument {
+  id: string;
+  name: string;
+  builder: string;
+  seed?: number;
+  /** Defaults to what the builder is: a tool if it is one, stuff otherwise. */
+  kind?: ItemKind;
+  /** The quest it belongs to, which every hover names. A quest item is unique. */
+  quest?: string;
+  /** The pack holds one at most; a second gift is refused. */
+  unique?: boolean;
+}
+
+const catalogue = new Map<string, ItemDocument>();
+
+export function holdItems(docs: readonly ItemDocument[]): void {
+  catalogue.clear();
+  for (const doc of docs) catalogue.set(doc.id, doc);
+}
+
+export function itemById(id: string): ItemDocument | undefined {
+  return catalogue.get(id);
+}
+
+export function everyItem(): readonly ItemDocument[] {
+  return [...catalogue.values()];
+}
+
+export function isUnique(doc: ItemDocument): boolean {
+  return doc.unique ?? doc.quest !== undefined;
+}
+
+/** The pack's copy of a written item. */
+export function itemFrom(doc: ItemDocument): Item {
+  return { id: doc.id, name: doc.name, kind: doc.kind ?? kindOf(doc.builder), builder: doc.builder, seed: doc.seed };
+}
+
+/** The name of the quest an item belongs to, for every hover that shows one. */
+export function questNameOf(item: Item): string | undefined {
+  const quest = item.id ? itemById(item.id)?.quest : undefined;
+  return quest ? (questById(quest)?.name ?? quest) : undefined;
 }
 
 /** The pickups with pages in them: E opens the reading screen, bound note or not. */

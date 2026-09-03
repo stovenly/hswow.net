@@ -41,8 +41,7 @@
           "then": [
             {
               "do": "giveItem",
-              "builder": "folded-letter",
-              "seed": 7101
+              "item": "nells-letter"
             },
             {
               "do": "startQuest",

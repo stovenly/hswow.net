@@ -35,8 +35,11 @@ export interface Prompt {
    * `read` — something with words in it. No joiner, and the emphasis inverts —
    * a Leather Bound Book is an object and A Treatise On Prague is the reason to
    * pick it up, so the title of the note is the loud line.
+   *
+   * `quest` — an item that belongs to a quest. Reads as a link, joined by
+   * `for`, and the second line is the quest's name.
    */
-  kind?: 'link' | 'read';
+  kind?: 'link' | 'read' | 'quest';
 }
 
 /**
@@ -116,6 +119,7 @@ export class Reticle {
         // A readable never takes the joiner even when it has a second line. The
         // note is not somewhere the book leads, it is what the book *is*.
         this.joiner.hidden = !second || kind === 'read';
+        this.joiner.textContent = kind === 'quest' ? 'for' : 'to';
         this.target.hidden = !second;
         this.element.classList.toggle('is-readable', kind === 'read');
       }

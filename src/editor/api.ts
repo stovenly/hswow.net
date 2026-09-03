@@ -13,7 +13,7 @@ export interface Listing {
 }
 
 /** A content family that is one flat directory of documents. Zones are not one. */
-export type Family = 'people' | 'traits' | 'quests';
+export type Family = 'people' | 'traits' | 'quests' | 'items';
 
 /** Anything with an id, which is every document in a family. */
 export interface Named {

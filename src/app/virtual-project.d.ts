@@ -12,6 +12,7 @@ declare module 'virtual:project' {
       people: Record<string, unknown>;
       traits: Record<string, unknown>;
       quests: Record<string, unknown>;
+      items: Record<string, unknown>;
       world: Record<string, unknown>;
       /** Sidecar rasters, by path, as URLs to fetch. */
       sidecars: Record<string, string>;

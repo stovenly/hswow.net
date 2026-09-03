@@ -7,7 +7,7 @@ import { InventoryUI } from '../ui/Inventory';
 import { Notices } from '../ui/Notices';
 import { ItemIcons, PACE_IDLE, PACE_OPEN } from '../ui/ItemIcons';
 import { SaveSlots } from '../ui/SaveSlots';
-import { displayOf, isReadable, kindOf, type Item } from '../world/items';
+import { displayOf, isReadable, isUnique, itemById, itemFrom, kindOf, type Item } from '../world/items';
 import { holdSatchel } from '../world/dialogue';
 import { worldChart } from '../world/chart';
 import { worldState } from '../world/state';
@@ -55,18 +55,35 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   // What a line of dialogue reaches for when it hands something over. The pack
   // is behind a key and the speech box covers the middle, so it says so.
   const notices = new Notices(overlay);
-  worldState.pack = (builder) => inventory.items.some((item) => item.builder === builder);
+  worldState.pack = {
+    carries: (builder) => inventory.items.some((item) => item.builder === builder),
+    holds: (id) => inventory.items.some((item) => item.id === id),
+  };
   holdSatchel({
-    give: (builder, seed = 0, from) => {
-      const name = displayOf(builder, seed);
-      inventory.add({ name, kind: kindOf(builder), builder, seed });
-      notices.say(from ? `${from} gave you ${an(name)}` : `You received ${an(name)}`, 'gain');
+    give: (what, from) => {
+      let item: Item;
+      if ('item' in what) {
+        const doc = itemById(what.item);
+        if (!doc) return console.warn(`items: no item "${what.item}" is written`);
+        if (isUnique(doc) && inventory.items.some((held) => held.id === doc.id)) return;
+        item = itemFrom(doc);
+      } else {
+        const seed = what.seed ?? 0;
+        item = { name: displayOf(what.builder, seed), kind: kindOf(what.builder), builder: what.builder, seed };
+      }
+      inventory.add(item);
+      // A written item is named as itself; a rolled one is one of its kind.
+      const named = item.id ? item.name : an(item.name);
+      notices.say(from ? `${from} gave you ${named}` : `You received ${named}`, 'gain');
     },
-    take: (builder, from) => {
-      const at = inventory.items.findIndex((item) => item.builder === builder);
+    take: (what, from) => {
+      const at = inventory.items.findIndex((item) =>
+        'item' in what ? item.id === what.item : item.builder === what.builder,
+      );
       const taken = at >= 0 ? inventory.takeAt(at) : null;
       if (taken) {
-        notices.say(from ? `${from} took ${an(taken.name)}` : `You lost ${an(taken.name)}`, 'loss');
+        const named = taken.id ? taken.name : an(taken.name);
+        notices.say(from ? `${from} took ${named}` : `You lost ${named}`, 'loss');
       }
       return taken !== null;
     },

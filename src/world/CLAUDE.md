@@ -147,6 +147,15 @@ granted earlier, which is how a visitor's own trait beats the one the zone hands
 everybody standing in it. A creature naming a person wears that person's body,
 resolved before the warm pass so the warm and the walk ask for the same mesh.
 
+`items.ts` holds the fourth family: an **item** document is a builder's art
+under a name of its own — a letter that is Nell's, a candle that is Bess's —
+and optionally the quest it belongs to, which makes it unique in the pack and
+puts the quest's name under its own on every hover. A pack item made from one
+carries the document's id, and nothing else about it is special: it drops,
+lands and saves like anything the world rolled. Dialogue hands one over with
+`giveItem: { item }`, asks for it back with `takeItem: { item }`, and a
+condition asks `{ item }`; the builder forms of all three remain for stock.
+
 `state.ts` is what a `when` is judged against. Flags, quest stages, every
 stage a quest has been through with the world day it was reached on, and
 recast roles are held in memory and carried by a save; where the player stands

@@ -86,6 +86,8 @@ export type Condition =
   | { doing: string }
   /** The player's pack holds something this builder made. */
   | { carries: string }
+  /** The player's pack holds this written item. */
+  | { item: string }
   | { not: Condition }
   | { all: readonly Condition[] }
   | { any: readonly Condition[] };
@@ -117,6 +119,8 @@ export interface WorldState {
   traitsOf(person: string, placed: readonly string[]): readonly string[];
   /** Whether the player's pack holds something this builder made. */
   carries(builder: string): boolean;
+  /** Whether the player's pack holds this written item. */
+  holds(item: string): boolean;
 }
 
 export const NO_STATE: WorldState = {
@@ -128,6 +132,7 @@ export const NO_STATE: WorldState = {
   region: () => false,
   ambient: () => undefined,
   carries: () => false,
+  holds: () => false,
   cast: () => undefined,
   traitsOf: (_person, placed) => placed,
 };
@@ -157,6 +162,7 @@ export function holds(condition: Condition | undefined, state: WorldState, who?:
     return (min === undefined || value >= min) && (max === undefined || value <= max);
   }
   if ('carries' in condition) return state.carries(condition.carries);
+  if ('item' in condition) return state.holds(condition.item);
   if ('trait' in condition) return who?.traits?.includes(condition.trait) ?? false;
   if ('person' in condition) return who?.person !== undefined && who.person === condition.person;
   if ('cast' in condition) {

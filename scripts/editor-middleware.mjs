@@ -15,7 +15,7 @@ const PREFIX = '/__editor/projects/';
 const SAFE = /^[a-z0-9][a-z0-9._-]*$/i;
 
 /** Content families that are one flat directory of documents, and nothing else. */
-const FAMILIES = new Set(['people', 'traits', 'quests']);
+const FAMILIES = new Set(['people', 'traits', 'quests', 'items']);
 
 function json(res, status, body) {
   res.statusCode = status;

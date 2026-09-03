@@ -9,6 +9,7 @@ import {
 import type { ZoneDefinition } from '../world/Zone';
 import type { PortalDefinition } from '../world/Portal';
 import type { WorldState } from '../world/entry';
+import { holdItems, type ItemDocument } from '../world/items';
 import {
   holdCast,
   type PersonDocument,
@@ -33,6 +34,7 @@ export interface ContentWorld {
   people: PersonDocument[];
   traits: TraitDocument[];
   quests: QuestDocument[];
+  items: ItemDocument[];
 }
 
 /**
@@ -84,6 +86,7 @@ function interpret(project: string, state?: WorldState): ContentWorld {
       people: [],
       traits: [],
       quests: [],
+      items: [],
     };
   }
 
@@ -97,6 +100,8 @@ function interpret(project: string, state?: WorldState): ContentWorld {
   const traits = Object.values(bundle.traits) as TraitDocument[];
   const quests = Object.values(bundle.quests) as QuestDocument[];
   holdCast(people, traits, quests);
+  const items = Object.values(bundle.items) as ItemDocument[];
+  holdItems(items);
 
   // Definitions first: a portal end reads the zone it stands in, and both
   // zones have to be registered before either door is placed.
@@ -111,6 +116,7 @@ function interpret(project: string, state?: WorldState): ContentWorld {
     people,
     traits,
     quests,
+    items,
   };
 }
 

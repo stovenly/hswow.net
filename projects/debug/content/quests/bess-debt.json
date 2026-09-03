@@ -84,8 +84,7 @@
           "then": [
             {
               "do": "giveItem",
-              "builder": "candle",
-              "seed": 7102
+              "item": "bess-candle"
             },
             {
               "do": "setStage",
@@ -129,21 +128,13 @@
         },
         {
           "when": {
-            "all": [
-              {
-                "quest": "bess-debt",
-                "done": 25
-              },
-              {
-                "carries": "candle"
-              }
-            ]
+            "item": "bess-candle"
           },
           "reply": "That is my candle. Well. Paid, then, and I will not sell to her again.",
           "then": [
             {
               "do": "takeItem",
-              "builder": "candle"
+              "item": "bess-candle"
             },
             {
               "do": "setStage",

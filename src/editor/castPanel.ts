@@ -1,6 +1,7 @@
 import type { Panel, Section } from './ui';
 import type { Family, Named } from './api';
 import type { Session } from './session';
+import type { ItemDocument, ItemKind } from '../world/items';
 import type {
   Folk,
   PersonDocument,
@@ -11,14 +12,15 @@ import type {
 } from '../world/people';
 
 /**
- * People, traits and quests: who is in the world and what any of them can say.
+ * People, traits, quests and items: who is in the world, what any of them can
+ * say, and what is written to be handed over.
  *
  * A condition is edited as JSON. There are a dozen cases in the union and a
  * form for all of them is a panel of its own; a field that refuses to commit
  * what it cannot parse is the honest version of the small one.
  */
 
-const FAMILIES: readonly Family[] = ['people', 'traits', 'quests'];
+const FAMILIES: readonly Family[] = ['people', 'traits', 'quests', 'items'];
 
 export interface CastPanelHooks {
   /** The zone showing, so a changed body raises the right level. */
@@ -67,6 +69,7 @@ export class CastPanel {
       this.panel.loose().note(`nothing in ${family} yet`);
       return;
     }
+    if (family === 'items') return this.item(doc as ItemDocument);
     if (family === 'people') this.person(doc as PersonDocument);
     if (family === 'traits') this.trait(doc as TraitDocument);
     if (family === 'quests') this.quest(doc as QuestDocument);
@@ -86,7 +89,9 @@ export class CastPanel {
         ? ({ id, name: id } satisfies PersonDocument)
         : this.family === 'quests'
           ? ({ id, name: id } satisfies QuestDocument)
-          : ({ id } satisfies TraitDocument);
+          : this.family === 'items'
+            ? ({ id, name: id, builder: 'candle' } satisfies ItemDocument)
+            : ({ id } satisfies TraitDocument);
     this.session.createCast(this.family, doc);
     this.chosen[this.family] = id;
     this.refresh();
@@ -195,6 +200,27 @@ export class CastPanel {
     }
     this.json(stages, 'stages (json)', doc.stages, (value) =>
       this.write(doc.id, (target: QuestDocument) => set(target, 'stages', value as QuestDocument['stages'])),
+    );
+  }
+
+  private item(doc: ItemDocument): void {
+    const what = this.panel.section('item');
+    what.text('name', doc.name, (value) => this.write(doc.id, (target: ItemDocument) => (target.name = value)));
+    what.text('builder', doc.builder, (value) =>
+      this.write(doc.id, (target: ItemDocument) => (target.builder = value)),
+    );
+    what.text('seed', doc.seed === undefined ? '' : String(doc.seed), (value) =>
+      this.write(doc.id, (target: ItemDocument) => set(target, 'seed', value.trim() === '' ? undefined : Number(value))),
+    );
+    what.select('kind', doc.kind ?? '', ['', 'tool', 'accessory', 'stuff'], (value) =>
+      this.write(doc.id, (target: ItemDocument) => set(target, 'kind', (value || undefined) as ItemKind | undefined)),
+    );
+    const quests = this.session.cast('quests').map((quest) => quest.id);
+    what.select('quest', doc.quest ?? '', ['', ...quests], (value) =>
+      this.write(doc.id, (target: ItemDocument) => set(target, 'quest', value || undefined)),
+    );
+    what.toggle('unique', doc.unique ?? doc.quest !== undefined, (value) =>
+      this.write(doc.id, (target: ItemDocument) => set(target, 'unique', value || undefined)),
     );
   }
 

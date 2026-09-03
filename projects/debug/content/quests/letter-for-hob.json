@@ -71,13 +71,13 @@
         },
         {
           "when": {
-            "carries": "folded-letter"
+            "item": "nells-letter"
           },
           "reply": "From Nell. Give it here, then.  ...  No. Tell her no, and tell her not to ask me again.",
           "then": [
             {
               "do": "takeItem",
-              "builder": "folded-letter"
+              "item": "nells-letter"
             },
             {
               "do": "setStage",

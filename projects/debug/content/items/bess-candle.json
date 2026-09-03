@@ -1,0 +1,7 @@
+{
+  "id": "bess-candle",
+  "name": "Bess's Candle",
+  "builder": "candle",
+  "seed": 7102,
+  "quest": "bess-debt"
+}

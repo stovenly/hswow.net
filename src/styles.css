@@ -2128,6 +2128,16 @@ body.is-identifying #pause {
   transform: translate(14px, 18px);
 }
 
+/* The quest an item is for, under its name and quieter, the way a door's destination sits under the door. */
+.inv-tip-quest {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 55%);
+}
+
 /* Nothing else on screen while the pack is open, the reading screen rule. */
 body.is-inventory #prompt {
   display: none;
