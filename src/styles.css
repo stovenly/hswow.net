@@ -1220,9 +1220,9 @@ body:not(.is-playing) #prompt {
 
 /* --- the quest mark -------------------------------------------------------- */
 
-/* An exclamation point in a ring, before anything that names a quest: the
-   pack's tip, the crosshair's second line, a line of dialogue, a notice. One
-   rule, so it is the same mark everywhere. */
+/* An exclamation point in a ring, before a quest's name: the pack's tip, the
+   crosshair's second line, the journal notice. One rule, so it is the same mark
+   everywhere. */
 .quest-mark::before {
   content: '!';
   display: inline-block;

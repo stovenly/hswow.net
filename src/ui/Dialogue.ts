@@ -259,7 +259,7 @@ export class Dialogue {
         topic.chosen?.();
         this.say(topic.reply);
       });
-      if (topic.quest) choice.classList.add('is-quest', 'quest-mark');
+      if (topic.quest) choice.classList.add('is-quest');
       this.choicesEl.append(choice);
     }
     // Always there, always last, and set apart: it is the way out rather than
