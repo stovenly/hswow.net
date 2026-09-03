@@ -45,13 +45,16 @@ export interface WindModel extends SoundModel {
   setTone(hz: number): void;
 }
 
+/** The model runs hot against the rest of the air; every stated gain is taken down by this. */
+const WIND_TRIM = 0.7;
+
 export function createWind(engine: AudioEngine, options: WindOptions = {}): WindModel {
   const context = engine.context;
   const noise = engine.noise;
   if (!noise) throw new Error('wind model built before the noise buffers were ready');
 
   const output = context.createGain();
-  output.gain.value = options.gain ?? 0.5;
+  output.gain.value = (options.gain ?? 0.5) * WIND_TRIM;
 
   // Everything lands here first, so the tone control shapes all three layers
   // together rather than each of them fighting the others.

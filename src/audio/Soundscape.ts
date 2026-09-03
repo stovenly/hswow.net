@@ -199,18 +199,18 @@ export class Soundscape {
     let rainBus: GainNode | null = null;
     if (bedSpecs.length > 0) {
       const bus = engine.context.createGain();
-      bus.connect(engine.dry);
+      bus.connect(engine.ambienceBus);
       this.bedBus = bus;
       for (const declared of bedSpecs) {
         const model = buildModel(engine, declared);
         const gain = engine.context.createGain();
         gain.gain.value = declared.gain ?? 1;
-        // Precipitation goes to the weather bus wherever it was declared, so
-        // one slider covers it whether the zone asked for rain or the rig did.
-        // Through a fader of the zone's own on the way, because it still has to
-        // switch off with the zone: the rig drives the *active* zone's bed and
-        // no other, so a bed that is not silenced here is never silenced.
-        if (declared.model === 'rain') {
+        // Rain and wind go to the weather bus wherever they were declared, so
+        // one slider covers them whether the zone asked or the rig did.
+        // Through a fader of the zone's own on the way, because they still have
+        // to switch off with the zone: the rig drives the *active* zone's bed
+        // and no other, so a bed that is not silenced here is never silenced.
+        if (declared.model === 'rain' || declared.model === 'wind') {
           if (!rainBus) {
             rainBus = engine.context.createGain();
             rainBus.connect(engine.weatherBus);
@@ -276,8 +276,10 @@ export class Soundscape {
    * through a wall. Separate from `setActive`, which is for having left.
    */
   setBedLevel(level: number, seconds = 0.35): void {
-    if (!this.bedBus || !this.active) return;
-    this.bedBus.gain.setTargetAtTime(level, this.engine.context.currentTime, seconds);
+    if (!this.active) return;
+    const now = this.engine.context.currentTime;
+    this.bedBus?.gain.setTargetAtTime(level, now, seconds);
+    this.rainBus?.gain.setTargetAtTime(level, now, seconds);
   }
 
   update(dt: number, collider: Collider, retestOcclusion: boolean): void {

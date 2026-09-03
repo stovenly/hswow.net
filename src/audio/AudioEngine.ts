@@ -136,6 +136,9 @@ export class AudioEngine {
   private readonly stepsSend: GainNode;
   readonly creatures: GainNode;
   readonly voices: GainNode;
+  /** The air of a place: a zone's beds, and the weather bus on its way through. Held at `ambienceVolume`. */
+  readonly ambienceBus: GainNode;
+  /** Rain and wind, wherever they were declared. Held at `weatherVolume`, then under the ambience. */
   readonly weatherBus: GainNode;
   /** Everything but the voices, pulled down under a line of dialogue. See `duckUnder`. */
   readonly duck: GainNode;
@@ -201,6 +204,7 @@ export class AudioEngine {
     this.steps = this.context.createGain();
     this.creatures = this.context.createGain();
     this.voices = this.context.createGain();
+    this.ambienceBus = this.context.createGain();
     this.weatherBus = this.context.createGain();
 
     // A limiter, not a compressor, despite the node's name. Procedural audio
@@ -245,7 +249,8 @@ export class AudioEngine {
     // Past the duck, not through it: the bus that dips under a line of
     // dialogue may not dip the line itself.
     this.voices.connect(this.master);
-    this.weatherBus.connect(this.dry);
+    this.ambienceBus.connect(this.dry);
+    this.weatherBus.connect(this.ambienceBus);
 
     const spread = crossfeed(this.context);
     this.dry.connect(this.duck);
@@ -499,6 +504,7 @@ export class AudioEngine {
     this.hold(this.steps, this.settings.footstepVolume);
     this.hold(this.creatures, this.settings.creatureVolume);
     this.hold(this.voices, this.settings.npcVolume);
+    this.hold(this.ambienceBus, this.settings.ambienceVolume);
     this.hold(this.weatherBus, this.settings.weatherVolume);
 
     this.occlusionTimer -= dt;
