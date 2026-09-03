@@ -25,6 +25,32 @@
           "reply": "Nell. I keep the green tidy and the well covered, which is more work than either sounds."
         }
       ]
+    },
+    {
+      "key": "letter-start",
+      "label": "Is something the matter?",
+      "when": {
+        "quest": "letter-for-hob",
+        "stage": {
+          "max": 0
+        }
+      },
+      "infos": [
+        {
+          "reply": "There is a letter wants taking to Hob at the farm, and I cannot leave the green. Would you? He is to read it himself.",
+          "then": [
+            {
+              "do": "giveItem",
+              "builder": "folded-letter",
+              "seed": 7101
+            },
+            {
+              "do": "startQuest",
+              "quest": "letter-for-hob"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

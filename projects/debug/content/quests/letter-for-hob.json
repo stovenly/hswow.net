@@ -1,0 +1,137 @@
+{
+  "id": "letter-for-hob",
+  "name": "A Letter for Hob",
+  "cast": {
+    "sender": "nell",
+    "reader": "hob"
+  },
+  "stages": [
+    {
+      "at": 10,
+      "log": "Nell gave me a folded letter for Hob, who works the fields out at the farm. She would not say what is in it, only that he is to read it himself."
+    },
+    {
+      "at": 20,
+      "log": "Hob read Nell's letter where he stood. The answer is no, he said, and she is not to ask him again."
+    },
+    {
+      "at": 25,
+      "log": "I lost Nell's letter somewhere on the road. Hob has nothing to say to me and less to say to her.",
+      "then": [
+        {
+          "do": "failQuest",
+          "quest": "letter-for-hob"
+        }
+      ]
+    },
+    {
+      "at": 30,
+      "ends": true,
+      "log": "I told Nell what Hob said. She thanked me for the walk and nothing else."
+    }
+  ],
+  "topics": [
+    {
+      "key": "letter-where",
+      "label": "About the letter",
+      "when": {
+        "all": [
+          {
+            "cast": "sender",
+            "of": "letter-for-hob"
+          },
+          {
+            "quest": "letter-for-hob",
+            "stage": {
+              "max": 19
+            }
+          }
+        ]
+      },
+      "infos": [
+        {
+          "reply": "Hob. The farm, past the barn — he is in the fields all day. Do not read it, and do not let him tell you it can wait."
+        }
+      ]
+    },
+    {
+      "key": "letter",
+      "label": "Nell's letter",
+      "when": {
+        "cast": "reader",
+        "of": "letter-for-hob"
+      },
+      "infos": [
+        {
+          "when": {
+            "quest": "letter-for-hob",
+            "done": 20
+          },
+          "reply": "I have read it. Tell her what I told you and do not dress it up."
+        },
+        {
+          "when": {
+            "carries": "folded-letter"
+          },
+          "reply": "From Nell. Give it here, then.  ...  No. Tell her no, and tell her not to ask me again.",
+          "then": [
+            {
+              "do": "takeItem",
+              "builder": "folded-letter"
+            },
+            {
+              "do": "setStage",
+              "quest": "letter-for-hob",
+              "stage": 20
+            }
+          ]
+        },
+        {
+          "reply": "You had a letter for me and you have not got it now? Then there is nothing to say, is there.",
+          "then": [
+            {
+              "do": "setStage",
+              "quest": "letter-for-hob",
+              "stage": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "letter-back",
+      "label": "Hob's answer",
+      "when": {
+        "all": [
+          {
+            "cast": "sender",
+            "of": "letter-for-hob"
+          },
+          {
+            "quest": "letter-for-hob",
+            "done": 20
+          }
+        ]
+      },
+      "infos": [
+        {
+          "when": {
+            "quest": "letter-for-hob",
+            "done": 30
+          },
+          "reply": "You said. Leave it now."
+        },
+        {
+          "reply": "No. Well. It was a long way to walk for one word. Thank you for walking it.",
+          "then": [
+            {
+              "do": "setStage",
+              "quest": "letter-for-hob",
+              "stage": 30
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -49,6 +49,27 @@
           ]
         }
       ]
+    },
+    {
+      "key": "debt-start",
+      "label": "What are you counting?",
+      "when": {
+        "quest": "wats-debt",
+        "stage": {
+          "max": 0
+        }
+      },
+      "infos": [
+        {
+          "reply": "What Wat owes. Two winters of candles, and he is in the hut up the lane pretending he has never met me. Go and stand in his door until he remembers.",
+          "then": [
+            {
+              "do": "startQuest",
+              "quest": "wats-debt"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
