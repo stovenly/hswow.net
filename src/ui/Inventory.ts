@@ -324,8 +324,8 @@ export class InventoryUI {
     this.tip.textContent = card.name;
     if (!card.quest) return;
     const line = document.createElement('span');
-    line.className = 'inv-tip-quest';
-    line.textContent = `for ${card.quest}`;
+    line.className = 'inv-tip-quest quest-mark';
+    line.textContent = card.quest;
     this.tip.append(line);
   }
 

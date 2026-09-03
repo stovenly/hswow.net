@@ -7,7 +7,7 @@
  * and nothing to step.
  */
 
-export type Change = 'gain' | 'loss';
+export type Change = 'gain' | 'loss' | 'quest';
 
 /** How many stack before the oldest is dropped, so a long list cannot climb the screen. */
 const MOST = 5;
@@ -23,6 +23,7 @@ export class Notices {
   say(text: string, change: Change): void {
     const line = document.createElement('div');
     line.className = `notice is-${change}`;
+    if (change === 'quest') line.classList.add('quest-mark');
     line.textContent = text;
     line.addEventListener('animationend', () => line.remove());
     this.root.append(line);

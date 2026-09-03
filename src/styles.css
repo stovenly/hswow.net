@@ -22,6 +22,8 @@
      option has one place to reach, not two families of rules to find. */
   --prose: ui-serif, Georgia, "Iowan Old Style", Palatino, "Palatino Linotype",
     "Times New Roman", serif;
+  /* The colour of anything that belongs to a quest. */
+  --quest: #e6d39a;
 
   /* Where the paused game's furniture starts, measured from the top.
      Three elements share it: the options button, the controls panel beneath
@@ -1216,6 +1218,29 @@ body:not(.is-playing) #prompt {
   color: var(--ink);
 }
 
+/* --- the quest mark -------------------------------------------------------- */
+
+/* An exclamation point in a ring, before anything that names a quest: the
+   pack's tip, the crosshair's second line, a line of dialogue, a notice. One
+   rule, so it is the same mark everywhere. */
+.quest-mark::before {
+  content: '!';
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.45em;
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.15em;
+  letter-spacing: 0;
+  text-align: center;
+  text-shadow: none;
+  color: var(--quest);
+  border: 1px solid rgb(230 211 154 / 70%);
+  border-radius: 50%;
+  vertical-align: 0.12em;
+}
+
 /* --- speech ---------------------------------------------------------------- */
 
 /* A villager's line while you are talking to them. No panel and no background:
@@ -1316,7 +1341,7 @@ body:not(.is-playing) #prompt {
 
 /* A line that belongs to a live quest, so it is told from small talk. */
 .speech-choice.is-quest {
-  color: #e6d39a;
+  color: var(--quest);
 }
 
 /* The whole line is laid out at once and each letter comes up on its own, so
@@ -1370,6 +1395,10 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 
 .notice.is-loss {
   opacity: 0.72;
+}
+
+.notice.is-quest {
+  color: var(--quest);
 }
 
 @keyframes notice-life {
@@ -2128,14 +2157,14 @@ body.is-identifying #pause {
   transform: translate(14px, 18px);
 }
 
-/* The quest an item is for, under its name and quieter, the way a door's destination sits under the door. */
+/* The quest an item is for, under its name, behind the mark. */
 .inv-tip-quest {
   display: block;
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
   font-size: 0.72rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgb(220 220 200 / 55%);
+  color: rgb(220 220 200 / 62%);
 }
 
 /* Nothing else on screen while the pack is open, the reading screen rule. */

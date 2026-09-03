@@ -21,7 +21,7 @@ export function installJournal(app: App, overlay: HTMLElement, notices: Notices)
 
   worldState.onStage = (quest, at) => {
     const stage = questById(quest)?.stages?.find((one) => one.at === at);
-    if (stage?.log) notices.say('Journal updated', 'gain');
+    if (stage?.log) notices.say('Journal updated', 'quest');
   };
 
   window.addEventListener('keydown', (event) => {
