@@ -25,9 +25,13 @@ import type { Outline } from './vista';
  * allows two hills to overlap at the base and the relative drift between two of
  * them *is* the parallax.
  *
- * The clamp is one-sided, because motion is a ray: solved analytically against
- * each stopped prop's circle and by sphere tracing against the keep-out's distance
- * field. A prop already touching something is free to move away from it.
+ * The clamp is one-sided, because motion is a ray: sphere traced against the
+ * keep-out's distance field, and held off a stopped prop by the plane facing it
+ * rather than by its circle — a ray either hits a circle or slips past one side of
+ * it, and which side flips as the camera turns, which is a hill that jumps. A
+ * stopped prop also counts for more the further short it stopped, so an obstacle
+ * arrives gradually rather than appearing. A prop already touching something is
+ * free to move away from it.
  */
 
 /** One prop that moves, and what it needs to know to be stopped. */
@@ -47,6 +51,8 @@ export interface ParallaxProp {
  * leaves the prop short of where it could have gone rather than through something.
  */
 const MARCH = 12;
+/** Metres short a prop has stopped by the time it is a full obstacle to the ones behind it. */
+const OBSTACLE_FADE = 8;
 
 export class VistaParallax {
   /** Resolve order: nearest the keep-out first. See the class note. */
@@ -122,15 +128,16 @@ export class VistaParallax {
           // Props that got where parallax sent them are not in the way — see
           // the class note. Only the ones that stopped short are.
           if (this.short[j] <= 0) continue;
-          const reach = this.rayCircle(
-            prop.base[0],
-            prop.base[1],
-            dx,
-            dz,
-            this.at[j * 2],
-            this.at[j * 2 + 1],
-            this.propRoom[i * n + j],
-          );
+          const room = this.propRoom[i * n + j] * Math.min(1, this.short[j] / OBSTACLE_FADE);
+          const ox = this.at[j * 2] - prop.base[0];
+          const oz = this.at[j * 2 + 1] - prop.base[1];
+          const away = Math.hypot(ox, oz);
+          if (away < 1e-6) continue;
+          // How much of each metre of travel closes on the obstacle. None, or
+          // less, and the plane is never reached.
+          const closing = (ox * dx + oz * dz) / away;
+          if (closing <= 1e-6) continue;
+          const reach = Math.max(0, away - room) / closing;
           if (reach < gone) gone = reach;
         }
       }
@@ -172,31 +179,5 @@ export class VistaParallax {
       gone = Math.min(span, gone + clear);
     }
     return gone;
-  }
-
-  /**
-   * Where a ray first touches a circle, as a distance along the ray, or Infinity.
-   * One-sided on purpose: a ray starting inside the circle is free to leave and
-   * forbidden to sink further, rather than being pinned where it stands.
-   */
-  private rayCircle(
-    x: number,
-    z: number,
-    dx: number,
-    dz: number,
-    cx: number,
-    cz: number,
-    radius: number,
-  ): number {
-    const ox = x - cx;
-    const oz = z - cz;
-    // Negative means the ray is closing on the centre.
-    const along = ox * dx + oz * dz;
-    const outside = ox * ox + oz * oz - radius * radius;
-    if (outside <= 0) return along >= 0 ? Infinity : 0;
-    if (along >= 0) return Infinity;
-    const discriminant = along * along - outside;
-    if (discriminant <= 0) return Infinity;
-    return -along - Math.sqrt(discriminant);
   }
 }
