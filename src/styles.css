@@ -2150,6 +2150,7 @@ body.is-identifying #pause {
   font-size: 0.95rem;
   letter-spacing: 0.1em;
   color: var(--ink);
+  text-align: center;
   white-space: nowrap;
   background: rgb(10 10 15 / 78%);
   border: 1px solid rgb(220 220 200 / 28%);
@@ -2157,10 +2158,12 @@ body.is-identifying #pause {
   transform: translate(14px, 18px);
 }
 
-/* The quest an item is for: a second line under the name, behind the mark. */
+/* Anything under the name sits below a rule. */
 .inv-tip-quest {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgb(220 220 200 / 18%);
 }
 
 /* Nothing else on screen while the pack is open, the reading screen rule. */
