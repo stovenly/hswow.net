@@ -1283,6 +1283,8 @@ body:not(.is-playing) #prompt {
   padding: 0.15rem 0;
   font: inherit;
   letter-spacing: inherit;
+  /* A button centres its own text; a line that wraps has to keep the column's edge. */
+  text-align: right;
   color: var(--ink);
   text-shadow: inherit;
   opacity: 0.72;
