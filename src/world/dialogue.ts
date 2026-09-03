@@ -7,6 +7,7 @@ import {
   questById,
   traitById,
   type Effect,
+  type QuestDocument,
   type Speech,
   type Topic,
 } from './people';
@@ -30,7 +31,7 @@ export interface Answered {
   label: string;
   reply: string;
   then?: readonly Effect[];
-  /** The topic is a live quest's own. */
+  /** The topic is an unfinished quest's own. */
   quest?: boolean;
 }
 
@@ -63,6 +64,13 @@ export interface Conversation {
 
 const NOTHING: readonly string[] = [];
 
+/** Over, one way or the other: failed, or standing on a stage that ends it. */
+export function questFinished(quest: QuestDocument, state: WorldState): boolean {
+  if (state.failed(quest.id)) return true;
+  const at = state.stage(quest.id);
+  return quest.stages?.some((stage) => stage.at === at && stage.ends === true) ?? false;
+}
+
 export function converse(mark: NpcMark, state: WorldState, doing?: string): Conversation {
   const person = mark.person ? personById(mark.person) : undefined;
   const carried = state.traitsOf(mark.person ?? '', mark.traits);
@@ -76,7 +84,7 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
   if (person) owners.push({ speech: person, rank: PERSON });
   for (const quest of everyQuest()) {
     if (state.stage(quest.id) <= 0 || state.failed(quest.id)) continue;
-    owners.push({ speech: quest, rank: quest.priority ?? QUEST, quest: true });
+    owners.push({ speech: quest, rank: quest.priority ?? QUEST, quest: !questFinished(quest, state) });
   }
 
   let greeting = NOTHING;
