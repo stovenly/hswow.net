@@ -3,5 +3,6 @@
   "name": "Nell's Letter",
   "builder": "folded-letter",
   "seed": 7101,
-  "quest": "letter-for-hob"
+  "quest": "letter-for-hob",
+  "text": "nells-letter"
 }

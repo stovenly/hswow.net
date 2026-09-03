@@ -43,6 +43,17 @@ and the shape of the window, and no two of those are known when this is
 written. So the words go into the real box and the browser is asked how tall
 they came out, which is slower than a guess and is right.`,
   },
+  {
+    id: 'nells-letter',
+    title: 'To Hob',
+    body: `Hob,
+
+You said you would think on it and it has been three weeks. I have kept the green and the well and I have not once come out to the fields after you, which you will grant is more than you have managed the other way.
+
+I am asking once more. If it is no, say no to whoever brings this and I will not ask again.
+
+Nell`,
+  },
 ];
 
 registerNotes(NOTES);

@@ -39,6 +39,8 @@ export interface ItemDocument {
   quest?: string;
   /** The pack holds one at most; a second gift is refused. */
   unique?: boolean;
+  /** The note written in it, for a readable. */
+  text?: string;
 }
 
 const catalogue = new Map<string, ItemDocument>();
@@ -62,7 +64,9 @@ export function isUnique(doc: ItemDocument): boolean {
 
 /** The pack's copy of a written item. */
 export function itemFrom(doc: ItemDocument): Item {
-  return { id: doc.id, name: doc.name, kind: doc.kind ?? kindOf(doc.builder), builder: doc.builder, seed: doc.seed };
+  const item: Item = { id: doc.id, name: doc.name, kind: doc.kind ?? kindOf(doc.builder), builder: doc.builder, seed: doc.seed };
+  if (doc.text) item.state = { text: doc.text };
+  return item;
 }
 
 /**

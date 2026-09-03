@@ -222,6 +222,9 @@ export class CastPanel {
     what.toggle('unique', doc.unique ?? doc.quest !== undefined, (value) =>
       this.write(doc.id, (target: ItemDocument) => set(target, 'unique', value || undefined)),
     );
+    what.text('text', doc.text ?? '', (value) =>
+      this.write(doc.id, (target: ItemDocument) => set(target, 'text', value || undefined)),
+    );
   }
 
   /** Greetings, farewells and topics. The same three for every family. */

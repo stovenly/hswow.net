@@ -1485,16 +1485,19 @@ export class ZoneManager {
       return { kind: 'talk', object: person.node, npc: person.npc };
     }
 
+    const carried = carriedOf(object);
     if (found?.text !== undefined) {
       // An id that resolves to nothing degrades to a plain label rather than
       // opening a blank page.
       const note = noteById(found.text);
-      // Only a bound note inverts the prompt; a single line keeps the item register.
-      reticle.set(note ? { title: found.label, target: note.title, kind: 'read' } : { title: found.label });
+      const card = carried?.pickup ? cardOf(carried.pickup.item) : undefined;
+      // A quest item names its quest over what is written in it; otherwise only
+      // a bound note inverts the prompt, and a single line keeps the item register.
+      if (card?.quest) reticle.set(itemPrompt(card));
+      else reticle.set(note ? { title: found.label, target: note.title, kind: 'read' } : { title: found.label });
       return note && object ? { kind: 'read', note, object } : null;
     }
 
-    const carried = carriedOf(object);
     if (carried?.container) {
       reticle.set({ title: carried.container.display });
       return { kind: 'container', object: carried.node, container: carried.container };
