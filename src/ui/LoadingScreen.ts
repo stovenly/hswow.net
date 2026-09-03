@@ -36,6 +36,8 @@ const FIRST = 0.06;
 export class LoadingScreen {
   private readonly root: HTMLElement;
   private readonly label: HTMLElement;
+  /** Where the wait is taking the player, over the caption. Empty for a wait that goes nowhere. */
+  private readonly place: HTMLElement;
   private shown = true;
 
   /**
@@ -48,6 +50,7 @@ export class LoadingScreen {
     this.root = document.getElementById('loading') ?? build();
     if (!this.root.isConnected) document.body.append(this.root);
     this.label = this.root.querySelector<HTMLElement>('.loading-label') ?? labelEl();
+    this.place = this.root.querySelector<HTMLElement>('.loading-place') ?? placeEl(this.label);
     document.body.classList.add('is-loading');
   }
 
@@ -56,8 +59,10 @@ export class LoadingScreen {
    * block. Idempotent: a wait already being shown carries on from where it is
    * rather than starting the bar again.
    */
-  async show(label: string): Promise<void> {
+  async show(label: string, place?: string): Promise<void> {
     this.label.textContent = label;
+    this.place.textContent = place ?? '';
+    this.place.hidden = !place;
     if (this.shown) {
       await paint();
       return;
@@ -160,6 +165,14 @@ function labelEl(): HTMLElement {
   return label;
 }
 
+function placeEl(before: HTMLElement): HTMLElement {
+  const place = document.createElement('div');
+  place.className = 'loading-place';
+  place.hidden = true;
+  before.before(place);
+  return place;
+}
+
 function div(className: string, into?: HTMLElement): HTMLElement {
   const element = document.createElement('div');
   element.className = className;
@@ -193,7 +206,9 @@ function build(): HTMLElement {
   // No title line: which game this is belongs to the page, and the page that
   // wants one carries the markup itself.
   const caption = div('boot-caption');
-  caption.append(labelEl());
+  const label = labelEl();
+  caption.append(label);
+  placeEl(label);
   div('bar-fill', div('bar', caption));
 
   root.append(sky, horizon, land, caption);

@@ -1061,6 +1061,13 @@ body.is-playing #crosshair {
   color: rgb(220 220 200 / 82%);
 }
 
+/* The name of the place a crossing is taking the player to. Hidden for a wait that goes nowhere. */
+.loading-place {
+  font-size: 1.3rem;
+  letter-spacing: 0.18em;
+  color: rgb(220 220 200 / 90%);
+}
+
 .loading-label {
   font-size: 0.68rem;
   letter-spacing: 0.22em;

@@ -768,7 +768,7 @@ export class ZoneManager {
     const cold = !this.warmed.has(zone.id);
 
     if (cold) {
-      await this.loading.show(`entering ${zone.name.toLowerCase()}`);
+      await this.loading.show('entering', zone.name);
       // Indeterminate: the step about to run is one synchronous `build()` that
       // cannot report its own progress.
       await this.loading.working('raising the world');
@@ -807,7 +807,7 @@ export class ZoneManager {
     setHorrorVolumes(this.horror.haunts(zone.id));
     // Only when it runs long: a compile that takes a frame is covered by the
     // fade already, and a screen that appears for one frame is a flicker.
-    const slow = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
+    const slow = window.setTimeout(() => void this.loading.show('compiling materials', zone.name), 250);
     try {
       await this.compile(root);
     } finally {
@@ -881,7 +881,7 @@ export class ZoneManager {
     // Again, with the zone in the scene. The compile above ran the root against
     // a stand-in, and a parameter that differs between the two is one a mesh
     // compiles the first frame it is drawn — whenever the player turns to it.
-    const late = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
+    const late = window.setTimeout(() => void this.loading.show('compiling materials', zone.name), 250);
     try {
       await this.compile(root);
     } finally {
