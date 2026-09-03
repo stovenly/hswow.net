@@ -93,7 +93,7 @@ export class Journal {
 
     const list = document.createDocumentFragment();
     list.append(this.heading(`active`, active.length));
-    if (active.length === 0) list.append(this.empty('nothing is written'));
+    if (active.length === 0) list.append(this.empty('no quests'));
     for (const quest of active) list.append(this.row(quest));
 
     const fold = this.heading(`finished`, finished.length, () => {
@@ -178,7 +178,7 @@ export class Journal {
       entry.append(when, text);
       page.append(entry);
     }
-    if (written === 0) page.append(this.empty('nothing is written'));
+    if (written === 0) page.append(this.empty('no entries'));
     this.pageEl.replaceChildren(page);
     this.pageEl.scrollTop = 0;
   }
