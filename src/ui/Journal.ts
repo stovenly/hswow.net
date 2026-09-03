@@ -91,9 +91,15 @@ export class Journal {
     if (!listed.some((quest) => quest.id === this.chosen)) this.chosen = active[0]?.id ?? finished[0]?.id ?? null;
     if (this.chosen && finished.some((quest) => quest.id === this.chosen)) this.finishedOpen = true;
 
+    if (listed.length === 0) {
+      this.listEl.replaceChildren(this.empty('No quests yet', 'What people ask of you is kept here.'));
+      this.pageEl.replaceChildren();
+      return;
+    }
+
     const list = document.createDocumentFragment();
     list.append(this.heading(`active`, active.length));
-    if (active.length === 0) list.append(this.empty('no quests'));
+    if (active.length === 0) list.append(this.empty('Nothing open'));
     for (const quest of active) list.append(this.row(quest));
 
     const fold = this.heading(`finished`, finished.length, () => {
@@ -138,11 +144,20 @@ export class Journal {
     return row;
   }
 
-  private empty(text: string): HTMLDivElement {
+  private empty(text: string, detail?: string): HTMLDivElement {
+    const block = document.createElement('div');
+    block.className = 'journal-empty';
     const line = document.createElement('div');
-    line.className = 'journal-empty';
+    line.className = 'journal-empty-line';
     line.textContent = text;
-    return line;
+    block.append(line);
+    if (detail) {
+      const more = document.createElement('div');
+      more.className = 'journal-empty-detail';
+      more.textContent = detail;
+      block.append(more);
+    }
+    return block;
   }
 
   private page(quest: QuestDocument | null): void {
@@ -178,7 +193,7 @@ export class Journal {
       entry.append(when, text);
       page.append(entry);
     }
-    if (written === 0) page.append(this.empty('no entries'));
+    if (written === 0) page.append(this.empty('Nothing written yet'));
     this.pageEl.replaceChildren(page);
     this.pageEl.scrollTop = 0;
   }

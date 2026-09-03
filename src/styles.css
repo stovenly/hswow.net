@@ -2338,10 +2338,30 @@ body.is-map #prompt {
 }
 
 .journal-empty {
+  display: grid;
+  gap: 0.35rem;
   padding: 0.5rem 0.7rem;
+}
+
+.journal-empty-line {
   font-size: 0.72rem;
   letter-spacing: 0.16em;
-  color: rgb(220 220 200 / 35%);
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 40%);
+}
+
+.journal-empty-detail {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: rgb(220 220 200 / 45%);
+}
+
+/* The whole list is empty: the message stands in the middle of the column rather than under a heading. */
+.journal-list > .journal-empty:only-child {
+  align-self: center;
+  margin-top: 30%;
+  text-align: center;
 }
 
 .journal-page {
