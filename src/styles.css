@@ -2029,7 +2029,8 @@ body.is-identifying #pause {
   grid-template-columns: var(--inv-cell);
 }
 
-/* Cells are one fixed size everywhere; a bigger window shows more of them. */
+/* One box round the whole grid; the cells inside are bare. Cells are one
+   fixed size everywhere, and a bigger window shows more of them. */
 .inv-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--inv-cell));
@@ -2037,6 +2038,9 @@ body.is-identifying #pause {
   justify-content: start;
   align-content: start;
   min-height: calc(var(--inv-cell) * 2);
+  padding: 0.35rem;
+  background: rgb(220 220 200 / 3%);
+  border: 1px solid rgb(220 220 200 / 22%);
 }
 
 .inv-cell,
@@ -2050,6 +2054,9 @@ body.is-identifying #pause {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgb(220 220 200 / 38%);
+}
+
+.inv-slot {
   background: rgb(220 220 200 / 5%);
   border: 1px solid rgb(220 220 200 / 22%);
 }
@@ -2057,11 +2064,17 @@ body.is-identifying #pause {
 .inv-cell,
 .inv-slot.has-item {
   color: var(--ink);
-  border-color: rgb(220 220 200 / 34%);
   cursor: grab;
 }
 
-.inv-cell:hover,
+.inv-slot.has-item {
+  border-color: rgb(220 220 200 / 34%);
+}
+
+.inv-cell:hover {
+  background: rgb(220 220 200 / 7%);
+}
+
 .inv-slot.has-item:hover {
   border-color: rgb(220 220 200 / 60%);
 }
