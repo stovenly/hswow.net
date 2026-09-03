@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import {
   buildJunction,
+  buildStonePaving,
   buildTrackWith,
+  isStone,
+  junctionRing,
   liftOf,
   rowOf,
   type JunctionArm,
+  type StoneRing,
+  type StoneStrip,
   type TrackEdge,
   type TrackSurface,
 } from './track';
@@ -78,9 +83,14 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
   const groups = new Map<string, THREE.Group>();
   for (const line of lines) groups.set(line.track.id, new THREE.Group());
 
-  // Each line's junctions in order along it, then the strips between.
+  // Each line's junctions in order along it, then the strips between. The
+  // stone strips and junctions are gathered and paved once, together.
   const arms = new Map<Node, JunctionArm[]>();
   for (const node of nodes) arms.set(node, []);
+  const stoneStrips: StoneStrip[] = [];
+  const stoneRings: StoneRing[] = [];
+  let stoneOwner: NetworkTrack | null = null;
+  let stoneWear = 0;
   for (const line of lines) {
     const hits = nodes
       .flatMap((node) => node.hits.filter((hit) => hit.line === line).map((hit) => ({ node, s: hit.s })))
@@ -108,6 +118,11 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
           },
         });
         group.add(built.group);
+        if (built.stone) {
+          stoneStrips.push(built.stone);
+          stoneWear += line.track.wear ?? 0.5;
+          if (!stoneOwner) stoneOwner = line.track;
+        }
         if (built.samples.length >= 2) {
           const arm = { surface: line.track.surface, width: line.track.width };
           if (fromNode) arms.get(fromNode)?.push({ ...arm, row: rowOf(built.samples[0]) });
@@ -127,6 +142,11 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
     const owner = node.hits
       .map((hit) => hit.line.track)
       .sort((a, b) => RANK.indexOf(a.surface) - RANK.indexOf(b.surface) || b.width - a.width)[0];
+    if (isStone(node.surface)) {
+      const ring = junctionRing([node.x, node.z], rows);
+      if (ring.length >= 3) stoneRings.push({ ring, lift: liftOf(node.surface, node.width), surface: node.surface });
+      return;
+    }
     groups.get(owner.id)?.add(
       buildJunction({
         at: [node.x, node.z],
@@ -139,6 +159,17 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
       }),
     );
   });
+  if (stoneOwner) {
+    groups.get(stoneOwner.id)?.add(
+      buildStonePaving({
+        strips: stoneStrips,
+        rings: stoneRings,
+        wear: stoneWear / Math.max(1, stoneStrips.length),
+        seed: stoneOwner.seed + 4099,
+        groundAt: options.groundAt,
+      }),
+    );
+  }
   return groups;
 }
 

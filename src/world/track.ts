@@ -32,10 +32,31 @@ export interface TrackOptions {
   ends?: { start?: number; end?: number };
 }
 
-/** A track built for the network: its group, and the line it was built on. */
+/** A track built for the network: its group, the line it was built on, and — for a stone surface — the strip the network paves. */
 export interface BuiltTrack {
   group: THREE.Group;
   samples: Sample[];
+  stone?: StoneStrip;
+}
+
+/** A strip of the stone paving: where it runs, how high its skin stands, and how it is cut. */
+export interface StoneStrip {
+  samples: Sample[];
+  profile: Profile;
+  /** Metres in from the edge the stones stop, for a kerb. */
+  inset: number;
+  surface: 'cobble' | 'flagstone';
+}
+
+/** A junction of the stone paving: its ring, and the height its skin stands at. */
+export interface StoneRing {
+  ring: readonly (readonly [number, number])[];
+  lift: number;
+  surface: 'cobble' | 'flagstone';
+}
+
+export function isStone(surface: TrackSurface): surface is 'cobble' | 'flagstone' {
+  return surface === 'cobble' || surface === 'flagstone';
 }
 
 /** Where the skin stands above the ground at the middle of a surface, which is what a junction is levelled to. */
@@ -63,7 +84,7 @@ const STATIONS = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1];
 const CROWN = 0.014;
 const LIFT = 0.025;
 const KERB_WIDTH = 0.18;
-const SETT_HEIGHT = 0.07;
+const SETT_HEIGHT = 0.045;
 const BOARD_LIFT = 0.12;
 
 export interface Sample {
@@ -104,6 +125,7 @@ export function buildTrackWith(options: TrackOptions): BuiltTrack {
   const underfoot = UNDERFOOT[surface];
   const parts: Part[] = [];
   let bedTop = 0;
+  let stone: StoneStrip | undefined;
   const eased = (profile: Profile): Profile => easeEnds(profile, samples, ends, options.width);
 
   switch (surface) {
@@ -134,24 +156,15 @@ export function buildTrackWith(options: TrackOptions): BuiltTrack {
       parts.push(...pebbles(samples, options.groundAt, profile, rng));
       break;
     }
-    case 'cobble': {
-      const profile = eased(crownProfile(options.width));
-      const grout = shade(PALETTE.STONE_DARK, 0.55);
-      const kerb = options.edge === 'kerb';
-      parts.push(...ribbon(samples, options.groundAt, profile, () => grout));
-      parts.push(...setts(samples, options.groundAt, profile, rng, wear, kerb ? KERB_WIDTH : 0));
-      if (kerb) parts.push(...kerbs(samples, options.groundAt, profile, rng));
-      bedTop = SETT_HEIGHT;
-      break;
-    }
+    // The stones themselves are the network's: one paving over every stone
+    // strip and junction, so a joint never lines up with a strip's end.
+    case 'cobble':
     case 'flagstone': {
       const profile = eased(crownProfile(options.width));
-      const grout = shade(PALETTE.STONE_DARK, 0.6);
       const kerb = options.edge === 'kerb';
-      parts.push(...ribbon(samples, options.groundAt, profile, () => grout));
-      parts.push(...slabs(samples, options.groundAt, profile, rng, wear, kerb ? KERB_WIDTH : 0));
       if (kerb) parts.push(...kerbs(samples, options.groundAt, profile, rng));
-      bedTop = 0.06;
+      stone = { samples, profile, inset: kerb ? KERB_WIDTH : 0, surface };
+      bedTop = bedTopOf(surface);
       break;
     }
     case 'boards': {
@@ -161,13 +174,15 @@ export function buildTrackWith(options: TrackOptions): BuiltTrack {
     }
   }
 
-  const skin = finish(assemble(parts), `track-${surface}`, 0, underfoot);
-  skin.name = 'track';
-  skin.userData.ground = true;
-  // The strip's print on the cover mask: bare under the track, thinning over the verge.
-  skin.userData.footprint = samples.map((sample) => [sample.x, sample.z, sample.half]);
-  skin.userData.footprintSoft = options.edge === 'verge' ? 0.9 : 0.3;
-  group.add(markCollidable(skin));
+  if (parts.length > 0) {
+    const skin = finish(assemble(parts), `track-${surface}`, 0, underfoot);
+    skin.name = 'track';
+    skin.userData.ground = true;
+    // The strip's print on the cover mask: bare under the track, thinning over the verge.
+    skin.userData.footprint = samples.map((sample) => [sample.x, sample.z, sample.half]);
+    skin.userData.footprintSoft = options.edge === 'verge' ? 0.9 : 0.3;
+    group.add(markCollidable(skin));
+  }
 
   if (bedTop > 0) {
     const profile = surface === 'boards' ? flatProfile() : eased(crownProfile(options.width));
@@ -179,16 +194,16 @@ export function buildTrackWith(options: TrackOptions): BuiltTrack {
     bed.userData.underfoot = underfoot;
     group.add(markCollidable(bed));
   }
-  return { group, samples };
+  return { group, samples, stone };
 }
 
-/** Metres above the ground the pieces of a surface stand, which is where its bed is. */
+/** Metres above the skin the pieces of a surface stand, which is where its bed is. */
 function bedTopOf(surface: TrackSurface): number {
   switch (surface) {
     case 'cobble':
-      return SETT_HEIGHT;
+      return SETT_HEIGHT - SINK;
     case 'flagstone':
-      return 0.06;
+      return 0.06 - SINK;
     case 'boards':
       return BOARD_LIFT;
     default:
@@ -445,122 +460,6 @@ function slabPaving(wear: number): Paving {
   return { pitch: 1.0, joint: 0.03, chamfer: 0.015 + 0.02 * wear, height: 0.06 };
 }
 
-/**
- * Stones as the wall builder lays them: sites jittered off a staggered grid
- * over the plane, and every stone the patch nearer its own site than any
- * other, so no joint runs straight and two stones share exactly one. `bound`
- * cuts a site's cell to the paving's own edge.
- */
-function pavingCells(
-  rng: Rng,
-  paving: Paving,
-  s0: number,
-  s1: number,
-  across: (s: number) => [number, number],
-  bound: (cell: Cell, s: number, t: number) => Cell,
-): Cell[] {
-  const { pitch } = paving;
-  const rows: { s: number; t: number }[][] = [];
-  for (let s = s0 + pitch / 2, row = 0; s < s1; s += pitch * 0.92, row++) {
-    const [t0, t1] = across(s);
-    const count = Math.max(1, Math.floor((t1 - t0) / pitch));
-    const gap = (t1 - t0) / count;
-    const stagger = row % 2 === 0 ? 0 : gap / 2;
-    const sites: { s: number; t: number }[] = [];
-    for (let k = 0; k < count; k++) {
-      const t = t0 + gap * (k + 0.5) + stagger + rng.around(0, gap * 0.2);
-      if (t < t0 + gap * 0.2 || t > t1 - gap * 0.2) continue;
-      sites.push({ s: s + rng.around(0, pitch * 0.2), t });
-    }
-    rows.push(sites);
-  }
-  const near = pitch * 2.4;
-  const cells: Cell[] = [];
-  rows.forEach((sites, row) => {
-    for (const site of sites) {
-      let cell: Cell = bound(
-        [
-          { x: site.s - near, y: site.t - near },
-          { x: site.s + near, y: site.t - near },
-          { x: site.s + near, y: site.t + near },
-          { x: site.s - near, y: site.t + near },
-        ],
-        site.s,
-        site.t,
-      );
-      for (let r = Math.max(0, row - 3); r <= Math.min(rows.length - 1, row + 3) && cell.length >= 3; r++) {
-        for (const other of rows[r]) {
-          if (other === site) continue;
-          const dx = other.s - site.s;
-          const dy = other.t - site.t;
-          const away = Math.hypot(dx, dy);
-          if (away < 1e-9 || away > near) continue;
-          const nx = dx / away;
-          const ny = dy / away;
-          cell = halfPlane(cell, nx, ny, (nx * (site.s + other.s) + ny * (site.t + other.t)) / 2);
-          if (cell.length < 3) break;
-        }
-      }
-      if (cell.length >= 3) cells.push(cell);
-    }
-  });
-  return cells;
-}
-
-function setts(
-  samples: Sample[],
-  groundAt: GroundAt,
-  profile: Profile,
-  rng: Rng,
-  wear: number,
-  inset: number,
-): Part[] {
-  return stripPaving(samples, groundAt, profile, rng, settPaving(wear), inset, stoneColours(rng, 0.1));
-}
-
-/** Stones over the strip, in its own (s, t) plane, stood on the skin. */
-function stripPaving(
-  samples: Sample[],
-  groundAt: GroundAt,
-  profile: Profile,
-  rng: Rng,
-  paving: Paving,
-  inset: number,
-  colour: () => number,
-): Part[] {
-  const length = samples[samples.length - 1].s;
-  const reachAt = (s: number): number => sampleAt(samples, s)[0].half - inset;
-  const cells = pavingCells(
-    rng,
-    paving,
-    0,
-    length,
-    (s) => [-reachAt(s), reachAt(s)],
-    (cell, s) => {
-      const reach = reachAt(s);
-      cell = halfPlane(cell, 0, 1, reach);
-      cell = halfPlane(cell, 0, -1, reach);
-      cell = halfPlane(cell, 1, 0, length);
-      return halfPlane(cell, -1, 0, 0);
-    },
-  );
-  const toWorld = (p: Cell2): [number, number] => {
-    const [sample] = sampleAt(samples, p.x);
-    const advance = p.x - sample.s;
-    return [sample.x + sample.tx * advance + sample.nx * p.y, sample.z + sample.tz * advance + sample.nz * p.y];
-  };
-  const parts: Part[] = [];
-  for (const cell of cells) {
-    const middle = centreOf(cell);
-    const [sample, index] = sampleAt(samples, middle.x);
-    const [mx, mz] = toWorld(middle);
-    const base = groundAt(mx, mz) + profile(middle.y / sample.half, index) - 0.015;
-    const geometry = prismOver(cell, toWorld, base, paving.height + rng.around(0, 0.003), paving, rng);
-    if (geometry) parts.push({ geometry, color: colour(), sway: 0 });
-  }
-  return parts;
-}
-
 function centreOf(cell: Cell): Cell2 {
   let x = 0;
   let y = 0;
@@ -633,6 +532,7 @@ function prismOver(
   height: number,
   paving: Paving,
   rng: Rng,
+  draped?: (x: number, z: number) => number,
 ): THREE.BufferGeometry | null {
   const foot = drawIn(cell, paving.joint / 2);
   const crown = drawIn(cell, paving.joint / 2 + paving.chamfer);
@@ -642,7 +542,11 @@ function prismOver(
     const [x, z] = toWorld(p);
     return new THREE.Vector3(x + rng.around(0, 0.002), y + rng.around(0, 0.001), z + rng.around(0, 0.002));
   };
-  const b = foot.map((p) => world(p, base));
+  // The foot follows the skin where one is given, so the stone stands on it however the ground lies.
+  const b = foot.map((p) => {
+    const [x, z] = toWorld(p);
+    return world(p, draped ? Math.min(base, draped(x, z)) : base);
+  });
   const t = crown.map((p) => world(p, top));
   const position: number[] = [];
   const tri = (p: THREE.Vector3, q: THREE.Vector3, r: THREE.Vector3): void => {
@@ -677,6 +581,258 @@ function prismOver(
   return geometry;
 }
 
+// --- the stone paving -----------------------------------------------------------
+
+export interface StonePavingOptions {
+  strips: readonly StoneStrip[];
+  rings: readonly StoneRing[];
+  wear?: number;
+  seed: number;
+  groundAt: GroundAt;
+}
+
+/** Metres the stones sink into the skin. */
+const SINK = 0.015;
+/** Metres of skin cell in the index the paving looks its strips up through. */
+const INDEX_CELL = 4;
+
+/**
+ * One paving over every stone strip and junction of a network: sites
+ * scattered over the whole of it, every stone the patch nearer its own site
+ * than any other, so the joints run on through a junction and across a
+ * strip's end as if nothing were there. Each cell is a plate of grout draped
+ * on the skin, a stone stood on it, and — unseen — its top in the bed.
+ */
+export function buildStonePaving(options: StonePavingOptions): THREE.Group {
+  const group = new THREE.Group();
+  const { strips, rings, groundAt } = options;
+  if (strips.length === 0 && rings.length === 0) return group;
+  const rng = createRng(options.seed);
+  const wear = Math.min(1, Math.max(0, options.wear ?? 0.5));
+  const pavings = { cobble: settPaving(wear), flagstone: slabPaving(wear) };
+  const colours = { cobble: stoneColours(rng, 0.1), flagstone: stoneColours(rng, 0.06) };
+
+  // --- where the paving is, and how high -----------------------------------
+  const index = new Map<number, { strip: StoneStrip; at: number }[]>();
+  const key = (x: number, z: number): number => Math.floor(x / INDEX_CELL) * 65536 + Math.floor(z / INDEX_CELL) + 32768;
+  for (const strip of strips) {
+    strip.samples.forEach((sample, at) => {
+      const k = key(sample.x, sample.z);
+      const held = index.get(k);
+      if (held) held.push({ strip, at });
+      else index.set(k, [{ strip, at }]);
+    });
+  }
+  const flats = rings.map((held) => {
+    let minX = Infinity;
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    let maxZ = -Infinity;
+    for (const [x, z] of held.ring) {
+      minX = Math.min(minX, x);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxZ = Math.max(maxZ, z);
+    }
+    return { ...held, minX, minZ, maxX, maxZ };
+  });
+  const inRing = (flat: (typeof flats)[number], x: number, z: number): boolean => {
+    if (x < flat.minX || x > flat.maxX || z < flat.minZ || z > flat.maxZ) return false;
+    let crossings = 0;
+    const ring = flat.ring;
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i];
+      const b = ring[(i + 1) % ring.length];
+      if (a[1] > z !== b[1] > z && x < a[0] + ((z - a[1]) * (b[0] - a[0])) / (b[1] - a[1])) crossings++;
+    }
+    return crossings % 2 === 1;
+  };
+  /** The nearest strip sample about a point, with the point's station on it: u across, advance along. */
+  const nearStrip = (x: number, z: number): { strip: StoneStrip; at: number; u: number; lift: number } | null => {
+    const cx = Math.floor(x / INDEX_CELL);
+    const cz = Math.floor(z / INDEX_CELL);
+    let best: { strip: StoneStrip; at: number; u: number; lift: number; away: number } | null = null;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const held = index.get((cx + dx) * 65536 + (cz + dz) + 32768);
+        if (!held) continue;
+        for (const { strip, at } of held) {
+          const sample = strip.samples[at];
+          const px = x - sample.x;
+          const pz = z - sample.z;
+          const advance = px * sample.tx + pz * sample.tz;
+          const s = sample.s + advance;
+          if (s < -0.01 || s > strip.samples[strip.samples.length - 1].s + 0.01) continue;
+          const across = px * sample.nx + pz * sample.nz;
+          const reach = sample.half - strip.inset;
+          if (Math.abs(across) > reach) continue;
+          const away = Math.abs(advance);
+          if (!best || away < best.away) {
+            const u = across / sample.half;
+            best = { strip, at, u, lift: Math.max(LIFT, strip.profile(u, at)), away };
+          }
+        }
+      }
+    }
+    return best;
+  };
+  const whereIs = (x: number, z: number): { surface: 'cobble' | 'flagstone'; lift: number } | null => {
+    let found: { surface: 'cobble' | 'flagstone'; lift: number } | null = null;
+    for (const flat of flats) {
+      if (inRing(flat, x, z) && (!found || flat.lift > found.lift)) found = { surface: flat.surface, lift: flat.lift };
+    }
+    const strip = nearStrip(x, z);
+    if (strip && (!found || strip.lift > found.lift)) found = { surface: strip.strip.surface, lift: strip.lift };
+    return found;
+  };
+  const skinAt = (x: number, z: number): number => groundAt(x, z) + (whereIs(x, z)?.lift ?? LIFT) - SINK;
+
+  // --- the sites ---------------------------------------------------------------
+  interface Site {
+    x: number;
+    z: number;
+    surface: 'cobble' | 'flagstone';
+  }
+  const sites: Site[] = [];
+  const taken = new Map<number, Site[]>();
+  const HASH = 0.5;
+  const hashKey = (x: number, z: number): number => Math.floor(x / HASH) * 65536 + Math.floor(z / HASH) + 32768;
+  const near = (x: number, z: number, within: number, visit: (site: Site) => boolean): void => {
+    const cx = Math.floor(x / HASH);
+    const cz = Math.floor(z / HASH);
+    const span = Math.ceil(within / HASH);
+    for (let dx = -span; dx <= span; dx++) {
+      for (let dz = -span; dz <= span; dz++) {
+        const held = taken.get((cx + dx) * 65536 + (cz + dz) + 32768);
+        if (!held) continue;
+        for (const site of held) if (!visit(site)) return;
+      }
+    }
+  };
+  const settle = (x: number, z: number, surface: 'cobble' | 'flagstone'): void => {
+    const pitch = pavings[surface].pitch;
+    let crowded = false;
+    near(x, z, pitch * 0.5, (site) => {
+      if (Math.hypot(site.x - x, site.z - z) < pitch * 0.45) crowded = true;
+      return !crowded;
+    });
+    if (crowded) return;
+    const site = { x, z, surface };
+    sites.push(site);
+    const k = hashKey(x, z);
+    const held = taken.get(k);
+    if (held) held.push(site);
+    else taken.set(k, [site]);
+  };
+  // Rings first, so a strip's sites give way at its mouth rather than the other way round.
+  for (const flat of flats) {
+    const { pitch } = pavings[flat.surface];
+    let row = 0;
+    for (let z = flat.minZ + pitch / 2; z < flat.maxZ; z += pitch * 0.92, row++) {
+      for (let x = flat.minX + (row % 2 === 0 ? pitch / 2 : pitch); x < flat.maxX; x += pitch) {
+        const sx = x + rng.around(0, pitch * 0.2);
+        const sz = z + rng.around(0, pitch * 0.2);
+        if (inRing(flat, sx, sz)) settle(sx, sz, flat.surface);
+      }
+    }
+  }
+  for (const strip of strips) {
+    const { pitch } = pavings[strip.surface];
+    const length = strip.samples[strip.samples.length - 1].s;
+    for (let s = pitch / 2, row = 0; s < length; s += pitch * 0.92, row++) {
+      const [sample] = sampleAt(strip.samples, s);
+      const reach = sample.half - strip.inset;
+      const count = Math.max(1, Math.floor((reach * 2) / pitch));
+      const gap = (reach * 2) / count;
+      const stagger = row % 2 === 0 ? 0 : gap / 2;
+      for (let k = 0; k < count; k++) {
+        const t = -reach + gap * (k + 0.5) + stagger + rng.around(0, gap * 0.2);
+        if (Math.abs(t) > reach - gap * 0.2) continue;
+        const advance = s - sample.s + rng.around(0, pitch * 0.2);
+        settle(sample.x + sample.tx * advance + sample.nx * t, sample.z + sample.tz * advance + sample.nz * t, strip.surface);
+      }
+    }
+  }
+
+  // --- the cells ---------------------------------------------------------------
+  const skin: Part[] = [];
+  const toWorld = (p: Cell2): [number, number] => [p.x, p.y];
+  for (const site of sites) {
+    const paving = pavings[site.surface];
+    const reach = paving.pitch * 2.4;
+    let cell: Cell = [
+      { x: site.x - reach, y: site.z - reach },
+      { x: site.x + reach, y: site.z - reach },
+      { x: site.x + reach, y: site.z + reach },
+      { x: site.x - reach, y: site.z + reach },
+    ];
+    near(site.x, site.z, reach, (other) => {
+      if (other === site) return true;
+      const dx = other.x - site.x;
+      const dz = other.z - site.z;
+      const away = Math.hypot(dx, dz);
+      if (away < 1e-9 || away > reach) return true;
+      const nx = dx / away;
+      const nz = dz / away;
+      cell = halfPlane(cell, nx, nz, (nx * (site.x + other.x) + nz * (site.z + other.z)) / 2);
+      return cell.length >= 3;
+    });
+    if (cell.length < 3) continue;
+    // Shrink-wrapped to the paving: a corner outside it is drawn back toward
+    // the site until it is on the edge.
+    cell = cell.map((corner) => {
+      if (whereIs(corner.x, corner.y)) return corner;
+      let lo = 0;
+      let hi = 1;
+      for (let step = 0; step < 8; step++) {
+        const mid = (lo + hi) / 2;
+        const x = site.x + (corner.x - site.x) * mid;
+        const z = site.z + (corner.y - site.z) * mid;
+        if (whereIs(x, z)) lo = mid;
+        else hi = mid;
+      }
+      return { x: site.x + (corner.x - site.x) * lo, y: site.z + (corner.y - site.z) * lo };
+    });
+    const mid = centreOf(cell);
+    const base = skinAt(mid.x, mid.y);
+    const stone = prismOver(cell, toWorld, base, paving.height + rng.around(0, 0.003), paving, rng, skinAt);
+    if (!stone) continue;
+    skin.push({ geometry: stone, color: colours[site.surface](), sway: 0 });
+    skin.push({ geometry: plateOver(cell, skinAt), color: shade(PALETTE.STONE_DARK, site.surface === 'cobble' ? 0.55 : 0.6), sway: 0 });
+  }
+  if (skin.length === 0) return group;
+
+  // Walked on through the strips' and junctions' own beds; this is what is seen.
+  const mesh = finish(assemble(skin), 'track-stone', 0, UNDERFOOT.cobble);
+  mesh.name = 'track';
+  mesh.userData.ground = true;
+  mesh.userData.footprintFaces = true;
+  group.add(markCollidable(mesh));
+  return group;
+}
+
+/** A cell as one flat-lying polygon, each corner at `height`, facing up. */
+function plateOver(cell: Cell, height: (x: number, z: number) => number): THREE.BufferGeometry {
+  let twice = 0;
+  for (let i = 0; i < cell.length; i++) {
+    const a = cell[i];
+    const b = cell[(i + 1) % cell.length];
+    twice += a.x * b.y - b.x * a.y;
+  }
+  const ring = twice < 0 ? cell : [...cell].reverse();
+  const position: number[] = [];
+  const at = (p: Cell2): [number, number, number] => [p.x, height(p.x, p.y), p.y];
+  const first = at(ring[0]);
+  for (let i = 1; i + 1 < ring.length; i++) {
+    const b = at(ring[i]);
+    const c = at(ring[i + 1]);
+    position.push(...first, ...b, ...c);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+  return geometry;
+}
+
 // --- junctions ----------------------------------------------------------------
 
 /** One arm of a junction: the end row of the strip that meets it, right to left seen from the middle. */
@@ -703,16 +859,9 @@ export interface JunctionOptions {
  * patch is the arms' end rows joined in order round the middle, so it shares
  * every vertex of every row and no crack can open along them.
  */
-export function buildJunction(options: JunctionOptions): THREE.Group {
-  const rng = createRng(options.seed);
-  const wear = Math.min(1, Math.max(0, options.wear ?? 0.5));
-  const group = new THREE.Group();
-  const [cx, cz] = options.at;
-  const lift = liftOf(options.surface, options.width);
-  const height = (x: number, z: number): number => options.groundAt(x, z) + lift;
-
-  // The rows in order round the middle, each right to left, into one ring.
-  const arms = [...options.arms]
+export function junctionRing(at: Point, arms: readonly JunctionArm[]): [number, number][] {
+  const [cx, cz] = at;
+  const ordered = [...arms]
     .map((arm) => {
       const first = arm.row[0];
       const last = arm.row[arm.row.length - 1];
@@ -722,14 +871,13 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
     })
     .sort((a, b) => a.bearing - b.bearing);
   const ring: [number, number][] = [];
-  for (const { arm, bearing } of arms) {
+  for (const { arm, bearing } of ordered) {
     // In angle order about the middle, as the arms themselves are.
     const row = [...arm.row].sort(
       (a, b) => turn(Math.atan2(a[1] - cz, a[0] - cx) - bearing) - turn(Math.atan2(b[1] - cz, b[0] - cx) - bearing),
     );
     for (const p of row) ring.push([p[0], p[1]]);
   }
-  if (ring.length < 3) return group;
   let twice = 0;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i];
@@ -738,6 +886,18 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   }
   // Anticlockwise from above is a negative area in x/z, and faces up.
   if (twice > 0) ring.reverse();
+  return ring;
+}
+
+/** A junction in a loose surface: one patch over the ring, level with the lift its arms eased into. Stone junctions are the paving's. */
+export function buildJunction(options: JunctionOptions): THREE.Group {
+  const wear = Math.min(1, Math.max(0, options.wear ?? 0.5));
+  const group = new THREE.Group();
+  const [cx, cz] = options.at;
+  const lift = liftOf(options.surface, options.width);
+  const height = (x: number, z: number): number => options.groundAt(x, z) + lift;
+  const ring = junctionRing(options.at, options.arms);
+  if (ring.length < 3) return group;
 
   const fan = (top: number): THREE.BufferGeometry => {
     const position: number[] = [];
@@ -767,19 +927,19 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
     case 'boards':
       parts.push({ geometry: fan(0), color: shade(PALETTE.TIMBER_PALE, 0.9 * (1 - 0.15 * wear)), sway: 0 });
       break;
+    // The stones are the paving's; the junction keeps only its bed.
     case 'cobble':
-    case 'flagstone': {
-      parts.push({ geometry: fan(0), color: shade(PALETTE.STONE_DARK, surface === 'cobble' ? 0.55 : 0.6), sway: 0 });
-      parts.push(...ringPaving(ring, [cx, cz], height, rng, surface === 'cobble' ? settPaving(wear) : slabPaving(wear), stoneColours(rng, surface === 'cobble' ? 0.1 : 0.06)));
+    case 'flagstone':
       break;
-    }
   }
 
-  const skin = finish(assemble(parts), `track-${surface}`, 0, UNDERFOOT[surface]);
-  skin.name = 'track';
-  skin.userData.ground = true;
-  skin.userData.footprintFaces = true;
-  group.add(markCollidable(skin));
+  if (parts.length > 0) {
+    const skin = finish(assemble(parts), `track-${surface}`, 0, UNDERFOOT[surface]);
+    skin.name = 'track';
+    skin.userData.ground = true;
+    skin.userData.footprintFaces = true;
+    group.add(markCollidable(skin));
+  }
 
   const bedTop = bedTopOf(surface);
   if (bedTop > 0) {
@@ -791,144 +951,11 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   return group;
 }
 
-function toEdge(x: number, y: number, a: Cell2, b: Cell2): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared));
-  return Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t));
-}
-
 /** An angle folded into -π..π. */
 function turn(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
-/** Stones over a convex ring, in a plane laid along its first edge, each stood on the levelled skin. */
-function ringPaving(
-  ring: readonly [number, number][],
-  middle: [number, number],
-  height: (x: number, z: number) => number,
-  rng: Rng,
-  paving: Paving,
-  colour: () => number,
-): Part[] {
-  const [cx, cz] = middle;
-  // s along the ring's first edge, t to its left, as a strip's plane is laid.
-  const ex = ring[1][0] - ring[0][0];
-  const ez = ring[1][1] - ring[0][1];
-  const len = Math.hypot(ex, ez) || 1;
-  const tx = ex / len;
-  const tz = ez / len;
-  const nx = -tz;
-  const nz = tx;
-  const toPlane = (x: number, z: number): Cell2 => ({ x: (x - cx) * tx + (z - cz) * tz, y: (x - cx) * nx + (z - cz) * nz });
-  const toWorld = (p: Cell2): [number, number] => [cx + tx * p.x + nx * p.y, cz + tz * p.x + nz * p.y];
-  const flat = ring.map((p) => toPlane(p[0], p[1]));
-  // Which side of its edges the ring keeps: to the left of travel when it is
-  // wound counter-clockwise in the plane, to the right otherwise. The ring
-  // need not be convex, so a cell is cut only by the edges near its own site.
-  let twice = 0;
-  for (let i = 0; i < flat.length; i++) {
-    const a = flat[i];
-    const b = flat[(i + 1) % flat.length];
-    twice += a.x * b.y - b.x * a.y;
-  }
-  const side = twice >= 0 ? 1 : -1;
-  const edges = flat.map((a, i) => {
-    const b = flat[(i + 1) % flat.length];
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const l = Math.hypot(dx, dy) || 1;
-    const ex = (-dy / l) * side;
-    const ey = (dx / l) * side;
-    // Everything on the far side of the edge from the inside is cut: n·p >= c.
-    return { a, b, nx: -ex, ny: -ey, c: -(ex * a.x + ey * a.y) };
-  });
-  const inside = (x: number, y: number): boolean => {
-    let crossings = 0;
-    for (const { a, b } of edges) {
-      if (a.y > y !== b.y > y && x < a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y)) crossings++;
-    }
-    return crossings % 2 === 1;
-  };
-  let s0 = Infinity;
-  let s1 = -Infinity;
-  let t0 = Infinity;
-  let t1 = -Infinity;
-  for (const q of flat) {
-    s0 = Math.min(s0, q.x);
-    s1 = Math.max(s1, q.x);
-    t0 = Math.min(t0, q.y);
-    t1 = Math.max(t1, q.y);
-  }
-  const reach = paving.pitch * 3;
-  const cells = pavingCells(rng, paving, s0, s1, () => [t0, t1], (cell, s, t) => {
-    if (!inside(s, t)) return [];
-    for (const edge of edges) {
-      if (toEdge(s, t, edge.a, edge.b) > reach) continue;
-      cell = halfPlane(cell, edge.nx, edge.ny, edge.c);
-      if (cell.length < 3) break;
-    }
-    return cell;
-  });
-  const parts: Part[] = [];
-  for (const cell of cells) {
-    const mid = centreOf(cell);
-    const [mx, mz] = toWorld(mid);
-    const base = height(mx, mz) - 0.015;
-    const geometry = prismOver(cell, toWorld, base, paving.height + rng.around(0, 0.003), paving, rng);
-    if (geometry) parts.push({ geometry, color: colour(), sway: 0 });
-  }
-  return parts;
-}
-
-function slabs(
-  samples: Sample[],
-  groundAt: GroundAt,
-  profile: Profile,
-  rng: Rng,
-  wear: number,
-  inset: number,
-): Part[] {
-  const parts: Part[] = [];
-  const colour = stoneColours(rng, 0.06);
-  const length = samples[samples.length - 1].s;
-  const width = samples[0].half * 2 - inset * 2;
-  const rows = Math.max(1, Math.round(width / 1.0));
-  const across = width / rows;
-  for (let row = 0; row < rows; row++) {
-    let s = rng.range(0, 0.6);
-    while (s < length) {
-      const along = rng.range(0.85, 1.3);
-      const mid = Math.min(length - 0.01, s + along / 2);
-      const [sample, index] = sampleAt(samples, mid);
-      const reach = sample.half - inset;
-      const u = (-reach + across * (row + 0.5)) / sample.half;
-      parts.push({
-        geometry: block(
-          sample,
-          u,
-          mid - sample.s,
-          groundAt,
-          profile,
-          index,
-          along - 0.05,
-          across - 0.05,
-          0.06,
-          0.9 - 0.06 * wear,
-          0.01,
-          rng,
-          0.03,
-        ),
-        color: shade(colour(), 1.05),
-        sway: 0,
-      });
-      s += along;
-    }
-  }
-  return parts;
-}
 
 function kerbs(samples: Sample[], groundAt: GroundAt, profile: Profile, rng: Rng): Part[] {
   const parts: Part[] = [];
