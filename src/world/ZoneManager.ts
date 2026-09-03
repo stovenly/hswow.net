@@ -1132,7 +1132,7 @@ export class ZoneManager {
         data.coverField === true ||
         data.sparkleField === true ||
         data.npc !== undefined ||
-        (data.ground === true && data.footprint === undefined) ||
+        (data.ground === true && data.footprint === undefined && data.footprintFaces !== true) ||
         mesh.name === 'terrain' ||
         mesh.name === 'flatGround'
       );

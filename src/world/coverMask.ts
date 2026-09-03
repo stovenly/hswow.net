@@ -106,7 +106,8 @@ export class CoverMask {
       const count = index ? index.count : position.count;
       const matrix = object.matrixWorld;
       const scaleY = Math.hypot(matrix.elements[4], matrix.elements[5], matrix.elements[6]) || 1;
-      const low = LOW / scaleY;
+      // A skin laid over the ground prints every face it has.
+      const low = object.userData.footprintFaces === true ? Infinity : LOW / scaleY;
       for (let i = 0; i + 2 < count; i += 3) {
         const i0 = index ? index.getX(i) : i;
         const i1 = index ? index.getX(i + 1) : i + 1;

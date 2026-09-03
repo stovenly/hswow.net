@@ -354,6 +354,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       groundAt,
       slopeAt: (x, z) => (terrain ? terrain.slopeAt(x, z) : 0),
       regions,
+      tracks,
       traits: doc.traits ?? [],
       outline: outlineOf(doc),
       resolve: (id) => byId.get(id),

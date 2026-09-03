@@ -173,8 +173,16 @@ that subject by whoever is asking; asked without one, it is false.
   its ground once — `document.ts` paints the terrain its surface under the
   strip and names the strip as a region under the track's id, and the skin
   carries its own print for the cover mask — so the polyline lives in the
-  track and nowhere else. Editing a track's line therefore repaints the
-  terrain only on a full rebuild.
+  track and nowhere else.
+- **`trackNetwork.ts`** — a zone's tracks built together. Every line is cut
+  where it crosses or ends on another, each cut is a junction paved once in
+  the winning surface (cobble, flagstone, boards, gravel, dirt, the wider on
+  a tie) over the mouths of every strip that meets it, and each strip stops at
+  the junction's edge with its profile eased into the junction's plane, so the
+  junction shares every vertex of every end row. The track kind builds the
+  network on the first track of a pass and hands each entry its own strips
+  and the junctions it won. Editing one track therefore repaints the terrain
+  and rebuilds the others' junctions only on a full rebuild.
 - **`coverMask.ts`** — where cover may not grow, a byte per quarter metre.
   `ZoneManager.decorate` stamps it from the print of everything the zone built
   — each mesh's triangles within a third of a metre of its own base — before

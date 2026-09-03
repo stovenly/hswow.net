@@ -459,6 +459,8 @@ export interface EntryContext {
   slopeAt(x: number, z: number): number;
   /** Named regions the document declared, for anything that names one. */
   regions: Record<string, readonly PatchShape[]>;
+  /** Every track in the document, which are built together as one network. */
+  tracks: readonly TrackEntry[];
   /** What this zone makes of anybody standing in it. The lowest trait grant. */
   traits: readonly string[];
   /** The level's outline as a closed polygon, when it has one. */

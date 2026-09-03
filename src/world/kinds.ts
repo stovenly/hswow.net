@@ -12,7 +12,8 @@ import { markLabelled, markReadable } from './Interaction';
 import { markGlitched } from '../art/glitch';
 import { markHaunted } from '../art/horror';
 import { waterPlane } from '../art/water';
-import { buildTrack, TRACK_SURFACES } from './track';
+import { TRACK_SURFACES } from './track';
+import { buildTrackNetwork } from './trackNetwork';
 import { createParticles, type ParticleSpec } from '../art/particles';
 import { createRng } from '../art/random';
 import { fence, FENCE_MAX_SECTIONS, FENCE_SECTION } from '../art/builders/fence';
@@ -739,19 +740,35 @@ registerEntryKind<TrackEntry>({
   },
   defaults: () => ({ through: [[0, 0], [8, 0]], width: 2.4, surface: 'dirt', edge: 'verge', wear: 0.5 }),
   build(entry, ctx) {
-    const beside = GROUND[ctx.terrain?.baseMaterial ?? 'turf'].color;
-    return buildTrack({
-      through: entry.through,
-      width: entry.width,
-      surface: entry.surface,
-      edge: entry.edge,
-      wear: entry.wear,
-      seed: seedOf(entry),
-      groundAt: ctx.groundAt,
-      beside,
-    });
+    // One network per pass. A group already standing in a zone is a rebuild
+    // of one entry, which gets a fresh network of its own.
+    let network = networks.get(ctx.tracks);
+    let group = network?.get(entry);
+    if (!group || group.parent) {
+      const beside = GROUND[ctx.terrain?.baseMaterial ?? 'turf'].color;
+      const built = buildTrackNetwork({
+        tracks: ctx.tracks.map((track, index) => ({
+          id: String(index),
+          through: track.through,
+          width: track.width,
+          surface: track.surface,
+          edge: track.edge,
+          wear: track.wear,
+          seed: seedOf(track),
+        })),
+        groundAt: ctx.groundAt,
+        beside,
+      });
+      network = new Map();
+      ctx.tracks.forEach((track, index) => network?.set(track, built.get(String(index)) ?? new THREE.Group()));
+      networks.set(ctx.tracks, network);
+      group = network.get(entry);
+    }
+    return group ?? new THREE.Group();
   },
 });
+
+const networks = new WeakMap<readonly TrackEntry[], Map<TrackEntry, THREE.Group>>();
 
 // --- particles --------------------------------------------------------------
 
