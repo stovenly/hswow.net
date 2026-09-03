@@ -102,13 +102,15 @@ export class Journal {
     if (active.length === 0) list.append(this.empty('Nothing open'));
     for (const quest of active) list.append(this.row(quest));
 
-    const fold = this.heading(`finished`, finished.length, () => {
-      this.finishedOpen = !this.finishedOpen;
-      this.draw();
-    });
-    fold.classList.toggle('is-open', this.finishedOpen);
-    list.append(fold);
-    if (this.finishedOpen) for (const quest of finished) list.append(this.row(quest));
+    if (finished.length > 0) {
+      const fold = this.heading(`finished`, finished.length, () => {
+        this.finishedOpen = !this.finishedOpen;
+        this.draw();
+      });
+      fold.classList.toggle('is-open', this.finishedOpen);
+      list.append(fold);
+      if (this.finishedOpen) for (const quest of finished) list.append(this.row(quest));
+    }
     this.listEl.replaceChildren(list);
 
     this.page(listed.find((quest) => quest.id === this.chosen) ?? null);
