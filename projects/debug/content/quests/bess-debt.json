@@ -1,32 +1,32 @@
 {
-  "id": "wats-debt",
-  "name": "What Wat Owes",
+  "id": "bess-debt",
+  "name": "What Bess Owes",
   "cast": {
     "creditor": "mark",
-    "debtor": "wat"
+    "debtor": "bess"
   },
   "stages": [
     {
       "at": 10,
-      "log": "Mark says Wat, in the hut up the lane, owes him for two winters of candles. I am to stand in Wat's door until he pays."
+      "log": "Mark says Bess, who spins in the workshop on the east side of the green, owes him for two winters of candles. I am to stand in her door until she pays."
     },
     {
       "at": 20,
-      "log": "Wat says Mark weighed it twice and he paid twice. Mark can have the rest when he gives one of them back."
+      "log": "Bess says Mark weighed it twice and she paid twice. He can have the rest when he gives one of them back."
     },
     {
       "at": 25,
-      "log": "Wat gave me back the candle Mark sold him, and said Mark can choke on it."
+      "log": "Bess gave me back the candle Mark sold her, and said he can choke on it."
     },
     {
       "at": 30,
       "ends": true,
-      "log": "I took the candle back to Mark. He called the debt paid and Wat finished with."
+      "log": "I took the candle back to Mark. He called the debt paid and Bess finished with."
     },
     {
       "at": 40,
       "ends": true,
-      "log": "I told Mark what Wat said. He wrote the debt off and said he would remember it."
+      "log": "I told Mark what Bess said. He wrote the debt off and said he would remember it."
     }
   ],
   "topics": [
@@ -35,12 +35,12 @@
       "label": "Mark's money",
       "when": {
         "cast": "debtor",
-        "of": "wats-debt"
+        "of": "bess-debt"
       },
       "infos": [
         {
           "when": {
-            "quest": "wats-debt",
+            "quest": "bess-debt",
             "done": 20
           },
           "reply": "I said what I said. Go and say it to him."
@@ -50,7 +50,7 @@
           "then": [
             {
               "do": "setStage",
-              "quest": "wats-debt",
+              "quest": "bess-debt",
               "stage": 20
             }
           ]
@@ -64,15 +64,15 @@
         "all": [
           {
             "cast": "debtor",
-            "of": "wats-debt"
+            "of": "bess-debt"
           },
           {
-            "quest": "wats-debt",
+            "quest": "bess-debt",
             "done": 20
           },
           {
             "not": {
-              "quest": "wats-debt",
+              "quest": "bess-debt",
               "done": 25
             }
           }
@@ -89,7 +89,7 @@
             },
             {
               "do": "setStage",
-              "quest": "wats-debt",
+              "quest": "bess-debt",
               "stage": 25
             }
           ]
@@ -98,15 +98,15 @@
     },
     {
       "key": "debt-back",
-      "label": "About Wat",
+      "label": "About Bess",
       "when": {
         "all": [
           {
             "cast": "creditor",
-            "of": "wats-debt"
+            "of": "bess-debt"
           },
           {
-            "quest": "wats-debt",
+            "quest": "bess-debt",
             "done": 20
           }
         ]
@@ -116,22 +116,22 @@
           "when": {
             "any": [
               {
-                "quest": "wats-debt",
+                "quest": "bess-debt",
                 "done": 30
               },
               {
-                "quest": "wats-debt",
+                "quest": "bess-debt",
                 "done": 40
               }
             ]
           },
-          "reply": "Wat is done with, one way or the other. Do not bring him up."
+          "reply": "Bess is done with, one way or the other. Do not bring her up."
         },
         {
           "when": {
             "all": [
               {
-                "quest": "wats-debt",
+                "quest": "bess-debt",
                 "done": 25
               },
               {
@@ -139,7 +139,7 @@
               }
             ]
           },
-          "reply": "That is my candle. Well. Paid, then, and I will not sell to him again.",
+          "reply": "That is my candle. Well. Paid, then, and I will not sell to her again.",
           "then": [
             {
               "do": "takeItem",
@@ -147,7 +147,7 @@
             },
             {
               "do": "setStage",
-              "quest": "wats-debt",
+              "quest": "bess-debt",
               "stage": 30
             }
           ]
@@ -157,7 +157,7 @@
           "then": [
             {
               "do": "setStage",
-              "quest": "wats-debt",
+              "quest": "bess-debt",
               "stage": 40
             }
           ]
