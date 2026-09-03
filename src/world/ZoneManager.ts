@@ -21,7 +21,7 @@ import {
   type NpcMark,
   type PickupInfo,
 } from './Interaction';
-import { isReadable, questNameOf } from './items';
+import { cardOf, isReadable, type ItemCard } from './items';
 import { noteById, type Note } from './notes';
 import { buildDoor, doorMetrics, doorName } from '../art/door';
 import { builderByName } from '../art/registry';
@@ -53,7 +53,7 @@ import { Soundscape } from '../audio/Soundscape';
 import { MusicDirector } from '../audio/music/director';
 import { musicFor } from '../audio/vibes';
 import { AmbienceDirector } from '../audio/ambience/director';
-import { linkPrompt } from '../ui/Reticle';
+import { itemPrompt, linkPrompt } from '../ui/Reticle';
 import type { Reticle, Fade } from '../ui/Reticle';
 
 // Owns which place you are in. Exactly one zone is in the scene and in the
@@ -1501,8 +1501,7 @@ export class ZoneManager {
     }
     if (carried?.pickup) {
       const pickup = carried.pickup;
-      const quest = questNameOf(pickup.item);
-      reticle.set(quest ? { title: pickup.item.name, target: quest, kind: 'quest' } : { title: pickup.item.name });
+      reticle.set(itemPrompt(cardOf(pickup.item)));
       // A readable with nothing bound still opens as a page: the player always
       // reads before pocketing, and an unwritten book says so itself.
       if (pickup.item.builder && isReadable(pickup.item.builder)) {
@@ -1538,18 +1537,18 @@ export class ZoneManager {
     return carried?.pickup ? { object: carried.node, pickup: carried.pickup } : null;
   }
 
-  cursorHover(ndcX: number, ndcY: number): { label: string; item: boolean; quest?: string } | null {
+  cursorHover(ndcX: number, ndcY: number): { card: ItemCard; item: boolean } | null {
     if (!this.active || this.transitioning) return null;
     const { interaction, collider, player } = this.options;
     const hover = interaction.probe(player.camera, collider, _ndc.set(ndcX, ndcY));
     if (!hover) return null;
     const side = this.portals.sideOf(hover.object);
-    if (side) return { label: side.title ?? side.label, item: false };
+    if (side) return { card: { name: side.title ?? side.label }, item: false };
     const carried = carriedOf(hover.object);
-    if (carried?.container) return { label: carried.container.display, item: false };
-    if (carried?.pickup) return { label: carried.pickup.item.name, item: true, quest: questNameOf(carried.pickup.item) };
+    if (carried?.container) return { card: { name: carried.container.display }, item: false };
+    if (carried?.pickup) return { card: cardOf(carried.pickup.item), item: true };
     const found = labelOf(hover.object);
-    return found ? { label: found.label, item: false } : null;
+    return found ? { card: { name: found.label }, item: false } : null;
   }
 
   /**

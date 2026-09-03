@@ -1,5 +1,5 @@
 import type { Inventory } from '../player/Inventory';
-import { questNameOf, type Item } from '../world/items';
+import { cardOf, type Item, type ItemCard } from '../world/items';
 import { Floating, type FloatingRect } from './Floating';
 import type { ItemIcons } from './ItemIcons';
 
@@ -30,7 +30,7 @@ interface Handlers {
   dropToWorld: (item: Item, ndc: { x: number; y: number }) => boolean;
   containerChanged: (key: string, items: readonly Item[]) => void;
   /** What the free cursor is over in the world — the tip's text, and whether the cursor should read as grabbable. */
-  hoverWorld: (ndc: { x: number; y: number }) => { label: string; item: boolean; quest?: string } | null;
+  hoverWorld: (ndc: { x: number; y: number }) => { card: ItemCard; item: boolean } | null;
   /**
    * The pickable under the free cursor, for dragging it around. `item` is the
    * preview the ghost shows; `take` commits the pickup and `move` re-lands it
@@ -319,13 +319,13 @@ export class InventoryUI {
     return img;
   }
 
-  /** The tip's words: the name, and under it the quest the thing is for. */
-  private tell(name: string, quest: string | undefined): void {
-    this.tip.textContent = name;
-    if (!quest) return;
+  /** The tip renders a card and nothing else. */
+  private tell(card: ItemCard): void {
+    this.tip.textContent = card.name;
+    if (!card.quest) return;
     const line = document.createElement('span');
     line.className = 'inv-tip-quest';
-    line.textContent = `for ${quest}`;
+    line.textContent = `for ${card.quest}`;
     this.tip.append(line);
   }
 
@@ -335,7 +335,7 @@ export class InventoryUI {
       if (this.ghost) return;
       this.hovered = item;
       this.tip.hidden = false;
-      this.tell(item.name, questNameOf(item));
+      this.tell(cardOf(item));
       this.tip.style.left = `${event.clientX}px`;
       this.tip.style.top = `${event.clientY}px`;
     };
@@ -467,7 +467,7 @@ export class InventoryUI {
     this.scrim.style.cursor = over?.item ? 'grab' : '';
     this.tip.hidden = over === null;
     if (over === null) return;
-    this.tell(over.label, over.quest);
+    this.tell(over.card);
     this.tip.style.left = `${event.clientX}px`;
     this.tip.style.top = `${event.clientY}px`;
   };

@@ -7,6 +7,8 @@
  * layer above the canvas while the world stays filtered.
  */
 
+import type { ItemCard } from '../world/items';
+
 /** How long a transition spends at full black. Long enough to hide a rebuild. */
 export const FADE_HOLD = 0.14;
 /** Seconds each way. Matches the CSS transition duration below. */
@@ -40,6 +42,11 @@ export interface Prompt {
    * `for`, and the second line is the quest's name.
    */
   kind?: 'link' | 'read' | 'quest';
+}
+
+/** What an item says when you point at it: its card, as the crosshair sets it. */
+export function itemPrompt(card: ItemCard): Prompt {
+  return card.quest ? { title: card.name, target: card.quest, kind: 'quest' } : { title: card.name };
 }
 
 /**

@@ -65,10 +65,20 @@ export function itemFrom(doc: ItemDocument): Item {
   return { id: doc.id, name: doc.name, kind: doc.kind ?? kindOf(doc.builder), builder: doc.builder, seed: doc.seed };
 }
 
-/** The name of the quest an item belongs to, for every hover that shows one. */
-export function questNameOf(item: Item): string | undefined {
+/**
+ * What a hover says about a thing. Every surface that names one — the
+ * crosshair, the pack's cells, the pack's free cursor over the world — renders
+ * this and nothing else, so a line added here appears everywhere.
+ */
+export interface ItemCard {
+  name: string;
+  /** The quest the thing is for, by its name. */
+  quest?: string;
+}
+
+export function cardOf(item: Item): ItemCard {
   const quest = item.id ? itemById(item.id)?.quest : undefined;
-  return quest ? (questById(quest)?.name ?? quest) : undefined;
+  return quest ? { name: item.name, quest: questById(quest)?.name ?? quest } : { name: item.name };
 }
 
 /** The pickups with pages in them: E opens the reading screen, bound note or not. */
