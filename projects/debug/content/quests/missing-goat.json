@@ -28,7 +28,8 @@
           "trait": "farmhand",
           "person": "mark"
         }
-      ]
+      ],
+      "ends": true
     }
   ],
   "topics": [

@@ -185,6 +185,13 @@ export class CastPanel {
           target.stages = held;
         }),
       );
+      stages.toggle(`  ends`, stage.ends === true, (value) =>
+        this.write(doc.id, (target: QuestDocument) => {
+          const held = [...(target.stages ?? [])];
+          held[index] = { ...held[index], ends: value || undefined };
+          target.stages = held;
+        }),
+      );
     }
     this.json(stages, 'stages (json)', doc.stages, (value) =>
       this.write(doc.id, (target: QuestDocument) => set(target, 'stages', value as QuestDocument['stages'])),

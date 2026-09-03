@@ -1,5 +1,6 @@
 import { createApp } from './app/boot';
 import { installGameItems } from './app/items';
+import { installJournal } from './app/journal';
 import { installMap } from './app/map';
 import { loadProject } from './app/loadProject';
 import { Title } from './ui/Title';
@@ -53,6 +54,7 @@ const ready = (async () => {
   // none of the item systems.
   const items = installGameItems(app, overlay);
   installMap(app, overlay);
+  installJournal(app, overlay, items.notices);
   // Before `start`, so the readout folder's loop is registered ahead of the
   // frame loop and reports the frame just drawn rather than the one in progress.
   if (app.dev.gui && project.debug !== false) {

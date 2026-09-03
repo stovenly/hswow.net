@@ -122,6 +122,8 @@ export interface SaveData {
   state?: WorldStateData;
   /** The fog rasters and the doors that have been found. Absent in a save written before the map. */
   chart?: ChartData;
+  /** Days since the world began, fractional. Absent in a save written before the journal. */
+  clock?: number;
   zone: string;
   at: [number, number, number];
   yaw: number;

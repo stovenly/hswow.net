@@ -30,6 +30,8 @@ export interface Answered {
   label: string;
   reply: string;
   then?: readonly Effect[];
+  /** The topic is a live quest's own. */
+  quest?: boolean;
 }
 
 /**
@@ -66,7 +68,7 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
   const carried = state.traitsOf(mark.person ?? '', mark.traits);
   const who: Subject = { person: mark.person, traits: carried, home: person?.home, doing };
 
-  const owners: { speech: Speech; rank: number }[] = [];
+  const owners: { speech: Speech; rank: number; quest?: boolean }[] = [];
   for (const id of carried) {
     const trait = traitById(id);
     if (trait) owners.push({ speech: trait, rank: TRAIT });
@@ -74,12 +76,12 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
   if (person) owners.push({ speech: person, rank: PERSON });
   for (const quest of everyQuest()) {
     if (state.stage(quest.id) <= 0 || state.failed(quest.id)) continue;
-    owners.push({ speech: quest, rank: quest.priority ?? QUEST });
+    owners.push({ speech: quest, rank: quest.priority ?? QUEST, quest: true });
   }
 
   let greeting = NOTHING;
   let farewell = NOTHING;
-  const held = new Map<string, { rank: number; topic: Topic }>();
+  const held = new Map<string, { rank: number; topic: Topic; quest?: boolean }>();
   for (const owner of owners) {
     if (owner.speech.greeting?.length) greeting = owner.speech.greeting;
     if (owner.speech.farewell?.length) farewell = owner.speech.farewell;
@@ -87,18 +89,18 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
       const rank = topic.priority ?? owner.rank;
       const standing = held.get(topic.key);
       if (standing && standing.rank > rank) continue;
-      held.set(topic.key, { rank, topic });
+      held.set(topic.key, { rank, topic, quest: owner.quest });
     }
   }
 
   // A topic none of whose infos hold has nothing to say and does not appear.
   // Saying so is a line somebody writes: an info with no `when`, last.
   const topics: Answered[] = [];
-  for (const { topic } of held.values()) {
+  for (const { topic, quest } of held.values()) {
     if (!holds(topic.when, state, who)) continue;
     const info = topic.infos.find((one) => holds(one.when, state, who));
     if (info) {
-      topics.push({ key: topic.key, label: topic.label, reply: info.reply, then: info.then });
+      topics.push({ key: topic.key, label: topic.label, reply: info.reply, then: info.then, quest });
     }
   }
   return { greeting, farewell, topics };

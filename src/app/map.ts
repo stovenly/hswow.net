@@ -95,7 +95,7 @@ export function installMap(app: App, overlay: HTMLElement): MapScreen {
       screen.hide();
       return;
     }
-    if (app.reading.shown || document.body.classList.contains('is-inventory')) return;
+    if (app.reading.shown || document.body.classList.contains('is-inventory') || document.body.classList.contains('is-journal')) return;
     if (!app.input.locked || app.zones.isTransitioning) return;
     event.preventDefault();
     screen.show();

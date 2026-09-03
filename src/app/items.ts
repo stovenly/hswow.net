@@ -43,6 +43,8 @@ export interface GameItems {
   showLoad(): void;
   /** Drops the pack, the records and the seed, so the next new game is as fresh as one after a reload. */
   resetWorld(): void;
+  /** The one line of notices, for anything else that has something to say. */
+  notices: Notices;
 }
 
 export function installGameItems(app: App, overlay: HTMLElement): GameItems {
@@ -173,6 +175,10 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     worldDelta.replace(data.delta);
     worldState.restore(data.state);
     worldChart.restore(data.chart);
+    if (data.clock !== undefined) {
+      app.climate.day = Math.floor(data.clock);
+      app.climate.timeOfDay = data.clock - Math.floor(data.clock);
+    }
     notices.clear();
     // A load re-seats every slot at once; that is restoration, not a gesture.
     restoring = true;
@@ -203,6 +209,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
         delta: worldDelta.serialize(),
         state: worldState.save(),
         chart: worldChart.save(),
+        clock: app.climate.elapsedDays,
         zone: zone.id,
         at: [at.x, at.y, at.z],
         yaw: app.player.heading,
@@ -246,7 +253,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
 
   window.addEventListener('keydown', (event) => {
     if (event.code !== 'Tab' || event.repeat) return;
-    if (app.reading.shown || document.body.classList.contains('is-map')) return;
+    if (app.reading.shown || document.body.classList.contains('is-map') || document.body.classList.contains('is-journal')) return;
     if (ui.shown) {
       event.preventDefault();
       ui.hide();
@@ -282,5 +289,5 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     setWorldSeed(bytes[0] || 1);
   };
 
-  return { loadSlot, showLoad: () => slots.show('load'), resetWorld };
+  return { loadSlot, showLoad: () => slots.show('load'), resetWorld, notices };
 }

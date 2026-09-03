@@ -24,7 +24,7 @@ export interface Speaker {
   readonly greeting: string;
   readonly farewell: string;
   /** Resolved every time the choices go up, which is after every reply. */
-  topics(): readonly { key: string; label: string; reply: string; chosen?: () => void }[];
+  topics(): readonly { key: string; label: string; reply: string; quest?: boolean; chosen?: () => void }[];
 }
 
 export interface DialogueHandlers {
@@ -255,12 +255,12 @@ export class Dialogue {
     this.choicesEl.replaceChildren();
     for (const topic of speaker.topics()) {
       // What the line does, then the line: the reply was resolved before this.
-      this.choicesEl.append(
-        this.choice(topic.label, () => {
-          topic.chosen?.();
-          this.say(topic.reply);
-        }),
-      );
+      const choice = this.choice(topic.label, () => {
+        topic.chosen?.();
+        this.say(topic.reply);
+      });
+      if (topic.quest) choice.classList.add('is-quest');
+      this.choicesEl.append(choice);
     }
     // Always there, always last, and set apart: it is the way out rather than
     // something to talk about.

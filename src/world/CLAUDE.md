@@ -147,10 +147,13 @@ granted earlier, which is how a visitor's own trait beats the one the zone hands
 everybody standing in it. A creature naming a person wears that person's body,
 resolved before the warm pass so the warm and the walk ask for the same mesh.
 
-`state.ts` is what a `when` is judged against. Flags and quest stages are held
-in memory and remain a stub until the quest system exists; where the player
-stands and what the weather is doing are pushed in once a frame by
-`WeatherRig.applyAmbience`, which already samples both. A condition may also ask
+`state.ts` is what a `when` is judged against. Flags, quest stages, every
+stage a quest has been through with the world day it was reached on, and
+recast roles are held in memory and carried by a save; where the player stands
+and what the weather is doing are pushed in once a frame by
+`WeatherRig.applyAmbience`, which already samples both. A quest is finished
+when its current stage is one marked `ends` or it has failed, and the journal
+(`ui/Journal.ts`) is the only thing that asks. A condition may also ask
 about a person — their traits, their name, what they are doing — and is handed
 that subject by whoever is asking; asked without one, it is false.
 

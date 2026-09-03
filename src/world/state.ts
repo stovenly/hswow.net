@@ -4,21 +4,23 @@ import { outlineDistance, type PatchShape } from './ground';
 import { questById } from './people';
 
 /**
- * What a `when` is evaluated against.
- *
- * A stub until the quest system exists: flags and quest stages held in memory,
- * set by the editor's layer panel and by nothing else yet. Player saves do not
- * touch it and it is never written to a document. Where the player stands and
- * what the weather is doing are pushed in once a frame instead, by whoever
- * already samples them.
+ * What a `when` is evaluated against: flags, quest stages and recast roles,
+ * which a save carries; and where the player stands and what the weather is
+ * doing, pushed in once a frame by whoever already samples them.
  */
+
+/** A stage a quest has been through, and the world day it was reached on. */
+export interface Visit {
+  at: number;
+  day: number;
+}
 
 export type StatePreview = 'live' | 'all' | 'none';
 
 export class WorldFlags implements WorldState {
   private readonly raised = new Set<string>();
   private readonly stages = new Map<string, number>();
-  private readonly visited = new Map<string, Set<number>>();
+  private readonly visited = new Map<string, Map<number, number>>();
   private readonly lost = new Set<string>();
   private readonly roles = new Map<string, string>();
   private readonly given = new Map<string, Set<string>>();
@@ -34,6 +36,9 @@ export class WorldFlags implements WorldState {
    * inventing a quest to reach it. Inspection state; nothing is saved.
    */
   preview: StatePreview = 'live';
+
+  /** Told the first time a quest reaches a stage. */
+  onStage: ((quest: string, at: number) => void) | null = null;
 
   flag(name: string): boolean {
     if (this.preview !== 'live') return this.preview === 'all';
@@ -101,9 +106,11 @@ export class WorldFlags implements WorldState {
 
   setStage(quest: string, at: number): void {
     this.stages.set(quest, at);
-    const seen = this.visited.get(quest);
-    if (seen) seen.add(at);
-    else this.visited.set(quest, new Set([at]));
+    let seen = this.visited.get(quest);
+    if (!seen) this.visited.set(quest, (seen = new Map()));
+    if (seen.has(at)) return;
+    seen.set(at, this.today);
+    this.onStage?.(quest, at);
   }
 
   setFailed(quest: string, on: boolean): void {
@@ -147,12 +154,23 @@ export class WorldFlags implements WorldState {
     return [...this.stages];
   }
 
+  /** The stages a quest has been through, in the order it reached them. */
+  visits(quest: string): readonly Visit[] {
+    const seen = this.visited.get(quest);
+    return seen ? [...seen].map(([at, day]) => ({ at, day })) : [];
+  }
+
+  /** Days since the world began, as last observed. */
+  get today(): number {
+    return this.now?.elapsed ?? 0;
+  }
+
   /** Everything a save carries. Inspection state — the preview — is not in it. */
   save(): WorldStateData {
     return {
       flags: [...this.raised],
       stages: [...this.stages],
-      visited: [...this.visited].map(([quest, at]) => [quest, [...at]]),
+      visited: [...this.visited].map(([quest, seen]) => [quest, [...seen]]),
       failed: [...this.lost],
       cast: [...this.roles],
       given: [...this.given].map(([person, ids]) => [person, [...ids]]),
@@ -165,7 +183,9 @@ export class WorldFlags implements WorldState {
     if (!data) return;
     for (const flag of data.flags ?? []) this.raised.add(flag);
     for (const [quest, at] of data.stages ?? []) this.stages.set(quest, at);
-    for (const [quest, at] of data.visited ?? []) this.visited.set(quest, new Set(at));
+    for (const [quest, seen] of data.visited ?? []) {
+      this.visited.set(quest, new Map(seen.map((one) => (typeof one === 'number' ? [one, 0] : one))));
+    }
     for (const quest of data.failed ?? []) this.lost.add(quest);
     for (const [key, person] of data.cast ?? []) this.roles.set(key, person);
     for (const [person, ids] of data.given ?? []) this.given.set(person, new Set(ids));
@@ -187,7 +207,8 @@ export class WorldFlags implements WorldState {
 export interface WorldStateData {
   flags: string[];
   stages: [string, number][];
-  visited: [string, number[]][];
+  /** Stage and the day it was reached. A bare stage is from a save written before the journal. */
+  visited: [string, ([number, number] | number)[]][];
   failed: string[];
   cast: [string, string][];
   given: [string, string[]][];

@@ -85,8 +85,10 @@ export interface PersonDocument extends Speech {
  */
 export interface Stage {
   at: number;
-  /** What the journal will read. Nothing reads it yet. */
+  /** What the journal reads for this stage. A stage without one is not written down. */
   log?: string;
+  /** Reaching this stage finishes the quest. A quest with several outcomes ends at several. */
+  ends?: boolean;
   /** Run once, the first time this stage is reached. */
   then?: readonly Effect[];
 }

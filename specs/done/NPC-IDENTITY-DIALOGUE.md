@@ -260,11 +260,11 @@ when the dev panel raises it.
 
 ## Step 4 — quests
 
-**Built.** A stage is `at`, `log` and `then`, and nothing more: `completes` and
-`fails` are not fields, because reaching a stage that ends a quest is already
-sayable — a condition asks `{ quest, done: 90 }` for a stage ever visited, and a
-stage that fails one carries `failQuest` in its own `then`. Two ways to spell
-one thing is one way to get it wrong.
+**Built.** A stage is `at`, `log`, `then` and `ends`. `fails` is not a field,
+because a stage that fails a quest carries `failQuest` in its own `then`; `ends`
+is one, because the journal has to know which stages finish a quest and a quest
+with several outcomes finishes at several. Dialogue never asks it — a condition
+asks `{ quest, done: 90 }` for a stage ever visited.
 
 A quest's `cast` is answered off its document, so `WorldFlags` only holds a
 recasting when something has actually recast. Its topics join the pool at rank
