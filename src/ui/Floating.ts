@@ -1,6 +1,7 @@
 /**
  * A floating panel: dragged by its header, resized by any edge or corner, its
- * geometry remembered in localStorage per machine and clamped back on screen
+ * geometry remembered in localStorage per machine as fractions of the viewport
+ * — so a layout made on one window fits the next — and clamped back on screen
  * whenever the viewport shrinks. Geometry only — what stands inside is the
  * caller's business.
  */
@@ -152,7 +153,7 @@ export class Floating {
     on.removeEventListener('pointercancel', this.handleUp);
     this.drag = null;
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.rect));
+      localStorage.setItem(this.storageKey, JSON.stringify(fractions(this.rect)));
     } catch {
       // A machine preference; losing it costs a default.
     }
@@ -164,15 +165,34 @@ export class Floating {
   };
 }
 
+/** The rect as fractions of the viewport, which is what is stored. */
+interface Fractions {
+  fx: number;
+  fy: number;
+  fw: number;
+  fh: number;
+}
+
+function fractions(rect: FloatingRect): Fractions {
+  const w = Math.max(1, window.innerWidth);
+  const h = Math.max(1, window.innerHeight);
+  return { fx: rect.x / w, fy: rect.y / h, fw: rect.w / w, fh: rect.h / h };
+}
+
+/** A stored layout, or null for none — a layout written in pixels by an earlier build is not one. */
 function restore(key: string): FloatingRect | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    const held = JSON.parse(raw) as FloatingRect;
-    if ([held.x, held.y, held.w, held.h].some((n) => typeof n !== 'number' || !Number.isFinite(n))) {
-      return null;
-    }
-    return held;
+    const held = JSON.parse(raw) as Partial<Fractions>;
+    const parts = [held.fx, held.fy, held.fw, held.fh];
+    if (parts.some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1)) return null;
+    return {
+      x: (held.fx as number) * window.innerWidth,
+      y: (held.fy as number) * window.innerHeight,
+      w: (held.fw as number) * window.innerWidth,
+      h: (held.fh as number) * window.innerHeight,
+    };
   } catch {
     return null;
   }
