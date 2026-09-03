@@ -205,7 +205,8 @@ export class Journal {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open_ || event.repeat || event.code !== 'Escape') return;
+    if (!this.open_ || event.repeat) return;
+    if (event.code !== 'Escape' && event.code !== 'Tab') return;
     event.preventDefault();
     this.hide();
   };
