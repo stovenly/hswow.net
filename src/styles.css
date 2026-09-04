@@ -2413,15 +2413,18 @@ body.is-identifying #pause {
   transform: translate(14px, 18px);
 }
 
-/* Anything under the name sits below one rule. */
+/* One rule under the name; whatever is under the rule runs on without another. */
+.inv-tip-name {
+  display: block;
+}
+
 .inv-tip-quest,
 .inv-tip-hint {
   display: block;
   margin-top: 0.45rem;
 }
 
-.inv-tip-quest:nth-child(2),
-.inv-tip-hint:nth-child(2) {
+.inv-tip-name + * {
   padding-top: 0.45rem;
   border-top: 1px solid rgb(220 220 200 / 18%);
 }

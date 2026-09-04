@@ -297,7 +297,10 @@ export class InventoryUI implements Pane {
 
   /** The tip renders a card and nothing else. */
   private tell(card: ItemCard): void {
-    this.tip.textContent = card.name;
+    const name = document.createElement('span');
+    name.className = 'inv-tip-name';
+    name.textContent = card.name;
+    this.tip.replaceChildren(name);
     if (card.quest) {
       const line = document.createElement('span');
       line.className = 'inv-tip-quest quest-mark';
