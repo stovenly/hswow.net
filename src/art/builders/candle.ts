@@ -131,7 +131,8 @@ export const candle: BuilderWith<FlameOptions> = {
       // the same two rotations the geometry took, in the same order. A sign wrong
       // here floats the flame beside the candle instead of on it.
       const tipX = ox - Math.sin(leanZ) * Math.cos(leanX) * height;
-      const tipY = base + Math.cos(leanZ) * Math.cos(leanX) * height + radius * 2.2;
+      // The flame's foot sits on the wax; the glow is built rising from it.
+      const tipY = base + Math.cos(leanZ) * Math.cos(leanX) * height + radius * 0.5;
       const tipZ = oz + Math.sin(leanX) * height;
 
       // A bright core inside a wide faint halo, both additive and unlit, so they
@@ -152,7 +153,8 @@ export const candle: BuilderWith<FlameOptions> = {
       // One light for the whole prop, not one per candle — three point lights
       // on an object this size is three shader iterations for a difference
       // nobody can see. Recorded here and hung after assembly.
-      if (i === 0) lightAt.set(tipX, tipY, tipZ);
+      // The light up in the body of the flame, where the bright part is.
+      if (i === 0) lightAt.set(tipX, tipY + radius * 2, tipZ);
     }
 
     const geometry = assemble(parts);
