@@ -98,6 +98,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uRoughFar: { value: 0.3 },
     /** How much of the sun a facet aimed straight at it gives back. A look knob. */
     uGlitter: { value: 0.1 },
+    /** Metres a broken wave runs up the sand, per metre of swell amplitude. */
+    uRunup: { value: 2.0 },
 
     // Distance fog, filled by the renderer because `fog` is true below.
     ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
@@ -154,6 +156,10 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vPhase;
     /** How much of a raised crest this is, 0..1. */
     varying float vSurf;
+    /** The still level, world y, before any wave lifted this vertex. */
+    varying float vLevel;
+    /** The swell's amplitude after the global scale and the motion switch, metres. */
+    varying float vRunup;
 
     void main() {
       vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -234,6 +240,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         surf = max(cs, 0.0) * smoothstep(0.0, 0.05, a);
       }
 
+      vLevel = world.y;
+      vRunup = a0;
       world.xz += shift;
       world.y += height + lift;
       vWorld = world;
@@ -272,6 +280,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float uRoughNear;
     uniform float uRoughFar;
     uniform float uGlitter;
+    uniform float uRunup;
 
     uniform vec2 windDir;
     uniform float swayTime;
@@ -290,6 +299,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vBreak;
     varying float vPhase;
     varying float vSurf;
+    varying float vLevel;
+    varying float vRunup;
 
     ${NOISE_GLSL}
     ${SKY_GLSL}
@@ -305,6 +316,13 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       if (d >= 0.9999) return uFar;
       vec4 p = uInverseProjectionView * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
       return length(p.xyz / p.w - cameraPosition);
+    }
+
+    /** Where the scene stops, at a screen position, in world space. */
+    vec3 scenePoint(vec2 uv) {
+      float d = texture2D(tDepth, uv).r;
+      vec4 p = uInverseProjectionView * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+      return p.xyz / p.w;
     }
 
     ${REFLECT_GLSL}
@@ -350,7 +368,38 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // and its distance is in tDepth. The centimetre of slack keeps a bed that
       // breaks the surface from flickering along its own waterline.
       float bedDistance = sceneDistance(uv);
-      if (bedDistance < surfaceDistance - 0.02) discard;
+      vec3 bedPoint = scenePoint(uv);
+      // How far the bed stands above the still level, metres, and its pixel width.
+      float rise = bedPoint.y - vLevel;
+      float riseW = fwidth(rise);
+      if (bedDistance < surfaceDistance - 0.02) {
+        // --- swash --------------------------------------------------------------
+        // Inside the runup band the bed in front of the surface is not dry: a
+        // sheet of the last wave up to R, wet sand above it, and only past that the
+        // ordinary discard. Off everywhere the wave has not broken.
+        float runup = smoothstep(0.9, 1.0, vBreak) * vRunup * uRunup;
+        if (runup <= 0.0) discard;
+        // The sheet peaks a quarter period after the crest reaches the sand.
+        float R = runup * max(0.0, -sin(vPhase));
+        float Rmax = runup * 1.3;
+        if (rise >= Rmax) discard;
+
+        vec3 sand = texture2D(tScene, uv).rgb;
+        float dry = smoothstep(R, Rmax, rise);
+        vec3 wet = sand * mix(0.68, 1.0, dry);
+
+        float sheet = 1.0 - smoothstep(R - riseW, R + riseW, rise);
+        vec3 up = vec3(0.0, 1.0, 0.0);
+        vec3 glance = skyColourDiscless(normalize(reflect(-view, up) + vec3(0.0, 0.02, 0.0)));
+        float graze = 0.02 + 0.98 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
+        vec3 film = mix(sand * 0.7, glance, graze * 0.8);
+        // A thin line of foam at the sheet's edge, over its last fifteen centimetres.
+        float edge = smoothstep(R - 0.15 - riseW, R - riseW, rise) * sheet;
+        film = mix(film, uFoam, edge * 0.85);
+
+        gl_FragColor = vec4(mix(wet, film, sheet), 1.0);
+        return;
+      }
 
       // How much water the eye is looking through, in metres. Everything below
       // is a function of this number.
