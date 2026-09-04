@@ -199,7 +199,8 @@ export const fireplace: MeshBuilder = {
     // Each at its own length and radius: identical cylinders in a heap read as
     // dowel, and the whole point of firewood is that it was split.
     const logs = rng.int(3, 5);
-    let pileTop = fireY;
+    // Where each log lies, so a flame can be stood on the wood under it.
+    const lying: { x: number; y: number; radius: number; half: number; yaw: number; tilt: number }[] = [];
     for (let i = 0; i < logs; i++) {
       const radius = rng.range(0.045, 0.075);
       const length = openW * rng.range(0.5, 0.78);
@@ -207,11 +208,14 @@ export const fireplace: MeshBuilder = {
       log.rotateZ(Math.PI / 2);
       // Crossed at a shallow angle, and tipped a little, so the pile has gaps
       // in it for the fire to come through.
-      log.rotateY(rng.range(-0.5, 0.5));
-      log.rotateZ(rng.range(-0.14, 0.14));
+      const yaw = rng.range(-0.5, 0.5);
+      const tilt = rng.range(-0.14, 0.14);
+      log.rotateY(yaw);
+      log.rotateZ(tilt);
       const y = slabTop + 0.09 + i * rng.range(0.05, 0.08);
-      log.translate(rng.around(0, openW * 0.08), y, fireZ + rng.around(0, 0.05));
-      pileTop = Math.max(pileTop, y + radius);
+      const x = rng.around(0, openW * 0.08);
+      log.translate(x, y, fireZ + rng.around(0, 0.05));
+      lying.push({ x, y, radius, half: length / 2, yaw, tilt });
 
       const bark = shade(PALETTE.BARK, rng.range(0.85, 1.15));
       // The lower ones have caught; the ones on top have not yet.
@@ -252,29 +256,40 @@ export const fireplace: MeshBuilder = {
     // A hearth is a *bed* of many small sources under a couple of standing
     // tongues: the bed is one flat glow, the tongues are flame bodies, and one
     // wide shallow halo covers the whole fire.
-    // A small bed of ember light under the logs, not a sheet across the slab.
-    const bed = new THREE.IcosahedronGeometry(openW * 0.14 * (0.6 + heat * 0.55), 1);
-    bed.scale(1, 0.3, 0.6);
-    bed.translate(0, slabTop + 0.1, fireZ);
-    glow.push({ geometry: bed, color: EMBER, sway: 0 });
+    // The top of the wood at a point across the opening: the highest log lying
+    // there, its own tilt followed along its length.
+    const woodAt = (x: number): number => {
+      let top = slabTop + 0.07;
+      for (const log of lying) {
+        const along = Math.cos(log.tilt) * Math.cos(log.yaw);
+        const u = (x - log.x) / Math.max(along, 0.3);
+        if (Math.abs(u) > log.half) continue;
+        top = Math.max(top, log.y + u * Math.sin(log.tilt) * Math.cos(log.yaw) + log.radius);
+      }
+      return top;
+    };
 
-    // The tongues stand in the gaps at the top of the pile, spread across it
-    // and each a little different, with the tallest in the middle.
+    // The tongues stand on the wood, spread across the pile and each a little
+    // different, with the tallest in the middle.
     const tongues = 2 + (rng.chance(heat) ? 1 : 0);
     const airs: { x: number; y: number; z: number; size: number }[] = [];
+    let pileTop = slabTop;
     for (let i = 0; i < tongues; i++) {
       const across = tongues === 1 ? 0 : (i / (tongues - 1) - 0.5) * 2;
       const size = openW * rng.range(0.045, 0.07) * (0.5 + heat * 0.7) * (1 - 0.3 * Math.abs(across));
       const x = across * openW * 0.17 + rng.around(0, openW * 0.03);
-      const y = pileTop - rng.range(0.03, 0.07);
+      // The body's foot is a fifth of a size below its origin, so it is sunk
+      // that far into the wood and rises out of it.
+      const y = woodAt(x) + size * 0.2 - 0.01;
       const z = fireZ + rng.around(0, 0.04);
       flameBody(glow, FLAME, x, y, z, size);
       airs.push({ x, y, z, size });
+      pileTop = Math.max(pileTop, y);
     }
 
-    // Flat and shallow, about the middle of the pile, so it sits in the firebox
+    // Flat and shallow, over the top of the pile, so it sits in the firebox
     // rather than filling it.
-    flameHalo(glow, EMBER, 0, (slabTop + pileTop) / 2 + 0.04, fireZ, openW * 0.11, [1, 0.8, 0.6], 0.4 + heat * 0.6);
+    flameHalo(glow, EMBER, 0, pileTop + 0.04, fireZ, openW * 0.11, [1, 0.8, 0.6], 0.4 + heat * 0.6);
 
     // --- assembly ------------------------------------------------------------
     const geometry = assemble(parts);
