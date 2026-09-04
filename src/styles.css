@@ -234,6 +234,10 @@ body.is-playing #crosshair {
   align-items: center;
 }
 
+.key-hint[hidden] {
+  display: none;
+}
+
 .control-mouse {
   /* Matched to the caps, so the icon row is pitched like every other row. */
   height: var(--key-size);
