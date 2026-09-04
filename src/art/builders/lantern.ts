@@ -166,7 +166,7 @@ export const lantern: BuilderWith<FlameOptions> = {
     const mesh = finish(geometry, 'lantern', 0);
     mesh.add(finishGlow(glowGeometry, 'lantern:glow'));
     // On the axis, like the light: the facing rotation does not move it.
-    const air = flameAir(flame, cage * 0.42, rng);
+    const air = flameAir(flame, cage * 0.42, rng, bodyBase + bodyH - wick);
     air.position.y = wick * scale;
     air.scale.setScalar(scale);
     mesh.add(air);

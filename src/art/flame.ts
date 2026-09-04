@@ -159,7 +159,8 @@ export function flameGlow(
  * builder to place and scale with the rest.
  */
 export interface FlameAirSink {
-  (flame: Flame, size: number, seed: number): THREE.Group;
+  /** `roof` is metres above the wick that nothing may rise past: a lantern's lid. */
+  (flame: Flame, size: number, seed: number, roof: number): THREE.Group;
 }
 
 let airSink: FlameAirSink | null = null;
@@ -168,9 +169,9 @@ export function installFlameAir(installed: FlameAirSink): void {
   airSink = installed;
 }
 
-export function flameAir(flame: Flame, size: number, rng: Rng): THREE.Group {
+export function flameAir(flame: Flame, size: number, rng: Rng, roof = Infinity): THREE.Group {
   const seed = rng.int(1, 1_000_000);
-  const air = airSink ? airSink(flame, size, seed) : new THREE.Group();
+  const air = airSink ? airSink(flame, size, seed, roof) : new THREE.Group();
   air.name = 'flame:air';
   return air;
 }
