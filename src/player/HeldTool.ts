@@ -16,7 +16,7 @@ import type { Item } from '../world/items';
 
 const SWING_TIME = 0.32;
 /** Camera-space grip: right, down and forward of the eye, in metres. */
-const GRIP = new THREE.Vector3(0.34, -0.32, -0.55);
+const GRIP = new THREE.Vector3(0.42, -0.38, -0.55);
 /** Where the hand holds a candle's base, and where it holds a lantern's ring. */
 const HAND = new THREE.Vector3(0.3, -0.34, -0.5);
 const RING = new THREE.Vector3(0.32, -0.08, -0.5);
