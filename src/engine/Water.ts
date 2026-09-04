@@ -3,6 +3,7 @@ import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { WATER_LAYER } from '../layers';
 import { WATER_MATERIAL } from '../art/water';
+import { SEA_MATERIAL, bakePendingSeas } from '../art/sea';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
@@ -129,24 +130,24 @@ export class WaterEffect implements PixelEffect {
     renderer.setRenderTarget(context.write);
     this.quad.render(renderer);
 
+    // A sea built this zone reads the whole zone from above once, now that all
+    // of it stands in the scene.
+    bakePendingSeas(renderer, scene);
+
     // --- what the water needs to know about the frame ------------------------
-    const u = WATER_MATERIAL.uniforms;
     // The colour it composites over and marches through, and the depth it tests
     // itself against. Both are the chain's, not the stage's — so water sees the
     // outline and the ambient occlusion that were applied before it.
-    u.tScene.value = context.colour;
-    u.tDepth.value = context.depth;
-    (u.uResolution.value as THREE.Vector2).copy(context.size);
-    u.uFar.value = camera.far;
-
-    // Recomputed every frame because the camera moves every frame.
-    // `camera.matrixWorld` is current by the time a pass runs, and
-    // `cameraPosition` in the shader is filled by the renderer from it.
     this.projectionView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    (u.uProjectionView.value as THREE.Matrix4).copy(this.projectionView);
-    (u.uInverseProjectionView.value as THREE.Matrix4).copy(
-      this.inverse.copy(this.projectionView).invert(),
-    );
+    this.inverse.copy(this.projectionView).invert();
+    for (const u of [WATER_MATERIAL.uniforms, SEA_MATERIAL.uniforms]) {
+      u.tScene.value = context.colour;
+      u.tDepth.value = context.depth;
+      (u.uResolution.value as THREE.Vector2).copy(context.size);
+      u.uFar.value = camera.far;
+      (u.uProjectionView.value as THREE.Matrix4).copy(this.projectionView);
+      (u.uInverseProjectionView.value as THREE.Matrix4).copy(this.inverse);
+    }
 
     // --- the draw -------------------------------------------------------------
     // No clear of any kind: the blit above is the frame, and the depth attached to

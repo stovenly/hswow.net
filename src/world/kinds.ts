@@ -12,6 +12,7 @@ import { markLabelled, markReadable } from './Interaction';
 import { markGlitched } from '../art/glitch';
 import { markHaunted } from '../art/horror';
 import { waterPlane } from '../art/water';
+import { seaPlane } from '../art/sea';
 import { TRACK_SURFACES } from './track';
 import { buildTrackNetwork } from './trackNetwork';
 import { createParticles, type ParticleSpec } from '../art/particles';
@@ -77,6 +78,7 @@ import {
   type SoundScatterEntry,
   type VistaRingEntry,
   type WaterEntry,
+  type SeaEntry,
 } from './entry';
 
 /**
@@ -703,7 +705,6 @@ registerEntryKind<WaterEntry>({
     chop: { type: 'number', min: 0, max: 3, step: 0.01 },
     taper: { type: 'number', min: 0, max: 8, step: 0.1, label: 'fade over (m)' },
     segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
-    reach: { type: 'number', min: 0, max: 2000, step: 10, label: 'apron reach (m)' },
   },
   defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
   build(entry, ctx) {
@@ -725,8 +726,36 @@ registerEntryKind<WaterEntry>({
           : chop,
       flow: entry.flow ? new THREE.Vector2(entry.flow[0], entry.flow[1]) : undefined,
       segment: entry.segment,
-      reach: entry.reach,
+    });
+  },
+});
+
+// --- sea --------------------------------------------------------------------
+
+registerEntryKind<SeaEntry>({
+  kind: 'sea',
+  schema: {
+    width: { type: 'number', min: 10, max: 400, step: 1 },
+    depth: { type: 'number', min: 10, max: 400, step: 1 },
+    reach: { type: 'number', min: 0, max: 2000, step: 10, label: 'reach (m)' },
+    segment: { type: 'number', min: 0.3, max: 4, step: 0.1, label: 'metres per quad' },
+  },
+  defaults: () => ({
+    width: 120,
+    depth: 120,
+    swell: { direction: [0, -1], length: 30, height: 0.6 },
+    reach: 600,
+  }),
+  build(entry, ctx) {
+    const holder = new THREE.Object3D();
+    applyPlacement(holder, entry, ctx);
+    return seaPlane({
+      width: entry.width,
+      depth: entry.depth,
+      at: holder.position.clone(),
       swell: entry.swell,
+      reach: entry.reach,
+      segment: entry.segment,
       groundAt: ctx.groundAt,
     });
   },

@@ -7,6 +7,7 @@ import { FogVolumesEffect, type FogVolume } from './FogVolumes';
 import { WaterEffect } from './Water';
 import { UnderwaterEffect } from './Underwater';
 import { WATER_MATERIAL } from '../art/water';
+import { SEA_MATERIAL } from '../art/sea';
 import { GlassEffect } from './Glass';
 import { glassUniforms } from '../art/glass';
 import { ParticlesEffect } from './Particles';
@@ -650,12 +651,13 @@ export class PostFX {
 
     // Water is part of the place, not a player option.
     this.water.enabled = this.water.hasWater;
-    const w = WATER_MATERIAL.uniforms;
-    w.uWaveScale.value = s.water.waves;
-    // Layered over the tuning rather than written into it, as the dither is.
-    w.uWaterMotion.value = this.waves ? 1 : 0;
-    // A real switch, not a strength of zero: off, the march does not run.
-    w.uReflections.value = s.water.reflections ? 1 : 0;
+    for (const w of [WATER_MATERIAL.uniforms, SEA_MATERIAL.uniforms]) {
+      w.uWaveScale.value = s.water.waves;
+      // Layered over the tuning rather than written into it, as the dither is.
+      w.uWaterMotion.value = this.waves ? 1 : 0;
+      // A real switch, not a strength of zero: off, the march does not run.
+      w.uReflections.value = s.water.reflections ? 1 : 0;
+    }
 
     // Glass follows water and rides its reflection switch: one march, one decision.
     this.glass.enabled = this.glass.hasGlass;

@@ -355,10 +355,18 @@ export interface WaterEntry extends EntryBase {
   taper?: number;
   flow?: readonly [number, number];
   segment?: number;
-  /** Metres the surface runs on past its rectangle as a coarse apron, sea side only. */
+}
+
+export interface SeaEntry extends EntryBase {
+  kind: 'sea';
+  /** The rectangle the shore field covers, metres; `at` is its centre and the water level. */
+  width: number;
+  depth: number;
+  /** The way the swell travels (world xz), its wavelength and its height, metres. */
+  swell: { direction: readonly [number, number]; length: number; height: number };
+  /** Metres the surface runs on past the rectangle toward the horizon. */
   reach?: number;
-  /** The long offshore train: the way it travels, its wavelength and its height, metres. */
-  swell?: { direction: readonly [number, number]; length: number; height: number };
+  segment?: number;
 }
 
 export interface ParticlesEntry extends EntryBase {
@@ -431,6 +439,7 @@ export type Entry =
   | PrefabEntry
   | GroundEntry
   | WaterEntry
+  | SeaEntry
   | TrackEntry
   | ParticlesEntry
   | FogVolumeEntry

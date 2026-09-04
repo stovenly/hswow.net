@@ -5,7 +5,6 @@ import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import { AERIAL_AIR_GLSL, fogUniforms } from '../engine/fog';
 import { REFLECT_GLSL } from '../engine/reflect';
 import { windUniforms } from './sway';
-import { bakeShore, deepWavenumber, wavenumber, G, GAMMA } from './shore';
 
 // Stylized water: the shared material beside ART_MATERIAL and its finish
 // variants, and GLOW_MATERIAL. Everything it does is a function of
@@ -37,15 +36,6 @@ const K_SHORT = (2 * Math.PI) / WAVE_SHORT;
  */
 const CELERITY_LONG = 1.05 / K_LONG;
 const CELERITY_SHORT = 1.63 / K_SHORT;
-
-/** The apron's rings: every `APRON_STEP` metres out to `APRON_DENSE`, then geometrically to the reach. */
-const APRON_STEP = 4;
-const APRON_DENSE = 100;
-const APRON_FAR_RINGS = 5;
-/** How fast the bed falls away under the apron, metres of column per metre out. */
-const APRON_SHELF = 0.05;
-/** Metres inside a sea plane's perimeter over which the crossed chop trains fade to nothing. */
-const CHOP_FADE = 12;
 
 /**
  * What the far field goes to underwater, blending deep toward shallow. Shared
@@ -94,22 +84,6 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     /** Roughly how thin the water has to be to foam, in metres. */
     uFoamDepth: { value: 0.34 },
 
-    /** Steepness (a·k) at which the shore train's crest is fully piled. */
-    uSteep: { value: 0.2 },
-    /** Microfacet roughness of the sun path: resolved ripple, and ripple filtered flat. */
-    uRoughNear: { value: 0.02 },
-    uRoughFar: { value: 0.3 },
-    /** How much of the sun a facet aimed straight at it gives back. A look knob. */
-    uGlitter: { value: 0.1 },
-    /** Metres the surface rises at the shore as each wave arrives, per metre of swell amplitude. */
-    uRunup: { value: 1.2 },
-    /** What a backlit crest glows: the shallow colour brightened, until the owner says otherwise. */
-    uScatter: { value: new THREE.Color('#93c1ba') },
-    /** How far the surface tilt bends the bed seen through it. A look knob. */
-    uRefract: { value: 0.6 },
-    /** How bright the caustics on a sunlit bed get. */
-    uCaustics: { value: 0.55 },
-
     // Distance fog, filled by the renderer because `fog` is true below.
     ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
 
@@ -135,11 +109,6 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
   vertexShader: /* glsl */ `
     attribute float aChop;
     attribute vec2 aFlow;
-    // Still column (m), wave phase (rad), and the unit direction the shore train travels.
-    attribute vec4 aShore;
-    // The swell's deep-water wavenumber and amplitude, the wavenumber at this
-    // column, and how much of the crossed chop trains this mesh carries.
-    attribute vec4 aSwell;
 
     uniform sampler2D gustField;
     uniform vec2 windDir;
@@ -148,35 +117,17 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float swayTime;
     uniform float uWaveScale;
     uniform float uWaterMotion;
-    uniform float uSteep;
-    uniform float uRunup;
 
     varying vec3 vWorld;
     varying vec3 vSurfaceNormal;
     /** This vertex's chop, after the gust and the global scale. */
     varying float vChop;
-    /** Where on the chop this vertex sits, -1 in a trough to 1 on a crest. */
+    /** Where on the wave this vertex sits, -1 in a trough to 1 on a crest. */
     varying float vCrest;
     /** Which way the surface is travelling, m/s, for the fragment stage. */
     varying vec2 vFlow;
     /** The authored flow speed. Zero on a pond, and the fragment stage cares. */
     varying float vStreak;
-    /** The shore train's breaking ratio, 0 unbroken to 1 saturated. */
-    varying float vBreak;
-    /** The shore train's phase; the crest is at 0 mod 2π and the front face follows. */
-    varying float vPhase;
-    /** How much of a raised crest this is, 0..1. */
-    varying float vSurf;
-    /** The still level, world y, before any wave lifted this vertex. */
-    varying float vLevel;
-    /** The swell's amplitude after the global scale, the motion switch and the tongue, metres. */
-    varying float vRunup;
-    /** The still column at this vertex, metres; zero or less over the sand. */
-    varying float vColumn;
-    /** The way the shore train travels, world xz. */
-    varying vec2 vDir;
-
-    ${NOISE_GLSL}
 
     void main() {
       vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -207,84 +158,20 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float p1 = (dot(world.xz, d1) - swayTime * (${CELERITY_LONG.toFixed(4)} + dot(aFlow, d1))) * k1;
       float p2 = (dot(world.xz, d2) - swayTime * (${CELERITY_SHORT.toFixed(4)} + dot(aFlow, d2))) * k2;
 
-      // The chop as displacement only where the mesh can carry it; as ripple and
-      // agitation it runs on everywhere, so a coarse apron looks like its neighbour.
-      float a1 = ${AMP_LONG.toFixed(3)} * chop * aSwell.w;
-      float a2 = ${AMP_SHORT.toFixed(3)} * chop * aSwell.w;
+      float a1 = ${AMP_LONG.toFixed(3)} * chop;
+      float a2 = ${AMP_SHORT.toFixed(3)} * chop;
       float height = a1 * sin(p1) + a2 * sin(p2);
 
       // Plain sines, so the slope is exact: the derivative of a sine is a cosine,
-      // and the surface normal is most of what water looks like.
+      // and the surface normal is most of what water looks like. A Gerstner sum
+      // would need a finite difference or a second evaluation for its normal.
       vec2 slope = d1 * (a1 * k1 * cos(p1)) + d2 * (a2 * k2 * cos(p2));
 
-      // --- the shore train ----------------------------------------------------
-      // One Gerstner wave: the swell in deep water, shoaling as the bed comes up.
-      float h = aShore.x;
-      float k0 = aSwell.x;
-      float a0 = aSwell.y * uWaveScale * uWaterMotion;
-      float k = max(aSwell.z, 1e-4);
-      vec2 dir = aShore.zw;
-      float b = 0.0;
-      float phi = 0.0;
-      float lift = 0.0;
-      vec2 shift = vec2(0.0);
-      float surf = 0.0;
-      float swash = a0;
-      if (k0 > 0.0) {
-        float omega = sqrt(${G.toFixed(2)} * k0);
-        float kh = clamp(k * h, 1e-3, 10.0);
-        // Green's law: the amplitude grows as the group velocity falls.
-        float shoal = h > 0.0 ? sqrt((k / k0) / (1.0 + 2.0 * kh / sinh(2.0 * kh))) : 0.0;
-        float cap = ${(GAMMA / 2).toFixed(2)} * max(h, 0.0);
-        float raw = a0 * shoal;
-        b = a0 > 0.0 ? (h > 0.0 ? clamp(raw / max(cap, 1e-4), 0.0, 1.0) : 1.0) : 0.0;
-        float a = min(raw, cap);
-        phi = aShore.y - omega * swayTime * uWaterMotion;
-
-        float steep = clamp(a * k / uSteep, 0.0, 1.0);
-        // A breaking crest leans the way it travels: the front face is compressed
-        // in phase and the back stretched, by the same even term.
-        float lean = 0.5 * b;
-        float phis = phi + lean * (1.0 - cos(phi));
-        float dphis = 1.0 + lean * sin(phi);
-        float cs = cos(phis);
-        float sn = sin(phis);
-        // Gerstner: the crest at phi = 0, and the front face (phi > 0) pulled back
-        // against dir, which is the way the wave travels. Q·a·k stays under 0.6.
-        float sweep = 0.6 * steep / k;
-        shift = -dir * (sweep * sn);
-        lift = a * cs;
-        float tx = 1.0 - sweep * k * cs * dphis;
-        float ty = -a * k * sn * dphis;
-        slope += dir * (ty / max(tx, 0.1));
-        surf = max(cs, 0.0) * smoothstep(0.0, 0.05, a);
-
-        // The swash: the surface rises as each wave arrives, fast up and slow to
-        // drain, and carries on over the sand as one sheet. The runup varies
-        // along the shore and per wave, so the sheet's edge is tongues.
-        float since = fract(-phi * 0.15915494);
-        float surge = smoothstep(0.0, 0.3, since) * (1.0 - smoothstep(0.3, 1.0, since));
-        vec2 across = vec2(-dir.y, dir.x);
-        float wave = floor(-phi * 0.15915494);
-        float tongue = valueNoise(vec2(dot(world.xz, across) * 0.3, wave * 0.618 + 3.7));
-        swash = a0 * (0.65 + 0.7 * tongue);
-        float runup = uRunup * swash;
-        lift += runup * surge * (1.0 - smoothstep(0.0, 2.0 * runup, h));
-      }
-
-      vLevel = world.y;
-      vRunup = swash;
-      vColumn = h;
-      vDir = dir;
-      world.xz += shift;
-      world.y += height + lift;
+      world.y += height;
       vWorld = world;
       vSurfaceNormal = normalize(vec3(-slope.x, 1.0, -slope.y));
       vChop = chop;
       vCrest = height / max(a1 + a2, 1e-4);
-      vBreak = b;
-      vPhase = phi;
-      vSurf = surf;
       // What the fragment stage advects its noise along. Still water still drifts
       // downwind — a surface pattern nailed to the world reads as ice.
       vFlow = rate > 0.001 ? aFlow : windDir * 0.25;
@@ -311,13 +198,6 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float uShoreDepth;
     uniform float uClarity;
     uniform float uFoamDepth;
-    uniform float uRoughNear;
-    uniform float uRoughFar;
-    uniform float uGlitter;
-    uniform float uRunup;
-    uniform vec3 uScatter;
-    uniform float uRefract;
-    uniform float uCaustics;
 
     uniform vec2 windDir;
     uniform float swayTime;
@@ -333,13 +213,6 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vCrest;
     varying vec2 vFlow;
     varying float vStreak;
-    varying float vBreak;
-    varying float vPhase;
-    varying float vSurf;
-    varying float vLevel;
-    varying float vRunup;
-    varying float vColumn;
-    varying vec2 vDir;
 
     ${NOISE_GLSL}
     ${SKY_GLSL}
@@ -357,82 +230,22 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       return length(p.xyz / p.w - cameraPosition);
     }
 
-    /** Where the scene stops, at a screen position, in world space. */
-    vec3 scenePoint(vec2 uv) {
-      float d = texture2D(tDepth, uv).r;
-      vec4 p = uInverseProjectionView * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
-      return p.xyz / p.w;
-    }
-
     ${REFLECT_GLSL}
 
-    /** How much of a noise octave the pixel resolves, from the cells it spans. */
-    float resolved(float cellsPerPixel) {
-      return 1.0 - smoothstep(0.15, 0.4, cellsPerPixel);
+    /** Two scales of value noise. Cheaper than fbm, and this is not a cloud. */
+    float ripple(vec2 p) {
+      return valueNoise(p) * 0.66 + valueNoise(p * 2.17 + 11.3) * 0.34;
     }
 
-    /** The pixel's span in a coordinate's own units: its longer screen derivative. */
-    float span(vec2 p) {
-      return max(length(dFdx(p)), length(dFdy(p)));
-    }
-
-    // Two scales of value noise, each pulled to its mean as the pixel outgrows
-    // it; lost is the amplitude that took out. Filtered by the coordinate's
-    // footprint, never by the noise's own derivative, which is random sub-pixel.
-    float ripple(vec2 p, float foot, out float lost) {
-      float w1 = resolved(foot);
-      float w2 = resolved(foot * 2.17);
-      lost = 0.66 * (1.0 - w1) + 0.34 * (1.0 - w2);
-      return 0.5 + (valueNoise(p) - 0.5) * (0.66 * w1) + (valueNoise(p * 2.17 + 11.3) - 0.5) * (0.34 * w2);
-    }
-
-    // A frame that runs with the water and is squeezed along it, so the noise
-    // drawn in it comes out as streaklines that bend with the flow.
-    vec2 frame(vec2 p, vec2 along, float stretch, float scale) {
+    /**
+     * The same noise, drawn in a frame that runs with the water and is squeezed
+     * along it. Compressing the coordinate along the flow stretches every feature
+     * out along it in world space, and what comes back is streaklines. The frame
+     * is built from a varying, so the streaks bend round a corner with the flow.
+     */
+    float streaked(vec2 p, vec2 along, float stretch, float scale) {
       vec2 across = vec2(-along.y, along.x);
-      return vec2(dot(p, along) / stretch, dot(p, across)) * scale;
-    }
-
-    float streaked(vec2 p, vec2 along, float stretch, float scale, out float lost) {
-      vec2 q = frame(p, along, stretch, scale);
-      return ripple(q, span(q), lost);
-    }
-
-    // Above a threshold with an authored shoulder, resolved over the pixel and
-    // over the spread the filter removed, so a field pulled to its mean gives
-    // the fraction that would have been over, not a step at the mean.
-    float over(float field, float at, float half_, float lost) {
-      float w = max(half_, max(fwidth(field) * 0.6, lost * 0.5));
-      return smoothstep(at - w, at + w, field);
-    }
-
-    float edge(float x, float at, float w) {
-      return smoothstep(at - w, at + w, x);
-    }
-
-    /** The smaller of two steps, sign kept: a jump on one side is not a slope. */
-    vec3 lesser(vec3 a, vec3 b) {
-      return dot(a, a) < dot(b, b) ? a : b;
-    }
-
-    /** Integral to t of a fringe that is 1 at zero and thins to nothing at width. */
-    float fringeArea(float t, float width) {
-      t = clamp(t, 0.0, width);
-      return t - t * t / (2.0 * width);
-    }
-
-    /** GGX with Smith visibility and Schlick fresnel, for a light in direction l. */
-    float glitter(vec3 n, vec3 v, vec3 l, float alpha) {
-      vec3 hv = normalize(v + l);
-      float nl = max(dot(n, l), 0.0);
-      float nv = max(dot(n, v), 1e-3);
-      float nh = max(dot(n, hv), 0.0);
-      float a2 = alpha * alpha;
-      float dd = nh * nh * (a2 - 1.0) + 1.0;
-      float D = a2 / (3.14159265 * dd * dd);
-      float V = 0.5 / max(mix(2.0 * nl * nv, nl + nv, alpha), 1e-4);
-      float F = 0.02 + 0.98 * pow(1.0 - max(dot(hv, v), 0.0), 5.0);
-      return D * V * F * nl;
+      return ripple(vec2(dot(p, along) / stretch, dot(p, across)) * scale);
     }
 
     void main() {
@@ -446,53 +259,11 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // and its distance is in tDepth. The centimetre of slack keeps a bed that
       // breaks the surface from flickering along its own waterline.
       float bedDistance = sceneDistance(uv);
-      vec3 bedPoint = scenePoint(uv);
-      // How far the bed stands above the still level, metres.
-      float rise = bedPoint.y - vLevel;
-      if (bedDistance < surfaceDistance - 0.02) {
-        // --- wet sand -------------------------------------------------------------
-        // The bed in front of the surface but within the swash's reach is wet
-        // sand: darkened, and glancing the sky the way the sheet beside it
-        // does, so the sheet's edge is a fringe and not a step. Everywhere else
-        // the discard stands.
-        float runup = smoothstep(0.9, 1.0, vBreak) * vRunup * uRunup;
-        if (runup <= 0.0 || !gl_FrontFacing || rise >= runup * 1.25) discard;
-        vec3 sand = texture2D(tScene, uv).rgb;
-        float dry = smoothstep(runup * 0.8, runup * 1.25, rise);
-        vec3 glance = skyColourDiscless(normalize(reflect(-view, vec3(0.0, 1.0, 0.0)) + vec3(0.0, 0.02, 0.0)));
-        float graze = 0.02 + 0.98 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
-        vec3 wet = mix(sand * 0.6, glance, graze * 0.8);
-        gl_FragColor = vec4(mix(wet, sand, dry), 1.0);
-        return;
-      }
+      if (bedDistance < surfaceDistance - 0.02) discard;
 
       // How much water the eye is looking through, in metres. Everything below
       // is a function of this number.
       float thickness = max(bedDistance - surfaceDistance, 0.0);
-
-      // The bed one pixel over on each axis, by the smaller step, so a rock's
-      // silhouette beside this pixel is an edge and not a slope. Per pixel, not
-      // per quad: a derivative of a depth sample is a block at every edge.
-      vec2 texel = 1.0 / uResolution;
-      vec3 dBx = lesser(
-        scenePoint(uv + vec2(texel.x, 0.0)) - bedPoint,
-        bedPoint - scenePoint(uv - vec2(texel.x, 0.0))
-      );
-      vec3 dBy = lesser(
-        scenePoint(uv + vec2(0.0, texel.y)) - bedPoint,
-        bedPoint - scenePoint(uv - vec2(0.0, texel.y))
-      );
-      // Metres of thickness one pixel spans, metres of bed it spans, and the
-      // bed's slope under it.
-      float bedNear = length(bedPoint - cameraPosition);
-      float gx = length(bedPoint + dBx - cameraPosition) - bedNear - dFdx(surfaceDistance);
-      float gy = length(bedPoint + dBy - cameraPosition) - bedNear - dFdy(surfaceDistance);
-      float thicknessSpan = length(vec2(gx, gy));
-      float bedFoot = max(length(dBx.xz), length(dBy.xz));
-      float bedSlope = max(
-        abs(dBx.y) / max(length(dBx.xz), 1e-3),
-        abs(dBy.y) / max(length(dBy.xz), 1e-3)
-      );
 
       // --- the surface normal ------------------------------------------------
       // The wave slope from the vertex stage, plus fine ripple that would need a
@@ -517,34 +288,27 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float rushing = min(vStreak, 3.0) / 3.0;
       float agitation = max(vChop, rushing * 1.15);
 
-      // Filtered to the pixel: a pattern finer than a pixel is drawn as its mean
-      // over the pixel, never as one sample of it.
+      // Filtered to the pixel. A pattern that turns over faster than a pixel
+      // is wide is not resolved by drawing one sample of it — that is a moiré
+      // that swims as the view turns — it is resolved by drawing its mean over
+      // the pixel. So every fine term here is pulled toward its mean by how
+      // fast it changes across the screen, which is nothing up close and
+      // everything on a wave a pixel wide, whatever the distance.
       vec3 normal = normalize(vSurfaceNormal);
       float swim = clamp(length(fwidth(vSurfaceNormal.xz)) * 5.0, 0.0, 1.0);
       normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), swim));
-      float rippleSwim = 0.0;
-      vec2 rq = vWorld.xz - stream * 1.35;
-      float rippleFoot = span(frame(rq, along, stretch, 1.35));
       if (agitation > 0.002) {
+        vec2 q = vWorld.xz - stream * 1.35;
         float e = 0.18;
-        float lost;
-        float n0 = ripple(frame(rq, along, stretch, 1.35), rippleFoot, lost);
-        float nx = ripple(frame(rq + vec2(e, 0.0), along, stretch, 1.35), rippleFoot, lost) - n0;
-        float nz = ripple(frame(rq + vec2(0.0, e), along, stretch, 1.35), rippleFoot, lost) - n0;
+        float n0 = streaked(q, along, stretch, 1.35);
+        float gx = streaked(q + vec2(e, 0.0), along, stretch, 1.35) - n0;
+        float gz = streaked(q + vec2(0.0, e), along, stretch, 1.35) - n0;
         // Small. This tilts the normal, which decides both the fresnel weight and
         // where the reflection ray goes, so past about ten degrees the reflected
         // image stops being a reflection. Ripple is a few degrees of scatter.
-        rippleSwim = lost;
-        normal = normalize(normal + vec3(-nx, 0.0, -nz) * (0.16 * agitation / e));
+        float rippleSwim = clamp(fwidth(n0) * 3.0, 0.0, 1.0);
+        normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation * (1.0 - rippleSwim) / e));
       }
-      // What the filtering took out of the normal goes into the roughness, so a
-      // sea filtered flat at range still glitters under the sun.
-      float alpha = mix(uRoughNear, uRoughFar, clamp(swim + rippleSwim, 0.0, 1.0));
-
-      vec3 sunDir = normalize(uSunDirection);
-      float sunUp = smoothstep(-0.02, 0.05, sunDir.y) * uSunIntensity;
-      vec3 moonDir = normalize(uMoonDirection);
-      float moonUp = smoothstep(-0.02, 0.05, moonDir.y) * uMoonIntensity;
 
       // --- seen from below ----------------------------------------------------
       //
@@ -593,26 +357,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       }
 
       // --- what is under the water -------------------------------------------
-      // The bed is read where the tilted surface bends the ray, but only if what
-      // is there is still behind the surface: nothing above the water bends.
-      vec3 tilt = mat3(viewMatrix) * (normal - vec3(0.0, 1.0, 0.0));
-      vec2 bent = uv + tilt.xy * (uRefract * min(thickness, 1.0) / surfaceDistance);
-      vec3 bed = texture2D(tScene, sceneDistance(bent) > surfaceDistance ? bent : uv).rgb;
-      // Sand under the surf is as wet as the sand the sheet leaves behind.
-      bed *= mix(1.0, 0.6, smoothstep(0.9, 1.0, vBreak));
-
-      // Caustics: two octaves of ridged noise on the bed, scrolled two ways, in
-      // the shallows under a sun, each pulled to its mean as the pixel outgrows it.
-      float shallows = smoothstep(0.05, 0.3, thickness) * (1.0 - smoothstep(1.2, 2.2, thickness)) * sunUp;
-      if (shallows > 0.0) {
-        vec2 cp = bedPoint.xz;
-        vec2 scroll = vec2(0.18, 0.11) * (swayTime * uWaterMotion);
-        float c1 = 1.0 - abs(2.0 * valueNoise(cp * 0.9 + scroll) - 1.0);
-        float c2 = 1.0 - abs(2.0 * valueNoise(cp * 1.9 - scroll * 1.4 + 7.3) - 1.0);
-        c1 = mix(0.5, c1, resolved(bedFoot * 0.9));
-        c2 = mix(0.5, c2, resolved(bedFoot * 1.9));
-        bed *= 1.0 + c1 * c2 * uCaustics * shallows;
-      }
+      vec3 bed = texture2D(tScene, uv).rgb;
       // Beer-Lambert on the column, the same shape the fog volumes use: the bed
       // does not vanish at a threshold, it fades out at a rate.
       float opacity = 1.0 - exp(-thickness / max(uClarity, 0.01));
@@ -627,12 +372,10 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       bounce.y = max(bounce.y, 0.015);
       bounce = normalize(bounce);
 
-      // No disc: the sun's image on the water is the glitter term below.
-      vec3 sky = skyColourDiscless(bounce);
+      vec3 sky = skyColour(bounce);
       vec3 reflection = sky;
       float hit = 0.0;
-      // Past 120 m the march finds nothing a sky lookup does not.
-      if (uReflections > 0.5 && surfaceDistance < 120.0) {
+      if (uReflections > 0.5) {
         float found;
         float travelled;
         vec3 marched = marchReflection(
@@ -656,102 +399,67 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
       vec3 colour = mix(below, reflection, fresnel);
 
-      // Scatter through the crest: the sun through the upper face of a raised
-      // wave when the eye looks into it, and never with sand right behind it.
-      float sss = vSurf * pow(max(dot(-view, sunDir), 0.0), 4.0) * (1.0 - fresnel)
-        * smoothstep(0.3, 1.0, thickness) * sunUp;
-      colour = mix(colour, uScatter, clamp(sss * 0.7, 0.0, 1.0));
-
-      // --- the sun path -------------------------------------------------------
-      if (sunUp > 0.0) {
-        float g = glitter(normal, view, sunDir, alpha) * uGlitter * sunUp;
-        colour = mix(colour, uSunColor, clamp(g, 0.0, 1.0));
-      }
-      if (moonUp > 0.0) {
-        float g = glitter(normal, view, moonDir, alpha) * uGlitter * moonUp;
-        colour = mix(colour, uMoonColor, clamp(g, 0.0, 1.0));
-      }
-
       // --- foam ---------------------------------------------------------------
       // Two bands and two flat colours, thresholded over one pixel: the quantizer
-      // bands a gradient anyway, so the bands are authored where they belong.
-      // Every term below is resolved at the pixel: its noise band-limited, its
-      // edges at least a pixel wide, and where it is thinner than a pixel it is
-      // drawn at the coverage it has, never widened to a line.
-
-      // --- the waterline --------------------------------------------------------
-      float lapLost;
-      float lap = streaked(vWorld.xz - stream * 0.85, along, stretch, 0.55, lapLost);
+      // bands a gradient anyway, so the bands are authored where they belong,
+      // and the edge of each is resolved at the pixel rather than stepped, so a
+      // band seen small is a soft halo and not a jagged line. The waterline is
+      // scaled by noise and scrolled downwind, in three layers at slightly
+      // different rates, all carried by stream — so the motion switch stops
+      // every one of them.
+      float lap = streaked(vWorld.xz - stream * 0.85, along, stretch, 0.55);
       // Fast water is aerated, and aerated water is white further out: the band a
       // race foams over is nearly twice a pond's.
       float band = uFoamDepth * (0.45 + 1.1 * lap) * (1.0 + rushing * 0.95);
-      if (vRunup > 0.0) {
-        // On a sea the rim is a line along the waterline and never a field over
-        // a flat: it reaches under a metre across the bed, which on a bed of
-        // slope s seen at elevation e is a thickness of reach * s / sin(e).
-        float reach = 0.4 * (0.45 + 1.1 * lap);
-        band = min(band, reach * bedSlope / max(view.y, 0.05));
-      }
-      // The rim is a fringe, dense against the bed and thinning outward, drawn
-      // as its mean over the thickness this pixel spans: white only where it
-      // stands several pixels tall, and a pale line where it is thinner.
-      float halfSpan = max(thicknessSpan * 0.5, 1e-3);
-      band = max(band, 1e-4);
-      float shore = clamp(
-        (fringeArea(thickness + halfSpan, band) - fringeArea(thickness - halfSpan, band)) / (2.0 * halfSpan),
-        0.0,
-        1.0
-      );
+      // Metres of thickness one pixel covers. The waterline is never narrower
+      // than a couple of pixels on screen, whatever it is in metres, and its
+      // edge is spread over one: a distant rock gets a soft rim, not a jag.
+      float px = fwidth(thickness);
+      float shoreBand = max(band, min(px * 2.5, 2.5));
+      float shore = 1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness);
 
       // --- surf ---------------------------------------------------------------
-      // Foam comes off the shore train; the noise tears it, never places it.
-      // cycle is 0 at the crest and positive down the front face; since is how
-      // long ago the crest went by, in periods.
-      float cycle = fract(vPhase * 0.15915494 + 0.5) - 0.5;
-      float since = fract(-vPhase * 0.15915494);
-      // Half a pixel, in periods.
-      float pw = fwidth(vPhase) * 0.15915494 * 0.5;
-      // Broken water streaks the way the wave travels, so the noise frame is
-      // stretched along vDir: fine streaks, and the clumps that gap a crest.
-      vec2 travel = normalize(vDir + vec2(1e-4, 0.0));
-      float streakLost;
-      float clumpLost;
-      float streak = streaked(vWorld.xz - stream * 0.6, travel, 3.0, 0.9, streakLost);
-      float clumps = streaked(vWorld.xz - stream * 0.35, travel, 1.6, 0.25, clumpLost);
-      float breaking = smoothstep(0.85, 1.0, vBreak);
-      // The lip: a white core on the crest and the top of the front face, a
-      // pale skirt tumbling down the face, in runs with gaps between. Each
-      // window's edges are at least half a pixel wide, so a crest a pixel
-      // across is a fainter line and not a brighter one.
-      float core = max(edge(cycle, -0.01, max(0.01, pw)) - edge(cycle, 0.06, max(0.02, pw)), 0.0);
-      float apron = max(edge(cycle, -0.03, max(0.02, pw)) - edge(cycle, 0.14, max(0.06, pw)), 0.0);
-      float runs = over(clumps, 0.46, 0.06, clumpLost);
-      float lip = breaking * runs * smoothstep(0.0, 0.1, vColumn) * max(
-        core * over(streak, 0.375, 0.125, streakLost),
-        apron * 0.55 * over(streak, 0.5, 0.1, streakLost)
-      );
-      // The wash: what the breaker leaves behind it, thinning away before the
-      // next crest, and never white. Streaked lace that opens hole-first, the
-      // threshold rising as it decays.
-      float decay = 1.0 - smoothstep(0.0, 0.45, since);
-      float laceField = streak * 0.7 + clumps * 0.3;
-      float lace = over(laceField, mix(0.4, 0.73, since), 0.05, streakLost * 0.7 + clumpLost * 0.3);
-      // Over the sand the sheet's foam is its edge alone.
-      float trail = 0.6 * smoothstep(0.9, 1.0, vBreak) * decay * lace * smoothstep(-0.05, 0.05, vColumn);
-      float breaker = max(lip, trail);
-      // How far into the surf zone this is, for anything that stops there.
-      float surfZone = smoothstep(0.4, 0.85, vBreak);
+      // Never off the wave trains: two crossed sines interfere into a lattice,
+      // and foam on its nodes is a grid of blobs. A breaker is a line of white
+      // lying along the shore, and the shore is where the bed comes up — so the
+      // breakers are written on the depth itself. Lines of constant depth run
+      // parallel to the waterline whatever shape it is, and driving their phase
+      // with the clock walks them shoreward. The depth is taken vertically, so a
+      // line stays put as the view swings round.
+      float depth = thickness * max(abs(view.y), 0.08);
+      float surfPhase = depth * 11.4240 + swayTime * 1.3 * uWaterMotion;
+      float line = sin(surfPhase);
+      // A wave builds as the bed comes up under it and breaks over the last
+      // metre; below that the white is the waterline's own.
+      float build = smoothstep(2.2, 0.8, depth) * smoothstep(0.12, 0.35, depth);
+      // Broken along its length: a real breaker is a run of white with gaps,
+      // not a rule, and the gaps drift with the water.
+      float run = streaked(vWorld.xz - stream * 0.6, along, stretch, 0.32);
+      float ragged = streaked(vWorld.xz - stream * 1.2, along, stretch, 1.4);
+      float gate = run * 0.7 + ragged * 0.3;
+      float lw = fwidth(line);
+      // The crest is a narrow strip — the top tenth of the wave and no more —
+      // and where the run is gapped it is not there at all.
+      float crestLine =
+        smoothstep(0.82 + (1.0 - gate) * 0.4 - lw, 0.97 + lw, line) * build *
+        smoothstep(0.08, 0.35, agitation);
+      // Behind the crest, on the shore side, the broken water trails off as a
+      // lacy pale wash that thins away before the next wave. Wash only, never
+      // white: it never reaches the second band's threshold.
+      float u = fract((surfPhase - 1.5708) * 0.15915);
+      float trail = smoothstep(0.55, 0.92, u) * (1.0 - smoothstep(0.92, 1.0, u));
+      float lace = smoothstep(0.42, 0.7, ragged * 0.6 + run * 0.4);
+      float breaker = max(crestLine, trail * lace * 0.5 * build * smoothstep(0.08, 0.35, agitation));
 
       // --- whitecaps ------------------------------------------------------------
       // Out in deep water the wind tears the odd crest: sparse patches placed by
       // noise, sitting on a crest where there is one, never on every one.
-      float capLostA;
-      float capLostB;
-      float capField = streaked(vWorld.xz - stream * 1.1, along, stretch, 0.22, capLostA) * 0.55
-        + streaked(vWorld.xz - stream * 1.7, along, stretch, 1.2, capLostB) * 0.3
+      float capField = streaked(vWorld.xz - stream * 1.1, along, stretch, 0.22) * 0.55
+        + streaked(vWorld.xz - stream * 1.7, along, stretch, 1.2) * 0.3
         + max(vCrest, 0.0) * 0.15;
-      float cap = over(capField, 0.72, 0.06, capLostA * 0.55 + capLostB * 0.3)
-        * smoothstep(0.35, 0.95, agitation) * (1.0 - surfZone);
+      capField = mix(capField, 0.5, clamp(fwidth(capField) * 1.5, 0.0, 1.0));
+      float capW = fwidth(capField);
+      float cap = smoothstep(0.66 - capW, 0.78 + capW, capField) * smoothstep(0.35, 0.95, agitation) * (1.0 - build);
 
       float foam = max(shore, max(breaker, cap));
 
@@ -782,22 +490,11 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
 // A geometry without the attribute would read whatever the last draw left in the
 // slot, exactly as the sway weight would. Nothing but `waterPlane` builds water,
-// and it always sets every one.
+// and it always sets one.
 (WATER_MATERIAL as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
   aChop: [0],
   aFlow: [0, 0],
-  aShore: [0, 0, 0, 0],
-  aSwell: [0, 0, 0, 1],
 };
-
-/** The long offshore train. `direction` is the way it travels, world xz. */
-export interface Swell {
-  direction: readonly [number, number];
-  /** Wavelength, metres. */
-  length: number;
-  /** Crest to trough, metres. */
-  height: number;
-}
 
 export interface WaterPlaneOptions {
   /** Extent along X and Z, in metres. */
@@ -820,12 +517,6 @@ export interface WaterPlaneOptions {
   flow?: THREE.Vector2 | ((x: number, z: number) => THREE.Vector2);
   /** Metres per quad. Finer than the shortest wave, or the wave is a zigzag. */
   segment?: number;
-  /** Metres the surface runs on past its rectangle as a coarse apron, on the sea side only. The apron carries the perimeter's chop and flow. */
-  reach?: number;
-  /** The swell, and with it the shore train it shoals into. Needs `groundAt`. */
-  swell?: Swell;
-  /** Ground height at a world x, z: what the shore bake and the apron's land test read. */
-  groundAt?: (x: number, z: number) => number;
 }
 
 /**
@@ -836,190 +527,42 @@ export interface WaterPlaneOptions {
  * the surface is buried in the bank.
  */
 export function waterPlane(options: WaterPlaneOptions): THREE.Mesh {
-  const { width, depth, at, chop = 1, flow, segment = SEGMENT, reach = 0, swell, groundAt } = options;
+  const { width, depth, at, chop = 1, flow, segment = SEGMENT } = options;
 
   const across = Math.max(1, Math.round(width / segment));
   const along = Math.max(1, Math.round(depth / segment));
-  const sx = width / across;
-  const sz = depth / along;
-  const cols = across + 1;
-  const rows = along + 1;
-  const gridCount = cols * rows;
+  const geometry = new THREE.PlaneGeometry(width, depth, across, along);
+  geometry.rotateX(-Math.PI / 2);
 
-  // The rectangle's boundary walked clockwise seen from above; the apron's
-  // strips take their winding from it.
-  const perimeter: number[] = [];
-  for (let i = 0; i < across; i++) perimeter.push(i);
-  for (let j = 0; j < along; j++) perimeter.push(j * cols + across);
-  for (let i = across; i > 0; i--) perimeter.push(along * cols + i);
-  for (let j = along; j > 0; j--) perimeter.push(j * cols);
-  const rim = perimeter.length;
-  const ringDistances: number[] = [];
-  if (reach > 0) {
-    const dense = Math.min(reach, APRON_DENSE);
-    for (let d = APRON_STEP; d <= dense; d += APRON_STEP) ringDistances.push(d);
-    if (reach > dense) {
-      for (let r = 1; r <= APRON_FAR_RINGS; r++) {
-        ringDistances.push(dense * Math.pow(reach / dense, r / APRON_FAR_RINGS));
-      }
-    }
-  }
-  const rings = ringDistances.length;
-  const count = gridCount + rings * rim;
+  const position = geometry.getAttribute('position');
+  const count = position.count;
 
-  const positions = new Float32Array(count * 3);
   const chopValues = new Float32Array(count);
-  const flowValues = new Float32Array(count * 2);
-  const shoreValues = new Float32Array(count * 4);
-  const swellValues = new Float32Array(count * 4);
-  for (let n = 0; n < gridCount; n++) swellValues[n * 4 + 3] = 1;
-
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
-      const n = j * cols + i;
-      positions[n * 3] = -width / 2 + i * sx;
-      positions[n * 3 + 2] = -depth / 2 + j * sz;
+  if (typeof chop === 'function') {
+    for (let i = 0; i < count; i++) {
+      chopValues[i] = Math.max(chop(position.getX(i) + at.x, position.getZ(i) + at.z), 0);
     }
+  } else {
+    chopValues.fill(Math.max(chop, 0));
   }
+  geometry.setAttribute('aChop', new THREE.BufferAttribute(chopValues, 1));
 
-  for (let n = 0; n < gridCount; n++) {
-    const x = positions[n * 3] + at.x;
-    const z = positions[n * 3 + 2] + at.z;
-    chopValues[n] = Math.max(typeof chop === 'function' ? chop(x, z) : chop, 0);
-    if (flow) {
+  // Zero everywhere unless a flow was authored: the shader reads a zero-length
+  // flow as "answer the wind" rather than as "go nowhere".
+  const flowValues = new Float32Array(count * 2);
+  if (flow) {
+    for (let i = 0; i < count; i++) {
       // World coordinates, so a flow field can be written against the room's
       // own layout rather than against wherever this plane's origin landed.
-      const velocity = typeof flow === 'function' ? flow(x, z) : flow;
-      flowValues[n * 2] = velocity.x;
-      flowValues[n * 2 + 1] = velocity.y;
+      const velocity =
+        typeof flow === 'function'
+          ? flow(position.getX(i) + at.x, position.getZ(i) + at.z)
+          : flow;
+      flowValues[i * 2] = velocity.x;
+      flowValues[i * 2 + 1] = velocity.y;
     }
   }
-
-  const shore =
-    swell && groundAt
-      ? bakeShore(
-          { cols, rows, x0: at.x - width / 2, z0: at.z - depth / 2, sx, sz },
-          at.y,
-          groundAt,
-          swell,
-        )
-      : null;
-  const k0 = swell ? deepWavenumber(swell) : 0;
-  const a0 = swell ? swell.height / 2 : 0;
-  const omega = Math.sqrt(G * k0);
-  if (shore) {
-    for (let n = 0; n < gridCount; n++) {
-      shoreValues[n * 4] = shore.h[n];
-      shoreValues[n * 4 + 1] = shore.sigma[n];
-      shoreValues[n * 4 + 2] = shore.dir[n * 2];
-      shoreValues[n * 4 + 3] = shore.dir[n * 2 + 1];
-      swellValues[n * 4] = k0;
-      swellValues[n * 4 + 1] = a0;
-      swellValues[n * 4 + 2] = shore.k[n];
-    }
-  }
-  if (rings > 0) {
-    // The chop trains fade out toward the perimeter, where the mesh gets too
-    // coarse to carry them, so the apron and the rectangle meet as one surface.
-    for (let n = 0; n < gridCount; n++) {
-      const x = positions[n * 3];
-      const z = positions[n * 3 + 2];
-      const inset = Math.min(width / 2 - Math.abs(x), depth / 2 - Math.abs(z));
-      const t = Math.min(Math.max(inset / CHOP_FADE, 0), 1);
-      swellValues[n * 4 + 3] = t * t * (3 - 2 * t);
-    }
-  }
-
-  const index: number[] = [];
-  for (let j = 0; j < along; j++) {
-    for (let i = 0; i < across; i++) {
-      const a = j * cols + i;
-      const b = a + 1;
-      const c = a + cols + 1;
-      const d = a + cols;
-      index.push(a, c, b, a, d, c);
-    }
-  }
-
-  if (rings > 0) {
-    // Outward is measured from the rectangle shrunk by a margin, so the rings
-    // round their corners instead of fanning them.
-    const margin = Math.min(width, depth) * 0.25;
-    const hx = width / 2;
-    const hz = depth / 2;
-    const level = at.y;
-    const swellLength = swell ? Math.hypot(swell.direction[0], swell.direction[1]) || 1 : 1;
-    const swellX = swell ? swell.direction[0] / swellLength : 0;
-    const swellZ = swell ? swell.direction[1] / swellLength : 0;
-
-    const outward = new Float32Array(rim * 2);
-    const pinned = new Uint8Array(rim);
-    for (let p = 0; p < rim; p++) {
-      const g = perimeter[p];
-      const px = positions[g * 3];
-      const pz = positions[g * 3 + 2];
-      const ix = Math.min(Math.max(px, -hx + margin), hx - margin);
-      const iz = Math.min(Math.max(pz, -hz + margin), hz - margin);
-      const len = Math.hypot(px - ix, pz - iz) || 1;
-      outward[p * 2] = (px - ix) / len;
-      outward[p * 2 + 1] = (pz - iz) / len;
-      if (groundAt) {
-        // Land side: the vertex, or the perimeter point nearest the outermost
-        // ring's foot, stands above the water.
-        const fx = Math.min(Math.max(px + reach * outward[p * 2], -hx), hx);
-        const fz = Math.min(Math.max(pz + reach * outward[p * 2 + 1], -hz), hz);
-        const land =
-          groundAt(px + at.x, pz + at.z) >= level || groundAt(fx + at.x, fz + at.z) >= level;
-        pinned[p] = land ? 1 : 0;
-      }
-    }
-
-    for (let r = 0; r < rings; r++) {
-      const dist = ringDistances[r];
-      for (let p = 0; p < rim; p++) {
-        const g = perimeter[p];
-        const n = gridCount + r * rim + p;
-        const out = pinned[p] ? 0 : dist;
-        const x = positions[g * 3] + out * outward[p * 2];
-        const z = positions[g * 3 + 2] + out * outward[p * 2 + 1];
-        positions[n * 3] = x;
-        positions[n * 3 + 2] = z;
-        chopValues[n] = chopValues[g];
-        flowValues[n * 2] = flowValues[g * 2];
-        flowValues[n * 2 + 1] = flowValues[g * 2 + 1];
-        swellValues[n * 4 + 3] = 0;
-        if (shore) {
-          const h = shore.h[g] + out * APRON_SHELF;
-          shoreValues[n * 4] = h;
-          shoreValues[n * 4 + 1] = k0 * (swellX * (x + at.x) + swellZ * (z + at.z));
-          shoreValues[n * 4 + 2] = swellX;
-          shoreValues[n * 4 + 3] = swellZ;
-          swellValues[n * 4] = k0;
-          swellValues[n * 4 + 1] = a0;
-          swellValues[n * 4 + 2] = wavenumber(omega, h, k0);
-        }
-      }
-    }
-
-    for (let r = 0; r < rings; r++) {
-      for (let p = 0; p < rim; p++) {
-        const q = (p + 1) % rim;
-        const innerP = r === 0 ? perimeter[p] : gridCount + (r - 1) * rim + p;
-        const innerQ = r === 0 ? perimeter[q] : gridCount + (r - 1) * rim + q;
-        const outerP = gridCount + r * rim + p;
-        const outerQ = gridCount + r * rim + q;
-        index.push(innerP, innerQ, outerQ, innerP, outerQ, outerP);
-      }
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('aChop', new THREE.BufferAttribute(chopValues, 1));
   geometry.setAttribute('aFlow', new THREE.BufferAttribute(flowValues, 2));
-  geometry.setAttribute('aShore', new THREE.BufferAttribute(shoreValues, 4));
-  geometry.setAttribute('aSwell', new THREE.BufferAttribute(swellValues, 4));
-  geometry.setIndex(index);
 
   const mesh = new THREE.Mesh(geometry, WATER_MATERIAL);
   mesh.name = 'water';
