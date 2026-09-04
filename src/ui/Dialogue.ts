@@ -328,7 +328,10 @@ export class Dialogue {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'speech-choice';
-    button.textContent = of.label;
+    const label = document.createElement('span');
+    label.className = 'speech-label';
+    label.textContent = of.label;
+    button.append(label);
     const bubble = document.createElement('span');
     bubble.className = 'speech-bubble';
     bubble.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));

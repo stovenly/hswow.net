@@ -1297,7 +1297,7 @@ body:not(.is-playing) #prompt {
   flex-direction: column;
   gap: 0.15rem;
   width: max-content;
-  max-width: 13rem;
+  max-width: min(24rem, 28vw);
 }
 
 .speech-choices {
@@ -1312,8 +1312,17 @@ body:not(.is-playing) #prompt {
   text-align: left;
 }
 
+.speech-choices .speech-choice {
+  justify-content: flex-end;
+}
+
+/* The label and the bubble side by side, so a label that wraps moves as one
+   block and the bubble sits beside the block rather than on its last line. */
 .speech-choice {
   appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
   background: none;
   border: 0;
   padding: 0.15rem 0;
@@ -1363,8 +1372,7 @@ body:not(.is-playing) #prompt {
 .speech-bubble {
   display: none;
   position: relative;
-  vertical-align: middle;
-  margin-left: 0.5em;
+  flex: none;
   padding: 0.28em 0.38em;
   line-height: 0;
   background: rgb(220 220 200 / 92%);
