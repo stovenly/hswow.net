@@ -703,6 +703,7 @@ registerEntryKind<WaterEntry>({
     chop: { type: 'number', min: 0, max: 3, step: 0.01 },
     taper: { type: 'number', min: 0, max: 8, step: 0.1, label: 'fade over (m)' },
     segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
+    reach: { type: 'number', min: 0, max: 2000, step: 10, label: 'apron reach (m)' },
   },
   defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
   build(entry, ctx) {
@@ -724,6 +725,9 @@ registerEntryKind<WaterEntry>({
           : chop,
       flow: entry.flow ? new THREE.Vector2(entry.flow[0], entry.flow[1]) : undefined,
       segment: entry.segment,
+      reach: entry.reach,
+      swell: entry.swell,
+      groundAt: ctx.groundAt,
     });
   },
 });

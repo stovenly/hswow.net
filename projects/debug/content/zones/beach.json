@@ -698,29 +698,21 @@
       "width": 92,
       "depth": 62,
       "chop": 1.8,
-      "taper": 0.5,
+      "taper": 3,
       "flow": [
         0,
         -0.4
       ],
-      "segment": 0.7
-    },
-    {
-      "id": "offing",
-      "kind": "water",
-      "at": [
-        0,
-        0.3,
-        135
-      ],
-      "width": 220,
-      "depth": 200,
-      "chop": 1.2,
-      "flow": [
-        0,
-        -0.4
-      ],
-      "segment": 3
+      "segment": 0.4,
+      "reach": 600,
+      "swell": {
+        "direction": [
+          0,
+          -1
+        ],
+        "length": 32,
+        "height": 0.5
+      }
     },
     {
       "id": "reach-slab",

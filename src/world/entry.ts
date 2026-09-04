@@ -355,6 +355,10 @@ export interface WaterEntry extends EntryBase {
   taper?: number;
   flow?: readonly [number, number];
   segment?: number;
+  /** Metres the surface runs on past its rectangle as a coarse apron, sea side only. */
+  reach?: number;
+  /** The long offshore train: the way it travels, its wavelength and its height, metres. */
+  swell?: { direction: readonly [number, number]; length: number; height: number };
 }
 
 export interface ParticlesEntry extends EntryBase {

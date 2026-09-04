@@ -5,6 +5,7 @@ import { SKY_GLSL, skyUniforms } from '../engine/Sky';
 import { AERIAL_AIR_GLSL, fogUniforms } from '../engine/fog';
 import { REFLECT_GLSL } from '../engine/reflect';
 import { windUniforms } from './sway';
+import { bakeShore, deepWavenumber, wavenumber, G, GAMMA } from './shore';
 
 // Stylized water: the shared material beside ART_MATERIAL and its finish
 // variants, and GLOW_MATERIAL. Everything it does is a function of
@@ -36,6 +37,12 @@ const K_SHORT = (2 * Math.PI) / WAVE_SHORT;
  */
 const CELERITY_LONG = 1.05 / K_LONG;
 const CELERITY_SHORT = 1.63 / K_SHORT;
+
+/** Rings of apron outside a plane with a reach; the first sits 2 m out. */
+const APRON_RINGS = 12;
+const APRON_FIRST = 2;
+/** How fast the bed falls away under the apron, metres of column per metre out. */
+const APRON_SHELF = 0.05;
 
 /**
  * What the far field goes to underwater, blending deep toward shallow. Shared
@@ -84,6 +91,14 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     /** Roughly how thin the water has to be to foam, in metres. */
     uFoamDepth: { value: 0.34 },
 
+    /** Steepness (a·k) at which the shore train's crest is fully piled. */
+    uSteep: { value: 0.2 },
+    /** Microfacet roughness of the sun path: resolved ripple, and ripple filtered flat. */
+    uRoughNear: { value: 0.02 },
+    uRoughFar: { value: 0.3 },
+    /** How much of the sun a facet aimed straight at it gives back. A look knob. */
+    uGlitter: { value: 0.1 },
+
     // Distance fog, filled by the renderer because `fog` is true below.
     ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
 
@@ -109,6 +124,10 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
   vertexShader: /* glsl */ `
     attribute float aChop;
     attribute vec2 aFlow;
+    // Still column (m), wave phase (rad), and the unit direction the shore train travels.
+    attribute vec4 aShore;
+    // The swell's deep-water wavenumber and amplitude, and the wavenumber at this column.
+    attribute vec3 aSwell;
 
     uniform sampler2D gustField;
     uniform vec2 windDir;
@@ -117,17 +136,24 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float swayTime;
     uniform float uWaveScale;
     uniform float uWaterMotion;
+    uniform float uSteep;
 
     varying vec3 vWorld;
     varying vec3 vSurfaceNormal;
     /** This vertex's chop, after the gust and the global scale. */
     varying float vChop;
-    /** Where on the wave this vertex sits, -1 in a trough to 1 on a crest. */
+    /** Where on the chop this vertex sits, -1 in a trough to 1 on a crest. */
     varying float vCrest;
     /** Which way the surface is travelling, m/s, for the fragment stage. */
     varying vec2 vFlow;
     /** The authored flow speed. Zero on a pond, and the fragment stage cares. */
     varying float vStreak;
+    /** The shore train's breaking ratio, 0 unbroken to 1 saturated. */
+    varying float vBreak;
+    /** The shore train's phase; the crest is at 0 mod 2π and the front face follows. */
+    varying float vPhase;
+    /** How much of a raised crest this is, 0..1. */
+    varying float vSurf;
 
     void main() {
       vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -163,15 +189,60 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float height = a1 * sin(p1) + a2 * sin(p2);
 
       // Plain sines, so the slope is exact: the derivative of a sine is a cosine,
-      // and the surface normal is most of what water looks like. A Gerstner sum
-      // would need a finite difference or a second evaluation for its normal.
+      // and the surface normal is most of what water looks like.
       vec2 slope = d1 * (a1 * k1 * cos(p1)) + d2 * (a2 * k2 * cos(p2));
 
-      world.y += height;
+      // --- the shore train ----------------------------------------------------
+      // One Gerstner wave: the swell in deep water, shoaling as the bed comes up.
+      float h = aShore.x;
+      float k0 = aSwell.x;
+      float a0 = aSwell.y * uWaveScale * uWaterMotion;
+      float k = max(aSwell.z, 1e-4);
+      vec2 dir = aShore.zw;
+      float b = 0.0;
+      float phi = 0.0;
+      float lift = 0.0;
+      vec2 shift = vec2(0.0);
+      float surf = 0.0;
+      if (k0 > 0.0) {
+        float omega = sqrt(${G.toFixed(2)} * k0);
+        float kh = clamp(k * h, 1e-3, 10.0);
+        // Green's law: the amplitude grows as the group velocity falls.
+        float shoal = h > 0.0 ? sqrt((k / k0) / (1.0 + 2.0 * kh / sinh(2.0 * kh))) : 0.0;
+        float cap = ${(GAMMA / 2).toFixed(2)} * max(h, 0.0);
+        float raw = a0 * shoal;
+        b = a0 > 0.0 ? (h > 0.0 ? clamp(raw / max(cap, 1e-4), 0.0, 1.0) : 1.0) : 0.0;
+        float a = min(raw, cap);
+        phi = aShore.y - omega * swayTime * uWaterMotion;
+
+        float steep = clamp(a * k / uSteep, 0.0, 1.0);
+        // A breaking crest leans the way it travels: the front face is compressed
+        // in phase and the back stretched, by the same even term.
+        float lean = 0.5 * b;
+        float phis = phi + lean * (1.0 - cos(phi));
+        float dphis = 1.0 + lean * sin(phi);
+        float cs = cos(phis);
+        float sn = sin(phis);
+        // Gerstner: the crest at phi = 0, and the front face (phi > 0) pulled back
+        // against dir, which is the way the wave travels. Q·a·k stays under 0.6.
+        float sweep = 0.6 * steep / k;
+        shift = -dir * (sweep * sn);
+        lift = a * cs;
+        float tx = 1.0 - sweep * k * cs * dphis;
+        float ty = -a * k * sn * dphis;
+        slope += dir * (ty / max(tx, 0.1));
+        surf = max(cs, 0.0) * smoothstep(0.0, 0.05, a);
+      }
+
+      world.xz += shift;
+      world.y += height + lift;
       vWorld = world;
       vSurfaceNormal = normalize(vec3(-slope.x, 1.0, -slope.y));
       vChop = chop;
       vCrest = height / max(a1 + a2, 1e-4);
+      vBreak = b;
+      vPhase = phi;
+      vSurf = surf;
       // What the fragment stage advects its noise along. Still water still drifts
       // downwind — a surface pattern nailed to the world reads as ice.
       vFlow = rate > 0.001 ? aFlow : windDir * 0.25;
@@ -198,6 +269,9 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float uShoreDepth;
     uniform float uClarity;
     uniform float uFoamDepth;
+    uniform float uRoughNear;
+    uniform float uRoughFar;
+    uniform float uGlitter;
 
     uniform vec2 windDir;
     uniform float swayTime;
@@ -213,6 +287,9 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vCrest;
     varying vec2 vFlow;
     varying float vStreak;
+    varying float vBreak;
+    varying float vPhase;
+    varying float vSurf;
 
     ${NOISE_GLSL}
     ${SKY_GLSL}
@@ -246,6 +323,20 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     float streaked(vec2 p, vec2 along, float stretch, float scale) {
       vec2 across = vec2(-along.y, along.x);
       return ripple(vec2(dot(p, along) / stretch, dot(p, across)) * scale);
+    }
+
+    /** GGX with Smith visibility and Schlick fresnel, for a light in direction l. */
+    float glitter(vec3 n, vec3 v, vec3 l, float alpha) {
+      vec3 hv = normalize(v + l);
+      float nl = max(dot(n, l), 0.0);
+      float nv = max(dot(n, v), 1e-3);
+      float nh = max(dot(n, hv), 0.0);
+      float a2 = alpha * alpha;
+      float dd = nh * nh * (a2 - 1.0) + 1.0;
+      float D = a2 / (3.14159265 * dd * dd);
+      float V = 0.5 / max(mix(2.0 * nl * nv, nl + nv, alpha), 1e-4);
+      float F = 0.02 + 0.98 * pow(1.0 - max(dot(hv, v), 0.0), 5.0);
+      return D * V * F * nl;
     }
 
     void main() {
@@ -297,6 +388,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       vec3 normal = normalize(vSurfaceNormal);
       float swim = clamp(length(fwidth(vSurfaceNormal.xz)) * 5.0, 0.0, 1.0);
       normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), swim));
+      float rippleSwim = 0.0;
       if (agitation > 0.002) {
         vec2 q = vWorld.xz - stream * 1.35;
         float e = 0.18;
@@ -306,9 +398,12 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         // Small. This tilts the normal, which decides both the fresnel weight and
         // where the reflection ray goes, so past about ten degrees the reflected
         // image stops being a reflection. Ripple is a few degrees of scatter.
-        float rippleSwim = clamp(fwidth(n0) * 3.0, 0.0, 1.0);
+        rippleSwim = clamp(fwidth(n0) * 3.0, 0.0, 1.0);
         normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation * (1.0 - rippleSwim) / e));
       }
+      // What the filtering took out of the normal goes into the roughness, so a
+      // sea filtered flat at range still glitters under the sun.
+      float alpha = mix(uRoughNear, uRoughFar, clamp(swim + rippleSwim, 0.0, 1.0));
 
       // --- seen from below ----------------------------------------------------
       //
@@ -372,10 +467,12 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       bounce.y = max(bounce.y, 0.015);
       bounce = normalize(bounce);
 
-      vec3 sky = skyColour(bounce);
+      // No disc: the sun's image on the water is the glitter term below.
+      vec3 sky = skyColourDiscless(bounce);
       vec3 reflection = sky;
       float hit = 0.0;
-      if (uReflections > 0.5) {
+      // Past 120 m the march finds nothing a sky lookup does not.
+      if (uReflections > 0.5 && surfaceDistance < 120.0) {
         float found;
         float travelled;
         vec3 marched = marchReflection(
@@ -398,6 +495,20 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       );
 
       vec3 colour = mix(below, reflection, fresnel);
+
+      // --- the sun path -------------------------------------------------------
+      vec3 sunDir = normalize(uSunDirection);
+      float sunUp = smoothstep(-0.02, 0.05, sunDir.y) * uSunIntensity;
+      if (sunUp > 0.0) {
+        float g = glitter(normal, view, sunDir, alpha) * uGlitter * sunUp;
+        colour = mix(colour, uSunColor, clamp(g, 0.0, 1.0));
+      }
+      vec3 moonDir = normalize(uMoonDirection);
+      float moonUp = smoothstep(-0.02, 0.05, moonDir.y) * uMoonIntensity;
+      if (moonUp > 0.0) {
+        float g = glitter(normal, view, moonDir, alpha) * uGlitter * moonUp;
+        colour = mix(colour, uMoonColor, clamp(g, 0.0, 1.0));
+      }
 
       // --- foam ---------------------------------------------------------------
       // Two bands and two flat colours, thresholded over one pixel: the quantizer
@@ -490,11 +601,22 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
 // A geometry without the attribute would read whatever the last draw left in the
 // slot, exactly as the sway weight would. Nothing but `waterPlane` builds water,
-// and it always sets one.
+// and it always sets every one.
 (WATER_MATERIAL as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
   aChop: [0],
   aFlow: [0, 0],
+  aShore: [0, 0, 0, 0],
+  aSwell: [0, 0, 0],
 };
+
+/** The long offshore train. `direction` is the way it travels, world xz. */
+export interface Swell {
+  direction: readonly [number, number];
+  /** Wavelength, metres. */
+  length: number;
+  /** Crest to trough, metres. */
+  height: number;
+}
 
 export interface WaterPlaneOptions {
   /** Extent along X and Z, in metres. */
@@ -517,6 +639,12 @@ export interface WaterPlaneOptions {
   flow?: THREE.Vector2 | ((x: number, z: number) => THREE.Vector2);
   /** Metres per quad. Finer than the shortest wave, or the wave is a zigzag. */
   segment?: number;
+  /** Metres the surface runs on past its rectangle as a coarse apron, on the sea side only. */
+  reach?: number;
+  /** The swell, and with it the shore train it shoals into. Needs `groundAt`. */
+  swell?: Swell;
+  /** Ground height at a world x, z: what the shore bake and the apron's land test read. */
+  groundAt?: (x: number, z: number) => number;
 }
 
 /**
@@ -527,42 +655,165 @@ export interface WaterPlaneOptions {
  * the surface is buried in the bank.
  */
 export function waterPlane(options: WaterPlaneOptions): THREE.Mesh {
-  const { width, depth, at, chop = 1, flow, segment = SEGMENT } = options;
+  const { width, depth, at, chop = 1, flow, segment = SEGMENT, reach = 0, swell, groundAt } = options;
 
   const across = Math.max(1, Math.round(width / segment));
   const along = Math.max(1, Math.round(depth / segment));
-  const geometry = new THREE.PlaneGeometry(width, depth, across, along);
-  geometry.rotateX(-Math.PI / 2);
+  const sx = width / across;
+  const sz = depth / along;
+  const cols = across + 1;
+  const rows = along + 1;
+  const gridCount = cols * rows;
 
-  const position = geometry.getAttribute('position');
-  const count = position.count;
+  // The rectangle's boundary walked clockwise seen from above; the apron's
+  // strips take their winding from it.
+  const perimeter: number[] = [];
+  for (let i = 0; i < across; i++) perimeter.push(i);
+  for (let j = 0; j < along; j++) perimeter.push(j * cols + across);
+  for (let i = across; i > 0; i--) perimeter.push(along * cols + i);
+  for (let j = along; j > 0; j--) perimeter.push(j * cols);
+  const rim = perimeter.length;
+  const rings = reach > 0 ? APRON_RINGS : 0;
+  const count = gridCount + rings * rim;
 
+  const positions = new Float32Array(count * 3);
   const chopValues = new Float32Array(count);
-  if (typeof chop === 'function') {
-    for (let i = 0; i < count; i++) {
-      chopValues[i] = Math.max(chop(position.getX(i) + at.x, position.getZ(i) + at.z), 0);
-    }
-  } else {
-    chopValues.fill(Math.max(chop, 0));
-  }
-  geometry.setAttribute('aChop', new THREE.BufferAttribute(chopValues, 1));
-
-  // Zero everywhere unless a flow was authored: the shader reads a zero-length
-  // flow as "answer the wind" rather than as "go nowhere".
   const flowValues = new Float32Array(count * 2);
-  if (flow) {
-    for (let i = 0; i < count; i++) {
+  const shoreValues = new Float32Array(count * 4);
+  const swellValues = new Float32Array(count * 3);
+
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const n = j * cols + i;
+      positions[n * 3] = -width / 2 + i * sx;
+      positions[n * 3 + 2] = -depth / 2 + j * sz;
+    }
+  }
+
+  for (let n = 0; n < gridCount; n++) {
+    const x = positions[n * 3] + at.x;
+    const z = positions[n * 3 + 2] + at.z;
+    chopValues[n] = Math.max(typeof chop === 'function' ? chop(x, z) : chop, 0);
+    if (flow) {
       // World coordinates, so a flow field can be written against the room's
       // own layout rather than against wherever this plane's origin landed.
-      const velocity =
-        typeof flow === 'function'
-          ? flow(position.getX(i) + at.x, position.getZ(i) + at.z)
-          : flow;
-      flowValues[i * 2] = velocity.x;
-      flowValues[i * 2 + 1] = velocity.y;
+      const velocity = typeof flow === 'function' ? flow(x, z) : flow;
+      flowValues[n * 2] = velocity.x;
+      flowValues[n * 2 + 1] = velocity.y;
     }
   }
+
+  const shore =
+    swell && groundAt
+      ? bakeShore(
+          { cols, rows, x0: at.x - width / 2, z0: at.z - depth / 2, sx, sz },
+          at.y,
+          groundAt,
+          swell,
+        )
+      : null;
+  const k0 = swell ? deepWavenumber(swell) : 0;
+  const a0 = swell ? swell.height / 2 : 0;
+  const omega = Math.sqrt(G * k0);
+  if (shore) {
+    for (let n = 0; n < gridCount; n++) {
+      shoreValues[n * 4] = shore.h[n];
+      shoreValues[n * 4 + 1] = shore.sigma[n];
+      shoreValues[n * 4 + 2] = shore.dir[n * 2];
+      shoreValues[n * 4 + 3] = shore.dir[n * 2 + 1];
+      swellValues[n * 3] = k0;
+      swellValues[n * 3 + 1] = a0;
+      swellValues[n * 3 + 2] = shore.k[n];
+    }
+  }
+
+  const index: number[] = [];
+  for (let j = 0; j < along; j++) {
+    for (let i = 0; i < across; i++) {
+      const a = j * cols + i;
+      const b = a + 1;
+      const c = a + cols + 1;
+      const d = a + cols;
+      index.push(a, c, b, a, d, c);
+    }
+  }
+
+  if (rings > 0) {
+    // Outward is measured from the rectangle shrunk by a margin, so the rings
+    // round their corners instead of fanning them.
+    const margin = Math.min(width, depth) * 0.25;
+    const hx = width / 2;
+    const hz = depth / 2;
+    const level = at.y;
+    const swellLength = swell ? Math.hypot(swell.direction[0], swell.direction[1]) || 1 : 1;
+    const swellX = swell ? swell.direction[0] / swellLength : 0;
+    const swellZ = swell ? swell.direction[1] / swellLength : 0;
+
+    const outward = new Float32Array(rim * 2);
+    const pinned = new Uint8Array(rim);
+    for (let p = 0; p < rim; p++) {
+      const g = perimeter[p];
+      const px = positions[g * 3];
+      const pz = positions[g * 3 + 2];
+      const ix = Math.min(Math.max(px, -hx + margin), hx - margin);
+      const iz = Math.min(Math.max(pz, -hz + margin), hz - margin);
+      const len = Math.hypot(px - ix, pz - iz) || 1;
+      outward[p * 2] = (px - ix) / len;
+      outward[p * 2 + 1] = (pz - iz) / len;
+      if (groundAt) {
+        // Land side: the vertex, or the perimeter point nearest the outermost
+        // ring's foot, stands above the water.
+        const fx = Math.min(Math.max(px + reach * outward[p * 2], -hx), hx);
+        const fz = Math.min(Math.max(pz + reach * outward[p * 2 + 1], -hz), hz);
+        const land =
+          groundAt(px + at.x, pz + at.z) >= level || groundAt(fx + at.x, fz + at.z) >= level;
+        pinned[p] = land ? 1 : 0;
+      }
+    }
+
+    for (let r = 0; r < rings; r++) {
+      const dist =
+        rings > 1 ? APRON_FIRST * Math.pow(reach / APRON_FIRST, r / (rings - 1)) : reach;
+      for (let p = 0; p < rim; p++) {
+        const g = perimeter[p];
+        const n = gridCount + r * rim + p;
+        const out = pinned[p] ? 0 : dist;
+        const x = positions[g * 3] + out * outward[p * 2];
+        const z = positions[g * 3 + 2] + out * outward[p * 2 + 1];
+        positions[n * 3] = x;
+        positions[n * 3 + 2] = z;
+        if (shore) {
+          const h = shore.h[g] + out * APRON_SHELF;
+          shoreValues[n * 4] = h;
+          shoreValues[n * 4 + 1] = k0 * (swellX * (x + at.x) + swellZ * (z + at.z));
+          shoreValues[n * 4 + 2] = swellX;
+          shoreValues[n * 4 + 3] = swellZ;
+          swellValues[n * 3] = k0;
+          swellValues[n * 3 + 1] = a0;
+          swellValues[n * 3 + 2] = wavenumber(omega, h, k0);
+        }
+      }
+    }
+
+    for (let r = 0; r < rings; r++) {
+      for (let p = 0; p < rim; p++) {
+        const q = (p + 1) % rim;
+        const innerP = r === 0 ? perimeter[p] : gridCount + (r - 1) * rim + p;
+        const innerQ = r === 0 ? perimeter[q] : gridCount + (r - 1) * rim + q;
+        const outerP = gridCount + r * rim + p;
+        const outerQ = gridCount + r * rim + q;
+        index.push(innerP, innerQ, outerQ, innerP, outerQ, outerP);
+      }
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('aChop', new THREE.BufferAttribute(chopValues, 1));
   geometry.setAttribute('aFlow', new THREE.BufferAttribute(flowValues, 2));
+  geometry.setAttribute('aShore', new THREE.BufferAttribute(shoreValues, 4));
+  geometry.setAttribute('aSwell', new THREE.BufferAttribute(swellValues, 3));
+  geometry.setIndex(index);
 
   const mesh = new THREE.Mesh(geometry, WATER_MATERIAL);
   mesh.name = 'water';

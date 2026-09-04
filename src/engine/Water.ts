@@ -35,9 +35,9 @@ export class WaterEffect implements PixelEffect {
   /**
    * Every water surface in the zone, with the box it covers and the height it sits
    * at, for working out whether the camera is under one. Collected once per zone
-   * with the boxes cached: the open-sea plane is a hundred and twenty thousand
-   * vertices, and asking three for its bounding box sixty times a second would cost
-   * more than the pass that draws it.
+   * with the boxes cached: a sea plane is tens of thousands of vertices, and asking
+   * three for its bounding box sixty times a second would cost more than the pass
+   * that draws it.
    */
   private readonly surfaces: { box: THREE.Box3; level: number }[] = [];
   private scanned = false;

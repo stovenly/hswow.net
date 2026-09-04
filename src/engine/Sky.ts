@@ -299,34 +299,29 @@ export const SKY_GLSL = /* glsl */ `
     return colour;
   }
 
+  /** The scattered light round the sun, many times the disc's width. */
+  vec3 skySunHalo(vec3 direction, vec3 colour, float sunPower) {
+    float toSun = dot(direction, normalize(uSunDirection));
+    float halo = pow(max(toSun, 0.0), uSunGlow);
+    return mix(colour, uSunColor, clamp(halo * 0.6, 0.0, 1.0) * sunPower);
+  }
+
   /**
-   * The sky, with the sun's own brightness under the caller's control. A
-   * flat-shaded facet has one normal and so one reflected direction, so when that
-   * direction lands on the sun the entire triangle comes back as uSunColor — a
-   * hard white polygon stuck to the side of an object. The finish stage's
-   * roughness blur is no help, since it only starts mixing above roughness 0.15
-   * and the surfaces this bites hardest are the smooth ones. So a reflector may
-   * ask for a fraction of the sun and get the rest of the sky unchanged.
-   *
-   * This is the path everything that is not the dome takes: one cloud layer, no
-   * stars and no moon. It runs on every lit fragment through finishEnv and on
-   * every reflection miss in the water, which the dome most certainly does not.
+   * The sky, with the sun's own brightness under the caller's control: a
+   * flat-shaded facet whose one reflected direction lands on the sun would come
+   * back as a hard polygon of uSunColor, so a reflector may ask for a fraction.
+   * The path everything but the dome takes: one cloud layer, no stars, no moon.
    */
   vec3 skyColourWithSun(vec3 direction, float sunScale) {
     float sunPower = uSunIntensity * sunScale;
     vec3 colour = skyGradient(direction);
 
-    // The sun, drawn before the clouds so they pass in front of it: a disc plus a
-    // halo from the same dot product, because a real sun is surrounded by scattered
-    // light for many times its own diameter, and that halo is most of what makes
-    // the sky look lit by it. uSunSize is a cosine rather than an angle, so no
-    // inverse cosine runs per pixel.
+    // Sun before clouds, so the clouds pass in front of it.
     if (sunPower > 0.0) {
-      float toSun = dot(direction, normalize(uSunDirection));
-      float halo = pow(max(toSun, 0.0), uSunGlow);
-      colour = mix(colour, uSunColor, clamp(halo * 0.6, 0.0, 1.0) * sunPower);
+      colour = skySunHalo(direction, colour, sunPower);
       // A soft edge on the disc. Hard-edged, it aliases badly against a
       // pipeline that renders at a third of display resolution.
+      float toSun = dot(direction, normalize(uSunDirection));
       float disc = smoothstep(uSunSize - 0.0004, uSunSize + 0.0004, toSun);
       colour = mix(colour, uSunColor, disc * sunPower);
     }
@@ -337,6 +332,11 @@ export const SKY_GLSL = /* glsl */ `
   /** Kept for callers that want the sky in a direction and no say over the disc. */
   vec3 skyColour(vec3 direction) {
     return skyColourWithSun(direction, 1.0);
+  }
+
+  /** The sky with its halo and no disc, for a reflector that draws the sun's image itself. */
+  vec3 skyColourDiscless(vec3 direction) {
+    return skyCloudsCheap(direction, skySunHalo(direction, skyGradient(direction), uSunIntensity));
   }
 
   /**
