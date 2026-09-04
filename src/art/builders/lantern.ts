@@ -5,7 +5,7 @@ import { finishGlow } from '../glow';
 import { createRng } from '../random';
 import { rollActivity, LANTERN } from '../activity';
 import { PALETTE, shade } from '../palette';
-import { castFlame, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
+import { castFlame, flameAir, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
 import type { Fields } from '../schema';
 
 // A carried lantern: a flame in a box, with a ring to lift it by — brighter than
@@ -165,6 +165,11 @@ export const lantern: BuilderWith<FlameOptions> = {
 
     const mesh = finish(geometry, 'lantern', 0);
     mesh.add(finishGlow(glowGeometry, 'lantern:glow'));
+    // On the axis, like the light: the facing rotation does not move it.
+    const air = flameAir(flame, cage * 0.42, rng);
+    air.position.y = wick * scale;
+    air.scale.setScalar(scale);
+    mesh.add(air);
 
     const light = new THREE.PointLight(
       flame.light,

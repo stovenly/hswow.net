@@ -5,7 +5,7 @@ import { finishGlow } from '../glow';
 import { createRng } from '../random';
 import { rollActivity, CANDLE } from '../activity';
 import { PALETTE, shade } from '../palette';
-import { castFlame, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
+import { castFlame, flameAir, flameGlow, rollFlame, FLAME_DECAY, type FlameOptions } from '../flame';
 import type { Fields } from '../schema';
 
 // A candle on a dish, sometimes several, sometimes on a stick — the small light,
@@ -39,6 +39,7 @@ export const candle: BuilderWith<FlameOptions> = {
     // One glow mesh per flame rather than one for the prop — see below.
     const flames: THREE.Mesh[] = [];
     const wicks: number[] = [];
+    const airSizes: number[] = [];
 
     const flame = rollFlame(rng);
     // Beeswax is honey-coloured and tallow is grey-white. Rolled per candle
@@ -145,6 +146,7 @@ export const candle: BuilderWith<FlameOptions> = {
       // than the mesh, which `LightActivity` needs — see its `apply`.
       shape.rotateY(leanAt);
       flames.push(finishGlow(shape, 'candle:flame'));
+      airSizes.push(radius * 1.35);
       wicks.push(tipX, tipY, tipZ);
 
       // One light for the whole prop, not one per candle — three point lights
@@ -174,6 +176,9 @@ export const candle: BuilderWith<FlameOptions> = {
     for (let i = 0; i < flames.length; i++) {
       flames[i].scale.setScalar(scale);
       place(flames[i], wicks[i * 3], wicks[i * 3 + 1], wicks[i * 3 + 2]);
+      const air = flameAir(flame, airSizes[i], rng);
+      air.scale.setScalar(scale);
+      place(air, wicks[i * 3], wicks[i * 3 + 1], wicks[i * 3 + 2]);
     }
 
     const light = new THREE.PointLight(

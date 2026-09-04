@@ -12,6 +12,7 @@ import { glassUniforms } from '../art/glass';
 import { ParticlesEffect } from './Particles';
 import { setParticleDraw, particleUniforms } from '../art/particles';
 import { BloomEffect } from './Bloom';
+import { HeatEffect } from './Heat';
 import { HeldEffect } from './HeldOverlay';
 import { GlitchEffect } from './Glitch';
 import { applyGlitchDisplacement, glitchUniforms, glitchVariant, setGlitchVolumes } from '../art/glitch';
@@ -229,6 +230,8 @@ export interface ZoneAir {
   glass?: boolean;
   /** Whether anything in this zone is drawn on the particle layer. Observed by looking for the layer. */
   particles?: boolean;
+  /** Whether anything in this zone is drawn on the heat layer. Observed likewise. */
+  heat?: boolean;
 }
 
 export class PostFX {
@@ -243,6 +246,10 @@ export class PostFX {
   private readonly fog: FogVolumesEffect;
   private readonly particles: ParticlesEffect;
   private readonly bloom: BloomEffect;
+  private readonly heat: HeatEffect;
+  /** What the thing in the hand brings with it: sparks on the particle layer, a plume on the heat layer. */
+  private heldParticles = false;
+  private heldHeat = false;
   private readonly held: HeldEffect;
   private readonly glitchFx: GlitchEffect;
   private readonly horrorFx: HorrorEffect;
@@ -363,6 +370,9 @@ export class PostFX {
     // After the fog and before bloom, and both of those are load-bearing.
     this.particles = new ParticlesEffect();
     this.bloom = new BloomEffect();
+    // Over the bloomed frame, so the glow bends with the wall behind it, and
+    // under the hand, which is drawn sharp over its own flame's shimmer.
+    this.heat = new HeatEffect();
     // Over the bloomed, fogged frame and under the corruption.
     this.held = new HeldEffect();
     // The owner-id mask both corruption passes are gated by. A passthrough.
@@ -380,6 +390,7 @@ export class PostFX {
       this.fog,
       this.particles,
       this.bloom,
+      this.heat,
       this.held,
       this.maskFx,
       this.horrorFx,
@@ -412,7 +423,8 @@ export class PostFX {
     // A pass that walks the scene graph for water must not run in a room with none.
     this.water.setActive(air?.water ?? false);
     this.glass.setActive(air?.glass ?? false);
-    this.particles.setActive((air?.particles ?? false) || this.weatherParticles);
+    this.particles.setActive((air?.particles ?? false) || this.weatherParticles || this.heldParticles);
+    this.heat.setActive((air?.heat ?? false) || this.heldHeat);
     this.apply();
   }
 
@@ -435,7 +447,7 @@ export class PostFX {
   /** Whether the live zone still holds any particle of its own — its star sites come and go with what is placed in it. */
   setZoneParticles(present: boolean): void {
     if (this.air) this.air.particles = present;
-    this.particles.setActive(present || this.weatherParticles);
+    this.particles.setActive(present || this.weatherParticles || this.heldParticles);
     this.apply();
   }
 
@@ -443,7 +455,17 @@ export class PostFX {
   setPrecipitating(falling: boolean): void {
     if (this.weatherParticles === falling) return;
     this.weatherParticles = falling;
-    this.particles.setActive((this.air?.particles ?? false) || falling);
+    this.particles.setActive((this.air?.particles ?? false) || falling || this.heldParticles);
+    this.apply();
+  }
+
+  /** The thing in the hand draws on the particle and heat layers without being part of any zone. */
+  setHeldFlame(particles: boolean, heat: boolean): void {
+    if (this.heldParticles === particles && this.heldHeat === heat) return;
+    this.heldParticles = particles;
+    this.heldHeat = heat;
+    this.particles.setActive((this.air?.particles ?? false) || this.weatherParticles || particles);
+    this.heat.setActive((this.air?.heat ?? false) || heat);
     this.apply();
   }
 
@@ -668,6 +690,7 @@ export class PostFX {
 
     // Presence as well as the switch, exactly as water and glass are gated.
     this.particles.enabled = this.particulate && this.particles.hasParticles;
+    this.heat.enabled = this.heat.hasHeat;
     setParticleDraw(this.particulate, s.particles.density, s.particles.size);
     particleUniforms.uShutter.value = s.particles.shutter;
 

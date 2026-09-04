@@ -18,6 +18,9 @@ being true, edit the line — do not append a correction.
 - `masonry.ts`, `building.ts` — the stone and the timber vocabularies.
 - `loft.ts`, `sheet.ts`, `rod.ts`, `blob.ts`, `whorl.ts` — shape primitives.
 - `cover.ts`, `particles.ts`, `sparkle.ts` — instanced fields, one draw each.
+- `flame.ts`, `heat.ts` — a flame's glow, and the plume over it that bends the
+  frame. A flame's embers and plume come through the sink `dress.ts` installs,
+  so the builders stay off the shader side.
 - `bolt.ts` — the lightning channel: one ribbon mesh, rewritten per strike.
 - `finish.ts`, `weathering.ts`, `detail.ts`, `glitch.ts`, `horror.ts` — shader
   stages, in the order they wrap.

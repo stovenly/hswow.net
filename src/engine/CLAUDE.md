@@ -27,7 +27,7 @@ evenly is only correct on the display side of that conversion, and the dither
 
 ```
 GTAO ─► water ─► underwater ─► glass ─► fog volumes ─► particles ─► bloom
-     ─► effect mask ─► horror ─► glitch
+     ─► heat ─► held ─► effect mask ─► horror ─► glitch
 ```
 
 **The order is the design, not an accident of construction.** AO is shading and
@@ -37,11 +37,13 @@ the last surface and the one that reads all the others. Fog stands *between*
 the camera and all of that. Particles come after the fog volumes, so a flake
 half a metre away is not veiled by twenty metres of mist behind it, and before
 bloom, whose emitters pass depth-tests against a uniform the particle pass
-sets — the one ordering that breaks silently. Horror lands before glitch, so
-the body goes wrong first and the signal of it corrupts on top.
+sets — the one ordering that breaks silently. Heat comes after bloom, so a
+flame's glow bends with the wall behind it, and before the held pass, so the
+lantern in the hand is drawn sharp over its own shimmer. Horror lands before
+glitch, so the body goes wrong first and the signal of it corrupts on top.
 
 Two effects draw rather than filter: bloom's emitters pass, and every
-layer-restricted pass (water, glass, particles). Each blits the chain's colour
+layer-restricted pass (water, glass, particles, heat). Each blits the chain's colour
 forward and re-renders the scene with the camera on its own layer, so it costs
 its own draw calls and a scene-graph walk — which is why each is gated on what
 the entered zone actually built, observed rather than declared. The walk is

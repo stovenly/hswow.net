@@ -97,12 +97,21 @@ export function castFlame(light: THREE.PointLight, range: number): void {
 }
 
 /**
- * Glow geometry for one flame: a bright core inside a wide, faint halo. The core
- * alone is a hard-edged shape, and a hard-edged shape is what makes a synthetic
- * flame look like a piece of geometry that happens to be orange. The halo is four
- * times the size at a fraction of the brightness, ramped to black — and
- * `GLOW_MATERIAL` is additive, so black adds nothing and the falloff needs no
- * alpha channel. Two octahedra, sixteen triangles between them.
+ * The profile of a flame, as (radius, height) in units of `size`: a rounded
+ * foot swelling just above the wick and drawing up to a point. Turned on a lathe
+ * to make the body.
+ */
+const FLAME_PROFILE: readonly [number, number][] = [
+  [0, -0.2], [0.55, -0.05], [0.8, 0.35], [0.78, 0.8], [0.6, 1.35], [0.36, 1.95], [0.16, 2.5], [0, 2.9],
+];
+
+/**
+ * Glow geometry for one flame: a bright teardrop inside a wide, faint halo. The
+ * body is a lathe of `FLAME_PROFILE`, nearly white at the foot where a flame is
+ * hottest and the flame's own colour up its length, thinning to a deeper tint
+ * at the tip. The halo is a rounded shell four times the size at a fraction of
+ * the brightness, ramped to black — and `GLOW_MATERIAL` is additive, so black
+ * adds nothing and the falloff needs no alpha channel.
  */
 export function flameGlow(
   glow: Part[],
@@ -112,26 +121,66 @@ export function flameGlow(
   z: number,
   size: number,
 ): void {
-  const core = new THREE.OctahedronGeometry(size, 0);
-  core.scale(1, 2.4, 1);
-  core.translate(x, y, z);
-  glow.push({ geometry: core, color: flame.color, sway: 0 });
-
-  const halo = new THREE.OctahedronGeometry(size * 4.2, 0);
-  halo.scale(1, 1.5, 1);
-  halo.translate(x, y, z);
-  const reach = size * 4.2 * 1.5;
+  const points = FLAME_PROFILE.map(([r, h]) => new THREE.Vector2(r * size, h * size));
+  const body = new THREE.LatheGeometry(points, 10);
+  body.translate(x, y, z);
+  const top = 2.9 * size;
   glow.push({
-    geometry: halo,
-    // Faded by distance from the wick, so the outer points of the octahedron
-    // are black and contribute nothing. Evaluated per face at its centroid,
-    // which suits a faceted shape — the ramp lands on facet boundaries.
-    color: (fx, fy, fz) => {
-      const d = Math.hypot(fx - x, fy - y, fz - z) / reach;
-      return fade(flame.color, Math.max(0, 0.34 * (1 - d)));
+    geometry: body,
+    // Per face at its centroid. Height up the flame, 0 at the wick, 1 at the tip.
+    color: (_fx, fy) => {
+      const t = Math.max(0, Math.min(1, (fy - y + 0.2 * size) / (top + 0.2 * size)));
+      if (t < 0.4) return blend(0xfff4dc, flame.color, t / 0.4);
+      return fade(flame.color, 1 - 0.45 * ((t - 0.4) / 0.6));
     },
     sway: 0,
   });
+
+  const halo = new THREE.IcosahedronGeometry(size * 4.2, 1);
+  halo.scale(1, 1.5, 1);
+  halo.translate(x, y + size * 0.9, z);
+  const reach = size * 4.2 * 1.5;
+  glow.push({
+    geometry: halo,
+    color: (fx, fy, fz) => {
+      const d = Math.hypot(fx - x, fy - y - size * 0.9, fz - z) / reach;
+      return fade(flame.color, Math.max(0, 0.3 * (1 - d) ** 1.5));
+    },
+    sway: 0,
+  });
+}
+
+/**
+ * What a flame does to the air: a few short-lived embers lifting off the tip,
+ * and the heat over it bending what is behind. Made by whoever installed the
+ * sink — the main thread's `dress.ts`, which is where the particle and heat
+ * materials live; a worker has none and gets an empty group, which is right,
+ * since a flame is never captured. One group, stood on the wick, for the
+ * builder to place and scale with the rest.
+ */
+export interface FlameAirSink {
+  (flame: Flame, size: number, seed: number): THREE.Group;
+}
+
+let airSink: FlameAirSink | null = null;
+
+export function installFlameAir(installed: FlameAirSink): void {
+  airSink = installed;
+}
+
+export function flameAir(flame: Flame, size: number, rng: Rng): THREE.Group {
+  const seed = rng.int(1, 1_000_000);
+  const air = airSink ? airSink(flame, size, seed) : new THREE.Group();
+  air.name = 'flame:air';
+  return air;
+}
+
+/** Mixes two packed hexes, 0 all the first, 1 all the second. */
+function blend(a: number, b: number, t: number): number {
+  const r = Math.round(((a >> 16) & 0xff) * (1 - t) + ((b >> 16) & 0xff) * t);
+  const g = Math.round(((a >> 8) & 0xff) * (1 - t) + ((b >> 8) & 0xff) * t);
+  const bl = Math.round((a & 0xff) * (1 - t) + (b & 0xff) * t);
+  return (r << 16) | (g << 8) | bl;
 }
 
 /** Scales a packed hex toward black. Additive, so this is an amount of light. */

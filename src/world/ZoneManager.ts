@@ -40,7 +40,7 @@ import type { Creature } from '../life/Creature';
 import { GlitchActivity } from '../engine/GlitchActivity';
 import { HorrorActivity } from '../engine/HorrorActivity';
 import type { Weather } from '../audio/weather';
-import { COLLISION_LAYER, HELD_LAYER, PARTICLE_LAYER } from '../layers';
+import { COLLISION_LAYER, HEAT_LAYER, HELD_LAYER, PARTICLE_LAYER } from '../layers';
 import { markCollidable, type Collider } from '../player/Collider';
 import { VistaParallax } from './vista-parallax';
 import { loadingScreen } from '../ui/LoadingScreen';
@@ -95,6 +95,8 @@ export interface LightRig {
 
 const PARTICLE_MASK = new THREE.Layers();
 PARTICLE_MASK.set(PARTICLE_LAYER);
+const HEAT_MASK = new THREE.Layers();
+HEAT_MASK.set(HEAT_LAYER);
 
 /** The same, for spotting collision geometry. See `showBarriers`. */
 const COLLISION_MASK = new THREE.Layers();
@@ -295,6 +297,7 @@ export class ZoneManager {
   private clutterHidden = false;
   /** Built zones with anything on the particle layer in them, which is what decides whether the particle pass runs. */
   private readonly particled = new Set<ZoneId>();
+  private readonly heated = new Set<ZoneId>();
   /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
   private readonly activity = new LightActivity();
   /** Every window in every built zone that states a bearing. See `WindowLight`. */
@@ -632,6 +635,7 @@ export class ZoneManager {
       water: zone.hasWater,
       glass: zone.hasGlass,
       particles: this.particled.has(zone.id),
+      heat: this.heated.has(zone.id),
     });
     this.hovered = null;
     this.options.reticle.set(null);
@@ -683,6 +687,7 @@ export class ZoneManager {
     this.barriers.delete(zone.id);
     this.casters.delete(zone.id);
     this.particled.delete(zone.id);
+    this.heated.delete(zone.id);
     this.activity.release(zone.id);
     this.windows.release(zone.id);
     this.cloth.release(zone.id);
@@ -845,6 +850,7 @@ export class ZoneManager {
       // Off `prepare`'s walk rather than off the zone, because the sparkles are
       // built after the zone is and ride the same layer.
       particles: this.particled.has(zone.id),
+      heat: this.heated.has(zone.id),
     });
 
     this.lights.sun.intensity = env.sunIntensity;
@@ -1106,8 +1112,14 @@ export class ZoneManager {
     if (sparkles) {
       sparkles.userData.sparkleField = true;
       root.add(sparkles);
-      this.particled.add(id);
-    } else this.particled.delete(id);
+    }
+    // The sparkles are not the only thing on the layer: a flame's sparks are too.
+    let particles = false;
+    root.traverse((object) => {
+      if (object.layers.test(PARTICLE_MASK)) particles = true;
+    });
+    if (particles) this.particled.add(id);
+    else this.particled.delete(id);
 
     // Only the live zone owns the effect chain's state.
     if (this.active === zone) this.options.postfx.setZoneParticles(this.particled.has(id));
@@ -1167,6 +1179,7 @@ export class ZoneManager {
     const barriers: THREE.Mesh[] = [];
     const casters: THREE.Light[] = [];
     let particles = false;
+    let heat = false;
     let points = 0;
     let spots = 0;
     root.traverse((object) => {
@@ -1203,6 +1216,7 @@ export class ZoneManager {
       // sparkles both ride it, and a test naming either would go wrong the first
       // time the other was alone in a zone.
       if (object.layers.test(PARTICLE_MASK)) particles = true;
+      if (object.layers.test(HEAT_MASK)) heat = true;
       // A cloth panel is `noCollide` — its triangles stay out of the octree —
       // but it is solid to light: the sim moves the actual buffer, so its
       // shadow follows the drape with nothing to patch.
@@ -1267,6 +1281,8 @@ export class ZoneManager {
     this.barriers.set(zone.id, barriers);
     this.casters.set(zone.id, casters);
     if (particles) this.particled.add(zone.id);
+    if (heat) this.heated.add(zone.id);
+    else this.heated.delete(zone.id);
     this.activity.collect(zone.id, root);
     this.windows.collect(zone.id, root, zone.environment.bearing);
     this.cloth.collect(zone.id, root);
@@ -1704,6 +1720,7 @@ export class ZoneManager {
     this.doored.clear();
     this.clutter.clear();
     this.particled.clear();
+    this.heated.clear();
     this.activity.clear();
     this.windows.clear();
     this.cloth.clear();

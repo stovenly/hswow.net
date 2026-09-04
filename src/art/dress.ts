@@ -7,6 +7,9 @@ import { SWAY_DEPTH_MATERIAL, dressArtMesh } from './sway';
 import { FIELD_ATTRIBUTE, FIELD_SWAY } from './fields';
 import { ART_MATERIAL } from './material';
 import { installFinish, type Finished } from './assemble';
+import { installFlameAir } from './flame';
+import { heatPlume } from './heat';
+import { createParticles } from './particles';
 import { boneNames, type Rig, type RigHandle } from './rig';
 
 /**
@@ -18,6 +21,35 @@ installFinish({
   mesh: (geometry, name, phase, underfoot) =>
     finishMesh(new THREE.Mesh(geometry, ART_MATERIAL), name, phase, underfoot),
   rigged: dressRigged,
+});
+
+// A flame's embers and its heat. Sizes in units of the flame's own `size`.
+installFlameAir((flame, size, seed) => {
+  const air = new THREE.Group();
+  const sparks = createParticles(
+    {
+      count: 7,
+      shape: 'billboard',
+      motion: 'rise',
+      volume: { kind: 'emitter', spread: size * 0.5 },
+      size: [size * 0.14, size * 0.3],
+      colour: [flame.color, 0xfff4dc],
+      opacity: 0.9,
+      speed: [0.08, 0.22],
+      life: 0.7,
+      gravity: 0.25,
+      turbulence: size * 0.4,
+      emissive: true,
+      weather: false,
+    },
+    seed,
+  );
+  sparks.position.y = size * 2.2;
+  air.add(sparks);
+  const plume = heatPlume(size * 7, size * 22);
+  plume.position.y = size * 1.5;
+  air.add(plume);
+  return air;
 });
 
 /** Dresses what `capture` took. */

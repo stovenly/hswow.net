@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { builderByName } from '../art/registry';
-import { GLOW_LAYER, HELD_LAYER } from '../layers';
+import { GLOW_LAYER, HEAT_LAYER, HELD_LAYER, PARTICLE_LAYER } from '../layers';
 import { LightActivity } from '../engine/LightActivity';
 import { hashString } from '../world/loot';
 import type { Item } from '../world/items';
@@ -64,6 +64,9 @@ export class HeldTool {
   private arc = SWING_TIME;
   private signature = '';
   private carry: Carry = 'grip';
+  /** What the thing in the hand draws beyond itself, for the passes that have to be told. */
+  sparks = false;
+  heat = false;
   private elapsed = 0;
   private stride = 0;
   private readonly lastEye = new THREE.Vector3();
@@ -93,6 +96,8 @@ export class HeldTool {
       release(child);
     }
     this.holder.visible = false;
+    this.sparks = false;
+    this.heat = false;
     if (!item) return;
 
     const stand = (item.builder ? builderByName(item.builder) : undefined) ?? builderByName('sack');
@@ -100,22 +105,31 @@ export class HeldTool {
     const seed = item.seed ?? hashString(item.name) % 1_000_000;
     const mesh = stand.build({ seed });
     this.carry = carryOf(item.builder);
-    // HELD_LAYER only: out of every world pass, drawn by the held overlay. A
-    // glow keeps its layer as well, so the bloom pass still finds the flame;
-    // a light keeps the world layer, which is what lets it land on the room.
+    // HELD_LAYER instead of the world layer: out of every world pass, drawn by
+    // the held overlay. A glow keeps its own layer as well, so the bloom pass
+    // still finds the flame; sparks and heat were never on the world layer and
+    // stay where their own passes look; a light keeps the world layer, which is
+    // what lets it land on the room.
+    let sparks = false;
+    let heat = false;
     mesh.traverse((child) => {
       if (child instanceof THREE.Light) {
         child.castShadow = false;
         return;
       }
-      const glows = child.layers.isEnabled(GLOW_LAYER);
-      child.layers.set(HELD_LAYER);
-      if (glows) child.layers.enable(GLOW_LAYER);
       if (child instanceof THREE.Mesh) {
         child.castShadow = false;
         child.receiveShadow = false;
       }
+      if (child.layers.isEnabled(PARTICLE_LAYER)) sparks = true;
+      if (child.layers.isEnabled(HEAT_LAYER)) heat = true;
+      if (!child.layers.isEnabled(0)) return;
+      const glows = child.layers.isEnabled(GLOW_LAYER);
+      child.layers.set(HELD_LAYER);
+      if (glows) child.layers.enable(GLOW_LAYER);
     });
+    this.sparks = sparks;
+    this.heat = heat;
     const scale = THREE.MathUtils.clamp(0.5 / Math.max(stand.radius, 0.15), 0.35, 1.3);
     mesh.scale.setScalar(scale);
     // A lantern hangs from its top, so the mesh is dropped until its top is at the pivot.

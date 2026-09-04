@@ -102,6 +102,7 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
   inventory.onChange(() => {
     held.setItem(inventory.tool);
     app.postfx.setHeldItem(held.visible);
+    app.postfx.setHeldFlame(held.sparks, held.heat);
     // Warming: everything carried gets its icon rendered as it arrives, so
     // the grid is warm by construction. Cache hits cost a map lookup.
     for (const item of inventory.items) icons.request(item);

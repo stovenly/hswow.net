@@ -124,3 +124,10 @@ export const EFFECT_MASK_LAYER = 7;
  * `ZoneManager` does it wherever it enables `PARTICLE_LAYER`.
  */
 export const HELD_LAYER = 8;
+
+/**
+ * The heat over a flame: a plume writing screen offsets, drawn by the heat
+ * pass into its own field with the camera restricted to this layer. `heatPlume`
+ * calls `layers.set`, so a plume is on this layer and nothing else.
+ */
+export const HEAT_LAYER = 9;
