@@ -50,16 +50,6 @@
                   "do": "startQuest",
                   "quest": "missing-goat"
                 }
-              ],
-              "ask": [
-                {
-                  "say": "What does she look like?",
-                  "reply": "Like a goat. Brown, one horn shorter than the other, and a look on her like she is owed money."
-                },
-                {
-                  "say": "I'll go and ask, then.",
-                  "reply": "Do. And do not let Tom keep you."
-                }
               ]
             },
             {
@@ -90,16 +80,6 @@
                 {
                   "do": "startQuest",
                   "quest": "bess-debt"
-                }
-              ],
-              "ask": [
-                {
-                  "say": "How much is it?",
-                  "reply": "Enough to be worth your walk and not enough to be worth mine. Two winters."
-                },
-                {
-                  "say": "I'll go and see her.",
-                  "reply": "The workshop. East side of the green, the door with the wheel behind it."
                 }
               ]
             },

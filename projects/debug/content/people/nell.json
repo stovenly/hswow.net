@@ -51,16 +51,6 @@
                   "do": "startQuest",
                   "quest": "letter-for-hob"
                 }
-              ],
-              "ask": [
-                {
-                  "say": "What is in it?",
-                  "reply": "Mine to write and his to read. Go on."
-                },
-                {
-                  "say": "I'll take it now.",
-                  "reply": "Go careful on the road."
-                }
               ]
             },
             {
