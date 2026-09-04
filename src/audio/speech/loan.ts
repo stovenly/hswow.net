@@ -32,6 +32,9 @@ const PARTICLES = [
 
 const PARTICLE_SET = new Set(PARTICLES);
 
+/** The articles say nothing at all: the commonest words, and the emptiest. */
+const SILENT = new Set(['the', 'a', 'an']);
+
 /** One built word per lect per English word. Built once, said forever. */
 const banks = new Map<LectName, Map<string, Syllable[]>>();
 
@@ -51,23 +54,40 @@ function stream(seed: number): () => number {
   };
 }
 
-/** How many syllables the English word has, by its vowel groups. */
+/**
+ * How many syllables the English word is said with. Vowel groups, less the
+ * letters English writes and does not say: a final silent e (`once`, `make`),
+ * a past `-ed` after anything but t or d (`walked`), a plural `-es` after a
+ * plain consonant (`makes`), and a y that opens the word.
+ */
 function englishSyllables(word: string): number {
-  const groups = word.toLowerCase().match(/[aeiouy]+/g);
+  let w = word.toLowerCase().replace(/'s$/, '').replace(/[^a-z]/g, '');
+  if (w.length > 2 && /[^aeiou]ed$/.test(w) && !/[td]ed$/.test(w)) w = w.slice(0, -2);
+  else if (w.length > 3 && /[^aeiousxz]es$/.test(w) && !/[cs]hes$/.test(w)) w = w.slice(0, -2);
+  else if (w.length > 2 && /[^aeiouy]e$/.test(w) && !/[^aeiouy]le$/.test(w)) w = w.slice(0, -1);
+  w = w.replace(/^y/, '');
+  const groups = w.match(/[aeiouy]+/g);
   return Math.max(1, groups?.length ?? 1);
 }
 
 /**
- * Builds one lect word. Length follows the English word's, held inside the
- * lect's own habits; within a word the opening consonant repeats as often as
- * it changes and the vowel mostly holds, which is the same habit babble has.
+ * How many of the lect's syllables an English word gets: about half its own,
+ * because a language nobody has to understand can say a thing in less.
+ */
+const BREVITY = 0.5;
+
+/**
+ * Builds one lect word. Length follows the English word's, shortened by
+ * `BREVITY` and held inside the lect's own habits; within a word the opening
+ * consonant repeats as often as it changes and the vowel mostly holds, which
+ * is the same habit babble has.
  */
 function buildWord(english: string, lect: Lect, particle: boolean): Syllable[] {
   const random = stream(hash(english, particle ? 17 : 3));
   const [shortest, longest] = lect.wordLength;
   const count = particle
     ? 1
-    : Math.min(Math.max(englishSyllables(english), shortest), longest);
+    : Math.min(Math.max(Math.ceil(englishSyllables(english) * BREVITY), shortest), longest);
 
   const onset = (): Consonant => {
     const drawn = pick(lect.onsets, random);
@@ -104,7 +124,7 @@ function wordFor(english: string, lect: Lect, name: LectName): readonly Syllable
   const key = english.toLowerCase().replace(/[^a-z0-9']/g, '');
   const held = bank.get(key);
   if (held) return held;
-  const made = buildWord(key || english.toLowerCase(), lect, PARTICLE_SET.has(key));
+  const made = SILENT.has(key) ? [] : buildWord(key || english.toLowerCase(), lect, PARTICLE_SET.has(key));
   bank.set(key, made);
   return made;
 }

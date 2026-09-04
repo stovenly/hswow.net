@@ -46,6 +46,7 @@ export interface Lect {
   declination: number;
   /** How much the nose leaks when it should be shut. */
   velum: number;
+  /** Syllables a word may run to, after the English word's count is shortened. */
   wordLength: [number, number];
   /** Scales every written pause. */
   pauseScale: number;
@@ -103,7 +104,7 @@ const country: Lect = {
   rdBias: 0.25,
   declination: 0.14,
   velum: 0.14,
-  wordLength: [1, 3],
+  wordLength: [1, 2],
   pauseScale: 1.3,
   /**
    * Twenty-six hellos and fourteen runs of talk. Every consonant and vowel in
@@ -164,7 +165,7 @@ const city: Lect = {
   rdBias: -0.12,
   declination: 0.38,
   velum: 0.28,
-  wordLength: [2, 4],
+  wordLength: [1, 3],
   pauseScale: 0.8,
   greetings: [
     'ʀéxtsʉ!', 'tʰɪ́ʃka!', 'pfœ́rti', 'tsǽʀdi!',
