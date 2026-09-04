@@ -26,11 +26,15 @@ installFinish({
 // A flame's embers and its heat. Sizes in units of the flame's own `size`.
 installFlameAir((flame, size, seed, roof) => {
   const air = new THREE.Group();
-  // Under a roof the embers die before they reach it: the tallest rise over a
-  // life is v·t + g·t²/2 at the top speed, solved for the room there is.
+  // Under a roof the embers slow rather than die early, so every one climbs
+  // most of the way to it: the rise over a life is v·t + g·t²/2, solved for
+  // the speed that fills the room there is.
   const lift = size * 1.4;
   const room = Math.max(0, roof - lift);
-  const life = Math.min(0.7, (-0.22 + Math.sqrt(0.22 * 0.22 + 2 * 0.125 * room)) / 0.25);
+  const life = 0.7;
+  const gravity = 0.25;
+  const top = Math.min(0.22, (room - 0.5 * gravity * life * life) / life);
+  const speed: [number, number] = top < 0.02 ? [0.01, 0.02] : [top * 0.6, top];
   const sparks = createParticles(
     {
       count: 3,
@@ -40,9 +44,9 @@ installFlameAir((flame, size, seed, roof) => {
       size: [size * 0.1, size * 0.2],
       colour: [flame.color, 0xfff4dc],
       opacity: 0.9,
-      speed: [0.08, 0.22],
-      life: Math.max(0.12, life),
-      gravity: 0.25,
+      speed,
+      life,
+      gravity,
       turbulence: size * 0.2,
       // Almost none of the wind: the default half would carry an ember a metre
       // sideways in its life, and a candle indoors stands in the zone's wind too.
