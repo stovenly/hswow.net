@@ -402,8 +402,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         vec3 glance = skyColourDiscless(normalize(reflect(-view, up) + vec3(0.0, 0.02, 0.0)));
         float graze = 0.02 + 0.98 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
         vec3 film = mix(sand * 0.7, glance, graze * 0.8);
-        // A thin line of foam at the sheet's edge, over its last fifteen centimetres.
-        float edge = smoothstep(R - 0.15 - riseW, R - riseW, rise) * sheet;
+        // A thin line of foam at the sheet's edge, a few pixels wide however flat the sand.
+        float edge = smoothstep(R - max(riseW * 4.0, 0.02), R - riseW, rise) * sheet;
         film = mix(film, uFoam, edge * 0.85);
 
         gl_FragColor = vec4(mix(wet, film, sheet), 1.0);
@@ -609,6 +609,13 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // than a couple of pixels on screen, whatever it is in metres, and its
       // edge is spread over one: a distant rock gets a soft rim, not a jag.
       float px = fwidth(thickness);
+      // On a sea the rim is a line along the waterline, never a field over a
+      // shallow flat: its width is capped in metres of bed, by the thickness the
+      // bed gains per metre. Ponds and races keep the depth band alone.
+      if (vRunup > 0.0) {
+        float bedStep = max(length(fwidth(bedPoint.xz)), 1e-4);
+        band = min(band, 1.6 * (0.45 + 1.1 * lap) * px / bedStep);
+      }
       float shoreBand = max(band, min(px * 2.5, 2.5));
       float shore = 1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness);
 
@@ -717,7 +724,7 @@ export interface WaterPlaneOptions {
   flow?: THREE.Vector2 | ((x: number, z: number) => THREE.Vector2);
   /** Metres per quad. Finer than the shortest wave, or the wave is a zigzag. */
   segment?: number;
-  /** Metres the surface runs on past its rectangle as a coarse apron, on the sea side only. */
+  /** Metres the surface runs on past its rectangle as a coarse apron, on the sea side only. The apron carries the perimeter's chop and flow. */
   reach?: number;
   /** The swell, and with it the shore train it shoals into. Needs `groundAt`. */
   swell?: Swell;
@@ -860,6 +867,9 @@ export function waterPlane(options: WaterPlaneOptions): THREE.Mesh {
         const z = positions[g * 3 + 2] + out * outward[p * 2 + 1];
         positions[n * 3] = x;
         positions[n * 3 + 2] = z;
+        chopValues[n] = chopValues[g];
+        flowValues[n * 2] = flowValues[g * 2];
+        flowValues[n * 2 + 1] = flowValues[g * 2 + 1];
         if (shore) {
           const h = shore.h[g] + out * APRON_SHELF;
           shoreValues[n * 4] = h;
