@@ -49,8 +49,8 @@ installFlameAir((flame, size, seed) => {
   );
   sparks.position.y = size * 2.2;
   air.add(sparks);
-  const plume = heatPlume(size * 7, size * 22);
-  plume.position.y = size * 1.5;
+  const plume = heatPlume(size * 5, size * 9);
+  plume.position.y = size * 1.2;
   air.add(plume);
   return air;
 });

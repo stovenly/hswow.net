@@ -82,7 +82,7 @@ const HEAT_MATERIAL = new THREE.ShaderMaterial({
       float x = vUv.x - 0.5;
       float width = mix(0.5, 0.18, vUv.y);
       float across = 1.0 - smoothstep(0.0, width, abs(x));
-      float along = smoothstep(0.0, 0.12, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+      float along = smoothstep(0.0, 0.1, vUv.y) * (1.0 - smoothstep(0.3, 0.95, vUv.y));
       float mask = across * along;
       // Two octaves rising at different speeds, so the bend churns rather than scrolls.
       vec2 flow = vec2(vUv.x * 3.0, vUv.y * 5.0 - uTime * 2.2);
