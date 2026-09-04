@@ -288,7 +288,14 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float rushing = min(vStreak, 3.0) / 3.0;
       float agitation = max(vChop, rushing * 1.15);
 
+      // How far away the surface is, 0 near to 1 far. Every fine pattern below
+      // is a few chunky pixels at range, and a regular pattern a few pixels wide
+      // is a moiré that swims as the view turns; so at range the surface goes
+      // smooth and reflects the sky plainly, and the foam is left to the shore.
+      float far = smoothstep(14.0, 55.0, surfaceDistance);
+
       vec3 normal = normalize(vSurfaceNormal);
+      normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), far * 0.9));
       if (agitation > 0.002) {
         vec2 q = vWorld.xz - stream * 1.35;
         float e = 0.18;
@@ -298,7 +305,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         // Small. This tilts the normal, which decides both the fresnel weight and
         // where the reflection ray goes, so past about ten degrees the reflected
         // image stops being a reflection. Ripple is a few degrees of scatter.
-        normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation / e));
+        normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation * (1.0 - far) / e));
       }
 
       // --- seen from below ----------------------------------------------------
@@ -400,15 +407,22 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // Fast water is aerated, and aerated water is white further out: the band a
       // race foams over is nearly twice a pond's.
       float band = uFoamDepth * (0.45 + 1.1 * lap) * (1.0 + rushing * 0.95);
-      float shore = 1.0 - smoothstep(band * 0.5, band, thickness);
+      // The waterline, and at range only its pale wash: a hard white line one
+      // pixel wide round every distant rock is what the quantizer makes of it.
+      float shore = (1.0 - smoothstep(band * 0.5, band, thickness)) * (1.0 - 0.6 * far);
 
       // Crest foam has to be broken up, because two crossed sine trains interfere
       // into a regular lattice and a plain threshold puts a white speck at every
       // node of it. So the threshold is lowered by a drifting noise field instead.
+      // A wave breaks where the water is about as deep as it is tall, so over
+      // the last few metres of bed the crests foam far more readily and the
+      // white comes rolling in to meet the waterline rather than stopping short.
+      float breaking = 1.0 - smoothstep(0.5, 3.5, thickness);
       float speck = streaked(vWorld.xz - stream, along, stretch, 1.7);
       float crest =
-        smoothstep(1.05 - speck * 0.55, 1.25 - speck * 0.5, vCrest) *
-        smoothstep(0.12, 0.5, agitation);
+        smoothstep(1.05 - speck * 0.55 - breaking * 0.7, 1.25 - speck * 0.5 - breaking * 0.55, vCrest) *
+        smoothstep(0.12, 0.5, agitation) *
+        (1.0 - far);
       float foam = max(shore, crest);
 
       float wash = step(0.28, foam);
