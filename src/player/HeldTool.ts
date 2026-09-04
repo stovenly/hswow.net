@@ -28,8 +28,12 @@ const BOB = 0.012;
 const LAG = 0.06;
 /** A lantern's pendulum: g over the length it hangs by, and how quickly it settles. */
 const PENDULUM_STIFFNESS = 22;
-const PENDULUM_DAMPING = 2.6;
-const SWING_MOST = 0.55;
+const PENDULUM_DAMPING = 3.2;
+/** Radians of lean past which the damping climbs steeply: a wide swing is cut short, a small one rides out. */
+const SWING_SOFT = 0.12;
+const SWING_MOST = 0.3;
+/** How much of the ring's acceleration the body answers; a real pendulum would take all of it. */
+const KICK_GAIN = 0.55;
 /** Metres a second squared the ring is believed to move at; a zone swap is not a swing. */
 const KICK_MOST = 15;
 
@@ -203,11 +207,14 @@ export class HeldTool {
         // In this frame +Z is forward and +X is left. Acceleration forward swings
         // the body back, a positive lean about X; acceleration left swings it
         // right, a positive lean.y — the body lags whatever the ring does.
-        const kickForward = THREE.MathUtils.clamp(_velocity.z, -KICK_MOST, KICK_MOST) * PENDULUM_STIFFNESS / 9.81 * motion;
-        const kickSide = THREE.MathUtils.clamp(_velocity.x, -KICK_MOST, KICK_MOST) * PENDULUM_STIFFNESS / 9.81 * motion;
+        const gain = (PENDULUM_STIFFNESS / 9.81) * KICK_GAIN * motion;
+        const kickForward = THREE.MathUtils.clamp(_velocity.z, -KICK_MOST, KICK_MOST) * gain;
+        const kickSide = THREE.MathUtils.clamp(_velocity.x, -KICK_MOST, KICK_MOST) * gain;
         const rate = Math.min(dt, 1 / 30);
-        this.leanRate.x += (kickForward - PENDULUM_STIFFNESS * this.lean.x - PENDULUM_DAMPING * this.leanRate.x) * rate;
-        this.leanRate.y += (kickSide - PENDULUM_STIFFNESS * this.lean.y - PENDULUM_DAMPING * this.leanRate.y) * rate;
+        const dampX = PENDULUM_DAMPING * (1 + (this.lean.x / SWING_SOFT) ** 2);
+        const dampY = PENDULUM_DAMPING * (1 + (this.lean.y / SWING_SOFT) ** 2);
+        this.leanRate.x += (kickForward - PENDULUM_STIFFNESS * this.lean.x - dampX * this.leanRate.x) * rate;
+        this.leanRate.y += (kickSide - PENDULUM_STIFFNESS * this.lean.y - dampY * this.leanRate.y) * rate;
         this.lean.x = THREE.MathUtils.clamp(this.lean.x + this.leanRate.x * rate, -SWING_MOST, SWING_MOST);
         this.lean.y = THREE.MathUtils.clamp(this.lean.y + this.leanRate.y * rate, -SWING_MOST, SWING_MOST);
         // Hung from the ring: upright in the world, turned with the view, then
