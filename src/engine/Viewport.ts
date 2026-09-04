@@ -20,16 +20,13 @@ export class Viewport {
   private readonly canvas: HTMLCanvasElement;
   private readonly handleResize = (): void => this.resize();
 
-  constructor(canvas: HTMLCanvasElement, lowLatency = false) {
+  constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
 
-    // The context is made here rather than by three so it can be asked for
-    // `desynchronized`, which three's options do not carry.
     const context = canvas.getContext('webgl2', {
       antialias: false,
       powerPreference: 'high-performance',
       stencil: false,
-      desynchronized: lowLatency,
     });
     if (!context) throw new Error('WebGL2 is not available');
     this.renderer = new THREE.WebGLRenderer({

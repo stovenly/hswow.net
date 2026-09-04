@@ -105,12 +105,6 @@ export interface Options {
   performance: PerformanceMode;
   /** The whole screen, which is also what lets the game keep Escape, Tab and Alt. */
   fullscreen: boolean;
-  /**
-   * A canvas that skips the compositor for a frame less of lag under pointer
-   * lock, at the cost of possible tearing. Read when the renderer is made, so
-   * it takes effect on the next start.
-   */
-  lowLatency: boolean;
 
   // --- controls ------------------------------------------------------------
   /** 0–10, where 5 is the tuned default. See `apply.ts`. */
@@ -191,7 +185,6 @@ export const DEFAULT_OPTIONS: Options = {
   crouchMode: 'hold',
 
   fullscreen: false,
-  lowLatency: false,
 
   reducedMotion: false,
   windSway: true,
@@ -372,7 +365,6 @@ export const CATEGORIES: readonly Category[] = [
           options.viewDistance >= VIEW_UNLIMITED ? null : 'never further than the zone allows',
       },
       { kind: 'toggle', key: 'fullscreen', label: 'fullscreen' },
-      { kind: 'toggle', key: 'lowLatency', label: 'low latency canvas (next start)' },
       {
         kind: 'choice',
         key: 'fpsCap',

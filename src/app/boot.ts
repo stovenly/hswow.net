@@ -96,7 +96,7 @@ export interface App {
 }
 
 export async function createApp({ canvas, overlay, project, enter = false }: AppOptions): Promise<App> {
-  const viewport = new Viewport(canvas, loadOptions().lowLatency);
+  const viewport = new Viewport(canvas);
   zoneCache.project = project.id;
   const loop = new Loop();
   const dev = await createDevTools();
