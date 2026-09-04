@@ -360,20 +360,53 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
     ${REFLECT_GLSL}
 
-    /** Two scales of value noise. Cheaper than fbm, and this is not a cloud. */
-    float ripple(vec2 p) {
-      return valueNoise(p) * 0.66 + valueNoise(p * 2.17 + 11.3) * 0.34;
+    /** How much of a noise octave the pixel resolves, from the cells it spans. */
+    float resolved(float cellsPerPixel) {
+      return 1.0 - smoothstep(0.15, 0.4, cellsPerPixel);
     }
 
-    /**
-     * The same noise, drawn in a frame that runs with the water and is squeezed
-     * along it. Compressing the coordinate along the flow stretches every feature
-     * out along it in world space, and what comes back is streaklines. The frame
-     * is built from a varying, so the streaks bend round a corner with the flow.
-     */
-    float streaked(vec2 p, vec2 along, float stretch, float scale) {
+    /** The pixel's span in a coordinate's own units: its longer screen derivative. */
+    float span(vec2 p) {
+      return max(length(dFdx(p)), length(dFdy(p)));
+    }
+
+    // Two scales of value noise, each pulled to its mean as the pixel outgrows
+    // it; lost is the amplitude that took out. Filtered by the coordinate's
+    // footprint, never by the noise's own derivative, which is random sub-pixel.
+    float ripple(vec2 p, float foot, out float lost) {
+      float w1 = resolved(foot);
+      float w2 = resolved(foot * 2.17);
+      lost = 0.66 * (1.0 - w1) + 0.34 * (1.0 - w2);
+      return 0.5 + (valueNoise(p) - 0.5) * (0.66 * w1) + (valueNoise(p * 2.17 + 11.3) - 0.5) * (0.34 * w2);
+    }
+
+    // A frame that runs with the water and is squeezed along it, so the noise
+    // drawn in it comes out as streaklines that bend with the flow.
+    vec2 frame(vec2 p, vec2 along, float stretch, float scale) {
       vec2 across = vec2(-along.y, along.x);
-      return ripple(vec2(dot(p, along) / stretch, dot(p, across)) * scale);
+      return vec2(dot(p, along) / stretch, dot(p, across)) * scale;
+    }
+
+    float streaked(vec2 p, vec2 along, float stretch, float scale, out float lost) {
+      vec2 q = frame(p, along, stretch, scale);
+      return ripple(q, span(q), lost);
+    }
+
+    // Above a threshold with an authored shoulder, resolved over the pixel and
+    // over the spread the filter removed, so a field pulled to its mean gives
+    // the fraction that would have been over, not a step at the mean.
+    float over(float field, float at, float half_, float lost) {
+      float w = max(half_, max(fwidth(field) * 0.6, lost * 0.5));
+      return smoothstep(at - w, at + w, field);
+    }
+
+    float edge(float x, float at, float w) {
+      return smoothstep(at - w, at + w, x);
+    }
+
+    /** The smaller of two steps, sign kept: a jump on one side is not a slope. */
+    vec3 lesser(vec3 a, vec3 b) {
+      return dot(a, a) < dot(b, b) ? a : b;
     }
 
     /** GGX with Smith visibility and Schlick fresnel, for a light in direction l. */
@@ -420,6 +453,30 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // is a function of this number.
       float thickness = max(bedDistance - surfaceDistance, 0.0);
 
+      // The bed one pixel over on each axis, by the smaller step, so a rock's
+      // silhouette beside this pixel is an edge and not a slope. Per pixel, not
+      // per quad: a derivative of a depth sample is a block at every edge.
+      vec2 texel = 1.0 / uResolution;
+      vec3 dBx = lesser(
+        scenePoint(uv + vec2(texel.x, 0.0)) - bedPoint,
+        bedPoint - scenePoint(uv - vec2(texel.x, 0.0))
+      );
+      vec3 dBy = lesser(
+        scenePoint(uv + vec2(0.0, texel.y)) - bedPoint,
+        bedPoint - scenePoint(uv - vec2(0.0, texel.y))
+      );
+      // Metres of thickness one pixel spans, metres of bed it spans, and the
+      // bed's slope under it.
+      float bedNear = length(bedPoint - cameraPosition);
+      float gx = length(bedPoint + dBx - cameraPosition) - bedNear - dFdx(surfaceDistance);
+      float gy = length(bedPoint + dBy - cameraPosition) - bedNear - dFdy(surfaceDistance);
+      float thicknessSpan = length(vec2(gx, gy));
+      float bedFoot = max(length(dBx.xz), length(dBy.xz));
+      float bedSlope = max(
+        abs(dBx.y) / max(length(dBx.xz), 1e-3),
+        abs(dBy.y) / max(length(dBy.xz), 1e-3)
+      );
+
       // --- the surface normal ------------------------------------------------
       // The wave slope from the vertex stage, plus fine ripple that would need a
       // much denser mesh to carry as displacement. Gradient by finite difference.
@@ -443,27 +500,25 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float rushing = min(vStreak, 3.0) / 3.0;
       float agitation = max(vChop, rushing * 1.15);
 
-      // Filtered to the pixel. A pattern that turns over faster than a pixel
-      // is wide is not resolved by drawing one sample of it — that is a moiré
-      // that swims as the view turns — it is resolved by drawing its mean over
-      // the pixel. So every fine term here is pulled toward its mean by how
-      // fast it changes across the screen, which is nothing up close and
-      // everything on a wave a pixel wide, whatever the distance.
+      // Filtered to the pixel: a pattern finer than a pixel is drawn as its mean
+      // over the pixel, never as one sample of it.
       vec3 normal = normalize(vSurfaceNormal);
       float swim = clamp(length(fwidth(vSurfaceNormal.xz)) * 5.0, 0.0, 1.0);
       normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), swim));
       float rippleSwim = 0.0;
+      vec2 rq = vWorld.xz - stream * 1.35;
+      float rippleFoot = span(frame(rq, along, stretch, 1.35));
       if (agitation > 0.002) {
-        vec2 q = vWorld.xz - stream * 1.35;
         float e = 0.18;
-        float n0 = streaked(q, along, stretch, 1.35);
-        float gx = streaked(q + vec2(e, 0.0), along, stretch, 1.35) - n0;
-        float gz = streaked(q + vec2(0.0, e), along, stretch, 1.35) - n0;
+        float lost;
+        float n0 = ripple(frame(rq, along, stretch, 1.35), rippleFoot, lost);
+        float nx = ripple(frame(rq + vec2(e, 0.0), along, stretch, 1.35), rippleFoot, lost) - n0;
+        float nz = ripple(frame(rq + vec2(0.0, e), along, stretch, 1.35), rippleFoot, lost) - n0;
         // Small. This tilts the normal, which decides both the fresnel weight and
         // where the reflection ray goes, so past about ten degrees the reflected
         // image stops being a reflection. Ripple is a few degrees of scatter.
-        rippleSwim = clamp(fwidth(n0) * 3.0, 0.0, 1.0);
-        normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation * (1.0 - rippleSwim) / e));
+        rippleSwim = lost;
+        normal = normalize(normal + vec3(-nx, 0.0, -nz) * (0.16 * agitation / e));
       }
       // What the filtering took out of the normal goes into the roughness, so a
       // sea filtered flat at range still glitters under the sun.
@@ -528,17 +583,16 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       vec3 bed = texture2D(tScene, sceneDistance(bent) > surfaceDistance ? bent : uv).rgb;
 
       // Caustics: two octaves of ridged noise on the bed, scrolled two ways, in
-      // the shallows under a sun. Pulled to their mean where they turn over
-      // faster than a pixel.
+      // the shallows under a sun, each pulled to its mean as the pixel outgrows it.
       float shallows = smoothstep(0.05, 0.3, thickness) * (1.0 - smoothstep(1.2, 2.2, thickness)) * sunUp;
       if (shallows > 0.0) {
         vec2 cp = bedPoint.xz;
         vec2 scroll = vec2(0.18, 0.11) * (swayTime * uWaterMotion);
         float c1 = 1.0 - abs(2.0 * valueNoise(cp * 0.9 + scroll) - 1.0);
         float c2 = 1.0 - abs(2.0 * valueNoise(cp * 1.9 - scroll * 1.4 + 7.3) - 1.0);
-        float caustic = c1 * c2;
-        caustic = mix(caustic, 0.3, clamp(length(fwidth(cp)) * 1.2, 0.0, 1.0));
-        bed *= 1.0 + caustic * uCaustics * shallows;
+        c1 = mix(0.5, c1, resolved(bedFoot * 0.9));
+        c2 = mix(0.5, c2, resolved(bedFoot * 1.9));
+        bed *= 1.0 + c1 * c2 * uCaustics * shallows;
       }
       // Beer-Lambert on the column, the same shape the fog volumes use: the bed
       // does not vanish at a threshold, it fades out at a rate.
@@ -601,38 +655,32 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
       // --- foam ---------------------------------------------------------------
       // Two bands and two flat colours, thresholded over one pixel: the quantizer
-      // bands a gradient anyway, so the bands are authored where they belong,
-      // and the edge of each is resolved at the pixel rather than stepped, so a
-      // band seen small is a soft halo and not a jagged line. The waterline is
-      // scaled by noise and scrolled downwind, in three layers at slightly
-      // different rates, all carried by stream — so the motion switch stops
-      // every one of them.
-      float lap = streaked(vWorld.xz - stream * 0.85, along, stretch, 0.55);
+      // bands a gradient anyway, so the bands are authored where they belong.
+      // Every term below is resolved at the pixel: its noise band-limited, its
+      // edges at least a pixel wide, and where it is thinner than a pixel it is
+      // drawn at the coverage it has, never widened to a line.
+
+      // --- the waterline --------------------------------------------------------
+      float lapLost;
+      float lap = streaked(vWorld.xz - stream * 0.85, along, stretch, 0.55, lapLost);
       // Fast water is aerated, and aerated water is white further out: the band a
       // race foams over is nearly twice a pond's.
       float band = uFoamDepth * (0.45 + 1.1 * lap) * (1.0 + rushing * 0.95);
-      // Metres of thickness one pixel covers. The waterline is never narrower
-      // than a couple of pixels on screen, whatever it is in metres, and its
-      // edge is spread over one: a distant rock gets a soft rim, not a jag.
-      float px = fwidth(thickness);
-      float shoreBand = max(band, min(px * 2.5, 2.5));
-      float shore = 1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness);
       if (vRunup > 0.0) {
-        // On a sea the rim is measured down the column, so a rock's waterline is
-        // a band of fixed height whatever the view and a silhouette is an edge.
-        // Its height is capped by the bed's slope so a shallow flat is not a
-        // field, and where it is thinner than a pixel it fades by its coverage
-        // rather than swelling to a white line.
-        float column = max(vWorld.y - bedPoint.y, 0.0);
-        float cpx = fwidth(column);
-        float lapF = mix(lap, 0.5, clamp(fwidth(lap) * 1.5, 0.0, 1.0));
-        float bedStep = max(length(fwidth(bedPoint.xz)), 1e-4);
-        float seaBand = uFoamDepth * (0.45 + 1.1 * lapF);
-        seaBand = min(seaBand, 1.6 * (0.45 + 1.1 * lapF) * cpx / bedStep);
-        float wide = max(seaBand, cpx);
-        float rimAA = min(cpx, wide * 0.5);
-        shore = (1.0 - smoothstep(wide - rimAA, wide + rimAA, column)) * clamp(seaBand / wide, 0.0, 1.0);
+        // On a sea the rim is a line along the waterline and never a field over
+        // a flat: it reaches under a metre across the bed, which on a bed of
+        // slope s seen at elevation e is a thickness of reach * s / sin(e).
+        float reach = 0.4 * (0.45 + 1.1 * lap);
+        band = min(band, reach * bedSlope / max(view.y, 0.05));
       }
+      // The band's coverage of the thickness this pixel spans: a full band with
+      // a pixel-wide edge, or a line a pixel wide at the fraction it fills.
+      float halfSpan = max(thicknessSpan * 0.5, 1e-3);
+      float shore = clamp(
+        (min(thickness + halfSpan, band) - max(thickness - halfSpan, 0.0)) / (2.0 * halfSpan),
+        0.0,
+        1.0
+      );
 
       // --- surf ---------------------------------------------------------------
       // Foam comes off the shore train; the noise tears it, never places it.
@@ -640,33 +688,34 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // long ago the crest went by, in periods.
       float cycle = fract(vPhase * 0.15915494 + 0.5) - 0.5;
       float since = fract(-vPhase * 0.15915494);
-      float pw = fwidth(vPhase) * 0.15915494;
+      // Half a pixel, in periods.
+      float pw = fwidth(vPhase) * 0.15915494 * 0.5;
       // Broken water streaks the way the wave travels, so the noise frame is
       // stretched along vDir: fine streaks, and the clumps that gap a crest.
       vec2 travel = normalize(vDir + vec2(1e-4, 0.0));
-      float streak = streaked(vWorld.xz - stream * 0.6, travel, 3.0, 0.9);
-      float clumps = streaked(vWorld.xz - stream * 0.35, travel, 1.6, 0.25);
-      float sw = fwidth(streak);
-      float cw = fwidth(clumps);
+      float streakLost;
+      float clumpLost;
+      float streak = streaked(vWorld.xz - stream * 0.6, travel, 3.0, 0.9, streakLost);
+      float clumps = streaked(vWorld.xz - stream * 0.35, travel, 1.6, 0.25, clumpLost);
       float breaking = smoothstep(0.85, 1.0, vBreak);
       // The lip: a white core on the crest and the top of the front face, a
-      // pale skirt tumbling down the face, in runs with gaps between.
-      float core = smoothstep(-0.02 - pw, 0.0, cycle) * (1.0 - smoothstep(0.04, 0.08 + pw, cycle));
-      float apron = smoothstep(-0.05 - pw, -0.01, cycle) * (1.0 - smoothstep(0.08, 0.20 + pw, cycle));
-      float runs = smoothstep(0.40 - cw, 0.52 + cw, clumps);
+      // pale skirt tumbling down the face, in runs with gaps between. Each
+      // window's edges are at least half a pixel wide, so a crest a pixel
+      // across is a fainter line and not a brighter one.
+      float core = max(edge(cycle, -0.01, max(0.01, pw)) - edge(cycle, 0.06, max(0.02, pw)), 0.0);
+      float apron = max(edge(cycle, -0.03, max(0.02, pw)) - edge(cycle, 0.14, max(0.06, pw)), 0.0);
+      float runs = over(clumps, 0.46, 0.06, clumpLost);
       float lip = breaking * runs * smoothstep(0.0, 0.1, vColumn) * max(
-        core * smoothstep(0.25 - sw, 0.5 + sw, streak),
-        apron * 0.55 * smoothstep(0.4 - sw, 0.6 + sw, streak)
+        core * over(streak, 0.375, 0.125, streakLost),
+        apron * 0.55 * over(streak, 0.5, 0.1, streakLost)
       );
       // The wash: what the breaker leaves behind it, thinning away before the
       // next crest, and never white. Streaked lace that opens hole-first, the
       // threshold rising as it decays.
       float decay = 1.0 - smoothstep(0.0, 0.45, since);
       float laceField = streak * 0.7 + clumps * 0.3;
-      float laceAt = mix(0.35, 0.68, since);
-      float lace = smoothstep(laceAt - sw, laceAt + 0.1 + sw, laceField);
-      // Over the sand the sheet's foam is its edge alone: a wash there is a slow
-      // threshold sweeping smooth noise, which draws contours.
+      float lace = over(laceField, mix(0.4, 0.73, since), 0.05, streakLost * 0.7 + clumpLost * 0.3);
+      // Over the sand the sheet's foam is its edge alone.
       float trail = 0.6 * smoothstep(0.9, 1.0, vBreak) * decay * lace * smoothstep(-0.05, 0.05, vColumn);
       float breaker = max(lip, trail);
       // How far into the surf zone this is, for anything that stops there.
@@ -675,12 +724,13 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // --- whitecaps ------------------------------------------------------------
       // Out in deep water the wind tears the odd crest: sparse patches placed by
       // noise, sitting on a crest where there is one, never on every one.
-      float capField = streaked(vWorld.xz - stream * 1.1, along, stretch, 0.22) * 0.55
-        + streaked(vWorld.xz - stream * 1.7, along, stretch, 1.2) * 0.3
+      float capLostA;
+      float capLostB;
+      float capField = streaked(vWorld.xz - stream * 1.1, along, stretch, 0.22, capLostA) * 0.55
+        + streaked(vWorld.xz - stream * 1.7, along, stretch, 1.2, capLostB) * 0.3
         + max(vCrest, 0.0) * 0.15;
-      capField = mix(capField, 0.5, clamp(fwidth(capField) * 1.5, 0.0, 1.0));
-      float capW = fwidth(capField);
-      float cap = smoothstep(0.66 - capW, 0.78 + capW, capField) * smoothstep(0.35, 0.95, agitation) * (1.0 - surfZone);
+      float cap = over(capField, 0.72, 0.06, capLostA * 0.55 + capLostB * 0.3)
+        * smoothstep(0.35, 0.95, agitation) * (1.0 - surfZone);
 
       float foam = max(shore, max(breaker, cap));
 
