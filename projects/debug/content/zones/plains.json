@@ -1193,29 +1193,6 @@
       }
     },
     {
-      "id": "south-gate-creak",
-      "kind": "sound",
-      "ref": "south-gate",
-      "lift": 0.9,
-      "spec": {
-        "model": "friction",
-        "options": {
-          "motion": "weather",
-          "speed": 0.22,
-          "force": 0.85,
-          "pitch": 150,
-          "decay": 1.1,
-          "bright": 0.2,
-          "roughness": 0.15,
-          "gain": 0.3
-        },
-        "refDistance": 3,
-        "maxDistance": 40,
-        "rolloff": 1.4,
-        "reverb": 0.5
-      }
-    },
-    {
       "id": "mill-creak",
       "kind": "sound",
       "ref": "windmill",
