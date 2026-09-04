@@ -44,6 +44,8 @@ export class MapScreen {
   private readonly tipJoiner: HTMLSpanElement;
   private readonly tipTarget: HTMLSpanElement;
   private active = false;
+  /** A redraw already asked for this frame. Pointer events come faster than frames. */
+  private frame = 0;
   private drag: { canvas: HTMLCanvasElement; x: number; y: number } | null = null;
   /** The marks the last redraw laid down, so the cursor is tested against what is on screen. */
   private marks: Mark[] = [];
@@ -90,7 +92,7 @@ export class MapScreen {
     this.tip.append(lines);
     this.root.append(this.tip);
 
-    this.observer = new ResizeObserver(() => this.draw());
+    this.observer = new ResizeObserver(() => this.requestDraw());
     this.observer.observe(local);
     this.observer.observe(world);
 
@@ -106,6 +108,8 @@ export class MapScreen {
 
   private deactivate(): void {
     this.active = false;
+    if (this.frame) cancelAnimationFrame(this.frame);
+    this.frame = 0;
     this.drag = null;
     this.hovered = null;
     this.tip.hidden = true;
@@ -123,8 +127,18 @@ export class MapScreen {
   }
 
   dispose(): void {
+    if (this.frame) cancelAnimationFrame(this.frame);
     this.observer.disconnect();
     this.tip.remove();
+  }
+
+  /** One redraw on the next frame, however many events ask for it before then. */
+  private requestDraw(): void {
+    if (this.frame || !this.active) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      this.draw();
+    });
   }
 
   /** Whichever canvas is up; a hidden pane's has no box to draw into. */
@@ -191,7 +205,7 @@ export class MapScreen {
       box.width,
       box.height,
     );
-    this.draw();
+    this.requestDraw();
   };
 
   private readonly handleHover = (event: PointerEvent): void => {
@@ -219,7 +233,7 @@ export class MapScreen {
     const on = found ? (found.side ?? 'you') : null;
     if (on !== this.hovered) {
       this.hovered = on;
-      this.draw();
+      this.requestDraw();
     }
   };
 
@@ -228,7 +242,7 @@ export class MapScreen {
     this.localCanvas.style.cursor = '';
     if (!this.hovered) return;
     this.hovered = null;
-    this.draw();
+    this.requestDraw();
   };
 
   private readonly handleDown = (event: PointerEvent): void => {
@@ -247,7 +261,7 @@ export class MapScreen {
     this.viewFor(drag.canvas).panBy(event.clientX - drag.x, event.clientY - drag.y);
     drag.x = event.clientX;
     drag.y = event.clientY;
-    this.draw();
+    this.requestDraw();
   };
 
   private readonly handleUp = (event: PointerEvent): void => {

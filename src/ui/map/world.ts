@@ -56,6 +56,8 @@ const PRINT = 300;
 const REVEAL = 0.8;
 const REVEAL_ROAD = 0.5;
 const REVEAL_FADE = 0.16;
+/** How many times smaller than the window the reveal mask is drawn before its blur. */
+const MASK_SHRINK = 4;
 
 export interface WorldNode {
   id: ZoneId;
@@ -500,7 +502,7 @@ function drawFound(
   if (places.length === 0) return;
   const layer = scratch(0, w, h, density);
   const lc = layer.getContext('2d');
-  const mask = scratch(1, w, h, density);
+  const mask = scratch(1, w, h, density / MASK_SHRINK);
   const mc = mask.getContext('2d');
   if (!lc || !mc) return;
   const land = chart.land;
@@ -545,27 +547,19 @@ function drawFound(
   lc.lineWidth = 1.4 * k;
   lc.stroke();
 
-  const visible = (x: number, y: number): boolean => {
-    for (const node of places) {
-      if (Math.hypot(x - node.x, y - node.y) <= REVEAL * ROAD) return true;
-    }
-    const half = (REVEAL_ROAD * ROAD) / 2;
-    for (const road of roads) {
-      for (const [px, py] of road.path) {
-        if (Math.hypot(x - px, y - py) <= half) return true;
-      }
-    }
-    return false;
-  };
-  drawRelief(lc, chart.relief, view, w, h, visible);
+  const revealed = reliefRevealed(chart, places, roads);
+  drawRelief(lc, chart.relief, view, w, h, (index) => revealed[index] === 1);
   // Over the coast line, so a mouth breaks it, and over the marks: water is
   // the last thing the pen lays down on the land.
   drawRivers(lc, w, h, view, chart, k);
 
-  // The cut: soft discs about the places and soft bands along the roads.
-  inPixels(mc, density);
-  mc.clearRect(0, 0, w, h);
-  mc.filter = `blur(${Math.max(6, REVEAL_FADE * ROAD * view.scale)}px)`;
+  // The cut: soft discs about the places and soft bands along the roads. Drawn
+  // at a quarter of the resolution in the mask's own pixels, because the blur
+  // is soft by nature and its cost is the whole canvas times the radius.
+  const ms = density / MASK_SHRINK;
+  mc.setTransform(1, 0, 0, 1, 0, 0);
+  mc.clearRect(0, 0, mask.width, mask.height);
+  mc.filter = `blur(${Math.max(1.5, (REVEAL_FADE * ROAD * view.scale * density) / MASK_SHRINK)}px)`;
   mc.fillStyle = '#fff';
   mc.strokeStyle = '#fff';
   mc.lineCap = 'round';
@@ -574,21 +568,22 @@ function drawFound(
   for (const node of places) {
     view.project(node.x, node.y, w, h, point);
     mc.beginPath();
-    mc.arc(point[0], point[1], REVEAL * ROAD * view.scale, 0, Math.PI * 2);
+    mc.arc(point[0] * ms, point[1] * ms, REVEAL * ROAD * view.scale * ms, 0, Math.PI * 2);
     mc.fill();
   }
-  mc.lineWidth = REVEAL_ROAD * ROAD * view.scale;
+  mc.lineWidth = REVEAL_ROAD * ROAD * view.scale * ms;
   for (const road of roads) {
     mc.beginPath();
     road.path.forEach(([x, y], i) => {
       view.project(x, y, w, h, point);
-      if (i === 0) mc.moveTo(point[0], point[1]);
-      else mc.lineTo(point[0], point[1]);
+      if (i === 0) mc.moveTo(point[0] * ms, point[1] * ms);
+      else mc.lineTo(point[0] * ms, point[1] * ms);
     });
     mc.stroke();
   }
   mc.filter = 'none';
 
+  lc.imageSmoothingEnabled = true;
   lc.globalCompositeOperation = 'destination-in';
   lc.drawImage(mask, 0, 0, w, h);
   lc.globalCompositeOperation = 'source-over';
@@ -925,6 +920,39 @@ function trace(
 const SCRATCH: HTMLCanvasElement[] = [];
 
 /** A working canvas the size of the window, kept between draws. */
+/**
+ * Which relief marks stand within the found country, per discovery state. A
+ * mark against every place and every road point is the one test on this chart
+ * that grows with the world, and it changes only when something is found.
+ */
+const revealedCache = new WeakMap<WorldChart, { key: string; shown: Uint8Array }>();
+function reliefRevealed(chart: WorldChart, places: readonly WorldNode[], roads: readonly WorldEdge[]): Uint8Array {
+  const key = `${places.map((node) => node.id).join(',')}|${roads.map((road) => `${road.a}-${road.b}`).join(',')}`;
+  const held = revealedCache.get(chart);
+  if (held && held.key === key) return held.shown;
+  const shown = new Uint8Array(chart.relief.length);
+  const near = REVEAL * ROAD;
+  const half = (REVEAL_ROAD * ROAD) / 2;
+  chart.relief.forEach((mark, i) => {
+    for (const node of places) {
+      if (Math.hypot(mark.x - node.x, mark.y - node.y) <= near) {
+        shown[i] = 1;
+        return;
+      }
+    }
+    for (const road of roads) {
+      for (const [px, py] of road.path) {
+        if (Math.hypot(mark.x - px, mark.y - py) <= half) {
+          shown[i] = 1;
+          return;
+        }
+      }
+    }
+  });
+  revealedCache.set(chart, { key, shown });
+  return shown;
+}
+
 function scratch(slot: number, w: number, h: number, density: number): HTMLCanvasElement {
   const canvas = (SCRATCH[slot] ??= document.createElement('canvas'));
   const pw = Math.max(1, Math.round(w * density));

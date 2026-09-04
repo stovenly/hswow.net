@@ -192,19 +192,20 @@ export function drawRelief(
   view: ChartView,
   w: number,
   h: number,
-  shown: (x: number, y: number) => boolean,
+  shown: (index: number) => boolean,
 ): void {
   const point: [number, number] = [0, 0];
   context.lineJoin = 'round';
   context.lineCap = 'round';
   // One drawing at every zoom: every mark, at its own size, whatever the scale.
   // Names are drawn over the marks with a halo rather than the marks giving way.
-  for (const mark of marks) {
+  for (let i = 0; i < marks.length; i++) {
+    const mark = marks[i];
+    if (!shown(i)) continue;
     const size = mark.size * view.scale;
     view.project(mark.x, mark.y, w, h, point);
     const [px, py] = point;
     if (px < -size * 2 || py < -size * 2 || px > w + size * 2 || py > h + size * 2) continue;
-    if (!shown(mark.x, mark.y)) continue;
     GLYPHS[mark.kind](context, px, py, size, mark.seed);
   }
 }
