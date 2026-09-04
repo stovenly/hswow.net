@@ -86,11 +86,12 @@ function vowels(spec: string): Draw<Vowel>[] {
  */
 const country: Lect = {
   onsets: inventory(`
-    b5 d5 g5 ɓ3 ɗ3 ɠ2 bʱ2 dʱ2 gʱ2 mb3 nd3 ŋg3
-    m6 n6 ŋ4 ɾ5 l5 ɫ3 w4 j4 ɰ2 s3 h4 ɦ2 ʔ3 ʘ2 ǀ2 ǃ2 -4
+    b4 d4 g4 ɟ2 ɓ3 ɗ3 ʄ2 ɠ2 bʱ2 dʱ2 ɟʱ2 gʱ2 mb3 nd3 ɲɟ2 ŋg3
+    m5 n5 ɲ3 ŋ4 ɾ5 ɽ2 ɺ2 l4 ɫ3 ʎ2 w4 ʋ3 j4 ɰ2 ð2 ɣ3 β2 s3 h4 ɦ2 ʔ3
+    ʘ2 ǀ2 ǃ2 ǂ2 ǁ2 -4
   `),
-  codas: inventory('-9 m2 n2 ŋ2 ʔ2 l2'),
-  vowels: vowels('a6 ɑ4 e4 o4 u3 ɤ3 ɯ2 ə5 ɐ3 ɔ3'),
+  codas: inventory('-8 m2 n2 ɲ1 ŋ2 ʔ2 l2 ɾ2 w1'),
+  vowels: vowels('a6 ɑ4 e4 ɛ2 i2 o4 ɔ3 u3 ʊ2 ɤ3 ɯ2 ʌ2 ə5 ɐ3 ɒ2'),
   tones: ['level', 'level', 'low', 'rise', 'dip'],
   tunes: [{ of: 'lilt', weight: 5 }, { of: 'statement', weight: 3 }, { of: 'question', weight: 2 }],
   colour: 'velar',
@@ -118,7 +119,8 @@ const country: Lect = {
     'ʘuːmə', 'ɗegeɾà', 'bʱoːʔa', 'nɐɰǒ?',
     'mɔːlə̀', 'ɾaɓaɾa', 'hùːjo', 'ǀəmǀəm',
     'gʱaːɾe', 'wɔ̀ndo', 'ɓɤːɾə̌?', 'laːnǀo',
-    'sɑ̀ːŋo', 'ɦabudɐ',
+    'sɑ̀ːŋo', 'ɦabudɐ', 'ʄaːɲo', 'ɣùmɛ', 'ǂoɾʋi',
+    'ɟʱeːlɐ', 'ðɒŋgə̌?', 'ɽaʎo', 'ǁuːβə', 'ɺiɲɟʊ',
   ],
   farewells: [
     'ɓoːlâ', 'mbaɾô', 'ǀuːmə̂', 'hɤ̀wô',
@@ -131,6 +133,8 @@ const country: Lect = {
     'ɦuːbe laɾə̀, ʘomo ndaʔ.', 'dʱɐlo weɾa, ɫaːgu mə.',
     'ǃaŋo ɓuɾe, jɑːmə̀ wo.', 'gʱoːnə ɾawa, ɰɯːlɔ.',
     'mbaɾe hɤ̀lo, ɗumə̌ na.', 'sɐːwo ɫəŋo, ɓaɾaɓaɾa.',
+    'ʄɛːɲo ɣawə, ǂuɾi ʋaʔ.', 'ðoːɽə ʎɐlo, ɟʱimǁə.',
+    'ɺɒŋgɐ βuːʎe, ɲɟəɾo ǁa.', 'ʋɛ̀ːɟo ɣɔɾə, ǂɒmi ðʊ.',
     'ʘɤme nduːʔ, ɦoɾə̀ la.', 'ŋguːla waɾə, ǀome jɐʔ.',
     'bʱɔːnə ɾɑːgo, ɗeme wu.', 'ɰaɾo huːjə, ǃomə̀ ndɐ.',
   ],
