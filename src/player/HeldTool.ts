@@ -24,6 +24,8 @@ const RING = new THREE.Vector3(0.32, -0.08, -0.5);
 
 /** Bob cycles a metre: the head bob's 1.9 footfalls a second at 4.2 m/s, two footfalls to a cycle. */
 const BOB_CYCLES_PER_METRE = 1.9 / 2 / 4.2;
+/** How much of the view's pitch a gripped tool follows; the rest it holds level. */
+const PITCH_FOLLOW = 0.4;
 /** Metres a candle or tool bobs per step, and how far it lags the hand. */
 const BOB = 0.012;
 const LAG = 0.06;
@@ -68,6 +70,8 @@ const _box = new THREE.Box3();
 const _yaw = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
 const _forward = new THREE.Vector3();
+const _level = new THREE.Quaternion();
+const _view = new THREE.Euler();
 
 let motionOption = 1;
 
@@ -293,10 +297,15 @@ export class HeldTool {
     switch (this.carry) {
       case 'grip': {
         this.placeInHand(camera, GRIP, ground, _velocity, dt, motion);
+        // The view with most of its pitch taken out: a hand does not tip its
+        // tool every time the eyes do. YXZ, so y is the yaw on its own.
+        _view.setFromQuaternion(camera.quaternion, 'YXZ');
+        _level.setFromEuler(_euler.set(0, _view.y, 0, 'YXZ'));
+        _level.slerp(camera.quaternion, PITCH_FOLLOW);
         // rotateX lays the tool's +Y forward over the hand; the yaw turns its face
         // in toward the view. The swing bends further about the same axis.
         _tilt.setFromEuler(_euler.set(-0.5 + bend, 0.4, 0.12));
-        this.holder.quaternion.copy(camera.quaternion).multiply(_tilt);
+        this.holder.quaternion.copy(_level).multiply(_tilt);
         break;
       }
       case 'hand': {
