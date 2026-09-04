@@ -398,18 +398,23 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       vec3 colour = mix(below, reflection, fresnel);
 
       // --- foam ---------------------------------------------------------------
-      // Two bands and two flat colours, hard-thresholded: the quantizer would band
-      // a gradient anyway, so the bands are authored where they belong. The
-      // waterline is scaled by noise and scrolled downwind, in three layers at
-      // slightly different rates, all carried by stream — so the motion switch
-      // stops every one of them.
+      // Two bands and two flat colours, thresholded over one pixel: the quantizer
+      // bands a gradient anyway, so the bands are authored where they belong,
+      // and the edge of each is resolved at the pixel rather than stepped, so a
+      // band seen small is a soft halo and not a jagged line. The waterline is
+      // scaled by noise and scrolled downwind, in three layers at slightly
+      // different rates, all carried by stream — so the motion switch stops
+      // every one of them.
       float lap = streaked(vWorld.xz - stream * 0.85, along, stretch, 0.55);
       // Fast water is aerated, and aerated water is white further out: the band a
       // race foams over is nearly twice a pond's.
       float band = uFoamDepth * (0.45 + 1.1 * lap) * (1.0 + rushing * 0.95);
-      // The waterline, and at range only its pale wash: a hard white line one
-      // pixel wide round every distant rock is what the quantizer makes of it.
-      float shore = (1.0 - smoothstep(band * 0.5, band, thickness)) * (1.0 - 0.6 * far);
+      // Metres of thickness one pixel covers. The waterline is never narrower
+      // than a couple of pixels on screen, whatever it is in metres, and its
+      // edge is spread over one: a distant rock gets a soft rim, not a jag.
+      float px = fwidth(thickness);
+      float shoreBand = max(band, min(px * 2.5, 2.5));
+      float shore = (1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness)) * (1.0 - 0.45 * far);
 
       // Crest foam has to be broken up, because two crossed sine trains interfere
       // into a regular lattice and a plain threshold puts a white speck at every
@@ -425,8 +430,9 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         (1.0 - far);
       float foam = max(shore, crest);
 
-      float wash = step(0.28, foam);
-      float white = step(0.68, foam);
+      float aa = fwidth(foam) * 0.75;
+      float wash = smoothstep(0.28 - aa, 0.28 + aa, foam);
+      float white = smoothstep(0.68 - aa, 0.68 + aa, foam);
       // The paler band is mixed from the shore colour rather than authored, so
       // the two never drift apart when the palette is tuned.
       vec3 foamColour = mix(mix(uShallow, uFoam, 0.55), uFoam, white);
