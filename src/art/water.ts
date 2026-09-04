@@ -101,8 +101,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uRoughFar: { value: 0.3 },
     /** How much of the sun a facet aimed straight at it gives back. A look knob. */
     uGlitter: { value: 0.1 },
-    /** Metres a broken wave runs up the sand, per metre of swell amplitude. */
-    uRunup: { value: 2.0 },
+    /** Metres the surface rises at the shore as each wave arrives, per metre of swell amplitude. */
+    uRunup: { value: 1.2 },
     /** What a backlit crest glows: the shallow colour brightened, until the owner says otherwise. */
     uScatter: { value: new THREE.Color('#93c1ba') },
     /** How far the surface tilt bends the bed seen through it. A look knob. */
@@ -149,6 +149,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float uWaveScale;
     uniform float uWaterMotion;
     uniform float uSteep;
+    uniform float uRunup;
 
     varying vec3 vWorld;
     varying vec3 vSurfaceNormal;
@@ -170,8 +171,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vLevel;
     /** The swell's amplitude after the global scale and the motion switch, metres. */
     varying float vRunup;
-    /** Metres inland of the waterline, zero over water. */
-    varying float vOnshore;
+    /** The still column at this vertex, metres; zero or less over the sand. */
+    varying float vColumn;
     /** The way the shore train travels, world xz. */
     varying vec2 vDir;
 
@@ -254,11 +255,20 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         float ty = -a * k * sn * dphis;
         slope += dir * (ty / max(tx, 0.1));
         surf = max(cs, 0.0) * smoothstep(0.0, 0.05, a);
+
+        // The swash: at the shore the surface rises as each wave arrives, fast
+        // up and slow to drain, and the rise carries on over the sand, so the
+        // surface meets the sand wherever the sand is lower and the waterline
+        // walks up the beach as part of the same sheet.
+        float since = fract(-phi * 0.15915494);
+        float surge = smoothstep(0.0, 0.3, since) * (1.0 - smoothstep(0.3, 1.0, since));
+        float runup = uRunup * a0;
+        lift += runup * surge * (1.0 - smoothstep(0.0, 2.0 * runup, h));
       }
 
       vLevel = world.y;
       vRunup = a0;
-      vOnshore = max(-h, 0.0);
+      vColumn = h;
       vDir = dir;
       world.xz += shift;
       world.y += height + lift;
@@ -322,7 +332,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vSurf;
     varying float vLevel;
     varying float vRunup;
-    varying float vOnshore;
+    varying float vColumn;
     varying vec2 vDir;
 
     ${NOISE_GLSL}
@@ -395,37 +405,14 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // How far the bed stands above the still level, metres.
       float rise = bedPoint.y - vLevel;
       if (bedDistance < surfaceDistance - 0.02) {
-        // --- swash --------------------------------------------------------------
-        // Inside the runup band the bed in front of the surface is not dry: a
-        // sheet of the last wave up to R, wet sand above it, and only past that the
-        // ordinary discard. Off everywhere the wave has not broken.
+        // --- wet sand -------------------------------------------------------------
+        // The bed in front of the surface but within the swash's reach is wet
+        // sand, darkest at the water. Everywhere else the discard stands.
         float runup = smoothstep(0.9, 1.0, vBreak) * vRunup * uRunup;
-        if (runup <= 0.0 || !gl_FrontFacing) discard;
-        // How far up the runup this is, 1 at its limit: by rise on a bank, by
-        // distance along flat sand, whichever the sand reaches first.
-        float t = max(rise / runup, vOnshore / (runup * 8.0));
-        float tW = fwidth(t);
-        if (t >= 1.3) discard;
-        // The sheet runs up fast and drains slowly, timed from the crest reaching
-        // the waterline below this sand: the phase here is that water's own.
-        float u = fract(-vPhase * 0.15915494);
-        float R = smoothstep(0.0, 0.3, u) * (1.0 - smoothstep(0.3, 1.0, u));
-
+        if (runup <= 0.0 || !gl_FrontFacing || rise >= runup * 1.25) discard;
         vec3 sand = texture2D(tScene, uv).rgb;
-        // Wet up to the full runup, drying over the last third beyond it.
-        float dry = smoothstep(1.0, 1.3, t);
-        vec3 wet = sand * mix(0.58, 1.0, dry);
-
-        float sheet = 1.0 - smoothstep(R - tW, R + tW, t);
-        vec3 up = vec3(0.0, 1.0, 0.0);
-        vec3 glance = skyColourDiscless(normalize(reflect(-view, up) + vec3(0.0, 0.02, 0.0)));
-        float graze = 0.02 + 0.98 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
-        vec3 film = mix(sand * 0.55, glance, clamp(graze * 1.3, 0.0, 1.0));
-        // Foam at the sheet's leading edge, a few pixels wide however flat the sand.
-        float edge = smoothstep(R - max(tW * 4.0, 0.05), R - tW, t) * sheet;
-        film = mix(film, uFoam, edge * 0.9);
-
-        gl_FragColor = vec4(mix(wet, film, sheet), 1.0);
+        float dry = smoothstep(runup * 0.8, runup * 1.25, rise);
+        gl_FragColor = vec4(sand * mix(0.6, 1.0, dry), 1.0);
         return;
       }
 
@@ -660,7 +647,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float core = smoothstep(-0.02 - pw, 0.0, cycle) * (1.0 - smoothstep(0.04, 0.08 + pw, cycle));
       float apron = smoothstep(-0.05 - pw, -0.01, cycle) * (1.0 - smoothstep(0.08, 0.20 + pw, cycle));
       float runs = smoothstep(0.40 - cw, 0.52 + cw, clumps);
-      float lip = breaking * runs * max(
+      float lip = breaking * runs * smoothstep(0.0, 0.1, vColumn) * max(
         core * smoothstep(0.25 - sw, 0.5 + sw, streak),
         apron * 0.55 * smoothstep(0.4 - sw, 0.6 + sw, streak)
       );

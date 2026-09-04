@@ -21,7 +21,7 @@ export interface ShoreGrid {
 
 /** One value per grid vertex, row-major. `dir` is two per vertex. */
 export interface ShoreField {
-  /** Still-water column, metres. On land, minus the distance to the water, metres. */
+  /** Still-water column, metres. Zero or less on land. */
   h: Float32Array;
   /** The shore train's spatial phase, radians. */
   sigma: Float32Array;
@@ -51,6 +51,8 @@ export function wavenumber(omega: number, h: number, k0: number): number {
 const FAR = 0;
 const TRIAL = 1;
 const KNOWN = 2;
+/** Gauss-Seidel sweeps that relax the land's phase to the harmonic extension of the water's. */
+const RELAX_SWEEPS = 64;
 
 /**
  * Fast marching over the grid: `field` becomes the eikonal solution with the
@@ -145,9 +147,8 @@ function seedEdge(grid: ShoreGrid, field: Float32Array, state: Uint8Array, heap:
 /**
  * The phase is the eikonal solution |∇σ| = k(h) over the water, marched inward
  * from the perimeter where it is the swell's own plane wave, with land as an
- * obstacle. Land takes the phase of the nearest water and the direction away
- * from it, so a swash sheet moves as one, and learns how far from the water
- * it stands.
+ * obstacle. Over land the phase is continued smoothly, so the surface rising
+ * onto the sand with each wave is timed by the water it rises from.
  */
 export function bakeShore(
   grid: ShoreGrid,
@@ -202,44 +203,60 @@ export function bakeShore(
   march(grid, sigma, state, heap, (n) => h[n] > 0, (n) => k[n]);
   const water = state.slice();
 
-  // How far each cell the water never reached stands from the water, metres,
-  // and which water cell is nearest.
-  const away = new Float32Array(count);
+  // Land starts from the nearest water cell's phase and is relaxed to the
+  // harmonic extension with the water held fixed, which is smooth by construction.
   const origin = new Int32Array(count);
   for (let n = 0; n < count; n++) origin[n] = n;
+  const away = new Float32Array(count);
   seedEdge(grid, away, state, heap);
   march(grid, away, state, heap, () => true, () => 1, origin);
+  for (let n = 0; n < count; n++) if (water[n] !== KNOWN) sigma[n] = sigma[origin[n]];
+  for (let sweep = 0; sweep < RELAX_SWEEPS; sweep++) {
+    const forward = sweep % 2 === 0;
+    for (let s = 0; s < count; s++) {
+      const n = forward ? s : count - 1 - s;
+      if (water[n] === KNOWN) continue;
+      const i = n % cols;
+      let sum = 0;
+      let weight = 0;
+      if (i > 0) {
+        sum += sigma[n - 1];
+        weight++;
+      }
+      if (i < cols - 1) {
+        sum += sigma[n + 1];
+        weight++;
+      }
+      if (n >= cols) {
+        sum += sigma[n - cols];
+        weight++;
+      }
+      if (n + cols < count) {
+        sum += sigma[n + cols];
+        weight++;
+      }
+      sigma[n] = sum / weight;
+    }
+  }
 
+  // The travel direction is up the phase gradient: σ grows the way the wave goes.
   for (let n = 0; n < count; n++) {
     const i = n % cols;
-    if (water[n] === KNOWN) {
-      // The travel direction is up the phase gradient: σ grows the way the wave goes.
-      const left = i > 0 && water[n - 1] === KNOWN;
-      const right = i < cols - 1 && water[n + 1] === KNOWN;
-      const back = n >= cols && water[n - cols] === KNOWN;
-      const fore = n + cols < count && water[n + cols] === KNOWN;
-      let gx = 0;
-      let gz = 0;
-      if (left && right) gx = (sigma[n + 1] - sigma[n - 1]) / (2 * sx);
-      else if (right) gx = (sigma[n + 1] - sigma[n]) / sx;
-      else if (left) gx = (sigma[n] - sigma[n - 1]) / sx;
-      if (back && fore) gz = (sigma[n + cols] - sigma[n - cols]) / (2 * sz);
-      else if (fore) gz = (sigma[n + cols] - sigma[n]) / sz;
-      else if (back) gz = (sigma[n] - sigma[n - cols]) / sz;
-      const len = Math.hypot(gx, gz);
-      dir[n * 2] = len > 1e-6 ? gx / len : dx;
-      dir[n * 2 + 1] = len > 1e-6 ? gz / len : dz;
-    } else {
-      const o = origin[n];
-      const oi = o % cols;
-      const ox = i - oi;
-      const oz = (n - i) / cols - (o - oi) / cols;
-      const len = Math.hypot(ox * sx, oz * sz);
-      sigma[n] = sigma[o];
-      dir[n * 2] = len > 1e-6 ? (ox * sx) / len : dx;
-      dir[n * 2 + 1] = len > 1e-6 ? (oz * sz) / len : dz;
-      if (h[n] <= 0) h[n] = -away[n];
-    }
+    const gx =
+      i > 0 && i < cols - 1
+        ? (sigma[n + 1] - sigma[n - 1]) / (2 * sx)
+        : i > 0
+          ? (sigma[n] - sigma[n - 1]) / sx
+          : (sigma[n + 1] - sigma[n]) / sx;
+    const gz =
+      n >= cols && n + cols < count
+        ? (sigma[n + cols] - sigma[n - cols]) / (2 * sz)
+        : n >= cols
+          ? (sigma[n] - sigma[n - cols]) / sz
+          : (sigma[n + cols] - sigma[n]) / sz;
+    const len = Math.hypot(gx, gz);
+    dir[n * 2] = len > 1e-6 ? gx / len : dx;
+    dir[n * 2 + 1] = len > 1e-6 ? gz / len : dz;
   }
 
   return { h, sigma, dir, k };
