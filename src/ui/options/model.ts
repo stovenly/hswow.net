@@ -103,8 +103,6 @@ export interface Options {
    */
   fpsCap: string;
   performance: PerformanceMode;
-  /** The whole screen, which is also what lets the game keep Escape, Tab and Alt. */
-  fullscreen: boolean;
 
   // --- controls ------------------------------------------------------------
   /** 0–10, where 5 is the tuned default. See `apply.ts`. */
@@ -184,7 +182,6 @@ export const DEFAULT_OPTIONS: Options = {
   sprintMode: 'hold',
   crouchMode: 'hold',
 
-  fullscreen: false,
 
   reducedMotion: false,
   windSway: true,
@@ -364,7 +361,6 @@ export const CATEGORIES: readonly Category[] = [
         note: (options) =>
           options.viewDistance >= VIEW_UNLIMITED ? null : 'never further than the zone allows',
       },
-      { kind: 'toggle', key: 'fullscreen', label: 'fullscreen' },
       {
         kind: 'choice',
         key: 'fpsCap',
