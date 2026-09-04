@@ -536,7 +536,7 @@ export class InventoryUI {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open_ || event.repeat || event.defaultPrevented) return;
+    if (!this.open_ || event.repeat) return;
     // A page open over the pack has every key; the pack waits under it.
     if (document.body.classList.contains('is-reading')) return;
     if (event.code === 'Escape') {

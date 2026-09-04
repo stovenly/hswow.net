@@ -264,7 +264,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   };
 
   window.addEventListener('keydown', (event) => {
-    if ((event.code !== 'Tab' && event.code !== 'KeyI') || event.repeat || event.defaultPrevented) return;
+    if ((event.code !== 'Tab' && event.code !== 'KeyI') || event.repeat) return;
     if (app.reading.shown || document.body.classList.contains('is-map') || document.body.classList.contains('is-journal')) return;
     if (ui.shown) {
       event.preventDefault();

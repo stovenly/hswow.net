@@ -364,8 +364,10 @@ export class Reading {
       default:
         return;
     }
-    // Only for keys this actually took. Anything else is somebody else's.
+    // Only for keys this actually took, and nobody under the page gets them:
+    // the pack's own Tab listens after this one and would close the pack too.
     event.preventDefault();
+    event.stopImmediatePropagation();
   };
 
   private readonly handleWheel = (event: WheelEvent): void => {
