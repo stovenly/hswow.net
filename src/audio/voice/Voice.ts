@@ -60,7 +60,6 @@ export function registerVoice(context: BaseAudioContext): Promise<boolean> {
       .addModule(processorUrl)
       .then(() => {
         state.set(context, 'ready');
-        console.info('voice: throat ready');
         return true;
       })
       .catch((error: unknown) => {
