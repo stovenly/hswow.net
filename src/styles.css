@@ -1516,6 +1516,9 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 }
 
 .notice {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
   font-size: 1.05rem;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -1528,8 +1531,14 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
   opacity: 0.72;
 }
 
-.notice.is-quest {
+.notice.is-quest .notice-title {
   color: var(--quest);
+}
+
+/* What came with the journal entry, written under it. */
+.notice-detail {
+  font-size: 0.9rem;
+  color: rgb(220 220 200 / 82%);
 }
 
 @keyframes notice-life {
