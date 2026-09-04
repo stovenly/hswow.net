@@ -1474,25 +1474,26 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 
 /* --- notices -------------------------------------------------------------- */
 
-/* Top left, the newest under the last, well clear of the speech box. */
+/* Along the foot of the screen, centred, under the speech box, one at a time. */
 #notices {
   position: fixed;
-  left: 2rem;
-  top: 2rem;
+  bottom: 4%;
+  left: 50%;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
+  align-items: center;
   pointer-events: none;
+  transform: translateX(-50%);
   z-index: 6;
 }
 
 .notice {
   font-size: 1.05rem;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   color: var(--ink);
   text-shadow: 0 1px 3px rgb(0 0 0 / 85%);
-  animation: notice-life 3.4s ease-out forwards;
+  animation: notice-life 2.6s ease-out forwards;
 }
 
 .notice.is-loss {
@@ -1504,9 +1505,9 @@ body:not(.is-playing):not(.is-dialogue):not(.is-capturing) #speech {
 }
 
 @keyframes notice-life {
-  0% { opacity: 0; transform: translateY(-6px); }
-  8% { opacity: 1; transform: translateY(0); }
-  72% { opacity: 1; transform: translateY(0); }
+  0% { opacity: 0; transform: translateY(6px); }
+  10% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-4px); }
 }
 
