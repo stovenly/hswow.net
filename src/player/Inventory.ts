@@ -35,6 +35,23 @@ export class Inventory {
     return taken;
   }
 
+  /** Everything carried, wherever it is: the pack, the hand, and what is worn. */
+  *carried(): IterableIterator<Item> {
+    yield* this.items;
+    if (this.tool) yield this.tool;
+    for (const worn of this.accessories) if (worn) yield worn;
+  }
+
+  /** Takes the first thing carried that matches, out of whichever slot holds it. */
+  takeWhere(matches: (item: Item) => boolean): Item | null {
+    const at = this.items.findIndex(matches);
+    if (at >= 0) return this.takeAt(at);
+    if (this.tool && matches(this.tool)) return this.setTool(null);
+    const worn = this.accessories.findIndex((item) => item !== null && matches(item));
+    if (worn >= 0) return this.setAccessory(worn, null);
+    return null;
+  }
+
   /** Returns whatever the slot held before, for the caller to rehome. */
   setTool(item: Item | null): Item | null {
     const displaced = this.tool;

@@ -56,9 +56,13 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
   // What a line of dialogue reaches for when it hands something over. The pack
   // is behind a key and the speech box covers the middle, so it says so.
   const notices = new Notices(overlay);
+  const some = (matches: (item: Item) => boolean): boolean => {
+    for (const item of inventory.carried()) if (matches(item)) return true;
+    return false;
+  };
   worldState.pack = {
-    carries: (builder) => inventory.items.some((item) => item.builder === builder),
-    holds: (id) => inventory.items.some((item) => item.id === id),
+    carries: (builder) => some((item) => item.builder === builder),
+    holds: (id) => some((item) => item.id === id),
   };
   holdSatchel({
     give: (what, from) => {
@@ -66,7 +70,7 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
       if ('item' in what) {
         const doc = itemById(what.item);
         if (!doc) return console.warn(`items: no item "${what.item}" is written`);
-        if (isUnique(doc) && inventory.items.some((held) => held.id === doc.id)) return;
+        if (isUnique(doc) && some((held) => held.id === doc.id)) return;
         item = itemFrom(doc);
       } else {
         const seed = what.seed ?? 0;
@@ -77,11 +81,12 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
       const named = item.id ? item.name : an(item.name);
       notices.say(from ? `${from} gave you ${named}` : `You received ${named}`, 'gain');
     },
+    // Out of the hand or off the body as readily as out of the pack: a
+    // candle carried to its owner is handed over from wherever it is.
     take: (what, from) => {
-      const at = inventory.items.findIndex((item) =>
+      const taken = inventory.takeWhere((item) =>
         'item' in what ? item.id === what.item : item.builder === what.builder,
       );
-      const taken = at >= 0 ? inventory.takeAt(at) : null;
       if (taken) {
         const named = taken.id ? taken.name : an(taken.name);
         notices.say(from ? `${from} took ${named}` : `You lost ${named}`, 'loss');
