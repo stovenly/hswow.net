@@ -132,11 +132,18 @@ export class HeldTool {
     this.heat = heat;
     const scale = THREE.MathUtils.clamp(0.5 / Math.max(stand.radius, 0.15), 0.35, 1.3);
     mesh.scale.setScalar(scale);
-    // A lantern hangs from its top, so the mesh is dropped until its top is at the pivot.
+    // A lantern hangs from its top, so the mesh is dropped until its top is at
+    // the pivot. The top of the iron: the sparks and the plume are unit quads
+    // sized in their shaders, and would put it half a metre too high.
     if (this.carry === 'hang') {
       mesh.updateMatrixWorld(true);
-      _box.setFromObject(mesh);
-      mesh.position.y = -(_box.max.y - mesh.position.y);
+      let top = -Infinity;
+      mesh.traverse((child) => {
+        if (!(child instanceof THREE.Mesh) || !child.layers.isEnabled(HELD_LAYER)) return;
+        _box.setFromObject(child);
+        top = Math.max(top, _box.max.y);
+      });
+      if (Number.isFinite(top)) mesh.position.y = -top;
     }
     this.holder.add(mesh);
     this.holder.visible = true;
