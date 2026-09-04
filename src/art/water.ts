@@ -288,14 +288,15 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float rushing = min(vStreak, 3.0) / 3.0;
       float agitation = max(vChop, rushing * 1.15);
 
-      // How far away the surface is, 0 near to 1 far. Every fine pattern below
-      // is a few chunky pixels at range, and a regular pattern a few pixels wide
-      // is a moiré that swims as the view turns; so at range the surface goes
-      // smooth and reflects the sky plainly, and the foam is left to the shore.
-      float far = smoothstep(14.0, 55.0, surfaceDistance);
-
+      // Filtered to the pixel. A pattern that turns over faster than a pixel
+      // is wide is not resolved by drawing one sample of it — that is a moiré
+      // that swims as the view turns — it is resolved by drawing its mean over
+      // the pixel. So every fine term here is pulled toward its mean by how
+      // fast it changes across the screen, which is nothing up close and
+      // everything on a wave a pixel wide, whatever the distance.
       vec3 normal = normalize(vSurfaceNormal);
-      normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), far * 0.9));
+      float swim = clamp(length(fwidth(vSurfaceNormal.xz)) * 5.0, 0.0, 1.0);
+      normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), swim));
       if (agitation > 0.002) {
         vec2 q = vWorld.xz - stream * 1.35;
         float e = 0.18;
@@ -305,7 +306,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         // Small. This tilts the normal, which decides both the fresnel weight and
         // where the reflection ray goes, so past about ten degrees the reflected
         // image stops being a reflection. Ripple is a few degrees of scatter.
-        normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation * (1.0 - far) / e));
+        float rippleSwim = clamp(fwidth(n0) * 3.0, 0.0, 1.0);
+        normal = normalize(normal + vec3(-gx, 0.0, -gz) * (0.16 * agitation * (1.0 - rippleSwim) / e));
       }
 
       // --- seen from below ----------------------------------------------------
@@ -414,7 +416,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // edge is spread over one: a distant rock gets a soft rim, not a jag.
       float px = fwidth(thickness);
       float shoreBand = max(band, min(px * 2.5, 2.5));
-      float shore = (1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness)) * (1.0 - 0.45 * far);
+      float shore = 1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness);
 
       // Crest foam has to be broken up, because two crossed sine trains interfere
       // into a regular lattice and a plain threshold puts a white speck at every
@@ -424,10 +426,15 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // white comes rolling in to meet the waterline rather than stopping short.
       float breaking = 1.0 - smoothstep(0.5, 3.5, thickness);
       float speck = streaked(vWorld.xz - stream, along, stretch, 1.7);
+      speck = mix(speck, 0.5, clamp(fwidth(speck) * 2.0, 0.0, 1.0));
+      // The crest position turns over every wavelength, so where a wave is a
+      // pixel wide the threshold is widened by that much and the answer is the
+      // fraction of the pixel that is foaming: an even wash far out, the
+      // separate crests close in, and no speck at a node in between.
+      float cw = fwidth(vCrest);
       float crest =
-        smoothstep(1.05 - speck * 0.55 - breaking * 0.7, 1.25 - speck * 0.5 - breaking * 0.55, vCrest) *
-        smoothstep(0.12, 0.5, agitation) *
-        (1.0 - far);
+        smoothstep(1.05 - speck * 0.55 - breaking * 0.7 - cw, 1.25 - speck * 0.5 - breaking * 0.55 + cw, vCrest) *
+        smoothstep(0.12, 0.5, agitation);
       float foam = max(shore, crest);
 
       float aa = fwidth(foam) * 0.75;
