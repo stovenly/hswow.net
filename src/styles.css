@@ -1400,17 +1400,13 @@ body:not(.is-playing) #prompt {
   border-right: 0;
 }
 
-/* The bubble: a small rounded box after the word with a tail toward it and
-   three dots inside, which bob while the villager is answering and sit still
-   once they have. Hidden until its choice is the one being said. */
+/* The bubble: three dots after the word, in the word's own colour, which bob
+   while the villager is answering and sit still once they have. Hidden until
+   its choice is the one being said. */
 .speech-bubble {
   display: none;
-  position: relative;
   flex: none;
-  padding: 0.28em 0.38em;
   line-height: 0;
-  background: rgb(220 220 200 / 92%);
-  border-radius: 0.55em;
 }
 
 .speech-choice.is-saying .speech-bubble {
@@ -1422,25 +1418,12 @@ body:not(.is-playing) #prompt {
   display: none;
 }
 
-.speech-bubble::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: -0.28em;
-  width: 0;
-  height: 0;
-  border: 0.28em solid transparent;
-  border-right-color: rgb(220 220 200 / 92%);
-  border-left: 0;
-  transform: translateY(-50%);
-}
-
 .speech-bubble i {
   display: inline-block;
   width: 0.26em;
   height: 0.26em;
   margin: 0 0.09em;
-  background: var(--void);
+  background: currentcolor;
   border-radius: 50%;
 }
 
