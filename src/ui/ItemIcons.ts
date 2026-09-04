@@ -149,12 +149,16 @@ export class ItemIcons {
       this.waiting.delete(key);
       return;
     }
-    // An icon is a picture, not a lamp: the light must not join any census.
-    const lights: THREE.Object3D[] = [];
+    // An icon is a picture, not a lamp: the light must not join any census,
+    // and a flame's embers and heat are unit quads sized in their shaders,
+    // which would frame a lantern as a metre across.
+    const loose: THREE.Object3D[] = [];
     mesh.traverse((child) => {
-      if (child instanceof THREE.Light) lights.push(child);
+      if (child instanceof THREE.Light || child.userData.particles === true || child.userData.heat === true) {
+        loose.push(child);
+      }
     });
-    for (const light of lights) light.removeFromParent();
+    for (const one of loose) one.removeFromParent();
 
     this.scene.add(mesh);
     try {
