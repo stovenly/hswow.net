@@ -119,7 +119,11 @@ export class Menu {
   hide(): void {
     if (!this.open_) return;
     this.open_ = false;
-    if (this.current) this.contents.get(this.current)?.deactivate();
+    if (this.current) {
+      this.contents.get(this.current)?.deactivate();
+      this.pane(this.current).hidden = true;
+      this.buttons.get(this.current)?.classList.remove('is-current');
+    }
     this.current = null;
     for (const contents of this.contents.values()) contents.closed?.();
     this.root.hidden = true;
