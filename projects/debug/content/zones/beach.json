@@ -177,6 +177,24 @@
         ],
         "radius": 26,
         "depth": 2
+      },
+      {
+        "kind": "terrace",
+        "shape": [
+          {
+            "kind": "field",
+            "min": [
+              -80,
+              20
+            ],
+            "max": [
+              80,
+              90
+            ]
+          }
+        ],
+        "height": -3,
+        "blend": 12
       }
     ],
     "patches": [
@@ -377,7 +395,8 @@
       "from": 60,
       "to": 150
     },
-    "seed": 7481
+    "seed": 7481,
+    "sea": 0.3
   },
   "regions": {
     "outline": [

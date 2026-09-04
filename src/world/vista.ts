@@ -271,6 +271,11 @@ export interface SkirtOptions {
    */
   flatten?: { from: number; to: number };
   /**
+   * Water level, metres. Where the outline stands below it the ground is seabed,
+   * and holds its height outward instead of rising to the open country.
+   */
+  sea?: number;
+  /**
    * What colour the distant land is, as sRGB hex.
    *
    * Defaults to the level's own base ground material, which is what it should
@@ -311,6 +316,7 @@ export class Skirt {
   private readonly flatten: { from: number; to: number } | null;
   private readonly curve: number;
   private readonly roll: number;
+  private readonly sea: number | null;
   private readonly near = new THREE.Vector2();
 
   constructor(options: SkirtOptions) {
@@ -324,6 +330,7 @@ export class Skirt {
     this.flatten = options.flatten ?? null;
     this.curve = options.curve ?? 0;
     this.roll = options.roll ?? 1;
+    this.sea = options.sea ?? null;
 
     const rng = createRng(options.seed);
     // Long and shallow. The skirt is flat-shaded on a nine-metre grid, so every
@@ -381,7 +388,9 @@ export class Skirt {
       // only the collar has to agree at all.
       return level - this.sink * ease(-distance / this.collar);
     }
-    const open = level + (this.rolling(x, z) - level) * ease(distance / this.apron);
+    const plain = this.rolling(x, z);
+    const target = this.sea !== null && level < this.sea ? Math.min(plain, level) : plain;
+    const open = level + (target - level) * ease(distance / this.apron);
     // The world bending away underneath it. See `curve`.
     return this.curve > 0 ? open - (distance * distance) / (2 * this.curve) : open;
   }
