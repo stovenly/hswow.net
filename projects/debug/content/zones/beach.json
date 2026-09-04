@@ -698,7 +698,7 @@
       "width": 92,
       "depth": 62,
       "chop": 1.8,
-      "taper": 1.6,
+      "taper": 0.5,
       "flow": [
         0,
         -0.4
