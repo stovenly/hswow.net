@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { builderByName } from '../art/registry';
 import { GLOW_LAYER, HEAT_LAYER, HELD_LAYER, PARTICLE_LAYER } from '../layers';
 import { LightActivity } from '../engine/LightActivity';
+import { windUniforms } from '../art/sway';
 import { hashString } from '../world/loot';
 import type { Item } from '../world/items';
 
@@ -39,6 +40,24 @@ const KICK_MOST = 15;
 
 type Carry = 'grip' | 'hand' | 'hang';
 
+/**
+ * A particle system born off something that moves. The closed forms place a
+ * particle off its origin, so an emitter carried about would carry every
+ * ember with it; these are stood in the world instead, and each ember's
+ * origin is rewritten to wherever the flame is the moment it is born.
+ */
+interface Loose {
+  mesh: THREE.Mesh;
+  /** What it was born off, still in the hand. */
+  wick: THREE.Object3D;
+  origin: THREE.InstancedBufferAttribute;
+  /** The offsets it was built with, about the wick. */
+  offsets: Float32Array;
+  phase: Float32Array;
+  cycle: Float32Array;
+  lastAge: Float32Array;
+}
+
 const _offset = new THREE.Vector3();
 const _tilt = new THREE.Quaternion();
 const _euler = new THREE.Euler();
@@ -59,7 +78,9 @@ export function setHeldMotion(on: boolean): void {
 
 export class HeldTool {
   private readonly holder = new THREE.Group();
+  private readonly scene: THREE.Scene;
   private readonly activity = new LightActivity();
+  private loose: Loose[] = [];
   /** Seconds into the current swing; past SWING_TIME is idle. */
   private arc = SWING_TIME;
   private signature = '';
@@ -81,6 +102,7 @@ export class HeldTool {
   private readonly hand = new THREE.Vector3();
 
   constructor(scene: THREE.Scene) {
+    this.scene = scene;
     scene.add(this.holder);
     this.holder.visible = false;
   }
@@ -91,6 +113,11 @@ export class HeldTool {
     this.signature = signature;
 
     this.activity.release('held');
+    for (const one of this.loose) {
+      one.mesh.removeFromParent();
+      release(one.mesh);
+    }
+    this.loose = [];
     for (const child of [...this.holder.children]) {
       child.removeFromParent();
       release(child);
@@ -148,9 +175,77 @@ export class HeldTool {
     this.holder.add(mesh);
     this.holder.visible = true;
     this.activity.collect('held', mesh);
+    this.setLoose(mesh);
     this.settled = false;
     this.lean.set(0, 0);
     this.leanRate.set(0, 0);
+  }
+
+  /** Stands every particle system in the world, to be born off the flame where it is. */
+  private setLoose(mesh: THREE.Object3D): void {
+    const found: THREE.Mesh[] = [];
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.userData.particles === true) found.push(child);
+    });
+    for (const one of found) {
+      const wick = one.parent;
+      if (!wick) continue;
+      const geometry = one.geometry as THREE.InstancedBufferGeometry;
+      const origin = geometry.getAttribute('iOrigin') as THREE.InstancedBufferAttribute;
+      const shape = geometry.getAttribute('iShape') as THREE.InstancedBufferAttribute;
+      const cycle = geometry.getAttribute('iCycle') as THREE.InstancedBufferAttribute;
+      const count = origin.count;
+      const phase = new Float32Array(count);
+      const cycles = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        phase[i] = shape.getZ(i);
+        cycles[i] = Math.max(cycle.getX(i) || shape.getW(i), 0.01);
+      }
+      // Its own scale is the wick's, which it is leaving behind.
+      wick.updateWorldMatrix(true, false);
+      const scale = _local.setFromMatrixScale(wick.matrixWorld).y;
+      one.removeFromParent();
+      one.position.set(0, 0, 0);
+      one.quaternion.identity();
+      one.scale.setScalar(scale);
+      this.scene.add(one);
+      this.loose.push({
+        mesh: one,
+        wick,
+        origin,
+        offsets: Float32Array.from(origin.array as Float32Array),
+        phase,
+        cycle: cycles,
+        lastAge: new Float32Array(count).fill(Infinity),
+      });
+    }
+  }
+
+  /** Every ember starting a life is born where the flame is now. */
+  private bear(): void {
+    const t = windUniforms.swayTime.value;
+    for (const one of this.loose) {
+      one.wick.updateWorldMatrix(true, false);
+      _local.setFromMatrixPosition(one.wick.matrixWorld);
+      const scale = one.mesh.scale.y;
+      let changed = false;
+      for (let i = 0; i < one.cycle.length; i++) {
+        const age = (t + one.phase[i]) % one.cycle[i];
+        if (age < one.lastAge[i]) {
+          // Offsets were about the wick at the mesh's scale; the mesh now
+          // carries that scale itself, so the world position is divided by it.
+          one.origin.setXYZ(
+            i,
+            _local.x / scale + one.offsets[i * 3],
+            _local.y / scale + one.offsets[i * 3 + 1],
+            _local.z / scale + one.offsets[i * 3 + 2],
+          );
+          changed = true;
+        }
+        one.lastAge[i] = age;
+      }
+      if (changed) one.origin.needsUpdate = true;
+    }
   }
 
   /** Starts a swing, or reports that one could not start — nothing held, or mid-arc. */
@@ -249,6 +344,8 @@ export class HeldTool {
     }
 
     this.activity.update('held', this.elapsed, camera.position);
+    this.holder.updateWorldMatrix(true, true);
+    this.bear();
   }
 
   /** Puts the holder at a grip point, lagging the eye a little and bobbing with the stride. */
@@ -275,6 +372,11 @@ export class HeldTool {
 
   dispose(): void {
     this.activity.clear();
+    for (const one of this.loose) {
+      one.mesh.removeFromParent();
+      release(one.mesh);
+    }
+    this.loose = [];
     for (const child of [...this.holder.children]) {
       child.removeFromParent();
       release(child);

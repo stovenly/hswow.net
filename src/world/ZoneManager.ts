@@ -860,7 +860,8 @@ export class ZoneManager {
     this.lights.ambient.intensity = env.ambientIntensity;
     this.lights.ambient.color.setHex(env.ambientSky);
     this.lights.ambient.groundColor.setHex(env.ambientGround);
-    setZoneWind(env.wind ?? 1);
+    // Under a roof the air stands still unless the zone says otherwise.
+    setZoneWind(env.wind ?? (env.sky ? 1 : 0));
 
     this.applyAudio(zone);
 
