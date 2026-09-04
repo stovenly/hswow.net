@@ -588,7 +588,12 @@
       "surface": "dirt",
       "edge": "verge",
       "wear": 0.6,
-      "seed": 7101
+      "seed": 7101,
+      "at": [
+        0,
+        0,
+        0
+      ]
     },
     {
       "id": "lane-north",
@@ -805,17 +810,6 @@
         11.4
       ],
       "yaw": 0.3
-    },
-    {
-      "id": "well-trough",
-      "kind": "prop",
-      "builder": "trough",
-      "seed": 5302,
-      "at": [
-        -5,
-        12.3
-      ],
-      "yaw": 1.2
     },
     {
       "id": "lane-hedge-1",
@@ -1719,39 +1713,6 @@
       "maxSlope": 22,
       "avoid": [
         "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "sticks",
-      "kind": "scatter",
-      "builder": "sticks",
-      "seed": 5023,
-      "count": 9,
-      "within": 22,
-      "maxSlope": 28,
-      "avoid": [
-        "keepClearSoft",
         {
           "ref": "hut-cottage",
           "ahead": 2.2,
