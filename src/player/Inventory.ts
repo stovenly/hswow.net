@@ -6,7 +6,7 @@ import type { Item } from '../world/items';
  * UI and the item systems read and write it and listen for the change.
  */
 
-export const ACCESSORY_SLOTS = 10;
+export const ACCESSORY_SLOTS = 5;
 
 export class Inventory {
   readonly items: Item[] = [];
@@ -76,6 +76,8 @@ export class Inventory {
       const held = accessories[i];
       this.accessories[i] = held ? { ...held } : null;
     }
+    // A save from when there were more slots keeps what it wore, in the pack.
+    for (const held of accessories.slice(ACCESSORY_SLOTS)) if (held) this.items.push({ ...held });
     this.emit();
   }
 }
