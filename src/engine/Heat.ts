@@ -14,7 +14,7 @@ import type { PixelEffect, EffectContext } from './PixelStage';
  */
 
 /** Chunky pixels a plume can move a pixel by at full strength. */
-const BEND = 6;
+const BEND = 3;
 
 export class HeatEffect implements PixelEffect {
   readonly label = 'heat';

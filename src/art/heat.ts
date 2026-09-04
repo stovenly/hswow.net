@@ -78,12 +78,16 @@ const HEAT_MATERIAL = new THREE.ShaderMaterial({
     void main() {
       // Behind something: bends nothing.
       if (sceneDepth(gl_FragCoord.xy / uResolution) < vDepth) discard;
-      // A plume: wide at the foot, narrowing and fading as it rises.
+      // A plume: wide at the foot, narrowing and fading as it rises. No edge
+      // anywhere: the sides fall off over the whole half-width, the foot comes
+      // in over a third of the height, and the product is squared so it leaves
+      // zero slowly.
       float x = vUv.x - 0.5;
-      float width = mix(0.5, 0.18, vUv.y);
+      float width = mix(0.5, 0.2, vUv.y);
       float across = 1.0 - smoothstep(0.0, width, abs(x));
-      float along = smoothstep(0.0, 0.1, vUv.y) * (1.0 - smoothstep(0.3, 0.95, vUv.y));
+      float along = smoothstep(0.0, 0.35, vUv.y) * (1.0 - smoothstep(0.45, 1.0, vUv.y));
       float mask = across * along;
+      mask *= mask;
       // Two octaves rising at different speeds, so the bend churns rather than scrolls.
       vec2 flow = vec2(vUv.x * 3.0, vUv.y * 5.0 - uTime * 2.2);
       float n = noise(flow) * 0.65 + noise(flow * 2.3 + vec2(7.1, uTime * 1.3)) * 0.35;

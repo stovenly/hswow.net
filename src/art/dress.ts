@@ -59,8 +59,10 @@ installFlameAir((flame, size, seed, roof) => {
   );
   sparks.position.y = lift;
   air.add(sparks);
-  const plume = heatPlume(size * 5, Math.min(size * 9, Math.max(size * 2, roof - size * 1.2)));
-  plume.position.y = size * 1.2;
+  // Stood inside the flame, so the shimmer grows out of the glow rather than
+  // starting on a line above it.
+  const plume = heatPlume(size * 5, Math.min(size * 10, Math.max(size * 2, roof - size * 0.3)));
+  plume.position.y = size * 0.3;
   air.add(plume);
   return air;
 });
