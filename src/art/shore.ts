@@ -64,6 +64,7 @@ function march(
   heap: Heap,
   admits: (n: number) => boolean,
   cost: (n: number) => number,
+  origin?: Int32Array,
 ): void {
   const { cols, rows, sx, sz } = grid;
   const count = cols * rows;
@@ -74,10 +75,26 @@ function march(
     const i = n % cols;
     let a = Infinity;
     let b = Infinity;
-    if (i > 0 && state[n - 1] === KNOWN) a = field[n - 1];
-    if (i < cols - 1 && state[n + 1] === KNOWN) a = Math.min(a, field[n + 1]);
-    if (n >= cols && state[n - cols] === KNOWN) b = field[n - cols];
-    if (n + cols < count && state[n + cols] === KNOWN) b = Math.min(b, field[n + cols]);
+    let from = -1;
+    const offer = (m: number): void => {
+      if (from < 0 || field[m] < field[from]) from = m;
+    };
+    if (i > 0 && state[n - 1] === KNOWN) {
+      a = field[n - 1];
+      offer(n - 1);
+    }
+    if (i < cols - 1 && state[n + 1] === KNOWN) {
+      a = Math.min(a, field[n + 1]);
+      offer(n + 1);
+    }
+    if (n >= cols && state[n - cols] === KNOWN) {
+      b = field[n - cols];
+      offer(n - cols);
+    }
+    if (n + cols < count && state[n + cols] === KNOWN) {
+      b = Math.min(b, field[n + cols]);
+      offer(n + cols);
+    }
     const c = cost(n);
     let value: number;
     if (a === Infinity) value = b + c * sz;
@@ -92,6 +109,7 @@ function march(
     if (state[n] === FAR || value < field[n]) {
       field[n] = value;
       state[n] = TRIAL;
+      if (origin && from >= 0) origin[n] = origin[from];
       heap.push(value, n);
     }
   };
@@ -127,9 +145,9 @@ function seedEdge(grid: ShoreGrid, field: Float32Array, state: Uint8Array, heap:
 /**
  * The phase is the eikonal solution |∇σ| = k(h) over the water, marched inward
  * from the perimeter where it is the swell's own plane wave, with land as an
- * obstacle. Land is then marched from the waterline at twice the deep
- * wavenumber, so the sand is timed by the wave that reaches it and the swash
- * runs up it as one sheet; it also learns how far from the water it stands.
+ * obstacle. Land takes the phase of the nearest water and the direction away
+ * from it, so a swash sheet moves as one, and learns how far from the water
+ * it stands.
  */
 export function bakeShore(
   grid: ShoreGrid,
@@ -182,41 +200,45 @@ export function bakeShore(
   if (seeded === 0) for (let n = 0; n < count; n++) if (onRim(n)) seed(n);
 
   march(grid, sigma, state, heap, (n) => h[n] > 0, (n) => k[n]);
+  const water = state.slice();
 
-  // How far each cell the water never reached stands from the water, metres.
+  // How far each cell the water never reached stands from the water, metres,
+  // and which water cell is nearest.
   const away = new Float32Array(count);
-  const awayState = state.slice();
-  seedEdge(grid, away, awayState, heap);
-  march(grid, away, awayState, heap, () => true, () => 1);
+  const origin = new Int32Array(count);
+  for (let n = 0; n < count; n++) origin[n] = n;
+  seedEdge(grid, away, state, heap);
+  march(grid, away, state, heap, () => true, () => 1, origin);
 
-  seedEdge(grid, sigma, state, heap);
-  const landCost = 2 * k0;
-  march(grid, sigma, state, heap, () => true, () => landCost);
-
-  for (let n = 0; n < count; n++) if (h[n] <= 0) h[n] = -away[n];
-
-  // The travel direction is up the phase gradient: σ grows the way the wave goes.
   for (let n = 0; n < count; n++) {
     const i = n % cols;
-    const gx =
-      i > 0 && i < cols - 1
-        ? (sigma[n + 1] - sigma[n - 1]) / (2 * sx)
-        : i > 0
-          ? (sigma[n] - sigma[n - 1]) / sx
-          : (sigma[n + 1] - sigma[n]) / sx;
-    const gz =
-      n >= cols && n + cols < count
-        ? (sigma[n + cols] - sigma[n - cols]) / (2 * sz)
-        : n >= cols
-          ? (sigma[n] - sigma[n - cols]) / sz
-          : (sigma[n + cols] - sigma[n]) / sz;
-    const len = Math.hypot(gx, gz);
-    if (len > 1e-6) {
-      dir[n * 2] = gx / len;
-      dir[n * 2 + 1] = gz / len;
+    if (water[n] === KNOWN) {
+      // The travel direction is up the phase gradient: σ grows the way the wave goes.
+      const left = i > 0 && water[n - 1] === KNOWN;
+      const right = i < cols - 1 && water[n + 1] === KNOWN;
+      const back = n >= cols && water[n - cols] === KNOWN;
+      const fore = n + cols < count && water[n + cols] === KNOWN;
+      let gx = 0;
+      let gz = 0;
+      if (left && right) gx = (sigma[n + 1] - sigma[n - 1]) / (2 * sx);
+      else if (right) gx = (sigma[n + 1] - sigma[n]) / sx;
+      else if (left) gx = (sigma[n] - sigma[n - 1]) / sx;
+      if (back && fore) gz = (sigma[n + cols] - sigma[n - cols]) / (2 * sz);
+      else if (fore) gz = (sigma[n + cols] - sigma[n]) / sz;
+      else if (back) gz = (sigma[n] - sigma[n - cols]) / sz;
+      const len = Math.hypot(gx, gz);
+      dir[n * 2] = len > 1e-6 ? gx / len : dx;
+      dir[n * 2 + 1] = len > 1e-6 ? gz / len : dz;
     } else {
-      dir[n * 2] = dx;
-      dir[n * 2 + 1] = dz;
+      const o = origin[n];
+      const oi = o % cols;
+      const ox = i - oi;
+      const oz = (n - i) / cols - (o - oi) / cols;
+      const len = Math.hypot(ox * sx, oz * sz);
+      sigma[n] = sigma[o];
+      dir[n * 2] = len > 1e-6 ? (ox * sx) / len : dx;
+      dir[n * 2 + 1] = len > 1e-6 ? (oz * sz) / len : dz;
+      if (h[n] <= 0) h[n] = -away[n];
     }
   }
 

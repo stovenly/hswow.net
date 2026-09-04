@@ -172,6 +172,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vRunup;
     /** Metres inland of the waterline, zero over water. */
     varying float vOnshore;
+    /** The way the shore train travels, world xz. */
+    varying vec2 vDir;
 
     void main() {
       vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -257,6 +259,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       vLevel = world.y;
       vRunup = a0;
       vOnshore = max(-h, 0.0);
+      vDir = dir;
       world.xz += shift;
       world.y += height + lift;
       vWorld = world;
@@ -320,6 +323,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vLevel;
     varying float vRunup;
     varying float vOnshore;
+    varying vec2 vDir;
 
     ${NOISE_GLSL}
     ${SKY_GLSL}
@@ -402,21 +406,24 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         float t = max(rise / runup, vOnshore / (runup * 8.0));
         float tW = fwidth(t);
         if (t >= 1.3) discard;
-        // The sheet peaks a quarter period after the crest reaches the sand.
-        float R = max(0.0, -sin(vPhase));
+        // The sheet runs up fast and drains slowly, timed from the crest reaching
+        // the waterline below this sand: the phase here is that water's own.
+        float u = fract(-vPhase * 0.15915494);
+        float R = smoothstep(0.0, 0.3, u) * (1.0 - smoothstep(0.3, 1.0, u));
 
         vec3 sand = texture2D(tScene, uv).rgb;
-        float dry = smoothstep(R, 1.3, t);
-        vec3 wet = sand * mix(0.68, 1.0, dry);
+        // Wet up to the full runup, drying over the last third beyond it.
+        float dry = smoothstep(1.0, 1.3, t);
+        vec3 wet = sand * mix(0.58, 1.0, dry);
 
         float sheet = 1.0 - smoothstep(R - tW, R + tW, t);
         vec3 up = vec3(0.0, 1.0, 0.0);
         vec3 glance = skyColourDiscless(normalize(reflect(-view, up) + vec3(0.0, 0.02, 0.0)));
         float graze = 0.02 + 0.98 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
-        vec3 film = mix(sand * 0.7, glance, graze * 0.8);
-        // A thin line of foam at the sheet's edge, a few pixels wide however flat the sand.
-        float edge = smoothstep(R - max(tW * 4.0, 0.01), R - tW, t) * sheet;
-        film = mix(film, uFoam, edge * 0.85);
+        vec3 film = mix(sand * 0.55, glance, clamp(graze * 1.3, 0.0, 1.0));
+        // Foam at the sheet's leading edge, a few pixels wide however flat the sand.
+        float edge = smoothstep(R - max(tW * 4.0, 0.05), R - tW, t) * sheet;
+        film = mix(film, uFoam, edge * 0.9);
 
         gl_FragColor = vec4(mix(wet, film, sheet), 1.0);
         return;
@@ -620,7 +627,9 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // Metres of thickness one pixel covers. The waterline is never narrower
       // than a couple of pixels on screen, whatever it is in metres, and its
       // edge is spread over one: a distant rock gets a soft rim, not a jag.
-      float px = fwidth(thickness);
+      // Thickness per pixel, but never the jump at a silhouette: a rock against
+      // deep water is an edge, not a waterline.
+      float px = min(fwidth(thickness), 3.0 * fwidth(surfaceDistance) + 0.02);
       // On a sea the rim is a line along the waterline, never a field over a
       // shallow flat: its width is capped in metres of bed, by the thickness the
       // bed gains per metre. Ponds and races keep the depth band alone.
@@ -638,22 +647,30 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float cycle = fract(vPhase * 0.15915494 + 0.5) - 0.5;
       float since = fract(-vPhase * 0.15915494);
       float pw = fwidth(vPhase) * 0.15915494;
-      float run = streaked(vWorld.xz - stream * 0.6, along, stretch, 0.32);
-      float ragged = streaked(vWorld.xz - stream * 1.2, along, stretch, 1.4);
-      float gate = run * 0.7 + ragged * 0.3;
-      float gw = fwidth(gate);
-      // The lip: white on the crest and its front face once the wave is breaking,
-      // a run of white with gaps.
-      float face = smoothstep(-0.03 - pw, 0.0, cycle) * (1.0 - smoothstep(0.06, 0.13 + pw, cycle));
-      float lip = smoothstep(0.85, 1.0, vBreak) * face * smoothstep(0.44 - gw, 0.54 + gw, gate);
-      // The wash: what the breaker leaves behind it, thinning away before the next
-      // crest, and never white. Its lace opens hole-first, the threshold rising as
-      // it decays.
-      float decay = 1.0 - smoothstep(0.0, 0.55, since);
-      float laceField = ragged * 0.6 + run * 0.4;
-      float lw = fwidth(laceField);
-      float laceAt = mix(0.4, 0.7, since);
-      float lace = smoothstep(laceAt - lw, laceAt + 0.08 + lw, laceField);
+      // Broken water streaks the way the wave travels, so the noise frame is
+      // stretched along vDir: fine streaks, and the clumps that gap a crest.
+      vec2 travel = normalize(vDir + vec2(1e-4, 0.0));
+      float streak = streaked(vWorld.xz - stream * 0.6, travel, 3.0, 0.9);
+      float clumps = streaked(vWorld.xz - stream * 0.35, travel, 1.6, 0.25);
+      float sw = fwidth(streak);
+      float cw = fwidth(clumps);
+      float breaking = smoothstep(0.85, 1.0, vBreak);
+      // The lip: a white core on the crest and the top of the front face, a
+      // pale skirt tumbling down the face, in runs with gaps between.
+      float core = smoothstep(-0.02 - pw, 0.0, cycle) * (1.0 - smoothstep(0.04, 0.08 + pw, cycle));
+      float apron = smoothstep(-0.05 - pw, -0.01, cycle) * (1.0 - smoothstep(0.08, 0.20 + pw, cycle));
+      float runs = smoothstep(0.40 - cw, 0.52 + cw, clumps);
+      float lip = breaking * runs * max(
+        core * smoothstep(0.25 - sw, 0.5 + sw, streak),
+        apron * 0.55 * smoothstep(0.4 - sw, 0.6 + sw, streak)
+      );
+      // The wash: what the breaker leaves behind it, thinning away before the
+      // next crest, and never white. Streaked lace that opens hole-first, the
+      // threshold rising as it decays.
+      float decay = 1.0 - smoothstep(0.0, 0.6, since);
+      float laceField = streak * 0.7 + clumps * 0.3;
+      float laceAt = mix(0.35, 0.68, since);
+      float lace = smoothstep(laceAt - sw, laceAt + 0.1 + sw, laceField);
       float trail = 0.6 * smoothstep(0.9, 1.0, vBreak) * decay * lace;
       float breaker = max(lip, trail);
       // How far into the surf zone this is, for anything that stops there.
