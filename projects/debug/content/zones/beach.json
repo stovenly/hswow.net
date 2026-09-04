@@ -64,7 +64,7 @@
     "size": 180,
     "resolution": 3,
     "base": "sand",
-    "rockAngle": 38,
+    "rockAngle": 46,
     "steepDetail": 3,
     "landforms": [
       {
@@ -239,8 +239,8 @@
           ]
         ],
         "width": 4,
-        "depth": 3.2,
-        "bank": 4
+        "depth": 1.4,
+        "bank": 6
       },
       {
         "kind": "terrace",
@@ -594,7 +594,7 @@
         -24
       ],
       "yaw": 0.4,
-      "scale": 1.05
+      "scale": 0.95
     },
     {
       "id": "w-crag-1",
@@ -602,11 +602,11 @@
       "builder": "crag",
       "seed": 4002,
       "at": [
-        -58,
-        -8
+        -54,
+        6
       ],
-      "yaw": 1.3,
-      "scale": 1.13
+      "yaw": 1.7,
+      "scale": 1.05
     },
     {
       "id": "w-crag-2",
@@ -614,47 +614,47 @@
       "builder": "crag",
       "seed": 4003,
       "at": [
-        -54,
-        6
+        -47,
+        32
       ],
-      "yaw": 2.2,
-      "scale": 1.21
+      "yaw": 3.0,
+      "scale": 1.15
     },
     {
-      "id": "w-crag-3",
+      "id": "w-boulder-0",
       "kind": "prop",
-      "builder": "crag",
+      "builder": "boulder",
       "seed": 4004,
+      "at": [
+        -58,
+        -8
+      ],
+      "yaw": 0.8,
+      "scale": 1.3
+    },
+    {
+      "id": "w-boulder-1",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4005,
       "at": [
         -50,
         20
       ],
-      "yaw": 3.1,
-      "scale": 1.05
+      "yaw": 2.1,
+      "scale": 1.2
     },
     {
-      "id": "w-crag-4",
+      "id": "w-boulder-2",
       "kind": "prop",
-      "builder": "crag",
-      "seed": 4005,
-      "at": [
-        -47,
-        32
-      ],
-      "yaw": 4.0,
-      "scale": 1.13
-    },
-    {
-      "id": "w-crag-5",
-      "kind": "prop",
-      "builder": "crag",
+      "builder": "boulder",
       "seed": 4006,
       "at": [
         -44,
         44
       ],
-      "yaw": 4.9,
-      "scale": 1.21
+      "yaw": 1.4,
+      "scale": 1.1
     },
     {
       "id": "w-outcrop-0",

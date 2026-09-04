@@ -756,7 +756,9 @@ registerEntryKind<SeaEntry>({
       swell: entry.swell,
       reach: entry.reach,
       segment: entry.segment,
-      groundAt: ctx.groundAt,
+      // The skirt is what holds the seabed past the level's square; the
+      // terrain's landforms die out there and would call it land.
+      groundAt: (x, z) => Math.min(ctx.groundAt(x, z), ctx.skirt?.heightAt(x, z) ?? Infinity),
     });
   },
 });

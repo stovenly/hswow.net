@@ -231,8 +231,8 @@
           ]
         ],
         "width": 4,
-        "depth": 3,
-        "bank": 3.5
+        "depth": 1.2,
+        "bank": 6
       },
       {
         "kind": "scarp",
@@ -997,24 +997,10 @@
       "yaw": 0.4
     },
     {
-      "id": "rise-signboard",
-      "kind": "prop",
-      "builder": "signboard",
-      "seed": 4426,
-      "at": [
-        28,
-        3
-      ],
-      "yaw": -2.3,
-      "options": {
-        "text": "THE COVE"
-      }
-    },
-    {
       "id": "bluff-outcrop-0",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4427,
+      "seed": 4426,
       "at": [
         -56,
         -4.0
@@ -1026,7 +1012,7 @@
       "id": "bluff-outcrop-1",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4428,
+      "seed": 4427,
       "at": [
         -36,
         -2.0
@@ -1038,7 +1024,7 @@
       "id": "bluff-outcrop-2",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4429,
+      "seed": 4428,
       "at": [
         -14,
         1.0
@@ -1050,7 +1036,7 @@
       "id": "bluff-outcrop-3",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4430,
+      "seed": 4429,
       "at": [
         8,
         4.3
@@ -1062,7 +1048,7 @@
       "id": "bluff-outcrop-4",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4431,
+      "seed": 4430,
       "at": [
         22,
         12.5
@@ -1074,7 +1060,7 @@
       "id": "bluff-scree",
       "kind": "scatter",
       "builder": "scree",
-      "seed": 4432,
+      "seed": 4431,
       "count": 4,
       "within": 40,
       "from": [
@@ -1089,7 +1075,7 @@
       "id": "bluff-rocks",
       "kind": "scatter",
       "builder": "rock",
-      "seed": 4433,
+      "seed": 4432,
       "count": 10,
       "within": 50,
       "from": [
@@ -1108,7 +1094,7 @@
       "id": "shoulder-gorse",
       "kind": "scatter",
       "builder": "gorse",
-      "seed": 4434,
+      "seed": 4433,
       "count": 6,
       "within": 22,
       "from": [
@@ -1129,7 +1115,7 @@
       "id": "shoulder-thistle",
       "kind": "scatter",
       "builder": "thistle",
-      "seed": 4435,
+      "seed": 4434,
       "count": 6,
       "within": 20,
       "from": [
@@ -1150,7 +1136,7 @@
       "id": "marsh-reeds",
       "kind": "scatter",
       "builder": "reeds",
-      "seed": 4436,
+      "seed": 4435,
       "count": 44,
       "within": 24,
       "from": [
@@ -1173,7 +1159,7 @@
       "id": "marsh-grass",
       "kind": "scatter",
       "builder": "large-grass-clump",
-      "seed": 4437,
+      "seed": 4436,
       "count": 12,
       "within": 24,
       "from": [
@@ -1191,7 +1177,7 @@
       "id": "marsh-nettle",
       "kind": "scatter",
       "builder": "nettle",
-      "seed": 4438,
+      "seed": 4437,
       "count": 8,
       "within": 26,
       "from": [
@@ -1210,7 +1196,7 @@
       "id": "boardwalk-post-0",
       "kind": "prop",
       "builder": "post",
-      "seed": 4439,
+      "seed": 4438,
       "at": [
         38.5,
         36.6
@@ -1221,7 +1207,7 @@
       "id": "boardwalk-post-1",
       "kind": "prop",
       "builder": "post",
-      "seed": 4440,
+      "seed": 4439,
       "at": [
         29,
         39.6
@@ -1232,7 +1218,7 @@
       "id": "boardwalk-post-2",
       "kind": "prop",
       "builder": "post",
-      "seed": 4441,
+      "seed": 4440,
       "at": [
         20.4,
         41.6
@@ -1243,7 +1229,7 @@
       "id": "boardwalk-post-3",
       "kind": "prop",
       "builder": "post",
-      "seed": 4442,
+      "seed": 4441,
       "at": [
         15.6,
         42.8
@@ -1254,7 +1240,7 @@
       "id": "marsh-snag",
       "kind": "prop",
       "builder": "snag",
-      "seed": 4443,
+      "seed": 4442,
       "at": [
         8,
         30
@@ -1266,7 +1252,7 @@
       "id": "marsh-deadfall",
       "kind": "prop",
       "builder": "deadfall",
-      "seed": 4444,
+      "seed": 4443,
       "at": [
         34,
         50
@@ -1278,7 +1264,7 @@
       "id": "dune-marram",
       "kind": "scatter",
       "builder": "large-grass-clump",
-      "seed": 4445,
+      "seed": 4444,
       "count": 30,
       "within": 75,
       "from": [
@@ -1296,7 +1282,7 @@
       "id": "dune-tufts",
       "kind": "scatter",
       "builder": "small-grass-clump",
-      "seed": 4446,
+      "seed": 4445,
       "count": 24,
       "within": 75,
       "from": [
@@ -1314,7 +1300,7 @@
       "id": "dune-gorse",
       "kind": "scatter",
       "builder": "gorse",
-      "seed": 4447,
+      "seed": 4446,
       "count": 6,
       "within": 75,
       "from": [
@@ -1336,7 +1322,7 @@
       "id": "dune-sticks",
       "kind": "scatter",
       "builder": "sticks",
-      "seed": 4448,
+      "seed": 4447,
       "count": 8,
       "within": 75,
       "from": [
@@ -1354,7 +1340,7 @@
       "id": "gap-gorse-w",
       "kind": "prop",
       "builder": "gorse",
-      "seed": 4449,
+      "seed": 4448,
       "at": [
         2.5,
         60
@@ -1366,7 +1352,7 @@
       "id": "gap-gorse-e",
       "kind": "prop",
       "builder": "gorse",
-      "seed": 4450,
+      "seed": 4449,
       "at": [
         13.5,
         61
@@ -1378,7 +1364,7 @@
       "id": "gap-post",
       "kind": "prop",
       "builder": "fence-post",
-      "seed": 4451,
+      "seed": 4450,
       "at": [
         11.2,
         66

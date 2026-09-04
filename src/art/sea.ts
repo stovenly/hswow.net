@@ -150,6 +150,8 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
     uRoughFar: { value: 0.3 },
     /** How much of the sun a facet aimed straight at it gives back. */
     uGlitter: { value: 0.1 },
+    /** The most of the surface the sky may take at a grazing view. */
+    uMirror: { value: 0.55 },
     /** How far the surface tilt bends the bed seen through it. */
     uRefract: { value: 0.6 },
     /** How bright the caustics on a sunlit bed get. */
@@ -257,6 +259,7 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
     uniform float uRoughNear;
     uniform float uRoughFar;
     uniform float uGlitter;
+    uniform float uMirror;
     uniform float uRefract;
     uniform float uCaustics;
     uniform vec2 windDir;
@@ -438,7 +441,9 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
         reflection = mix(sky, marched, found);
         hit = found;
       }
-      float fresnel = clamp(0.02 + 0.98 * pow(1.0 - clamp(dot(normal, view), 0.0, 1.0), 5.0), 0.0, 1.0);
+      // Schlick, held under uMirror: a sea seen from a dune at seven degrees is
+      // half sky by the physics, and a sea that is half sky reads as no sea.
+      float fresnel = min(0.02 + 0.98 * pow(1.0 - clamp(dot(normal, view), 0.0, 1.0), 5.0), uMirror);
       vec3 colour = mix(below, reflection, fresnel);
 
       // Scatter through a raised crest the eye looks into, never with sand behind it.
