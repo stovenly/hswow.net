@@ -106,12 +106,21 @@ const FLAME_PROFILE: readonly [number, number][] = [
 ];
 
 /**
+ * The halo's shells, outward: radius in flame sizes and how much of the flame's
+ * colour each adds. A single shell has a rim wherever its side faces the eye,
+ * however it is coloured, because a face is one colour; nested shells add up
+ * to a falloff, and the outermost is faint enough to have no rim to see.
+ * `GLOW_MATERIAL` is additive and double sided, so each shell adds twice.
+ */
+const HALO: readonly [number, number][] = [
+  [1.5, 0.07], [2.3, 0.045], [3.2, 0.025], [4.2, 0.01],
+];
+
+/**
  * Glow geometry for one flame: a bright teardrop inside a wide, faint halo. The
  * body is a lathe of `FLAME_PROFILE`, nearly white at the foot where a flame is
  * hottest and the flame's own colour up its length, thinning to a deeper tint
- * at the tip. The halo is a rounded shell four times the size at a fraction of
- * the brightness, ramped to black — and `GLOW_MATERIAL` is additive, so black
- * adds nothing and the falloff needs no alpha channel.
+ * at the tip. The halo is `HALO`'s shells, rounded and drawn tall.
  */
 export function flameGlow(
   glow: Part[],
@@ -136,18 +145,12 @@ export function flameGlow(
     sway: 0,
   });
 
-  const halo = new THREE.IcosahedronGeometry(size * 4.2, 1);
-  halo.scale(1, 1.5, 1);
-  halo.translate(x, y + size * 0.9, z);
-  const reach = size * 4.2 * 1.5;
-  glow.push({
-    geometry: halo,
-    color: (fx, fy, fz) => {
-      const d = Math.hypot(fx - x, fy - y - size * 0.9, fz - z) / reach;
-      return fade(flame.color, Math.max(0, 0.3 * (1 - d) ** 1.5));
-    },
-    sway: 0,
-  });
+  for (const [radius, amount] of HALO) {
+    const shell = new THREE.IcosahedronGeometry(size * radius, 1);
+    shell.scale(1, 1.4, 1);
+    shell.translate(x, y + size * 0.9, z);
+    glow.push({ geometry: shell, color: fade(flame.color, amount), sway: 0 });
+  }
 }
 
 /**
