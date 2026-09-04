@@ -21,8 +21,8 @@ const GRIP = new THREE.Vector3(0.34, -0.32, -0.55);
 const HAND = new THREE.Vector3(0.3, -0.34, -0.5);
 const RING = new THREE.Vector3(0.32, -0.08, -0.5);
 
-/** Strides a metre at walking pace, for the bob. */
-const STEPS_PER_METRE = 0.95;
+/** Bob cycles a metre: the head bob's 1.9 footfalls a second at 4.2 m/s, two footfalls to a cycle. */
+const BOB_CYCLES_PER_METRE = 1.9 / 2 / 4.2;
 /** Metres a candle or tool bobs per step, and how far it lags the hand. */
 const BOB = 0.012;
 const LAG = 0.06;
@@ -161,7 +161,7 @@ export class HeldTool {
     _velocity.subVectors(camera.position, this.lastEye).divideScalar(step);
     this.lastEye.copy(camera.position);
     const ground = Math.hypot(_velocity.x, _velocity.z);
-    this.stride += ground * STEPS_PER_METRE * dt;
+    this.stride += ground * BOB_CYCLES_PER_METRE * dt;
     const motion = motionOption;
 
     let bend = 0;
