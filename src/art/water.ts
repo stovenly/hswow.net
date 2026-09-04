@@ -100,6 +100,12 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uGlitter: { value: 0.1 },
     /** Metres a broken wave runs up the sand, per metre of swell amplitude. */
     uRunup: { value: 2.0 },
+    /** What a backlit crest glows: the shallow colour brightened, until the owner says otherwise. */
+    uScatter: { value: new THREE.Color('#93c1ba') },
+    /** How far the surface tilt bends the bed seen through it. A look knob. */
+    uRefract: { value: 0.6 },
+    /** How bright the caustics on a sunlit bed get. */
+    uCaustics: { value: 0.55 },
 
     // Distance fog, filled by the renderer because `fog` is true below.
     ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
@@ -281,6 +287,9 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uniform float uRoughFar;
     uniform float uGlitter;
     uniform float uRunup;
+    uniform vec3 uScatter;
+    uniform float uRefract;
+    uniform float uCaustics;
 
     uniform vec2 windDir;
     uniform float swayTime;
@@ -378,7 +387,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         // sheet of the last wave up to R, wet sand above it, and only past that the
         // ordinary discard. Off everywhere the wave has not broken.
         float runup = smoothstep(0.9, 1.0, vBreak) * vRunup * uRunup;
-        if (runup <= 0.0) discard;
+        if (runup <= 0.0 || !gl_FrontFacing) discard;
         // The sheet peaks a quarter period after the crest reaches the sand.
         float R = runup * max(0.0, -sin(vPhase));
         float Rmax = runup * 1.3;
@@ -454,6 +463,11 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // sea filtered flat at range still glitters under the sun.
       float alpha = mix(uRoughNear, uRoughFar, clamp(swim + rippleSwim, 0.0, 1.0));
 
+      vec3 sunDir = normalize(uSunDirection);
+      float sunUp = smoothstep(-0.02, 0.05, sunDir.y) * uSunIntensity;
+      vec3 moonDir = normalize(uMoonDirection);
+      float moonUp = smoothstep(-0.02, 0.05, moonDir.y) * uMoonIntensity;
+
       // --- seen from below ----------------------------------------------------
       //
       // A different surface, not a fainter one: every term above assumes the eye
@@ -501,7 +515,25 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       }
 
       // --- what is under the water -------------------------------------------
-      vec3 bed = texture2D(tScene, uv).rgb;
+      // The bed is read where the tilted surface bends the ray, but only if what
+      // is there is still behind the surface: nothing above the water bends.
+      vec3 tilt = mat3(viewMatrix) * (normal - vec3(0.0, 1.0, 0.0));
+      vec2 bent = uv + tilt.xy * (uRefract * min(thickness, 1.0) / surfaceDistance);
+      vec3 bed = texture2D(tScene, sceneDistance(bent) > surfaceDistance ? bent : uv).rgb;
+
+      // Caustics: two octaves of ridged noise on the bed, scrolled two ways, in
+      // the shallows under a sun. Pulled to their mean where they turn over
+      // faster than a pixel.
+      float shallows = smoothstep(0.05, 0.3, thickness) * (1.0 - smoothstep(1.2, 2.2, thickness)) * sunUp;
+      if (shallows > 0.0) {
+        vec2 cp = bedPoint.xz;
+        vec2 scroll = vec2(0.18, 0.11) * (swayTime * uWaterMotion);
+        float c1 = 1.0 - abs(2.0 * valueNoise(cp * 0.9 + scroll) - 1.0);
+        float c2 = 1.0 - abs(2.0 * valueNoise(cp * 1.9 - scroll * 1.4 + 7.3) - 1.0);
+        float caustic = c1 * c2;
+        caustic = mix(caustic, 0.3, clamp(length(fwidth(cp)) * 1.2, 0.0, 1.0));
+        bed *= 1.0 + caustic * uCaustics * shallows;
+      }
       // Beer-Lambert on the column, the same shape the fog volumes use: the bed
       // does not vanish at a threshold, it fades out at a rate.
       float opacity = 1.0 - exp(-thickness / max(uClarity, 0.01));
@@ -545,15 +577,17 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
 
       vec3 colour = mix(below, reflection, fresnel);
 
+      // Scatter through the crest: the sun through the upper face of a raised
+      // wave when the eye looks into it, and never with sand right behind it.
+      float sss = vSurf * pow(max(dot(-view, sunDir), 0.0), 4.0) * (1.0 - fresnel)
+        * smoothstep(0.3, 1.0, thickness) * sunUp;
+      colour = mix(colour, uScatter, clamp(sss * 0.7, 0.0, 1.0));
+
       // --- the sun path -------------------------------------------------------
-      vec3 sunDir = normalize(uSunDirection);
-      float sunUp = smoothstep(-0.02, 0.05, sunDir.y) * uSunIntensity;
       if (sunUp > 0.0) {
         float g = glitter(normal, view, sunDir, alpha) * uGlitter * sunUp;
         colour = mix(colour, uSunColor, clamp(g, 0.0, 1.0));
       }
-      vec3 moonDir = normalize(uMoonDirection);
-      float moonUp = smoothstep(-0.02, 0.05, moonDir.y) * uMoonIntensity;
       if (moonUp > 0.0) {
         float g = glitter(normal, view, moonDir, alpha) * uGlitter * moonUp;
         colour = mix(colour, uMoonColor, clamp(g, 0.0, 1.0));
