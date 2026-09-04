@@ -78,11 +78,16 @@ export interface ItemCard {
   name: string;
   /** The quest the thing is for, by its name. */
   quest?: string;
+  /** E opens it as a page. */
+  read?: boolean;
 }
 
 export function cardOf(item: Item): ItemCard {
+  const card: ItemCard = { name: item.name };
   const quest = item.id ? itemById(item.id)?.quest : undefined;
-  return quest ? { name: item.name, quest: questById(quest)?.name ?? quest } : { name: item.name };
+  if (quest) card.quest = questById(quest)?.name ?? quest;
+  if (item.builder && isReadable(item.builder)) card.read = true;
+  return card;
 }
 
 /** The pickups with pages in them: E opens the reading screen, bound note or not. */

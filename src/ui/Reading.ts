@@ -1,5 +1,6 @@
 import { onFontChange, offFontChange } from './options/font';
 import type { Note } from '../world/notes';
+import { keyHint } from './Reticle';
 
 /**
  * The reading screen — the first interface the game has that is *in* the game
@@ -119,7 +120,7 @@ export class Reading {
     this.takeEl = document.createElement('button');
     this.takeEl.type = 'button';
     this.takeEl.className = 'reading-take';
-    this.takeEl.textContent = 'take';
+    this.takeEl.append(keyHint('E', 'take'));
     this.takeEl.hidden = true;
     this.takeEl.addEventListener('click', () => {
       const take = this.take;

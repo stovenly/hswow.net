@@ -1493,9 +1493,11 @@ export class ZoneManager {
       const card = carried?.pickup ? cardOf(carried.pickup.item) : undefined;
       // A quest item names its quest over what is written in it; otherwise only
       // a bound note inverts the prompt, and a single line keeps the item register.
+      const readable = note !== undefined && object !== null;
       if (card?.quest) reticle.set(itemPrompt(card));
-      else reticle.set(note ? { title: found.label, target: note.title, kind: 'read' } : { title: found.label });
-      return note && object ? { kind: 'read', note, object } : null;
+      else if (note) reticle.set({ title: found.label, target: note.title, kind: 'read', hint: readable ? 'read' : undefined });
+      else reticle.set({ title: found.label });
+      return readable ? { kind: 'read', note, object } : null;
     }
 
     if (carried?.container) {

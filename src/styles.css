@@ -24,6 +24,9 @@
     "Times New Roman", serif;
   /* The colour of anything that belongs to a quest. */
   --quest: #e6d39a;
+  /* One height for every key cap and the mouse glyph beside them. Not an `em`:
+     a cap sized in em is shorter wherever its word is set smaller to fit. */
+  --key-size: 1.5rem;
 
   /* Where the paused game's furniture starts, measured from the top.
      Three elements share it: the options button, the controls panel beneath
@@ -173,14 +176,6 @@ body.is-playing #crosshair {
    same line — ragged on the left of a key column reads as a list of unrelated
    things rather than as a table of controls. */
 .controls {
-  /* One height for every cap and icon in the panel.
-     Declared here rather than on `.key` because the mouse glyph has to match it
-     too — and because it must not be an `em`. A cap sized in `em` resolves
-     against its *own* font-size, so setting SHIFT and SPACE in smaller type to
-     fit their words also made those caps shorter, and the first three rows came
-     out visibly taller than the last two. */
-  --key-size: 1.5rem;
-
   display: grid;
   grid-template-columns: auto auto;
   gap: 0.5rem 1rem;
@@ -230,6 +225,13 @@ body.is-playing #crosshair {
   font-size: 0.74em;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* A cap and its verb, side by side, wherever a key is named outside the controls table. */
+.key-hint {
+  display: inline-flex;
+  gap: 0.45em;
+  align-items: center;
 }
 
 .control-mouse {
@@ -1216,6 +1218,16 @@ body:not(.is-playing) #prompt {
 
 #prompt.is-readable .prompt-target {
   color: var(--ink);
+}
+
+/* The key under the name, in the joiner's register. */
+.prompt-hint {
+  --key-size: 1.25rem;
+
+  margin-top: 0.35em;
+  font-size: 0.78em;
+  letter-spacing: 0.16em;
+  color: rgb(220 220 200 / 55%);
 }
 
 /* --- the quest mark -------------------------------------------------------- */
@@ -2305,12 +2317,27 @@ body.is-identifying #pause {
   transform: translate(14px, 18px);
 }
 
-/* Anything under the name sits below a rule. */
-.inv-tip-quest {
+/* Anything under the name sits below one rule. */
+.inv-tip-quest,
+.inv-tip-hint {
   display: block;
   margin-top: 0.45rem;
+}
+
+.inv-tip-quest:nth-child(2),
+.inv-tip-hint:nth-child(2) {
   padding-top: 0.45rem;
   border-top: 1px solid rgb(220 220 200 / 18%);
+}
+
+.inv-tip-hint {
+  --key-size: 1.25rem;
+
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
+  font-size: 0.82rem;
+  color: rgb(220 220 200 / 70%);
 }
 
 /* Nothing else on screen while the pack is open, the reading screen rule. */
@@ -2320,6 +2347,8 @@ body.is-inventory #prompt {
 
 /* The pocket line under the footer, present only while the page can be taken. */
 .reading-take {
+  --key-size: 1.25rem;
+
   justify-self: center;
   padding: 0.45rem 1.6rem;
   font: inherit;

@@ -1,5 +1,6 @@
 import type { Inventory } from '../player/Inventory';
 import { cardOf, type Item, type ItemCard } from '../world/items';
+import { keyHint } from './Reticle';
 import { Floating, type FloatingRect } from './Floating';
 import type { ItemIcons } from './ItemIcons';
 
@@ -324,11 +325,17 @@ export class InventoryUI {
   /** The tip renders a card and nothing else. */
   private tell(card: ItemCard): void {
     this.tip.textContent = card.name;
-    if (!card.quest) return;
-    const line = document.createElement('span');
-    line.className = 'inv-tip-quest quest-mark';
-    line.textContent = card.quest;
-    this.tip.append(line);
+    if (card.quest) {
+      const line = document.createElement('span');
+      line.className = 'inv-tip-quest quest-mark';
+      line.textContent = card.quest;
+      this.tip.append(line);
+    }
+    if (card.read) {
+      const line = keyHint('E', 'Read');
+      line.classList.add('inv-tip-hint');
+      this.tip.append(line);
+    }
   }
 
   /** Cells carry no words; the tip does. Same tip the world hover uses. */

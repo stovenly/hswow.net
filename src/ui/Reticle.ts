@@ -42,11 +42,26 @@ export interface Prompt {
    * the quest's name behind the quest mark.
    */
   kind?: 'link' | 'read' | 'quest';
+  /** A key and what it does, under everything: E reads a page. */
+  hint?: 'read';
 }
 
 /** What an item says when you point at it: its card, as the crosshair sets it. */
 export function itemPrompt(card: ItemCard): Prompt {
-  return card.quest ? { title: card.name, target: card.quest, kind: 'quest' } : { title: card.name };
+  const prompt: Prompt = card.quest ? { title: card.name, target: card.quest, kind: 'quest' } : { title: card.name };
+  if (card.read) prompt.hint = 'read';
+  return prompt;
+}
+
+/** A key cap and its verb, in the pause screen's own markup. */
+export function keyHint(key: string, verb: string): HTMLSpanElement {
+  const hint = document.createElement('span');
+  hint.className = 'key-hint';
+  const cap = document.createElement('kbd');
+  cap.className = 'key';
+  cap.textContent = key;
+  hint.append(cap, verb);
+  return hint;
 }
 
 /**
@@ -63,6 +78,7 @@ export class Reticle {
   private readonly title: HTMLElement;
   private readonly target: HTMLElement;
   private readonly joiner: HTMLElement;
+  private readonly hint: HTMLElement;
   private shown = false;
   private showing = '';
 
@@ -97,7 +113,11 @@ export class Reticle {
     this.target = document.createElement('span');
     this.target.className = 'prompt-target';
 
-    lines.append(this.title, this.joiner, this.target);
+    this.hint = keyHint('E', 'Read');
+    this.hint.classList.add('prompt-hint');
+    this.hint.hidden = true;
+
+    lines.append(this.title, this.joiner, this.target, this.hint);
     this.element.append(lines);
     parent.appendChild(this.element);
   }
@@ -114,7 +134,7 @@ export class Reticle {
       // A NUL between the fields, so no pair of lines can spell another
       // pair’s key. Written as an escape: it used to be a raw control byte
       // in the source, which made the file read as binary to every tool.
-      const key = `${kind}\u0000${prompt.title}\u0000${prompt.target}`;
+      const key = `${kind}\u0000${prompt.title}\u0000${prompt.target}\u0000${prompt.hint}`;
       if (key !== this.showing) {
         this.showing = key;
         this.title.textContent = prompt.title;
@@ -127,6 +147,7 @@ export class Reticle {
         // note is not somewhere the book leads, it is what the book *is*.
         this.joiner.hidden = !second || kind !== 'link';
         this.target.classList.toggle('quest-mark', kind === 'quest');
+        this.hint.hidden = prompt.hint !== 'read';
         this.target.hidden = !second;
         this.element.classList.toggle('is-readable', kind === 'read');
       }
