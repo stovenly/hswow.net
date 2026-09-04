@@ -234,9 +234,7 @@ export class InventoryUI implements Pane {
     this.hovered = null;
     this.toolRow.replaceChildren(this.slotCell('tool', this.inventory.tool, 'tool'));
     this.slotGrid.replaceChildren(
-      ...this.inventory.accessories.map((held, i) =>
-        this.slotCell(`acc:${i}`, held ?? null, String(i + 1)),
-      ),
+      ...this.inventory.accessories.map((held, i) => this.slotCell(`acc:${i}`, held ?? null, 'accessory')),
     );
 
     const items = this.inventory.items;
@@ -264,12 +262,12 @@ export class InventoryUI implements Pane {
     return cell;
   }
 
-  private slotCell(drop: string, item: Item | null, placeholder: string): HTMLDivElement {
+  private slotCell(drop: string, item: Item | null, kind: 'tool' | 'accessory'): HTMLDivElement {
     const cell = document.createElement('div');
     cell.className = 'inv-slot';
     cell.dataset.drop = drop;
     if (!item) {
-      cell.textContent = placeholder;
+      cell.append(slotMark(kind));
       return cell;
     }
     cell.classList.add('has-item', 'is-loading');
@@ -549,6 +547,22 @@ export class InventoryUI implements Pane {
       this.handlers.close();
     }
   };
+}
+
+/** What an empty slot is for, drawn faint in it: a hammer, or a ring. Inline, as the pause screen's mouse is. */
+function slotMark(kind: 'tool' | 'accessory'): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', 'inv-slot-mark');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute(
+    'd',
+    kind === 'tool'
+      ? 'M14 4h6v5h-6zM14 6.5H8.5a2 2 0 0 0-2 2V10M14 6.5v3.5h-5M9.5 10L5 21'
+      : 'M12 21a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM9.5 5.5L12 3l2.5 2.5L12 8z',
+  );
+  svg.append(path);
+  return svg;
 }
 
 function ndcOf(event: PointerEvent): { x: number; y: number } {
