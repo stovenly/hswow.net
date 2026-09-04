@@ -29,9 +29,9 @@ const LAG = 0.06;
 /** A lantern's pendulum: g over the length it hangs by, and how quickly it settles. */
 const PENDULUM_STIFFNESS = 22;
 const PENDULUM_DAMPING = 3.2;
-/** Radians of lean past which the damping climbs steeply: a wide swing is cut short, a small one rides out. */
+/** Radians of lean past which the pull back and the damping both climb steeply, so a wide swing is pressed down rather than stopped at a wall. */
 const SWING_SOFT = 0.12;
-const SWING_MOST = 0.3;
+const SWING_MOST = 1.0;
 /** How much of the ring's acceleration the body answers; a real pendulum would take all of it. */
 const KICK_GAIN = 0.55;
 /** Metres a second squared the ring is believed to move at; a zone swap is not a swing. */
@@ -211,10 +211,12 @@ export class HeldTool {
         const kickForward = THREE.MathUtils.clamp(_velocity.z, -KICK_MOST, KICK_MOST) * gain;
         const kickSide = THREE.MathUtils.clamp(_velocity.x, -KICK_MOST, KICK_MOST) * gain;
         const rate = Math.min(dt, 1 / 30);
-        const dampX = PENDULUM_DAMPING * (1 + (this.lean.x / SWING_SOFT) ** 2);
-        const dampY = PENDULUM_DAMPING * (1 + (this.lean.y / SWING_SOFT) ** 2);
-        this.leanRate.x += (kickForward - PENDULUM_STIFFNESS * this.lean.x - dampX * this.leanRate.x) * rate;
-        this.leanRate.y += (kickSide - PENDULUM_STIFFNESS * this.lean.y - dampY * this.leanRate.y) * rate;
+        const wideX = (this.lean.x / SWING_SOFT) ** 2;
+        const wideY = (this.lean.y / SWING_SOFT) ** 2;
+        this.leanRate.x +=
+          (kickForward - PENDULUM_STIFFNESS * (1 + 2 * wideX) * this.lean.x - PENDULUM_DAMPING * (1 + 1.5 * wideX) * this.leanRate.x) * rate;
+        this.leanRate.y +=
+          (kickSide - PENDULUM_STIFFNESS * (1 + 2 * wideY) * this.lean.y - PENDULUM_DAMPING * (1 + 1.5 * wideY) * this.leanRate.y) * rate;
         this.lean.x = THREE.MathUtils.clamp(this.lean.x + this.leanRate.x * rate, -SWING_MOST, SWING_MOST);
         this.lean.y = THREE.MathUtils.clamp(this.lean.y + this.leanRate.y * rate, -SWING_MOST, SWING_MOST);
         // Hung from the ring: upright in the world, turned with the view, then
