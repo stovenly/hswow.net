@@ -130,6 +130,12 @@ export function flameGlow(
   z: number,
   size: number,
 ): void {
+  flameBody(glow, flame.color, x, y, z, size);
+  flameHalo(glow, flame.color, x, y + size * 0.9, z, size);
+}
+
+/** One tongue of flame, its foot at (x, y, z), `size` wide and 2.9 sizes tall. */
+export function flameBody(glow: Part[], colour: number, x: number, y: number, z: number, size: number): void {
   const points = FLAME_PROFILE.map(([r, h]) => new THREE.Vector2(r * size, h * size));
   const body = new THREE.LatheGeometry(points, 10);
   body.translate(x, y, z);
@@ -139,17 +145,33 @@ export function flameGlow(
     // Per face at its centroid. Height up the flame, 0 at the wick, 1 at the tip.
     color: (_fx, fy) => {
       const t = Math.max(0, Math.min(1, (fy - y + 0.2 * size) / (top + 0.2 * size)));
-      if (t < 0.4) return blend(0xfff4dc, flame.color, t / 0.4);
-      return fade(flame.color, 1 - 0.45 * ((t - 0.4) / 0.6));
+      if (t < 0.4) return blend(0xfff4dc, colour, t / 0.4);
+      return fade(colour, 1 - 0.45 * ((t - 0.4) / 0.6));
     },
     sway: 0,
   });
+}
 
-  for (const [radius, amount] of HALO) {
+/**
+ * The halo about a flame, centred on (x, y, z): `HALO`'s shells at `size`,
+ * each stretched by `shape` — tall for a wick, flat and shallow for a hearth.
+ * `amount` scales every shell's brightness.
+ */
+export function flameHalo(
+  glow: Part[],
+  colour: number,
+  x: number,
+  y: number,
+  z: number,
+  size: number,
+  shape: readonly [number, number, number] = [1, 1.4, 1],
+  amount = 1,
+): void {
+  for (const [radius, level] of HALO) {
     const shell = new THREE.IcosahedronGeometry(size * radius, 1);
-    shell.scale(1, 1.4, 1);
-    shell.translate(x, y + size * 0.9, z);
-    glow.push({ geometry: shell, color: fade(flame.color, amount), sway: 0 });
+    shell.scale(shape[0], shape[1], shape[2]);
+    shell.translate(x, y, z);
+    glow.push({ geometry: shell, color: fade(colour, level * amount), sway: 0 });
   }
 }
 

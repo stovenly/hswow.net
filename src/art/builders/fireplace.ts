@@ -5,6 +5,7 @@ import { finishGlow } from '../glow';
 import { createRng } from '../random';
 import { rollActivity, HEARTH } from '../activity';
 import { PALETTE, shade } from '../palette';
+import { flameAir, flameBody, flameHalo, type Flame } from '../flame';
 
 // An open hearth in a wall: a surround, a firebox, a mantel and a fire in it —
 // the domestic hearth, set into the wall where `forge` stands out from it. The
@@ -23,6 +24,8 @@ const LIGHT_DECAY = 1.3;
 const EMBER = 0xff8a3c;
 const FLAME = 0xffb663;
 const SOOT = 0x22201d;
+/** The hearth's tint, for its embers and heat. Not rolled — see above. */
+const HEARTH_FLAME: Flame = { color: FLAME, light: 0xff9645, weight: 0 };
 
 /**
  * Height of the fire above the fireplace's own origin, for placing a `fire`
@@ -244,44 +247,26 @@ export const fireplace: MeshBuilder = {
 
     // --- the light you can see -----------------------------------------------
     //
-    // Hand-built rather than going through `flameGlow`, which is shaped for a
-    // wick: one small bright core inside one halo four times its size. A hearth
-    // is a *bed* of many small sources under a couple of standing tongues, so it
-    // wants several cores sharing a single wide halo — which is both cheaper and
-    // closer to what it looks like.
-    const bed = new THREE.OctahedronGeometry(openW * 0.3 * (0.6 + heat * 0.55), 0);
+    // A hearth is a *bed* of many small sources under a couple of standing
+    // tongues: the bed is one flat glow, the tongues are flame bodies, and one
+    // wide shallow halo covers the whole fire.
+    const bed = new THREE.IcosahedronGeometry(openW * 0.3 * (0.6 + heat * 0.55), 1);
     bed.scale(1, 0.3, 0.55);
     bed.translate(0, fireY - 0.05, fireZ);
     glow.push({ geometry: bed, color: EMBER, sway: 0 });
 
     const tongues = 2 + (rng.chance(heat) ? 1 : 0);
+    const airs: { x: number; y: number; z: number; size: number }[] = [];
     for (let i = 0; i < tongues; i++) {
-      const size = openW * rng.range(0.07, 0.12) * (0.5 + heat * 0.7);
-      const tongue = new THREE.OctahedronGeometry(size, 0);
-      tongue.scale(1, rng.range(2.2, 3.4), 1);
-      tongue.translate(
-        rng.around(0, openW * 0.2),
-        fireY + size * rng.range(1.4, 2.2),
-        fireZ + rng.around(0, 0.04),
-      );
-      glow.push({ geometry: tongue, color: FLAME, sway: 0 });
+      const size = openW * rng.range(0.05, 0.085) * (0.5 + heat * 0.7);
+      const x = rng.around(0, openW * 0.2);
+      const z = fireZ + rng.around(0, 0.04);
+      flameBody(glow, FLAME, x, fireY - 0.02, z, size);
+      airs.push({ x, y: fireY - 0.02, z, size });
     }
 
-    // One halo over the whole fire, faded to black at its extremities. Black
-    // adds nothing under additive blending, so the falloff needs no alpha
-    // channel and creates no sorting problem with the logs in front of it.
-    const haloR = openW * 0.55;
-    const halo = new THREE.OctahedronGeometry(haloR, 1);
-    halo.scale(1, 0.9, 0.6);
-    halo.translate(0, fireY + 0.06, fireZ);
-    glow.push({
-      geometry: halo,
-      color: (x, y, z) => {
-        const d = Math.hypot(x, (y - fireY - 0.06) / 0.9, (z - fireZ) / 0.6) / haloR;
-        return dim(EMBER, Math.max(0, 0.3 * (0.4 + heat * 0.6) * (1 - d)));
-      },
-      sway: 0,
-    });
+    // Flat and shallow, so it sits in the firebox rather than filling it.
+    flameHalo(glow, EMBER, 0, fireY + 0.06, fireZ, openW * 0.13, [1, 0.9, 0.6], 0.4 + heat * 0.6);
 
     // --- assembly ------------------------------------------------------------
     const geometry = assemble(parts);
@@ -294,6 +279,14 @@ export const fireplace: MeshBuilder = {
 
     const mesh = finish(geometry, 'fireplace', 0);
     mesh.add(finishGlow(glowGeometry, 'fireplace:glow'));
+    // Embers and heat off every tongue. The throat draws them up the flue,
+    // where the breast hides them, so nothing is roofed.
+    for (const at of airs) {
+      const air = flameAir(HEARTH_FLAME, at.size, rng);
+      air.position.set(at.x * scale, at.y * scale, at.z * scale);
+      air.scale.setScalar(scale);
+      mesh.add(air);
+    }
 
     const light = new THREE.PointLight(
       0xff9645,
@@ -314,12 +307,3 @@ export const fireplace: MeshBuilder = {
     return mesh;
   },
 };
-
-/** Scales a packed hex toward black. Additive, so this is an amount of light. */
-function dim(hex: number, factor: number): number {
-  const f = factor < 0 ? 0 : factor > 1 ? 1 : factor;
-  const r = Math.round(((hex >> 16) & 0xff) * f);
-  const g = Math.round(((hex >> 8) & 0xff) * f);
-  const b = Math.round((hex & 0xff) * f);
-  return (r << 16) | (g << 8) | b;
-}
