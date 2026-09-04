@@ -33,7 +33,7 @@
   "topics": [
     {
       "key": "letter-where",
-      "label": "About the letter",
+      "label": "Nell's letter",
       "when": {
         "all": [
           {
@@ -50,7 +50,13 @@
       },
       "infos": [
         {
-          "reply": "Hob. The farm, past the barn — he is in the fields all day. Do not read it, and do not let him tell you it can wait."
+          "when": {
+            "item": "nells-letter"
+          },
+          "reply": "You have still got it? Hob. The farm, past the barn — he is in the fields all day. Go on."
+        },
+        {
+          "reply": "Where is it? You had it in your hand when you left the green."
         }
       ]
     },

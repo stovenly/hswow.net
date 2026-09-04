@@ -8,6 +8,7 @@ import {
   traitById,
   type Effect,
   type QuestDocument,
+  type Reply,
   type Speech,
   type Topic,
 } from './people';
@@ -33,6 +34,8 @@ export interface Answered {
   then?: readonly Effect[];
   /** The topic is an unfinished quest's own. */
   quest?: boolean;
+  /** Offered once the reply is said; judged then, not now. */
+  ask?: readonly Reply[];
 }
 
 /** What a line hands over or asks for: a written item, or any builder's making. */
@@ -63,6 +66,13 @@ export interface Conversation {
   greeting: readonly string[];
   farewell: readonly string[];
   topics: readonly Answered[];
+  /** Who is being talked to, for judging a reply's `when` when it is offered. */
+  who: Subject;
+}
+
+/** The replies that may be said now: every one whose `when` holds, in order. */
+export function askable(replies: readonly Reply[] | undefined, state: WorldState, who: Subject): readonly Reply[] {
+  return (replies ?? []).filter((reply) => holds(reply.when, state, who));
 }
 
 const NOTHING: readonly string[] = [];
@@ -111,10 +121,10 @@ export function converse(mark: NpcMark, state: WorldState, doing?: string): Conv
     if (!holds(topic.when, state, who)) continue;
     const info = topic.infos.find((one) => holds(one.when, state, who));
     if (info) {
-      topics.push({ key: topic.key, label: topic.label, reply: info.reply, then: info.then, quest });
+      topics.push({ key: topic.key, label: topic.label, reply: info.reply, then: info.then, quest, ask: info.ask });
     }
   }
-  return { greeting, farewell, topics };
+  return { greeting, farewell, topics, who };
 }
 
 /** Runs what a line does. Written state only, so it takes the real thing. */

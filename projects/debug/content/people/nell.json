@@ -37,15 +37,35 @@
       },
       "infos": [
         {
-          "reply": "There is a letter wants taking to Hob at the farm, and I cannot leave the green. Would you? He is to read it himself.",
-          "then": [
+          "reply": "There is a letter wants taking to Hob at the farm, and I cannot leave the green. Would you carry it for me? He is to read it himself.",
+          "ask": [
             {
-              "do": "giveItem",
-              "item": "nells-letter"
+              "say": "Sure, I'll help.",
+              "reply": "Bless you. He is in the fields past the barn, on the west road. Do not let him tell you it can wait.",
+              "then": [
+                {
+                  "do": "giveItem",
+                  "item": "nells-letter"
+                },
+                {
+                  "do": "startQuest",
+                  "quest": "letter-for-hob"
+                }
+              ],
+              "ask": [
+                {
+                  "say": "What is in it?",
+                  "reply": "Mine to write and his to read. Go on."
+                },
+                {
+                  "say": "I'll take it now.",
+                  "reply": "Go careful on the road."
+                }
+              ]
             },
             {
-              "do": "startQuest",
-              "quest": "letter-for-hob"
+              "say": "No, not right now.",
+              "reply": "No. Well. It has kept three weeks; it will keep a while longer."
             }
           ]
         }

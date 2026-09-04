@@ -145,7 +145,12 @@ highest-ranked survivor of each key, each answered by the first of its infos
 that holds. A person outranks a trait, and a trait granted later outranks one
 granted earlier, which is how a visitor's own trait beats the one the zone hands
 everybody standing in it. A creature naming a person wears that person's body,
-resolved before the warm pass so the warm and the walk ask for the same mesh.
+resolved before the warm pass so the warm and the walk ask for the same mesh. An info may `ask` for replies — what the player says back, each with
+its own answer, effects and further replies — and every reply whose `when`
+holds is offered, judged when it is offered rather than when the topic was.
+A reply's `then` runs only when it is chosen, which is the whole of how a
+quest starts: the offer is a topic, the yes is a reply, and leaving at any
+point runs nothing.
 
 `items.ts` holds the fourth family: an **item** document is a builder's art
 under a name of its own — a letter that is Nell's, a candle that is Bess's —

@@ -1,15 +1,28 @@
 /**
- * Talking to somebody: their line low on the screen and the things you could
- * say under it.
+ * Talking to somebody: their line low on the screen, the things you could ask
+ * about on its left, and what you could say back on its right.
  *
  * Deliberately plain. There is no panel and no background — the words are
- * orphaned on the world, in the same register as the crosshair's prompt. The
- * real dialogue interface is a later pass; nothing here is precious.
+ * orphaned on the world, in the same register as the crosshair's prompt.
  */
 
 /** A line being voiced. */
 export interface Spoken {
   readonly seconds: number;
+}
+
+/**
+ * Something the player can pick: a topic on the left or a reply on the right.
+ * `chosen` runs on the click, before the answer; `ask` is what they may say
+ * back once the answer has been said, judged then.
+ */
+export interface Choice {
+  key: string;
+  label: string;
+  reply: string;
+  quest?: boolean;
+  chosen?: () => void;
+  ask?: () => readonly Choice[];
 }
 
 /** What the interface needs of whoever is being talked to. */
@@ -23,8 +36,8 @@ export interface Speaker {
   away(): number;
   readonly greeting: string;
   readonly farewell: string;
-  /** Resolved every time the choices go up, which is after every reply. */
-  topics(): readonly { key: string; label: string; reply: string; quest?: boolean; chosen?: () => void }[];
+  /** Resolved every time the topics go up, which is after every exchange. */
+  topics(): readonly Choice[];
 }
 
 export interface DialogueHandlers {
@@ -66,9 +79,12 @@ export class Dialogue {
   private readonly nameEl: HTMLDivElement;
   private readonly lineEl: HTMLDivElement;
   private readonly choicesEl: HTMLDivElement;
+  private readonly repliesEl: HTMLDivElement;
   private readonly scrim: HTMLDivElement;
   private speaker: Speaker | null = null;
   private waiting = 0;
+  /** What the player may say back once the line is done, or nothing, which is the topics again. */
+  private pending: readonly Choice[] | null = null;
   /** The line on screen, and the voice saying it. */
   private line = '';
   private spoken: Spoken | null = null;
@@ -102,7 +118,9 @@ export class Dialogue {
     this.lineEl.className = 'speech-line';
     this.choicesEl = document.createElement('div');
     this.choicesEl.className = 'speech-choices';
-    this.root.append(this.nameEl, this.lineEl, this.choicesEl);
+    this.repliesEl = document.createElement('div');
+    this.repliesEl.className = 'speech-replies';
+    this.root.append(this.nameEl, this.lineEl, this.choicesEl, this.repliesEl);
     overlay.append(this.scrim, this.root);
 
     // Capture phase: escape closes the conversation and nothing else, so it
@@ -161,7 +179,7 @@ export class Dialogue {
     this.waiting -= dt;
     if (this.waiting > 0) return;
     this.fill();
-    this.offer();
+    this.next();
   }
 
   /** How fast a goodbye runs down: walking away from whoever said it hurries it. */
@@ -173,7 +191,7 @@ export class Dialogue {
 
   private say(text: string, manner: 'greeting' | 'talk' | 'farewell' = 'talk'): void {
     this.line = text;
-    this.choicesEl.replaceChildren();
+    this.root.classList.add('is-talking');
     this.spoken = this.speaker?.speak(text, manner) ?? null;
     this.lay();
     this.waiting = this.spoken
@@ -195,7 +213,7 @@ export class Dialogue {
     }
     this.speaker.hush();
     this.waiting = 0;
-    this.offer();
+    this.next();
   }
 
   /**
@@ -248,33 +266,76 @@ export class Dialogue {
     this.lightUp(this.chars.length + FADE_CHARS);
   }
 
+  /** The line is done: what the player may say back, or the topics again. */
+  private next(): void {
+    this.root.classList.remove('is-talking');
+    const replies = this.pending;
+    this.pending = null;
+    if (replies && replies.length > 0) this.offerReplies(replies);
+    else this.offer();
+  }
+
   private offer(): void {
     const speaker = this.speaker;
     if (!speaker) return;
     this.waiting = 0;
+    this.repliesEl.replaceChildren();
+    this.choicesEl.classList.remove('is-busy');
     this.choicesEl.replaceChildren();
-    for (const topic of speaker.topics()) {
-      // What the line does, then the line: the reply was resolved before this.
-      const choice = this.choice(topic.label, () => {
-        topic.chosen?.();
-        this.say(topic.reply);
-      });
-      if (topic.quest) choice.classList.add('is-quest');
-      this.choicesEl.append(choice);
+    // Small talk first, then the quests under a rule, then the way out under
+    // another: the way out is not something to talk about.
+    const topics = speaker.topics();
+    let divide = false;
+    for (const quest of [false, true]) {
+      for (const topic of topics) {
+        if (Boolean(topic.quest) !== quest) continue;
+        const choice = this.choice(topic, this.choicesEl, (button) => this.pick(topic, this.choicesEl, button));
+        if (quest) choice.classList.add('is-quest');
+        if (divide) choice.classList.add('speech-divide');
+        divide = false;
+        this.choicesEl.append(choice);
+      }
+      divide = this.choicesEl.childElementCount > 0;
     }
-    // Always there, always last, and set apart: it is the way out rather than
-    // something to talk about.
-    const bye = this.choice('Farewell', () => this.leave());
-    bye.classList.add('speech-leave');
+    const bye = this.choice({ key: '', label: 'Farewell', reply: '' }, this.choicesEl, () => this.leave());
+    bye.classList.add('speech-divide');
     this.choicesEl.append(bye);
   }
 
-  private choice(label: string, chosen: () => void): HTMLButtonElement {
+  private offerReplies(replies: readonly Choice[]): void {
+    this.waiting = 0;
+    this.repliesEl.classList.remove('is-busy');
+    this.repliesEl.replaceChildren();
+    for (const reply of replies) {
+      this.repliesEl.append(this.choice(reply, this.repliesEl, (button) => this.pick(reply, this.repliesEl, button)));
+    }
+  }
+
+  /**
+   * Says a choice: it stays on screen marked as the one being said, the rest
+   * of its column waits, what it does runs, and the answer is read out. What
+   * may be said back is judged now, after the effects, and offered at the end.
+   */
+  private pick(choice: Choice, column: HTMLDivElement, button: HTMLButtonElement): void {
+    for (const held of column.children) held.classList.toggle('is-saying', held === button);
+    column.classList.add('is-busy');
+    choice.chosen?.();
+    this.pending = choice.ask?.() ?? null;
+    this.say(choice.reply);
+  }
+
+  private choice(of: Choice, column: HTMLDivElement, chosen: (button: HTMLButtonElement) => void): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'speech-choice';
-    button.textContent = label;
-    button.addEventListener('click', chosen);
+    button.textContent = of.label;
+    const bubble = document.createElement('span');
+    bubble.className = 'speech-bubble';
+    bubble.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+    button.append(bubble);
+    button.addEventListener('click', () => {
+      if (!column.classList.contains('is-busy')) chosen(button);
+    });
     return button;
   }
 
@@ -295,6 +356,8 @@ export class Dialogue {
     this.line = speaker.farewell;
     this.lay();
     this.choicesEl.replaceChildren();
+    this.repliesEl.replaceChildren();
+    this.pending = null;
     this.elapsed = 0;
   }
 
@@ -321,6 +384,7 @@ export class Dialogue {
       this.line = '';
       this.lay();
       this.choicesEl.replaceChildren();
+      this.repliesEl.replaceChildren();
       this.nameEl.textContent = '';
     }, FADE_OUT);
   }

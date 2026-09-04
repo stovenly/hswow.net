@@ -40,11 +40,31 @@
       },
       "infos": [
         {
-          "reply": "My goat is out. Went through the stile at first light and has not come back. Ask about, would you.",
-          "then": [
+          "reply": "My goat is out. Went through the stile at first light and has not come back, and I cannot leave the stall. Would you ask about for her?",
+          "ask": [
             {
-              "do": "startQuest",
-              "quest": "missing-goat"
+              "say": "Sure, I'll help.",
+              "reply": "Good. Start with Tom — he is stood out there all day with nothing better to look at than the road.",
+              "then": [
+                {
+                  "do": "startQuest",
+                  "quest": "missing-goat"
+                }
+              ],
+              "ask": [
+                {
+                  "say": "What does she look like?",
+                  "reply": "Like a goat. Brown, one horn shorter than the other, and a look on her like she is owed money."
+                },
+                {
+                  "say": "I'll go and ask, then.",
+                  "reply": "Do. And do not let Tom keep you."
+                }
+              ]
+            },
+            {
+              "say": "No, not right now.",
+              "reply": "No. Well. She will not walk herself back, but she will keep till you are less busy."
             }
           ]
         }
@@ -61,11 +81,31 @@
       },
       "infos": [
         {
-          "reply": "What Bess owes. Two winters of candles for that wheel of hers, and she sits in the workshop on the east side of the green pretending she has never met me. Go and stand in her door until she remembers.",
-          "then": [
+          "reply": "What Bess owes. Two winters of candles for that wheel of hers, and she sits in the workshop on the east side of the green pretending she has never met me. Would you go and stand in her door until she remembers?",
+          "ask": [
             {
-              "do": "startQuest",
-              "quest": "bess-debt"
+              "say": "Sure, I'll help.",
+              "reply": "Then stand there. Do not let her spin at you — she will tell you it is my fault, and you are to tell her it is not.",
+              "then": [
+                {
+                  "do": "startQuest",
+                  "quest": "bess-debt"
+                }
+              ],
+              "ask": [
+                {
+                  "say": "How much is it?",
+                  "reply": "Enough to be worth your walk and not enough to be worth mine. Two winters."
+                },
+                {
+                  "say": "I'll go and see her.",
+                  "reply": "The workshop. East side of the green, the door with the wheel behind it."
+                }
+              ]
+            },
+            {
+              "say": "No, not right now.",
+              "reply": "Suit yourself. The debt is not going anywhere and neither is she."
             }
           ]
         }

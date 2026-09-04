@@ -154,6 +154,29 @@
           ]
         }
       ]
+    },
+    {
+      "key": "debt-where",
+      "label": "Bess's debt",
+      "when": {
+        "all": [
+          {
+            "cast": "creditor",
+            "of": "bess-debt"
+          },
+          {
+            "quest": "bess-debt",
+            "stage": {
+              "max": 19
+            }
+          }
+        ]
+      },
+      "infos": [
+        {
+          "reply": "Have you been to her door yet? The workshop, east side of the green. Stand in it until she remembers me."
+        }
+      ]
     }
   ]
 }

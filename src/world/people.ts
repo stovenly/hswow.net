@@ -32,10 +32,24 @@ export type Effect =
   | { do: 'giveItem'; item?: string; builder?: string; seed?: number }
   | { do: 'takeItem'; item?: string; builder?: string };
 
+/**
+ * Something the player can say back. Every reply whose `when` holds is
+ * offered, in order; `then` runs only when it is chosen, before the answer.
+ */
+export interface Reply {
+  when?: Condition;
+  say: string;
+  reply: string;
+  then?: readonly Effect[];
+  ask?: readonly Reply[];
+}
+
 export interface Info {
   when?: Condition;
   reply: string;
   then?: readonly Effect[];
+  /** What the player may say back, once this has been said. */
+  ask?: readonly Reply[];
 }
 
 export interface Topic {

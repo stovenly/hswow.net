@@ -19,8 +19,9 @@ import { contentWorld, loadSidecars } from './content';
 import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction, type NpcMark } from '../world/Interaction';
-import { Dialogue } from '../ui/Dialogue';
-import { apply, converse, pick } from '../world/dialogue';
+import { Dialogue, type Choice } from '../ui/Dialogue';
+import { apply, askable, converse, pick } from '../world/dialogue';
+import type { Reply } from '../world/people';
 import { worldState } from '../world/state';
 import type { Creature } from '../life/Creature';
 import { Reticle, Fade } from '../ui/Reticle';
@@ -336,6 +337,16 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     const turn = talkTurn++;
     talkingTo = creature;
     creature.beginConverse();
+    const said = { person: mark.person, name: mark.name };
+    // A reply's `then` runs on the click and its own replies are judged after,
+    // so a yes that starts a quest offers what a started quest can say.
+    const choiceOf = (reply: Reply): Choice => ({
+      key: reply.say,
+      label: reply.say,
+      reply: reply.reply,
+      chosen: reply.then ? () => apply(reply.then, worldState, said) : undefined,
+      ask: reply.ask ? () => askable(reply.ask, worldState, talk.who).map(choiceOf) : undefined,
+    });
     dialogue.open({
       name: mark.name,
       greeting: pick(talk.greeting, creature.spec.seed, turn),
@@ -343,9 +354,8 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       topics: () =>
         converse(mark, worldState, creature.doing).topics.map((topic) => ({
           ...topic,
-          chosen: topic.then
-            ? () => apply(topic.then, worldState, { person: mark.person, name: mark.name })
-            : undefined,
+          chosen: topic.then ? () => apply(topic.then, worldState, said) : undefined,
+          ask: topic.ask ? () => askable(topic.ask, worldState, talk.who).map(choiceOf) : undefined,
         })),
       speak: (text, manner) => creature.say(text, manner),
       hush: () => creature.hush(),
