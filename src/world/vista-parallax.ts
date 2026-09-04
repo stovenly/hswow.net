@@ -32,6 +32,11 @@ import type { Outline } from './vista';
  * stopped prop also counts for more the further short it stopped, so an obstacle
  * arrives gradually rather than appearing. A prop already touching something is
  * free to move away from it.
+ *
+ * How far short a prop stops is eased in time. Where the ray stops is not a
+ * continuous function of its direction: as the camera moves the ray swings past a
+ * corner of the keep-out or the edge of a stopped neighbour, and the stopping
+ * distance jumps. The parallax itself is instant; only the stop glides.
  */
 
 /** One prop that moves, and what it needs to know to be stopped. */
@@ -53,6 +58,8 @@ export interface ParallaxProp {
 const MARCH = 12;
 /** Metres short a prop has stopped by the time it is a full obstacle to the ones behind it. */
 const OBSTACLE_FADE = 8;
+/** Seconds for a change in how far short a prop stops to be mostly made. */
+const STOP_EASE = 0.35;
 
 export class VistaParallax {
   /** Resolve order: nearest the keep-out first. See the class note. */
@@ -60,14 +67,13 @@ export class VistaParallax {
   private readonly keepOut: readonly Outline[];
   /** Where each prop ended up this frame, in resolve order, as flat XZ pairs. */
   private readonly at: Float64Array;
-  /** How far short of its own parallax each prop had to stop, this frame. */
+  /** How far short of its own parallax each prop stands, eased toward this frame's answer. */
   private readonly short: Float64Array;
   /** How near the keep-out each prop was placed, capped at its own half-extent. */
   private readonly keepRoom: Float64Array;
   /** How near two props may come, as a square table in resolve order. */
   private readonly propRoom: Float64Array;
-  private lastX = NaN;
-  private lastZ = NaN;
+  private lastTime = NaN;
 
   constructor(props: readonly ParallaxProp[], keepOut: readonly Outline[] = []) {
     this.keepOut = keepOut;
@@ -108,9 +114,10 @@ export class VistaParallax {
    * is its offset. Pass `(0, 0)` to put everything back where it was authored.
    */
   update(x: number, z: number): void {
-    if (x === this.lastX && z === this.lastZ) return;
-    this.lastX = x;
-    this.lastZ = z;
+    const now = performance.now();
+    const dt = Number.isNaN(this.lastTime) ? Infinity : Math.min(0.1, (now - this.lastTime) / 1000);
+    this.lastTime = now;
+    const blend = 1 - Math.exp(-dt / STOP_EASE);
 
     const n = this.props.length;
     for (let i = 0; i < n; i++) {
@@ -142,11 +149,15 @@ export class VistaParallax {
         }
       }
 
-      const px = prop.base[0] + (span > 0 ? (offsetX / span) * gone : 0);
-      const pz = prop.base[1] + (span > 0 ? (offsetZ / span) * gone : 0);
+      // The stop this frame asks for, approached rather than taken: it can jump
+      // and the eye must not see it do so. Never beyond the whole offset.
+      const short = Math.min(span, this.short[i] + (span - gone - this.short[i]) * blend);
+      const run = span - short;
+      const px = prop.base[0] + (span > 1e-4 ? (offsetX / span) * run : 0);
+      const pz = prop.base[1] + (span > 1e-4 ? (offsetZ / span) * run : 0);
       this.at[i * 2] = px;
       this.at[i * 2 + 1] = pz;
-      this.short[i] = span - gone;
+      this.short[i] = short;
       prop.mesh.position.x = px;
       prop.mesh.position.z = pz;
     }
