@@ -431,16 +431,25 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float line = sin(surfPhase);
       // A wave builds as the bed comes up under it and breaks over the last
       // metre; below that the white is the waterline's own.
-      float build = smoothstep(2.8, 0.9, depth) * smoothstep(0.12, 0.35, depth);
+      float build = smoothstep(2.2, 0.8, depth) * smoothstep(0.12, 0.35, depth);
       // Broken along its length: a real breaker is a run of white with gaps,
       // not a rule, and the gaps drift with the water.
       float run = streaked(vWorld.xz - stream * 0.6, along, stretch, 0.32);
       float ragged = streaked(vWorld.xz - stream * 1.2, along, stretch, 1.4);
       float gate = run * 0.7 + ragged * 0.3;
       float lw = fwidth(line);
-      float breaker =
-        smoothstep(0.35 + (1.0 - gate) * 0.55 - lw, 0.95 + lw, line) * build *
+      // The crest is a narrow strip — the top tenth of the wave and no more —
+      // and where the run is gapped it is not there at all.
+      float crestLine =
+        smoothstep(0.82 + (1.0 - gate) * 0.4 - lw, 0.97 + lw, line) * build *
         smoothstep(0.08, 0.35, agitation);
+      // Behind the crest, on the shore side, the broken water trails off as a
+      // lacy pale wash that thins away before the next wave. Wash only, never
+      // white: it never reaches the second band's threshold.
+      float u = fract((surfPhase - 1.5708) * 0.15915);
+      float trail = smoothstep(0.55, 0.92, u) * (1.0 - smoothstep(0.92, 1.0, u));
+      float lace = smoothstep(0.42, 0.7, ragged * 0.6 + run * 0.4);
+      float breaker = max(crestLine, trail * lace * 0.5 * build * smoothstep(0.08, 0.35, agitation));
 
       // --- whitecaps ------------------------------------------------------------
       // Out in deep water the wind tears the odd crest: sparse patches placed by
