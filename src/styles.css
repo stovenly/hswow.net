@@ -2029,6 +2029,18 @@ body.is-identifying #pause {
   grid-template-columns: var(--inv-cell);
 }
 
+/* The grid takes whatever height the window has left and scrolls inside
+   itself; the window body does not scroll. */
+.inv-pack-body {
+  grid-template-rows: auto minmax(calc(var(--inv-cell) * 2), 1fr) auto;
+  overflow: hidden;
+}
+
+.inv-holder-body {
+  grid-template-rows: minmax(calc(var(--inv-cell) * 2), 1fr);
+  overflow: hidden;
+}
+
 /* One box round the whole grid; the cells inside are bare. Cells are one
    fixed size everywhere, and a bigger window shows more of them. */
 .inv-grid {
@@ -2037,8 +2049,11 @@ body.is-identifying #pause {
   gap: 0.35rem;
   justify-content: start;
   align-content: start;
-  min-height: calc(var(--inv-cell) * 2);
+  min-height: 0;
   padding: 0.35rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(220 220 200 / 30%) transparent;
   background: rgb(220 220 200 / 3%);
   border: 1px solid rgb(220 220 200 / 22%);
 }

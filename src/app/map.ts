@@ -89,7 +89,7 @@ export function installMap(app: App, overlay: HTMLElement): MapScreen {
   });
 
   window.addEventListener('keydown', (event) => {
-    if (event.code !== 'KeyM' || event.repeat) return;
+    if (event.code !== 'KeyM' || event.repeat || event.defaultPrevented) return;
     if (screen.shown) {
       event.preventDefault();
       screen.hide();

@@ -25,7 +25,7 @@ export function installJournal(app: App, overlay: HTMLElement, notices: Notices)
   };
 
   window.addEventListener('keydown', (event) => {
-    if (event.code !== 'KeyJ' || event.repeat) return;
+    if (event.code !== 'KeyJ' || event.repeat || event.defaultPrevented) return;
     if (journal.shown) {
       event.preventDefault();
       journal.hide();

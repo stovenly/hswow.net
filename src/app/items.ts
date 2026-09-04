@@ -126,7 +126,6 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   });
 
   let wasPlaying = false;
-  let resumeAfterReading = false;
   const ui = new InventoryUI(overlay, inventory, icons, {
     onOpen: () => {
       wasPlaying = app.input.locked;
@@ -151,12 +150,8 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     readItem: (item) => {
       if (!item.builder || !isReadable(item.builder)) return false;
       const bound = typeof item.state?.text === 'string' ? noteById(item.state.text) : undefined;
-      // Already owned, so the page opens with nothing to take. The pack window
-      // must not recapture on the way down — the book holds the mouse free, and
-      // play resumes when it closes.
-      resumeAfterReading = wasPlaying;
-      wasPlaying = false;
-      ui.hide();
+      // Already owned, so the page opens with nothing to take; and over the pack
+      // rather than instead of it, so closing the page is back to the pack.
       app.reading.open(bound ?? { id: '', title: item.name, body: '' });
       return true;
     },
@@ -269,7 +264,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
   };
 
   window.addEventListener('keydown', (event) => {
-    if ((event.code !== 'Tab' && event.code !== 'KeyI') || event.repeat) return;
+    if ((event.code !== 'Tab' && event.code !== 'KeyI') || event.repeat || event.defaultPrevented) return;
     if (app.reading.shown || document.body.classList.contains('is-map') || document.body.classList.contains('is-journal')) return;
     if (ui.shown) {
       event.preventDefault();
@@ -280,13 +275,6 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     event.preventDefault();
     ui.show();
   });
-
-  app.reading.closed = () => {
-    if (!resumeAfterReading) return;
-    resumeAfterReading = false;
-    document.body.classList.add('is-capturing');
-    void app.input.capture().finally(() => document.body.classList.remove('is-capturing'));
-  };
 
   app.onFrame((dt) => {
     if (app.input.takeAttack() && held.swing()) sounds.swing();

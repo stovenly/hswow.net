@@ -340,7 +340,9 @@ export class Reading {
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (!this.open_ || event.repeat) return;
     switch (event.code) {
+      // Tab as well: the top of the stack comes off, and the pack under it stays.
       case 'Escape':
+      case 'Tab':
         this.close();
         break;
       // The second press of the key that opened it: reading something you could

@@ -161,6 +161,7 @@ export class InventoryUI {
     this.note = document.createElement('div');
     this.note.className = 'inv-note';
 
+    this.pack.body.classList.add('inv-pack-body');
     this.pack.body.append(equip, this.packGrid, this.note);
 
     // The container window, right by default.
@@ -186,6 +187,7 @@ export class InventoryUI {
     this.containerGrid = document.createElement('div');
     this.containerGrid.className = 'inv-grid';
     this.holder.root.dataset.drop = 'container';
+    this.holder.body.classList.add('inv-holder-body');
     this.holder.body.append(this.containerGrid);
 
     this.tip = document.createElement('div');
@@ -534,7 +536,9 @@ export class InventoryUI {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open_ || event.repeat) return;
+    if (!this.open_ || event.repeat || event.defaultPrevented) return;
+    // A page open over the pack has every key; the pack waits under it.
+    if (document.body.classList.contains('is-reading')) return;
     if (event.code === 'Escape') {
       event.preventDefault();
       this.hide();
@@ -542,7 +546,11 @@ export class InventoryUI {
     }
     if (event.code !== 'KeyE' || this.ghost) return;
     if (this.hovered) {
-      if (this.handlers.readItem(this.hovered)) event.preventDefault();
+      if (this.handlers.readItem(this.hovered)) {
+        event.preventDefault();
+        // The page covers the cell without the pointer leaving it.
+        this.tip.hidden = true;
+      }
       return;
     }
     // The key that opened the container closes it again.
