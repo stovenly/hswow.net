@@ -21,7 +21,7 @@ export interface ShoreGrid {
 
 /** One value per grid vertex, row-major. `dir` is two per vertex. */
 export interface ShoreField {
-  /** Still-water column, metres. Zero or less on land. */
+  /** Still-water column, metres. On land, minus the distance to the water, metres. */
   h: Float32Array;
   /** The shore train's spatial phase, radians. */
   sigma: Float32Array;
@@ -53,11 +53,83 @@ const TRIAL = 1;
 const KNOWN = 2;
 
 /**
+ * Fast marching over the grid: `field` becomes the eikonal solution with the
+ * given cost per metre, growing outward from the cells already `KNOWN` and
+ * pushed on `heap`, over the cells `admits` allows.
+ */
+function march(
+  grid: ShoreGrid,
+  field: Float32Array,
+  state: Uint8Array,
+  heap: Heap,
+  admits: (n: number) => boolean,
+  cost: (n: number) => number,
+): void {
+  const { cols, rows, sx, sz } = grid;
+  const count = cols * rows;
+  const ax = 1 / (sx * sx);
+  const az = 1 / (sz * sz);
+  const update = (n: number): void => {
+    if (state[n] === KNOWN || !admits(n)) return;
+    const i = n % cols;
+    let a = Infinity;
+    let b = Infinity;
+    if (i > 0 && state[n - 1] === KNOWN) a = field[n - 1];
+    if (i < cols - 1 && state[n + 1] === KNOWN) a = Math.min(a, field[n + 1]);
+    if (n >= cols && state[n - cols] === KNOWN) b = field[n - cols];
+    if (n + cols < count && state[n + cols] === KNOWN) b = Math.min(b, field[n + cols]);
+    const c = cost(n);
+    let value: number;
+    if (a === Infinity) value = b + c * sz;
+    else if (b === Infinity) value = a + c * sx;
+    else {
+      const p = ax * a + az * b;
+      const q = ax * a * a + az * b * b - c * c;
+      const disc = p * p - (ax + az) * q;
+      value = disc >= 0 ? (p + Math.sqrt(disc)) / (ax + az) : Infinity;
+      if (value < Math.max(a, b)) value = Math.min(a + c * sx, b + c * sz);
+    }
+    if (state[n] === FAR || value < field[n]) {
+      field[n] = value;
+      state[n] = TRIAL;
+      heap.push(value, n);
+    }
+  };
+  while (heap.size > 0) {
+    const n = heap.pop();
+    if (state[n] === KNOWN && heap.lastValue > field[n]) continue;
+    state[n] = KNOWN;
+    const i = n % cols;
+    if (i > 0) update(n - 1);
+    if (i < cols - 1) update(n + 1);
+    if (n >= cols) update(n - cols);
+    if (n + cols < count) update(n + cols);
+  }
+}
+
+/** Every known cell with an unknown neighbour, pushed as a seed. */
+function seedEdge(grid: ShoreGrid, field: Float32Array, state: Uint8Array, heap: Heap): void {
+  const { cols, rows } = grid;
+  const count = cols * rows;
+  for (let n = 0; n < count; n++) {
+    if (state[n] !== KNOWN) continue;
+    const i = n % cols;
+    if (
+      (i > 0 && state[n - 1] !== KNOWN) ||
+      (i < cols - 1 && state[n + 1] !== KNOWN) ||
+      (n >= cols && state[n - cols] !== KNOWN) ||
+      (n + cols < count && state[n + cols] !== KNOWN)
+    )
+      heap.push(field[n], n);
+  }
+}
+
+/**
  * The phase is the eikonal solution |∇σ| = k(h) over the water, marched inward
  * from the perimeter where it is the swell's own plane wave, with land as an
  * obstacle. Land is then marched from the waterline at twice the deep
  * wavenumber, so the sand is timed by the wave that reaches it and the swash
- * runs up it as one sheet.
+ * runs up it as one sheet; it also learns how far from the water it stands.
  */
 export function bakeShore(
   grid: ShoreGrid,
@@ -109,63 +181,19 @@ export function bakeShore(
   }
   if (seeded === 0) for (let n = 0; n < count; n++) if (onRim(n)) seed(n);
 
-  const ax = 1 / (sx * sx);
-  const az = 1 / (sz * sz);
-  const march = (admits: (n: number) => boolean, cost: (n: number) => number): void => {
-    const update = (n: number): void => {
-      if (state[n] === KNOWN || !admits(n)) return;
-      const i = n % cols;
-      let a = Infinity;
-      let b = Infinity;
-      if (i > 0 && state[n - 1] === KNOWN) a = sigma[n - 1];
-      if (i < cols - 1 && state[n + 1] === KNOWN) a = Math.min(a, sigma[n + 1]);
-      if (n >= cols && state[n - cols] === KNOWN) b = sigma[n - cols];
-      if (n + cols < count && state[n + cols] === KNOWN) b = Math.min(b, sigma[n + cols]);
-      const c = cost(n);
-      let value: number;
-      if (a === Infinity) value = b + c * sz;
-      else if (b === Infinity) value = a + c * sx;
-      else {
-        const p = ax * a + az * b;
-        const q = ax * a * a + az * b * b - c * c;
-        const disc = p * p - (ax + az) * q;
-        value = disc >= 0 ? (p + Math.sqrt(disc)) / (ax + az) : Infinity;
-        if (value < Math.max(a, b)) value = Math.min(a + c * sx, b + c * sz);
-      }
-      if (state[n] === FAR || value < sigma[n]) {
-        sigma[n] = value;
-        state[n] = TRIAL;
-        heap.push(value, n);
-      }
-    };
-    while (heap.size > 0) {
-      const n = heap.pop();
-      if (state[n] === KNOWN && heap.lastValue > sigma[n]) continue;
-      state[n] = KNOWN;
-      const i = n % cols;
-      if (i > 0) update(n - 1);
-      if (i < cols - 1) update(n + 1);
-      if (n >= cols) update(n - cols);
-      if (n + cols < count) update(n + cols);
-    }
-  };
+  march(grid, sigma, state, heap, (n) => h[n] > 0, (n) => k[n]);
 
-  march((n) => h[n] > 0, (n) => k[n]);
+  // How far each cell the water never reached stands from the water, metres.
+  const away = new Float32Array(count);
+  const awayState = state.slice();
+  seedEdge(grid, away, awayState, heap);
+  march(grid, away, awayState, heap, () => true, () => 1);
 
-  // Then everything the water march left, from the water's own edge.
-  for (let n = 0; n < count; n++) {
-    if (state[n] !== KNOWN) continue;
-    const i = n % cols;
-    if (
-      (i > 0 && state[n - 1] !== KNOWN) ||
-      (i < cols - 1 && state[n + 1] !== KNOWN) ||
-      (n >= cols && state[n - cols] !== KNOWN) ||
-      (n + cols < count && state[n + cols] !== KNOWN)
-    )
-      heap.push(sigma[n], n);
-  }
+  seedEdge(grid, sigma, state, heap);
   const landCost = 2 * k0;
-  march(() => true, () => landCost);
+  march(grid, sigma, state, heap, () => true, () => landCost);
+
+  for (let n = 0; n < count; n++) if (h[n] <= 0) h[n] = -away[n];
 
   // The travel direction is up the phase gradient: σ grows the way the wave goes.
   for (let n = 0; n < count; n++) {

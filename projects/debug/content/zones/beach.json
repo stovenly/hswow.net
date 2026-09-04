@@ -159,6 +159,24 @@
         ],
         "radius": 5,
         "depth": 0.5
+      },
+      {
+        "kind": "basin",
+        "at": [
+          -52,
+          6
+        ],
+        "radius": 26,
+        "depth": 2
+      },
+      {
+        "kind": "basin",
+        "at": [
+          52,
+          6
+        ],
+        "radius": 26,
+        "depth": 2
       }
     ],
     "patches": [
