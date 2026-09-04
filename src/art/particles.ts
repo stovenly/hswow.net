@@ -51,6 +51,12 @@ export interface ParticleSpec {
   speed: readonly [number, number];
   /** Seconds. `fall` and `tumble` derive their own from the box and the speed. */
   life?: number;
+  /**
+   * Seconds an emitter's particle waits, unseen, between one life and the next
+   * — rolled per instance up to this, with the phases rolled too, so the
+   * system fires on noise rather than as a stream. Embers, not a plume.
+   */
+  rest?: number;
   /** Metres per second squared. Downward for `ballistic`, upward for `rise`. */
   gravity?: number;
   /** How much of the air's motion it takes, 0..1. See §4. */
@@ -161,6 +167,8 @@ attribute vec4 iVary;
 // rgb, and the spec's own opacity in w
 attribute vec4 iColour;
 attribute float iSpin;
+// An emitter's whole cycle, life and rest; zero is no rest.
+attribute float iCycle;
 
 uniform sampler2D gustIntegral;
 uniform sampler2D gustField;
@@ -242,7 +250,8 @@ const PARTICLE_VERTEX = /* glsl */ `
     float fallen = mod(iOrigin.y + t * iShape.y + centre.y + box.y * 0.5, max(box.y, 0.01));
     age = fallen / max(iShape.y, 0.0001);
   } else {
-    age = mod(t + iShape.z, max(iShape.w, 0.01));
+    // Past the life and inside the cycle the closed forms fade it to nothing.
+    age = mod(t + iShape.z, max(iCycle > 0.0 ? iCycle : iShape.w, 0.01));
   }
 
   // --- the wind, integrated over that age ----------------------------------
@@ -637,6 +646,7 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   const vary = new Float32Array(count * 4);
   const colour = new Float32Array(count * 4);
   const spin = new Float32Array(count);
+  const cycle = new Float32Array(count);
 
   const motion = MOTION_CODE[spec.motion];
   const volume = VOLUME_CODE[spec.volume.kind];
@@ -682,8 +692,10 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
     shape[i * 4 + 1] = speed;
     // Evenly staggered rather than rolled. A hundred and twenty sparks sharing
     // one cycle at even offsets is a continuous shower; rolled phases clump,
-    // and a clump reads as a pulse.
-    shape[i * 4 + 2] = (i / count) * life;
+    // and a clump reads as a pulse — which is what a resting system wants.
+    const rest = !wrapped && spec.rest ? spec.rest * rng.range(0.3, 1) : 0;
+    cycle[i] = rest > 0 ? life + rest : 0;
+    shape[i * 4 + 2] = rest > 0 ? rng.range(0, life + rest) : (i / count) * life;
     shape[i * 4 + 3] = wrapped ? (spec.turbulence ?? 0) : life;
 
     if (box) {
@@ -722,6 +734,7 @@ export function createParticles(spec: ParticleSpec, seed = 1): THREE.Mesh {
   geometry.setAttribute('iVary', new THREE.InstancedBufferAttribute(vary, 4));
   geometry.setAttribute('iColour', new THREE.InstancedBufferAttribute(colour, 4));
   geometry.setAttribute('iSpin', new THREE.InstancedBufferAttribute(spin, 1));
+  geometry.setAttribute('iCycle', new THREE.InstancedBufferAttribute(cycle, 1));
 
   const material = spec.emissive ? PARTICLE_GLOW_MATERIAL : PARTICLE_MATERIAL;
   const mesh = new THREE.Mesh(geometry, material);

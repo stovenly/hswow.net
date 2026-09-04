@@ -46,6 +46,7 @@ installFlameAir((flame, size, seed, roof) => {
       opacity: 0.9,
       speed,
       life,
+      rest: 2.4,
       gravity,
       turbulence: size * 0.2,
       // Almost none of the wind: the default half would carry an ember a metre
