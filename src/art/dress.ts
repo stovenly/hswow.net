@@ -39,6 +39,9 @@ installFlameAir((flame, size, seed) => {
       life: 0.7,
       gravity: 0.25,
       turbulence: size * 0.4,
+      // Almost none of the wind: the default half would carry an ember a metre
+      // sideways in its life, and a candle indoors stands in the zone's wind too.
+      windDrag: 0.03,
       emissive: true,
       weather: false,
     },
