@@ -311,7 +311,7 @@ export function bipedGreet(pose: Pose, kind: Greeting, t01: number, side: 1 | -1
   pose.turn('head', 0, 0, side * 0.1 * e);
 }
 
-export type Fidget = 'stretch' | 'scratch' | 'fold' | 'lookAround' | 'shift';
+export type Fidget = 'stretch' | 'scratch' | 'fold' | 'lookAround' | 'shift' | 'nod';
 
 /** Idle business for a figure: one small piece of it, over `t01`. */
 export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, salt: number, side: 1 | -1, fit: GestureFit | undefined, w = 1): void {
@@ -373,6 +373,14 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
       pose.turn(`${other}u`, 0.05 * e);
       break;
     }
+    case 'nod': {
+      // Two slow nods and a small tilt: listening, and agreeing with it.
+      const e = envelope(t01, 0.2, 0.3) * w;
+      const dip = Math.max(0, Math.sin(t01 * Math.PI * 4)) * 0.12;
+      pose.turn('head', (0.04 + dip) * e, 0, side * 0.06 * e);
+      pose.turn('neck', dip * 0.3 * e);
+      break;
+    }
   }
 }
 
@@ -382,11 +390,13 @@ export function bipedFidget(pose: Pose, kind: Fidget, t01: number, t: number, sa
  * each syllable, and the motif on the front of the head works with the voice
  * (`faceTalk`).
  *
- * Six ways of holding the hands while it does — the gesture families people
+ * Ten ways of holding the body while it does — the gesture families people
  * actually talk with: beats on the stress, a listing roll, a broad sweep, both
- * hands clasped and none of it, a point at the listener, and two hands open.
+ * hands clasped and none of it, a point at the listener, two hands open, a
+ * shrug, a hand at the chin, a hand on the hip, and leaning in. Each carries
+ * its own head: how it nods, whether it tilts, where it looks.
  */
-export type Talk = 'beat' | 'roll' | 'sweep' | 'clasp' | 'point' | 'open';
+export type Talk = 'beat' | 'roll' | 'sweep' | 'clasp' | 'point' | 'open' | 'shrug' | 'chin' | 'hip' | 'lean';
 
 export function bipedTalk(
   pose: Pose,
@@ -445,18 +455,86 @@ export function bipedTalk(
       pose.turn('clavL', 0, 0, 0.05 * w);
       pose.turn('clavR', 0, 0, -0.05 * w);
       break;
+    case 'shrug': {
+      // Elbows out, palms up, the shoulders riding up on the stresses.
+      const up = 0.5 + 0.5 * beat;
+      pose.turn('armLu', -0.2 * w, 0.2 * w, (0.55 + 0.15 * up) * w);
+      pose.turn('armRu', -0.2 * w, -0.2 * w, -(0.55 + 0.15 * up) * w);
+      pose.turn('armLl', (-1.5 - 0.2 * beat) * w, 0.9 * w, 0.4 * w);
+      pose.turn('armRl', (-1.5 - 0.2 * beat) * w, -0.9 * w, -0.4 * w);
+      pose.turn('clavL', 0, 0, (0.12 + 0.1 * up) * w);
+      pose.turn('clavR', 0, 0, -(0.12 + 0.1 * up) * w);
+      pose.turn('chest', -0.03 * up * w);
+      break;
+    }
+    case 'chin':
+      // One hand up at the chin, the other arm across; the head rests on it
+      // and tilts, looking off and back.
+      pose.turn(`${arm}u`, -0.55 * w, side * 0.35 * w, side * 0.25 * w);
+      pose.turn(`${arm}l`, (-2.15 - 0.05 * beat) * w, side * 0.55 * w, side * 0.15 * w);
+      pose.turn(`${other}u`, -0.25 * w, -side * 0.4 * w, 0);
+      pose.turn(`${other}l`, -1.9 * w, -side * 0.7 * w, 0);
+      pose.turn('head', 0, side * (0.12 + 0.1 * wobble(t * 0.7, salt + 16)) * w, -side * 0.14 * w);
+      pose.turn('torso', 0, side * 0.05 * w, 0);
+      break;
+    case 'hip':
+      // A hand on the hip, elbow out, the other one working lightly.
+      pose.turn(`${other}u`, 0.15 * w, -side * 0.35 * w, -side * 0.55 * w);
+      pose.turn(`${other}l`, -1.35 * w, -side * 1.1 * w, -side * 0.3 * w);
+      pose.turn(`${arm}u`, (-0.3 - 0.1 * beat) * w, 0, side * 0.25 * w);
+      pose.turn(`${arm}l`, (-0.8 - 0.4 * g - 0.25 * beat) * w, 0, side * 0.2 * w);
+      pose.turn('hips', 0, 0, side * 0.05 * w);
+      pose.turn('torso', 0, 0, -side * 0.06 * w);
+      break;
+    case 'lean':
+      // Leaning in to whoever is listening, hands low and open, and every
+      // stress leaning a little further.
+      pose.turn('torso', (0.1 + 0.05 * beat) * w);
+      pose.turn('chest', 0.06 * w);
+      pose.turn('head', -0.08 * w);
+      pose.turn('armLu', -0.15 * w, 0.1 * w, 0.2 * w);
+      pose.turn('armRu', -0.15 * w, -0.1 * w, -0.2 * w);
+      pose.turn('armLl', (-0.5 - 0.2 * beat) * w, 0.3 * w, 0.2 * w);
+      pose.turn('armRl', (-0.5 - 0.2 * beat) * w, -0.3 * w, -0.2 * w);
+      break;
   }
+
+  // The head, in the style's own manner. `nod` is how far it dips on a
+  // stress, `tilt` a lean of the head to one side that comes and goes,
+  // `glance` how far it looks away between stresses. The listener is looked
+  // back at on every beat, which is what makes the glances read as thought
+  // rather than distraction.
+  const manner = HEAD_MANNER[kind];
+  const away = 1 - beat;
   pose.turn(
     'head',
-    (0.04 + 0.05 * syllable + 0.05 * beat) * w,
-    0.05 * wobble(t * 1.7, salt + 13) * w,
-    (0.03 * wobble(t * 1.3, salt + 14) + 0.03 * beat) * w,
+    (0.04 + 0.05 * syllable + manner.nod * beat) * w,
+    (manner.glance * wobble(t * 0.9, salt + 13) * away + 0.05 * wobble(t * 1.7, salt + 17)) * w,
+    (manner.tilt * wobble(t * 0.6, salt + 14) + 0.03 * beat) * w,
   );
-  pose.turn('torso', 0.02 * w);
+  // The whole figure keeps a slow weight shift under all of it.
+  const sway = wobble(t * 0.35, salt + 18);
+  pose.move('hips', 0.012 * sway * w, 0, 0);
+  pose.turn('hips', 0, 0, -0.02 * sway * w);
+  pose.turn('torso', 0.02 * w, 0, 0.025 * sway * w);
   pose.turn('chest', (0.015 + 0.015 * beat) * w);
   pose.turn('nubL', -0.12 * syllable * w);
   pose.turn('nubR', -0.12 * syllable * w);
 }
+
+/** How each talking style carries the head. Radians. */
+const HEAD_MANNER: Record<Talk, { nod: number; tilt: number; glance: number }> = {
+  beat: { nod: 0.07, tilt: 0.03, glance: 0.05 },
+  roll: { nod: 0.04, tilt: 0.08, glance: 0.12 },
+  sweep: { nod: 0.05, tilt: 0.05, glance: 0.18 },
+  clasp: { nod: 0.09, tilt: 0.04, glance: 0.04 },
+  point: { nod: 0.08, tilt: 0.02, glance: 0.02 },
+  open: { nod: 0.06, tilt: 0.06, glance: 0.1 },
+  shrug: { nod: 0.03, tilt: 0.12, glance: 0.08 },
+  chin: { nod: 0.03, tilt: 0.05, glance: 0.2 },
+  hip: { nod: 0.06, tilt: 0.09, glance: 0.06 },
+  lean: { nod: 0.08, tilt: 0.02, glance: 0.03 },
+};
 
 // --- fowl -----------------------------------------------------------------------
 

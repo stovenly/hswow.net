@@ -42,8 +42,10 @@ import {
 } from './gaits';
 
 const FIDGETS: readonly Fidget[] = ['stretch', 'scratch', 'fold', 'lookAround', 'shift'];
+/** What a listener does between lines: mostly nods, sometimes the rest. */
+const LISTENS: readonly Fidget[] = ['nod', 'nod', 'shift', 'fold', 'nod', 'lookAround'];
 const GREETINGS: readonly Greeting[] = ['wave', 'bow', 'raise', 'heart', 'press', 'brow', 'beckon', 'doff', 'offer', 'clap'];
-const TALKS: readonly Talk[] = ['beat', 'roll', 'sweep', 'clasp', 'point', 'open'];
+const TALKS: readonly Talk[] = ['beat', 'roll', 'sweep', 'clasp', 'point', 'open', 'shrug', 'chin', 'hip', 'lean'];
 /** The greetings that read as a goodbye: nothing that calls you over. */
 const FAREWELLS: readonly Greeting[] = ['bow', 'raise', 'press'];
 /** A gap between syllables this long is a sentence ending, and a new gesture. */
@@ -937,9 +939,9 @@ export class Creature {
     // than to a figure standing perfectly still while it is spoken to.
     this.listenIn -= dt;
     if (this.listenIn > 0) return;
-    this.listenIn = 3 + (this.spec.seed % 7) * 0.5;
-    this.fidget = another(FIDGETS, this.fidget);
-    this.fidgetLength = 1.8 + (this.spec.seed % 4) * 0.5;
+    this.listenIn = 2 + (this.spec.seed % 7) * 0.4;
+    this.fidget = another(LISTENS, this.fidget);
+    this.fidgetLength = 1.6 + (this.spec.seed % 4) * 0.4;
     this.timer = this.fidgetLength;
   }
 
