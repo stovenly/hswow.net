@@ -148,6 +148,9 @@ export class Reticle {
         this.joiner.hidden = !second || kind !== 'link';
         this.target.classList.toggle('quest-mark', kind === 'quest');
         this.hint.hidden = prompt.hint !== 'read';
+        // A thing with lines under its name rules them off, the way the pack's
+        // tip does; a door's destination is joined to it by a word instead.
+        this.element.classList.toggle('is-divided', kind !== 'link' && (second || prompt.hint === 'read'));
         this.target.hidden = !second;
         this.element.classList.toggle('is-readable', kind === 'read');
       }

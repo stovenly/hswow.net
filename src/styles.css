@@ -1224,6 +1224,12 @@ body:not(.is-playing) #prompt {
   color: var(--ink);
 }
 
+/* An item's name over a rule, with whatever else it says under it. */
+#prompt.is-divided .prompt-title {
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid rgb(220 220 200 / 30%);
+}
+
 /* The key under the name, in the joiner's register. */
 .prompt-hint {
   --key-size: 1.25rem;
