@@ -22,7 +22,7 @@ import { onFontChange, offFontChange } from './font';
  * meant to watch the dither come off the world as you drag the switch.
  *
  * **Every row is built from the schema in `model.ts`.** Nothing here knows that
- * reduced motion overrides four other switches, or that the correction strength
+ * reduced motion overrides the motion switches, or that the correction strength
  * appears only once a correction is chosen; it reads `enabledWhen` and
  * `shownWhen`, displays the value `effective` reports, and redraws. Adding an
  * option is one entry in that file and no change to this one.

@@ -121,17 +121,9 @@ export interface Options {
   crouchMode: HoldMode;
 
   // --- accessibility -------------------------------------------------------
-  /** The umbrella switch over the four motion effects below. See `effective`. */
+  /** The umbrella switch over the motion effects below. See `effective`. */
   reducedMotion: boolean;
   windSway: boolean;
-  /**
-   * The cloth simulation, on or off — a real switch over real work, not a gate
-   * on other settings. Off freezes every cloth in its pre-draped settled pose:
-   * present, natural, still. Deliberately *not* under reduced motion, which
-   * already stills cloth's wind response along with the trees'; the two compose
-   * without either becoming a no-op.
-   */
-  clothSim: boolean;
   /**
    * Waves, and the foam lapping the shore with them. Separate from `windSway`
    * even though both answer the same gust field, because they are separate
@@ -140,6 +132,8 @@ export interface Options {
    */
   waterMotion: boolean;
   headBob: boolean;
+  /** Whatever is in the hand moving with the walk: the bob, the lag, a lantern's swing. */
+  heldMotion: boolean;
   /**
    * Snow, rain, ash — the weather, and only the weather.
    *
@@ -151,17 +145,6 @@ export interface Options {
    * local, and looked at rather than looked through.
    */
   precipitation: boolean;
-  /**
-   * The lightning flicker.
-   *
-   * A stroke train is a full-frame luminance transient at 15-20 Hz from
-   * near-black to near-white, which is the pattern that causes seizures and is
-   * the strongest such thing in the game. Off, the storm stays: one stroke
-   * rather than a train, a quarter-second ramp rather than fifteen
-   * milliseconds, a hard ceiling well short of white, and the channel and the
-   * thunder untouched.
-   */
-  lightning: boolean;
   /** The field of view widening while sprinting. */
   sprintZoom: boolean;
   colorblind: ColorblindMode;
@@ -212,11 +195,10 @@ export const DEFAULT_OPTIONS: Options = {
 
   reducedMotion: false,
   windSway: true,
-  clothSim: true,
   waterMotion: true,
   headBob: true,
+  heldMotion: true,
   precipitation: true,
-  lightning: true,
   sprintZoom: true,
   colorblind: 'off',
   colorblindStrength: 100,
@@ -242,8 +224,8 @@ export function effective(options: Options): Options {
     windSway: options.windSway && motion,
     waterMotion: options.waterMotion && motion,
     headBob: options.headBob && motion,
+    heldMotion: options.heldMotion && motion,
     precipitation: options.precipitation && motion,
-    lightning: options.lightning && motion,
     sprintZoom: options.sprintZoom && motion,
   };
 }
@@ -468,64 +450,19 @@ export const CATEGORIES: readonly Category[] = [
     label: 'Accessibility',
     controls: [
       { kind: 'toggle', key: 'reducedMotion', label: 'reduced motion' },
-      {
-        kind: 'toggle',
-        key: 'windSway',
-        label: 'wind sway',
-        enabledWhen: motionAllowed,
-        note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
-      },
-      {
-        kind: 'toggle',
-        key: 'clothSim',
-        label: 'cloth simulation',
-        note: (options) => (options.clothSim ? null : 'cloth hangs still, settled'),
-      },
-      {
-        kind: 'toggle',
-        key: 'waterMotion',
-        label: 'water motion',
-        enabledWhen: motionAllowed,
-        note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
-      },
-      {
-        kind: 'toggle',
-        key: 'headBob',
-        label: 'head bob',
-        enabledWhen: motionAllowed,
-        note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
-      },
+      { kind: 'toggle', key: 'windSway', label: 'wind sway', enabledWhen: motionAllowed },
+      { kind: 'toggle', key: 'waterMotion', label: 'water motion', enabledWhen: motionAllowed },
+      { kind: 'toggle', key: 'headBob', label: 'head bob', enabledWhen: motionAllowed },
+      { kind: 'toggle', key: 'heldMotion', label: 'held tool motion', enabledWhen: motionAllowed },
       {
         kind: 'toggle',
         key: 'precipitation',
         label: 'falling weather',
         enabledWhen: motionAllowed,
         note: (options) =>
-          options.reducedMotion
-            ? 'held by reduced motion'
-            : options.precipitation
-              ? null
-              : 'snow and rain removed, not stilled',
+          options.reducedMotion || options.precipitation ? null : 'snow and rain removed, not stilled',
       },
-      {
-        kind: 'toggle',
-        key: 'lightning',
-        label: 'lightning flicker',
-        enabledWhen: motionAllowed,
-        note: (options) =>
-          options.reducedMotion
-            ? 'held by reduced motion'
-            : options.lightning
-              ? null
-              : 'one slow stroke, never a train',
-      },
-      {
-        kind: 'toggle',
-        key: 'sprintZoom',
-        label: 'sprint zoom',
-        enabledWhen: motionAllowed,
-        note: (options) => (options.reducedMotion ? 'held by reduced motion' : null),
-      },
+      { kind: 'toggle', key: 'sprintZoom', label: 'sprint zoom', enabledWhen: motionAllowed },
       {
         kind: 'choice',
         key: 'colorblind',

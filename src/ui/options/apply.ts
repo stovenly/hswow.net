@@ -1,9 +1,8 @@
 import { DEFAULT_TUNING } from '../../player/Controller';
 import { DEFAULT_AUDIO } from '../../audio/AudioEngine';
 import { setSwayOption } from '../../art/sway';
-import { setClothSimulation } from '../../engine/ClothActivity';
+import { setHeldMotion } from '../../player/HeldTool';
 import { setPrecipitation } from '../../art/particles';
-import { setLightning } from '../../world/lightning';
 import { effective, type Options } from './model';
 import { setDyslexicFont } from './font';
 import type { AudioEngine } from '../../audio/AudioEngine';
@@ -138,14 +137,10 @@ export function applyOptions(stored: Options, targets: OptionTargets): void {
 
   // --- accessibility -------------------------------------------------------
   setSwayOption(options.windSway);
-  // Off freezes cloth in its settled pose; the wind-sway option above already
-  // scales cloth's wind response, so the two compose. Read off the stored
-  // value rather than the effective one — reduced motion does not gate it.
-  setClothSimulation(stored.clothSim);
   setPrecipitation(options.precipitation);
-  setLightning(options.lightning);
   postfx.setWaterMotion(options.waterMotion);
   tuning.bobScale = options.headBob ? 1 : 0;
+  setHeldMotion(options.heldMotion);
   applyTextSize(options);
 }
 
