@@ -2315,6 +2315,17 @@ body.is-identifying #pause {
   border-color: rgb(220 220 200 / 60%);
 }
 
+/* While something that fits is being dragged: the slots it fits stand out,
+   and the one under it lights. Slots it does not fit say nothing at all. */
+.inv-slot.can-take {
+  border-color: rgb(220 220 200 / 55%);
+}
+
+.inv-slot.is-over {
+  background: rgb(220 220 200 / 14%);
+  border-color: var(--ink);
+}
+
 /* Rendered above the cell's size and filtered down. Nearest here would alias a
    minification, which is the opposite of what it does on an upscale. */
 .inv-icon {

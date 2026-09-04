@@ -426,6 +426,10 @@ export class InventoryUI implements Pane {
     this.ghost.style.top = `${event.clientY}px`;
     this.root.appendChild(this.ghost);
     this.tip.hidden = true;
+    // The slots this could go in light up; the rest say nothing.
+    for (const slot of this.slots()) {
+      slot.classList.toggle('can-take', this.accepts(slot.dataset.drop ?? '', item));
+    }
     window.addEventListener('pointermove', this.handleDragMove);
     window.addEventListener('pointerup', this.handleDragUp);
     // A right click raises the context menu, which swallows the pointerup the
@@ -466,7 +470,13 @@ export class InventoryUI implements Pane {
     }
     this.ghost.style.left = `${event.clientX}px`;
     this.ghost.style.top = `${event.clientY}px`;
+    const over = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('.inv-slot');
+    for (const slot of this.slots()) slot.classList.toggle('is-over', slot === over && slot.classList.contains('can-take'));
   };
+
+  private slots(): HTMLElement[] {
+    return [...this.toolRow.children, ...this.slotGrid.children] as HTMLElement[];
+  }
 
   private readonly handleDragUp = (event: PointerEvent): void => {
     const pending = this.pending;
@@ -477,8 +487,8 @@ export class InventoryUI implements Pane {
     const over = document.elementFromPoint(event.clientX, event.clientY);
     const target = over?.closest<HTMLElement>('[data-drop]')?.dataset.drop ?? null;
 
+    // A slot that does not take it never lit up, so a drop on it is nothing.
     if (target && !this.accepts(target, pending.item)) {
-      this.say(target === 'tool' ? 'only a tool fits there' : 'only an accessory fits there');
       this.render();
       return;
     }
@@ -511,6 +521,7 @@ export class InventoryUI implements Pane {
     this.pending = null;
     this.ghost?.remove();
     this.ghost = null;
+    for (const slot of this.slots()) slot.classList.remove('can-take', 'is-over');
     this.scrim.style.cursor = '';
     window.removeEventListener('pointermove', this.handleDragMove);
     window.removeEventListener('pointerup', this.handleDragUp);
