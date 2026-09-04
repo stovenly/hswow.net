@@ -418,24 +418,41 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float shoreBand = max(band, min(px * 2.5, 2.5));
       float shore = 1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness);
 
-      // Crest foam has to be broken up, because two crossed sine trains interfere
-      // into a regular lattice and a plain threshold puts a white speck at every
-      // node of it. So the threshold is lowered by a drifting noise field instead.
-      // A wave breaks where the water is about as deep as it is tall, so over
-      // the last few metres of bed the crests foam far more readily and the
-      // white comes rolling in to meet the waterline rather than stopping short.
-      float breaking = 1.0 - smoothstep(0.5, 3.5, thickness);
-      float speck = streaked(vWorld.xz - stream, along, stretch, 1.7);
-      speck = mix(speck, 0.5, clamp(fwidth(speck) * 2.0, 0.0, 1.0));
-      // The crest position turns over every wavelength, so where a wave is a
-      // pixel wide the threshold is widened by that much and the answer is the
-      // fraction of the pixel that is foaming: an even wash far out, the
-      // separate crests close in, and no speck at a node in between.
-      float cw = fwidth(vCrest);
-      float crest =
-        smoothstep(1.05 - speck * 0.55 - breaking * 0.7 - cw, 1.25 - speck * 0.5 - breaking * 0.55 + cw, vCrest) *
-        smoothstep(0.12, 0.5, agitation);
-      float foam = max(shore, crest);
+      // --- surf ---------------------------------------------------------------
+      // Never off the wave trains: two crossed sines interfere into a lattice,
+      // and foam on its nodes is a grid of blobs. A breaker is a line of white
+      // lying along the shore, and the shore is where the bed comes up — so the
+      // breakers are written on the depth itself. Lines of constant depth run
+      // parallel to the waterline whatever shape it is, and driving their phase
+      // with the clock walks them shoreward. The depth is taken vertically, so a
+      // line stays put as the view swings round.
+      float depth = thickness * max(abs(view.y), 0.08);
+      float surfPhase = depth * 11.4240 + swayTime * 1.3 * uWaterMotion;
+      float line = sin(surfPhase);
+      // A wave builds as the bed comes up under it and breaks over the last
+      // metre; below that the white is the waterline's own.
+      float build = smoothstep(2.8, 0.9, depth) * smoothstep(0.12, 0.35, depth);
+      // Broken along its length: a real breaker is a run of white with gaps,
+      // not a rule, and the gaps drift with the water.
+      float run = streaked(vWorld.xz - stream * 0.6, along, stretch, 0.32);
+      float ragged = streaked(vWorld.xz - stream * 1.2, along, stretch, 1.4);
+      float gate = run * 0.7 + ragged * 0.3;
+      float lw = fwidth(line);
+      float breaker =
+        smoothstep(0.35 + (1.0 - gate) * 0.55 - lw, 0.95 + lw, line) * build *
+        smoothstep(0.08, 0.35, agitation);
+
+      // --- whitecaps ------------------------------------------------------------
+      // Out in deep water the wind tears the odd crest: sparse patches placed by
+      // noise, sitting on a crest where there is one, never on every one.
+      float capField = streaked(vWorld.xz - stream * 1.1, along, stretch, 0.22) * 0.55
+        + streaked(vWorld.xz - stream * 1.7, along, stretch, 1.2) * 0.3
+        + max(vCrest, 0.0) * 0.15;
+      capField = mix(capField, 0.5, clamp(fwidth(capField) * 1.5, 0.0, 1.0));
+      float capW = fwidth(capField);
+      float cap = smoothstep(0.66 - capW, 0.78 + capW, capField) * smoothstep(0.35, 0.95, agitation) * (1.0 - build);
+
+      float foam = max(shore, max(breaker, cap));
 
       float aa = fwidth(foam) * 0.75;
       float wash = smoothstep(0.28 - aa, 0.28 + aa, foam);
