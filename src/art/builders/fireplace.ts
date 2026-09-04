@@ -199,6 +199,7 @@ export const fireplace: MeshBuilder = {
     // Each at its own length and radius: identical cylinders in a heap read as
     // dowel, and the whole point of firewood is that it was split.
     const logs = rng.int(3, 5);
+    let pileTop = fireY;
     for (let i = 0; i < logs; i++) {
       const radius = rng.range(0.045, 0.075);
       const length = openW * rng.range(0.5, 0.78);
@@ -210,6 +211,7 @@ export const fireplace: MeshBuilder = {
       log.rotateZ(rng.range(-0.14, 0.14));
       const y = slabTop + 0.09 + i * rng.range(0.05, 0.08);
       log.translate(rng.around(0, openW * 0.08), y, fireZ + rng.around(0, 0.05));
+      pileTop = Math.max(pileTop, y + radius);
 
       const bark = shade(PALETTE.BARK, rng.range(0.85, 1.15));
       // The lower ones have caught; the ones on top have not yet.
@@ -250,23 +252,29 @@ export const fireplace: MeshBuilder = {
     // A hearth is a *bed* of many small sources under a couple of standing
     // tongues: the bed is one flat glow, the tongues are flame bodies, and one
     // wide shallow halo covers the whole fire.
-    const bed = new THREE.IcosahedronGeometry(openW * 0.3 * (0.6 + heat * 0.55), 1);
-    bed.scale(1, 0.3, 0.55);
-    bed.translate(0, fireY - 0.05, fireZ);
+    // A small bed of ember light under the logs, not a sheet across the slab.
+    const bed = new THREE.IcosahedronGeometry(openW * 0.14 * (0.6 + heat * 0.55), 1);
+    bed.scale(1, 0.3, 0.6);
+    bed.translate(0, slabTop + 0.1, fireZ);
     glow.push({ geometry: bed, color: EMBER, sway: 0 });
 
+    // The tongues stand in the gaps at the top of the pile, spread across it
+    // and each a little different, with the tallest in the middle.
     const tongues = 2 + (rng.chance(heat) ? 1 : 0);
     const airs: { x: number; y: number; z: number; size: number }[] = [];
     for (let i = 0; i < tongues; i++) {
-      const size = openW * rng.range(0.05, 0.085) * (0.5 + heat * 0.7);
-      const x = rng.around(0, openW * 0.2);
+      const across = tongues === 1 ? 0 : (i / (tongues - 1) - 0.5) * 2;
+      const size = openW * rng.range(0.045, 0.07) * (0.5 + heat * 0.7) * (1 - 0.3 * Math.abs(across));
+      const x = across * openW * 0.17 + rng.around(0, openW * 0.03);
+      const y = pileTop - rng.range(0.03, 0.07);
       const z = fireZ + rng.around(0, 0.04);
-      flameBody(glow, FLAME, x, fireY - 0.02, z, size);
-      airs.push({ x, y: fireY - 0.02, z, size });
+      flameBody(glow, FLAME, x, y, z, size);
+      airs.push({ x, y, z, size });
     }
 
-    // Flat and shallow, so it sits in the firebox rather than filling it.
-    flameHalo(glow, EMBER, 0, fireY + 0.06, fireZ, openW * 0.13, [1, 0.9, 0.6], 0.4 + heat * 0.6);
+    // Flat and shallow, about the middle of the pile, so it sits in the firebox
+    // rather than filling it.
+    flameHalo(glow, EMBER, 0, (slabTop + pileTop) / 2 + 0.04, fireZ, openW * 0.11, [1, 0.8, 0.6], 0.4 + heat * 0.6);
 
     // --- assembly ------------------------------------------------------------
     const geometry = assemble(parts);
