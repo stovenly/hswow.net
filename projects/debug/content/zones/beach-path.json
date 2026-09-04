@@ -1538,33 +1538,24 @@
     },
     {
       "id": "gulls",
-      "kind": "soundScatter",
+      "kind": "sound",
       "at": [
         10,
-        8,
-        60
+        9,
+        62
       ],
       "spec": {
-        "sound": {
-          "model": "bird",
-          "options": {
-            "pitch": 1200,
-            "interval": 9,
-            "gain": 0.06,
-            "tone": 1800
-          }
+        "model": "bird",
+        "options": {
+          "pitch": 1200,
+          "interval": 11,
+          "gain": 0.06,
+          "tone": 1800
         },
-        "at": [
-          10,
-          8,
-          60
-        ],
-        "spread": [
-          40,
-          6,
-          20
-        ],
-        "every": 18
+        "refDistance": 8,
+        "maxDistance": 60,
+        "rolloff": 1.2,
+        "reverb": 0.5
       }
     },
     {

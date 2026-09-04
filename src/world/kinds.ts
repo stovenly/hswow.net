@@ -941,7 +941,7 @@ registerEntryKind<SoundEntry>({
 registerEntryKind<SoundScatterEntry>({
   kind: 'soundScatter',
   schema: { ref: { type: 'ref', label: 'anchored to' }, lift: { type: 'number', min: 0, max: 20, step: 0.05 } },
-  defaults: () => ({ spec: { sound: { model: 'bird' }, at: [0, 1, 0], spread: 12, every: 30 } }),
+  defaults: () => ({ spec: { sound: 'clatter', at: [0, 1, 0], spread: [6, 0.5, 6], every: 30 } }),
   build(entry, ctx) {
     const spec = { ...entry.spec } as Record<string, unknown>;
     if (entry.ref) {
