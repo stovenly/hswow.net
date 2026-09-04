@@ -169,12 +169,14 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     varying float vSurf;
     /** The still level, world y, before any wave lifted this vertex. */
     varying float vLevel;
-    /** The swell's amplitude after the global scale and the motion switch, metres. */
+    /** The swell's amplitude after the global scale, the motion switch and the tongue, metres. */
     varying float vRunup;
     /** The still column at this vertex, metres; zero or less over the sand. */
     varying float vColumn;
     /** The way the shore train travels, world xz. */
     varying vec2 vDir;
+
+    ${NOISE_GLSL}
 
     void main() {
       vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -227,6 +229,7 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       float lift = 0.0;
       vec2 shift = vec2(0.0);
       float surf = 0.0;
+      float swash = a0;
       if (k0 > 0.0) {
         float omega = sqrt(${G.toFixed(2)} * k0);
         float kh = clamp(k * h, 1e-3, 10.0);
@@ -256,18 +259,21 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         slope += dir * (ty / max(tx, 0.1));
         surf = max(cs, 0.0) * smoothstep(0.0, 0.05, a);
 
-        // The swash: at the shore the surface rises as each wave arrives, fast
-        // up and slow to drain, and the rise carries on over the sand, so the
-        // surface meets the sand wherever the sand is lower and the waterline
-        // walks up the beach as part of the same sheet.
+        // The swash: the surface rises as each wave arrives, fast up and slow to
+        // drain, and carries on over the sand as one sheet. The runup varies
+        // along the shore and per wave, so the sheet's edge is tongues.
         float since = fract(-phi * 0.15915494);
         float surge = smoothstep(0.0, 0.3, since) * (1.0 - smoothstep(0.3, 1.0, since));
-        float runup = uRunup * a0;
+        vec2 across = vec2(-dir.y, dir.x);
+        float wave = floor(-phi * 0.15915494);
+        float tongue = valueNoise(vec2(dot(world.xz, across) * 0.3, wave * 0.618 + 3.7));
+        swash = a0 * (0.65 + 0.7 * tongue);
+        float runup = uRunup * swash;
         lift += runup * surge * (1.0 - smoothstep(0.0, 2.0 * runup, h));
       }
 
       vLevel = world.y;
-      vRunup = a0;
+      vRunup = swash;
       vColumn = h;
       vDir = dir;
       world.xz += shift;
@@ -409,6 +415,12 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       return dot(a, a) < dot(b, b) ? a : b;
     }
 
+    /** Integral to t of a fringe that is 1 at zero and thins to nothing at width. */
+    float fringeArea(float t, float width) {
+      t = clamp(t, 0.0, width);
+      return t - t * t / (2.0 * width);
+    }
+
     /** GGX with Smith visibility and Schlick fresnel, for a light in direction l. */
     float glitter(vec3 n, vec3 v, vec3 l, float alpha) {
       vec3 hv = normalize(v + l);
@@ -440,12 +452,17 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       if (bedDistance < surfaceDistance - 0.02) {
         // --- wet sand -------------------------------------------------------------
         // The bed in front of the surface but within the swash's reach is wet
-        // sand, darkest at the water. Everywhere else the discard stands.
+        // sand: darkened, and glancing the sky the way the sheet beside it
+        // does, so the sheet's edge is a fringe and not a step. Everywhere else
+        // the discard stands.
         float runup = smoothstep(0.9, 1.0, vBreak) * vRunup * uRunup;
         if (runup <= 0.0 || !gl_FrontFacing || rise >= runup * 1.25) discard;
         vec3 sand = texture2D(tScene, uv).rgb;
         float dry = smoothstep(runup * 0.8, runup * 1.25, rise);
-        gl_FragColor = vec4(sand * mix(0.6, 1.0, dry), 1.0);
+        vec3 glance = skyColourDiscless(normalize(reflect(-view, vec3(0.0, 1.0, 0.0)) + vec3(0.0, 0.02, 0.0)));
+        float graze = 0.02 + 0.98 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
+        vec3 wet = mix(sand * 0.6, glance, graze * 0.8);
+        gl_FragColor = vec4(mix(wet, sand, dry), 1.0);
         return;
       }
 
@@ -581,6 +598,8 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       vec3 tilt = mat3(viewMatrix) * (normal - vec3(0.0, 1.0, 0.0));
       vec2 bent = uv + tilt.xy * (uRefract * min(thickness, 1.0) / surfaceDistance);
       vec3 bed = texture2D(tScene, sceneDistance(bent) > surfaceDistance ? bent : uv).rgb;
+      // Sand under the surf is as wet as the sand the sheet leaves behind.
+      bed *= mix(1.0, 0.6, smoothstep(0.9, 1.0, vBreak));
 
       // Caustics: two octaves of ridged noise on the bed, scrolled two ways, in
       // the shallows under a sun, each pulled to its mean as the pixel outgrows it.
@@ -673,11 +692,13 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
         float reach = 0.4 * (0.45 + 1.1 * lap);
         band = min(band, reach * bedSlope / max(view.y, 0.05));
       }
-      // The band's coverage of the thickness this pixel spans: a full band with
-      // a pixel-wide edge, or a line a pixel wide at the fraction it fills.
+      // The rim is a fringe, dense against the bed and thinning outward, drawn
+      // as its mean over the thickness this pixel spans: white only where it
+      // stands several pixels tall, and a pale line where it is thinner.
       float halfSpan = max(thicknessSpan * 0.5, 1e-3);
+      band = max(band, 1e-4);
       float shore = clamp(
-        (min(thickness + halfSpan, band) - max(thickness - halfSpan, 0.0)) / (2.0 * halfSpan),
+        (fringeArea(thickness + halfSpan, band) - fringeArea(thickness - halfSpan, band)) / (2.0 * halfSpan),
         0.0,
         1.0
       );
