@@ -680,10 +680,37 @@
       "seed": 4404
     },
     {
+      "id": "sand-lane",
+      "kind": "track",
+      "through": [
+        [
+          14,
+          44
+        ],
+        [
+          10,
+          52
+        ],
+        [
+          8,
+          62
+        ],
+        [
+          8,
+          80
+        ]
+      ],
+      "width": 2.2,
+      "surface": "dirt",
+      "edge": "none",
+      "wear": 0.5,
+      "seed": 4405
+    },
+    {
       "id": "fingerpost",
       "kind": "prop",
       "builder": "fingerpost",
-      "seed": 4405,
+      "seed": 4406,
       "at": [
         1.8,
         -10.2
@@ -697,7 +724,7 @@
       "id": "junction-post",
       "kind": "prop",
       "builder": "post",
-      "seed": 4406,
+      "seed": 4407,
       "at": [
         -3.2,
         -13.6
@@ -708,7 +735,7 @@
       "id": "junction-lantern",
       "kind": "prop",
       "builder": "lantern",
-      "seed": 4407,
+      "seed": 4408,
       "at": [
         -3.2,
         -13.6
@@ -720,7 +747,7 @@
       "id": "junction-log",
       "kind": "prop",
       "builder": "fallen-log",
-      "seed": 4408,
+      "seed": 4409,
       "at": [
         -6,
         -8
@@ -731,7 +758,7 @@
       "id": "fold-wall-n",
       "kind": "prop",
       "builder": "stone-wall-ruin",
-      "seed": 4409,
+      "seed": 4410,
       "at": [
         16,
         -30
@@ -742,7 +769,7 @@
       "id": "fold-wall-w",
       "kind": "prop",
       "builder": "stone-wall-low",
-      "seed": 4410,
+      "seed": 4411,
       "at": [
         11.5,
         -26
@@ -753,7 +780,7 @@
       "id": "fold-wall-e",
       "kind": "prop",
       "builder": "stone-wall-ruin",
-      "seed": 4411,
+      "seed": 4412,
       "at": [
         20.5,
         -25
@@ -764,7 +791,7 @@
       "id": "fold-wall-s",
       "kind": "prop",
       "builder": "stone-wall-low",
-      "seed": 4412,
+      "seed": 4413,
       "at": [
         15,
         -21.6
@@ -775,7 +802,7 @@
       "id": "fold-cairn",
       "kind": "prop",
       "builder": "cairn",
-      "seed": 4413,
+      "seed": 4414,
       "at": [
         17,
         -26
@@ -786,7 +813,7 @@
       "id": "fold-post",
       "kind": "prop",
       "builder": "fence-post",
-      "seed": 4414,
+      "seed": 4415,
       "at": [
         13,
         -21.4
@@ -797,7 +824,7 @@
       "id": "heath-gorse",
       "kind": "scatter",
       "builder": "gorse",
-      "seed": 4415,
+      "seed": 4416,
       "count": 14,
       "within": 70,
       "from": [
@@ -824,7 +851,7 @@
       "id": "heath-thistle",
       "kind": "scatter",
       "builder": "thistle",
-      "seed": 4416,
+      "seed": 4417,
       "count": 12,
       "within": 70,
       "from": [
@@ -846,7 +873,7 @@
       "id": "heath-tussock",
       "kind": "scatter",
       "builder": "large-grass-clump",
-      "seed": 4417,
+      "seed": 4418,
       "count": 18,
       "within": 70,
       "from": [
@@ -868,7 +895,7 @@
       "id": "heath-rocks",
       "kind": "scatter",
       "builder": "rock",
-      "seed": 4418,
+      "seed": 4419,
       "count": 10,
       "within": 70,
       "from": [
@@ -894,7 +921,7 @@
       "id": "heath-boulders",
       "kind": "scatter",
       "builder": "boulder",
-      "seed": 4419,
+      "seed": 4420,
       "count": 3,
       "within": 70,
       "from": [
@@ -917,7 +944,7 @@
       "id": "heath-stone",
       "kind": "prop",
       "builder": "standing-stone",
-      "seed": 4420,
+      "seed": 4421,
       "at": [
         -34,
         -20
@@ -928,7 +955,7 @@
       "id": "heath-hazel-0",
       "kind": "prop",
       "builder": "hazel",
-      "seed": 4421,
+      "seed": 4422,
       "at": [
         -46,
         -30
@@ -939,7 +966,7 @@
       "id": "heath-hazel-1",
       "kind": "prop",
       "builder": "hazel",
-      "seed": 4422,
+      "seed": 4423,
       "at": [
         44,
         -28
@@ -950,7 +977,7 @@
       "id": "rise-cairn",
       "kind": "prop",
       "builder": "cairn",
-      "seed": 4423,
+      "seed": 4424,
       "at": [
         25,
         0
@@ -962,7 +989,7 @@
       "id": "rise-log",
       "kind": "prop",
       "builder": "fallen-log",
-      "seed": 4424,
+      "seed": 4425,
       "at": [
         19,
         -3
@@ -973,7 +1000,7 @@
       "id": "rise-signboard",
       "kind": "prop",
       "builder": "signboard",
-      "seed": 4425,
+      "seed": 4426,
       "at": [
         28,
         3
@@ -987,7 +1014,7 @@
       "id": "bluff-outcrop-0",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4426,
+      "seed": 4427,
       "at": [
         -56,
         -4.0
@@ -999,7 +1026,7 @@
       "id": "bluff-outcrop-1",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4427,
+      "seed": 4428,
       "at": [
         -36,
         -2.0
@@ -1011,7 +1038,7 @@
       "id": "bluff-outcrop-2",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4428,
+      "seed": 4429,
       "at": [
         -14,
         1.0
@@ -1023,7 +1050,7 @@
       "id": "bluff-outcrop-3",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4429,
+      "seed": 4430,
       "at": [
         8,
         4.3
@@ -1035,7 +1062,7 @@
       "id": "bluff-outcrop-4",
       "kind": "prop",
       "builder": "outcrop",
-      "seed": 4430,
+      "seed": 4431,
       "at": [
         22,
         12.5
@@ -1047,7 +1074,7 @@
       "id": "bluff-scree",
       "kind": "scatter",
       "builder": "scree",
-      "seed": 4431,
+      "seed": 4432,
       "count": 4,
       "within": 40,
       "from": [
@@ -1062,7 +1089,7 @@
       "id": "bluff-rocks",
       "kind": "scatter",
       "builder": "rock",
-      "seed": 4432,
+      "seed": 4433,
       "count": 10,
       "within": 50,
       "from": [
@@ -1081,7 +1108,7 @@
       "id": "shoulder-gorse",
       "kind": "scatter",
       "builder": "gorse",
-      "seed": 4433,
+      "seed": 4434,
       "count": 6,
       "within": 22,
       "from": [
@@ -1102,7 +1129,7 @@
       "id": "shoulder-thistle",
       "kind": "scatter",
       "builder": "thistle",
-      "seed": 4434,
+      "seed": 4435,
       "count": 6,
       "within": 20,
       "from": [
@@ -1123,7 +1150,7 @@
       "id": "marsh-reeds",
       "kind": "scatter",
       "builder": "reeds",
-      "seed": 4435,
+      "seed": 4436,
       "count": 44,
       "within": 24,
       "from": [
@@ -1146,7 +1173,7 @@
       "id": "marsh-grass",
       "kind": "scatter",
       "builder": "large-grass-clump",
-      "seed": 4436,
+      "seed": 4437,
       "count": 12,
       "within": 24,
       "from": [
@@ -1164,7 +1191,7 @@
       "id": "marsh-nettle",
       "kind": "scatter",
       "builder": "nettle",
-      "seed": 4437,
+      "seed": 4438,
       "count": 8,
       "within": 26,
       "from": [
@@ -1183,7 +1210,7 @@
       "id": "boardwalk-post-0",
       "kind": "prop",
       "builder": "post",
-      "seed": 4438,
+      "seed": 4439,
       "at": [
         38.5,
         36.6
@@ -1194,7 +1221,7 @@
       "id": "boardwalk-post-1",
       "kind": "prop",
       "builder": "post",
-      "seed": 4439,
+      "seed": 4440,
       "at": [
         29,
         39.6
@@ -1205,7 +1232,7 @@
       "id": "boardwalk-post-2",
       "kind": "prop",
       "builder": "post",
-      "seed": 4440,
+      "seed": 4441,
       "at": [
         20.4,
         41.6
@@ -1216,7 +1243,7 @@
       "id": "boardwalk-post-3",
       "kind": "prop",
       "builder": "post",
-      "seed": 4441,
+      "seed": 4442,
       "at": [
         15.6,
         42.8
@@ -1227,7 +1254,7 @@
       "id": "marsh-snag",
       "kind": "prop",
       "builder": "snag",
-      "seed": 4442,
+      "seed": 4443,
       "at": [
         8,
         30
@@ -1239,7 +1266,7 @@
       "id": "marsh-deadfall",
       "kind": "prop",
       "builder": "deadfall",
-      "seed": 4443,
+      "seed": 4444,
       "at": [
         34,
         50
@@ -1251,7 +1278,7 @@
       "id": "dune-marram",
       "kind": "scatter",
       "builder": "large-grass-clump",
-      "seed": 4444,
+      "seed": 4445,
       "count": 30,
       "within": 75,
       "from": [
@@ -1269,7 +1296,7 @@
       "id": "dune-tufts",
       "kind": "scatter",
       "builder": "small-grass-clump",
-      "seed": 4445,
+      "seed": 4446,
       "count": 24,
       "within": 75,
       "from": [
@@ -1287,7 +1314,7 @@
       "id": "dune-gorse",
       "kind": "scatter",
       "builder": "gorse",
-      "seed": 4446,
+      "seed": 4447,
       "count": 6,
       "within": 75,
       "from": [
@@ -1309,7 +1336,7 @@
       "id": "dune-sticks",
       "kind": "scatter",
       "builder": "sticks",
-      "seed": 4447,
+      "seed": 4448,
       "count": 8,
       "within": 75,
       "from": [
@@ -1327,7 +1354,7 @@
       "id": "gap-gorse-w",
       "kind": "prop",
       "builder": "gorse",
-      "seed": 4448,
+      "seed": 4449,
       "at": [
         2.5,
         60
@@ -1339,7 +1366,7 @@
       "id": "gap-gorse-e",
       "kind": "prop",
       "builder": "gorse",
-      "seed": 4449,
+      "seed": 4450,
       "at": [
         13.5,
         61
@@ -1351,7 +1378,7 @@
       "id": "gap-post",
       "kind": "prop",
       "builder": "fence-post",
-      "seed": 4450,
+      "seed": 4451,
       "at": [
         11.2,
         66
@@ -1532,7 +1559,11 @@
           8,
           60
         ],
-        "spread": 40,
+        "spread": [
+          40,
+          6,
+          20
+        ],
         "every": 18
       }
     },
