@@ -1,7 +1,7 @@
 import type { Inventory } from '../player/Inventory';
 import { cardOf, type Item, type ItemCard } from '../world/items';
 import { keyHint } from './Reticle';
-import { Floating, type FloatingRect } from './Floating';
+import type { Menu, Pane } from './Menu';
 import type { ItemIcons } from './ItemIcons';
 
 /**
@@ -23,10 +23,10 @@ export interface OpenedContainer {
 }
 
 interface Handlers {
-  /** Called on the way in — where the pointer lock is given up. */
-  onOpen: () => void;
-  /** Called on the way out — where it is taken back. */
-  onClose: () => void;
+  /** Brings the menu up on the pack: a container was opened from the world. */
+  open: () => void;
+  /** Puts the menu away: E with a container open and nothing under the cursor. */
+  close: () => void;
   /** True when the world took the item. False puts it back where it came from. */
   dropToWorld: (item: Item, ndc: { x: number; y: number }) => boolean;
   containerChanged: (key: string, items: readonly Item[]) => void;
@@ -58,17 +58,13 @@ type Source =
 /** Pixels of travel before a press becomes a drag rather than a click. */
 const DRAG_START = 4;
 
-/** The equipment block is the pack window's floor; a container needs less. */
-const PLAYER_LIMITS = { minW: 470, minH: 420 };
-const CONTAINER_LIMITS = { minW: 280, minH: 320 };
-
-export class InventoryUI {
+export class InventoryUI implements Pane {
   private readonly root: HTMLDivElement;
   private readonly scrim: HTMLDivElement;
   private readonly tip: HTMLDivElement;
   private readonly note: HTMLDivElement;
-  private readonly pack: Floating;
-  private readonly holder: Floating;
+  private readonly holder: HTMLDivElement;
+  private readonly holderTitle: HTMLSpanElement;
   private readonly toolRow: HTMLDivElement;
   private readonly slotGrid: HTMLDivElement;
   private readonly packGrid: HTMLDivElement;
@@ -79,54 +75,43 @@ export class InventoryUI {
   private readonly unsubscribe: () => void;
 
   private container: OpenedContainer | null = null;
-  private open_ = false;
+  private active = false;
   private pending: { source: Source; item: Item; x: number; y: number; moved: boolean } | null =
     null;
   private ghost: HTMLDivElement | null = null;
   private noteTimer = 0;
   private hovered: Item | null = null;
 
-  constructor(overlay: HTMLElement, inventory: Inventory, icons: ItemIcons, handlers: Handlers) {
+  constructor(menu: Menu, inventory: Inventory, icons: ItemIcons, handlers: Handlers) {
     this.inventory = inventory;
     this.icons = icons;
     this.handlers = handlers;
+    this.root = menu.root;
 
-    this.root = document.createElement('div');
-    this.root.id = 'inventory';
-    this.root.hidden = true;
-
-    // Invisible and necessary, for the reading screen's reason: without it a
-    // click beside the windows lands on the canvas and takes pointer lock. It
-    // is also the surface world grabs start on and world drops land on.
-    const scrim = document.createElement('div');
-    scrim.className = 'inv-scrim';
+    // The menu's scrim is also the surface world grabs start on and world
+    // drops land on, while the pack is the tab that is up.
+    const scrim = menu.scrim;
     this.scrim = scrim;
     scrim.addEventListener('pointermove', this.handleHover);
     scrim.addEventListener('pointerleave', () => {
+      if (!this.active) return;
       this.tip.hidden = true;
       scrim.style.cursor = '';
     });
     scrim.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
+      if (!this.active || event.button !== 0) return;
       const grabbed = this.handlers.grabWorld(ndcOf(event));
       if (grabbed) {
         this.beginDrag({ kind: 'world', take: grabbed.take, move: grabbed.move }, grabbed.item, event);
       }
     });
-    this.root.append(scrim);
 
-    // The pack window, left by default.
-    this.pack = new Floating(this.root, 'hswow:ui:inventory', PLAYER_LIMITS, () => {
-      const w = 470;
-      const h = Math.min(520, window.innerHeight - 100);
-      return {
-        x: Math.round(window.innerWidth * 0.03),
-        y: Math.max(8, window.innerHeight - h - Math.round(window.innerHeight * 0.06)),
-        w,
-        h,
-      } satisfies FloatingRect;
-    });
-    this.pack.setTitle('inventory');
+    const pane = menu.pane('inventory');
+    pane.classList.add('inv-pane');
+
+    const pack = document.createElement('div');
+    pack.className = 'inv-pack';
+    pack.dataset.drop = 'inventory';
 
     const equip = document.createElement('div');
     equip.className = 'inv-equip';
@@ -157,89 +142,80 @@ export class InventoryUI {
 
     this.packGrid = document.createElement('div');
     this.packGrid.className = 'inv-grid';
-    this.pack.root.dataset.drop = 'inventory';
 
     this.note = document.createElement('div');
     this.note.className = 'inv-note';
 
-    this.pack.body.classList.add('inv-pack-body');
-    this.pack.body.append(equip, this.packGrid, this.note);
+    pack.append(equip, this.packGrid, this.note);
 
-    // The container window, right by default.
-    this.holder = new Floating(this.root, 'hswow:ui:container', CONTAINER_LIMITS, () => {
-      const w = 320;
-      const h = Math.min(440, window.innerHeight - 100);
-      return {
-        x: window.innerWidth - w - Math.round(window.innerWidth * 0.03),
-        y: Math.max(8, window.innerHeight - h - Math.round(window.innerHeight * 0.06)),
-        w,
-        h,
-      } satisfies FloatingRect;
-    });
-    this.holder.root.hidden = true;
+    // The open container, beside the pack while there is one.
+    this.holder = document.createElement('div');
+    this.holder.className = 'inv-holder';
+    this.holder.dataset.drop = 'container';
+    this.holder.hidden = true;
 
+    const holderHead = document.createElement('div');
+    holderHead.className = 'inv-holder-head';
+    this.holderTitle = document.createElement('span');
+    this.holderTitle.className = 'inv-section';
     const takeAll = document.createElement('button');
     takeAll.type = 'button';
     takeAll.className = 'inv-take';
     takeAll.textContent = 'take all';
     takeAll.addEventListener('click', () => this.takeAll());
-    this.holder.tools.append(takeAll);
+    holderHead.append(this.holderTitle, takeAll);
 
     this.containerGrid = document.createElement('div');
     this.containerGrid.className = 'inv-grid';
-    this.holder.root.dataset.drop = 'container';
-    this.holder.body.classList.add('inv-holder-body');
-    this.holder.body.append(this.containerGrid);
+    this.holder.append(holderHead, this.containerGrid);
+
+    pane.append(pack, this.holder);
 
     this.tip = document.createElement('div');
     this.tip.className = 'inv-tip';
     this.tip.hidden = true;
     this.root.append(this.tip);
 
-    overlay.append(this.root);
-
     this.unsubscribe = inventory.onChange(() => {
-      if (this.open_) this.render();
+      if (this.active) this.render();
     });
     window.addEventListener('keydown', this.handleKeyDown);
+    menu.mount('inventory', this);
   }
 
   get shown(): boolean {
-    return this.open_;
+    return this.active;
   }
 
-  show(): void {
-    if (this.open_) return;
-    this.open_ = true;
-    this.root.hidden = false;
-    document.body.classList.add('is-inventory');
+  activate(): void {
+    this.active = true;
     this.render();
-    this.handlers.onOpen();
   }
 
-  hide(): void {
-    if (!this.open_) return;
-    this.open_ = false;
-    this.container = null;
-    this.holder.root.hidden = true;
+  deactivate(): void {
+    this.active = false;
     this.hovered = null;
     this.tip.hidden = true;
+    this.scrim.style.cursor = '';
     this.cancelDrag();
-    this.root.hidden = true;
-    document.body.classList.remove('is-inventory');
-    this.handlers.onClose();
+  }
+
+  /** The window went away: whatever was open is shut. */
+  closed(): void {
+    this.container = null;
+    this.holder.hidden = true;
   }
 
   openContainer(opened: OpenedContainer): void {
     this.container = opened;
-    this.holder.setTitle(opened.display.toLowerCase());
-    this.holder.root.hidden = false;
-    if (!this.open_) this.show();
-    else this.render();
+    this.holderTitle.textContent = opened.display.toLowerCase();
+    this.holder.hidden = false;
+    if (this.active) this.render();
+    else this.handlers.open();
   }
 
   refresh(): void {
-    if (this.open_) this.render();
+    if (this.active) this.render();
   }
 
   dispose(): void {
@@ -250,9 +226,6 @@ export class InventoryUI {
     window.removeEventListener('contextmenu', this.handleDragCancel);
     window.removeEventListener('pointercancel', this.handleDragCancel);
     window.removeEventListener('blur', this.handleDragCancel);
-    this.pack.dispose();
-    this.holder.dispose();
-    this.root.remove();
   }
 
   // --- rendering ------------------------------------------------------------
@@ -370,7 +343,7 @@ export class InventoryUI {
     const held = this.container;
     if (!held) return;
     if (held.items.length === 0) {
-      this.hide();
+      this.handlers.close();
       return;
     }
     for (const item of held.items) this.inventory.items.push(item);
@@ -378,7 +351,7 @@ export class InventoryUI {
     this.handlers.containerChanged(held.key, []);
     this.handlers.tookAll();
     this.inventory.emit();
-    this.hide();
+    this.handlers.close();
   }
 
   private takeFrom(source: Source): Item | null {
@@ -466,6 +439,7 @@ export class InventoryUI {
   };
 
   private readonly handleHover = (event: PointerEvent): void => {
+    if (!this.active) return;
     // The ghost already names what is being dragged; two labels chase one cursor.
     if (this.ghost) {
       this.tip.hidden = true;
@@ -543,14 +517,9 @@ export class InventoryUI {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open_ || event.repeat) return;
+    if (!this.active || event.repeat) return;
     // A page open over the pack has every key; the pack waits under it.
     if (document.body.classList.contains('is-reading')) return;
-    if (event.code === 'Escape') {
-      event.preventDefault();
-      this.hide();
-      return;
-    }
     if (event.code !== 'KeyE' || this.ghost) return;
     if (this.hovered) {
       if (this.handlers.readItem(this.hovered)) {
@@ -563,7 +532,7 @@ export class InventoryUI {
     // The key that opened the container closes it again.
     if (this.container) {
       event.preventDefault();
-      this.hide();
+      this.handlers.close();
     }
   };
 }

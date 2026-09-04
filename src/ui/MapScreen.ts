@@ -1,4 +1,4 @@
-import { Floating, type FloatingRect } from './Floating';
+import type { Menu } from './Menu';
 import {
   drawLocal,
   localSpan,
@@ -13,20 +13,12 @@ import { ChartView, inPixels, type Sheet } from './map/view';
 import { drawWorld, type Discovery, type WorldChart } from './map/world';
 
 /**
- * The map screen: two floating windows over the world, the world map on the
- * left and the local map on the right, opened and closed together on one key.
- *
- * Neither is a minimap. Both are things you stop to open, so this releases the
- * pointer lock on the way in and takes it back on the way out, exactly as the
- * inventory does — and, like the inventory, it leaves the world visible behind
- * a scrim rather than pausing it.
+ * The maps: two tabs of the menu, the local map and the world map, each one
+ * canvas filling its pane. Neither is a minimap; both are things you stop to
+ * open.
  */
 
 export interface MapSource {
-  /** Called on the way in, where the pointer lock is given up. */
-  onOpen(): void;
-  /** And on the way out, where it is taken back. */
-  onClose(): void;
   /** What the local window draws. Null before the player is anywhere. */
   local(): LocalChart | null;
   /** The name of the place the local window is of. */
@@ -35,15 +27,12 @@ export interface MapSource {
   world(): { chart: WorldChart | null; seen: Discovery };
 }
 
-const LIMITS = { minW: 260, minH: 240 };
-
 /** Pixels of the window's edge a chart keeps clear of. */
 const MARGIN = 18;
 
 export class MapScreen {
   private readonly root: HTMLDivElement;
-  private readonly worldWindow: Floating;
-  private readonly localWindow: Floating;
+  private readonly caption: HTMLDivElement;
   private readonly worldCanvas: HTMLCanvasElement;
   private readonly localCanvas: HTMLCanvasElement;
   private readonly worldView = new ChartView();
@@ -54,32 +43,27 @@ export class MapScreen {
   private readonly tipTitle: HTMLSpanElement;
   private readonly tipJoiner: HTMLSpanElement;
   private readonly tipTarget: HTMLSpanElement;
-  private open_ = false;
+  private active = false;
   private drag: { canvas: HTMLCanvasElement; x: number; y: number } | null = null;
   /** The marks the last redraw laid down, so the cursor is tested against what is on screen. */
   private marks: Mark[] = [];
   /** What the tip is about. `'you'` rather than a mark, because the marks are rebuilt on every redraw. */
   private hovered: PortalSide | 'you' | null = null;
 
-  constructor(overlay: HTMLElement, source: MapSource) {
+  constructor(menu: Menu, source: MapSource) {
     this.source = source;
+    this.root = menu.root;
 
-    this.root = document.createElement('div');
-    this.root.id = 'map';
-    this.root.hidden = true;
+    const local = menu.pane('map');
+    local.classList.add('map-pane');
+    this.caption = document.createElement('div');
+    this.caption.className = 'map-caption';
+    local.append(this.caption);
+    this.localCanvas = canvasIn(local);
 
-    // Invisible and necessary, for the inventory's reason: without it a click
-    // beside the windows lands on the canvas and takes pointer lock back.
-    const scrim = document.createElement('div');
-    scrim.className = 'map-scrim';
-    this.root.append(scrim);
-
-    this.worldWindow = new Floating(this.root, 'hswow:ui:chart-world', LIMITS, () => half(true));
-    this.worldWindow.setTitle('world');
-    this.localWindow = new Floating(this.root, 'hswow:ui:chart-local', LIMITS, () => half(false));
-
-    this.worldCanvas = canvasIn(this.worldWindow);
-    this.localCanvas = canvasIn(this.localWindow);
+    const world = menu.pane('world');
+    world.classList.add('map-pane');
+    this.worldCanvas = canvasIn(world);
 
     for (const canvas of [this.worldCanvas, this.localCanvas]) {
       canvas.addEventListener('wheel', this.handleWheel, { passive: false });
@@ -107,68 +91,50 @@ export class MapScreen {
     this.root.append(this.tip);
 
     this.observer = new ResizeObserver(() => this.draw());
-    this.observer.observe(this.worldWindow.body);
-    this.observer.observe(this.localWindow.body);
+    this.observer.observe(local);
+    this.observer.observe(world);
 
-    overlay.append(this.root);
-    window.addEventListener('keydown', this.handleKeyDown);
+    const pane = { activate: () => this.activate(), deactivate: () => this.deactivate() };
+    menu.mount('map', pane);
+    menu.mount('world', pane);
   }
 
-  get shown(): boolean {
-    return this.open_;
-  }
-
-  show(): void {
-    if (this.open_) return;
-    this.open_ = true;
-    this.root.hidden = false;
-    document.body.classList.add('is-map');
+  private activate(): void {
+    this.active = true;
     this.draw();
-    this.source.onOpen();
   }
 
-  hide(): void {
-    if (!this.open_) return;
-    this.open_ = false;
+  private deactivate(): void {
+    this.active = false;
     this.drag = null;
     this.hovered = null;
     this.tip.hidden = true;
-    this.root.hidden = true;
-    document.body.classList.remove('is-map');
-    this.source.onClose();
-  }
-
-  toggle(): void {
-    if (this.open_) this.hide();
-    else this.show();
   }
 
   /** The world chart has arrived. */
   charted(): void {
-    if (this.open_) this.draw();
+    if (this.active) this.draw();
   }
 
   /** A new zone is a new chart: the local window opens at its fit rather than at the last one's zoom. */
   zoneChanged(): void {
     this.localView.reset();
-    if (this.open_) this.draw();
+    if (this.active) this.draw();
   }
 
   dispose(): void {
     this.observer.disconnect();
-    window.removeEventListener('keydown', this.handleKeyDown);
-    this.worldWindow.dispose();
-    this.localWindow.dispose();
-    this.root.remove();
+    this.tip.remove();
   }
 
+  /** Whichever canvas is up; a hidden pane's has no box to draw into. */
   private draw(): void {
-    if (!this.open_) return;
+    if (!this.active) return;
     const ink = sheetOf(this.root);
-    this.localWindow.setTitle(this.source.here().toLowerCase());
+    this.caption.textContent = this.source.here().toLowerCase();
 
     const local = this.source.local();
-    const localContext = fit(this.localCanvas, ink.density);
+    const localContext = this.localCanvas.clientWidth > 0 ? fit(this.localCanvas, ink.density) : null;
     if (localContext && local) {
       const box = this.localCanvas;
       // Turned so world north is up. `bearing` is how far the zone's own +Z is
@@ -197,7 +163,7 @@ export class MapScreen {
       blank(localContext, this.localCanvas, ink);
     }
 
-    const worldContext = fit(this.worldCanvas, ink.density);
+    const worldContext = this.worldCanvas.clientWidth > 0 ? fit(this.worldCanvas, ink.density) : null;
     if (worldContext) {
       const box = this.worldCanvas;
       const { chart, seen } = this.source.world();
@@ -292,20 +258,12 @@ export class MapScreen {
     this.drag = null;
   };
 
-  // Tab as well as Escape: the pack's key is what a hand reaches for to put a
-  // screen away, and with the map up it has nothing else to mean.
-  private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open_ || event.repeat) return;
-    if (event.code !== 'Escape' && event.code !== 'Tab') return;
-    event.preventDefault();
-    this.hide();
-  };
 }
 
-function canvasIn(panel: Floating): HTMLCanvasElement {
+function canvasIn(pane: HTMLElement): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.className = 'map-canvas';
-  panel.body.append(canvas);
+  pane.append(canvas);
   return canvas;
 }
 
@@ -337,14 +295,4 @@ function sheetOf(root: HTMLElement): Sheet {
     prose: style.getPropertyValue('--prose').trim() || 'Georgia, serif',
     density: Math.min(globalThis.devicePixelRatio || 1, 2),
   };
-}
-
-/** Half the screen each, side by side. A chart is a thing you stop to read. */
-function half(left: boolean): FloatingRect {
-  const margin = Math.max(12, Math.round(window.innerWidth * 0.025));
-  const gap = 14;
-  const w = Math.floor((window.innerWidth - margin * 2 - gap) / 2);
-  const h = Math.round(window.innerHeight * 0.86);
-  const y = Math.round((window.innerHeight - h) / 2);
-  return { x: left ? margin : margin + w + gap, y, w, h };
 }

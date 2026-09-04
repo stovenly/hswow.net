@@ -26,6 +26,7 @@ type Handle = (typeof HANDLES)[number];
 
 export class Floating {
   readonly root: HTMLDivElement;
+  readonly head: HTMLDivElement;
   /** Room in the header for a caller's buttons, right of the title. */
   readonly tools: HTMLSpanElement;
   readonly body: HTMLDivElement;
@@ -44,6 +45,7 @@ export class Floating {
     this.root.className = 'inv-window';
 
     const head = document.createElement('div');
+    this.head = head;
     head.className = 'inv-window-head';
     head.addEventListener('pointerdown', (event) => this.begin('move', event, head));
 

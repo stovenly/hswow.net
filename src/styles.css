@@ -1724,9 +1724,7 @@ body.is-options #pause,
 body.is-slots #pause,
 body.is-reading #pause,
 body.is-dialogue #pause,
-body.is-inventory #pause,
-body.is-map #pause,
-body.is-journal #pause,
+body.is-menu #pause,
 body.is-quitting #pause,
 body.is-title #pause,
 body.is-capturing #pause,
@@ -1971,10 +1969,11 @@ body.is-identifying #pause {
   color: rgb(220 220 200 / 30%);
 }
 
-/* --- inventory ------------------------------------------------------------ */
+/* --- the menu --------------------------------------------------------------- */
 
-/* Same layer as the reading screen, and never open at the same time as it. */
-#inventory {
+/* One window for the pack, the journal and the maps. Same layer as the reading
+   screen, which opens over it. */
+#menu {
   --inv-cell: 3.5rem;
 
   position: fixed;
@@ -1982,11 +1981,111 @@ body.is-identifying #pause {
   inset: 0;
 }
 
+#menu[hidden] {
+  display: none;
+}
+
 /* Invisible and necessary — it catches the clicks that would otherwise take
-   pointer lock, starts world grabs, and takes world drops. */
-.inv-scrim {
+   pointer lock, and with the pack up it starts world grabs and takes world drops. */
+.menu-scrim {
   position: absolute;
   inset: 0;
+}
+
+/* The tabs stand where a window's title would. */
+.menu-tabs {
+  --key-size: 1.15rem;
+
+  display: flex;
+  gap: 0.2rem;
+  align-items: stretch;
+  margin: -0.45rem 0 -0.45rem -0.8rem;
+}
+
+.menu-tab {
+  display: inline-flex;
+  gap: 0.55em;
+  align-items: center;
+  padding: 0 1rem;
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 55%);
+  background: none;
+  border: 0;
+  border-right: 1px solid rgb(220 220 200 / 18%);
+  cursor: pointer;
+}
+
+.menu-tab .key {
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.menu-tab:hover {
+  color: rgb(220 220 200 / 85%);
+}
+
+.menu-tab.is-current {
+  color: var(--ink);
+  background: rgb(220 220 200 / 7%);
+}
+
+/* The body is one pane at a time, filling it; each pane lays itself out. */
+#menu .inv-window-body {
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.menu-pane {
+  min-height: 0;
+}
+
+.menu-pane[hidden] {
+  display: none;
+}
+
+/* --- inventory ------------------------------------------------------------ */
+
+/* The pack, and the open container beside it while there is one. */
+.inv-pane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 100%;
+}
+
+.inv-pack,
+.inv-holder {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  min-height: 0;
+  padding: 0.8rem;
+}
+
+.inv-pack {
+  grid-template-rows: auto minmax(calc(var(--inv-cell) * 2), 1fr) auto;
+}
+
+.inv-holder {
+  grid-template-rows: auto minmax(calc(var(--inv-cell) * 2), 1fr);
+  width: calc(var(--inv-cell) * 5 + 0.35rem * 4 + 0.7rem + 1.6rem);
+  border-left: 1px solid rgb(220 220 200 / 18%);
+}
+
+.inv-holder[hidden] {
+  display: none;
+}
+
+.inv-holder-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* --- the floating windows ------------------------------------------------- */
@@ -2160,18 +2259,6 @@ body.is-identifying #pause {
   grid-template-columns: var(--inv-cell);
 }
 
-/* The grid takes whatever height the window has left and scrolls inside
-   itself; the window body does not scroll. */
-.inv-pack-body {
-  grid-template-rows: auto minmax(calc(var(--inv-cell) * 2), 1fr) auto;
-  overflow: hidden;
-}
-
-.inv-holder-body {
-  grid-template-rows: minmax(calc(var(--inv-cell) * 2), 1fr);
-  overflow: hidden;
-}
-
 /* One box round the whole grid; the cells inside are bare. Cells are one
    fixed size everywhere, and a bigger window shows more of them. */
 .inv-grid {
@@ -2341,7 +2428,7 @@ body.is-identifying #pause {
 }
 
 /* Nothing else on screen while the pack is open, the reading screen rule. */
-body.is-inventory #prompt {
+body.is-menu #prompt {
   display: none;
 }
 
@@ -2380,33 +2467,23 @@ body.is-inventory #prompt {
 
 /* --- the map -------------------------------------------------------------- */
 
-/* Two windows over the world, in the inventory's register and on the same
-   layer: neither is ever open at the same time as the other. */
-#map {
-  position: fixed;
-  z-index: 31;
-  inset: 0;
-}
-
-#map[hidden] {
-  display: none;
-}
-
-/* Catches the clicks that would otherwise land on the canvas and take pointer
-   lock back, and dims the world behind it — nothing is reached through this one
-   the way an item is reached through the inventory's. */
-.map-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgb(10 10 15 / 46%);
-}
-
-/* The window's body is one canvas and nothing else, so it takes no padding and
-   never scrolls — a chart is panned, not scrolled. */
-#map .inv-window-body {
-  display: block;
-  padding: 0;
+/* A pane is one canvas and nothing else: a chart is panned, not scrolled. The
+   local map's caption names the place over the top of it. */
+.map-pane {
+  position: relative;
   overflow: hidden;
+}
+
+.map-caption {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.8rem;
+  z-index: 1;
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgb(220 220 200 / 55%);
+  pointer-events: none;
 }
 
 .map-canvas {
@@ -2419,11 +2496,6 @@ body.is-inventory #prompt {
 
 .map-canvas:active {
   cursor: grabbing;
-}
-
-/* Nothing else on screen while the map is open, the reading screen's rule. */
-body.is-map #prompt {
-  display: none;
 }
 
 /* What a door on the local map is called, in the crosshair's own words and the
@@ -2449,29 +2521,11 @@ body.is-map #prompt {
 
 /* --- the journal ---------------------------------------------------------- */
 
-#journal {
-  position: fixed;
-  z-index: 31;
-  inset: 0;
-}
-
-#journal[hidden] {
-  display: none;
-}
-
-.journal-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgb(10 10 15 / 46%);
-}
-
 /* Two columns: the quests, and the page of the one chosen. Each scrolls on its own. */
-#journal .journal-body {
+.journal-pane {
   display: grid;
-  grid-template-columns: minmax(11rem, 2fr) 5fr;
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
+  grid-template-columns: minmax(12rem, 2fr) 5fr;
+  height: 100%;
 }
 
 .journal-list,
@@ -2493,7 +2547,7 @@ body.is-map #prompt {
 .journal-heading {
   padding: 0.5rem 0.5rem 0.25rem;
   font: inherit;
-  font-size: 0.62rem;
+  font-size: 0.8rem;
   letter-spacing: 0.26em;
   text-align: left;
   text-transform: uppercase;
@@ -2588,22 +2642,25 @@ body.is-map #prompt {
   padding: 1.1rem 1.5rem 1.4rem;
 }
 
+/* The quest's name, in full: the loudest thing on the page. */
 .journal-title {
   display: flex;
   gap: 0.8rem;
   align-items: baseline;
   padding-bottom: 0.8rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.3em;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgb(220 220 200 / 55%);
+  color: var(--ink);
   border-bottom: 1px solid rgb(220 220 200 / 18%);
 }
 
 .journal-mark {
-  font-size: 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 400;
   letter-spacing: 0.2em;
-  color: rgb(220 220 200 / 35%);
+  color: rgb(220 220 200 / 45%);
 }
 
 .journal-entry {
@@ -2628,6 +2685,3 @@ body.is-map #prompt {
   overflow-wrap: anywhere;
 }
 
-body.is-journal #prompt {
-  display: none;
-}

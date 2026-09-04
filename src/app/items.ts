@@ -7,6 +7,7 @@ import { InventoryUI } from '../ui/Inventory';
 import { Notices } from '../ui/Notices';
 import { ItemIcons, PACE_IDLE, PACE_OPEN } from '../ui/ItemIcons';
 import { SaveSlots } from '../ui/SaveSlots';
+import type { Menu } from '../ui/Menu';
 import { displayOf, isReadable, isUnique, itemById, itemFrom, kindOf, type Item } from '../world/items';
 import { holdSatchel } from '../world/dialogue';
 import { worldChart } from '../world/chart';
@@ -23,9 +24,9 @@ import {
 
 /**
  * The item systems, wired to a running app: pickup and containers on the
- * interact key, the pack on Tab, the held tool on left click, and the save
- * slots on the pause screen. Installed by the game page and not by the editor,
- * whose Tab already means something else.
+ * interact key, the pack as a tab of the menu, the held tool on left click,
+ * and the save slots on the pause screen. Installed by the game page and not
+ * by the editor.
  */
 
 const _origin = new THREE.Vector3();
@@ -47,7 +48,7 @@ export interface GameItems {
   notices: Notices;
 }
 
-export function installGameItems(app: App, overlay: HTMLElement): GameItems {
+export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): GameItems {
   const inventory = new Inventory();
   const world = new ItemWorld(app.zones, app.collider, inventory);
   app.zones.onDressed = (zone, root) => world.dressed(zone, root);
@@ -125,19 +126,9 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     else if (unequipped) sounds.unequip(unequipped);
   });
 
-  let wasPlaying = false;
-  const ui = new InventoryUI(overlay, inventory, icons, {
-    onOpen: () => {
-      wasPlaying = app.input.locked;
-      document.exitPointerLock();
-    },
-    // Not a bare `requestPointerLock` — see the reading screen, which is the
-    // same dance for the same reason.
-    onClose: () => {
-      if (!wasPlaying) return;
-      document.body.classList.add('is-capturing');
-      void app.input.capture().finally(() => document.body.classList.remove('is-capturing'));
-    },
+  const ui = new InventoryUI(menu, inventory, icons, {
+    open: () => menu.show('inventory'),
+    close: () => menu.hide(),
     dropToWorld: (item, ndc) => {
       const camera = app.player.camera;
       _origin.copy(camera.position);
@@ -196,7 +187,7 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     restoring = true;
     inventory.replace(data.items, data.tool, data.accessories);
     restoring = false;
-    ui.hide();
+    menu.hide();
     await app.zones.hardReset(data.zone, {
       position: new THREE.Vector3(data.at[0], data.at[1], data.at[2]),
       yaw: data.yaw,
@@ -262,19 +253,6 @@ export function installGameItems(app: App, overlay: HTMLElement): GameItems {
     }
     return false;
   };
-
-  window.addEventListener('keydown', (event) => {
-    if ((event.code !== 'Tab' && event.code !== 'KeyI') || event.repeat) return;
-    if (app.reading.shown || document.body.classList.contains('is-map') || document.body.classList.contains('is-journal')) return;
-    if (ui.shown) {
-      event.preventDefault();
-      ui.hide();
-      return;
-    }
-    if (!app.input.locked || app.zones.isTransitioning) return;
-    event.preventDefault();
-    ui.show();
-  });
 
   app.onFrame((dt) => {
     if (app.input.takeAttack() && held.swing()) sounds.swing();

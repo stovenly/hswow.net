@@ -2,6 +2,7 @@ import { createApp } from './app/boot';
 import { installGameItems } from './app/items';
 import { installJournal } from './app/journal';
 import { installMap } from './app/map';
+import { installMenu } from './app/menu';
 import { loadProject } from './app/loadProject';
 import { Title } from './ui/Title';
 import { QuitToTitle } from './ui/QuitToTitle';
@@ -52,9 +53,10 @@ const ready = (async () => {
   const app = await createApp({ canvas, overlay, project });
   // The game page only: the editor keeps Tab for its fly toggle and installs
   // none of the item systems.
-  const items = installGameItems(app, overlay);
-  installMap(app, overlay);
-  installJournal(app, overlay, items.notices);
+  const menu = installMenu(app, overlay);
+  const items = installGameItems(app, overlay, menu);
+  installJournal(menu, items.notices);
+  installMap(app, menu);
   // Before `start`, so the readout folder's loop is registered ahead of the
   // frame loop and reports the frame just drawn rather than the one in progress.
   if (app.dev.gui && project.debug !== false) {

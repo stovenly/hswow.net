@@ -3,17 +3,17 @@ import { MapBake } from '../ui/map/bake';
 import { chartFrom, layoutWorld, type WorldChart } from '../ui/map/world';
 import { pool } from '../engine/work/pool';
 import { worldChart } from '../world/chart';
+import type { Menu } from '../ui/Menu';
 import type { App } from './boot';
 
 /**
  * The map, wired to a running app: the top-down bake on every zone entry, the
- * fog opening around the player once a frame, and both windows on `M`.
- *
- * Installed by the game page and not by the editor, which has the whole world
- * laid out in front of it already.
+ * fog opening around the player once a frame, and the two map tabs of the
+ * menu. Installed by the game page and not by the editor, which has the whole
+ * world laid out in front of it already.
  */
 
-export function installMap(app: App, overlay: HTMLElement): MapScreen {
+export function installMap(app: App, menu: Menu): MapScreen {
   const bake = new MapBake(app.viewport.renderer);
   // Laid out here and raised on the pool from the start, so the first look at
   // the map never pays for it: nothing about the chart depends on what the
@@ -28,19 +28,7 @@ export function installMap(app: App, overlay: HTMLElement): MapScreen {
     })
     .catch((error: unknown) => console.warn('map: the world could not be raised', error));
 
-  let wasPlaying = false;
-  const screen = new MapScreen(overlay, {
-    onOpen: () => {
-      wasPlaying = app.input.locked;
-      document.exitPointerLock();
-    },
-    // Not a bare `requestPointerLock` — see the reading screen, which is the
-    // same dance for the same reason.
-    onClose: () => {
-      if (!wasPlaying) return;
-      document.body.classList.add('is-capturing');
-      void app.input.capture().finally(() => document.body.classList.remove('is-capturing'));
-    },
+  const screen = new MapScreen(menu, {
     here: () => app.zones.current?.name ?? 'nowhere',
     local: () => {
       const zone = app.zones.current;
@@ -86,19 +74,6 @@ export function installMap(app: App, overlay: HTMLElement): MapScreen {
     // is not consulted — a disc is enough to say you were here.
     worldChart.stamp(zone.id, plan, at.x, at.z, dt, !zone.environment.sky);
     worldChart.sweep(app.zones.portals, zone.id, plan);
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (event.code !== 'KeyM' || event.repeat) return;
-    if (screen.shown) {
-      event.preventDefault();
-      screen.hide();
-      return;
-    }
-    if (app.reading.shown || document.body.classList.contains('is-inventory') || document.body.classList.contains('is-journal')) return;
-    if (!app.input.locked || app.zones.isTransitioning) return;
-    event.preventDefault();
-    screen.show();
   });
 
   return screen;

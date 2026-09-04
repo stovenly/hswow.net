@@ -1,4 +1,4 @@
-import { Floating, type FloatingRect } from './Floating';
+import type { Menu, Pane } from './Menu';
 import { questFinished } from '../world/dialogue';
 import { everyQuest, type QuestDocument } from '../world/people';
 import type { WorldFlags } from '../world/state';
@@ -10,79 +10,34 @@ import type { WorldFlags } from '../world/state';
  * in the order they were written, each dated by how long ago that was.
  */
 
-export interface JournalHandlers {
-  onOpen: () => void;
-  onClose: () => void;
-}
-
-const LIMITS = { minW: 460, minH: 300 };
-
-export class Journal {
-  private readonly root: HTMLDivElement;
-  private readonly window: Floating;
+export class Journal implements Pane {
   private readonly listEl: HTMLDivElement;
   private readonly pageEl: HTMLDivElement;
   private readonly state: WorldFlags;
-  private readonly handlers: JournalHandlers;
   private chosen: string | null = null;
   private finishedOpen = false;
-  private open_ = false;
 
-  constructor(overlay: HTMLElement, state: WorldFlags, handlers: JournalHandlers) {
+  constructor(menu: Menu, state: WorldFlags) {
     this.state = state;
-    this.handlers = handlers;
 
-    this.root = document.createElement('div');
-    this.root.id = 'journal';
-    this.root.hidden = true;
-
-    const scrim = document.createElement('div');
-    scrim.className = 'journal-scrim';
-    this.root.append(scrim);
-
-    this.window = new Floating(this.root, 'hswow:ui:journal', LIMITS, centred);
-    this.window.setTitle('journal');
-    this.window.body.classList.add('journal-body');
-
+    const pane = menu.pane('journal');
+    pane.classList.add('journal-pane');
     this.listEl = document.createElement('div');
     this.listEl.className = 'journal-list';
     this.pageEl = document.createElement('div');
     this.pageEl.className = 'journal-page';
-    this.window.body.append(this.listEl, this.pageEl);
-
-    overlay.append(this.root);
-    window.addEventListener('keydown', this.handleKeyDown);
+    pane.append(this.listEl, this.pageEl);
+    menu.mount('journal', this);
   }
 
-  get shown(): boolean {
-    return this.open_;
-  }
-
-  show(): void {
-    if (this.open_) return;
-    this.open_ = true;
-    this.root.hidden = false;
-    document.body.classList.add('is-journal');
+  activate(): void {
     // Opens on an active quest, or on none: a finished one is only looked at by asking.
     this.chosen = null;
     this.finishedOpen = false;
     this.draw();
-    this.handlers.onOpen();
   }
 
-  hide(): void {
-    if (!this.open_) return;
-    this.open_ = false;
-    this.root.hidden = true;
-    document.body.classList.remove('is-journal');
-    this.handlers.onClose();
-  }
-
-  dispose(): void {
-    window.removeEventListener('keydown', this.handleKeyDown);
-    this.window.dispose();
-    this.root.remove();
-  }
+  deactivate(): void {}
 
   private draw(): void {
     const active: QuestDocument[] = [];
@@ -202,13 +157,6 @@ export class Journal {
     this.pageEl.replaceChildren(page);
     this.pageEl.scrollTop = 0;
   }
-
-  private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open_ || event.repeat) return;
-    if (event.code !== 'Escape' && event.code !== 'Tab') return;
-    event.preventDefault();
-    this.hide();
-  };
 }
 
 /** Whole days, in a diarist's words. */
@@ -216,10 +164,4 @@ function agoOf(days: number): string {
   if (days < 1) return 'today';
   if (days < 2) return 'yesterday';
   return `${Math.floor(days)} days ago`;
-}
-
-function centred(): FloatingRect {
-  const w = Math.min(Math.round(window.innerWidth * 0.62), 900);
-  const h = Math.round(window.innerHeight * 0.78);
-  return { x: Math.round((window.innerWidth - w) / 2), y: Math.round((window.innerHeight - h) / 2), w, h };
 }
