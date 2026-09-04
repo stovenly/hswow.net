@@ -1362,8 +1362,24 @@ body:not(.is-playing) #prompt {
   transform: translateX(-0.75em);
 }
 
+/* A reply being said is indented and carries an arrow on its right; no bubble,
+   that is the villager's side. */
 .speech-replies .speech-choice.is-saying {
   transform: translateX(0.75em);
+}
+
+.speech-replies .speech-choice .speech-bubble {
+  display: none;
+}
+
+.speech-replies .speech-choice.is-saying::after {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 0;
+  border: 0.32em solid transparent;
+  border-left-color: rgb(220 220 200 / 92%);
+  border-right: 0;
 }
 
 /* The bubble: a small rounded box after the word with a tail toward it and
