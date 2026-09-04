@@ -614,18 +614,25 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // Metres of thickness one pixel covers. The waterline is never narrower
       // than a couple of pixels on screen, whatever it is in metres, and its
       // edge is spread over one: a distant rock gets a soft rim, not a jag.
-      // Thickness per pixel, but never the jump at a silhouette: a rock against
-      // deep water is an edge, not a waterline.
-      float px = min(fwidth(thickness), 3.0 * fwidth(surfaceDistance) + 0.02);
-      // On a sea the rim is a line along the waterline, never a field over a
-      // shallow flat: its width is capped in metres of bed, by the thickness the
-      // bed gains per metre. Ponds and races keep the depth band alone.
-      if (vRunup > 0.0) {
-        float bedStep = max(length(fwidth(bedPoint.xz)), 1e-4);
-        band = min(band, 1.6 * (0.45 + 1.1 * lap) * px / bedStep);
-      }
+      float px = fwidth(thickness);
       float shoreBand = max(band, min(px * 2.5, 2.5));
       float shore = 1.0 - smoothstep(shoreBand * 0.5 - px, shoreBand + px, thickness);
+      if (vRunup > 0.0) {
+        // On a sea the rim is measured down the column, so a rock's waterline is
+        // a band of fixed height whatever the view and a silhouette is an edge.
+        // Its height is capped by the bed's slope so a shallow flat is not a
+        // field, and where it is thinner than a pixel it fades by its coverage
+        // rather than swelling to a white line.
+        float column = max(vWorld.y - bedPoint.y, 0.0);
+        float cpx = fwidth(column);
+        float lapF = mix(lap, 0.5, clamp(fwidth(lap) * 1.5, 0.0, 1.0));
+        float bedStep = max(length(fwidth(bedPoint.xz)), 1e-4);
+        float seaBand = uFoamDepth * (0.45 + 1.1 * lapF);
+        seaBand = min(seaBand, 1.6 * (0.45 + 1.1 * lapF) * cpx / bedStep);
+        float wide = max(seaBand, cpx);
+        float rimAA = min(cpx, wide * 0.5);
+        shore = (1.0 - smoothstep(wide - rimAA, wide + rimAA, column)) * clamp(seaBand / wide, 0.0, 1.0);
+      }
 
       // --- surf ---------------------------------------------------------------
       // Foam comes off the shore train; the noise tears it, never places it.
@@ -654,11 +661,13 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
       // The wash: what the breaker leaves behind it, thinning away before the
       // next crest, and never white. Streaked lace that opens hole-first, the
       // threshold rising as it decays.
-      float decay = 1.0 - smoothstep(0.0, 0.6, since);
+      float decay = 1.0 - smoothstep(0.0, 0.45, since);
       float laceField = streak * 0.7 + clumps * 0.3;
       float laceAt = mix(0.35, 0.68, since);
       float lace = smoothstep(laceAt - sw, laceAt + 0.1 + sw, laceField);
-      float trail = 0.6 * smoothstep(0.9, 1.0, vBreak) * decay * lace;
+      // Over the sand the sheet's foam is its edge alone: a wash there is a slow
+      // threshold sweeping smooth noise, which draws contours.
+      float trail = 0.6 * smoothstep(0.9, 1.0, vBreak) * decay * lace * smoothstep(-0.05, 0.05, vColumn);
       float breaker = max(lip, trail);
       // How far into the surf zone this is, for anything that stops there.
       float surfZone = smoothstep(0.4, 0.85, vBreak);
