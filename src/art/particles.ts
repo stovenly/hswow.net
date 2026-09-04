@@ -410,15 +410,17 @@ const PARTICLE_VERTEX = /* glsl */ `
  * difference it computes is the one a soft particle needs, which removes the
  * hard line a billboard draws where it intersects the ground.
  */
+const PARTICLE_VARYINGS = /* glsl */ `
+varying vec4 vParticle;
+varying float vParticleDepth;
+`;
+
 const PARTICLE_FRAGMENT = /* glsl */ `
 uniform sampler2D tDepth;
 uniform vec2 uResolution;
 uniform float uNear;
 uniform float uFar;
 uniform float uSoftFade;
-
-varying vec4 vParticle;
-varying float vParticleDepth;
 
 float sceneDistance(vec2 uv) {
   float d = texture2D(tDepth, uv).x;
@@ -476,7 +478,7 @@ function patchParticles(
     );
 
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', `#include <common>\n${sampled ? PARTICLE_FRAGMENT : ''}`)
+    .replace('#include <common>', `#include <common>\n${PARTICLE_VARYINGS}${sampled ? PARTICLE_FRAGMENT : ''}`)
     .replace(
       '#include <color_fragment>',
       `#include <color_fragment>\n${sampled ? PARTICLE_FRAGMENT_BODY : PARTICLE_FRAGMENT_PLAIN}`,
