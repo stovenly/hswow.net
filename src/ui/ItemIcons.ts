@@ -12,7 +12,7 @@ import type { App } from '../app/boot';
  */
 
 /** Bump when builders change enough that cached icons lie. Orphans are pruned. */
-const ICON_VERSION = 4;
+const ICON_VERSION = 5;
 
 /** Pixels square. Covers a cell at twice its CSS size, so a retina panel upscales nothing. */
 const SIZE = 128;
