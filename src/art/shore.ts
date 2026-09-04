@@ -48,6 +48,16 @@ export function wavenumber(omega: number, h: number, k0: number): number {
   return Math.min(Math.max(k, k0), K_CAP);
 }
 
+const FAR = 0;
+const TRIAL = 1;
+const KNOWN = 2;
+
+/**
+ * The phase is the eikonal solution |∇σ| = k(h) over the water, marched inward
+ * from the perimeter where it is the swell's own plane wave. Land is an
+ * obstacle; it takes the phase and direction of the water that reaches it, so
+ * the sand above the waterline is timed by the wave that arrives there.
+ */
 export function bakeShore(
   grid: ShoreGrid,
   level: number,
@@ -70,15 +80,192 @@ export function bakeShore(
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const n = j * cols + i;
-      const x = x0 + i * sx;
-      const z = z0 + j * sz;
-      h[n] = level - groundAt(x, z);
+      h[n] = level - groundAt(x0 + i * sx, z0 + j * sz);
       k[n] = wavenumber(omega, h[n], k0);
-      sigma[n] = k0 * (dx * x + dz * z);
+    }
+  }
+
+  const state = new Uint8Array(count);
+  const heap = new Heap();
+  const seed = (n: number): void => {
+    const i = n % cols;
+    const j = (n - i) / cols;
+    sigma[n] = k0 * (dx * (x0 + i * sx) + dz * (z0 + j * sz));
+    state[n] = KNOWN;
+    heap.push(sigma[n], n);
+  };
+
+  const onRim = (n: number): boolean => {
+    const i = n % cols;
+    const j = (n - i) / cols;
+    return i === 0 || j === 0 || i === cols - 1 || j === rows - 1;
+  };
+  let seeded = 0;
+  for (let n = 0; n < count; n++) {
+    if (onRim(n) && h[n] > 0) {
+      seed(n);
+      seeded++;
+    }
+  }
+  if (seeded === 0) for (let n = 0; n < count; n++) if (onRim(n)) seed(n);
+
+  const ax = 1 / (sx * sx);
+  const az = 1 / (sz * sz);
+  const update = (n: number): void => {
+    if (state[n] === KNOWN || h[n] <= 0) return;
+    const i = n % cols;
+    let a = Infinity;
+    let b = Infinity;
+    if (i > 0 && state[n - 1] === KNOWN) a = sigma[n - 1];
+    if (i < cols - 1 && state[n + 1] === KNOWN) a = Math.min(a, sigma[n + 1]);
+    if (n >= cols && state[n - cols] === KNOWN) b = sigma[n - cols];
+    if (n + cols < count && state[n + cols] === KNOWN) b = Math.min(b, sigma[n + cols]);
+    const c = k[n];
+    let value: number;
+    if (a === Infinity) value = b + c * sz;
+    else if (b === Infinity) value = a + c * sx;
+    else {
+      const p = ax * a + az * b;
+      const q = ax * a * a + az * b * b - c * c;
+      const disc = p * p - (ax + az) * q;
+      value = disc >= 0 ? (p + Math.sqrt(disc)) / (ax + az) : Infinity;
+      if (value < Math.max(a, b)) value = Math.min(a + c * sx, b + c * sz);
+    }
+    if (state[n] === FAR || value < sigma[n]) {
+      sigma[n] = value;
+      state[n] = TRIAL;
+      heap.push(value, n);
+    }
+  };
+
+  while (heap.size > 0) {
+    const n = heap.pop();
+    if (state[n] === KNOWN && heap.lastValue > sigma[n]) continue;
+    state[n] = KNOWN;
+    const i = n % cols;
+    if (i > 0) update(n - 1);
+    if (i < cols - 1) update(n + 1);
+    if (n >= cols) update(n - cols);
+    if (n + cols < count) update(n + cols);
+  }
+
+  // The travel direction is down the phase gradient's own slope: σ grows the
+  // way the wave goes.
+  const reached = (n: number): boolean => state[n] === KNOWN;
+  for (let n = 0; n < count; n++) {
+    if (!reached(n)) continue;
+    const i = n % cols;
+    let gx = 0;
+    let gz = 0;
+    const left = i > 0 && reached(n - 1);
+    const right = i < cols - 1 && reached(n + 1);
+    const back = n >= cols && reached(n - cols);
+    const fore = n + cols < count && reached(n + cols);
+    if (left && right) gx = (sigma[n + 1] - sigma[n - 1]) / (2 * sx);
+    else if (right) gx = (sigma[n + 1] - sigma[n]) / sx;
+    else if (left) gx = (sigma[n] - sigma[n - 1]) / sx;
+    if (back && fore) gz = (sigma[n + cols] - sigma[n - cols]) / (2 * sz);
+    else if (fore) gz = (sigma[n + cols] - sigma[n]) / sz;
+    else if (back) gz = (sigma[n] - sigma[n - cols]) / sz;
+    const len = Math.hypot(gx, gz);
+    if (len > 1e-6) {
+      dir[n * 2] = gx / len;
+      dir[n * 2 + 1] = gz / len;
+    } else {
       dir[n * 2] = dx;
       dir[n * 2 + 1] = dz;
     }
   }
 
+  // Land, and any water the march never reached, takes the nearest reached
+  // vertex's phase and direction, flooding outward one ring at a time.
+  let frontier: number[] = [];
+  for (let n = 0; n < count; n++) {
+    if (!reached(n)) continue;
+    const i = n % cols;
+    if (
+      (i > 0 && !reached(n - 1)) ||
+      (i < cols - 1 && !reached(n + 1)) ||
+      (n >= cols && !reached(n - cols)) ||
+      (n + cols < count && !reached(n + cols))
+    )
+      frontier.push(n);
+  }
+  const filled = new Uint8Array(count);
+  while (frontier.length > 0) {
+    const next: number[] = [];
+    for (const from of frontier) {
+      const i = from % cols;
+      const spread = (to: number): void => {
+        if (state[to] === KNOWN || filled[to]) return;
+        filled[to] = 1;
+        sigma[to] = sigma[from];
+        dir[to * 2] = dir[from * 2];
+        dir[to * 2 + 1] = dir[from * 2 + 1];
+        next.push(to);
+      };
+      if (i > 0) spread(from - 1);
+      if (i < cols - 1) spread(from + 1);
+      if (from >= cols) spread(from - cols);
+      if (from + cols < count) spread(from + cols);
+    }
+    for (const n of next) state[n] = KNOWN;
+    frontier = next;
+  }
+
   return { h, sigma, dir, k };
+}
+
+/** A binary min-heap of (value, index) pairs with lazy deletion. */
+class Heap {
+  private values: number[] = [];
+  private items: number[] = [];
+  /** The value the last `pop` came out with. */
+  lastValue = 0;
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  push(value: number, item: number): void {
+    const values = this.values;
+    const items = this.items;
+    let i = items.length;
+    values.push(value);
+    items.push(item);
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (values[parent] <= values[i]) break;
+      [values[parent], values[i]] = [values[i], values[parent]];
+      [items[parent], items[i]] = [items[i], items[parent]];
+      i = parent;
+    }
+  }
+
+  pop(): number {
+    const values = this.values;
+    const items = this.items;
+    const top = items[0];
+    this.lastValue = values[0];
+    const lastValue = values.pop() as number;
+    const lastItem = items.pop() as number;
+    if (items.length > 0) {
+      values[0] = lastValue;
+      items[0] = lastItem;
+      let i = 0;
+      const n = items.length;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < n && values[l] < values[m]) m = l;
+        if (r < n && values[r] < values[m]) m = r;
+        if (m === i) break;
+        [values[m], values[i]] = [values[i], values[m]];
+        [items[m], items[i]] = [items[i], items[m]];
+        i = m;
+      }
+    }
+    return top;
+  }
 }
