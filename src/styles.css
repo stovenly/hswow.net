@@ -2317,13 +2317,9 @@ body.is-identifying #pause {
 
 /* What an empty slot is for, faint in it: background art, not a label. */
 .inv-slot-mark {
-  width: 58%;
-  height: 58%;
-  fill: none;
-  stroke: rgb(220 220 200 / 16%);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  width: 60%;
+  height: 60%;
+  fill: rgb(220 220 200 / 9%);
   pointer-events: none;
 }
 

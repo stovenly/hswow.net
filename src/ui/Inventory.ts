@@ -555,12 +555,16 @@ function slotMark(kind: 'tool' | 'accessory'): SVGSVGElement {
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('class', 'inv-slot-mark');
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute(
-    'd',
-    kind === 'tool'
-      ? 'M14 4h6v5h-6zM14 6.5H8.5a2 2 0 0 0-2 2V10M14 6.5v3.5h-5M9.5 10L5 21'
-      : 'M12 21a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM9.5 5.5L12 3l2.5 2.5L12 8z',
-  );
+  // Solid shapes, drawn upright and turned: a hammer's head and handle; a
+  // ring cut hollow by the even-odd rule, with a stone at the top.
+  if (kind === 'tool') {
+    path.setAttribute('d', 'M6 4.5q0-1.5 1.5-1.5h9q1.5 0 1.5 1.5v4q0 1.5-1.5 1.5h-9Q6 10 6 8.5zM10.7 9.5h2.6v10.5q0 1.3-1.3 1.3t-1.3-1.3z');
+    path.setAttribute('transform', 'rotate(-38 12 12)');
+  } else {
+    path.setAttribute('d', 'M12 6.2a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM12 9a4.2 4.2 0 1 1 0 8.4 4.2 4.2 0 0 1 0-8.4zM12 2.4l3 3.1-3 3.1-3-3.1z');
+    path.setAttribute('fill-rule', 'evenodd');
+    path.setAttribute('transform', 'rotate(-28 12 12)');
+  }
   svg.append(path);
   return svg;
 }
