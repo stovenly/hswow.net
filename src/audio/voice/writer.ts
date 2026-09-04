@@ -178,11 +178,13 @@ function hash(seed: number, n: number): number {
  * cast being one voice at a range of sizes.
  */
 export function identity(who: Character, tone: number, pitch: number, lect: Lect): Identity {
-  // Roughly 100 to 300 Hz over 14 to 18 cm, before `tone` shrinks it.
+  // An adult's range: roughly 105 to 210 Hz over 13 to 17 cm. `tone` is a
+  // figure's torso, well above 1, and takes only a quarter of its say here,
+  // or every villager has a child's throat and a child's note.
   return {
     rate: who.rate,
-    lengthCm: (14.2 + 4 * who.size) / tone,
-    f0: pitch * (0.7 + 0.3 * tone) * (1.15 - 0.55 * who.size) * who.f0Trim,
+    lengthCm: (14.2 + 4 * who.size) / (0.75 + 0.25 * tone),
+    f0: pitch * (0.85 + 0.15 * tone) * (1.2 - 0.6 * who.size) * who.f0Trim,
     range: who.range,
     // `Rd` sets the length of the fold's return phase, which puts a second
     // 6 dB an octave on everything above `f0 / 2π·Ra`.

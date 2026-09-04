@@ -123,7 +123,7 @@ function createThroat(engine: AudioEngine, options: VoiceOptions): Voice {
   // A named character brings its own people with it, so the words follow the
   // voice rather than the other way round.
   const { lect, who, tunes } = whoIs(seed, options.lect, options.character);
-  const me = identity(who, options.tone ?? 1, options.pitch ?? 250, lect);
+  const me = identity(who, options.tone ?? 1, options.pitch ?? 160, lect);
   const body = villagerBody(context.sampleRate, me.lengthCm, seed, who);
 
   const output = context.createGain();
