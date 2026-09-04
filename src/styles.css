@@ -1390,9 +1390,6 @@ body:not(.is-playing) #prompt {
   transform: translateX(0.75em);
 }
 
-.speech-replies .speech-choice .speech-bubble {
-  display: none;
-}
 
 .speech-replies .speech-choice.is-saying::after {
   content: '';
@@ -1419,6 +1416,11 @@ body:not(.is-playing) #prompt {
 
 .speech-choice.is-saying .speech-bubble {
   display: inline-block;
+}
+
+/* Never on a reply: the bubble is the villager's side. */
+.speech-replies .speech-choice.is-saying .speech-bubble {
+  display: none;
 }
 
 .speech-bubble::before {
