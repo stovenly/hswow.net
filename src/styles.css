@@ -1384,14 +1384,13 @@ body:not(.is-playing) #prompt {
   transform: translateX(-0.75em);
 }
 
-/* A reply being said is indented and carries an arrow on its right; no bubble,
-   that is the villager's side. */
+/* A reply being said is indented, with an arrow in the indent pointing at it. */
 .speech-replies .speech-choice.is-saying {
   transform: translateX(0.75em);
 }
 
 
-.speech-replies .speech-choice.is-saying::after {
+.speech-replies .speech-choice.is-saying::before {
   content: '';
   flex: none;
   width: 0;
