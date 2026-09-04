@@ -1088,50 +1088,6 @@
       }
     },
     {
-      "id": "dune-grass",
-      "kind": "sound",
-      "at": [
-        -10,
-        -31
-      ],
-      "lift": 0.6,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 160,
-          "tone": 2.2,
-          "gain": 0.26,
-          "articulation": 0.4
-        },
-        "refDistance": 2,
-        "maxDistance": 18,
-        "rolloff": 1.5,
-        "reverb": 0.2
-      }
-    },
-    {
-      "id": "dune-grass-2",
-      "kind": "sound",
-      "at": [
-        28,
-        -26
-      ],
-      "lift": 0.6,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 150,
-          "tone": 2.4,
-          "gain": 0.24,
-          "articulation": 0.42
-        },
-        "refDistance": 2,
-        "maxDistance": 18,
-        "rolloff": 1.5,
-        "reverb": 0.2
-      }
-    },
-    {
       "id": "ring",
       "kind": "vistaRing",
       "seed": 9210,

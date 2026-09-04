@@ -1130,69 +1130,6 @@
       }
     },
     {
-      "id": "oak-leaves",
-      "kind": "sound",
-      "ref": "lone-oak",
-      "lift": 5,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 260,
-          "tone": 0.8,
-          "gain": 0.36,
-          "articulation": 0.2
-        },
-        "refDistance": 3.5,
-        "maxDistance": 28,
-        "rolloff": 1.6,
-        "reverb": 0.3
-      }
-    },
-    {
-      "id": "gorse-hedge",
-      "kind": "sound",
-      "ref": "arch-gorse-e",
-      "lift": 0.8,
-      "spec": {
-        "model": "hedge",
-        "options": {
-          "density": 170,
-          "tone": 1.3,
-          "woody": 0.5,
-          "gain": 0.2
-        },
-        "refDistance": 1.4,
-        "maxDistance": 12,
-        "reverb": 0.2
-      }
-    },
-    {
-      "id": "gate",
-      "kind": "sound",
-      "at": [
-        0.9,
-        1.7,
-        -44
-      ],
-      "spec": {
-        "model": "friction",
-        "options": {
-          "motion": "weather",
-          "speed": 0.2,
-          "force": 0.8,
-          "pitch": 140,
-          "decay": 1.2,
-          "bright": 0.2,
-          "roughness": 0.15,
-          "gain": 0.28
-        },
-        "refDistance": 3,
-        "maxDistance": 40,
-        "rolloff": 1.4,
-        "reverb": 0.5
-      }
-    },
-    {
       "id": "mill-creak",
       "kind": "sound",
       "ref": "windmill",

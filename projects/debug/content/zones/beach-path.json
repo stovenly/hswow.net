@@ -1918,50 +1918,6 @@
       ]
     },
     {
-      "id": "grass-hiss",
-      "kind": "sound",
-      "at": [
-        -22,
-        -18
-      ],
-      "lift": 0.6,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 160,
-          "tone": 2.2,
-          "gain": 0.26,
-          "articulation": 0.4
-        },
-        "refDistance": 2,
-        "maxDistance": 18,
-        "rolloff": 1.5,
-        "reverb": 0.2
-      }
-    },
-    {
-      "id": "grass-hiss-2",
-      "kind": "sound",
-      "at": [
-        22,
-        10
-      ],
-      "lift": 0.6,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 150,
-          "tone": 2.4,
-          "gain": 0.24,
-          "articulation": 0.42
-        },
-        "refDistance": 2,
-        "maxDistance": 18,
-        "rolloff": 1.5,
-        "reverb": 0.2
-      }
-    },
-    {
       "id": "bird",
       "kind": "sound",
       "at": [

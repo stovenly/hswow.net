@@ -2172,44 +2172,6 @@
       }
     },
     {
-      "id": "elder-leaves-1",
-      "kind": "sound",
-      "ref": "elder-1",
-      "lift": 3,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 200,
-          "tone": 1.1,
-          "gain": 0.3,
-          "articulation": 0.26
-        },
-        "refDistance": 2.5,
-        "maxDistance": 20,
-        "rolloff": 1.6,
-        "reverb": 0.3
-      }
-    },
-    {
-      "id": "elder-leaves-2",
-      "kind": "sound",
-      "ref": "elder-3",
-      "lift": 3,
-      "spec": {
-        "model": "foliage",
-        "options": {
-          "density": 210,
-          "tone": 1,
-          "gain": 0.3,
-          "articulation": 0.24
-        },
-        "refDistance": 2.5,
-        "maxDistance": 20,
-        "rolloff": 1.6,
-        "reverb": 0.3
-      }
-    },
-    {
       "id": "bird-w",
       "kind": "sound",
       "at": [
