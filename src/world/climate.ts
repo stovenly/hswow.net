@@ -154,7 +154,7 @@ export interface ClimateSettings {
 export const DEFAULT_CLIMATE: ClimateSettings = {
   dayLength: 24 * 60,
   yearLength: 96,
-  latitude: 52,
+  latitude: 20,
   seed: 8093,
   baseWind: 0.5,
   pace: 1,
@@ -370,11 +370,7 @@ export interface ZonePlace {
 
 const ORIGIN: ZonePlace = { at: [0, 0], altitude: 0 };
 
-/**
- * Where the world starts: late spring, mid-morning. Day zero is midwinter,
- * and at this latitude a midwinter morning is still dark — booting into it
- * would be a fair reading of the model and a poor first frame.
- */
+/** Where the world starts: late spring, mid-morning. Day zero is midwinter. */
 export const START_DAY = 38;
 export const START_TIME = 0.42;
 
