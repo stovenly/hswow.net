@@ -19,7 +19,7 @@
   "spawn": {
     "at": [
       0,
-      19
+      22
     ],
     "yaw": 0
   },
@@ -47,90 +47,344 @@
     ]
   },
   "terrain": {
-    "size": 114,
+    "size": 140,
     "resolution": 1.5,
     "steepDetail": 2,
     "landforms": [
       {
         "kind": "hill",
         "at": [
-          -9,
-          7
+          2,
+          0
         ],
-        "radius": 18,
-        "height": 0.9
+        "radius": 26,
+        "height": 0.5
       },
       {
         "kind": "hill",
         "at": [
-          16,
-          12
+          0,
+          -30
         ],
-        "radius": 12,
-        "height": 0.6
+        "radius": 22,
+        "height": 1.6
       },
       {
-        "kind": "basin",
+        "kind": "hill",
         "at": [
-          11,
-          -13
+          18,
+          30
         ],
-        "radius": 15,
-        "depth": 0.8
+        "radius": 16,
+        "height": 1.1
+      },
+      {
+        "kind": "hill",
+        "at": [
+          40,
+          -10
+        ],
+        "radius": 18,
+        "height": 1.4
+      },
+      {
+        "kind": "channel",
+        "through": [
+          [
+            -34,
+            -40
+          ],
+          [
+            -26,
+            -22
+          ],
+          [
+            -21,
+            -8
+          ],
+          [
+            -21,
+            4
+          ],
+          [
+            -18,
+            14
+          ],
+          [
+            -16,
+            22
+          ],
+          [
+            -14,
+            34
+          ]
+        ],
+        "width": 2.4,
+        "depth": 0.8,
+        "bank": 3
       },
       {
         "kind": "terrace",
         "at": [
-          0,
-          2
+          28,
+          -2
         ],
-        "radius": 15,
-        "height": 0.55,
-        "blend": 7
-      }
-    ],
-    "patches": [
-      {
-        "kind": "field",
-        "min": [
-          -8,
-          -20
-        ],
-        "max": [
-          6,
-          -12
-        ],
-        "material": "meadow"
-      },
-      {
-        "kind": "field",
-        "min": [
-          12,
-          -15
-        ],
-        "max": [
-          21,
-          -6
-        ],
-        "material": "crop"
+        "radius": 11,
+        "height": 1.2,
+        "blend": 6
       }
     ],
     "detail": [
       {
         "at": [
           0,
-          2
+          -2
         ],
-        "radius": 20,
+        "radius": 34,
         "level": 2
       },
       {
         "at": [
-          0,
-          2
+          -21,
+          -3
         ],
-        "radius": 14,
-        "level": 4
+        "radius": 10,
+        "level": 2
+      }
+    ],
+    "patches": [
+      {
+        "kind": "path",
+        "through": [
+          [
+            -34,
+            -40
+          ],
+          [
+            -26,
+            -22
+          ],
+          [
+            -21,
+            -8
+          ],
+          [
+            -21,
+            4
+          ],
+          [
+            -18,
+            14
+          ],
+          [
+            -16,
+            22
+          ],
+          [
+            -14,
+            34
+          ]
+        ],
+        "width": 2.6,
+        "material": "mire",
+        "feather": 1.2
+      },
+      {
+        "kind": "field",
+        "min": [
+          -31,
+          3
+        ],
+        "max": [
+          -22,
+          15
+        ],
+        "material": "meadow",
+        "feather": 2
+      },
+      {
+        "kind": "field",
+        "min": [
+          -22,
+          -28
+        ],
+        "max": [
+          -4,
+          -17
+        ],
+        "material": "dirt",
+        "feather": 2.5
+      },
+      {
+        "kind": "field",
+        "min": [
+          4,
+          -28
+        ],
+        "max": [
+          24,
+          -17
+        ],
+        "material": "dirt",
+        "feather": 2.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          14,
+          18
+        ],
+        "radius": 4.2,
+        "material": "cobble",
+        "feather": 1
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -6,
+          4
+        ],
+        "radius": 3.2,
+        "material": "dirt",
+        "feather": 1.8
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9,
+          -8
+        ],
+        "radius": 3,
+        "material": "dirt",
+        "feather": 1.8
+      }
+    ],
+    "cover": [
+      {
+        "kind": "blot",
+        "at": [
+          0,
+          1
+        ],
+        "radius": 12,
+        "cover": "clover"
+      },
+      {
+        "kind": "field",
+        "min": [
+          17,
+          -12
+        ],
+        "max": [
+          38,
+          8
+        ],
+        "cover": "flowers"
+      },
+      {
+        "kind": "path",
+        "through": [
+          [
+            -34,
+            -40
+          ],
+          [
+            -26,
+            -22
+          ],
+          [
+            -21,
+            -8
+          ],
+          [
+            -21,
+            4
+          ],
+          [
+            -18,
+            14
+          ],
+          [
+            -16,
+            22
+          ],
+          [
+            -14,
+            34
+          ]
+        ],
+        "width": 8,
+        "cover": "sedge"
+      },
+      {
+        "kind": "path",
+        "through": [
+          [
+            -30.8,
+            -40
+          ],
+          [
+            -22.8,
+            -22
+          ],
+          [
+            -17.8,
+            -8
+          ],
+          [
+            -17.8,
+            4
+          ],
+          [
+            -14.8,
+            14
+          ],
+          [
+            -12.8,
+            22
+          ],
+          [
+            -10.8,
+            34
+          ]
+        ],
+        "width": 2.6,
+        "cover": "moss"
+      },
+      {
+        "kind": "path",
+        "through": [
+          [
+            -34,
+            -40
+          ],
+          [
+            -26,
+            -22
+          ],
+          [
+            -21,
+            -8
+          ],
+          [
+            -21,
+            4
+          ],
+          [
+            -18,
+            14
+          ],
+          [
+            -16,
+            22
+          ],
+          [
+            -14,
+            34
+          ]
+        ],
+        "width": 2.4,
+        "cover": "none"
       }
     ],
     "edgeFade": {
@@ -156,51 +410,67 @@
         "through": [
           [
             0,
-            22
+            26
           ],
           [
-            9,
-            22
+            12,
+            26
           ],
           [
-            18,
-            14
+            24,
+            20
           ],
           [
-            23,
-            1
+            36,
+            10
           ],
           [
-            20,
-            -13
+            38,
+            -4
           ],
           [
-            8,
-            -21
+            34,
+            -16
           ],
           [
-            -2,
-            -22
+            22,
+            -26
+          ],
+          [
+            6,
+            -30
+          ],
+          [
+            -10,
+            -30
+          ],
+          [
+            -24,
+            -24
+          ],
+          [
+            -32,
+            -14
+          ],
+          [
+            -33,
+            -4
+          ],
+          [
+            -32,
+            8
+          ],
+          [
+            -24,
+            18
           ],
           [
             -12,
-            -21
+            26
           ],
           [
-            -21,
-            -15
-          ],
-          [
-            -23,
-            3
-          ],
-          [
-            -17,
-            17
-          ],
-          [
-            -6,
-            22
+            0,
+            26
           ]
         ],
         "width": 0.1
@@ -211,121 +481,142 @@
         "kind": "blot",
         "at": [
           0,
-          2
+          1
         ],
-        "radius": 12
+        "radius": 13
       },
       {
         "kind": "blot",
         "at": [
           0,
-          22
+          26
         ],
         "radius": 7
       },
       {
         "kind": "blot",
         "at": [
-          0,
-          16
+          -30,
+          -4
         ],
-        "radius": 4
+        "radius": 7
       },
       {
         "kind": "blot",
         "at": [
-          -10,
-          8
+          -18,
+          -13
         ],
-        "radius": 5.5
-      },
-      {
-        "kind": "blot",
-        "at": [
-          9,
-          9
-        ],
-        "radius": 5.5
+        "radius": 5
       },
       {
         "kind": "blot",
         "at": [
           -9,
-          -6
+          -14
         ],
-        "radius": 5.5
+        "radius": 5
       },
       {
         "kind": "blot",
         "at": [
-          2,
-          -10
+          -1,
+          -13
         ],
-        "radius": 5.5
+        "radius": 5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          9,
+          -14
+        ],
+        "radius": 7.5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          19,
+          -12
+        ],
+        "radius": 5
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20,
+          10
+        ],
+        "radius": 5
       },
       {
         "kind": "blot",
         "at": [
           14,
-          -1
+          18
         ],
-        "radius": 5.5
+        "radius": 6.5
       },
       {
         "kind": "blot",
         "at": [
-          16,
-          4
-        ],
-        "radius": 5
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -6,
-          15
-        ],
-        "radius": 3
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -13.5,
-          13
-        ],
-        "radius": 5
-      },
-      {
-        "kind": "blot",
-        "at": [
-          21.5,
-          -6
-        ],
-        "radius": 6
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -22,
-          -6
-        ],
-        "radius": 6
-      },
-      {
-        "kind": "blot",
-        "at": [
-          3,
-          -21.5
-        ],
-        "radius": 6
-      },
-      {
-        "kind": "blot",
-        "at": [
-          -22,
+          28,
           -2
         ],
+        "radius": 12
+      },
+      {
+        "kind": "blot",
+        "at": [
+          -22,
+          -5
+        ],
         "radius": 6
+      },
+      {
+        "kind": "field",
+        "min": [
+          -32,
+          1
+        ],
+        "max": [
+          -20,
+          17
+        ]
+      },
+      {
+        "kind": "path",
+        "through": [
+          [
+            -34,
+            -40
+          ],
+          [
+            -26,
+            -22
+          ],
+          [
+            -21,
+            -8
+          ],
+          [
+            -21,
+            4
+          ],
+          [
+            -18,
+            14
+          ],
+          [
+            -16,
+            22
+          ],
+          [
+            -14,
+            34
+          ]
+        ],
+        "width": 12
       }
     ],
     "keepClearSoft": [
@@ -333,49 +624,119 @@
         "kind": "blot",
         "at": [
           0,
-          22
+          26
         ],
         "radius": 5
       },
       {
         "kind": "blot",
         "at": [
-          -10,
-          8
+          -18,
+          -13
         ],
-        "radius": 3.2
-      },
-      {
-        "kind": "blot",
-        "at": [
-          9,
-          9
-        ],
-        "radius": 3.2
+        "radius": 3.4
       },
       {
         "kind": "blot",
         "at": [
           -9,
-          -6
+          -14
         ],
-        "radius": 3.2
+        "radius": 3.4
       },
       {
         "kind": "blot",
         "at": [
-          2,
-          -10
+          -1,
+          -13
         ],
-        "radius": 3.2
+        "radius": 3.4
       },
       {
         "kind": "blot",
         "at": [
-          14,
-          -1
+          9,
+          -14
         ],
-        "radius": 3.2
+        "radius": 6
+      },
+      {
+        "kind": "blot",
+        "at": [
+          19,
+          -12
+        ],
+        "radius": 3.4
+      },
+      {
+        "kind": "blot",
+        "at": [
+          20,
+          10
+        ],
+        "radius": 3.4
+      }
+    ],
+    "paddock": [
+      {
+        "kind": "field",
+        "min": [
+          -30.5,
+          3.5
+        ],
+        "max": [
+          -22.5,
+          14.5
+        ]
+      }
+    ],
+    "churchyard": [
+      {
+        "kind": "field",
+        "min": [
+          18,
+          -11
+        ],
+        "max": [
+          37,
+          7
+        ]
+      }
+    ],
+    "stream": [
+      {
+        "kind": "path",
+        "through": [
+          [
+            -34,
+            -40
+          ],
+          [
+            -26,
+            -22
+          ],
+          [
+            -21,
+            -8
+          ],
+          [
+            -21,
+            4
+          ],
+          [
+            -18,
+            14
+          ],
+          [
+            -16,
+            22
+          ],
+          [
+            -14,
+            34
+          ]
+        ],
+        "width": 6
       }
     ]
   },
@@ -390,9 +751,9 @@
       "seed": 4714,
       "at": [
         0,
-        22
+        26
       ],
-      "yaw": 3.1415927
+      "yaw": 3.141592653589793
     },
     {
       "id": "arch-west",
@@ -400,30 +761,10 @@
       "builder": "stone-wall-archway",
       "seed": 4715,
       "at": [
-        -22.2,
-        -2
+        -30,
+        -4
       ],
-      "yaw": -1.5707963
-    },
-    {
-      "id": "arch-west-slab",
-      "kind": "barrier",
-      "from": {
-        "ref": "arch-west",
-        "edge": "-z",
-        "offset": [
-          -0.9,
-          0
-        ]
-      },
-      "to": {
-        "ref": "arch-west",
-        "edge": "+z",
-        "offset": [
-          -0.9,
-          0
-        ]
-      }
+      "yaw": -1.5707963267948966
     },
     {
       "id": "arch-slab",
@@ -446,6 +787,26 @@
       }
     },
     {
+      "id": "arch-west-slab",
+      "kind": "barrier",
+      "from": {
+        "ref": "arch-west",
+        "edge": "-z",
+        "offset": [
+          -0.9,
+          0
+        ]
+      },
+      "to": {
+        "ref": "arch-west",
+        "edge": "+z",
+        "offset": [
+          -0.9,
+          0
+        ]
+      }
+    },
+    {
       "id": "boundary",
       "kind": "chain",
       "close": "hedge",
@@ -460,43 +821,64 @@
           "edges": [
             {
               "to": [
-                9,
-                22
+                12,
+                26
               ],
               "kind": "wall"
             },
             {
               "to": [
-                18,
-                14
+                24,
+                20
               ],
               "kind": "wall"
             },
             {
               "to": [
-                23,
-                1
+                36,
+                10
               ],
               "kind": "wall"
             },
             {
               "to": [
-                20,
-                -13
+                38,
+                -4
+              ],
+              "kind": "wall"
+            },
+            {
+              "to": [
+                34,
+                -16
               ],
               "kind": "fence"
             },
             {
               "to": [
-                8,
-                -21
+                22,
+                -26
               ],
               "kind": "fence"
             },
             {
               "to": [
-                -2,
-                -22
+                6,
+                -30
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -10,
+                -30
+              ],
+              "kind": "fence"
+            },
+            {
+              "to": [
+                -24,
+                -24
               ],
               "kind": "fence"
             }
@@ -511,22 +893,31 @@
           "edges": [
             {
               "to": [
-                -6,
-                22
+                -11,
+                26
+              ],
+              "kind": "wall"
+            }
+          ]
+        },
+        {
+          "seed": 6450,
+          "start": [
+            -19,
+            22
+          ],
+          "edges": [
+            {
+              "to": [
+                -24,
+                18
               ],
               "kind": "wall"
             },
             {
               "to": [
-                -17,
-                17
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                -23,
-                3
+                -32,
+                8
               ],
               "kind": "wall"
             },
@@ -548,20 +939,221 @@
           "edges": [
             {
               "to": [
-                -21,
-                -15
+                -32,
+                -14
               ],
               "kind": "wall"
             },
             {
               "to": [
-                -12,
-                -21
+                -29,
+                -18
               ],
-              "kind": "fence"
+              "kind": "wall"
             }
           ]
         }
+      ]
+    },
+    {
+      "id": "stream-out",
+      "kind": "barrier",
+      "from": [
+        -20,
+        21
+      ],
+      "to": [
+        -11,
+        27
+      ],
+      "height": 3
+    },
+    {
+      "id": "stream-in",
+      "kind": "barrier",
+      "from": [
+        -30,
+        -17
+      ],
+      "to": [
+        -23,
+        -25
+      ],
+      "height": 3
+    },
+    {
+      "id": "stream",
+      "kind": "water",
+      "at": [
+        -22,
+        -0.45,
+        -3
+      ],
+      "width": 28,
+      "depth": 80,
+      "chop": 0.15,
+      "taper": 0.5,
+      "segment": 0.8,
+      "course": [
+        [
+          -34,
+          -40
+        ],
+        [
+          -26,
+          -22
+        ],
+        [
+          -21,
+          -8
+        ],
+        [
+          -21,
+          4
+        ],
+        [
+          -18,
+          14
+        ],
+        [
+          -16,
+          22
+        ],
+        [
+          -14,
+          34
+        ]
+      ],
+      "speed": 0.6
+    },
+    {
+      "id": "bridge",
+      "kind": "prop",
+      "builder": "footbridge",
+      "seed": 5801,
+      "at": [
+        -21.6,
+        -5
+      ],
+      "yaw": 2.94,
+      "scale": 1.2
+    },
+    {
+      "id": "reeds-1",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 5811,
+      "at": [
+        -19.2,
+        9.5
+      ],
+      "yaw": 0.4,
+      "solid": false
+    },
+    {
+      "id": "reeds-2",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 5812,
+      "at": [
+        -16.4,
+        15.5
+      ],
+      "yaw": 1.9,
+      "solid": false
+    },
+    {
+      "id": "reeds-3",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 5813,
+      "at": [
+        -23.6,
+        -14
+      ],
+      "yaw": 2.6,
+      "solid": false
+    },
+    {
+      "id": "reeds-4",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 5814,
+      "at": [
+        -19.5,
+        -1
+      ],
+      "yaw": 0.9,
+      "solid": false
+    },
+    {
+      "id": "willow",
+      "kind": "prop",
+      "builder": "willow",
+      "seed": 5821,
+      "at": [
+        -17.6,
+        19
+      ],
+      "yaw": -2.4
+    },
+    {
+      "id": "paddock-north-w",
+      "kind": "run",
+      "builder": "hedge",
+      "seed": 5831,
+      "points": [
+        [
+          -31,
+          2
+        ],
+        [
+          -27.6,
+          2.5
+        ]
+      ]
+    },
+    {
+      "id": "stile",
+      "kind": "prop",
+      "builder": "stile",
+      "seed": 5832,
+      "at": [
+        -26.5,
+        2.7
+      ],
+      "yaw": 0.12
+    },
+    {
+      "id": "paddock-north-e",
+      "kind": "run",
+      "builder": "hedge",
+      "seed": 5833,
+      "points": [
+        [
+          -25.4,
+          2.9
+        ],
+        [
+          -22,
+          3.6
+        ]
+      ]
+    },
+    {
+      "id": "paddock-south",
+      "kind": "run",
+      "builder": "hedge",
+      "seed": 5834,
+      "points": [
+        [
+          -31,
+          16
+        ],
+        [
+          -20,
+          15
+        ]
       ]
     },
     {
@@ -570,514 +1162,287 @@
       "through": [
         [
           0,
-          30
+          34
         ],
         [
           0,
-          22
+          26
         ],
         [
           0,
-          12
+          20
         ],
         [
-          0,
-          6.5
+          -3,
+          14
+        ],
+        [
+          -10,
+          11
+        ],
+        [
+          -16,
+          5
+        ],
+        [
+          -19.5,
+          -3.6
         ]
       ],
       "width": 3,
       "surface": "dirt",
       "edge": "verge",
       "wear": 0.6,
-      "seed": 7101,
-      "at": [
-        0,
-        0,
-        0
-      ]
-    },
-    {
-      "id": "lane-north",
-      "kind": "track",
-      "through": [
-        [
-          -7.6,
-          6.6
-        ],
-        [
-          -3,
-          4
-        ],
-        [
-          6.4,
-          7.9
-        ]
-      ],
-      "width": 2.2,
-      "surface": "cobble",
-      "edge": "none",
-      "wear": 0.5,
-      "seed": 7102
-    },
-    {
-      "id": "lane-cross",
-      "kind": "track",
-      "through": [
-        [
-          -7,
-          -4.6
-        ],
-        [
-          0,
-          0
-        ],
-        [
-          11.4,
-          -0.8
-        ]
-      ],
-      "width": 2.2,
-      "surface": "cobble",
-      "edge": "none",
-      "wear": 0.55,
-      "seed": 7103
-    },
-    {
-      "id": "lane-south-a",
-      "kind": "track",
-      "through": [
-        [
-          1.4,
-          -7.5
-        ],
-        [
-          0,
-          -2
-        ],
-        [
-          0,
-          -1
-        ]
-      ],
-      "width": 2.2,
-      "surface": "cobble",
-      "edge": "none",
-      "wear": 0.45,
-      "seed": 7104
-    },
-    {
-      "id": "lane-south-b",
-      "kind": "track",
-      "through": [
-        [
-          0,
-          1
-        ],
-        [
-          0,
-          4.3
-        ]
-      ],
-      "width": 2.2,
-      "surface": "cobble",
-      "edge": "none",
-      "wear": 0.45,
-      "seed": 7106
+      "seed": 7101
     },
     {
       "id": "west-road",
       "kind": "track",
       "through": [
         [
-          -11.6,
-          -5.2
+          -24,
+          -5.6
         ],
         [
-          -17,
-          -3.6
-        ],
-        [
-          -22.2,
-          -2
+          -27,
+          -4.8
         ],
         [
           -30,
-          -1.2
+          -4
+        ],
+        [
+          -38,
+          -3
         ]
       ],
-      "width": 2.6,
+      "width": 3,
       "surface": "dirt",
       "edge": "verge",
       "wear": 0.5,
       "seed": 7105
     },
     {
-      "id": "welcome-banner",
-      "kind": "prop",
-      "builder": "banner",
-      "seed": 5401,
-      "at": [
-        0,
-        13.5
+      "id": "lane-row",
+      "kind": "track",
+      "through": [
+        [
+          -20,
+          -9
+        ],
+        [
+          -10,
+          -9.5
+        ],
+        [
+          0,
+          -9
+        ],
+        [
+          10,
+          -9.5
+        ],
+        [
+          20,
+          -8.5
+        ]
       ],
-      "options": {
-        "text": "FOLKVILLE"
-      }
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "kerb",
+      "wear": 0.5,
+      "seed": 7102
     },
     {
-      "id": "post-1",
-      "kind": "prop",
-      "builder": "post",
-      "seed": 5221,
-      "at": [
-        1.6,
-        18.4
+      "id": "lane-church",
+      "kind": "track",
+      "through": [
+        [
+          6,
+          -5
+        ],
+        [
+          12,
+          -3.5
+        ],
+        [
+          17.5,
+          -2.5
+        ]
       ],
-      "yaw": 0.4
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "kerb",
+      "wear": 0.45,
+      "seed": 7103
     },
     {
-      "id": "post-2",
-      "kind": "prop",
-      "builder": "post",
-      "seed": 5222,
-      "at": [
-        -1.7,
-        16.2
+      "id": "lane-south",
+      "kind": "track",
+      "through": [
+        [
+          4,
+          -3
+        ],
+        [
+          7,
+          4
+        ],
+        [
+          8,
+          12
+        ],
+        [
+          5,
+          20
+        ],
+        [
+          1,
+          26
+        ]
       ],
-      "yaw": 2.1
-    },
-    {
-      "id": "hut-cottage",
-      "kind": "prop",
-      "builder": "hut",
-      "seed": 700,
-      "at": [
-        -10,
-        8
-      ],
-      "yaw": 2.1112158
-    },
-    {
-      "id": "hut-workshop",
-      "kind": "prop",
-      "builder": "hut",
-      "seed": 962,
-      "at": [
-        9,
-        9
-      ],
-      "yaw": -2.2318395
-    },
-    {
-      "id": "hut-store",
-      "kind": "prop",
-      "builder": "hut",
-      "seed": 1486,
-      "at": [
-        -9,
-        -6
-      ],
-      "yaw": 0.844154
-    },
-    {
-      "id": "hut-south",
-      "kind": "prop",
-      "builder": "hut",
-      "seed": 831,
-      "at": [
-        2,
-        -10
-      ],
-      "yaw": -0.1651487
-    },
-    {
-      "id": "hut-east",
-      "kind": "prop",
-      "builder": "hut",
-      "seed": 1093,
-      "at": [
-        14,
-        -1
-      ],
-      "yaw": -1.359703
+      "width": 2.2,
+      "surface": "cobble",
+      "edge": "kerb",
+      "wear": 0.5,
+      "seed": 7104
     },
     {
       "id": "well",
       "kind": "prop",
-      "builder": "cistern",
+      "builder": "well",
       "seed": 5301,
       "at": [
-        -3.6,
-        11.4
+        -6,
+        4
       ],
       "yaw": 0.3
     },
     {
-      "id": "lane-hedge-1",
+      "id": "bench",
       "kind": "prop",
-      "builder": "hazel",
-      "seed": 5310,
+      "builder": "bench",
+      "seed": 5302,
       "at": [
-        -14.8,
-        7.6
-      ]
-    },
-    {
-      "id": "lane-hedge-2",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 5311,
-      "at": [
-        -14.2,
-        8.9
+        -2,
+        10.5
       ],
-      "yaw": 1.3
+      "yaw": 3.141592653589793
     },
     {
-      "id": "lane-hedge-3",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 5312,
-      "at": [
-        -13.5,
-        10.2
-      ],
-      "yaw": 2.6
-    },
-    {
-      "id": "lane-hedge-4",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 5313,
-      "at": [
-        -12.7,
-        11.4
-      ],
-      "yaw": 3.9
-    },
-    {
-      "id": "market-table",
-      "kind": "prop",
-      "builder": "table",
-      "seed": 5402,
-      "at": [
-        3.4,
-        8.4
-      ],
-      "yaw": 0.3
-    },
-    {
-      "id": "market-stool-1",
-      "kind": "prop",
-      "builder": "stool",
-      "seed": 5403,
-      "at": [
-        4.4,
-        7.8
-      ],
-      "yaw": 1.1
-    },
-    {
-      "id": "market-stool-2",
-      "kind": "prop",
-      "builder": "stool",
-      "seed": 5404,
-      "at": [
-        2.6,
-        7.6
-      ],
-      "yaw": 2.4
-    },
-    {
-      "id": "market-crate",
-      "kind": "prop",
-      "builder": "crate",
-      "seed": 5405,
-      "at": [
-        3,
-        10
-      ],
-      "yaw": 0.7
-    },
-    {
-      "id": "lamp-east",
+      "id": "lamp",
       "kind": "prop",
       "builder": "streetlamp",
       "seed": 5501,
       "at": [
-        5.2,
-        11.2
+        4.5,
+        -6.5
       ],
       "yaw": 1.9
     },
     {
-      "id": "lamp-west",
+      "id": "wat-house",
       "kind": "prop",
-      "builder": "streetlamp",
-      "seed": 5502,
+      "builder": "hut",
+      "seed": 700,
       "at": [
-        -5.2,
-        0.4
-      ],
-      "yaw": -0.7
-    },
-    {
-      "id": "yard-crate-1",
-      "kind": "prop",
-      "builder": "crate",
-      "seed": 5601,
-      "at": [
-        4.2,
+        -18,
         -13
       ],
-      "yaw": 0.5
+      "yaw": 0.06
     },
     {
-      "id": "yard-barrel-1",
+      "id": "tom-house",
       "kind": "prop",
-      "builder": "barrel",
-      "seed": 5602,
+      "builder": "hut",
+      "seed": 831,
       "at": [
-        2.6,
-        -13.6
-      ]
-    },
-    {
-      "id": "yard-barrel-2",
-      "kind": "prop",
-      "builder": "barrel",
-      "seed": 5603,
-      "at": [
-        5.4,
-        -12
+        -9,
+        -14
       ],
-      "yaw": 0.9
+      "yaw": -0.04
     },
     {
-      "id": "yard-barrel-3",
-      "kind": "prop",
-      "builder": "barrel",
-      "seed": 5604,
-      "at": [
-        17.2,
-        -3.2
-      ],
-      "yaw": 0.2
-    },
-    {
-      "id": "yard-crate-2",
-      "kind": "prop",
-      "builder": "crate",
-      "seed": 5605,
-      "at": [
-        16.4,
-        -4.4
-      ],
-      "yaw": 1.3
-    },
-    {
-      "id": "yard-barrel-4",
-      "kind": "prop",
-      "builder": "barrel",
-      "seed": 5608,
-      "at": [
-        -12.6,
-        5.4
-      ],
-      "yaw": 0.6
-    },
-    {
-      "id": "tower-1",
-      "kind": "prop",
-      "builder": "crate",
-      "seed": 5310,
-      "at": [
-        6.5,
-        5
-      ],
-      "yaw": 0.15
-    },
-    {
-      "id": "tower-2",
-      "kind": "prop",
-      "builder": "crate",
-      "seed": 5311,
-      "on": "tower-1",
-      "at": [
-        6.42,
-        5.06
-      ],
-      "yaw": -0.22
-    },
-    {
-      "id": "tower-3",
-      "kind": "prop",
-      "builder": "crate",
-      "seed": 5312,
-      "on": "tower-2",
-      "at": [
-        6.55,
-        4.94
-      ],
-      "yaw": 0.34
-    },
-    {
-      "id": "tower-ladder",
-      "kind": "prop",
-      "builder": "ladder",
-      "seed": 5313,
-      "options": {
-        "height": 3
-      },
-      "at": [
-        6.5,
-        5.95
-      ],
-      "yaw": 0
-    },
-    {
-      "id": "trapdoor",
-      "kind": "prop",
-      "builder": "hut-trapdoor",
-      "seed": 5610,
-      "at": [
-        17.4,
-        1.2
-      ],
-      "yaw": 0.8
-    },
-    {
-      "id": "spare-door",
-      "kind": "prop",
-      "builder": "hut-door",
-      "seed": 5611,
-      "at": [
-        -12.4,
-        -7.6
-      ],
-      "rotation": [
-        0.24,
-        2.5,
-        0
-      ]
-    },
-    {
-      "id": "garden-fence",
+      "id": "tom-fence-w",
       "kind": "run",
       "builder": "fence",
       "seed": 5701,
       "points": [
         [
-          -15.6,
-          11.6
+          -13.2,
+          -10
         ],
         [
-          -15.6,
-          14.6
+          -10.3,
+          -10
+        ]
+      ],
+      "cap": "post"
+    },
+    {
+      "id": "tom-gate",
+      "kind": "prop",
+      "builder": "gate",
+      "seed": 5702,
+      "at": [
+        -9,
+        -10
+      ],
+      "rotation": [
+        0,
+        0.05,
+        0.11
+      ],
+      "options": {
+        "open": 0.3,
+        "width": 2.6
+      }
+    },
+    {
+      "id": "tom-fence-e",
+      "kind": "run",
+      "builder": "fence",
+      "seed": 5703,
+      "points": [
+        [
+          -7.7,
+          -10
         ],
         [
-          -11.4,
-          14.6
+          -4.8,
+          -10
+        ]
+      ],
+      "cap": "post"
+    },
+    {
+      "id": "nell-house",
+      "kind": "prop",
+      "builder": "hut",
+      "seed": 962,
+      "at": [
+        -1,
+        -13
+      ],
+      "yaw": 0.03
+    },
+    {
+      "id": "nell-fence",
+      "kind": "run",
+      "builder": "fence",
+      "seed": 5711,
+      "points": [
+        [
+          3,
+          -16
+        ],
+        [
+          3,
+          -9.6
+        ],
+        [
+          6.6,
+          -9.6
         ]
       ],
       "cap": "post"
@@ -1086,10 +1451,10 @@
       "id": "sunflower-1",
       "kind": "prop",
       "builder": "sunflower",
-      "seed": 5711,
+      "seed": 5712,
       "at": [
-        -14.2,
-        14.1
+        4.2,
+        -12
       ],
       "yaw": 0.4,
       "solid": false
@@ -1098,10 +1463,10 @@
       "id": "sunflower-2",
       "kind": "prop",
       "builder": "sunflower",
-      "seed": 5712,
+      "seed": 5713,
       "at": [
-        -13.4,
-        13.8
+        5.1,
+        -10.6
       ],
       "yaw": 1.9,
       "solid": false
@@ -1110,10 +1475,10 @@
       "id": "sunflower-3",
       "kind": "prop",
       "builder": "sunflower",
-      "seed": 5713,
+      "seed": 5714,
       "at": [
-        -15,
-        13.9
+        4,
+        -14.5
       ],
       "yaw": 3.1,
       "solid": false
@@ -1122,135 +1487,331 @@
       "id": "lavender-1",
       "kind": "prop",
       "builder": "lavender",
-      "seed": 5714,
+      "seed": 5715,
       "at": [
-        -12.4,
-        13.7
+        5.6,
+        -13.2
       ],
       "yaw": 0.7,
       "solid": false
     },
     {
-      "id": "pen-trough",
+      "id": "lavender-2",
       "kind": "prop",
-      "builder": "trough",
-      "seed": 91,
+      "builder": "lavender",
+      "seed": 5716,
       "at": [
-        -12.6,
-        -13
+        3.9,
+        -10.4
       ],
-      "yaw": 0.4
+      "yaw": 2.3,
+      "solid": false
     },
     {
-      "id": "fowl",
-      "kind": "scatter",
-      "builder": "poultry",
-      "seed": 8804,
-      "count": 6,
-      "within": 7,
-      "from": [
-        -1,
-        3
+      "id": "mark-shop",
+      "kind": "prop",
+      "builder": "market",
+      "seed": 1486,
+      "at": [
+        9,
+        -14
       ],
-      "maxSlope": 18
+      "yaw": 0
+    },
+    {
+      "id": "shop-crate",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 5405,
+      "at": [
+        12.6,
+        -9.8
+      ],
+      "yaw": 0.7
+    },
+    {
+      "id": "shop-barrel",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 5406,
+      "at": [
+        13.6,
+        -10.6
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "ada-house",
+      "kind": "prop",
+      "builder": "hut",
+      "seed": 1093,
+      "at": [
+        19,
+        -12
+      ],
+      "yaw": -0.08,
+      "cover": "rose"
+    },
+    {
+      "id": "row-hazel-1",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 5310,
+      "at": [
+        -13.6,
+        -15.5
+      ],
+      "yaw": 0.8
+    },
+    {
+      "id": "row-hazel-2",
+      "kind": "prop",
+      "builder": "hazel",
+      "seed": 5311,
+      "at": [
+        14.6,
+        -16.5
+      ],
+      "yaw": 2.1
+    },
+    {
+      "id": "row-elder",
+      "kind": "prop",
+      "builder": "elder",
+      "seed": 5312,
+      "at": [
+        5,
+        -18.5
+      ],
+      "yaw": 1.3
+    },
+    {
+      "id": "yard-logs",
+      "kind": "prop",
+      "builder": "log-pile",
+      "seed": 5601,
+      "at": [
+        -17,
+        -19.5
+      ],
+      "yaw": 1.4
+    },
+    {
+      "id": "yard-barrel",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 5602,
+      "at": [
+        -6.5,
+        -18.5
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "yard-pail",
+      "kind": "prop",
+      "builder": "pail",
+      "seed": 5603,
+      "at": [
+        -7.6,
+        -18
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "yard-rick",
+      "kind": "prop",
+      "builder": "hay-rick",
+      "seed": 5604,
+      "at": [
+        21,
+        -21
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "bess-house",
+      "kind": "prop",
+      "builder": "hut",
+      "seed": 1093,
+      "at": [
+        20,
+        10
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "smithy",
+      "kind": "prop",
+      "builder": "blacksmith",
+      "seed": 5901,
+      "at": [
+        14,
+        18
+      ],
+      "yaw": -1.5707963267948966
     },
     {
       "id": "forge",
       "kind": "prop",
       "builder": "forge",
-      "seed": 5901,
+      "seed": 5902,
       "at": [
-        16,
-        4
+        16.4,
+        18
       ],
-      "yaw": 3.1415927
+      "yaw": -1.5707963267948966
     },
     {
       "id": "anvil",
       "kind": "prop",
       "builder": "anvil",
-      "seed": 5902,
+      "seed": 5903,
       "at": [
-        14.4,
-        2.6
+        14.2,
+        16.8
       ],
       "yaw": 0.6
     },
     {
-      "id": "smithy-sign",
+      "id": "smithy-trough",
       "kind": "prop",
-      "builder": "signboard",
-      "seed": 5903,
-      "at": [
-        13.4,
-        5.6
-      ],
-      "yaw": -1.5,
-      "options": {
-        "text": "SMITHY"
-      }
-    },
-    {
-      "id": "bell",
-      "kind": "prop",
-      "builder": "bell",
+      "builder": "trough",
       "seed": 5904,
       "at": [
-        -6,
-        15
+        15.2,
+        20.4
       ],
-      "yaw": -0.5
+      "yaw": 1.5
     },
     {
-      "id": "yard-dog",
-      "kind": "creature",
-      "builder": "dog",
-      "seed": 5905,
+      "id": "church",
+      "kind": "prop",
+      "builder": "church",
+      "seed": 5951,
       "at": [
-        -12,
-        2
+        28,
+        -2
       ],
-      "yaw": 1.9,
-      "roam": 2.4
+      "yaw": 0
     },
     {
-      "id": "villager-1",
+      "id": "churchyard-north",
+      "kind": "run",
+      "builder": "stone-wall-low",
+      "seed": 5961,
+      "points": [
+        [
+          17.5,
+          -11
+        ],
+        [
+          37,
+          -11
+        ]
+      ],
+      "cover": "ivy"
+    },
+    {
+      "id": "churchyard-wall",
+      "kind": "run",
+      "builder": "stone-wall-low",
+      "seed": 5962,
+      "points": [
+        [
+          37,
+          -11
+        ],
+        [
+          37,
+          7
+        ],
+        [
+          17.5,
+          7
+        ],
+        [
+          17.5,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "churchyard-west",
+      "kind": "run",
+      "builder": "stone-wall-low",
+      "seed": 5963,
+      "points": [
+        [
+          17.5,
+          -11
+        ],
+        [
+          17.5,
+          -5
+        ]
+      ]
+    },
+    {
+      "id": "yew-1",
+      "kind": "prop",
+      "builder": "small-oak",
+      "seed": 5971,
+      "at": [
+        34,
+        4
+      ],
+      "yaw": 0.7
+    },
+    {
+      "id": "yew-2",
+      "kind": "prop",
+      "builder": "small-oak",
+      "seed": 5972,
+      "at": [
+        21,
+        -9
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "mark",
       "kind": "creature",
       "person": "mark",
       "builder": "figure",
       "seed": 3301,
       "at": [
-        3.4,
-        0.6
+        9.5,
+        -9
       ],
-      "yaw": 2.2,
-      "roam": 5
+      "yaw": 0.2,
+      "roam": 4
     },
     {
-      "id": "villager-2",
+      "id": "tom",
       "kind": "creature",
       "person": "tom",
       "builder": "figure",
       "seed": 3302,
       "at": [
-        -3.2,
-        3.6
+        -9.5,
+        -8.4
       ],
-      "yaw": 1.1,
-      "roam": 5
+      "yaw": 3,
+      "roam": 2
     },
     {
-      "id": "villager-4",
+      "id": "nell",
       "kind": "creature",
       "person": "nell",
       "builder": "figure",
       "seed": 3304,
       "at": [
-        -5.4,
-        12.9
+        -4,
+        -3
       ],
-      "yaw": -1.1,
-      "roam": 3
+      "yaw": 2.6,
+      "roam": 4
     },
     {
       "id": "visitor",
@@ -1259,688 +1820,139 @@
       "builder": "figure",
       "seed": 3311,
       "at": [
-        2.6,
-        17.4
+        1,
+        21
       ],
       "yaw": 3,
-      "roam": 2.5,
+      "roam": 3,
       "folk": "city",
       "traits": [
         "cityfolk"
       ]
     },
     {
-      "id": "oak-west",
+      "id": "dog",
+      "kind": "creature",
+      "builder": "dog",
+      "seed": 5905,
+      "at": [
+        -3,
+        6
+      ],
+      "yaw": 1.9,
+      "roam": 3
+    },
+    {
+      "id": "fowl",
+      "kind": "scatter",
+      "builder": "poultry",
+      "seed": 8804,
+      "count": 6,
+      "within": 9,
+      "from": [
+        2,
+        -7
+      ],
+      "maxSlope": 18
+    },
+    {
+      "id": "corner-oak",
       "kind": "prop",
       "builder": "oak",
       "seed": 5101,
       "at": [
         -27,
-        -5
+        -20
       ],
-      "yaw": 5.101,
-      "scale": 1.1
+      "yaw": 0.9,
+      "scale": 1.05
     },
     {
-      "id": "oak-east",
-      "kind": "prop",
-      "builder": "oak",
-      "seed": 5102,
-      "at": [
-        26,
-        17
-      ],
-      "yaw": 5.102,
-      "scale": 1.1
-    },
-    {
-      "id": "oaks",
+      "id": "edge-trees",
       "kind": "scatter",
-      "builder": "oak",
-      "seed": 5001,
-      "count": 3,
-      "within": 20,
+      "builder": "tree",
+      "seed": 5007,
+      "count": 5,
+      "within": 30,
       "from": [
-        -12,
-        -4
+        -8,
+        -26
       ],
-      "maxSlope": 24,
+      "maxSlope": 28,
       "avoid": [
         "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
         "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
+        "west-road",
+        "lane-row",
+        "lane-church",
+        "lane-south"
       ],
       "scale": [
         0.85,
-        1.1
-      ]
-    },
-    {
-      "id": "small-oaks",
-      "kind": "scatter",
-      "builder": "small-oak",
-      "seed": 5002,
-      "count": 4,
-      "within": 22,
-      "from": [
-        -10,
-        -6
-      ],
-      "maxSlope": 26,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ],
-      "scale": [
-        0.8,
         1.2
       ]
     },
     {
-      "id": "birches",
+      "id": "edge-birches",
       "kind": "scatter",
       "builder": "birch",
       "seed": 5003,
       "count": 4,
-      "within": 22,
+      "within": 14,
       "from": [
-        10,
-        10
+        28,
+        14
       ],
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
         "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
+        "west-road",
+        "lane-row",
+        "lane-church",
+        "lane-south"
       ],
       "scale": [
-        0.8,
+        0.85,
         1.15
       ]
     },
     {
-      "id": "small-birches",
-      "kind": "scatter",
-      "builder": "small-birch",
-      "seed": 5004,
-      "count": 5,
-      "within": 22,
-      "from": [
-        10,
-        8
-      ],
-      "maxSlope": 30,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ],
-      "scale": [
-        0.8,
-        1.25
-      ]
-    },
-    {
-      "id": "trees",
-      "kind": "scatter",
-      "builder": "tree",
-      "seed": 5007,
-      "count": 7,
-      "within": 22,
-      "maxSlope": 28,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ],
-      "scale": [
-        0.8,
-        1.25
-      ]
-    },
-    {
-      "id": "small-trees",
-      "kind": "scatter",
-      "builder": "small-tree",
-      "seed": 5008,
-      "count": 6,
-      "within": 22,
-      "maxSlope": 30,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ],
-      "scale": [
-        0.8,
-        1.2
-      ]
-    },
-    {
-      "id": "bushes",
+      "id": "edge-bushes",
       "kind": "scatter",
       "builder": "bush",
       "seed": 5011,
-      "count": 16,
-      "within": 22,
+      "count": 10,
+      "within": 34,
       "maxSlope": 30,
       "avoid": [
         "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
         "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
+        "west-road",
+        "lane-row",
+        "lane-church",
+        "lane-south"
       ]
     },
     {
-      "id": "hazels",
-      "kind": "scatter",
-      "builder": "hazel",
-      "seed": 5012,
-      "count": 4,
-      "within": 16,
-      "from": [
-        -12,
-        -8
-      ],
-      "maxSlope": 28,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "elders",
+      "id": "edge-elders",
       "kind": "scatter",
       "builder": "elder",
       "seed": 5013,
-      "count": 4,
-      "within": 16,
+      "count": 3,
+      "within": 12,
       "from": [
-        8,
-        -12
+        26,
+        20
       ],
       "maxSlope": 28,
       "avoid": [
         "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
         "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "gorse",
-      "kind": "scatter",
-      "builder": "gorse",
-      "seed": 5014,
-      "count": 5,
-      "within": 22,
-      "maxSlope": 34,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "brambles",
-      "kind": "scatter",
-      "builder": "bramble",
-      "seed": 5015,
-      "count": 7,
-      "within": 22,
-      "maxSlope": 30,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "stumps",
-      "kind": "scatter",
-      "builder": "stump",
-      "seed": 5021,
-      "count": 4,
-      "within": 20,
-      "maxSlope": 22,
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "grass-large",
-      "kind": "scatter",
-      "builder": "large-grass-clump",
-      "seed": 5031,
-      "count": 5,
-      "within": 22,
-      "maxSlope": 24,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "grass-small",
-      "kind": "scatter",
-      "builder": "small-grass-clump",
-      "seed": 5032,
-      "count": 55,
-      "within": 22,
-      "maxSlope": 28,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "ferns",
-      "kind": "scatter",
-      "builder": "fern",
-      "seed": 5033,
-      "count": 7,
-      "within": 14,
-      "from": [
-        -14,
-        -4
-      ],
-      "maxSlope": 28,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "moss",
-      "kind": "scatter",
-      "builder": "moss",
-      "seed": 5035,
-      "count": 10,
-      "within": 22,
-      "maxSlope": 34,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "mushrooms",
-      "kind": "scatter",
-      "builder": "mushroom",
-      "seed": 5036,
-      "count": 12,
-      "within": 22,
-      "maxSlope": 22,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "daisies",
-      "kind": "scatter",
-      "builder": "daisy",
-      "seed": 5041,
-      "count": 6,
-      "within": 8,
-      "from": [
-        -2,
-        -16
-      ],
-      "maxSlope": 22,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
+        "west-road",
+        "lane-row",
+        "lane-church",
+        "lane-south"
       ]
     },
     {
@@ -1951,215 +1963,105 @@
       "count": 6,
       "within": 8,
       "from": [
-        -16,
-        3
+        -26,
+        9
       ],
-      "maxSlope": 24,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "poppies",
-      "kind": "scatter",
-      "builder": "poppy",
-      "seed": 5043,
-      "count": 9,
-      "within": 5,
-      "from": [
-        17,
-        -9
-      ],
-      "maxSlope": 22,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
+      "region": "paddock",
+      "maxSlope": 24
     },
     {
       "id": "cowparsley",
       "kind": "scatter",
       "builder": "cowparsley",
       "seed": 5044,
-      "count": 5,
-      "within": 8,
-      "from": [
-        -8,
-        16
-      ],
-      "maxSlope": 26,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "foxgloves",
-      "kind": "scatter",
-      "builder": "foxglove",
-      "seed": 5046,
-      "count": 4,
-      "within": 12,
-      "from": [
-        10,
-        -14
-      ],
-      "maxSlope": 28,
-      "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
-    },
-    {
-      "id": "thistles",
-      "kind": "scatter",
-      "builder": "thistle",
-      "seed": 5047,
       "count": 6,
-      "within": 22,
-      "maxSlope": 30,
+      "within": 40,
+      "from": [
+        -20,
+        0
+      ],
+      "region": "stream",
+      "maxSlope": 26
+    },
+    {
+      "id": "daisies",
+      "kind": "scatter",
+      "builder": "daisy",
+      "seed": 5041,
+      "count": 8,
+      "within": 10,
+      "from": [
+        28,
+        -2
+      ],
+      "region": "churchyard",
+      "maxSlope": 22,
       "avoid": [
-        "keepClearSoft",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
-        },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
+        "keepClearSoft"
       ]
     },
     {
-      "id": "rocks",
-      "kind": "scatter",
-      "builder": "rock",
-      "seed": 6001,
-      "count": 18,
-      "within": 22,
-      "maxSlope": 40,
-      "scale": [
-        0.7,
-        1.4
+      "id": "stream-bridge",
+      "kind": "sound",
+      "at": [
+        -21.5,
+        -0.9,
+        -5
       ],
-      "avoid": [
-        "keepClear",
-        {
-          "ref": "hut-cottage",
-          "ahead": 2.2,
-          "radius": 2.4
+      "spec": {
+        "model": "water",
+        "options": {
+          "flow": "stream",
+          "gain": 0.28,
+          "tone": 1
         },
-        {
-          "ref": "hut-workshop",
-          "ahead": 2.2,
-          "radius": 2.4
+        "refDistance": 4,
+        "maxDistance": 30,
+        "rolloff": 1.4,
+        "reverb": 0.4
+      }
+    },
+    {
+      "id": "stream-culvert",
+      "kind": "sound",
+      "at": [
+        -15,
+        -0.9,
+        24
+      ],
+      "spec": {
+        "model": "water",
+        "options": {
+          "flow": "stream",
+          "gain": 0.3,
+          "tone": 0.95
         },
-        {
-          "ref": "hut-store",
-          "ahead": 2.2,
-          "radius": 2.4
+        "refDistance": 4,
+        "maxDistance": 30,
+        "rolloff": 1.4,
+        "reverb": 0.4
+      }
+    },
+    {
+      "id": "forge-fire",
+      "kind": "sound",
+      "ref": "forge",
+      "lift": 0.86,
+      "spec": {
+        "model": "fire",
+        "id": "forge",
+        "options": {
+          "gain": 0.5,
+          "intensity": 0.85,
+          "tone": 1.15,
+          "crackle": 0.65,
+          "draught": 0.12
         },
-        "gate-road",
-        "lane-north",
-        "lane-cross",
-        "lane-south-a",
-        "lane-south-b",
-        "west-road"
-      ]
+        "refDistance": 2,
+        "maxDistance": 20,
+        "rolloff": 1.5,
+        "reverb": 0.35
+      }
     },
     {
       "id": "ring",
@@ -2592,227 +2494,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "bird-west",
-      "kind": "sound",
-      "at": [
-        -24,
-        6,
-        2
-      ],
-      "spec": {
-        "model": "bird",
-        "options": {
-          "pitch": 2500,
-          "interval": 7,
-          "gain": 0.07,
-          "tone": 2700
-        },
-        "refDistance": 5,
-        "maxDistance": 46,
-        "rolloff": 1.3,
-        "reverb": 0.9
-      }
-    },
-    {
-      "id": "bird-south",
-      "kind": "sound",
-      "at": [
-        12,
-        5.5,
-        -26
-      ],
-      "spec": {
-        "model": "bird",
-        "options": {
-          "pitch": 3100,
-          "interval": 11,
-          "gain": 0.055,
-          "tone": 3000
-        },
-        "refDistance": 5,
-        "maxDistance": 44,
-        "rolloff": 1.35,
-        "reverb": 0.9
-      }
-    },
-    {
-      "id": "forge-fire",
-      "kind": "sound",
-      "ref": "forge",
-      "lift": 0.86,
-      "spec": {
-        "model": "fire",
-        "id": "forge",
-        "options": {
-          "gain": 0.5,
-          "intensity": 0.85,
-          "tone": 1.15,
-          "crackle": 0.65,
-          "draught": 0.12
-        },
-        "refDistance": 2,
-        "maxDistance": 20,
-        "rolloff": 1.5,
-        "reverb": 0.35
-      }
-    },
-    {
-      "id": "smith",
-      "kind": "soundScatter",
-      "ref": "anvil",
-      "lift": 0.78,
-      "spec": {
-        "sound": "hammer",
-        "spread": [
-          0.7,
-          0.2,
-          0.7
-        ],
-        "every": 13,
-        "force": [
-          0.45,
-          1
-        ],
-        "options": {
-          "gain": 0.5,
-          "tone": 0.95,
-          "damping": 0.35,
-          "bounces": 2
-        },
-        "refDistance": 3,
-        "maxDistance": 52,
-        "rolloff": 1.1,
-        "reverb": 0.55
-      }
-    },
-    {
-      "id": "yards",
-      "kind": "soundScatter",
-      "at": [
-        0,
-        1,
-        2
-      ],
-      "spec": {
-        "sound": "clatter",
-        "spread": [
-          11,
-          0.5,
-          10
-        ],
-        "every": 26,
-        "force": [
-          0.3,
-          0.85
-        ],
-        "options": {
-          "material": "wood",
-          "gain": 0.45,
-          "tone": 1.05
-        },
-        "refDistance": 2.5,
-        "maxDistance": 34,
-        "rolloff": 1.25,
-        "reverb": 0.4
-      }
-    },
-    {
-      "id": "fowl-calls",
-      "kind": "soundScatter",
-      "at": [
-        -1,
-        0.7,
-        3
-      ],
-      "spec": {
-        "sound": "animal",
-        "id": "fowl",
-        "spread": [
-          7,
-          0.15,
-          7
-        ],
-        "every": 16,
-        "force": [
-          0.3,
-          0.7
-        ],
-        "voices": 1,
-        "options": {
-          "kind": "fowl",
-          "gain": 0.3,
-          "tone": 1
-        },
-        "refDistance": 2.5,
-        "maxDistance": 26,
-        "rolloff": 1.35,
-        "reverb": 0.35
-      }
-    },
-    {
-      "id": "dog",
-      "kind": "soundScatter",
-      "ref": "yard-dog",
-      "lift": 0.4,
-      "spec": {
-        "sound": "animal",
-        "spread": [
-          2.2,
-          0.2,
-          2.2
-        ],
-        "every": 36,
-        "force": [
-          0.45,
-          1
-        ],
-        "voices": 1,
-        "options": {
-          "kind": "dog",
-          "gain": 0.5,
-          "tone": 0.94
-        },
-        "refDistance": 4,
-        "maxDistance": 50,
-        "rolloff": 1.15,
-        "reverb": 0.55
-      }
-    },
-    {
-      "id": "bell-toll",
-      "kind": "soundScatter",
-      "ref": "bell",
-      "lift": 0.72,
-      "spec": {
-        "sound": "bell",
-        "id": "bell",
-        "spread": [
-          0,
-          0,
-          0
-        ],
-        "every": 95,
-        "rhythm": "periodic",
-        "force": [
-          0.8,
-          1
-        ],
-        "voices": 1,
-        "options": {
-          "hz": 186,
-          "decay": 12,
-          "gain": 0.34,
-          "strokes": 2,
-          "interval": 2.6,
-          "warble": 1.1
-        },
-        "refDistance": 8,
-        "maxDistance": 70,
-        "rolloff": 0.9,
-        "reverb": 1
-      }
     }
   ]
 }

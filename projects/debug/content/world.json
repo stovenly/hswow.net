@@ -4,7 +4,7 @@
       "id": "cottage-door",
       "a": {
         "zone": "village",
-        "doorOf": "hut-cottage"
+        "doorOf": "ada-house"
       },
       "b": {
         "zone": "cottage",
@@ -17,7 +17,7 @@
       "id": "workshop-door",
       "a": {
         "zone": "village",
-        "doorOf": "hut-workshop"
+        "doorOf": "bess-house"
       },
       "b": {
         "zone": "workshop",
@@ -30,7 +30,7 @@
       "id": "store-door",
       "a": {
         "zone": "village",
-        "doorOf": "hut-store"
+        "doorOf": "mark-shop"
       },
       "b": {
         "zone": "store",
@@ -38,6 +38,19 @@
       },
       "material": "timber",
       "seed": 8813
+    },
+    {
+      "id": "wat-door",
+      "a": {
+        "zone": "village",
+        "doorOf": "wat-house"
+      },
+      "b": {
+        "zone": "villager-hut",
+        "wall": "-z"
+      },
+      "material": "timber",
+      "seed": 8801
     },
     {
       "id": "cottage-cellar-hatch",
@@ -95,63 +108,12 @@
       }
     },
     {
-      "id": "village-crate-tower",
-      "a": {
-        "zone": "village",
-        "use": "prop",
-        "propOf": "tower-ladder",
-        "half": "lower",
-        "arrival": {
-          "at": [
-            6.5,
-            6.6
-          ],
-          "yaw": 0
-        },
-        "prompt": {
-          "title": null,
-          "label": "Climb Up"
-        }
-      },
-      "b": {
-        "zone": "village",
-        "use": "prop",
-        "propOf": "tower-ladder",
-        "half": "upper",
-        "arrival": {
-          "at": [
-            6.5,
-            5
-          ],
-          "yaw": 0,
-          "on": "tower-3"
-        },
-        "prompt": {
-          "title": null,
-          "label": "Climb Down"
-        }
-      }
-    },
-    {
-      "id": "hut-door",
-      "a": {
-        "zone": "demos",
-        "doorOf": "hut"
-      },
-      "b": {
-        "zone": "villager-hut",
-        "wall": "-z"
-      },
-      "material": "timber",
-      "seed": 8801
-    },
-    {
       "id": "village-farm",
       "a": {
         "zone": "village",
         "at": [
-          -22.2,
-          -2
+          -30,
+          -4
         ],
         "yaw": 1.5707963,
         "use": "volume",
@@ -228,7 +190,7 @@
         "zone": "village",
         "at": [
           0,
-          22
+          26
         ],
         "yaw": 3.1415927,
         "use": "volume",

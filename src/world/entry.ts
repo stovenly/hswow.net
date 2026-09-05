@@ -254,6 +254,8 @@ export interface RunEntry extends EntryBase {
   most?: number;
   /** A post on the far end, where rounding leaves it. */
   cap?: 'post';
+  /** Grown on every piece's walls, as a prop's `cover`. */
+  cover?: CoverName;
 }
 
 export interface ChainEdge {

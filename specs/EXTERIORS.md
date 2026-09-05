@@ -681,6 +681,35 @@ pushed until the set is done.
 Budgets: every cell under 60 k ground triangles and near the village's entry
 count; the coast's sea is the one per-pixel cost in the set.
 
+### Status, 2026-09-04
+
+Phases 1 to 4 are built and committed; nothing is pushed. **Resume at
+phase 5, the farm.**
+
+- **1. Ground** — done. Per-corner colour, feathered patches, smooth
+  variation, grain on the stone materials, the closer palette, the debug
+  panel's ground folder, `marram` and `wrack`. The village is at 1.5 m.
+- **2. Water** — done. Sea to the horizon, river `course`, shared tints in
+  the water folder. The bake stays on the first frame, which is under black.
+- **3. Builders** — done, all seven.
+- **4. Village** — built to §3.1 with these departures:
+  - Ivy is on the churchyard's north wall, not the tower's north face. A
+    wall cover is stated per mesh, so a face of the church cannot take it
+    alone; the church whole would not be sparing.
+  - The stream leaves the boundary twice (north-west in, south out). Those
+    two gaps in the wall are closed by invisible barriers across the water,
+    the way the beach closes its arms.
+  - The `run` kind now lays `hedge` and `stone-wall-low` as well as fence
+    and wall, and a run may carry a `cover`. The paddock hedges and the
+    churchyard wall use it.
+  - The church, the smithy and Nell's house have doorways and no door leaf:
+    a door is only built by a portal, and they lead nowhere. A prop that
+    stands a door in a builder's doorway would close this; not made.
+  - Tom's is the fourth door counting from Ada's end, which is what the line
+    says.
+  - The `demos` hall no longer holds the villager hut; Wat's door is
+    `wat-door` in world.json. The crate tower and its ladder portal are gone.
+
 ## 6. Open questions
 
 1. **The church as the village's landmark.** It is the tallest builder in the

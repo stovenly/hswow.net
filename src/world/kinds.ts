@@ -19,6 +19,8 @@ import { createParticles, type ParticleSpec } from '../art/particles';
 import { createRng } from '../art/random';
 import { fence, FENCE_MAX_SECTIONS, FENCE_SECTION } from '../art/builders/fence';
 import { stoneWall, WALL_MAX_SECTIONS, WALL_SECTION, wallHeight } from '../art/builders/stone-wall';
+import { stoneWallLow } from '../art/builders/stone-wall-low';
+import { hedge, HEDGE_MAX_SECTIONS, HEDGE_SECTION } from '../art/builders/hedge';
 import { stoneWallSquareColumn, COLUMN_REACH } from '../art/builders/stone-wall-square-column';
 import { fencePost } from '../art/builders/fence-post';
 import { hazel } from '../art/builders/hazel';
@@ -320,6 +322,16 @@ const RUNS: Record<string, RunShape> = {
     most: WALL_MAX_SECTIONS,
     build: (seed, run, sections) => stoneWall.build({ seed, run, sections }),
   },
+  'stone-wall-low': {
+    pitch: WALL_SECTION,
+    most: WALL_MAX_SECTIONS,
+    build: (seed, run, sections) => stoneWallLow.build({ seed, run, sections }),
+  },
+  hedge: {
+    pitch: HEDGE_SECTION,
+    most: HEDGE_MAX_SECTIONS,
+    build: (seed, run, sections) => hedge.build({ seed, run, sections }),
+  },
 };
 
 function runShape(name: string): RunShape {
@@ -365,6 +377,11 @@ registerEntryKind<RunEntry>({
     // actually finished rather than where it was aimed.
     if (entry.cap === 'post') {
       place(group, fencePost.build({ seed: seed + 9, run: seed }), at[0], at[1], yaw, ctx.groundAt);
+    }
+    if (entry.cover) {
+      group.traverse((node) => {
+        if (node instanceof THREE.Mesh) node.userData.cover = entry.cover;
+      });
     }
     return group;
   },

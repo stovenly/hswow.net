@@ -22,17 +22,5 @@
   "flat": {
     "size": 96
   },
-  "entries": [
-    {
-      "id": "hut",
-      "kind": "prop",
-      "builder": "hut",
-      "seed": 5511,
-      "at": [
-        -8,
-        0
-      ],
-      "yaw": 0
-    }
-  ]
+  "entries": []
 }
