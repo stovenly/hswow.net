@@ -19,6 +19,8 @@ import { auditionToConsole } from '../dev/Audition';
 import { createMeter } from '../dev/Meter';
 import { windUniforms } from '../art/sway';
 import { finishUniforms } from '../art/finish';
+import { GROUND, GROUND_TUNING, type GroundName } from '../world/ground';
+import { recolorGround } from '../world/terrain';
 import { RECIPES, RECIPE_KNOBS, RECIPE_PARAMS, uploadRecipeKnobs } from '../art/recipes';
 import { RAMPS, uploadRamps } from '../art/glsl/ramp';
 import { setClothWindOverride, setClothFrozen } from '../engine/ClothActivity';
@@ -237,6 +239,32 @@ const FOLIAGE_BASE = new Map<string, number>([
   lod.add(r.cover.lod, 'sprout', 0, 0.6, 0.01).name('sprout band').onChange(refresh);
   lod.add(r.cover.lod, 'sheen', -0.6, 0.6, 0.01).name('far wind sheen').onChange(refresh);
   lod.add(r.cover.lod, 'swapAt', 0, 80, 1).name('one triangle past (m)').onChange(refresh);
+
+  // The ground palette, written back into world/ground.ts's table and repainted
+  // on whatever terrain is standing. Blades keep the tint they were rolled with.
+  const groundFolder = gui.addFolder('ground').close();
+  const repaint = (): void => {
+    viewport.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name === 'terrain') recolorGround(object.geometry);
+    });
+  };
+  groundFolder.add(GROUND_TUNING, 'variation', 0, 3, 0.05).onChange(repaint);
+  groundFolder.add(GROUND_TUNING, 'cooling', 0, 0.5, 0.01).name('height cooling').onChange(repaint);
+  for (const name of Object.keys(GROUND) as GroundName[]) {
+    groundFolder.addColor(GROUND[name], 'color').name(name).onChange(repaint);
+  }
+  groundFolder
+    .add(
+      {
+        print: () => {
+          const hex = (value: number): string => '0x' + value.toString(16).padStart(6, '0');
+          const rows = (Object.keys(GROUND) as GroundName[]).map((name) => `${name}: ${hex(GROUND[name].color)}`);
+          console.log([...rows, `variation ×${GROUND_TUNING.variation}`, `cooling ${GROUND_TUNING.cooling}`].join('\n'));
+        },
+      },
+      'print',
+    )
+    .name('log palette');
 
   // No player video option here on purpose — snow in a snowy zone is the place,
   // like a pond or a mist pool (PARTICLES.md §8). What the player does get is

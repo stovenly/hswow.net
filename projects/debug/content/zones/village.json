@@ -48,7 +48,8 @@
   },
   "terrain": {
     "size": 114,
-    "resolution": 3,
+    "resolution": 1.5,
+    "steepDetail": 2,
     "landforms": [
       {
         "kind": "hill",

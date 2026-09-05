@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { FIELD_ATTRIBUTE, finish } from '../art/assemble';
 import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE, COVER_FLOOR } from '../art/cover-sample';
-import { shade } from '../art/palette';
 import {
   GROUND,
+  GROUND_TUNING,
+  GROUND_INDEX,
+  groundWeights,
+  groundVariation,
   COVER,
   COVER_ORDER,
   COVER_TYPES,
@@ -32,6 +35,82 @@ import { floats } from '../engine/work/shared';
  */
 const GROUND_NAMES = Object.keys(GROUND) as GroundName[];
 const COVER_NAMES = Object.keys(COVER_TYPES) as CoverName[];
+
+/** Per-vertex ground facts the colour is computed from, so the palette can be changed on a built mesh. */
+export const GROUND_MIX_ATTRIBUTE = 'groundMix';
+export const GROUND_TONE_ATTRIBUTE = 'groundTone';
+
+interface GroundMix {
+  a: number;
+  b: number;
+  /** Weight of `b`, 0..1. */
+  t: number;
+}
+
+/** Metres of height over which the ground cools to its full `GROUND_TUNING.cooling`. */
+const COOLING_HEIGHT = 55;
+
+/**
+ * Writes the ground mesh's vertex colours from `GROUND` and `GROUND_TUNING` as they
+ * stand now. Run by `build`, and again by the debug panel after a palette change.
+ */
+export function recolorGround(geometry: THREE.BufferGeometry): void {
+  const mix = geometry.getAttribute(GROUND_MIX_ATTRIBUTE) as THREE.BufferAttribute | undefined;
+  const tone = geometry.getAttribute(GROUND_TONE_ATTRIBUTE) as THREE.BufferAttribute | undefined;
+  const color = geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+  if (!mix || !tone || !color) return;
+  const mixes = mix.array as Float32Array;
+  const tones = tone.array as Float32Array;
+  const colors = color.array as Float32Array;
+  const materials = GROUND_NAMES.map((name) => GROUND[name]);
+  const rock = GROUND_INDEX.rock;
+  const out = new THREE.Color();
+  const rgb = [0, 0, 0];
+
+  // sRGB 0..1, shaded by the smooth variation and the per-face grain, centred on the stated colour.
+  const shaded = (index: number, variation: number, grain: number): void => {
+    const material = materials[index];
+    const k =
+      1 +
+      (variation - 0.5) * material.variation * 2 * GROUND_TUNING.variation +
+      (grain - 0.5) * (material.grain ?? 0) * 2;
+    const hex = material.color;
+    rgb[0] = (((hex >> 16) & 0xff) / 255) * k;
+    rgb[1] = (((hex >> 8) & 0xff) / 255) * k;
+    rgb[2] = ((hex & 0xff) / 255) * k;
+  };
+
+  for (let i = 0, i3 = 0, i4 = 0; i < color.count; i++, i3 += 3, i4 += 4) {
+    const variation = tones[i4];
+    const grain = tones[i4 + 1];
+    const cooling = 1 - Math.min(Math.max(tones[i4 + 2] / COOLING_HEIGHT, 0), 1) * GROUND_TUNING.cooling;
+    const scale = cooling * tones[i4 + 3];
+    const t = mixes[i4 + 2];
+    const rocky = mixes[i4 + 3];
+
+    shaded(mixes[i4], variation, grain);
+    let r = rgb[0];
+    let g = rgb[1];
+    let b = rgb[2];
+    if (t > 0) {
+      shaded(mixes[i4 + 1], variation, grain);
+      r += (rgb[0] - r) * t;
+      g += (rgb[1] - g) * t;
+      b += (rgb[2] - b) * t;
+    }
+    if (rocky > 0) {
+      shaded(rock, variation, grain);
+      r += (rgb[0] - r) * rocky;
+      g += (rgb[1] - g) * rocky;
+      b += (rgb[2] - b) * rocky;
+    }
+    out.setRGB(Math.min(1, r * scale), Math.min(1, g * scale), Math.min(1, b * scale), THREE.SRGBColorSpace);
+    colors[i3] = out.r;
+    colors[i3 + 1] = out.g;
+    colors[i3 + 2] = out.b;
+  }
+  color.needsUpdate = true;
+}
 
 /**
  * Authored terrain: a heightfield summed from placed landforms. Not noise — every
@@ -410,6 +489,8 @@ export class Terrain {
   private readonly edge: CoverEdge = { feather: 1, neighbor: 0, blend: 0 };
   private readonly there = { index: 0, hard: false };
   private readonly votes = new Uint8Array(COVER_ORDER.length);
+  private readonly weights = new Float64Array(GROUND_NAMES.length);
+  private readonly mix: GroundMix = { a: 0, b: 0, t: 0 };
 
   constructor(options: TerrainOptions) {
     this.size = options.size;
@@ -731,6 +812,9 @@ export class Terrain {
     const positions = floats(vertices * 3);
     const normals = floats(vertices * 3);
     const colors = floats(vertices * 3);
+    // Two materials, their mix and the rock blend; then variation, grain, height and floor shade. Read back by `recolorGround`.
+    const mixes = floats(vertices * 4);
+    const tones = floats(vertices * 4);
     // Type, feather, and the two broad fields, per vertex, for the cover sampler.
     const covers = floats(vertices * 4);
     // And who the neighbour across a boundary is, with how much of it to mix in.
@@ -742,11 +826,10 @@ export class Terrain {
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
     const c = new THREE.Vector3();
-    const rockColor = new THREE.Color();
     const ab = new THREE.Vector3();
     const ac = new THREE.Vector3();
     const normal = new THREE.Vector3();
-    const color = new THREE.Color();
+    const mix = this.mix;
     // The four corners of one quad, x y z each, and which three make each triangle.
     const corners = new Float64Array(12);
     const points = [a, b, c];
@@ -814,9 +897,7 @@ export class Terrain {
               const midX = (a.x + b.x + c.x) / 3;
               const midZ = (a.z + b.z + c.z) / 3;
               const name = this.faceMaterial(midX, midZ);
-              const midY = (a.y + b.y + c.y) / 3;
-              color.set(this.faceColor(name, midY, midX, midZ));
-              rockColor.set(name === 'rock' ? color : this.faceColor('rock', midY, midX, midZ));
+              const grain = groundJitter(midX, midZ);
               // Type per face, so its edges stay hard; feather and blend per corner, so
               // they interpolate — cover runs out onto bare ground over a couple of
               // metres, and two grown types interleave rather than thinning to a gap.
@@ -825,10 +906,9 @@ export class Terrain {
               for (let k = 0; k < 3; k++) {
                 const corner = points[k];
                 this.coverEdge(cover, corner.x, corner.z, edge);
-                // How far into rock this corner is. Per corner, so the line where
-                // grass gives way to stone runs across the facets as a gradient
-                // rather than along their edges as a saw.
+                // Per corner, so a material or rock line crossing a facet is a gradient across it, not a saw along its edges.
                 const rocky = this.rockiness(corner.x, corner.z);
+                this.cornerGround(corner.x, corner.z, mix);
                 // Thinned toward the level's edge, where the skirt takes over
                 // and nothing grows, and to nothing on rock. See `TerrainOptions.edgeFade`.
                 const stand = edge.feather * this.edgeDensity(corner.x, corner.z) * (1 - rocky);
@@ -848,9 +928,14 @@ export class Terrain {
                 normals[at3] = normal.x;
                 normals[at3 + 1] = normal.y;
                 normals[at3 + 2] = normal.z;
-                colors[at3] = (color.r + (rockColor.r - color.r) * rocky) * floor;
-                colors[at3 + 1] = (color.g + (rockColor.g - color.g) * rocky) * floor;
-                colors[at3 + 2] = (color.b + (rockColor.b - color.b) * rocky) * floor;
+                mixes[at4 - 4] = mix.a;
+                mixes[at4 - 3] = mix.b;
+                mixes[at4 - 2] = mix.t;
+                mixes[at4 - 1] = rocky;
+                tones[at4 - 4] = groundVariation(corner.x, corner.z);
+                tones[at4 - 3] = grain;
+                tones[at4 - 2] = corner.y;
+                tones[at4 - 1] = floor;
                 at3 += 3;
               }
             }
@@ -863,6 +948,9 @@ export class Terrain {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute(GROUND_MIX_ATTRIBUTE, new THREE.BufferAttribute(mixes, 4));
+    geometry.setAttribute(GROUND_TONE_ATTRIBUTE, new THREE.BufferAttribute(tones, 4));
+    recolorGround(geometry);
     // Ground does not move in the wind. The attribute still has to exist —
     // the sway patch reads it on one shared material, and a mesh missing the
     // attribute it reads is a mesh that fails to draw.
@@ -959,18 +1047,30 @@ export class Terrain {
       : (patchAt(this.patches, x, z) ?? this.paintedAt(x, z) ?? this.base);
   }
 
-  /**
-   * Colour for one face: its material, jittered, and darkened a little with
-   * height so the high ground reads as further away and colder.
-   */
-  private faceColor(name: GroundName, height: number, x: number, z: number): number {
-    const material = GROUND[name];
-
-    // Centred on 1, so variation brightens as often as it darkens and the
-    // material's stated colour stays its average.
-    const jitter = 1 + (groundJitter(x, z) - 0.5) * material.variation * 2;
-    const cooling = 1 - Math.min(Math.max(height / 55, 0), 1) * 0.16;
-    return shade(material.color, jitter * cooling);
+  /** The two materials the colour at a corner is made of, patches feathered over paint and base. */
+  private cornerGround(x: number, z: number, out: GroundMix): void {
+    const under = GROUND_INDEX[this.paintedAt(x, z) ?? this.base];
+    const weights = this.weights;
+    groundWeights(this.patches, under, x, z, weights);
+    let a = under;
+    let b = under;
+    let wa = -1;
+    let wb = -1;
+    for (let i = 0; i < weights.length; i++) {
+      const w = weights[i];
+      if (w > wa) {
+        b = a;
+        wb = wa;
+        a = i;
+        wa = w;
+      } else if (w > wb) {
+        b = i;
+        wb = w;
+      }
+    }
+    out.a = a;
+    out.b = wb > 0 ? b : a;
+    out.t = wb > 0 ? wb / (wa + wb) : 0;
   }
 
   /** What one face grows, as a cover type index. A patch wins outright. */

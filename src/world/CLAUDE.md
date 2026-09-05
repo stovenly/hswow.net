@@ -174,11 +174,16 @@ that subject by whoever is asking; asked without one, it is false.
 ## Dressing, interior, terrain, vista
 
 - **`terrain.ts`** — the walkable heightfield, summed from placed landforms.
-  Authored, never noise. The `rim` landform is the boundary: ground past the
-  slope limit, made of the same triangles as everything else.
+  Authored, never noise. Boundaries are natural: walls, hedges, treelines,
+  water, rock — never a rim of hills. Colour is decided per corner: each
+  vertex records the two materials under it, their mix, the rock blend, a
+  smooth two-octave variation and its height, and `recolorGround` turns those
+  into vertex colours from the palette — so the debug panel can repaint a
+  standing mesh without rebuilding it.
 - **`ground.ts`** — what that ground is *made of*, patch by patch. A material is
   a colour **and** a sound **and** what grows on it, in one table, so the three
-  cannot drift apart.
+  cannot drift apart. A patch's `feather` (metres, default 1.5) is how far its
+  colour blends into what is under it; footsteps and cover stay hard-edged.
 - **`interior.ts`** — a sealed shell with no doorway cut in it. Portal doors
   bring their own frame and dark backing panel. `rooms.ts` is the same thing for
   several rooms joined where they touch: every wall is built as panels that tile

@@ -1,6 +1,6 @@
 {
   "id": "cottage",
-  "name": "Cottage",
+  "name": "Ada's House",
   "group": "countryside",
   "environment": {
     "base": "countryside-house"

@@ -1,6 +1,6 @@
 {
   "id": "cellar",
-  "name": "Cottage Cellar",
+  "name": "Ada's Cellar",
   "group": "countryside",
   "environment": { "base": "countryside-cellar" },
   "spawn": { "at": [0, 0.1, -0.4], "yaw": 0 },

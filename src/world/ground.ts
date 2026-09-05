@@ -15,29 +15,35 @@ import type { SurfaceName } from '../audio/models/footsteps';
 
 export interface GroundMaterial {
   color: number;
-  /**
-   * How much face-to-face brightness varies, 0..1. Cobble and gravel want a lot —
-   * they are made of separate pieces and the variation is what reads as pieces. A
-   * material with none looks like painted concrete however good its colour is.
-   */
+  /** How far the smooth light-and-dark variation moves the colour, 0..1. */
   variation: number;
+  /** Per-face shade on top of the smooth variation, 0..1, for ground made of separate pieces. */
+  grain?: number;
   /** Which footstep model plays when standing on it. */
   step: SurfaceName;
 }
 
-export const GROUND = {
+/** Global dials over the table below. Mutable: the debug panel drives them and recolours the ground in place. */
+export const GROUND_TUNING = {
+  /** Multiplier on every material's `variation`. */
+  variation: 1,
+  /** How much darker the ground is 55 m up, 0..1. */
+  cooling: 0.16,
+};
+
+const MATERIALS = {
   /** Ordinary grass. The default everywhere nothing else is painted. */
   turf: { color: PALETTE.GRASS, variation: 0.1, step: 'grass' },
   /** Long, dry, unmown. Verges and neglected corners. */
-  meadow: { color: PALETTE.GRASS_DRY, variation: 0.13, step: 'grass' },
+  meadow: { color: 0x69773b, variation: 0.13, step: 'grass' },
   /** Bare earth: a track people have walked flat. */
-  dirt: { color: PALETTE.EARTH, variation: 0.09, step: 'soil' },
+  dirt: { color: 0x605744, variation: 0.09, step: 'soil' },
   /** Loose stone. A made road rather than a worn one. */
-  gravel: { color: 0x6e6656, variation: 0.16, step: 'gravel' },
+  gravel: { color: 0x686459, variation: 0.12, grain: 0.08, step: 'gravel' },
   /** Set stone, bedded and pointed. A yard, a market floor, a made road. */
-  cobble: { color: PALETTE.STONE, variation: 0.19, step: 'cobble-fixed' },
+  cobble: { color: PALETTE.STONE, variation: 0.1, grain: 0.12, step: 'cobble-fixed' },
   /** Broken stone, loose. A track rather than a road — the coarse aggregate. */
-  rubble: { color: shade(PALETTE.STONE, 0.86), variation: 0.22, step: 'cobble-loose' },
+  rubble: { color: shade(PALETTE.STONE, 0.86), variation: 0.12, grain: 0.14, step: 'cobble-loose' },
   /** Fine and dry. A shore, a pit, a yard nobody has swept. */
   sand: { color: 0xc4ad84, variation: 0.08, step: 'sand' },
   /** Big flat slabs. Formal, and quieter than cobble to look at. */
@@ -45,9 +51,9 @@ export const GROUND = {
   /** Planked walkway over soft ground. */
   boards: { color: PALETTE.TIMBER, variation: 0.11, step: 'wood' },
   /** Something growing in rows. */
-  crop: { color: PALETTE.LEAF_DRY, variation: 0.15, step: 'grass' },
+  crop: { color: 0x707b37, variation: 0.15, step: 'grass' },
   /** Churned and wet, where animals stand. */
-  mire: { color: 0x453a2c, variation: 0.12, step: 'mud' },
+  mire: { color: 0x544d3c, variation: 0.12, step: 'mud' },
   /** Exposed bedrock. Also what steep faces fall back to. */
   rock: { color: PALETTE.STONE_DARK, variation: 0.13, step: 'stone' },
   /** Catwalk, grating, ductwork. Fixed at its ends, so the clang travels. */
@@ -61,14 +67,17 @@ export const GROUND = {
   /** Lying snow, trodden. Almost no face variation — snow is famously even. */
   snow: { color: 0xd8dde4, variation: 0.05, step: 'snow' },
   /** Damp shade under a canopy, or the north side of a stone. */
-  moss: { color: 0x455c31, variation: 0.14, step: 'moss' },
+  moss: { color: 0x506038, variation: 0.14, step: 'moss' },
   /** Pebbles the tide sorts into a band. */
-  shingle: { color: 0x8a8272, variation: 0.18, step: 'gravel' },
+  shingle: { color: 0x8a8272, variation: 0.1, grain: 0.1, step: 'gravel' },
   /** Sand the last wave left. Darker, and even. */
   wetsand: { color: 0x9d8c6c, variation: 0.05, step: 'sand' },
-} as const satisfies Record<string, GroundMaterial>;
+} satisfies Record<string, GroundMaterial>;
 
-export type GroundName = keyof typeof GROUND;
+export type GroundName = keyof typeof MATERIALS;
+
+/** Mutable: the debug panel writes colours into it and recolours the standing ground. */
+export const GROUND: Record<GroundName, GroundMaterial> = MATERIALS;
 
 /**
  * The shape of a painted region, without saying what is painted in it. Shared by
@@ -88,7 +97,50 @@ export type PatchShape =
  * top to bottom like layers of paint: the fields, then the roads across them, then
  * the yard where the roads meet.
  */
-export type GroundPatch = PatchShape & { material: GroundName };
+export type GroundPatch = PatchShape & {
+  material: GroundName;
+  /** Metres over which the colour blends into what is under it. Default 1.5; 0 is a hard edge. Only the colour: material and cover stay hard. */
+  feather?: number;
+};
+
+export const DEFAULT_FEATHER = 1.5;
+
+/**
+ * How much of each material the colour here is, patches on top of `under`.
+ * Fills `weights` (indexed as `GROUND`'s keys) to sum to 1.
+ */
+export function groundWeights(
+  patches: readonly GroundPatch[],
+  under: number,
+  x: number,
+  z: number,
+  weights: Float64Array,
+): void {
+  weights.fill(0);
+  let remaining = 1;
+  for (let i = patches.length - 1; i >= 0 && remaining > 1e-3; i--) {
+    const patch = patches[i];
+    const feather = patch.feather ?? DEFAULT_FEATHER;
+    const d = shapeDistance(patch, x, z);
+    let w: number;
+    if (feather <= 0) w = d <= 0 ? 1 : 0;
+    else if (d >= feather) w = 0;
+    else if (d <= -feather) w = 1;
+    else {
+      const t = (feather - d) / (2 * feather);
+      w = t * t * (3 - 2 * t);
+    }
+    if (w <= 0) continue;
+    weights[GROUND_INDEX[patch.material]] += w * remaining;
+    remaining *= 1 - w;
+  }
+  weights[under] += remaining;
+}
+
+/** Position of each material in `GROUND`'s key order. */
+export const GROUND_INDEX = Object.fromEntries(
+  Object.keys(GROUND).map((name, index) => [name, index]),
+) as Record<GroundName, number>;
 
 /**
  * Signed distance to a shape's edge: negative inside, positive outside. Here rather
@@ -169,12 +221,7 @@ function inside(patch: PatchShape, x: number, z: number): boolean {
   }
 }
 
-/**
- * Which patch covers a position, or null for none. Edges are hard, not blended:
- * everything here is flat-shaded and quantized to a handful of levels, so a soft
- * gradient between two ground materials survives as a band of dither and reads as
- * a mistake, where a crisp edge on a facet boundary reads as a kerb.
- */
+/** Which patch covers a position, or null for none. Hard-edged: this decides footsteps and cover; colour feathers separately. */
 export function patchAt(
   patches: readonly GroundPatch[],
   x: number,
@@ -315,6 +362,14 @@ export const COVER_TYPES = {
       { kind: 'posy', density: 6.5, scale: 1, tint: 0xc76a72, tints: [0xc76a72, 0xd8888e, 0xb85560] },
     ],
   },
+  /** Stiff pale dune grass. Authored only. */
+  marram: {
+    blades: { length: 0.55, width: 0.03, density: 75, give: 0.5, sprawl: 0.3, tint: 0x9a9468, vary: 0.5, blend: 0.15 },
+  },
+  /** Weed the tide left in a line: dark leaves, no blades. Authored only. */
+  wrack: {
+    props: { kind: 'leaf', density: 12, scale: 0.5, tint: 0x3a3226, tints: [0x3a3226, 0x4a3b2a, 0x2e2a20] },
+  },
   /** Wisteria: foliage above, racemes hanging out of it. */
   wisteria: {
     walls: true,
@@ -411,18 +466,13 @@ export function coverPatchWinner(
   return null;
 }
 
-/**
- * A stable pseudo-random value for a position, for per-face variation. Hashed
- * rather than drawn from an `Rng`, because faces are visited in whatever order the
- * mesh builder walks the grid and a sequence would make the pattern depend on that
- * order. The ground at a place always looks the same.
- */
+/** Light and dark across the ground, 0..1: two octaves at 9 m and 2.2 m, sampled per corner. */
+export function groundVariation(x: number, z: number): number {
+  return smoothNoise(x, z, 9, 977) * 0.65 + smoothNoise(x, z, 2.2, 313) * 0.35;
+}
+
+/** A stable per-face value, 0..1, quantised at 1.2 m so neighbouring small faces share it. Position-hashed, so build order cannot change it. */
 export function groundJitter(x: number, z: number): number {
-  // Quantized at about a metre, deliberately coarser than the smallest facet. The
-  // value is sampled once per face, so a finer grid gives every face its own shade
-  // and the variation reads as per-triangle noise whose scale changes wherever the
-  // mesh density does; a coarser one makes neighbouring small faces share a value,
-  // so the variation reads as patches at a fixed size.
   let h = (Math.round(x / 1.2) * 374761393 + Math.round(z / 1.2) * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
