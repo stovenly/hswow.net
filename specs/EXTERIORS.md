@@ -683,8 +683,8 @@ count; the coast's sea is the one per-pixel cost in the set.
 
 ### Status, 2026-09-04
 
-Phases 1 to 4 are built and committed; nothing is pushed. **Resume at
-phase 5, the farm.**
+Phases 1 to 5 are built and committed; nothing is pushed. **Resume at
+phase 6, the plains.**
 
 - **1. Ground** — done. Per-corner colour, feathered patches, smooth
   variation, grain on the stone materials, the closer palette, the debug
@@ -709,6 +709,19 @@ phase 5, the farm.**
     says.
   - The `demos` hall no longer holds the villager hut; Wat's door is
     `wat-door` in world.json. The crate tower and its ladder portal are gone.
+- **5. Farm** — built to §3.2 with these departures:
+  - The river is cut across the terrain's south margin and leaves the square
+    at its south corners, rather than lying on the skirt. The skirt carries
+    the square's edge height under the level, so water at that height would
+    have shown the skirt sheet through the channel.
+  - The cart track leaves the lane just inside the arch, rounds the crop
+    field's east, north and west sides, and rejoins the lane at its bend on
+    the yard's edge, between the hay rick and the field gate.
+  - The stooks stand in Hob's stubble field behind the barn. The crop field
+    east of the yard is a standing crop.
+  - The boundary is hedge runs with barriers behind them on the west and
+    south; the chain lays the east wall and the north fence.
+  - The dog and the hens are gone. Nothing smokes, so there is no fire.
 
 ## 6. Open questions
 
