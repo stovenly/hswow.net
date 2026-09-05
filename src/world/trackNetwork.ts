@@ -4,7 +4,7 @@ import {
   buildStonePaving,
   buildTrackWith,
   isStone,
-  junctionRing,
+  junctionRingEdges,
   liftOf,
   rowOf,
   type JunctionArm,
@@ -124,7 +124,7 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
           if (!stoneOwner) stoneOwner = line.track;
         }
         if (built.samples.length >= 2) {
-          const arm = { surface: line.track.surface, width: line.track.width };
+          const arm = { surface: line.track.surface, width: line.track.width, edge: line.track.edge };
           if (fromNode) arms.get(fromNode)?.push({ ...arm, row: rowOf(built.samples[0]) });
           if (toNode) arms.get(toNode)?.push({ ...arm, row: rowOf(built.samples[built.samples.length - 1]) });
         }
@@ -143,8 +143,16 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
       .map((hit) => hit.line.track)
       .sort((a, b) => RANK.indexOf(a.surface) - RANK.indexOf(b.surface) || b.width - a.width)[0];
     if (isStone(node.surface)) {
-      const ring = junctionRing([node.x, node.z], rows);
-      if (ring.length >= 3) stoneRings.push({ ring, lift: liftOf(node.surface, node.width), surface: node.surface });
+      const { ring, outer } = junctionRingEdges([node.x, node.z], rows);
+      if (ring.length >= 3) {
+        stoneRings.push({
+          ring,
+          outer,
+          kerb: rows.some((arm) => arm.edge === 'kerb'),
+          lift: liftOf(node.surface, node.width),
+          surface: node.surface,
+        });
+      }
       return;
     }
     groups.get(owner.id)?.add(

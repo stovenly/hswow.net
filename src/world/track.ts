@@ -51,6 +51,10 @@ export interface StoneStrip {
 /** A junction of the stone paving: its ring, and the height its skin stands at. */
 export interface StoneRing {
   ring: readonly (readonly [number, number])[];
+  /** Per edge from `ring[i]` to `ring[i + 1]`: true where the edge borders open ground rather than an arm's mouth. */
+  outer: readonly boolean[];
+  /** Whether the outer edges carry kerbs, as the arms do. */
+  kerb: boolean;
   lift: number;
   surface: 'cobble' | 'flagstone';
 }
@@ -659,7 +663,11 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
     return crossings % 2 === 1;
   };
   /** The nearest strip sample about a point, with the point's station on it: u across, advance along. */
-  const nearStrip = (x: number, z: number): { strip: StoneStrip; at: number; u: number; lift: number } | null => {
+  const nearStrip = (
+    x: number,
+    z: number,
+    except?: StoneStrip,
+  ): { strip: StoneStrip; at: number; u: number; lift: number } | null => {
     const cx = Math.floor(x / INDEX_CELL);
     const cz = Math.floor(z / INDEX_CELL);
     let best: { strip: StoneStrip; at: number; u: number; lift: number; away: number } | null = null;
@@ -668,6 +676,7 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
         const held = index.get((cx + dx) * 65536 + (cz + dz) + 32768);
         if (!held) continue;
         for (const { strip, at } of held) {
+          if (strip === except) continue;
           const sample = strip.samples[at];
           const px = x - sample.x;
           const pz = z - sample.z;
@@ -797,11 +806,16 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
     // lies beyond. Ends and ring edges cut only where the far side is not a
     // junction, so a strip running into one leaves its cells whole there.
     const inAnyRing = (x: number, z: number): boolean => flats.some((flat) => inRing(flat, x, z));
+    const strip = nearStrip(site.x, site.z);
+    // Beyond the edge lies a junction, or another strip still overlapping
+    // this one where two leave at an acute angle: either way it is paving,
+    // and cutting here would take a wedge out of it.
     const cutUnlessRing = (px: number, pz: number, ox: number, oz: number): void => {
-      if (inAnyRing(px + ox * 0.15, pz + oz * 0.15)) return;
+      const bx = px + ox * 0.15;
+      const bz = pz + oz * 0.15;
+      if (inAnyRing(bx, bz) || nearStrip(bx, bz, strip?.strip)) return;
       cell = halfPlane(cell, ox, oz, ox * px + oz * pz);
     };
-    const strip = nearStrip(site.x, site.z);
     if (strip) {
       const samples = strip.strip.samples;
       const inset = strip.strip.inset;
@@ -863,8 +877,9 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
         const pz = a[1] + dz * t;
         if (Math.hypot(site.x - px, site.z - pz) > reach) continue;
         // A ring edge that a strip's mouth crosses is not an edge of the paving.
-        if (nearStrip(px + ox * 0.15, pz + oz * 0.15)) continue;
-        cell = halfPlane(cell, ox, oz, ox * px + oz * pz);
+        if (!flat.outer[i] || nearStrip(px + ox * 0.15, pz + oz * 0.15)) continue;
+        const inset = flat.kerb ? KERB_WIDTH : 0;
+        cell = halfPlane(cell, ox, oz, ox * px + oz * pz - inset);
       }
     }
     if (cell.length < 3) continue;
@@ -874,6 +889,37 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
     if (!stone) continue;
     skin.push({ geometry: stone, color: colours[site.surface](), sway: 0 });
     skin.push({ geometry: plateOver(cell, skinAt), color: shade(PALETTE.STONE_DARK, site.surface === 'cobble' ? 0.55 : 0.6), sway: 0 });
+  }
+  // Kerbs along the junctions' open edges, standing where their stones stop.
+  const kerbColour = shade(PALETTE.STONE_DARK, 0.9);
+  for (const flat of flats) {
+    if (!flat.kerb) continue;
+    const ring = flat.ring;
+    let mx = 0;
+    let mz = 0;
+    for (const [x, z] of ring) {
+      mx += x / ring.length;
+      mz += z / ring.length;
+    }
+    for (let i = 0; i < ring.length; i++) {
+      if (!flat.outer[i]) continue;
+      const a = ring[i];
+      const b = ring[(i + 1) % ring.length];
+      const dx = b[0] - a[0];
+      const dz = b[1] - a[1];
+      const len = Math.hypot(dx, dz);
+      if (len < 0.2) continue;
+      let ox = -dz / len;
+      let oz = dx / len;
+      if (ox * (a[0] - mx) + oz * (a[1] - mz) < 0) {
+        ox = -ox;
+        oz = -oz;
+      }
+      const base = (x: number, z: number): number => groundAt(x, z) + flat.lift - KERB_SINK;
+      for (const piece of straightKerbs(a, b, ox, oz, base, rng)) {
+        skin.push({ geometry: piece, color: shade(kerbColour, rng.range(0.92, 1.08)), sway: 0 });
+      }
+    }
   }
   if (skin.length === 0) return group;
 
@@ -915,6 +961,7 @@ export interface JunctionArm {
   row: readonly (readonly [number, number])[];
   surface: TrackSurface;
   width: number;
+  edge?: 'kerb' | 'verge' | 'none';
 }
 
 export interface JunctionOptions {
@@ -937,6 +984,14 @@ export interface JunctionOptions {
  * every vertex of every row and no crack can open along them.
  */
 export function junctionRing(at: Point, arms: readonly JunctionArm[]): [number, number][] {
+  return junctionRingEdges(at, arms).ring;
+}
+
+/** The ring, and which of its edges face open ground: the ones joining one arm's row to the next. */
+export function junctionRingEdges(
+  at: Point,
+  arms: readonly JunctionArm[],
+): { ring: [number, number][]; outer: boolean[] } {
   const [cx, cz] = at;
   const ordered = [...arms]
     .map((arm) => {
@@ -948,12 +1003,16 @@ export function junctionRing(at: Point, arms: readonly JunctionArm[]): [number, 
     })
     .sort((a, b) => a.bearing - b.bearing);
   const ring: [number, number][] = [];
+  const outer: boolean[] = [];
   for (const { arm, bearing } of ordered) {
     // In angle order about the middle, as the arms themselves are.
     const row = [...arm.row].sort(
       (a, b) => turn(Math.atan2(a[1] - cz, a[0] - cx) - bearing) - turn(Math.atan2(b[1] - cz, b[0] - cx) - bearing),
     );
-    for (const p of row) ring.push([p[0], p[1]]);
+    row.forEach((p, i) => {
+      ring.push([p[0], p[1]]);
+      outer.push(i === row.length - 1);
+    });
   }
   let twice = 0;
   for (let i = 0; i < ring.length; i++) {
@@ -962,8 +1021,14 @@ export function junctionRing(at: Point, arms: readonly JunctionArm[]): [number, 
     twice += a[0] * b[1] - b[0] * a[1];
   }
   // Anticlockwise from above is a negative area in x/z, and faces up.
-  if (twice > 0) ring.reverse();
-  return ring;
+  if (twice > 0) {
+    ring.reverse();
+    // Edge k of the reversed ring is old edge (n - 2 - k), the last edge wrapping round.
+    const n = outer.length;
+    const flipped = outer.map((_, k) => outer[(n - 2 - k + n) % n]);
+    outer.splice(0, n, ...flipped);
+  }
+  return { ring, outer };
 }
 
 /** A junction in a loose surface: one patch over the ring, level with the lift its arms eased into. Stone junctions are the paving's. */
@@ -1189,6 +1254,67 @@ function kerbPiece(
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
   return geometry;
+}
+
+/**
+ * Kerb stones along a straight edge from `a` to `b`, the outer face on the
+ * line and the inner face `KERB_WIDTH` in, each standing on `base`.
+ */
+function straightKerbs(
+  a: readonly [number, number],
+  b: readonly [number, number],
+  ox: number,
+  oz: number,
+  base: (x: number, z: number) => number,
+  rng: Rng,
+): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  const dx = b[0] - a[0];
+  const dz = b[1] - a[1];
+  const len = Math.hypot(dx, dz);
+  const tx = dx / len;
+  const tz = dz / len;
+  const height = SETT_HEIGHT + 0.05;
+  const along = new THREE.Vector3(tx, 0, tz);
+  const outward = new THREE.Vector3(ox, 0, oz);
+  const up = new THREE.Vector3(0, 1, 0);
+  let s = 0;
+  while (len - s > 0.12) {
+    const piece = Math.min(len - s, rng.range(0.45, 0.65));
+    const s0 = s;
+    const s1 = s + piece - 0.03;
+    const corner = (at: number, inward: number, y: number, tuck: number): THREE.Vector3 =>
+      new THREE.Vector3(
+        a[0] + tx * at - ox * inward + ox * tuck + rng.around(0, 0.003),
+        y,
+        a[1] + tz * at - oz * inward + oz * tuck + rng.around(0, 0.003),
+      );
+    const foot = (at: number, inward: number): number => base(a[0] + tx * at - ox * inward, a[1] + tz * at - oz * inward);
+    const bi0 = corner(s0, KERB_WIDTH, foot(s0, KERB_WIDTH), 0);
+    const bi1 = corner(s1, KERB_WIDTH, foot(s1, KERB_WIDTH), 0);
+    const bo0 = corner(s0, 0, foot(s0, 0), 0);
+    const bo1 = corner(s1, 0, foot(s1, 0), 0);
+    const ti0 = corner(s0 + KERB_CHAMFER, KERB_WIDTH, foot(s0, KERB_WIDTH) + height, KERB_CHAMFER);
+    const ti1 = corner(s1 - KERB_CHAMFER, KERB_WIDTH, foot(s1, KERB_WIDTH) + height, KERB_CHAMFER);
+    const to0 = corner(s0 + KERB_CHAMFER, 0, foot(s0, 0) + height, -KERB_CHAMFER);
+    const to1 = corner(s1 - KERB_CHAMFER, 0, foot(s1, 0) + height, -KERB_CHAMFER);
+    const position: number[] = [];
+    const quad = (p: THREE.Vector3, q: THREE.Vector3, r: THREE.Vector3, w: THREE.Vector3, want: THREE.Vector3): void => {
+      const n = new THREE.Vector3().subVectors(q, p).cross(new THREE.Vector3().subVectors(r, p));
+      const [A, B, C, D] = n.dot(want) >= 0 ? [p, q, r, w] : [p, w, r, q];
+      position.push(A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z, A.x, A.y, A.z, C.x, C.y, C.z, D.x, D.y, D.z);
+    };
+    quad(ti0, ti1, to1, to0, up);
+    quad(bo0, bo1, to1, to0, outward);
+    quad(bi0, bi1, ti1, ti0, outward.clone().negate());
+    quad(bi0, bo0, to0, ti0, along.clone().negate());
+    quad(bi1, bo1, to1, ti1, along);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+    out.push(geometry);
+    s += piece;
+  }
+  return out;
 }
 
 function embeddedStones(
