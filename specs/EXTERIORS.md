@@ -683,8 +683,8 @@ count; the coast's sea is the one per-pixel cost in the set.
 
 ### Status, 2026-09-04
 
-Phases 1 to 6 are built and committed; nothing is pushed. **Resume at
-phase 7, the riverside.**
+Phases 1 to 7 are built and committed; nothing is pushed. **Resume at
+phase 8, the forest path.**
 
 - **1. Ground** — done. Per-corner colour, feathered patches, smooth
   variation, grain on the stone materials, the closer palette, the debug
@@ -733,6 +733,20 @@ phase 7, the riverside.**
   - The sheep track rounds the north foot under the clitter, climbs the east
     shoulder and drops past the pool to the gravel. No friction sound: the
     sails are still.
+- **7. Riverside** — built to §3.4 with these departures:
+  - The cut bank is the pool's basin summed onto the channel's outer bank,
+    which takes that bank past the rock angle; there is no separate scarp,
+    because a 2.5 m run would have stepped the meadow wherever it ended.
+  - The narrows are two terraces cut into the banks at −0.3 either side of
+    the bridge, with rock shelves on their faces; the bridge is 10 m long
+    and rests on them. The west meadow is at the river's level and the east
+    terrace 2 m above it.
+  - The river leaves south-south-east, so the gate at (30, 62) is on the
+    east terrace; beyond the square the reaches run out over the skirt and
+    end where it rises through them.
+  - The stepping stones are reached by a spur off the east track north of
+    the bridge. The west boundary is the farm's hedge; the north, east and
+    south-east are treelines with barriers behind them.
 
 ## 6. Open questions
 
