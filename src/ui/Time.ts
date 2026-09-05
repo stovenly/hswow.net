@@ -11,8 +11,6 @@ import type { AudioEngine } from '../audio/AudioEngine';
 
 /** Real seconds one game hour takes while waiting. */
 const HOUR_SECONDS = 0.5;
-/** Real seconds the rate takes to come up at the start and go down at the end. */
-const RAMP = 0.4;
 const SVG = 'http://www.w3.org/2000/svg';
 const SIZE = 400;
 const CENTRE = SIZE / 2;
@@ -35,27 +33,24 @@ export function dayNumber(elapsedDays: number): number {
   return Math.floor(elapsedDays) - START_DAY + 1;
 }
 
-/** The season a phase of the year falls in, with 0 at midwinter. */
-export function seasonWord(phase: number): string {
-  const turn = ((phase % 1) + 1) % 1;
-  if (turn < 0.125 || turn >= 0.875) return 'winter';
-  if (turn < 0.375) return 'spring';
-  if (turn < 0.625) return 'summer';
-  return 'autumn';
-}
-
 /** Where an hour (0..24) falls on the ring: midnight at the bottom, clockwise. */
 function onRing(hour: number, radius: number): [number, number] {
   const angle = (hour / 24) * Math.PI * 2;
   return [CENTRE - Math.sin(angle) * radius, CENTRE + Math.cos(angle) * radius];
 }
 
-/** An SVG arc path along the ring from one hour clockwise to another. */
+/** An SVG arc path along the ring from one hour clockwise to another; a whole turn is two half arcs. */
 function arcPath(from: number, to: number, radius: number): string {
   let span = to - from;
   if (span <= 0) span += 24;
-  if (span >= 24) span = 23.999;
   const [x0, y0] = onRing(from, radius);
+  if (span >= 24) {
+    const [xh, yh] = onRing(from + 12, radius);
+    return (
+      `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${radius} ${radius} 0 0 1 ${xh.toFixed(2)} ${yh.toFixed(2)} ` +
+      `A ${radius} ${radius} 0 0 1 ${x0.toFixed(2)} ${y0.toFixed(2)}`
+    );
+  }
   const [x1, y1] = onRing(from + span, radius);
   return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${radius} ${radius} 0 ${span > 12 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
 }
@@ -74,8 +69,6 @@ export class TimePane implements Pane {
   private target = 1;
   private startDay = 0;
   private endDay = 0;
-  private waited = 0;
-  private hoursDone = 0;
 
   private readonly svg: SVGSVGElement;
   private readonly nightArc: SVGPathElement;
@@ -85,14 +78,11 @@ export class TimePane implements Pane {
   private readonly sun: SVGCircleElement;
   private readonly moon: SVGGElement;
   private readonly moonShadow: SVGCircleElement;
-  private readonly clockText: SVGTextElement;
-  private readonly dayText: SVGTextElement;
-  private readonly smallText: SVGTextElement;
-  private readonly choiceEl: HTMLDivElement;
+  private readonly clockText: HTMLDivElement;
+  private readonly dayText: HTMLDivElement;
   private readonly choiceText: HTMLSpanElement;
-  private readonly keysEl: HTMLDivElement;
+  private readonly button: HTMLButtonElement;
   private readonly progressEl: HTMLDivElement;
-  private readonly progressText: HTMLDivElement;
   private readonly progressFill: HTMLDivElement;
   private lastDaylightDay = -1;
   private dragging = false;
@@ -188,12 +178,6 @@ export class TimePane implements Pane {
     this.moon.append(this.moonShadow);
     this.svg.append(this.sun, this.moon);
 
-    // The readouts in the middle.
-    this.clockText = el('text', { x: CENTRE, y: CENTRE - 8, 'text-anchor': 'middle', class: 'time-clock time-chrome' });
-    this.dayText = el('text', { x: CENTRE, y: CENTRE + 26, 'text-anchor': 'middle', class: 'time-day time-chrome' });
-    this.smallText = el('text', { x: CENTRE, y: CENTRE + 48, 'text-anchor': 'middle', class: 'time-small time-chrome' });
-    this.svg.append(this.clockText, this.dayText, this.smallText);
-
     // A transparent disc over the ring takes the drag and the wheel.
     const drag = el('circle', {
       cx: CENTRE,
@@ -223,50 +207,35 @@ export class TimePane implements Pane {
     });
 
     // --- under the disc ---------------------------------------------------------
-    this.choiceEl = document.createElement('div');
-    this.choiceEl.className = 'time-choice time-chrome';
+    this.clockText = document.createElement('div');
+    this.clockText.className = 'time-clock';
+    this.dayText = document.createElement('div');
+    this.dayText.className = 'time-day';
+    card.append(this.clockText, this.dayText);
+
+    const choice = document.createElement('div');
+    choice.className = 'time-choice';
     this.choiceText = document.createElement('span');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'time-wait';
-    button.textContent = 'wait';
-    button.addEventListener('click', () => this.beginWait());
-    this.choiceEl.append(this.choiceText, button);
-    card.append(this.choiceEl);
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.className = 'time-wait';
+    this.button.textContent = 'wait';
+    this.button.addEventListener('click', () => {
+      if (this.state === 'choosing') this.beginWait();
+      else if (this.state === 'waiting') this.stopWait();
+    });
+    choice.append(this.choiceText, this.button);
+    card.append(choice);
 
     this.progressEl = document.createElement('div');
     this.progressEl.className = 'time-progress';
     this.progressEl.hidden = true;
-    this.progressText = document.createElement('div');
-    const bar = document.createElement('div');
-    bar.className = 'time-progress-bar';
     this.progressFill = document.createElement('div');
     this.progressFill.className = 'time-progress-fill';
-    bar.append(this.progressFill);
-    this.progressEl.append(this.progressText, bar);
+    this.progressEl.append(this.progressFill);
     card.append(this.progressEl);
 
-    this.keysEl = document.createElement('div');
-    this.keysEl.className = 'time-keys time-chrome';
-    for (const [caps, label] of [
-      [['←', '→'], 'hours'],
-      [['Enter'], 'wait'],
-      [['Esc'], 'back'],
-    ] as const) {
-      const item = document.createElement('span');
-      for (const cap of caps) {
-        const key = document.createElement('kbd');
-        key.className = cap.length > 1 ? 'key key-wide' : 'key';
-        key.textContent = cap;
-        item.append(key);
-      }
-      item.append(label);
-      this.keysEl.append(item);
-    }
-    card.append(this.keysEl);
-
     menu.mount('time', this);
-    window.addEventListener('keydown', this.handleKeyDown, true);
   }
 
   activate(): void {
@@ -286,9 +255,9 @@ export class TimePane implements Pane {
   }
 
   /** Once a frame, from the app's loop. */
-  tick(dt: number): void {
+  tick(): void {
     if (this.state === 'idle') return;
-    if (this.state === 'waiting' || this.state === 'stopping') this.runWait(dt);
+    if (this.state === 'waiting' || this.state === 'stopping') this.runWait();
     this.draw();
   }
 
@@ -307,40 +276,15 @@ export class TimePane implements Pane {
     // onRing puts hour h at (−sin, +cos) about the centre.
     const hour = ((Math.atan2(-x, y) / (Math.PI * 2)) * 24 + 24) % 24;
     const now = this.climate.timeOfDay * 24;
-    const ahead = Math.round(((hour - now) % 24 + 24) % 24);
-    this.target = ahead === 0 ? 24 : ahead;
+    const ahead = ((hour - now) % 24 + 24) % 24;
+    // Right at the hand it is either one hour or the whole ring; keep whichever it already was.
+    if (ahead < 0.5 || ahead > 23.5) {
+      if (this.target !== 1 && this.target !== 24) this.target = 24;
+    } else {
+      this.target = Math.round(ahead);
+    }
     this.draw();
   }
-
-  private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (this.state === 'idle') return;
-    if (this.state === 'waiting' || this.state === 'stopping') {
-      if (event.code === 'Escape' || event.code === 'Tab' || event.code === 'KeyT') {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (!event.repeat) this.stopWait();
-      }
-      return;
-    }
-    switch (event.code) {
-      case 'ArrowLeft':
-      case 'KeyA':
-        event.preventDefault();
-        this.nudge(-1);
-        break;
-      case 'ArrowRight':
-      case 'KeyD':
-        event.preventDefault();
-        this.nudge(1);
-        break;
-      case 'Enter':
-      case 'NumpadEnter':
-        if (event.repeat) return;
-        event.preventDefault();
-        this.beginWait();
-        break;
-    }
-  };
 
   // --- waiting ------------------------------------------------------------------
 
@@ -349,14 +293,14 @@ export class TimePane implements Pane {
     this.state = 'waiting';
     this.startDay = this.climate.elapsedDays;
     this.endDay = this.startDay + this.target / 24;
-    this.waited = 0;
-    this.hoursDone = 0;
     this.progressEl.hidden = false;
+    this.progressFill.style.width = '0%';
+    this.button.textContent = 'stop';
     document.body.classList.add('is-waiting');
     this.audio.hush(true);
   }
 
-  /** Escape: the wait ends at the next whole hour, keeping what it reached. */
+  /** The wait ends at the next whole hour, keeping what it reached. */
   private stopWait(): void {
     if (this.state !== 'waiting') return;
     this.state = 'stopping';
@@ -364,21 +308,14 @@ export class TimePane implements Pane {
     this.endDay = this.startDay + Math.min(this.target, Math.ceil(done + 1e-6)) / 24;
   }
 
-  private runWait(dt: number): void {
+  private runWait(): void {
     const climate = this.climate;
     // The dev panel's hold wins over the rate, and a wait on a held clock would never land.
     if (climate.frozen || climate.scrubbing) {
       this.finishWait();
       return;
     }
-    this.waited += dt;
-    const full = climate.settings.dayLength / 24 / HOUR_SECONDS;
-    // Real seconds left at full speed, so the way down starts in time to land softly.
-    const left = ((this.endDay - climate.elapsedDays) * climate.settings.dayLength) / full;
-    const ramp = Math.max(0.06, Math.min(1, this.waited / RAMP, left / RAMP));
-    const eased = ramp * ramp * (3 - 2 * ramp);
-    climate.rate = 1 + (full - 1) * eased;
-    this.hoursDone = Math.min(this.target, Math.floor((climate.elapsedDays - this.startDay) * 24 + 1e-6));
+    climate.rate = climate.settings.dayLength / 24 / HOUR_SECONDS;
     if (climate.elapsedDays >= this.endDay - 1e-7) {
       climate.day = Math.floor(this.endDay);
       climate.timeOfDay = this.endDay - climate.day;
@@ -391,6 +328,7 @@ export class TimePane implements Pane {
     this.audio.hush(false);
     document.body.classList.remove('is-waiting');
     this.progressEl.hidden = true;
+    this.button.textContent = 'wait';
     this.state = 'choosing';
     this.target = 1;
   }
@@ -441,11 +379,12 @@ export class TimePane implements Pane {
 
     this.clockText.textContent = formatClock(climate.timeOfDay);
     this.dayText.textContent = `Day ${dayNumber(climate.elapsedDays)}`;
-    this.smallText.textContent = `${climate.moonName} moon · ${seasonWord(climate.seasonPhase)}`;
 
     if (waiting) {
-      this.progressText.textContent = `${this.hoursDone} of ${this.target} hours`;
-      const done = Math.min(1, ((climate.elapsedDays - this.startDay) * 24) / this.target);
+      const hours = Math.round((this.endDay - this.startDay) * 24);
+      this.choiceText.textContent = `Waiting ${hours} ${hours === 1 ? 'hour' : 'hours'} · until ${formatClock(this.endDay)}`;
+      const span = Math.max(this.endDay - this.startDay, 1e-9);
+      const done = Math.min(1, (climate.elapsedDays - this.startDay) / span);
       this.progressFill.style.width = `${(done * 100).toFixed(1)}%`;
     } else {
       const until = formatClock(climate.timeOfDay + this.target / 24);

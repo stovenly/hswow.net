@@ -2000,7 +2000,6 @@ body.is-identifying #pause {
   --key-size: 1.15rem;
 
   display: flex;
-  gap: 0.2rem;
   align-items: stretch;
   margin: -0.45rem 0 -0.45rem -0.8rem;
 }
@@ -2728,12 +2727,6 @@ body.is-menu #prompt {
 
 /* --- time ------------------------------------------------------------------ */
 
-/* The one tab whose contents are not the point: the sky behind it is. */
-#menu.is-tab-time .inv-window {
-  background: rgb(10 10 15 / 35%);
-  transition: background 300ms, border-color 300ms;
-}
-
 .time-pane {
   display: grid;
   place-items: center;
@@ -2749,7 +2742,7 @@ body.is-menu #prompt {
 }
 
 .time-face {
-  width: min(100%, calc(100% - 2rem), 56vh);
+  width: min(100%, calc(100% - 2rem), 48vh);
   aspect-ratio: 1;
 }
 
@@ -2776,21 +2769,18 @@ body.is-menu #prompt {
   fill: rgb(220 220 200 / 70%);
 }
 
-.time-face .time-clock {
-  font-size: 44px;
+.time-clock {
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--ink);
 }
 
-.time-face .time-day {
-  font-size: 14px;
+.time-day {
+  margin-top: -0.2rem;
+  font-size: 0.72rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  fill: rgb(220 220 200 / 80%);
-}
-
-.time-face .time-small {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  fill: rgb(220 220 200 / 55%);
+  color: rgb(220 220 200 / 80%);
 }
 
 .time-choice {
@@ -2820,34 +2810,8 @@ body.is-menu #prompt {
   background: rgb(220 220 200 / 22%);
 }
 
-.time-keys {
-  --key-size: 1.15rem;
-
-  display: flex;
-  gap: 1.4rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  color: rgb(220 220 200 / 55%);
-}
-
-.time-keys span {
-  display: inline-flex;
-  gap: 0.45em;
-  align-items: center;
-}
-
 .time-progress {
-  display: grid;
-  gap: 0.3rem;
-  justify-items: center;
   width: min(60%, 24rem);
-  font-size: 0.78rem;
-  letter-spacing: 0.12em;
-  color: var(--ink);
-}
-
-.time-progress-bar {
-  width: 100%;
   height: 0.45rem;
   background: rgb(220 220 200 / 14%);
   border: 1px solid rgb(220 220 200 / 40%);
@@ -2858,16 +2822,15 @@ body.is-menu #prompt {
   background: var(--ink);
 }
 
-.time-chrome {
-  transition: opacity 300ms;
+/* While a wait runs the clock stands over the bare world. */
+#menu .inv-window {
+  transition: background 300ms, border-color 300ms;
 }
 
-/* While a wait runs the clock stands over the bare world: the frame, the tabs
-   and the readouts go, and only the disc, the arc, the hand and the count stay. */
-body.is-waiting #menu .menu-tabs,
-body.is-waiting .time-chrome {
+body.is-waiting #menu .menu-tabs {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 300ms;
 }
 
 body.is-waiting #menu.is-tab-time .inv-window {

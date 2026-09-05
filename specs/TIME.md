@@ -232,18 +232,19 @@ Each ends with a look from you.
 
 ## Built
 
-What came out differently from the plan above:
+What came out differently from the plan above, by the owner's call:
 
-- The menu names its current tab on its root as `is-tab-<id>`, and the
-  stylesheet dresses the window for the time tab from that, rather than the
-  menu knowing one tab is special.
-- The formatters and the season word live in `src/ui/Time.ts` beside the
-  pane. `Climate` gains `daylight()` for the day arc, and `START_DAY` and
-  `START_TIME` are exported so the day count and the new-game reset agree.
-- Tab and T during a wait do what Escape does: stop it at the next whole
-  hour. A wait under the dev panel's held clock ends at once, since it could
-  never land.
-- `hush` on the audio engine keeps the per-frame master-volume sync off the
-  gain until its ramp has landed.
-- Closing the menu mid-wait keeps what the clock reached and puts the rate
-  back at once.
+- The window is the same window as every other tab: no lighter tint. It goes
+  transparent only while a wait runs.
+- No keyboard controls on the pane, and Escape does nothing to it. The hours
+  are chosen by dragging on the ring or with the wheel; the one button waits
+  and, while waiting, stops at the next whole hour.
+- The wait is linear at one game hour per half second, no ramp.
+- The time and the day stand under the ring, not in it. No season, no moon
+  name. The moon on the ring still shows its phase.
+- The menu names its current tab on its root as `is-tab-<id>`; the
+  stylesheet reads that. `Climate` gains `rate`, `reset()` and `daylight()`;
+  `START_DAY` and `START_TIME` are exported. `hush` on the audio engine keeps
+  the master-volume sync off the gain until its ramp lands. A wait under the
+  dev panel's held clock ends at once; closing the menu mid-wait keeps what
+  the clock reached.
