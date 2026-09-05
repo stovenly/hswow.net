@@ -370,18 +370,25 @@ export interface ZonePlace {
 
 const ORIGIN: ZonePlace = { at: [0, 0], altitude: 0 };
 
+/**
+ * Where the world starts: late spring, mid-morning. Day zero is midwinter,
+ * and at this latitude a midwinter morning is still dark — booting into it
+ * would be a fair reading of the model and a poor first frame.
+ */
+export const START_DAY = 38;
+export const START_TIME = 0.42;
+
+const _daylight = new THREE.Vector3();
+
 export class Climate {
   readonly settings: ClimateSettings = { ...DEFAULT_CLIMATE };
   readonly wind: Weather;
 
-  /**
-   * Where the world starts: late spring, mid-morning. Day zero is midwinter,
-   * and at this latitude a midwinter morning is still dark — booting into it
-   * would be a fair reading of the model and a poor first frame.
-   */
-  day = 38;
+  day = START_DAY;
   /** 0..1, with 0 at midnight. */
-  timeOfDay = 0.42;
+  timeOfDay = START_TIME;
+  /** A multiplier on the clock's advance and on the rig's clock-paced eases. Only a wait sets it. */
+  rate = 1;
 
   /** Unit vector pointing at the sun. +X east, +Y up, +Z south. */
   readonly sunDirection = new THREE.Vector3(0, 1, 0);
@@ -549,7 +556,7 @@ export class Climate {
 
   update(dt: number): void {
     if (!this.frozen && !this.scrubbing) {
-      this.timeOfDay += dt / Math.max(this.settings.dayLength, 1);
+      this.timeOfDay += (dt * this.rate) / Math.max(this.settings.dayLength, 1);
       while (this.timeOfDay >= 1) {
         this.timeOfDay -= 1;
         this.day += 1;
@@ -567,6 +574,37 @@ export class Climate {
   setTimeOfDay(value: number): void {
     this.timeOfDay = ((value % 1) + 1) % 1;
     this.aim();
+  }
+
+  /** Puts the clock where a new game begins. */
+  reset(): void {
+    this.day = START_DAY;
+    this.timeOfDay = START_TIME;
+    this.rate = 1;
+    this.aim();
+  }
+
+  /**
+   * When the sun rises and sets today, as fractions of the day, or null on a
+   * day it never does one or the other. Bisected about noon, which is the high
+   * point, and midnight, the low.
+   */
+  daylight(): { rise: number; set: number } | null {
+    const sunLongitude = this.seasonPhase * Math.PI * 2 + Math.PI * 1.5;
+    const up = (t: number): number => {
+      this.aimAt((t - 0.5) * Math.PI * 2, sunLongitude, _daylight);
+      return _daylight.y;
+    };
+    if (up(0.5) <= 0 || up(0) >= 0) return null;
+    const crossing = (lo: number, hi: number, rising: boolean): number => {
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2;
+        if ((up(mid) > 0) === rising) hi = mid;
+        else lo = mid;
+      }
+      return (lo + hi) / 2;
+    };
+    return { rise: crossing(0, 0.5, true), set: crossing(0.5, 1, false) };
   }
 
   private blow(): number {

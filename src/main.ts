@@ -2,6 +2,7 @@ import { createApp } from './app/boot';
 import { installGameItems } from './app/items';
 import { installJournal } from './app/journal';
 import { installMap } from './app/map';
+import { installTime } from './app/time';
 import { installMenu } from './app/menu';
 import { loadProject } from './app/loadProject';
 import { Title } from './ui/Title';
@@ -33,6 +34,8 @@ const showTitle = (): void => {
   title = new Title(overlay, project.title, {
     newGame: async () => {
       const { app } = await ready;
+      // Day one, whatever the last run left the clock at.
+      app.climate.reset();
       await app.zones.begin(project.start ?? project.entry);
       void app.input.capture();
     },
@@ -57,6 +60,7 @@ const ready = (async () => {
   const items = installGameItems(app, overlay, menu);
   installJournal(menu, items.notices);
   installMap(app, menu);
+  installTime(app, menu);
   // Before `start`, so the readout folder's loop is registered ahead of the
   // frame loop and reports the frame just drawn rather than the one in progress.
   if (app.dev.gui && project.debug !== false) {

@@ -247,10 +247,13 @@ export class WeatherRig {
 
     this.readAir();
     this.applyLight(postfx, zones);
-    this.applySky(postfx, dt);
+    // The decks, the wet and the snow move with the clock, so a wait dries the
+    // ground and changes the sky at the pace of the sun; everything else keeps
+    // real time.
+    this.applySky(postfx, dt * climate.rate);
     postfx.setWeatherAir(this.airColour, this.airMix, this.airFog);
     this.postfx = postfx;
-    this.applySurfaces(dt, outdoors, zone?.environment.wind ?? 1);
+    this.applySurfaces(dt * climate.rate, outdoors, zone?.environment.wind ?? 1);
     this.applyFalling(postfx, outdoors, dt);
     // Nothing to hear before somewhere exists to hear it in: the title screen
     // sits outside the world, and its weather stays a fact rather than a sound.

@@ -32,6 +32,8 @@ import { registerVoice } from './voice/Voice';
 
 /** How far the world drops under a line of dialogue: about five decibels. */
 const DUCK_UNDER = 0.56;
+/** Seconds a hush takes to land, either way. */
+const HUSH_RAMP = 0.3;
 
 export interface AudioSettings {
   masterVolume: number;
@@ -143,6 +145,9 @@ export class AudioEngine {
   /** Everything but the voices, pulled down under a line of dialogue. See `duckUnder`. */
   readonly duck: GainNode;
   readonly master: GainNode;
+  /** Whether `hush` has the master down, and the context time its last ramp lands. */
+  private hushed = false;
+  private hushUntil = 0;
 
   noise: NoiseBuffers | null = null;
   /** Resolves once the noise buffers and every room IR are ready. */
@@ -482,6 +487,21 @@ export class AudioEngine {
    * Pulls the world down under a line of dialogue and lets it back up after.
    * Both ends are ramps: a hard step reads as a fault in the mix.
    */
+  /**
+   * Takes the whole output down to nothing and back, over a third of a second
+   * each way. Apart from the settings' master volume, which is what it comes
+   * back to.
+   */
+  hush(on: boolean): void {
+    this.hushed = on;
+    const gain = this.master.gain;
+    const now = this.context.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    gain.linearRampToValueAtTime(on ? 0 : this.settings.masterVolume, now + HUSH_RAMP);
+    this.hushUntil = now + HUSH_RAMP;
+  }
+
   duckUnder(from: number, until: number): void {
     const gain = this.duck.gain;
     const at = Math.max(from, this.context.currentTime);
@@ -496,7 +516,11 @@ export class AudioEngine {
     // Written when it moves, which is when a slider moves. An `AudioParam`
     // assignment is a message to the audio thread and was being sent sixty
     // times a second to say the same number.
-    if (this.master.gain.value !== this.settings.masterVolume) {
+    if (
+      !this.hushed &&
+      this.context.currentTime >= this.hushUntil &&
+      this.master.gain.value !== this.settings.masterVolume
+    ) {
       this.master.gain.value = this.settings.masterVolume;
     }
     // Written when they move, for the same reason: an `AudioParam` assignment

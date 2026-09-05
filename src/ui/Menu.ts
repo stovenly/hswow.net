@@ -8,7 +8,7 @@ import { Floating, type FloatingRect } from './Floating';
  * scrim behind it and the keys that open and close it.
  */
 
-export type MenuTab = 'inventory' | 'journal' | 'map' | 'world';
+export type MenuTab = 'inventory' | 'journal' | 'map' | 'world' | 'time';
 
 /** What a tab's contents do when the tab comes and goes. */
 export interface Pane {
@@ -30,6 +30,7 @@ const TABS: readonly { id: MenuTab; label: string; key: string; code: string }[]
   { id: 'journal', label: 'journal', key: 'J', code: 'KeyJ' },
   { id: 'map', label: 'map', key: 'M', code: 'KeyM' },
   { id: 'world', label: 'world map', key: 'N', code: 'KeyN' },
+  { id: 'time', label: 'time', key: 'T', code: 'KeyT' },
 ];
 
 const LIMITS = { minW: 640, minH: 460 };
@@ -123,6 +124,7 @@ export class Menu {
       this.contents.get(this.current)?.deactivate();
       this.pane(this.current).hidden = true;
       this.buttons.get(this.current)?.classList.remove('is-current');
+      this.root.classList.remove(`is-tab-${this.current}`);
     }
     this.current = null;
     for (const contents of this.contents.values()) contents.closed?.();
@@ -139,10 +141,13 @@ export class Menu {
       this.contents.get(this.current)?.deactivate();
       this.pane(this.current).hidden = true;
       this.buttons.get(this.current)?.classList.remove('is-current');
+      this.root.classList.remove(`is-tab-${this.current}`);
     }
     this.current = tab;
     this.pane(tab).hidden = false;
     this.buttons.get(tab)?.classList.add('is-current');
+    // Named on the window, so a stylesheet can dress the whole window for one tab.
+    this.root.classList.add(`is-tab-${tab}`);
     this.contents.get(tab)?.activate();
   }
 

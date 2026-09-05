@@ -2726,3 +2726,151 @@ body.is-menu #prompt {
   overflow-wrap: anywhere;
 }
 
+/* --- time ------------------------------------------------------------------ */
+
+/* The one tab whose contents are not the point: the sky behind it is. */
+#menu.is-tab-time .inv-window {
+  background: rgb(10 10 15 / 35%);
+  transition: background 300ms, border-color 300ms;
+}
+
+.time-pane {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+
+.time-card {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+  width: min(100%, 92vh);
+  padding: 0.6rem 1rem 1rem;
+}
+
+.time-face {
+  width: min(100%, calc(100% - 2rem), 56vh);
+  aspect-ratio: 1;
+}
+
+.time-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.time-face .time-drag {
+  cursor: grab;
+}
+
+.time-face text {
+  font-family: var(--type);
+  fill: var(--ink);
+}
+
+.time-face .time-label {
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  fill: rgb(220 220 200 / 70%);
+}
+
+.time-face .time-clock {
+  font-size: 44px;
+}
+
+.time-face .time-day {
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  fill: rgb(220 220 200 / 80%);
+}
+
+.time-face .time-small {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  fill: rgb(220 220 200 / 55%);
+}
+
+.time-choice {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.time-wait {
+  padding: 0.35rem 1.1rem;
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgb(220 220 200 / 11%);
+  border: 1px solid rgb(220 220 200 / 42%);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.time-wait:hover {
+  background: rgb(220 220 200 / 22%);
+}
+
+.time-keys {
+  --key-size: 1.15rem;
+
+  display: flex;
+  gap: 1.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: rgb(220 220 200 / 55%);
+}
+
+.time-keys span {
+  display: inline-flex;
+  gap: 0.45em;
+  align-items: center;
+}
+
+.time-progress {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: center;
+  width: min(60%, 24rem);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+.time-progress-bar {
+  width: 100%;
+  height: 0.45rem;
+  background: rgb(220 220 200 / 14%);
+  border: 1px solid rgb(220 220 200 / 40%);
+}
+
+.time-progress-fill {
+  height: 100%;
+  background: var(--ink);
+}
+
+.time-chrome {
+  transition: opacity 300ms;
+}
+
+/* While a wait runs the clock stands over the bare world: the frame, the tabs
+   and the readouts go, and only the disc, the arc, the hand and the count stay. */
+body.is-waiting #menu .menu-tabs,
+body.is-waiting .time-chrome {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.is-waiting #menu.is-tab-time .inv-window {
+  background: transparent;
+  border-color: transparent;
+}
