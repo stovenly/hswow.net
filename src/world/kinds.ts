@@ -253,12 +253,15 @@ registerEntryKind<CreatureEntry>({
           : [...(species ? [species] : []), ...(entry.traits ?? [])];
       const name = entry.name ?? person?.name ?? traitName(traits);
       if (name) {
-        // A figure's head is over its feet; an animal's is out past its back
-        // and its body runs nose to tail, so its proxy is as tall as the head
-        // and as wide as the body is long.
+        // A figure is a cylinder about its feet. An animal is a closed box the
+        // size of its body, nose to tail along +Z and up to its head: a ray from
+        // a standing eye comes down onto its back, and an open cylinder only
+        // offers that ray the inside of its far wall.
         const tall = life.kind === 'biped' ? life.height : Math.max(life.height, life.headHeight) + 0.1;
-        const wide = life.kind === 'biped' ? life.radius : Math.max(life.radius, life.bodyLength * 0.5 + 0.1);
-        const proxy = new THREE.Mesh(new THREE.CylinderGeometry(wide, wide, tall, 8, 1, true));
+        const proxy =
+          life.kind === 'biped'
+            ? new THREE.Mesh(new THREE.CylinderGeometry(life.radius, life.radius, tall, 8, 1, true))
+            : new THREE.Mesh(new THREE.BoxGeometry(life.radius * 1.6, tall, life.bodyLength + 0.2));
         proxy.name = 'npc-hover';
         proxy.visible = false;
         proxy.position.y = tall / 2;
