@@ -649,7 +649,9 @@ it is not made, so no cell waits on it.
 | `hawthorn` | plains | a small wind-bent tree with a dense crown, the only tree up there | `small-tree` |
 | `stook` | farm | a cone of sheaves; a field of them is a harvest | `hay-bale` |
 
-The first five I would make. The last two are nice to have.
+All seven made 2026-09-04. `stepping-stones` takes `rise` (base to top,
+metres) and `count`; `willow` and `hawthorn` lean toward +Z, so the placer
+aims them; `driftwood` lies along +X with its root end at -X.
 
 Cover types `marram` and `wrack` (§1c) are ground data, not builders, and are
 made in phase 1.

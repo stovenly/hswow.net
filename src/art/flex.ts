@@ -44,6 +44,9 @@ export const FLEX: Record<string, number> = {
   // acknowledges weather at all, which is most of what makes it read as gorse.
   elder: 0.65,
   hazel: 0.6,
+  hawthorn: 0.3,
+  willow: 0.7,
+  stook: 0.12,
   gorse: 0.25,
 
   // Thin-stemmed and famously restless — the most mobile tree in the kit. The
