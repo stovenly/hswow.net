@@ -361,12 +361,16 @@ export class WeatherRig {
     // The scene's key, which does change hands: the moon casts at night. The
     // sun carries a trace of weight it never loses, so the sum has a direction
     // even with both below the horizon and there is no branch to step on.
+    // Its strength is the length of the sum, not the sum of the weights: a full
+    // moon rising opposite a setting sun cancels to a flat moment rather than
+    // a full-strength beam that flips sides on one frame.
     this.key
       .copy(climate.sunDirection)
       .multiplyScalar(solar + 1e-3)
-      .addScaledVector(climate.moonDirection, lit)
-      .normalize();
-    zones.aimKeyLight(this.key, (solar + lit) * clear * clear);
+      .addScaledVector(climate.moonDirection, lit);
+    const strength = this.key.length();
+    this.key.normalize();
+    zones.aimKeyLight(this.key, strength * clear * clear);
 
     // The sun's own colour off the table, and no moon in it. Nothing about the
     // world's light knows what phase the moon is in — the rig is keyed on the
