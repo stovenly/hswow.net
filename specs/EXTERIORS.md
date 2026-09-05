@@ -683,8 +683,8 @@ count; the coast's sea is the one per-pixel cost in the set.
 
 ### Status, 2026-09-04
 
-Phases 1 to 8 are built and committed; nothing is pushed. **Resume at
-phase 9, the forest.**
+Phases 1 to 10 are built and committed; nothing is pushed. **Resume at
+phase 11, the coast.**
 
 - **1. Ground** — done. Per-corner colour, feathered patches, smooth
   variation, grain on the stone materials, the closer palette, the debug
@@ -772,6 +772,41 @@ phase 9, the forest.**
   - The brook is a 1.5 m channel across the north-east lane's bend with its
     water 0.25 m below the floor, so the track fords it.
   - The fingerpost and the bird emitters are gone.
+
+- **9. Forest** — built to §3.6 with these departures:
+  - The cottage faces east onto the path, so the door and garden are their
+    own beat after the arrival shot. The garden is a three-sided fence on
+    the south wall with a gap toward the yard; the log pile is against the
+    north gable. Nothing smokes, so there is no fire.
+  - The pond's basin is 8 m across and 1.4 m deep, so the 14 × 10 water
+    plane's edges are buried and the open water is about 9 m wide.
+  - The south-east rise is a 3 m hill centred beyond the gate; the path
+    climbs about 1.8 m to the rock shelves.
+  - The sea's glint is a water plane 5 cm over the skirt's flat, starting
+    50 m beyond the south-east boundary, with dunes along its near edge and
+    a headland, a crag and a sail beyond.
+  - The boundary is the wood itself: slabs along the outline with spruce,
+    thicket, bush and bramble dressed inside it.
+- **10. Beach path** — built to §3.7 with these departures:
+  - The heath is a plateau at +6 made by a scarp that curves from the west
+    edge to the bluff's south end, with a 2 m ridge along the north beyond
+    the wall; the switchbacks descend that scarp's south-east end.
+  - The bluff is 9 m, not 7, so its foot stays below the sea where the
+    heath meets it in the north-east. The outline runs along the foot so the
+    skirt holds the seabed outward, and a second line of slabs along the
+    crest bars the face, whose mean gradient is under the controller's
+    slope limit.
+  - The sea is a plain `water` at −1.2 east and south-east, not a sea
+    field. The surf bed is constant; a bed cannot rise toward the south.
+  - The marsh's water is two pools in their own small basins west of the
+    boardwalk, at −1.1. The boardwalk drapes on the ground with posts
+    alternating sides every 6 m; it is not raised.
+  - The blowout track ends at the slack and the floor to the gate is bare
+    sand. The dune district has no driftwood: there is no strandline in
+    this cell.
+  - The north boundary is a drystone wall from the gate's outcrops to the
+    lane's east hedge; the west is a treeline behind slabs. The sheepfold
+    is 8 × 6 with one 3 m gap. The mill is a `vista-tower`.
 
 ## 6. Open questions
 

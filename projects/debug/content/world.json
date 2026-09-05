@@ -418,7 +418,7 @@
         "zone": "forest",
         "at": [
           0,
-          -46
+          -50
         ],
         "yaw": 0,
         "use": "volume",
@@ -435,7 +435,7 @@
           ]
         },
         "prompt": {
-          "title": "Gravel Path"
+          "title": "Dirt Path"
         }
       }
     },
@@ -457,10 +457,10 @@
       "a": {
         "zone": "forest",
         "at": [
-          34,
+          38,
           42
         ],
-        "yaw": -2.56,
+        "yaw": -2.21,
         "use": "volume",
         "volume": {
           "size": [
@@ -475,16 +475,16 @@
           ]
         },
         "prompt": {
-          "title": "Sand Path"
+          "title": "Dirt Path"
         }
       },
       "b": {
         "zone": "beach-path",
         "at": [
-          -26,
-          -36
+          -40,
+          -50
         ],
-        "yaw": 0.71,
+        "yaw": 0.785,
         "use": "volume",
         "volume": {
           "size": [
@@ -532,10 +532,10 @@
       "b": {
         "zone": "beach-path",
         "at": [
-          26,
-          -36
+          36,
+          -54
         ],
-        "yaw": -0.52,
+        "yaw": -0.785,
         "use": "volume",
         "volume": {
           "size": [
@@ -559,8 +559,8 @@
       "a": {
         "zone": "beach-path",
         "at": [
-          8,
-          70
+          6,
+          74
         ],
         "yaw": 3.141592653589793,
         "use": "volume",
