@@ -923,12 +923,14 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
   }
   if (skin.length === 0) return group;
 
-  // Walked on through the strips' and junctions' own beds; this is what is seen.
+  // Seen and never walked on: the strips' and junctions' flat beds carry the
+  // feet, so nothing steps stone to stone across the joints.
   const mesh = finish(assemble(skin), 'track-stone', 0, UNDERFOOT.cobble);
   mesh.name = 'track';
   mesh.userData.ground = true;
   mesh.userData.footprintFaces = true;
-  group.add(markCollidable(mesh));
+  mesh.userData.noCollide = true;
+  group.add(mesh);
   return group;
 }
 
