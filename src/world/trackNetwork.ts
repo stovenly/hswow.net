@@ -97,6 +97,7 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
       .sort((a, b) => a.s - b.s);
     const group = groups.get(line.track.id) as THREE.Group;
     let from = 0;
+    let fromS = 0;
     let fromNode: Node | null = null;
     for (let k = 0; k <= hits.length; k++) {
       const next = k < hits.length ? hits[k] : null;
@@ -125,12 +126,16 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
         }
         if (built.samples.length >= 2) {
           const arm = { surface: line.track.surface, width: line.track.width, edge: line.track.edge };
-          if (fromNode) arms.get(fromNode)?.push({ ...arm, row: rowOf(built.samples[0]) });
-          if (toNode) arms.get(toNode)?.push({ ...arm, row: rowOf(built.samples[built.samples.length - 1]) });
+          if (fromNode) arms.get(fromNode)?.push({ ...arm, row: rowOf(built.samples[0]), spine: slice(line, fromS, from) });
+          if (toNode && next) {
+            const row = rowOf(built.samples[built.samples.length - 1]);
+            arms.get(toNode)?.push({ ...arm, row, spine: slice(line, to, next.s).reverse() });
+          }
         }
       }
       if (next) {
         from = next.s + next.node.reach;
+        fromS = next.s;
         fromNode = next.node;
       }
     }

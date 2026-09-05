@@ -200,7 +200,11 @@ that subject by whoever is asking; asked without one, it is false.
   the winning surface (cobble, flagstone, boards, gravel, dirt, the wider on
   a tie) over the mouths of every strip that meets it, and each strip stops at
   the junction's edge with its profile eased into the junction's plane, so the
-  junction shares every vertex of every end row. The track kind builds the
+  junction shares every vertex of every end row. Between one arm's row and the
+  next the ring follows each arm's own side to where the two sides meet, so a
+  bend inside a junction's reach is paved to its kerb line rather than cut
+  across. A stone junction carries an unseen flat bed like a strip does; feet
+  stand on that, not on the setts. The track kind builds the
   network on the first track of a pass and hands each entry its own strips
   and the junctions it won. Editing one track therefore repaints the terrain
   and rebuilds the others' junctions only on a full rebuild.

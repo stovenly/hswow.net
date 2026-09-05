@@ -866,12 +866,11 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
         const dz = b[1] - a[1];
         const len = Math.hypot(dx, dz);
         if (len < 1e-6) continue;
-        let ox = -dz / len;
-        let oz = dx / len;
-        if (ox * (site.x - a[0]) + oz * (site.z - a[1]) > 0) {
-          ox = -ox;
-          oz = -oz;
-        }
+        // The ring is wound with negative area in x/z, so outward is (−dz, dx). A site past an
+        // edge's line is inside a bend of the ring, where that edge's line is no edge of it.
+        const ox = -dz / len;
+        const oz = dx / len;
+        if (ox * (site.x - a[0]) + oz * (site.z - a[1]) > 0) continue;
         const t = Math.max(0, Math.min(1, ((site.x - a[0]) * dx + (site.z - a[1]) * dz) / (len * len)));
         const px = a[0] + dx * t;
         const pz = a[1] + dz * t;
@@ -895,12 +894,6 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
   for (const flat of flats) {
     if (!flat.kerb) continue;
     const ring = flat.ring;
-    let mx = 0;
-    let mz = 0;
-    for (const [x, z] of ring) {
-      mx += x / ring.length;
-      mz += z / ring.length;
-    }
     for (let i = 0; i < ring.length; i++) {
       if (!flat.outer[i]) continue;
       const a = ring[i];
@@ -909,12 +902,8 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
       const dz = b[1] - a[1];
       const len = Math.hypot(dx, dz);
       if (len < 0.05) continue;
-      let ox = -dz / len;
-      let oz = dx / len;
-      if (ox * (a[0] - mx) + oz * (a[1] - mz) < 0) {
-        ox = -ox;
-        oz = -oz;
-      }
+      const ox = -dz / len;
+      const oz = dx / len;
       const base = (x: number, z: number): number => groundAt(x, z) + flat.lift - KERB_SINK;
       for (const piece of straightKerbs(a, b, ox, oz, base, rng)) {
         skin.push({ geometry: piece, color: shade(kerbColour, rng.range(0.92, 1.08)), sway: 0 });
@@ -931,6 +920,21 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
   mesh.userData.footprintFaces = true;
   mesh.userData.noCollide = true;
   group.add(mesh);
+
+  for (const flat of flats) {
+    const top = flat.lift + bedTopOf(flat.surface);
+    const position: number[] = [];
+    for (const tri of earClip(flat.ring)) {
+      for (const [x, z] of tri) position.push(x, groundAt(x, z) + top, z);
+    }
+    if (position.length === 0) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+    const bed = new THREE.Mesh(geometry, BED_MATERIAL);
+    bed.visible = false;
+    bed.userData.underfoot = UNDERFOOT[flat.surface];
+    group.add(markCollidable(bed));
+  }
   return group;
 }
 
@@ -961,6 +965,8 @@ function plateOver(cell: Cell, height: (x: number, z: number) => number): THREE.
 /** One arm of a junction: the end row of the strip that meets it, right to left seen from the middle. */
 export interface JunctionArm {
   row: readonly (readonly [number, number])[];
+  /** The arm's centreline from the middle out to its row, so the ring can follow the arm's own sides. */
+  spine?: readonly (readonly [number, number])[];
   surface: TrackSurface;
   width: number;
   edge?: 'kerb' | 'verge' | 'none';
@@ -982,11 +988,18 @@ export interface JunctionOptions {
 /**
  * Where strips meet: one patch over the mouths of every arm, level with the
  * lift the arms have eased into, paved once in the winning surface. The
- * patch is the arms' end rows joined in order round the middle, so it shares
- * every vertex of every row and no crack can open along them.
+ * patch is the arms' end rows in order round the middle, so it shares every
+ * vertex of every row, joined between one row and the next along each arm's
+ * own side to where the two sides meet.
  */
 export function junctionRing(at: Point, arms: readonly JunctionArm[]): [number, number][] {
   return junctionRingEdges(at, arms).ring;
+}
+
+interface RingArm {
+  arm: JunctionArm;
+  bearing: number;
+  row: [number, number][];
 }
 
 /** The ring, and which of its edges face open ground: the ones joining one arm's row to the next. */
@@ -995,7 +1008,7 @@ export function junctionRingEdges(
   arms: readonly JunctionArm[],
 ): { ring: [number, number][]; outer: boolean[] } {
   const [cx, cz] = at;
-  const ordered = [...arms]
+  const ordered: RingArm[] = [...arms]
     .map((arm) => {
       const first = arm.row[0];
       const last = arm.row[arm.row.length - 1];
@@ -1003,19 +1016,31 @@ export function junctionRingEdges(
       const mz = (first[1] + last[1]) / 2;
       return { arm, bearing: Math.atan2(mz - cz, mx - cx) };
     })
-    .sort((a, b) => a.bearing - b.bearing);
+    .sort((a, b) => a.bearing - b.bearing)
+    .map(({ arm, bearing }) => ({
+      arm,
+      bearing,
+      // In angle order about the middle, as the arms themselves are.
+      row: [...arm.row]
+        .sort(
+          (a, b) =>
+            turn(Math.atan2(a[1] - cz, a[0] - cx) - bearing) - turn(Math.atan2(b[1] - cz, b[0] - cx) - bearing),
+        )
+        .map((p) => [p[0], p[1]] as [number, number]),
+    }));
   const ring: [number, number][] = [];
   const outer: boolean[] = [];
-  for (const { arm, bearing } of ordered) {
-    // In angle order about the middle, as the arms themselves are.
-    const row = [...arm.row].sort(
-      (a, b) => turn(Math.atan2(a[1] - cz, a[0] - cx) - bearing) - turn(Math.atan2(b[1] - cz, b[0] - cx) - bearing),
-    );
-    row.forEach((p, i) => {
+  ordered.forEach((held, i) => {
+    held.row.forEach((p, k) => {
       ring.push([p[0], p[1]]);
-      outer.push(i === row.length - 1);
+      outer.push(k === held.row.length - 1);
     });
-  }
+    if (ordered.length < 2) return;
+    for (const p of gusset(at, held, ordered[(i + 1) % ordered.length])) {
+      ring.push(p);
+      outer.push(true);
+    }
+  });
   let twice = 0;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i];
@@ -1031,6 +1056,142 @@ export function junctionRingEdges(
     outer.splice(0, n, ...flipped);
   }
   return { ring, outer };
+}
+
+/** Where the lines through a→b and c→d cross, as fractions along each; null when parallel. */
+function meet(
+  a: readonly [number, number],
+  b: readonly [number, number],
+  c: readonly [number, number],
+  d: readonly [number, number],
+): { x: number; z: number; t: number; u: number } | null {
+  const rx = b[0] - a[0];
+  const rz = b[1] - a[1];
+  const sx = d[0] - c[0];
+  const sz = d[1] - c[1];
+  const den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((c[0] - a[0]) * sz - (c[1] - a[1]) * sx) / den;
+  const u = ((c[0] - a[0]) * rz - (c[1] - a[1]) * rx) / den;
+  return { x: a[0] + rx * t, z: a[1] + rz * t, t, u };
+}
+
+/** A polyline moved `by` metres to its (−dz, dx) side, mitred at its corners. */
+function offsetLine(spine: readonly (readonly [number, number])[], by: number): [number, number][] {
+  const n = spine.length;
+  const dir = (p: readonly [number, number], q: readonly [number, number]): [number, number] => {
+    const dx = q[0] - p[0];
+    const dz = q[1] - p[1];
+    const len = Math.hypot(dx, dz) || 1;
+    return [dx / len, dz / len];
+  };
+  const out: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const d1 = i === 0 ? dir(spine[0], spine[1]) : dir(spine[i - 1], spine[i]);
+    const d2 = i === n - 1 ? d1 : dir(spine[i], spine[i + 1]);
+    const n1: [number, number] = [-d1[1], d1[0]];
+    const n2: [number, number] = [-d2[1], d2[0]];
+    let mx = n1[0] + n2[0];
+    let mz = n1[1] + n2[1];
+    const ml = Math.hypot(mx, mz);
+    if (ml < 1e-6) {
+      mx = n1[0];
+      mz = n1[1];
+    } else {
+      mx /= ml;
+      mz /= ml;
+    }
+    const scale = 1 / Math.max(0.5, mx * n1[0] + mz * n1[1]);
+    out.push([spine[i][0] + mx * by * scale, spine[i][1] + mz * by * scale]);
+  }
+  return out;
+}
+
+/**
+ * The ring between one arm's row and the next, exclusive of both: back along
+ * the first arm's side to where it meets the next arm's side, and out along
+ * that. Sides that never meet — a straight-through pair, or a reflex gap — join
+ * where they leave the middle together, or else leave the ring to run straight
+ * across between the rows.
+ */
+function gusset(at: Point, a: RingArm, b: RingArm): [number, number][] {
+  const spineA = a.arm.spine;
+  const spineB = b.arm.spine;
+  if (!spineA || !spineB || spineA.length < 2 || spineB.length < 2) return [];
+  // Arms run in rising bearing, so the side of `a` facing `b` is its (−dz, dx) side and the side of `b` facing `a` the other.
+  const edgeA = offsetLine(spineA, a.arm.width / 2);
+  const edgeB = offsetLine(spineB, -b.arm.width / 2);
+  edgeA[edgeA.length - 1] = [a.row[a.row.length - 1][0], a.row[a.row.length - 1][1]];
+  edgeB[edgeB.length - 1] = [b.row[0][0], b.row[0][1]];
+  const between = (i: number, hit: [number, number], j: number): [number, number][] => [
+    ...edgeA.slice(i + 1, -1).reverse(),
+    hit,
+    ...edgeB.slice(j + 1, -1),
+  ];
+  for (let i = edgeA.length - 2; i >= 0; i--) {
+    for (let j = 0; j + 1 < edgeB.length; j++) {
+      const hit = meet(edgeA[i], edgeA[i + 1], edgeB[j], edgeB[j + 1]);
+      if (!hit || hit.t < 0 || hit.t > 1 || hit.u < 0 || hit.u > 1) continue;
+      return between(i, [hit.x, hit.z], j);
+    }
+  }
+  if (Math.hypot(edgeA[0][0] - edgeB[0][0], edgeA[0][1] - edgeB[0][1]) <= 0.05) return between(0, edgeA[0], 0);
+  let gap = b.bearing - a.bearing;
+  if (gap <= 0) gap += Math.PI * 2;
+  if (gap < Math.PI) {
+    const hit = meet(edgeA[0], edgeA[1], edgeB[0], edgeB[1]);
+    const within = 1.5 * Math.max(a.arm.width, b.arm.width);
+    if (hit && hit.t <= 1 && hit.u <= 1 && Math.hypot(hit.x - at[0], hit.z - at[1]) <= within) {
+      return between(0, [hit.x, hit.z], 0);
+    }
+  }
+  return [];
+}
+
+/** A simple polygon as triangles by ear clipping, each wound with negative area in x/z so it faces up. */
+function earClip(ring: readonly (readonly [number, number])[]): [number, number][][] {
+  const pts = ring.map((p) => [p[0], p[1]] as [number, number]);
+  let twice = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    twice += a[0] * b[1] - b[0] * a[1];
+  }
+  if (twice > 0) pts.reverse();
+  const cross = (o: [number, number], a: [number, number], b: [number, number]): number =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const inside = (p: [number, number], a: [number, number], b: [number, number], c: [number, number]): boolean =>
+    cross(a, b, p) <= 0 && cross(b, c, p) <= 0 && cross(c, a, p) <= 0;
+  const idx = pts.map((_, i) => i);
+  const out: [number, number][][] = [];
+  for (let guard = 0; idx.length > 3 && guard < 4096; guard++) {
+    let clipped = false;
+    for (let i = 0; i < idx.length; i++) {
+      const ia = idx[(i + idx.length - 1) % idx.length];
+      const ib = idx[i];
+      const ic = idx[(i + 1) % idx.length];
+      const a = pts[ia];
+      const b = pts[ib];
+      const c = pts[ic];
+      if (cross(a, b, c) >= 0) continue;
+      let clear = true;
+      for (const j of idx) {
+        if (j === ia || j === ib || j === ic) continue;
+        if (inside(pts[j], a, b, c)) {
+          clear = false;
+          break;
+        }
+      }
+      if (!clear) continue;
+      out.push([a, b, c]);
+      idx.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) break;
+  }
+  if (idx.length === 3) out.push([pts[idx[0]], pts[idx[1]], pts[idx[2]]]);
+  return out;
 }
 
 /** A junction in a loose surface: one patch over the ring, level with the lift its arms eased into. Stone junctions are the paving's. */
