@@ -113,6 +113,8 @@ export interface SaveData {
   savedAt: number;
   /** The zone's display name at save time, for the slot picker. */
   zoneName: string;
+  /** Set on read when the saved zone has since been replaced by another place, so `at` is not to be trusted. */
+  relocated?: boolean;
   worldSeed: number;
   items: Item[];
   tool: Item | null;
@@ -168,7 +170,13 @@ const RENAMED_ZONES: Record<string, string> = {
   'countryside-workshop': 'workshop',
   'countryside-store': 'store',
   'countryside-cellar': 'cellar',
+  beach: 'coast',
 };
+
+/** Zones whose replacement is a different place, so a position saved in them means nothing there. */
+const MOVED_ZONES = new Set(['beach']);
+
+const RENAMED_PORTALS: Record<string, string> = { 'beach-path-beach': 'beach-path-coast' };
 
 function renamed(data: SaveData): SaveData {
   const zone = (id: string): string => RENAMED_ZONES[id] ?? id;
@@ -176,10 +184,12 @@ function renamed(data: SaveData): SaveData {
     const colon = value.indexOf(':');
     return colon < 0 ? value : zone(value.slice(0, colon)) + value.slice(colon);
   };
-  const portal = (id: string): string => (id in RENAMED_ZONES ? id : id.replace(/^countryside-/, ''));
+  const portal = (id: string): string =>
+    RENAMED_PORTALS[id] ?? (id in RENAMED_ZONES ? id : id.replace(/^countryside-/, ''));
   return {
     ...data,
     zone: zone(data.zone),
+    relocated: data.relocated || MOVED_ZONES.has(data.zone),
     delta: {
       removed: data.delta.removed.map(key),
       placed: data.delta.placed.map((record) => ({ ...record, zone: zone(record.zone) })),

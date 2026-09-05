@@ -174,6 +174,7 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
       };
     },
     tookAll: () => sounds.pickup(),
+    moved: (item) => sounds.pickup(item),
   });
   icons.paced = () => (ui.shown ? PACE_OPEN : PACE_IDLE);
 
@@ -194,10 +195,14 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
     inventory.replace(data.items, data.tool, data.accessories);
     restoring = false;
     menu.hide();
-    await app.zones.hardReset(data.zone, {
-      position: new THREE.Vector3(data.at[0], data.at[1], data.at[2]),
-      yaw: data.yaw,
-    });
+    // A save from a place that has since been replaced lands at the new
+    // place's spawn rather than at a point that may now be inside a dune.
+    await app.zones.hardReset(
+      data.zone,
+      data.relocated
+        ? undefined
+        : { position: new THREE.Vector3(data.at[0], data.at[1], data.at[2]), yaw: data.yaw },
+    );
     void app.input.capture();
     return true;
   };

@@ -44,6 +44,8 @@ interface Handlers {
   } | null;
   /** A take-all swept the open container into the pack. */
   tookAll: () => void;
+  /** An item was dragged from one list into the other, pack or container. */
+  moved: (item: Item) => void;
   /** E over a cell. True when the item was a readable and its page opened. */
   readItem: (item: Item) => boolean;
 }
@@ -512,6 +514,10 @@ export class InventoryUI implements Pane {
     const item = this.takeFrom(pending.source);
     if (!item) return;
     this.putTo(target, item);
+    // A world grab already sounded on the take, and the slots sound as equip
+    // and unequip; the list-to-list move is the one shift nothing else voices.
+    const between = pending.source.kind === 'inventory' || pending.source.kind === 'container';
+    if (between && (target === 'inventory' || target === 'container')) this.handlers.moved(item);
     this.render();
   };
 
