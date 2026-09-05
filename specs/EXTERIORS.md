@@ -707,6 +707,11 @@ left is the sea tuning pass at the coast, with you looking.
     stands a door in a builder's doorway would close this; not made.
   - Tom's is the fourth door counting from Ada's end, which is what the line
     says.
+  - The churchyard is a 25.6 × 14.4 m walled field on a levelled shape
+    terrace with the church centred in it, and the boundary swings out to
+    x 45 to clear its east wall. The row stands at z −15 to −16.5 with its
+    fences at −11.6 and the cobbled lane at −9.4, so nothing stands in the
+    lane; every lane ends on another, which is what joins them into a ring.
   - The `demos` hall no longer holds the villager hut; Wat's door is
     `wat-door` in world.json. The crate tower and its ladder portal are gone.
 - **5. Farm** — built to §3.2 with these departures:
@@ -733,6 +738,9 @@ left is the sea tuning pass at the coast, with you looking.
   - The sheep track rounds the north foot under the clitter, climbs the east
     shoulder and drops past the pool to the gravel. No friction sound: the
     sails are still.
+  - Every slope is kept under the rock band: the ridge is 5 m over a 26 m
+    half-width, the two shoulders are 1.2 m hills of 20 m radius set off the
+    crest, and the mill stands on the crest itself with no knoll under it.
 - **7. Riverside** — built to §3.4 with these departures:
   - The cut bank is the pool's basin summed onto the channel's outer bank,
     which takes that bank past the rock angle; there is no separate scarp,
