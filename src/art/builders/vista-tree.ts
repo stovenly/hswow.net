@@ -1,63 +1,57 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { MeshBuilder } from '../types';
+import type { BuilderWith, BuildOptions } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
-import { landWash, markVista, vistaMass } from '../vista';
+import { markVista } from '../vista';
+import { pickVariant, pineParts, treeParts, variantField } from '../vista-kit';
 
-// One big tree for the middle distance: a trunk and two or three canopy masses
-// stacked on it, twelve to eighteen metres tall. Between a real tree, which stops
-// paying for itself at forty metres, and the merged wood, which only reads past
-// a hundred. The ring's scatter makes a line or an edge of these. Around sixty
-// triangles.
+// One big tree for the middle distance, twelve to eighteen metres tall: an oak
+// of stacked crowns, a pine of stacked cones, or a dead one that is trunk and
+// limbs only.
 
-const CANOPY = [PALETTE.LEAF_DARK, PALETTE.LEAF, PALETTE.GRASS] as const;
+const VARIANTS = ['oak', 'pine', 'dead'] as const;
 
-export const vistaTree: MeshBuilder = {
+export interface VistaTreeOptions extends BuildOptions {
+  variant?: (typeof VARIANTS)[number];
+}
+
+export const vistaTree: BuilderWith<VistaTreeOptions> = {
   name: 'vista-tree',
   category: 'vista',
   radius: 6,
   solid: false,
+  options: variantField(VARIANTS),
 
-  build({ seed = 1, scale = 1 } = {}) {
+  build({ seed = 1, scale = 1, variant }: VistaTreeOptions = {}) {
     const rng = createRng(seed);
+    const kind = pickVariant(rng, VARIANTS, variant);
     const height = rng.range(12, 18);
-    const trunkTop = height * rng.range(0.32, 0.42);
-    const parts: Part[] = [];
+    let parts: Part[];
 
-    const trunk = new THREE.CylinderGeometry(0.35, 0.7, trunkTop, 5, 1, true);
-    trunk.translate(0, trunkTop / 2, 0);
-    parts.push({ geometry: trunk, color: shade(PALETTE.BARK, 0.9), sway: 0 });
-
-    // Widest low and narrowing up, each lump a little off the axis.
-    const lumps: THREE.BufferGeometry[] = [];
-    const count = rng.int(2, 3);
-    let y = trunkTop;
-    for (let i = 0; i < count; i++) {
-      const t = i / count;
-      const radius = (height - trunkTop) * rng.range(0.24, 0.32) * (1 - t * 0.35);
-      const lump = vistaMass(rng, {
-        radius,
-        detail: 0,
-        rough: rng.range(0.16, 0.28),
-        squash: rng.range(0.7, 0.95),
-        stretch: rng.range(0.8, 1.25),
-        bury: 0.1,
-      });
-      lump.rotateY(rng.range(0, Math.PI * 2));
-      lump.translate(rng.around(0, radius * 0.25), y, rng.around(0, radius * 0.25));
-      y += radius * rng.range(0.9, 1.2);
-      lumps.push(lump);
+    if (kind === 'oak') {
+      parts = treeParts(rng, height, 0, 0);
+    } else if (kind === 'pine') {
+      parts = pineParts(rng, height, 0, 0);
+    } else {
+      const bark = shade(PALETTE.BARK, 0.8);
+      const trunk = new THREE.CylinderGeometry(0.25, 0.6, height * 0.7, 4, 1, true);
+      trunk.deleteAttribute('uv');
+      trunk.translate(0, height * 0.35, 0);
+      parts = [{ geometry: trunk, color: bark, sway: 0 }];
+      const limbs = rng.int(2, 3);
+      for (let i = 0; i < limbs; i++) {
+        const length = height * rng.range(0.25, 0.4);
+        const limb = new THREE.CylinderGeometry(0.1, 0.22, length, 3, 1, true);
+        limb.deleteAttribute('uv');
+        limb.translate(0, length / 2, 0);
+        // Tipped out from the trunk and turned to its own bearing.
+        limb.rotateZ(rng.range(0.5, 1.1));
+        limb.rotateY(rng.range(0, Math.PI * 2));
+        limb.translate(0, height * rng.range(0.4, 0.62), 0);
+        parts.push({ geometry: limb, color: bark, sway: 0 });
+      }
     }
-    const canopy = mergeGeometries(lumps, false);
-    for (const lump of lumps) lump.dispose();
-    if (!canopy) throw new Error('vista-tree: masses did not share an attribute set');
-    parts.push({
-      geometry: canopy,
-      color: landWash(seed ^ 0x7e33, CANOPY, { scale: rng.range(8, 14), crown: height }),
-      sway: 0,
-    });
 
     const merged = assemble(parts);
     if (scale !== 1) merged.scale(scale, scale, scale);
