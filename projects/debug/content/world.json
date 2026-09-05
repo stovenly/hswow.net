@@ -214,7 +214,7 @@
         "zone": "plains",
         "at": [
           0,
-          -44
+          -50
         ],
         "yaw": 0,
         "use": "volume",
@@ -342,10 +342,10 @@
       "a": {
         "zone": "plains",
         "at": [
-          -48,
-          36
+          -52,
+          40
         ],
-        "yaw": 1.93,
+        "yaw": 2.41,
         "use": "volume",
         "volume": {
           "size": [
@@ -508,8 +508,8 @@
       "a": {
         "zone": "plains",
         "at": [
-          22,
-          45.4
+          30,
+          50
         ],
         "yaw": 3.1415927,
         "use": "volume",

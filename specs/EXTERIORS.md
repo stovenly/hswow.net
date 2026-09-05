@@ -683,8 +683,8 @@ count; the coast's sea is the one per-pixel cost in the set.
 
 ### Status, 2026-09-04
 
-Phases 1 to 5 are built and committed; nothing is pushed. **Resume at
-phase 6, the plains.**
+Phases 1 to 6 are built and committed; nothing is pushed. **Resume at
+phase 7, the riverside.**
 
 - **1. Ground** — done. Per-corner colour, feathered patches, smooth
   variation, grain on the stone materials, the closer palette, the debug
@@ -722,6 +722,17 @@ phase 6, the plains.**
   - The boundary is hedge runs with barriers behind them on the west and
     south; the chain lays the east wall and the north fence.
   - The dog and the hens are gone. Nothing smokes, so there is no fire.
+- **6. Plains** — built to §3.3 with these departures:
+  - The far water to the south-east is a plain `water` at −12 over the
+    square's south-east corner, which a scarp beyond the wall drops by 16 m;
+    the skirt's `sea` holds that seabed outward. The dune and the headland
+    stand in it.
+  - The pool plane is 13 × 13; the basin's contour gives the pool its shape.
+  - A drystone wall runs the whole boundary between the north gate's crags
+    and the south-east gate's outcrops, with the south-west gate hung in it.
+  - The sheep track rounds the north foot under the clitter, climbs the east
+    shoulder and drops past the pool to the gravel. No friction sound: the
+    sails are still.
 
 ## 6. Open questions
 
