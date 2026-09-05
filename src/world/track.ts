@@ -1043,13 +1043,30 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   const ring = junctionRing(options.at, options.arms);
   if (ring.length < 3) return group;
 
-  const fan = (top: number): THREE.BufferGeometry => {
+  /**
+   * The ring's floor between two fractions of the way out from the middle,
+   * `from` to `to`. Colour is decided per face, so a band is a part of its own
+   * rather than a colour function over one wide fan.
+   */
+  const fan = (top: number, from = 0, to = 1): THREE.BufferGeometry => {
     const position: number[] = [];
-    const centre = height(cx, cz) + top;
+    const at = (p: readonly [number, number], f: number): [number, number, number] => {
+      const x = cx + (p[0] - cx) * f;
+      const z = cz + (p[1] - cz) * f;
+      return [x, height(x, z) + top, z];
+    };
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i];
       const b = ring[(i + 1) % ring.length];
-      position.push(cx, centre, cz, a[0], height(a[0], a[1]) + top, a[1], b[0], height(b[0], b[1]) + top, b[1]);
+      const a1 = at(a, to);
+      const b1 = at(b, to);
+      if (from <= 0) {
+        position.push(cx, height(cx, cz) + top, cz, ...a1, ...b1);
+        continue;
+      }
+      const a0 = at(a, from);
+      const b0 = at(b, from);
+      position.push(...a0, ...a1, ...b1, ...a0, ...b1, ...b0);
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
@@ -1059,24 +1076,18 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   const parts: Part[] = [];
   const surface = options.surface;
   switch (surface) {
-    // The strips' lateral bands, taken radially from the middle, so the
-    // junction reads as the same worn earth and not a plate laid over it.
+    // The strips' lateral bands, taken radially from the middle: crown, worn
+    // shoulder, then the two blends toward the ground beside.
     case 'dirt': {
       const dirt = GROUND.dirt.color;
-      const crown = shade(dirt, 1 + 0.1 * wear);
-      const half = Math.max(0.5, options.width / 2);
       const beside = options.beside ?? dirt;
-      parts.push({
-        geometry: fan(0),
-        color: (x, _y, z) => {
-          const a = Math.hypot(x - cx, z - cz) / half;
-          if (a > 0.875) return blend(dirt, beside, 0.6);
-          if (a > 0.625) return blend(dirt, beside, 0.25);
-          if (a > 0.375) return shade(dirt, 0.92);
-          return crown;
-        },
-        sway: 0,
-      });
+      const bands: [number, number, number][] = [
+        [0, 0.375, shade(dirt, 1 + 0.1 * wear)],
+        [0.375, 0.625, shade(dirt, 0.92)],
+        [0.625, 0.875, blend(dirt, beside, 0.25)],
+        [0.875, 1, blend(dirt, beside, 0.6)],
+      ];
+      for (const [from, to, color] of bands) parts.push({ geometry: fan(0, from, to), color, sway: 0 });
       break;
     }
     case 'gravel': {
