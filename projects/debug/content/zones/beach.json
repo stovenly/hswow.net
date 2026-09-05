@@ -573,7 +573,7 @@
       ],
       "width": 180,
       "depth": 160,
-      "reach": 600,
+      "reach": 3000,
       "segment": 0.6,
       "swell": {
         "direction": [

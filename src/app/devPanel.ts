@@ -20,6 +20,8 @@ import { createMeter } from '../dev/Meter';
 import { windUniforms } from '../art/sway';
 import { finishUniforms } from '../art/finish';
 import { GROUND, GROUND_TUNING, type GroundName } from '../world/ground';
+import { WATER_TINTS, applyWaterTints } from '../art/water-tints';
+import { SEA_MATERIAL } from '../art/sea';
 import { recolorGround } from '../world/terrain';
 import { RECIPES, RECIPE_KNOBS, RECIPE_PARAMS, uploadRecipeKnobs } from '../art/recipes';
 import { RAMPS, uploadRamps } from '../art/glsl/ramp';
@@ -214,6 +216,29 @@ const FOLIAGE_BASE = new Map<string, number>([
     .add(r.water, 'reflections')
     .name('screen-space reflections')
     .onChange(refresh);
+  // One set of colours for every body of water; the sea's mirror cap is its own.
+  water.addColor(WATER_TINTS, 'shallow').onChange(applyWaterTints);
+  water.addColor(WATER_TINTS, 'deep').onChange(applyWaterTints);
+  water.addColor(WATER_TINTS, 'foam').onChange(applyWaterTints);
+  water.add(SEA_MATERIAL.uniforms.uMirror, 'value', 0, 1, 0.01).name('sea mirror cap');
+  water
+    .add(
+      {
+        print: () => {
+          const hex = (value: number): string => '0x' + value.toString(16).padStart(6, '0');
+          console.log(
+            [
+              `shallow ${hex(WATER_TINTS.shallow)}`,
+              `deep ${hex(WATER_TINTS.deep)}`,
+              `foam ${hex(WATER_TINTS.foam)}`,
+              `sea mirror ${SEA_MATERIAL.uniforms.uMirror.value}`,
+            ].join('\n'),
+          );
+        },
+      },
+      'print',
+    )
+    .name('log water');
 
   // Dev-only for water's reason — a crystal is part of the place. The recipes
   // live in `GLASSES`; this scales how far the image behind is bent, and the

@@ -143,6 +143,14 @@ Two cover types are added for the coast, because grass on sand is wrong and
 
 ## 2. The water
 
+Done 2026-09-04 as: the sea's apron defaults to 3000 m and is held inside
+the far plane, and the sky is no longer read as a bed in front of the water,
+so the surface runs to the horizon. A `water` entry takes a `course`
+polyline and a `speed`, and the flow follows the line and dies at the
+banks. Ponds, rivers and the sea share one set of colours (`WATER_TINTS`),
+tuned live from the water folder of the debug panel. The sea bake already
+runs on the first frame under black, so it stays where it is.
+
 The sea is a baked field with a Gerstner train on it; ponds and rivers are the
 older two-train plane. Both composite themselves over the opaque pass. Three
 pieces of work, done before the riverside and the coast are authored.

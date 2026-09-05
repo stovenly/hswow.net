@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tintWater } from './water-tints';
 import { WATER_LAYER } from '../layers';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
@@ -131,9 +132,9 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
     uWaterMotion: { value: 1 },
     uReflections: { value: 1 },
 
-    uShallow: { value: new THREE.Color('#5f9a92') },
-    uDeep: { value: new THREE.Color('#173a44') },
-    uFoam: { value: new THREE.Color('#eef3f2') },
+    uShallow: { value: new THREE.Color() },
+    uDeep: { value: new THREE.Color() },
+    uFoam: { value: new THREE.Color() },
     uScatter: { value: new THREE.Color('#8fcfbf') },
     /** Metres of column over which shore colour becomes deep colour. */
     uShoreDepth: { value: 1.6 },
@@ -238,6 +239,8 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
       vWorld = world;
       vNormal = normalize(vec3(-slope.x, 1.0, -slope.y));
       gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+      // Held inside the far plane, so the apron reaches the horizon instead of being cut short of it.
+      gl_Position.z = min(gl_Position.z, gl_Position.w * 0.99999);
     }
   `,
 
@@ -278,10 +281,10 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
     ${AERIAL_AIR_GLSL}
     ${TRAIN_GLSL}
 
-    /** Metres along the camera ray to what the scene drew at a screen position; sky is the far plane. */
+    /** Metres along the camera ray to what the scene drew at a screen position; sky is beyond everything, never a bed in front of the water. */
     float sceneDistance(vec2 uv) {
       float d = texture2D(tDepth, uv).r;
-      if (d >= 0.9999) return uFar;
+      if (d >= 0.9999) return 1.0e6;
       vec4 p = uInverseProjectionView * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
       return length(p.xyz / p.w - cameraPosition);
     }
@@ -513,6 +516,7 @@ export const SEA_MATERIAL = new THREE.ShaderMaterial({
 (SEA_MATERIAL as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
   aApron: [0],
 };
+tintWater(SEA_MATERIAL);
 
 /** What a sea mesh carries for its own draw: the field, or the spec to bake it from. */
 interface SeaState {
@@ -545,7 +549,7 @@ export function bakePendingSeas(renderer: THREE.WebGLRenderer, scene: THREE.Scen
  * water. Sets `userData.water` so the water pass runs for the zone.
  */
 export function seaPlane(options: SeaPlaneOptions): THREE.Mesh {
-  const { width, depth, at, swell, reach = 600, segment = SEGMENT, groundAt } = options;
+  const { width, depth, at, swell, reach = 3000, segment = SEGMENT, groundAt } = options;
 
   const across = Math.max(1, Math.round(width / segment));
   const along = Math.max(1, Math.round(depth / segment));

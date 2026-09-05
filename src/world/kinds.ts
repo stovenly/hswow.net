@@ -704,6 +704,7 @@ registerEntryKind<WaterEntry>({
     depth: { type: 'number', min: 0.5, max: 200, step: 0.1 },
     chop: { type: 'number', min: 0, max: 3, step: 0.01 },
     taper: { type: 'number', min: 0, max: 8, step: 0.1, label: 'fade over (m)' },
+    speed: { type: 'number', min: 0, max: 4, step: 0.05, label: 'course speed (m/s)' },
     segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
   },
   defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
@@ -724,11 +725,50 @@ registerEntryKind<WaterEntry>({
               return chop * t * t * (3 - 2 * t);
             }
           : chop,
-      flow: entry.flow ? new THREE.Vector2(entry.flow[0], entry.flow[1]) : undefined,
+      flow: entry.course
+        ? courseFlow(entry.course, entry.speed ?? 0.8, at.y, ctx.groundAt)
+        : entry.flow
+          ? new THREE.Vector2(entry.flow[0], entry.flow[1])
+          : undefined,
       segment: entry.segment,
     });
   },
 });
+
+/**
+ * The flow along a river's line: every segment's direction, weighted by nearness so
+ * the field turns smoothly round the bends, slowed to nothing over the last 0.8 m
+ * of depth at the banks.
+ */
+function courseFlow(
+  course: readonly (readonly [number, number])[],
+  speed: number,
+  level: number,
+  groundAt: (x: number, z: number) => number,
+): (x: number, z: number) => THREE.Vector2 {
+  return (x, z) => {
+    let fx = 0;
+    let fz = 0;
+    for (let i = 0; i + 1 < course.length; i++) {
+      const [ax, az] = course[i];
+      const [bx, bz] = course[i + 1];
+      const dx = bx - ax;
+      const dz = bz - az;
+      const length = Math.hypot(dx, dz);
+      if (length === 0) continue;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (length * length)));
+      const near = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+      const weight = 1 / (near * near + 9);
+      fx += (dx / length) * weight;
+      fz += (dz / length) * weight;
+    }
+    const size = Math.hypot(fx, fz);
+    if (size === 0) return new THREE.Vector2();
+    const column = Math.min(1, Math.max(0, (level - groundAt(x, z)) / 0.8));
+    const scale = (speed * column * column * (3 - 2 * column)) / size;
+    return new THREE.Vector2(fx * scale, fz * scale);
+  };
+}
 
 // --- sea --------------------------------------------------------------------
 
@@ -737,14 +777,14 @@ registerEntryKind<SeaEntry>({
   schema: {
     width: { type: 'number', min: 10, max: 400, step: 1 },
     depth: { type: 'number', min: 10, max: 400, step: 1 },
-    reach: { type: 'number', min: 0, max: 2000, step: 10, label: 'reach (m)' },
+    reach: { type: 'number', min: 0, max: 5000, step: 10, label: 'reach (m)' },
     segment: { type: 'number', min: 0.3, max: 4, step: 0.1, label: 'metres per quad' },
   },
   defaults: () => ({
     width: 120,
     depth: 120,
     swell: { direction: [0, -1], length: 30, height: 0.6 },
-    reach: 600,
+    reach: 3000,
   }),
   build(entry, ctx) {
     const holder = new THREE.Object3D();

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tintWater } from './water-tints';
 import { WATER_LAYER } from '../layers';
 import { NOISE_GLSL } from '../engine/noise';
 import { SKY_GLSL, skyUniforms } from '../engine/Sky';
@@ -74,9 +75,9 @@ export const WATER_MATERIAL = new THREE.ShaderMaterial({
     uSubmerged: { value: 0 },
     uMurkDensity: { value: 0.085 },
 
-    uShallow: { value: new THREE.Color('#6d8f8a') },
-    uDeep: { value: new THREE.Color('#1f3a41') },
-    uFoam: { value: new THREE.Color('#e8f0f2') },
+    uShallow: { value: new THREE.Color() },
+    uDeep: { value: new THREE.Color() },
+    uFoam: { value: new THREE.Color() },
     /** Metres of column over which shore colour becomes deep colour. */
     uShoreDepth: { value: 1.1 },
     /** Metres of column that fully hides the bed. */
@@ -526,6 +527,8 @@ export interface WaterPlaneOptions {
  * into it. Sized a little larger than its basin, so the hard geometric edge of
  * the surface is buried in the bank.
  */
+tintWater(WATER_MATERIAL);
+
 export function waterPlane(options: WaterPlaneOptions): THREE.Mesh {
   const { width, depth, at, chop = 1, flow, segment = SEGMENT } = options;
 

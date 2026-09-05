@@ -354,6 +354,10 @@ export interface WaterEntry extends EntryBase {
   /** Metres of column over which the chop fades in from nothing at the bed. */
   taper?: number;
   flow?: readonly [number, number];
+  /** A river's line, world xz; the flow follows it at `speed` and slows to nothing at the banks. Wins over `flow`. */
+  course?: readonly (readonly [number, number])[];
+  /** Metres per second along `course`. */
+  speed?: number;
   segment?: number;
 }
 
@@ -364,7 +368,7 @@ export interface SeaEntry extends EntryBase {
   depth: number;
   /** The way the swell travels (world xz), its wavelength and its height, metres. */
   swell: { direction: readonly [number, number]; length: number; height: number };
-  /** Metres the surface runs on past the rectangle toward the horizon. */
+  /** Metres the surface runs on past the rectangle toward the horizon. Default 3000, which is the horizon. */
   reach?: number;
   segment?: number;
 }
