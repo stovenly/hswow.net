@@ -291,10 +291,10 @@
       "a": {
         "zone": "riverside",
         "at": [
-          30,
+          33.2,
           62
         ],
-        "yaw": 2.82,
+        "yaw": -2.94,
         "use": "volume",
         "volume": {
           "size": [
@@ -318,7 +318,7 @@
           -60,
           -8
         ],
-        "yaw": 1.736,
+        "yaw": 1.15,
         "use": "volume",
         "volume": {
           "size": [

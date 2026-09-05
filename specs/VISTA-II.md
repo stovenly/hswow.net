@@ -434,13 +434,11 @@ What came out differently from the plan above:
   from every cell, and `at`, a map position each cell measures its own
   bearing and distance to. The castle is the second kind, so it stands in one
   place on every horizon; the mountains along the north are the first.
-- Map coordinates moved to agree with the gates: riverside to (−2.0, 1.9),
-  beach path to (−1.0, 5.4), the coast to (−0.8, 6.7). One pair cannot be
-  reconciled by moving a coordinate: the riverside's gate says the forest
-  path is south-south-west and the forest path's gate says the riverside is
-  west, which is 118° apart. The map keeps the riverside north-west of the
-  forest path, between the two; one of those gates has to turn, and which is
-  yours.
+- Map coordinates moved to agree with the gates: riverside to (−2.3, 1.7),
+  beach path to (−1.0, 5.4), the coast to (−0.8, 6.7). The riverside and
+  forest-path gates disagreed with each other by 118°, so each turned about
+  thirty degrees toward the other, with the last leg of its road bent to
+  match. Every portal pair is now within thirty degrees of its gate.
 - Rings are re-laid to §6 with the roster, `neighbours: true` and
   `horizon: true` on every exterior, and every stand-in removed. The coastal
   cells stay hand placed.
