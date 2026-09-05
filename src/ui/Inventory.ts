@@ -426,6 +426,7 @@ export class InventoryUI implements Pane {
     this.ghost.style.top = `${event.clientY}px`;
     this.root.appendChild(this.ghost);
     this.tip.hidden = true;
+    document.body.classList.add('is-dragging');
     // The slots this could go in light up; the rest say nothing.
     for (const slot of this.slots()) {
       slot.classList.toggle('can-take', this.accepts(slot.dataset.drop ?? '', item));
@@ -450,7 +451,6 @@ export class InventoryUI implements Pane {
     // The ghost already names what is being dragged; two labels chase one cursor.
     if (this.ghost) {
       this.tip.hidden = true;
-      this.scrim.style.cursor = 'grabbing';
       return;
     }
     const over = this.handlers.hoverWorld(ndcOf(event));
@@ -526,6 +526,7 @@ export class InventoryUI implements Pane {
     this.ghost?.remove();
     this.ghost = null;
     for (const slot of this.slots()) slot.classList.remove('can-take', 'is-over');
+    document.body.classList.remove('is-dragging');
     this.scrim.style.cursor = '';
     window.removeEventListener('pointermove', this.handleDragMove);
     window.removeEventListener('pointerup', this.handleDragUp);

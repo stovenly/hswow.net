@@ -2425,6 +2425,12 @@ body.is-identifying #pause {
   height: 3rem;
 }
 
+/* An item in hand: the whole screen holds it, whatever is underneath. */
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+}
+
 /* What the free cursor is over. Inert, offset clear of the pointer. */
 .inv-tip {
   position: fixed;
