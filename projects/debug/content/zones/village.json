@@ -1851,19 +1851,6 @@
       "roam": 3
     },
     {
-      "id": "fowl",
-      "kind": "scatter",
-      "builder": "poultry",
-      "seed": 8804,
-      "count": 6,
-      "within": 9,
-      "from": [
-        2,
-        -7
-      ],
-      "maxSlope": 18
-    },
-    {
       "id": "corner-oak",
       "kind": "prop",
       "builder": "oak",
@@ -2498,6 +2485,54 @@
           ]
         }
       ]
+    },
+    {
+      "id": "hen-1",
+      "kind": "creature",
+      "builder": "poultry",
+      "seed": 8804,
+      "at": [
+        1,
+        -6
+      ],
+      "yaw": 0.3,
+      "roam": 3
+    },
+    {
+      "id": "hen-2",
+      "kind": "creature",
+      "builder": "poultry",
+      "seed": 8805,
+      "at": [
+        4,
+        -4
+      ],
+      "yaw": 1.9,
+      "roam": 3
+    },
+    {
+      "id": "hen-3",
+      "kind": "creature",
+      "builder": "poultry",
+      "seed": 8806,
+      "at": [
+        -2,
+        -7.5
+      ],
+      "yaw": 3.4,
+      "roam": 3
+    },
+    {
+      "id": "hen-4",
+      "kind": "creature",
+      "builder": "poultry",
+      "seed": 8807,
+      "at": [
+        6,
+        -7
+      ],
+      "yaw": 5.0,
+      "roam": 3
     }
   ]
 }
