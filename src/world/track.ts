@@ -791,35 +791,55 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
       return cell.length >= 3;
     });
     if (cell.length < 3) continue;
-    // Cut straight along the paving's edge: a strip's side or end at the
-    // nearest sample, a ring's edges — each only where the far side of it is
-    // outside the paving altogether, so a strip's edge running into a
-    // junction cuts nothing there.
-    const cut = (px: number, pz: number, ox: number, oz: number): void => {
-      if (whereIs(px + ox * 0.15, pz + oz * 0.15)) return;
+    // Cut along the paving's edge. A strip's sides are the kerb's inner line,
+    // taken as the edge segments either side of the nearest sample, so the
+    // cut is the same line the kerb stands on and never a guess about what
+    // lies beyond. Ends and ring edges cut only where the far side is not a
+    // junction, so a strip running into one leaves its cells whole there.
+    const inAnyRing = (x: number, z: number): boolean => flats.some((flat) => inRing(flat, x, z));
+    const cutUnlessRing = (px: number, pz: number, ox: number, oz: number): void => {
+      if (inAnyRing(px + ox * 0.15, pz + oz * 0.15)) return;
       cell = halfPlane(cell, ox, oz, ox * px + oz * pz);
     };
     const strip = nearStrip(site.x, site.z);
     if (strip) {
-      const sample = strip.strip.samples[strip.at];
-      const edge = sample.half - strip.strip.inset;
+      const samples = strip.strip.samples;
+      const inset = strip.strip.inset;
+      const sample = samples[strip.at];
+      for (const side of [-1, 1]) {
+        if (Math.abs(strip.u * sample.half - side * (sample.half - inset)) > reach) continue;
+        const edgeAt = (k: number): [number, number] => {
+          const at = samples[Math.max(0, Math.min(samples.length - 1, k))];
+          const e = (at.half - inset) * side;
+          return [at.x + at.nx * e, at.z + at.nz * e];
+        };
+        for (const [a, b] of [[edgeAt(strip.at - 1), edgeAt(strip.at)], [edgeAt(strip.at), edgeAt(strip.at + 1)]]) {
+          const dx = b[0] - a[0];
+          const dz = b[1] - a[1];
+          const len = Math.hypot(dx, dz);
+          if (len < 1e-6) continue;
+          // Outward is away from the site.
+          let ox = -dz / len;
+          let oz = dx / len;
+          if (ox * (site.x - a[0]) + oz * (site.z - a[1]) > 0) {
+            ox = -ox;
+            oz = -oz;
+          }
+          cutUnlessRing(a[0], a[1], ox, oz);
+        }
+      }
       const px = site.x - sample.x;
       const pz = site.z - sample.z;
       const advance = px * sample.tx + pz * sample.tz;
-      const along = { x: sample.x + sample.tx * advance, z: sample.z + sample.tz * advance };
-      for (const side of [-1, 1]) {
-        if (Math.abs(strip.u * sample.half - side * edge) > reach) continue;
-        cut(along.x + sample.nx * edge * side, along.z + sample.nz * edge * side, sample.nx * side, sample.nz * side);
-      }
-      const length = strip.strip.samples[strip.strip.samples.length - 1].s;
+      const length = samples[samples.length - 1].s;
       const s = sample.s + advance;
       if (length - s < reach) {
-        const end = strip.strip.samples[strip.strip.samples.length - 1];
-        cut(end.x, end.z, end.tx, end.tz);
+        const end = samples[samples.length - 1];
+        cutUnlessRing(end.x, end.z, end.tx, end.tz);
       }
       if (s < reach) {
-        const start = strip.strip.samples[0];
-        cut(start.x, start.z, -start.tx, -start.tz);
+        const first = samples[0];
+        cutUnlessRing(first.x, first.z, -first.tx, -first.tz);
       }
     }
     for (const flat of flats) {
@@ -832,7 +852,6 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
         const dz = b[1] - a[1];
         const len = Math.hypot(dx, dz);
         if (len < 1e-6) continue;
-        // Outward is away from the site.
         let ox = -dz / len;
         let oz = dx / len;
         if (ox * (site.x - a[0]) + oz * (site.z - a[1]) > 0) {
@@ -843,25 +862,12 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
         const px = a[0] + dx * t;
         const pz = a[1] + dz * t;
         if (Math.hypot(site.x - px, site.z - pz) > reach) continue;
-        cut(px, pz, ox, oz);
+        // A ring edge that a strip's mouth crosses is not an edge of the paving.
+        if (nearStrip(px + ox * 0.15, pz + oz * 0.15)) continue;
+        cell = halfPlane(cell, ox, oz, ox * px + oz * pz);
       }
     }
     if (cell.length < 3) continue;
-    // Whatever corner is still outside is drawn back toward the site until it
-    // is on the edge.
-    cell = cell.map((corner) => {
-      if (whereIs(corner.x, corner.y)) return corner;
-      let lo = 0;
-      let hi = 1;
-      for (let step = 0; step < 8; step++) {
-        const mid = (lo + hi) / 2;
-        const x = site.x + (corner.x - site.x) * mid;
-        const z = site.z + (corner.y - site.z) * mid;
-        if (whereIs(x, z)) lo = mid;
-        else hi = mid;
-      }
-      return { x: site.x + (corner.x - site.x) * lo, y: site.z + (corner.y - site.z) * lo };
-    });
     const mid = centreOf(cell);
     const base = skinAt(mid.x, mid.y);
     const stone = prismOver(cell, toWorld, base, paving.height + rng.around(0, 0.003), paving, rng, skinAt);
