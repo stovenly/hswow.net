@@ -2146,6 +2146,14 @@ body.is-identifying #pause {
   border-color: var(--ink);
 }
 
+/* A key cap on an inverted button inverts with it, or the letter vanishes into the face. */
+.inv-take:hover .key,
+.reading-take:hover .key {
+  color: var(--ink);
+  background: var(--void);
+  border-color: var(--void);
+}
+
 .inv-window-body {
   min-height: 0;
   display: grid;
@@ -2364,8 +2372,16 @@ body.is-identifying #pause {
   }
 }
 
+/* A grid with nothing in it centres its one line rather than leaving it in the corner. */
+.inv-grid:has(> .inv-empty) {
+  justify-content: center;
+  align-content: center;
+}
+
 .inv-empty {
   grid-column: 1 / -1;
+  justify-self: center;
+  text-align: center;
   padding: 0.4rem 0.1rem;
   font-size: 0.7rem;
   letter-spacing: 0.12em;

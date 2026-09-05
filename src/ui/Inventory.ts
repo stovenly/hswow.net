@@ -163,7 +163,7 @@ export class InventoryUI implements Pane {
     const takeAll = document.createElement('button');
     takeAll.type = 'button';
     takeAll.className = 'inv-take';
-    takeAll.textContent = 'take all';
+    takeAll.append(keyHint('R', 'take all'));
     takeAll.addEventListener('click', () => this.takeAll());
     holderHead.append(this.holderTitle, takeAll);
 
@@ -538,7 +538,15 @@ export class InventoryUI implements Pane {
     if (!this.active || event.repeat) return;
     // A page open over the pack has every key; the pack waits under it.
     if (document.body.classList.contains('is-reading')) return;
-    if (event.code !== 'KeyE' || this.ghost) return;
+    if (this.ghost) return;
+    // R sweeps the open container into the pack and puts it away, as the button does.
+    if (event.code === 'KeyR') {
+      if (!this.container) return;
+      event.preventDefault();
+      this.takeAll();
+      return;
+    }
+    if (event.code !== 'KeyE') return;
     if (this.hovered) {
       if (this.handlers.readItem(this.hovered)) {
         event.preventDefault();
