@@ -1145,7 +1145,8 @@ export class ZoneManager {
         !mesh.visible ||
         data.vista === true ||
         data.water === true ||
-        data.noCollide === true ||
+        // Paving is out of the collider but still a floor nothing grows through.
+        (data.noCollide === true && data.footprintFaces !== true) ||
         data.coverField === true ||
         data.sparkleField === true ||
         data.npc !== undefined ||

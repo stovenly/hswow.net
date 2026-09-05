@@ -908,7 +908,7 @@ export function buildStonePaving(options: StonePavingOptions): THREE.Group {
       const dx = b[0] - a[0];
       const dz = b[1] - a[1];
       const len = Math.hypot(dx, dz);
-      if (len < 0.2) continue;
+      if (len < 0.05) continue;
       let ox = -dz / len;
       let oz = dx / len;
       if (ox * (a[0] - mx) + oz * (a[1] - mz) < 0) {
@@ -1133,16 +1133,19 @@ function kerbs(samples: Sample[], groundAt: GroundAt, profile: Profile, rng: Rng
   const colour = shade(PALETTE.STONE_DARK, 0.9);
   const length = samples[samples.length - 1].s;
   for (const side of [-1, 1] as const) {
-    let s = rng.range(0, 0.3);
-    while (s + 0.12 < length) {
+    // From the very start to the very end: a strip's kerb meets a junction's
+    // kerb at the end row, so there is no joint there to leave open.
+    let s = 0;
+    while (s < length - 0.05) {
       const along = rng.range(0.45, 0.65);
-      const end = Math.min(length, s + along - 0.03);
+      const last = s + along + 0.2 >= length;
+      const end = last ? length : s + along - 0.03;
       parts.push({
         geometry: kerbPiece(samples, groundAt, profile, side, s, end, rng),
         color: shade(colour, rng.range(0.92, 1.08)),
         sway: 0,
       });
-      s += along;
+      s = last ? length : s + along;
     }
   }
   return parts;
@@ -1281,10 +1284,12 @@ function straightKerbs(
   const outward = new THREE.Vector3(ox, 0, oz);
   const up = new THREE.Vector3(0, 1, 0);
   let s = 0;
-  while (len - s > 0.12) {
+  while (s < len - 0.02) {
     const piece = Math.min(len - s, rng.range(0.45, 0.65));
+    const last = s + piece + 0.2 >= len;
     const s0 = s;
-    const s1 = s + piece - 0.03;
+    // The last piece runs to the corner, where the arm's own kerb takes over.
+    const s1 = last ? len : s + piece - 0.03;
     const corner = (at: number, inward: number, y: number, tuck: number): THREE.Vector3 =>
       new THREE.Vector3(
         a[0] + tx * at - ox * inward + ox * tuck + rng.around(0, 0.003),
@@ -1314,7 +1319,7 @@ function straightKerbs(
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
     out.push(geometry);
-    s += piece;
+    s = last ? len : s + piece;
   }
   return out;
 }
