@@ -1353,7 +1353,9 @@ body:not(.is-playing) #prompt {
   /* A button centres its own text; a line that wraps has to keep the column's edge. */
   text-align: inherit;
   color: var(--ink);
-  text-shadow: inherit;
+  text-shadow:
+    0 1px 3px rgb(0 0 0 / 95%),
+    0 0 0.6em rgb(0 0 0 / 85%);
   opacity: 0.72;
   cursor: pointer;
   pointer-events: auto;
