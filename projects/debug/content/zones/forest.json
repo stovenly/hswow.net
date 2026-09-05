@@ -1951,6 +1951,74 @@
           "huddle": 2.6
         }
       ]
+    },
+    {
+      "id": "gate-n-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4960,
+      "at": [
+        -2.1,
+        -50.0
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "gate-n-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4961,
+      "at": [
+        2.1,
+        -50.0
+      ],
+      "yaw": 2.4
+    },
+    {
+      "id": "gate-n-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4962,
+      "at": [
+        2.1,
+        -50.0
+      ],
+      "yaw": 0.9,
+      "on": "gate-n-post-b"
+    },
+    {
+      "id": "gate-se-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4970,
+      "at": [
+        39.25,
+        40.31
+      ],
+      "yaw": -1.91
+    },
+    {
+      "id": "gate-se-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4971,
+      "at": [
+        36.75,
+        43.69
+      ],
+      "yaw": 0.19
+    },
+    {
+      "id": "gate-se-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4972,
+      "at": [
+        36.75,
+        43.69
+      ],
+      "yaw": -1.31,
+      "on": "gate-se-post-b"
     }
   ]
 }

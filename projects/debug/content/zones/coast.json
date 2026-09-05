@@ -964,6 +964,32 @@
         ],
         "width": 14
       }
+    ],
+    "edge-w": [
+      {
+        "kind": "field",
+        "min": [
+          -84,
+          -48
+        ],
+        "max": [
+          -76,
+          44
+        ]
+      }
+    ],
+    "edge-e": [
+      {
+        "kind": "field",
+        "min": [
+          76,
+          -48
+        ],
+        "max": [
+          84,
+          48
+        ]
+      }
     ]
   },
   "entries": [
@@ -1757,6 +1783,166 @@
         }
       ],
       "scatter": []
+    },
+    {
+      "id": "gate-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4960,
+      "at": [
+        -2.1,
+        -44.0
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "gate-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4961,
+      "at": [
+        2.1,
+        -44.0
+      ],
+      "yaw": 2.4
+    },
+    {
+      "id": "gate-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4962,
+      "at": [
+        2.1,
+        -44.0
+      ],
+      "yaw": 0.9,
+      "on": "gate-post-b"
+    },
+    {
+      "id": "edge-w-outcrops",
+      "kind": "scatter",
+      "builder": "outcrop",
+      "seed": 5319,
+      "count": 4,
+      "within": 50,
+      "from": [
+        -80,
+        -2
+      ],
+      "region": "edge-w",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 60,
+      "scale": [
+        0.9,
+        1.3
+      ]
+    },
+    {
+      "id": "edge-w-boulders",
+      "kind": "scatter",
+      "builder": "boulder",
+      "seed": 5329,
+      "count": 4,
+      "within": 50,
+      "from": [
+        -80,
+        -2
+      ],
+      "region": "edge-w",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 60,
+      "scale": [
+        0.9,
+        1.4
+      ]
+    },
+    {
+      "id": "edge-w-gorse",
+      "kind": "scatter",
+      "builder": "gorse",
+      "seed": 5339,
+      "count": 8,
+      "within": 50,
+      "from": [
+        -80,
+        -2
+      ],
+      "region": "edge-w",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        0.9,
+        1.4
+      ]
+    },
+    {
+      "id": "edge-e-outcrops",
+      "kind": "scatter",
+      "builder": "outcrop",
+      "seed": 5301,
+      "count": 4,
+      "within": 50,
+      "from": [
+        80,
+        0
+      ],
+      "region": "edge-e",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 60,
+      "scale": [
+        0.9,
+        1.3
+      ]
+    },
+    {
+      "id": "edge-e-boulders",
+      "kind": "scatter",
+      "builder": "boulder",
+      "seed": 5311,
+      "count": 4,
+      "within": 50,
+      "from": [
+        80,
+        0
+      ],
+      "region": "edge-e",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 60,
+      "scale": [
+        0.9,
+        1.4
+      ]
+    },
+    {
+      "id": "edge-e-gorse",
+      "kind": "scatter",
+      "builder": "gorse",
+      "seed": 5321,
+      "count": 8,
+      "within": 50,
+      "from": [
+        80,
+        0
+      ],
+      "region": "edge-e",
+      "avoid": [
+        "keepClear"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        0.9,
+        1.4
+      ]
     }
   ]
 }

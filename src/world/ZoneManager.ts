@@ -214,6 +214,8 @@ const _ndc = new THREE.Vector2();
 
 /** What a volume end falls back to when it states no box, in metres. */
 const DEFAULT_VOLUME: EndVolume = { size: [2, 2.4, 2] };
+/** Metres a volume box reaches below the ground at its centre. */
+const VOLUME_SINK = 1.5;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -1037,8 +1039,10 @@ export class ZoneManager {
       // `doorFacing` gives, so an author says "beyond me" without knowing which
       // way north is. The box stands *on* the end's height, not centred on it.
       _centre.set(ox, oy, oz).applyAxisAngle(UP, end.yaw).add(end.position);
-      _centre.y += sy / 2;
-      const proxy = boxProxy(_box.setFromCenterAndSize(_centre, _size.set(sx, sy, sz)));
+      // Sunk below the end's height as well: the ground under the box's
+      // downhill side lies lower than at its centre, and feet there must count.
+      _centre.y += (sy - VOLUME_SINK) / 2;
+      const proxy = boxProxy(_box.setFromCenterAndSize(_centre, _size.set(sx, sy + VOLUME_SINK, sz)));
       root.add(proxy);
       side.trigger = _box.clone();
       this.portals.bind(side, proxy, null);

@@ -801,31 +801,22 @@
           -58
         ]
       }
+    ],
+    "edge-se": [
+      {
+        "kind": "field",
+        "min": [
+          32,
+          56
+        ],
+        "max": [
+          50,
+          64
+        ]
+      }
     ]
   },
   "entries": [
-    {
-      "id": "gate-hazel-w",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 4870,
-      "at": [
-        -7.6,
-        -64.4
-      ],
-      "yaw": 0.3
-    },
-    {
-      "id": "gate-hazel-e",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 4871,
-      "at": [
-        -0.2,
-        -64.6
-      ],
-      "yaw": 1.7
-    },
     {
       "id": "west-hedge",
       "kind": "run",
@@ -833,7 +824,7 @@
       "seed": 6731,
       "points": [
         [
-          -8.4,
+          -5.8,
           -64
         ],
         [
@@ -2471,6 +2462,391 @@
             2.6
           ]
         }
+      ]
+    },
+    {
+      "id": "north-gate",
+      "kind": "prop",
+      "builder": "gate",
+      "seed": 4960,
+      "at": [
+        -4,
+        -64
+      ],
+      "yaw": 0,
+      "options": {
+        "width": 3.2,
+        "open": 0.85
+      }
+    },
+    {
+      "id": "north-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4962,
+      "at": [
+        -5.6,
+        -64.0
+      ],
+      "yaw": 0.9,
+      "on": "north-gate"
+    },
+    {
+      "id": "north-hedge-bank",
+      "kind": "run",
+      "builder": "hedge",
+      "seed": 6732,
+      "points": [
+        [
+          -2.2,
+          -64
+        ],
+        [
+          -0.6,
+          -64
+        ]
+      ]
+    },
+    {
+      "id": "north-hedge-east",
+      "kind": "run",
+      "builder": "hedge",
+      "seed": 6733,
+      "points": [
+        [
+          18,
+          -64
+        ],
+        [
+          34,
+          -64
+        ],
+        [
+          50,
+          -64
+        ]
+      ]
+    },
+    {
+      "id": "north-bar-boulder-0",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4970,
+      "at": [
+        4,
+        -1.9,
+        -63
+      ],
+      "yaw": 0.4,
+      "scale": 1.1
+    },
+    {
+      "id": "north-bar-boulder-1",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4971,
+      "at": [
+        7.5,
+        -1.75,
+        -63.5
+      ],
+      "yaw": 1.1,
+      "scale": 0.8
+    },
+    {
+      "id": "north-bar-boulder-2",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4972,
+      "at": [
+        11,
+        -2.0,
+        -63
+      ],
+      "yaw": 1.8,
+      "scale": 1.0
+    },
+    {
+      "id": "north-bar-boulder-3",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4973,
+      "at": [
+        14,
+        -1.7,
+        -62.5
+      ],
+      "yaw": 2.5,
+      "scale": 0.7
+    },
+    {
+      "id": "north-bar-reeds-0",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 4990,
+      "at": [
+        2.5,
+        -62
+      ],
+      "yaw": 0.5,
+      "solid": false
+    },
+    {
+      "id": "north-bar-reeds-1",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 4991,
+      "at": [
+        15.5,
+        -61.5
+      ],
+      "yaw": 1.6,
+      "solid": false
+    },
+    {
+      "id": "south-bar-boulder-0",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4980,
+      "at": [
+        11,
+        -1.9,
+        56
+      ],
+      "yaw": 0.4,
+      "scale": 1.0
+    },
+    {
+      "id": "south-bar-boulder-1",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4981,
+      "at": [
+        14,
+        -1.8,
+        57
+      ],
+      "yaw": 1.1,
+      "scale": 0.8
+    },
+    {
+      "id": "south-bar-boulder-2",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4982,
+      "at": [
+        17.5,
+        -2.0,
+        57.5
+      ],
+      "yaw": 1.8,
+      "scale": 1.1
+    },
+    {
+      "id": "south-bar-boulder-3",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 4983,
+      "at": [
+        20.5,
+        -1.7,
+        58
+      ],
+      "yaw": 2.5,
+      "scale": 0.7
+    },
+    {
+      "id": "south-bar-reeds-0",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 5000,
+      "at": [
+        8.5,
+        55.5
+      ],
+      "yaw": 0.5,
+      "solid": false
+    },
+    {
+      "id": "south-bar-reeds-1",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 5001,
+      "at": [
+        22.5,
+        58.5
+      ],
+      "yaw": 1.6,
+      "solid": false
+    },
+    {
+      "id": "se-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4990,
+      "at": [
+        31.99,
+        62.66
+      ],
+      "yaw": 3.12
+    },
+    {
+      "id": "se-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4991,
+      "at": [
+        28.01,
+        61.34
+      ],
+      "yaw": 5.22
+    },
+    {
+      "id": "se-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4992,
+      "at": [
+        28.01,
+        61.34
+      ],
+      "yaw": 3.72,
+      "on": "se-post-b"
+    },
+    {
+      "id": "se-oaks",
+      "kind": "scatter",
+      "builder": "oak",
+      "seed": 5180,
+      "count": 3,
+      "within": 12,
+      "from": [
+        41,
+        60
+      ],
+      "region": "edge-se",
+      "avoid": [
+        "keepClear",
+        "west-track",
+        "east-track",
+        "stones-spur"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.2
+      ]
+    },
+    {
+      "id": "se-birches",
+      "kind": "scatter",
+      "builder": "birch",
+      "seed": 5181,
+      "count": 3,
+      "within": 12,
+      "from": [
+        41,
+        60
+      ],
+      "region": "edge-se",
+      "avoid": [
+        "keepClear",
+        "west-track",
+        "east-track",
+        "stones-spur"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "se-thickets",
+      "kind": "scatter",
+      "builder": "thicket",
+      "seed": 5182,
+      "count": 8,
+      "within": 12,
+      "from": [
+        41,
+        60
+      ],
+      "region": "edge-se",
+      "avoid": [
+        "keepClear",
+        "west-track",
+        "east-track",
+        "stones-spur"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        1,
+        1.6
+      ]
+    },
+    {
+      "id": "edge-oaks",
+      "kind": "scatter",
+      "builder": "oak",
+      "seed": 5183,
+      "count": 5,
+      "within": 70,
+      "from": [
+        46,
+        -10
+      ],
+      "region": "edge-east",
+      "avoid": [
+        "keepClear",
+        "west-track",
+        "east-track",
+        "stones-spur"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.2
+      ]
+    },
+    {
+      "id": "edge-birches",
+      "kind": "scatter",
+      "builder": "birch",
+      "seed": 5184,
+      "count": 5,
+      "within": 70,
+      "from": [
+        46,
+        -10
+      ],
+      "region": "edge-east",
+      "avoid": [
+        "keepClear",
+        "west-track",
+        "east-track",
+        "stones-spur"
+      ],
+      "maxSlope": 30
+    },
+    {
+      "id": "edge-thickets",
+      "kind": "scatter",
+      "builder": "thicket",
+      "seed": 5185,
+      "count": 10,
+      "within": 70,
+      "from": [
+        46,
+        -10
+      ],
+      "region": "edge-east",
+      "avoid": [
+        "keepClear",
+        "west-track",
+        "east-track",
+        "stones-spur"
+      ],
+      "maxSlope": 40,
+      "scale": [
+        1,
+        1.6
       ]
     }
   ]

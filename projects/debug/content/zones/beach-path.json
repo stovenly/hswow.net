@@ -2275,6 +2275,94 @@
           "apparent": 480
         }
       ]
+    },
+    {
+      "id": "gate-nw-gate",
+      "kind": "prop",
+      "builder": "gate",
+      "seed": 4960,
+      "at": [
+        -40,
+        -50
+      ],
+      "yaw": 0.79,
+      "options": {
+        "width": 3.2,
+        "open": 0.85
+      }
+    },
+    {
+      "id": "gate-nw-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4962,
+      "at": [
+        -41.13,
+        -48.87
+      ],
+      "yaw": 1.69,
+      "on": "gate-nw-gate"
+    },
+    {
+      "id": "gate-ne-gate",
+      "kind": "prop",
+      "builder": "gate",
+      "seed": 4970,
+      "at": [
+        36,
+        -54
+      ],
+      "yaw": -0.79,
+      "options": {
+        "width": 3.2,
+        "open": 0.85
+      }
+    },
+    {
+      "id": "gate-ne-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4972,
+      "at": [
+        34.87,
+        -55.13
+      ],
+      "yaw": 0.11,
+      "on": "gate-ne-gate"
+    },
+    {
+      "id": "gate-s-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4980,
+      "at": [
+        8.1,
+        74.0
+      ],
+      "yaw": 3.44
+    },
+    {
+      "id": "gate-s-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4981,
+      "at": [
+        3.9,
+        74.0
+      ],
+      "yaw": 5.54
+    },
+    {
+      "id": "gate-s-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4982,
+      "at": [
+        3.9,
+        74.0
+      ],
+      "yaw": 4.04,
+      "on": "gate-s-post-b"
     }
   ]
 }

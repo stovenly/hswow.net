@@ -4064,6 +4064,86 @@
           ]
         }
       ]
+    },
+    {
+      "id": "gate-w-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4960,
+      "at": [
+        -59.65,
+        -5.93
+      ],
+      "yaw": 2.04
+    },
+    {
+      "id": "gate-w-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4961,
+      "at": [
+        -60.35,
+        -10.07
+      ],
+      "yaw": 4.14
+    },
+    {
+      "id": "gate-w-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4962,
+      "at": [
+        -60.35,
+        -10.07
+      ],
+      "yaw": 2.64,
+      "on": "gate-w-post-b"
+    },
+    {
+      "id": "gate-s-post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4970,
+      "at": [
+        -1.9,
+        62.0
+      ],
+      "yaw": 3.44
+    },
+    {
+      "id": "gate-s-post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 4971,
+      "at": [
+        -6.1,
+        62.0
+      ],
+      "yaw": 5.54
+    },
+    {
+      "id": "gate-s-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4972,
+      "at": [
+        -6.1,
+        62.0
+      ],
+      "yaw": 4.04,
+      "on": "gate-s-post-b"
+    },
+    {
+      "id": "ne-gate-lantern",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4980,
+      "at": [
+        38.87,
+        -59.13
+      ],
+      "yaw": 0.1,
+      "on": "ne-gate"
     }
   ]
 }

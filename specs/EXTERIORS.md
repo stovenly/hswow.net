@@ -843,6 +843,16 @@ left is the sea tuning pass at the coast, with you looking.
   forest path → forest → beach path → plains, with the coast hanging off
   the beach path. `check:world` was not run.
 
+### Gates and borders, 2026-09-05
+
+Every exterior gate is marked the same way on both sides: where the boundary
+is hedge or wall, a five-bar gate hung open with a lit lantern on its hanging
+post; elsewhere two posts flanking the track with the lantern on one. A
+barrier never runs bare: hedge or treeline in farmed and wooded cells, rock
+and gorse on the coast's sides, and a bar of boulders and reeds across the
+river where it leaves the riverside. Walk-in volumes reach 1.5 m below the
+ground at their centre, so a gate on a slope fires from its downhill side.
+
 ## 6. Open questions
 
 1. **The church as the village's landmark.** It is the tallest builder in the
