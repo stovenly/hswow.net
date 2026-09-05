@@ -425,6 +425,10 @@ export interface VistaRingEntry extends EntryBase {
   place?: readonly Record<string, unknown>[];
   scatter?: readonly Record<string, unknown>[];
   chunk?: number;
+  /** Put every neighbouring cell's icon on the horizon at its true bearing, `at` metres out from the outline. */
+  neighbours?: boolean | { at?: number };
+  /** Stand the shared far layer round this cell, `at` metres out. */
+  horizon?: boolean | { at?: number };
 }
 
 export interface DressingEntry extends EntryBase {
@@ -505,7 +509,7 @@ export interface EntryContext {
  * What exists before the walk runs: the ground and the skirt, both made with
  * the definition, and nothing built. See `EntryKind.asks`.
  */
-export type WarmContext = Pick<EntryContext, 'terrain' | 'skirt' | 'groundAt'>;
+export type WarmContext = Pick<EntryContext, 'zone' | 'terrain' | 'skirt' | 'groundAt'>;
 
 /** Everything an entry can contribute that is not geometry. */
 export interface Collected {

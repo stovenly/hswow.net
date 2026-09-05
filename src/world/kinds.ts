@@ -25,12 +25,14 @@ import { stoneWallSquareColumn, COLUMN_REACH } from '../art/builders/stone-wall-
 import { fencePost } from '../art/builders/fence-post';
 import { hazel } from '../art/builders/hazel';
 import {
+  propAsk,
   vistaRing,
   vistaRingPlan,
   type VistaProp,
   type VistaRingOptions,
   type VistaScatter,
 } from './vista-ring';
+import { horizonLayer, neighboursOf, placeOf } from './atlas';
 import {
   edgeDressing,
   edgeDressingPlan,
@@ -1043,19 +1045,19 @@ registerEntryKind<SoundScatterEntry>({
 
 registerEntryKind<VistaRingEntry>({
   kind: 'vistaRing',
-  schema: { chunk: { type: 'number', min: 40, max: 800, step: 10, label: 'merge cell (m)' } },
+  schema: {
+    chunk: { type: 'number', min: 40, max: 800, step: 10, label: 'merge cell (m)' },
+    neighbours: { type: 'boolean', label: "neighbours' icons" },
+    horizon: { type: 'boolean', label: 'shared far layer' },
+  },
   defaults: () => ({ band: { inner: 30, outer: 160 }, place: [], scatter: [] }),
   // `keepOut` is left off: it moves parallax props about after they are built
   // and has no say in which props there are.
   asks(entry, ctx) {
     if (!ctx.skirt) return [];
-    const plan = vistaRingPlan({ ...ringPlan(entry), skirt: ctx.skirt });
+    const plan = vistaRingPlan({ ...ringPlan(entry, ctx.zone, ctx.skirt), skirt: ctx.skirt });
     keepPlan(planKey(entry), plan);
-    return plan.map((prop) => ({
-      builder: prop.builder.name,
-      seed: prop.seed,
-      scale: prop.scale ?? 1,
-    }));
+    return plan.map(propAsk);
   },
   build(entry, ctx) {
     if (!ctx.skirt) throw new Error('a vista ring needs a skirt');
@@ -1066,7 +1068,7 @@ registerEntryKind<VistaRingEntry>({
           ? dilateOutline(ctx.skirt.outline, entry.keepOut.dilate)
           : undefined;
     return vistaRing({
-      ...ringPlan(entry),
+      ...ringPlan(entry, ctx.zone, ctx.skirt),
       skirt: ctx.skirt,
       keepOut,
       plan: takePlan<VistaProp[]>(planKey(entry)) ?? undefined,
@@ -1074,17 +1076,115 @@ registerEntryKind<VistaRingEntry>({
   },
 });
 
+/** A neighbour's icon subtends what the true thing would at its true distance, times this. */
+const ICON_PERSPECTIVE = 1.5;
+/** Metres inside the outline a viewer typically stands when looking out. */
+const VIEWER_INSET = 40;
+/** Metres out from the outline the icons and the far layer stand unless the ring says. */
+const NEIGHBOUR_AT = 150;
+const HORIZON_AT = 200;
+
+/** The point `out` metres past the outline on the ray from the origin along `(dx, dz)`. */
+function onRay(skirt: Skirt, dx: number, dz: number, out: number): [number, number] {
+  const length = Math.hypot(dx, dz) || 1;
+  const ux = dx / length;
+  const uz = dz / length;
+  let s = 0;
+  while (s < 2000 && skirt.outside(ux * s, uz * s) < out) s += 4;
+  return [ux * s, uz * s];
+}
+
+function hashOf(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0) % 0x7fffffff || 1;
+}
+
+/** Every neighbouring cell's icon, on its true bearing at its true distance, looking back at this cell. */
+function neighbourProps(entry: VistaRingEntry, zone: string, skirt: Skirt): VistaProp[] {
+  if (!entry.neighbours) return [];
+  const at = (typeof entry.neighbours === 'object' ? entry.neighbours.at : undefined) ?? NEIGHBOUR_AT;
+  return neighboursOf(zone).map((near) => {
+    const [x, z] = onRay(skirt, near.dx, near.dz, at);
+    const scale = Math.min(1, Math.max(0.08, ((at + VIEWER_INSET) / near.distance) * ICON_PERSPECTIVE));
+    return {
+      builder: needBuilder(near.icon),
+      at: [x, z],
+      scale,
+      seed: hashOf(zone + '>' + near.zone),
+      // rotateY(yaw) takes +Z to (sin yaw, 0, cos yaw): the icon's front looks back at the origin.
+      yaw: Math.atan2(-near.dx, -near.dz),
+      apparent: near.distance,
+      clear: ICON_CLEAR,
+    };
+  });
+}
+
+/** Degrees either side of an icon's bearing kept free of scatter, so the road out of the cell shows it. */
+const ICON_CLEAR = 10;
+
+/** How big a far thing with a map position is stood, from what it would subtend where it really is. */
+function perspective(stand: number, distance: number, times = 1): number {
+  return Math.min(1, Math.max(0.08, ((stand + VIEWER_INSET) / distance) * ICON_PERSPECTIVE * times));
+}
+
+/** The shared far layer: by bearing, the same from every cell; by map position, where it really is. */
+function horizonProps(entry: VistaRingEntry, zone: string, skirt: Skirt): VistaProp[] {
+  if (!entry.horizon) return [];
+  const at = (typeof entry.horizon === 'object' ? entry.horizon.at : undefined) ?? HORIZON_AT;
+  const here = placeOf(zone);
+  const props: VistaProp[] = [];
+  for (const far of horizonLayer()) {
+    let dx: number;
+    let dz: number;
+    let apparent: number;
+    let scale: number | undefined;
+    if (far.at) {
+      if (!here) continue;
+      dx = (far.at[0] - here[0]) * 1000;
+      dz = (far.at[1] - here[1]) * 1000;
+      apparent = Math.hypot(dx, dz);
+      scale = perspective(at, apparent, far.scale ?? 1);
+    } else if (far.bearing !== undefined) {
+      const bearing = (far.bearing * Math.PI) / 180;
+      dx = Math.sin(bearing);
+      dz = -Math.cos(bearing);
+      apparent = far.apparent ?? 4000;
+      scale = far.scale;
+    } else {
+      continue;
+    }
+    const [x, z] = onRay(skirt, dx, dz, at);
+    props.push({
+      builder: needBuilder(far.builder),
+      at: [x, z],
+      scale,
+      seed: far.seed,
+      variant: far.variant,
+      yaw: Math.atan2(-dx, -dz),
+      apparent,
+      clear: far.at ? ICON_CLEAR : undefined,
+    });
+  }
+  return props;
+}
+
 /** What a kept plan is filed under: the entry as written, so an edit plans afresh. */
 function planKey(entry: Entry): string {
   return JSON.stringify(entry);
 }
 
 /** Everything about a ring except where it stands, which the two callers differ on. */
-function ringPlan(entry: VistaRingEntry): Omit<VistaRingOptions, 'skirt' | 'keepOut'> {
+function ringPlan(entry: VistaRingEntry, zone: string, skirt: Skirt): Omit<VistaRingOptions, 'skirt' | 'keepOut'> {
   return {
     seed: seedOf(entry),
     band: entry.band,
-    place: (entry.place ?? []).map(namedVistaProp),
+    // The far layer and the icons first, so nothing scattered pushes them off their bearings.
+    place: [
+      ...horizonProps(entry, zone, skirt),
+      ...neighbourProps(entry, zone, skirt),
+      ...(entry.place ?? []).map(namedVistaProp),
+    ],
     scatter: (entry.scatter ?? []).map(namedVistaScatter),
     chunk: entry.chunk,
   };

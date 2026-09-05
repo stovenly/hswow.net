@@ -217,6 +217,11 @@ that subject by whoever is asking; asked without one, it is false.
   along the edge (`dressing.ts`), merged scenery in the ring, and the sky. The
   whole band is written against one signed distance to the level's outline,
   which is why a winding level costs nothing extra.
+- **`atlas.ts`** — the world as the vista sees it: every zone's map place and
+  its icon, the portal pairs, and the far layer in `world.json`. A ring with
+  `neighbours` puts each neighbouring cell's icon on its true bearing at its
+  true distance, looking back at the cell; a ring with `horizon` stands the
+  shared far layer round it, by bearing or by map position.
 
 ## Conventions
 

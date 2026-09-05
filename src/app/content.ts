@@ -10,6 +10,7 @@ import type { ZoneDefinition } from '../world/Zone';
 import type { PortalDefinition } from '../world/Portal';
 import type { WorldState } from '../world/entry';
 import { holdItems, type ItemDocument } from '../world/items';
+import { holdAtlas } from '../world/atlas';
 import {
   holdCast,
   type PersonDocument,
@@ -103,11 +104,13 @@ function interpret(project: string, state?: WorldState): ContentWorld {
   const items = Object.values(bundle.items) as ItemDocument[];
   holdItems(items);
 
+  const manifest = (Object.values(bundle.world)[0] as PortalManifest | undefined) ?? { portals: [] };
+  holdAtlas(documents, manifest);
+
   // Definitions first: a portal end reads the zone it stands in, and both
   // zones have to be registered before either door is placed.
   const zones = documents.map((doc) => zoneFromDocument(doc, state));
 
-  const manifest = (Object.values(bundle.world)[0] as PortalManifest | undefined) ?? { portals: [] };
   return {
     zones,
     portals: portalsFromManifest(manifest),

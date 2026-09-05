@@ -111,6 +111,8 @@ export interface ZoneDocument {
   regions?: Record<string, readonly PatchShape[]>;
   /** What this place makes of anybody standing in it: `villager`, and so on. */
   traits?: readonly string[];
+  /** How this zone appears on its neighbours' horizons: the builder that is its landmark at vista scale. */
+  vista?: { icon?: string };
   /** Composed sets of entries this zone places by name. */
   prefabs?: Record<string, readonly Entry[]>;
   layers?: readonly Layer[];
@@ -126,6 +128,27 @@ export interface Layer {
 
 export interface PortalManifest {
   portals?: readonly ManifestPortal[];
+  /** The far layer every exterior shares, so the same mountains stand at the same bearings from every cell. */
+  horizon?: readonly HorizonProp[];
+}
+
+/**
+ * One far prop on every horizon. By `bearing` it is infinitely far and stands
+ * the same way from every cell; by `at` it has a place on the map, and each
+ * cell works out its own bearing and distance to it.
+ */
+export interface HorizonProp {
+  builder: string;
+  /** Degrees clockwise from north: 0 is −Z, 90 is +X. */
+  bearing?: number;
+  /** Kilometres on the map, east and south, as a zone's `place.at`. */
+  at?: readonly [number, number];
+  /** Metres it should read at. Derived from `at` when that is given. */
+  apparent?: number;
+  /** A multiplier on the size the perspective rule gives it, or the whole scale for a `bearing` prop. */
+  scale?: number;
+  seed: number;
+  variant?: string;
 }
 
 export interface ManifestPortal {
@@ -440,7 +463,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     get horrors() {
       return collected.horrors;
     },
-    warm: () => warmDocument(doc.id, layersOf(doc), { terrain, skirt, groundAt }, state, doc.skirt, fingerprint),
+    warm: () => warmDocument(doc.id, layersOf(doc), { zone: doc.id, terrain, skirt, groundAt }, state, doc.skirt, fingerprint),
     fingerprint,
     build,
   };

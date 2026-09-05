@@ -605,5 +605,53 @@
         }
       }
     }
+  ],
+  "horizon": [
+    {
+      "builder": "vista-range-far",
+      "bearing": 338,
+      "apparent": 5000,
+      "scale": 1.4,
+      "seed": 71001
+    },
+    {
+      "builder": "vista-mountain",
+      "bearing": 352,
+      "apparent": 4200,
+      "scale": 1.3,
+      "seed": 71002,
+      "variant": "twin"
+    },
+    {
+      "builder": "vista-range-far",
+      "bearing": 8,
+      "apparent": 5500,
+      "scale": 1.6,
+      "seed": 71003
+    },
+    {
+      "builder": "vista-range-far",
+      "bearing": 26,
+      "apparent": 5000,
+      "scale": 1.3,
+      "seed": 71004
+    },
+    {
+      "builder": "vista-mountain",
+      "bearing": 42,
+      "apparent": 4500,
+      "scale": 1.2,
+      "seed": 71005,
+      "variant": "peaked"
+    },
+    {
+      "builder": "vista-castle",
+      "at": [
+        1.3,
+        0.8
+      ],
+      "scale": 1.6,
+      "seed": 71006
+    }
   ]
 }

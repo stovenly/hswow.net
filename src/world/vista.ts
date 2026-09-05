@@ -13,6 +13,63 @@ import { vistaTower } from '../art/builders/vista-tower';
 import { vistaFieldWall } from '../art/builders/vista-field-wall';
 import { vistaCastle } from '../art/builders/vista-castle';
 import { vistaRange } from '../art/builders/vista-range';
+import { vistaDown } from '../art/builders/vista-down';
+import { vistaScarp } from '../art/builders/vista-scarp';
+import { vistaRidgeSpurs } from '../art/builders/vista-ridge-spurs';
+import { vistaKnoll } from '../art/builders/vista-knoll';
+import { vistaTor } from '../art/builders/vista-tor';
+import { vistaFoothills } from '../art/builders/vista-foothills';
+import { vistaMountain } from '../art/builders/vista-mountain';
+import { vistaRangeFar } from '../art/builders/vista-range-far';
+import { vistaPlateau } from '../art/builders/vista-plateau';
+import { vistaValleySide } from '../art/builders/vista-valley-side';
+import { vistaBluff } from '../art/builders/vista-bluff';
+import { vistaCliff } from '../art/builders/vista-cliff';
+import { vistaHeadland } from '../art/builders/vista-headland';
+import { vistaStack } from '../art/builders/vista-stack';
+import { vistaDuneField } from '../art/builders/vista-dune-field';
+import { vistaDune } from '../art/builders/vista-dune';
+import { vistaWoodEdgeBuilder } from '../art/builders/vista-wood-edge';
+import { vistaHangingWood } from '../art/builders/vista-hanging-wood';
+import { vistaShelterbelt } from '../art/builders/vista-shelterbelt';
+import { vistaPlantation } from '../art/builders/vista-plantation';
+import { vistaAvenue } from '../art/builders/vista-avenue';
+import { vistaOrchard } from '../art/builders/vista-orchard';
+import { vistaTree } from '../art/builders/vista-tree';
+import { vistaScrub } from '../art/builders/vista-scrub';
+import { vistaPatchwork } from '../art/builders/vista-patchwork';
+import { vistaStripFields } from '../art/builders/vista-strip-fields';
+import { vistaHayField } from '../art/builders/vista-hay-field';
+import { vistaStubble } from '../art/builders/vista-stubble';
+import { vistaHedgeLane } from '../art/builders/vista-hedge-lane';
+import { vistaMoor } from '../art/builders/vista-moor';
+import { vistaMarsh } from '../art/builders/vista-marsh';
+import { vistaChurch } from '../art/builders/vista-church';
+import { vistaWindmill } from '../art/builders/vista-windmill';
+import { vistaWatermill } from '../art/builders/vista-watermill';
+import { vistaFarmstead } from '../art/builders/vista-farmstead';
+import { vistaBarn } from '../art/builders/vista-barn';
+import { vistaCottage } from '../art/builders/vista-cottage';
+import { vistaRuin } from '../art/builders/vista-ruin';
+import { vistaBridge } from '../art/builders/vista-bridge';
+import { vistaCauseway } from '../art/builders/vista-causeway';
+import { vistaBeacon } from '../art/builders/vista-beacon';
+import { vistaStones } from '../art/builders/vista-stones';
+import { vistaSheepfold } from '../art/builders/vista-sheepfold';
+import { vistaSmoke } from '../art/builders/vista-smoke';
+import { vistaMere } from '../art/builders/vista-mere';
+import { vistaRiverReach } from '../art/builders/vista-river-reach';
+import { vistaWeir } from '../art/builders/vista-weir';
+import { vistaSail } from '../art/builders/vista-sail';
+import { vistaIsland } from '../art/builders/vista-island';
+import { vistaIconVillage } from '../art/builders/vista-icon-village';
+import { vistaIconFarm } from '../art/builders/vista-icon-farm';
+import { vistaIconPlains } from '../art/builders/vista-icon-plains';
+import { vistaIconRiverside } from '../art/builders/vista-icon-riverside';
+import { vistaIconForestPath } from '../art/builders/vista-icon-forest-path';
+import { vistaIconForest } from '../art/builders/vista-icon-forest';
+import { vistaIconBeachPath } from '../art/builders/vista-icon-beach-path';
+import { vistaIconCoast } from '../art/builders/vista-icon-coast';
 import { GROUND, outlineDistance, shapeDistance, type PatchShape } from './ground';
 import type { Terrain } from './terrain';
 
@@ -32,6 +89,63 @@ export const VISTA_BUILDERS: readonly MeshBuilder[] = [
   vistaFieldWall,
   vistaCastle,
   vistaRange,
+  vistaDown,
+  vistaScarp,
+  vistaRidgeSpurs,
+  vistaKnoll,
+  vistaTor,
+  vistaFoothills,
+  vistaMountain,
+  vistaRangeFar,
+  vistaPlateau,
+  vistaValleySide,
+  vistaBluff,
+  vistaCliff,
+  vistaHeadland,
+  vistaStack,
+  vistaDuneField,
+  vistaDune,
+  vistaWoodEdgeBuilder,
+  vistaHangingWood,
+  vistaShelterbelt,
+  vistaPlantation,
+  vistaAvenue,
+  vistaOrchard,
+  vistaTree,
+  vistaScrub,
+  vistaPatchwork,
+  vistaStripFields,
+  vistaHayField,
+  vistaStubble,
+  vistaHedgeLane,
+  vistaMoor,
+  vistaMarsh,
+  vistaChurch,
+  vistaWindmill,
+  vistaWatermill,
+  vistaFarmstead,
+  vistaBarn,
+  vistaCottage,
+  vistaRuin,
+  vistaBridge,
+  vistaCauseway,
+  vistaBeacon,
+  vistaStones,
+  vistaSheepfold,
+  vistaSmoke,
+  vistaMere,
+  vistaRiverReach,
+  vistaWeir,
+  vistaSail,
+  vistaIsland,
+  vistaIconVillage,
+  vistaIconFarm,
+  vistaIconPlains,
+  vistaIconRiverside,
+  vistaIconForestPath,
+  vistaIconForest,
+  vistaIconBeachPath,
+  vistaIconCoast,
 ];
 
 // ---------------------------------------------------------------------------

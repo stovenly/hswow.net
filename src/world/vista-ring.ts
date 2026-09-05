@@ -6,6 +6,7 @@ import { markVista } from '../art/vista';
 import { createRng } from '../art/random';
 import type { MeshBuilder } from '../art/types';
 import { takeWarm } from './warmProps';
+import type { PropAsk } from '../engine/work/jobs';
 import { outlineBounds, type Outline, type Skirt } from './vista';
 import { VistaParallax, type ParallaxProp } from './vista-parallax';
 
@@ -45,6 +46,14 @@ export interface VistaProp {
   seed: number;
   /** Which way it faces. Rolled from the seed when omitted. */
   yaw?: number;
+  /** A named variant, for a builder that has them. Rolled from the seed when omitted. */
+  variant?: string;
+  /**
+   * Degrees either side of this prop's bearing from the origin kept free of
+   * scattered props nearer than it, so a small far landmark is not stood in
+   * front of. Hand placement is not checked: the placer can see.
+   */
+  clear?: number;
   /**
    * How far out it should read, in metres from the level's outline — the authoring
    * handle for parallax, with `k` derived from it and from where the prop actually
@@ -140,6 +149,24 @@ export function vistaRingPlan(
     z: prop.at[1],
     keep: prop.builder.radius * (prop.scale ?? 1),
   }));
+  const sectors = placed
+    .filter((prop) => prop.clear !== undefined)
+    .map((prop) => ({
+      bearing: Math.atan2(prop.at[0], prop.at[1]),
+      reach: Math.hypot(prop.at[0], prop.at[1]),
+      half: ((prop.clear ?? 0) * Math.PI) / 180,
+    }));
+  const inFront = (x: number, z: number): boolean => {
+    const bearing = Math.atan2(x, z);
+    const reach = Math.hypot(x, z);
+    for (const sector of sectors) {
+      if (reach > sector.reach) continue;
+      let off = Math.abs(bearing - sector.bearing);
+      if (off > Math.PI) off = Math.PI * 2 - off;
+      if (off < sector.half) return true;
+    }
+    return false;
+  };
 
   for (const fill of options.scatter ?? []) {
     const range = fill.band ?? band;
@@ -159,6 +186,7 @@ export function vistaRingPlan(
       const z = rng.range(bounds.min[1], bounds.max[1]);
       const out = skirt.outside(x, z);
       if (out < range.inner || out > range.outer) continue;
+      if (inFront(x, z)) continue;
 
       const scale = fill.scale ? rng.range(fill.scale[0], fill.scale[1]) : 1;
       const keep = fill.builder.radius * scale;
@@ -315,11 +343,20 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
 /** One prop, built and stood on the skirt where it was placed. */
 function build(prop: VistaProp, skirt: Skirt): THREE.Mesh {
   const scale = prop.scale ?? 1;
-  const warm = takeWarm({ builder: prop.builder.name, seed: prop.seed, scale });
-  const mesh = warm ? finishCaptured(warm) : prop.builder.build({ seed: prop.seed, scale });
+  const warm = takeWarm(propAsk(prop));
+  const mesh = warm ? finishCaptured(warm) : prop.builder.build({ seed: prop.seed, scale, ...extrasOf(prop) });
   mesh.position.set(prop.at[0], skirt.heightAt(prop.at[0], prop.at[1]), prop.at[1]);
   mesh.rotation.y = prop.yaw ?? createRng(prop.seed ^ 0x1a71)() * Math.PI * 2;
   return mesh;
+}
+
+/** The builder call a prop is, as the warm pass files it. */
+export function propAsk(prop: VistaProp): PropAsk {
+  return { builder: prop.builder.name, seed: prop.seed, scale: prop.scale ?? 1, extras: extrasOf(prop) };
+}
+
+function extrasOf(prop: VistaProp): Record<string, unknown> | undefined {
+  return prop.variant ? { variant: prop.variant } : undefined;
 }
 
 /** Which prop a raycast hit, from the triangle it landed on. */
