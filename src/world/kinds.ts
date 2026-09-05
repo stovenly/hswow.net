@@ -242,10 +242,15 @@ registerEntryKind<CreatureEntry>({
     // raycast does not test `visible`, and nothing invisible is drawn or
     // shadowed.
     const life = mesh.userData.life as LifeSpec | undefined;
-    if (life?.kind === 'biped') {
+    if (life) {
       const folk: Folk = worn.folk === 'city' ? 'city' : 'country';
       const person = entry.person ? personById(entry.person) : undefined;
-      const traits = [...ctx.traits, ...(entry.traits ?? []), ...(person?.traits ?? [])];
+      // An animal carries its species and nothing the zone hands its people.
+      const species = life.kind === 'biped' ? undefined : SPECIES_TRAIT[life.call ?? 'voice'];
+      const traits =
+        life.kind === 'biped'
+          ? [...ctx.traits, ...(entry.traits ?? []), ...(person?.traits ?? [])]
+          : [...(species ? [species] : []), ...(entry.traits ?? [])];
       const name = entry.name ?? person?.name ?? traitName(traits);
       if (name) {
         const proxy = new THREE.Mesh(
@@ -265,6 +270,15 @@ registerEntryKind<CreatureEntry>({
     return mesh;
   },
 });
+
+/** The trait an animal speaks with, by the call its builder gave it. */
+const SPECIES_TRAIT: Partial<Record<NonNullable<LifeSpec['call']>, string>> = {
+  dog: 'dog',
+  cow: 'cow',
+  sheep: 'sheep',
+  pig: 'pig',
+  fowl: 'hen',
+};
 
 /** The entry as its person wears it. A named body wins over the placement's. */
 function wearing(entry: CreatureEntry): CreatureEntry {

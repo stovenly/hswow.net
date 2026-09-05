@@ -1,0 +1,30 @@
+{
+  "id": "hen",
+  "name": "Hen",
+  "greeting": [
+    "Cluck."
+  ],
+  "farewell": [
+    "Cluck."
+  ],
+  "topics": [
+    {
+      "key": "pet",
+      "label": "Pet",
+      "infos": [
+        {
+          "reply": "Cluck cluck."
+        }
+      ]
+    },
+    {
+      "key": "noise",
+      "label": "Cluck",
+      "infos": [
+        {
+          "reply": "Cluck."
+        }
+      ]
+    }
+  ]
+}

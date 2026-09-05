@@ -1011,6 +1011,13 @@ export class Creature {
   say(text: string, manner: 'greeting' | 'talk' | 'farewell' = 'talk'): Spoken | null {
     const world = this.seen;
     if (!world?.audio) return null;
+    // An animal answers in its own call, whatever the line on screen says.
+    if (this.spec.call && this.spec.call !== 'voice') {
+      const seconds = this.callOut(manner === 'greeting' ? 0.5 : 0.7, world);
+      if (seconds <= 0) return null;
+      this.startGesture(manner, seconds);
+      return { seconds };
+    }
     if (!this.ensureVoice(world)) return null;
     const voice = this.voice;
     if (!voice) return null;
@@ -1097,10 +1104,10 @@ export class Creature {
     return `#${Math.floor(this.spec.seed + spot).toString(36)}`;
   }
 
-  /** An animal's call. */
-  private callOut(force: number, world: World): void {
+  /** An animal's call. Answers how long it lasts, or zero when it could not sound. */
+  private callOut(force: number, world: World): number {
     const spec = this.spec;
-    if (!spec.call || spec.call === 'voice' || !world.audio || !world.audio.noise) return;
+    if (!spec.call || spec.call === 'voice' || !world.audio || !world.audio.noise) return 0;
     if (!this.emitter) {
       const shot = buildOneShot(world.audio, { sound: 'animal', options: { kind: spec.call, tone: spec.tone, gain: 0.5 } });
       this.shot = shot;
@@ -1114,6 +1121,6 @@ export class Creature {
         out: world.audio.creatures,
       });
     }
-    this.shot!.fire(world.audio.context.currentTime + 0.05, force);
+    return this.shot!.fire(world.audio.context.currentTime + 0.05, force);
   }
 }
