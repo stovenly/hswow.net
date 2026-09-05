@@ -392,7 +392,9 @@ export type VistaMaterial =
   | 'scree'
   | 'sand'
   | 'water'
-  | 'hedge';
+  | 'hedge'
+  | 'wet'
+  | 'marram';
 
 /** Three close colours each, ordered by value, as `landWash` wants them. */
 export const VISTA_MATERIALS: Record<VistaMaterial, readonly [number, number, number]> = {
@@ -411,6 +413,8 @@ export const VISTA_MATERIALS: Record<VistaMaterial, readonly [number, number, nu
   sand: [PALETTE.TIMBER_PALE, shade(PALETTE.TIMBER_PALE, 1.1), shade(PALETTE.TIMBER_PALE, 1.2)],
   water: [PALETTE.WATER, shade(PALETTE.WATER, 1.25), shade(PALETTE.WATER, 1.5)],
   hedge: [shade(PALETTE.LEAF_DARK, 0.58), shade(PALETTE.LEAF_DARK, 0.68), shade(PALETTE.LEAF_DARK, 0.78)],
+  wet: [shade(PALETTE.STONE_DARK, 0.55), shade(PALETTE.STONE_DARK, 0.65), shade(PALETTE.STONE_DARK, 0.75)],
+  marram: [shade(PALETTE.GRASS_DRY, 0.85), shade(PALETTE.GRASS_DRY, 0.95), PALETTE.GRASS_DRY],
 };
 
 export interface BankBand {
@@ -440,6 +444,8 @@ export interface BankOptions {
   field?: number;
   /** Metres either side of a field boundary that read as hedge. */
   hedge?: number;
+  /** What the fields grow, one per cell. */
+  crops?: readonly VistaMaterial[];
 }
 
 /**
@@ -452,7 +458,16 @@ export function vistaBank(
   seed: number,
   options: BankOptions,
 ): (x: number, y: number, z: number, facet: Facet) => number {
-  const { ground, bands = [], wobble = 2, crown = 0, scale = 60, field = 60, hedge = 1.5 } = options;
+  const {
+    ground,
+    bands = [],
+    wobble = 2,
+    crown = 0,
+    scale = 60,
+    field = 60,
+    hedge = 1.5,
+    crops = ['pasture', 'hay', 'crop'],
+  } = options;
   const rng = createRng(seed);
   const washes = new Map<VistaMaterial, (x: number, y: number, z: number) => number>();
   const washOf = (material: VistaMaterial) => {
@@ -475,7 +490,7 @@ export function vistaBank(
       phase: rng.range(0, Math.PI * 2),
     };
   });
-  const fields = ground === 'fields' ? fieldCells(rng, field, hedge) : null;
+  const fields = ground === 'fields' ? fieldCells(rng, field, hedge, crops) : null;
 
   return (x, y, z, facet) => {
     let material: VistaMaterial = fields ? fields(x, z) : (ground as VistaMaterial);
@@ -500,9 +515,13 @@ export function vistaBank(
  * Jittered cells in plan, one of three field materials each, and hedge within
  * reach of the boundary between two.
  */
-function fieldCells(rng: Rng, size: number, hedge: number): (x: number, z: number) => VistaMaterial {
+function fieldCells(
+  rng: Rng,
+  size: number,
+  hedge: number,
+  crops: readonly VistaMaterial[],
+): (x: number, z: number) => VistaMaterial {
   const salt = rng.int(1, 0x7fffffff);
-  const crops: VistaMaterial[] = ['pasture', 'hay', 'crop'];
   const hash = (cx: number, cz: number, lane: number) => {
     let h = Math.imul(cx, 374761393) ^ Math.imul(cz, 668265263) ^ Math.imul(lane + 1, 1274126177) ^ salt;
     h = Math.imul(h ^ (h >>> 13), 1274126177);

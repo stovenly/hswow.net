@@ -1,18 +1,11 @@
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE, shade } from '../palette';
-import { landWash, markVista, vistaMass } from '../vista';
+import { markVista, vistaBank, vistaRidge } from '../vista';
 
-// A headland: a range that steps down into the sea. Four or five stone masses
-// on a line, tallest at the landward end and each lower than the last, the
-// final one barely clearing the water. Built along +X with the land at -X; the
-// water is whatever plane it is placed beside, and everything under y = 0 is
-// the sea's to hide.
-
-const STONE = [shade(PALETTE.STONE_DARK, 0.8), PALETTE.STONE_DARK, PALETTE.STONE] as const;
+// A headland: a spine running from the land at −X down into the sea at +X,
+// turf along the top and rock where the sides drop to the water. Everything
+// under y = 0 is the sea's to hide.
 
 export const vistaHeadland: MeshBuilder = {
   name: 'vista-headland',
@@ -22,41 +15,42 @@ export const vistaHeadland: MeshBuilder = {
 
   build({ seed = 1, scale = 1 } = {}) {
     const rng = createRng(seed);
-    const count = rng.int(4, 5);
-    const step = rng.range(16, 20);
-    const span = step * (count - 1);
-    const bend = rng.range(-0.1, 0.1);
-
-    const lumps: THREE.BufferGeometry[] = [];
-    let tallest = 0;
-    for (let i = 0; i < count; i++) {
-      const t = i / (count - 1);
-      // Highest on the land, and each mass steps down toward the last.
-      const swell = 1 - t * 0.68;
-      const radius = rng.range(16, 22) * swell;
-      const squash = rng.range(0.55, 0.8);
-      const lump = vistaMass(rng, {
-        radius,
-        detail: 0,
-        rough: rng.range(0.24, 0.36),
-        squash,
-        stretch: rng.range(0.7, 1.2),
-        bury: 0.45 + t * 0.2,
-      });
-      lump.rotateY(rng.range(0, Math.PI * 2));
-      const x = -span / 2 + i * step;
-      lump.translate(x, 0, x * x * bend * 0.01 + rng.range(-2, 2));
-      tallest = Math.max(tallest, radius * squash);
-      lumps.push(lump);
+    const length = rng.range(90, 110);
+    const height = rng.range(18, 26);
+    const points = 5;
+    const crest: [number, number, number][] = [];
+    for (let i = 0; i < points; i++) {
+      const t = i / (points - 1);
+      const x = -length / 2 + t * length + (i > 0 && i < points - 1 ? rng.range(-4, 4) : 0);
+      const z = rng.range(-5, 5) + t * rng.range(-10, 10);
+      // Highest on the land, each station lower than the last, the tip barely up.
+      const h = i === points - 1 ? height * 0.15 : height * (1 - t * 0.6) * rng.range(0.9, 1.08);
+      crest.push([x, z, h]);
     }
-    const ridge = mergeGeometries(lumps, false);
-    for (const lump of lumps) lump.dispose();
-    if (!ridge) throw new Error('vista-headland: masses did not share an attribute set');
+
+    const geometry = vistaRidge(rng, {
+      crest,
+      face: rng.range(1.0, 1.3),
+      back: rng.range(1.1, 1.4),
+      facets: 3,
+      foot: 5,
+      sink: 5,
+      rough: 0.1,
+    });
 
     const parts: Part[] = [
       {
-        geometry: ridge,
-        color: landWash(seed ^ 0x4c1d, STONE, { scale: rng.range(40, 70), crown: tallest * 0.6 }),
+        geometry,
+        color: vistaBank(seed ^ 0x4c1d, {
+          ground: 'pasture',
+          bands: [
+            { material: 'rock', steeperThan: 0.55 },
+            { material: 'wet', below: 3, steeperThan: 0.5 },
+          ],
+          wobble: 2,
+          crown: height * 0.7,
+          scale: rng.range(40, 70),
+        }),
         sway: 0,
       },
     ];
