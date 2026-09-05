@@ -1084,51 +1084,110 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
     return geometry;
   };
 
-  /**
-   * Where a point stands across the nearest arm, as the strips measure it: 0 on
-   * an arm's line through the middle, 1 at its edge. The gussets between arms
-   * read further out than any arm, which is where the ground shows through.
-   */
-  const axes = options.arms.map((arm) => {
-    const first = arm.row[0];
-    const last = arm.row[arm.row.length - 1];
-    const dx = (first[0] + last[0]) / 2 - cx;
-    const dz = (first[1] + last[1]) / 2 - cz;
-    const len = Math.hypot(dx, dz) || 1;
-    return { dx: dx / len, dz: dz / len, half: Math.max(0.3, arm.width / 2) };
-  });
-  const across = (x: number, z: number): number => {
-    let least = Infinity;
-    for (const axis of axes) {
-      const px = x - cx;
-      const pz = z - cz;
-      const along = px * axis.dx + pz * axis.dz;
-      const away = along >= 0 ? Math.abs(px * axis.dz - pz * axis.dx) : Math.hypot(px, pz);
-      least = Math.min(least, away / axis.half);
+  /** A plan polygon as a floor, fanned from its own centroid, each corner on the skin. */
+  const floorOf = (cell: Cell, top: number): THREE.BufferGeometry | null => {
+    if (cell.length < 3) return null;
+    let twice = 0;
+    for (let i = 0; i < cell.length; i++) {
+      const a = cell[i];
+      const b = cell[(i + 1) % cell.length];
+      twice += a.x * b.y - b.x * a.y;
     }
-    return least;
+    // Anticlockwise from above is a negative area in x/z, and faces up.
+    if (twice > 0) cell = [...cell].reverse();
+    const mid = centreOf(cell);
+    const position: number[] = [];
+    const lift = (q: Cell2): [number, number, number] => [q.x, height(q.x, q.y) + top, q.y];
+    const m = lift(mid);
+    for (let i = 0; i < cell.length; i++) {
+      const a = lift(cell[i]);
+      const b = lift(cell[(i + 1) % cell.length]);
+      position.push(...m, ...a, ...b);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+    return geometry;
   };
 
   const parts: Part[] = [];
   const surface = options.surface;
   switch (surface) {
-    // The strips' lateral bands carried through: each arm's crown runs on to
-    // the others, and only the gussets between arms take the blend toward
-    // the ground beside.
+    // Each arm's bands carried on to the middle as exact strips, clipped to the
+    // arm's own sector, so the band lines are mesh edges and meet the strip's
+    // end row vertex for vertex. The gussets between arms take the edge blend.
     case 'dirt': {
       const dirt = GROUND.dirt.color;
       const crown = shade(dirt, 1 + 0.1 * wear);
       const beside = options.beside ?? dirt;
-      parts.push({
-        geometry: fan(0),
-        color: (x, _y, z) => {
-          const u = across(x, z);
-          if (u > 0.875) return blend(dirt, beside, 0.6);
-          if (u > 0.625) return blend(dirt, beside, 0.25);
-          if (u > 0.375) return shade(dirt, 0.92);
-          return crown;
-        },
-        sway: 0,
+      const edge = blend(dirt, beside, 0.25);
+      const shoulder = shade(dirt, 0.92);
+      // Station indices bounding each band across a row of nine, and its colour.
+      const bands: [number, number, number][] = [
+        [0, 1, edge],
+        [1, 2, shoulder],
+        [2, 6, crown],
+        [6, 7, shoulder],
+        [7, 8, edge],
+      ];
+      const armsOut = options.arms
+        .filter((arm) => arm.row.length >= 9)
+        .map((arm) => {
+          const first = arm.row[0];
+          const last = arm.row[arm.row.length - 1];
+          const mx = (first[0] + last[0]) / 2;
+          const mz = (first[1] + last[1]) / 2;
+          const len = Math.hypot(mx - cx, mz - cz) || 1;
+          return { arm, dx: (mx - cx) / len, dz: (mz - cz) / len, mx, mz, bearing: Math.atan2(mz - cz, mx - cx) };
+        })
+        .sort((a, b) => a.bearing - b.bearing);
+      // Keeps the side of the line through the middle along `b` that `d` lies on.
+      const keepSide = (cell: Cell, bx: number, bz: number, dx: number, dz: number): Cell => {
+        const s = Math.sign(bx * dz - bz * dx) || 1;
+        // halfPlane keeps n·p ≤ c; the inside is where s·cross(b, p − c) ≥ 0.
+        const nx = s * bz;
+        const nz = -s * bx;
+        return halfPlane(cell, nx, nz, nx * cx + nz * cz);
+      };
+      const wedgeOf = (i: number, cell: Cell): Cell => {
+        const me = armsOut[i];
+        let out = cell;
+        for (const j of [(i + 1) % armsOut.length, (i + armsOut.length - 1) % armsOut.length]) {
+          if (j === i) continue;
+          const other = armsOut[j];
+          let bx = me.dx + other.dx;
+          let bz = me.dz + other.dz;
+          if (Math.hypot(bx, bz) < 1e-3) {
+            bx = -me.dz;
+            bz = me.dx;
+          }
+          out = keepSide(out, bx, bz, me.dx, me.dz);
+          if (out.length < 3) return out;
+        }
+        return out;
+      };
+      const ringCell: Cell = ring.map(([x, z]) => ({ x, y: z }));
+      armsOut.forEach((held, i) => {
+        const row = held.arm.row;
+        const shift = { x: held.mx - cx, y: held.mz - cz };
+        const near = (k: number): Cell2 => ({ x: row[k][0] - shift.x, y: row[k][1] - shift.y });
+        const far = (k: number): Cell2 => ({ x: row[k][0], y: row[k][1] });
+        for (const [k0, k1, color] of bands) {
+          const cell = wedgeOf(i, [near(k0), near(k1), far(k1), far(k0)]);
+          const geometry = floorOf(cell, 0);
+          if (geometry) parts.push({ geometry, color, sway: 0 });
+        }
+        // The two gussets: what is left of the sector beyond the arm's edges.
+        const across = { x: row[8][0] - row[0][0], y: row[8][1] - row[0][1] };
+        const half = Math.hypot(across.x, across.y) / 2 || 1;
+        const nx = across.x / (half * 2);
+        const nz = across.y / (half * 2);
+        for (const side of [-1, 1]) {
+          // Keep side·(n·(p − c)) ≥ half, as n·p ≤ c form for the far side.
+          let cell = wedgeOf(i, ringCell);
+          cell = halfPlane(cell, -side * nx, -side * nz, -(side * (nx * cx + nz * cz) + half));
+          const geometry = floorOf(cell, 0);
+          if (geometry) parts.push({ geometry, color: edge, sway: 0 });
+        }
       });
       break;
     }
