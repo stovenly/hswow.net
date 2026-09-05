@@ -156,6 +156,7 @@ export function buildTrackNetwork(options: NetworkOptions): Map<string, THREE.Gr
         wear: node.hits.reduce((sum, hit) => sum + (hit.line.track.wear ?? 0.5), 0) / node.hits.length,
         seed: owner.seed + 7919 + index * 13,
         groundAt: options.groundAt,
+        beside: options.beside,
       }),
     );
   });

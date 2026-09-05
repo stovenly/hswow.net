@@ -537,17 +537,28 @@ function prismOver(
   const foot = drawIn(cell, paving.joint / 2);
   const crown = drawIn(cell, paving.joint / 2 + paving.chamfer);
   if (foot.length < 3 || crown.length < 3) return null;
-  const top = base + height;
   const world = (p: Cell2, y: number): THREE.Vector3 => {
     const [x, z] = toWorld(p);
     return new THREE.Vector3(x + rng.around(0, 0.002), y + rng.around(0, 0.001), z + rng.around(0, 0.002));
   };
-  // The foot follows the skin where one is given, so the stone stands on it however the ground lies.
+  // The crown lies parallel to the skin under the stone's middle, so a stone
+  // on a slope leans with it instead of stepping; the foot follows the skin.
+  const mid = centreOf(cell);
+  const [mx, mz] = toWorld(mid);
+  let gx = 0;
+  let gz = 0;
+  if (draped) {
+    gx = (draped(mx + 0.1, mz) - draped(mx - 0.1, mz)) / 0.2;
+    gz = (draped(mx, mz + 0.1) - draped(mx, mz - 0.1)) / 0.2;
+  }
   const b = foot.map((p) => {
     const [x, z] = toWorld(p);
     return world(p, draped ? Math.min(base, draped(x, z)) : base);
   });
-  const t = crown.map((p) => world(p, top));
+  const t = crown.map((p) => {
+    const [x, z] = toWorld(p);
+    return world(p, base + height + gx * (x - mx) + gz * (z - mz));
+  });
   const position: number[] = [];
   const tri = (p: THREE.Vector3, q: THREE.Vector3, r: THREE.Vector3): void => {
     position.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z);
@@ -909,6 +920,8 @@ export interface JunctionOptions {
   wear?: number;
   seed: number;
   groundAt: GroundAt;
+  /** sRGB hex of the ground beside the junction, for the dirt bands' outer blend. */
+  beside?: number;
 }
 
 /**
@@ -973,9 +986,26 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   const parts: Part[] = [];
   const surface = options.surface;
   switch (surface) {
-    case 'dirt':
-      parts.push({ geometry: fan(0), color: shade(GROUND.dirt.color, 1 + 0.1 * wear), sway: 0 });
+    // The strips' lateral bands, taken radially from the middle, so the
+    // junction reads as the same worn earth and not a plate laid over it.
+    case 'dirt': {
+      const dirt = GROUND.dirt.color;
+      const crown = shade(dirt, 1 + 0.1 * wear);
+      const half = Math.max(0.5, options.width / 2);
+      const beside = options.beside ?? dirt;
+      parts.push({
+        geometry: fan(0),
+        color: (x, _y, z) => {
+          const a = Math.hypot(x - cx, z - cz) / half;
+          if (a > 0.875) return blend(dirt, beside, 0.6);
+          if (a > 0.625) return blend(dirt, beside, 0.25);
+          if (a > 0.375) return shade(dirt, 0.92);
+          return crown;
+        },
+        sway: 0,
+      });
       break;
+    }
     case 'gravel': {
       const gravel = GROUND.gravel.color;
       const seed = options.seed;
@@ -1015,33 +1045,27 @@ function turn(angle: number): number {
 }
 
 
+/** Metres each kerb crown is drawn in from its faces. */
+const KERB_CHAMFER = 0.015;
+/** Metres the kerb sinks into the skin. */
+const KERB_SINK = 0.03;
+
+/**
+ * Kerbs as pieces swept along the strip's own edge, so their inner face is the
+ * line the setts are cut to at every sample and the pieces neither jog nor
+ * overlap where the edge wanders.
+ */
 function kerbs(samples: Sample[], groundAt: GroundAt, profile: Profile, rng: Rng): Part[] {
   const parts: Part[] = [];
   const colour = shade(PALETTE.STONE_DARK, 0.9);
   const length = samples[samples.length - 1].s;
-  for (const side of [-1, 1]) {
+  for (const side of [-1, 1] as const) {
     let s = rng.range(0, 0.3);
-    while (s < length) {
+    while (s + 0.12 < length) {
       const along = rng.range(0.45, 0.65);
-      const mid = Math.min(length - 0.01, s + along / 2);
-      const [sample, index] = sampleAt(samples, mid);
-      const u = (side * (sample.half - KERB_WIDTH / 2)) / sample.half;
+      const end = Math.min(length, s + along - 0.03);
       parts.push({
-        geometry: block(
-          sample,
-          u,
-          mid - sample.s,
-          groundAt,
-          profile,
-          index,
-          along - 0.03,
-          KERB_WIDTH,
-          SETT_HEIGHT + 0.05,
-          0.85,
-          0.03,
-          rng,
-          0.006,
-        ),
+        geometry: kerbPiece(samples, groundAt, profile, side, s, end, rng),
         color: shade(colour, rng.range(0.92, 1.08)),
         sway: 0,
       });
@@ -1049,6 +1073,116 @@ function kerbs(samples: Sample[], groundAt: GroundAt, profile: Profile, rng: Rng
     }
   }
   return parts;
+}
+
+interface Station {
+  x: number;
+  z: number;
+  nx: number;
+  nz: number;
+  tx: number;
+  tz: number;
+  half: number;
+  index: number;
+}
+
+/** A station between samples: position, edge normal and half width interpolated along the line. */
+function stationAt(samples: Sample[], s: number): Station {
+  const [a, index] = sampleAt(samples, s);
+  const b = samples[Math.min(index + 1, samples.length - 1)];
+  const span = b.s - a.s;
+  const t = span > 1e-6 ? Math.min(1, Math.max(0, (s - a.s) / span)) : 0;
+  const nx = a.nx + (b.nx - a.nx) * t;
+  const nz = a.nz + (b.nz - a.nz) * t;
+  const n = Math.hypot(nx, nz) || 1;
+  return {
+    x: a.x + (b.x - a.x) * t,
+    z: a.z + (b.z - a.z) * t,
+    nx: nx / n,
+    nz: nz / n,
+    tx: a.tx + (b.tx - a.tx) * t,
+    tz: a.tz + (b.tz - a.tz) * t,
+    half: a.half + (b.half - a.half) * t,
+    index,
+  };
+}
+
+/** One kerb stone from `s0` to `s1` along one side: a swept box standing on the skin, its crown drawn in. */
+function kerbPiece(
+  samples: Sample[],
+  groundAt: GroundAt,
+  profile: Profile,
+  side: 1 | -1,
+  s0: number,
+  s1: number,
+  rng: Rng,
+): THREE.BufferGeometry {
+  const stops: number[] = [s0];
+  for (const sample of samples) if (sample.s > s0 + 0.02 && sample.s < s1 - 0.02) stops.push(sample.s);
+  stops.push(s1);
+  const height = SETT_HEIGHT + 0.05;
+  interface Section {
+    bi: THREE.Vector3;
+    bo: THREE.Vector3;
+    ti: THREE.Vector3;
+    to: THREE.Vector3;
+  }
+  const sections: Section[] = stops.map((s, k) => {
+    const at = stationAt(samples, s);
+    const uOut = side;
+    const uIn = (side * (at.half - KERB_WIDTH)) / at.half;
+    const point = (u: number, y: number, tuck: number): THREE.Vector3 =>
+      new THREE.Vector3(
+        at.x + at.nx * at.half * u - at.nx * side * tuck + rng.around(0, 0.003),
+        y,
+        at.z + at.nz * at.half * u - at.nz * side * tuck + rng.around(0, 0.003),
+      );
+    const skin = (u: number): number => {
+      const x = at.x + at.nx * at.half * u;
+      const z = at.z + at.nz * at.half * u;
+      return groundAt(x, z) + profile(u, at.index) - KERB_SINK;
+    };
+    const bi = point(uIn, skin(uIn), 0);
+    const bo = point(uOut, skin(uOut), 0);
+    const ti = point(uIn, skin(uIn) + height, -KERB_CHAMFER);
+    const to = point(uOut, skin(uOut) + height, KERB_CHAMFER);
+    // The end crowns are drawn back along the line too, so the joint reads on top.
+    if (k === 0 || k === stops.length - 1) {
+      const dir = k === 0 ? 1 : -1;
+      for (const v of [ti, to]) {
+        v.x += at.tx * KERB_CHAMFER * dir;
+        v.z += at.tz * KERB_CHAMFER * dir;
+      }
+    }
+    return { bi, bo, ti, to };
+  });
+
+  const position: number[] = [];
+  /** A quad wound so its normal agrees with `out`. */
+  const quad = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, out: THREE.Vector3): void => {
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+    const [p, q, r, w] = n.dot(out) >= 0 ? [a, b, c, d] : [a, d, c, b];
+    position.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z, p.x, p.y, p.z, r.x, r.y, r.z, w.x, w.y, w.z);
+  };
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let k = 0; k + 1 < sections.length; k++) {
+    const a = sections[k];
+    const b = sections[k + 1];
+    const at = stationAt(samples, (stops[k] + stops[k + 1]) / 2);
+    const outward = new THREE.Vector3(at.nx * side, 0, at.nz * side);
+    quad(a.ti, b.ti, b.to, a.to, up);
+    quad(a.bo, b.bo, b.to, a.to, outward);
+    quad(a.bi, b.bi, b.ti, a.ti, outward.clone().negate());
+  }
+  const first = sections[0];
+  const last = sections[sections.length - 1];
+  const startAt = stationAt(samples, s0);
+  const endAt = stationAt(samples, s1);
+  quad(first.bi, first.bo, first.to, first.ti, new THREE.Vector3(-startAt.tx, 0, -startAt.tz));
+  quad(last.bi, last.bo, last.to, last.ti, new THREE.Vector3(endAt.tx, 0, endAt.tz));
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+  return geometry;
 }
 
 function embeddedStones(

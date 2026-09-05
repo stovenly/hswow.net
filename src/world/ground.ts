@@ -314,8 +314,8 @@ export const COVER_TYPES = {
   },
   /** Stalks with round leaves over a short nap. Authored only. */
   clover: {
-    blades: { length: 0.09, width: 0.04, density: 60, give: 0.3, sprawl: 0.6, tint: 0x53823f },
-    props: { kind: 'leaf', density: 180, scale: 1, tint: 0x53823f },
+    blades: { length: 0.09, width: 0.04, density: 60, give: 0.3, sprawl: 0.6, tint: 0x5a6c3a },
+    props: { kind: 'leaf', density: 180, scale: 1, tint: 0x60733f },
   },
   /** Thick soft chunks of green, not very short grass. See `mound`. */
   moss: {
