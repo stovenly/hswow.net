@@ -122,3 +122,10 @@ work and produced a number that had to be thrown away.
 Verify by **reading the code** and by what is reported from the world. The render
 is the ground truth. If something cannot be worked out from the code, say so and
 ask — do not build an instrument.
+
+## Read the guidelines before designing a place
+
+`guidelines/LEVEL-DESIGN.md` and `guidelines/ENVIRONMENT-DESIGN.md` hold the
+principles for laying out a cell and for dressing it so it reads as a real
+place. Read the relevant one before planning or building any zone, and run its
+checklist before reporting the zone built.
