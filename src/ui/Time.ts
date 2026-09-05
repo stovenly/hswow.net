@@ -359,9 +359,11 @@ export class TimePane implements Pane {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (this.state !== 'choosing' || event.repeat || event.code !== 'KeyE') return;
+    if (event.repeat || event.code !== 'KeyE') return;
+    if (this.state === 'choosing') this.beginWait();
+    else if (this.state === 'waiting') this.stopWait();
+    else return;
     event.preventDefault();
-    this.beginWait();
   };
 
   activate(): void {
@@ -423,7 +425,6 @@ export class TimePane implements Pane {
     this.progressEl.classList.add('is-live');
     this.progressFill.style.width = '0%';
     this.buttonWord.textContent = 'stop';
-    this.buttonKey.hidden = true;
     document.body.classList.add('is-waiting');
     this.clipWindowToCard(true);
   }
@@ -457,7 +458,6 @@ export class TimePane implements Pane {
     this.clipWindowToCard(false);
     this.progressEl.classList.remove('is-live');
     this.buttonWord.textContent = 'wait';
-    this.buttonKey.hidden = false;
     this.state = 'choosing';
     this.target = 1;
   }
