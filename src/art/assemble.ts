@@ -53,6 +53,14 @@ export function finishSink(): FinishSink {
   return sink;
 }
 
+/** A face's lie, handed to a `Part.color` function beside its centroid. */
+export interface Facet {
+  /** Radians from horizontal: 0 is level, π/2 is a wall, past that faces down. */
+  slope: number;
+  /** Bearing of the outward normal's horizontal part, atan2(nx, nz), so +Z is 0. */
+  aspect: number;
+}
+
 export interface Part {
   geometry: THREE.BufferGeometry;
   /**
@@ -61,7 +69,7 @@ export interface Part {
    * vertices — so patches land on facet boundaries and come out crisp rather
    * than smeared across triangles.
    */
-  color: number | ((x: number, y: number, z: number) => number);
+  color: number | ((x: number, y: number, z: number, facet: Facet) => number);
   /**
    * How much this part moves in the wind, 0..1. A number applies to the whole
    * part; a function is evaluated per vertex in the part's own local space, so a
@@ -155,11 +163,13 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
       // Per face, from its centroid. Per vertex, the three corners of one triangle
       // could disagree, and interpolating between them turns a hard-edged patch
       // into a gradient.
+      const facet: Facet = { slope: 0, aspect: 0 };
       for (let i = 0; i < count; i += 3) {
         const x = (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3;
         const y = (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3;
         const z = (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3;
-        color.set(part.color(x, y, z));
+        facetOf(position, i, facet);
+        color.set(part.color(x, y, z, facet));
         color.toArray(colors, i * 3);
         color.toArray(colors, (i + 1) * 3);
         color.toArray(colors, (i + 2) * 3);
@@ -467,6 +477,28 @@ export function heightRamp(base: number, top: number, curve = 1.6) {
  * comparison against NaN is false. A NaN in a vertex attribute is not a slightly
  * wrong number, it is a mesh that fails to draw.
  */
+
+/** The slope and aspect of the triangle at `i`, from its winding — counter-clockwise seen from outside. */
+function facetOf(position: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number, out: Facet): void {
+  const ax = position.getX(i + 1) - position.getX(i);
+  const ay = position.getY(i + 1) - position.getY(i);
+  const az = position.getZ(i + 1) - position.getZ(i);
+  const bx = position.getX(i + 2) - position.getX(i);
+  const by = position.getY(i + 2) - position.getY(i);
+  const bz = position.getZ(i + 2) - position.getZ(i);
+  const nx = ay * bz - az * by;
+  const ny = az * bx - ax * bz;
+  const nz = ax * by - ay * bx;
+  const length = Math.hypot(nx, ny, nz);
+  if (length < 1e-12) {
+    out.slope = 0;
+    out.aspect = 0;
+    return;
+  }
+  out.slope = Math.acos(Math.max(-1, Math.min(1, ny / length)));
+  out.aspect = Math.atan2(nx, nz);
+}
+
 function clamp01(value: number): number {
   return value > 0 ? (value < 1 ? value : 1) : 0;
 }

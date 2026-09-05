@@ -1,6 +1,13 @@
 # The vista, widened — spec
 
-Nothing here is built. This is the plan for taking the out-of-bounds band from
+**Phase 1 built, 2026-09-05.** `vistaRidge`, `vistaBank` and `vistaWoodEdge`
+are in `src/art/vista.ts`; `Part.color` takes a fourth `Facet` argument with
+the face's slope and aspect; hill, range and forest are rebuilt on them. What
+came out differently: the wood edge comes back as a whole `Part`, colour
+included, because the dark foot is part of its shape; the hill's steep side is
+a shear of the dome rather than a ridge. Phases 2 to 7 are not started.
+
+This is the plan for taking the out-of-bounds band from
 fourteen builders that read as green blobs to a suite of distant country that
 reads as slopes, ridges, woods and farmed land, and for putting each cell's
 iconic thing on its neighbours' horizons where it really stands. Names below

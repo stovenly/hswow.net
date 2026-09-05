@@ -1,19 +1,10 @@
 import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE } from '../palette';
-import { landWash, markVista, vistaMass } from '../vista';
+import { markVista, vistaBank, vistaMass } from '../vista';
 
-// A rounded hill, a hundred metres away and mostly fog: a displaced icosahedron
-// at subdivision 1, squashed into a dome, sunk so it grows out of the skirt rather
-// than resting on it, and washed with a drift of close greens. Wide and low, about
-// five to one — the eye is 1.35 m up, so anything past a few metres tall already
-// breaks the horizon and height buys nothing after that.
-
-/** Pasture, and the same pasture drying off. Three close colours each, ordered by value — the wash blends between neighbours, so a palette that jumps in brightness puts a hard step in a hillside. */
-const GREEN = [PALETTE.LEAF_DARK, PALETTE.LEAF, PALETTE.GRASS] as const;
-/** The same hill in late summer, or on thinner soil. */
-const DRY = [PALETTE.LEAF, PALETTE.GRASS, PALETTE.GRASS_DRY] as const;
+// A rounded hill for the near band: a displaced dome with one flank pushed
+// steeper than the other, turf on the gentle side and wood on the steep one.
 
 export const vistaHill: MeshBuilder = {
   name: 'vista-hill',
@@ -26,30 +17,40 @@ export const vistaHill: MeshBuilder = {
 
     const radius = rng.range(18, 26);
     const squash = rng.range(0.3, 0.46);
+    const bury = rng.range(0.46, 0.56);
     const geometry = vistaMass(rng, {
       radius,
       detail: 1,
       rough: rng.range(0.14, 0.26),
       squash,
-      // Longer one way than the other, so a row of them does not read as a row
-      // of the same hill.
       stretch: rng.range(0.7, 1.45),
-      // Half in. A hill grows out of the ground rather than resting on it, and
-      // burying the equator is what stops the base reading as a hard rim.
-      bury: rng.range(0.46, 0.56),
+      bury,
     });
-    // Turned before the colour function runs, so the patchwork bands are laid
-    // across whichever way this one happens to lie.
-    geometry.rotateY(rng.range(0, Math.PI * 2));
+    const top = radius * squash * 2 * (1 - bury);
+
+    // The top is pushed along +X, so the +X flank is the scarp and −X the dip.
+    const lean = rng.range(0.25, 0.6);
+    const position = geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      const y = position.getY(i);
+      if (y > 0) position.setX(i, position.getX(i) + y * lean);
+    }
+    position.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    // rotateY(θ) takes +X to bearing θ + π/2, which is where the scarp now faces.
+    const turn = rng.range(0, Math.PI * 2);
+    geometry.rotateY(turn);
 
     const parts: Part[] = [
       {
         geometry,
-        color: landWash(seed ^ 0x5e1a, rng.chance(0.35) ? DRY : GREEN, {
-          // Comparable to the hill's own width, so the colour drifts once
-          // across it rather than banding it.
+        color: vistaBank(seed ^ 0x5e1a, {
+          ground: rng.chance(0.35) ? 'hay' : 'pasture',
+          bands: [{ material: 'wood', steeperThan: 0.42, below: top * 0.8, facing: turn + Math.PI / 2 }],
+          wobble: 1.5,
+          crown: top,
           scale: rng.range(30, 55),
-          crown: radius * squash,
         }),
         sway: 0,
       },
