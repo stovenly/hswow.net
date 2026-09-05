@@ -14,7 +14,7 @@ import { hash } from '../audio/weather';
 const HOUR_SECONDS = 0.65;
 /** Degrees per real second the sky turns behind the ring. */
 const SKY_TURN = 1.2;
-const SKY_PX = 192;
+const SKY_PX = 384;
 const SVG = 'http://www.w3.org/2000/svg';
 const SIZE = 400;
 const CENTRE = SIZE / 2;
@@ -88,8 +88,10 @@ function fbm(x: number, y: number, seed: number): number {
   return sum / total;
 }
 
-/** A square of sky as a data URL: blue with heaps of cloud, or a grey sheet. */
-function skyTexture(overcast: boolean, seed: number): string {
+type SkyKind = 'day' | 'sheet' | 'night';
+
+/** A square of sky as a data URL: blue with white cloud, a grey sheet, or a starfield. */
+function skyTexture(kind: SkyKind, seed: number): string {
   const canvas = document.createElement('canvas');
   canvas.width = SKY_PX;
   canvas.height = SKY_PX;
@@ -102,17 +104,22 @@ function skyTexture(overcast: boolean, seed: number): string {
       let r: number;
       let g: number;
       let b: number;
-      if (overcast) {
-        const t = 0.5 + (n - 0.5) * 0.7;
-        r = 112 + t * 44;
-        g = 118 + t * 44;
-        b = 128 + t * 44;
+      if (kind === 'sheet') {
+        const t = 0.5 + (n - 0.5) * 0.9;
+        r = 104 + t * 56;
+        g = 110 + t * 56;
+        b = 120 + t * 56;
+      } else if (kind === 'night') {
+        const t = (n - 0.5) * 0.4;
+        r = 8 + t * 10;
+        g = 11 + t * 12;
+        b = 32 + t * 20;
       } else {
-        const cloud = smoothstep(0.47, 0.62, n);
-        const lit = 0.84 + 0.16 * smoothstep(0.58, 0.72, n);
-        r = 88 + (250 * lit - 88) * cloud;
-        g = 148 + (250 * lit - 148) * cloud;
-        b = 214 + (246 * lit - 214) * cloud;
+        const cloud = smoothstep(0.5, 0.56, n);
+        const lit = 0.82 + 0.18 * smoothstep(0.55, 0.66, n);
+        r = 62 + (255 * lit - 62) * cloud;
+        g = 128 + (255 * lit - 128) * cloud;
+        b = 210 + (255 * lit - 210) * cloud;
       }
       const i = (y * SKY_PX + x) * 4;
       data[i] = r;
@@ -122,6 +129,17 @@ function skyTexture(overcast: boolean, seed: number): string {
     }
   }
   ctx.putImageData(image, 0, 0);
+  if (kind === 'night') {
+    for (let star = 0; star < 900; star++) {
+      const x = hash(seed + star * 3) * SKY_PX;
+      const y = hash(seed + star * 3 + 1) * SKY_PX;
+      const bright = hash(seed + star * 3 + 2);
+      ctx.fillStyle = `rgb(255 255 ${Math.round(225 + bright * 30)} / ${(0.35 + bright * 0.65).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(x, y, bright > 0.92 ? 1.6 : bright > 0.6 ? 1.1 : 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   return canvas.toDataURL();
 }
 
@@ -143,6 +161,9 @@ export class TimePane implements Pane {
   private readonly skyTurn: SVGGElement;
   private readonly sheet: SVGImageElement;
   private readonly rainTint: SVGCircleElement;
+  private readonly nightTurn: SVGGElement;
+  private readonly nightSheet: SVGImageElement;
+  private readonly nightCloud: SVGCircleElement;
   private readonly decks: DeckTarget[] = DECK_LEVELS.map(() => ({ genus: null, amount: 0, snap: false }));
   /** How much of the sky the sheet layer hides, eased toward the weather, 0..1. */
   private cover = 0;
@@ -161,6 +182,8 @@ export class TimePane implements Pane {
   private readonly button: HTMLButtonElement;
   private readonly progressEl: HTMLDivElement;
   private readonly progressFill: HTMLDivElement;
+  private readonly buttonWord: HTMLSpanElement;
+  private readonly buttonKey: HTMLElement;
   private lastDaylightDay = -1;
   private dragging = false;
 
@@ -196,25 +219,29 @@ export class TimePane implements Pane {
     moonClip.append(el('circle', { cx: 0, cy: 0, r: 9 }));
     const band = el('mask', { id: 'time-band' });
     band.append(el('circle', { cx: CENTRE, cy: CENTRE, r: RING, fill: 'none', stroke: '#fff', 'stroke-width': RING_WIDTH }));
-    defs.append(sunFill, moonClip, band);
+    const night = el('mask', { id: 'time-night' });
+    this.nightArc = el('path', { fill: 'none', stroke: '#fff', 'stroke-width': RING_WIDTH });
+    night.append(this.nightArc);
+    defs.append(sunFill, moonClip, band, night);
     this.svg.append(defs);
 
-    // The band: the sky turning behind it, a grey sheet drawn over as the cover builds, the night laid over that.
-    const sky = el('g', { mask: 'url(#time-band)' });
-    this.skyTurn = el('g');
+    // The band: the day sky turning behind it with a grey sheet drawn over as the cover builds, and the
+    // stars turning under the night mask from dusk round to dawn, clouded over by the same cover.
     const side = (RING + RING_WIDTH / 2) * 2 + 4;
     const square = { x: CENTRE - side / 2, y: CENTRE - side / 2, width: side, height: side, preserveAspectRatio: 'none' };
-    this.sheet = el('image', { ...square, href: skyTexture(true, 29), opacity: 0 });
-    this.skyTurn.append(el('image', { ...square, href: skyTexture(false, 11) }), this.sheet);
+    const sky = el('g', { mask: 'url(#time-band)' });
+    this.skyTurn = el('g');
+    this.sheet = el('image', { ...square, href: skyTexture('sheet', 29), opacity: 0 });
+    this.skyTurn.append(el('image', { ...square, href: skyTexture('day', 11) }), this.sheet);
     this.rainTint = el('circle', { cx: CENTRE, cy: CENTRE, r: RING, fill: 'none', stroke: 'rgb(22 26 34)', 'stroke-width': RING_WIDTH, opacity: 0 });
     sky.append(this.skyTurn, this.rainTint);
-    this.svg.append(sky);
-    this.nightArc = el('path', {
-      fill: 'none',
-      stroke: 'rgb(8 10 30 / 74%)',
-      'stroke-width': RING_WIDTH,
-    });
-    this.svg.append(this.nightArc);
+    const dark = el('g', { mask: 'url(#time-night)' });
+    this.nightTurn = el('g');
+    this.nightSheet = el('image', { ...square, href: skyTexture('sheet', 29), opacity: 0 });
+    this.nightTurn.append(el('image', { ...square, href: skyTexture('night', 47) }), this.nightSheet);
+    this.nightCloud = el('circle', { cx: CENTRE, cy: CENTRE, r: RING, fill: 'none', stroke: 'rgb(8 10 22)', 'stroke-width': RING_WIDTH, opacity: 0 });
+    dark.append(this.nightTurn, this.nightCloud);
+    this.svg.append(sky, dark);
 
     const ticks = el('g', { stroke: 'rgb(220 220 200 / 80%)', 'stroke-width': 1.5 });
     for (let hour = 0; hour < 24; hour++) {
@@ -230,7 +257,7 @@ export class TimePane implements Pane {
       [12, 'noon'],
       [18, 'dusk'],
     ] as const) {
-      const [x, y] = onRing(hour, RING - RING_WIDTH / 2 - 26);
+      const [x, y] = onRing(hour, RING - RING_WIDTH / 2 - (hour % 12 === 0 ? 26 : 42));
       const label = el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', class: 'time-label' });
       label.textContent = word;
       this.svg.append(label);
@@ -305,7 +332,12 @@ export class TimePane implements Pane {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'time-wait';
-    this.button.textContent = 'wait';
+    this.buttonWord = document.createElement('span');
+    this.buttonWord.textContent = 'wait';
+    this.buttonKey = document.createElement('kbd');
+    this.buttonKey.className = 'key';
+    this.buttonKey.textContent = 'E';
+    this.button.append(this.buttonWord, this.buttonKey);
     this.button.addEventListener('click', () => {
       if (this.state === 'choosing') this.beginWait();
       else if (this.state === 'waiting') this.stopWait();
@@ -321,7 +353,14 @@ export class TimePane implements Pane {
     card.append(this.progressEl);
 
     menu.mount('time', this);
+    window.addEventListener('keydown', this.handleKeyDown);
   }
+
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (this.state !== 'choosing' || event.repeat || event.code !== 'KeyE') return;
+    event.preventDefault();
+    this.beginWait();
+  };
 
   activate(): void {
     this.state = 'choosing';
@@ -381,7 +420,8 @@ export class TimePane implements Pane {
     this.endDay = this.startDay + this.target / 24;
     this.progressEl.classList.add('is-live');
     this.progressFill.style.width = '0%';
-    this.button.textContent = 'stop';
+    this.buttonWord.textContent = 'stop';
+    this.buttonKey.hidden = true;
     document.body.classList.add('is-waiting');
   }
 
@@ -412,7 +452,8 @@ export class TimePane implements Pane {
     this.climate.rate = 1;
     document.body.classList.remove('is-waiting');
     this.progressEl.classList.remove('is-live');
-    this.button.textContent = 'wait';
+    this.buttonWord.textContent = 'wait';
+    this.buttonKey.hidden = false;
     this.state = 'choosing';
     this.target = 1;
   }
@@ -433,7 +474,9 @@ export class TimePane implements Pane {
     this.lastNow = now;
 
     this.skyAngle = (this.skyAngle + dt * SKY_TURN) % 360;
-    this.skyTurn.setAttribute('transform', `rotate(${this.skyAngle.toFixed(2)} ${CENTRE} ${CENTRE})`);
+    const turn = `rotate(${this.skyAngle.toFixed(2)} ${CENTRE} ${CENTRE})`;
+    this.skyTurn.setAttribute('transform', turn);
+    this.nightTurn.setAttribute('transform', turn);
     planSky(climate, this.decks);
     let clear = 1;
     for (const deck of this.decks) {
@@ -444,6 +487,8 @@ export class TimePane implements Pane {
     const cover = Math.max(1 - clear, climate.amountOf('fog'));
     this.cover += (cover - this.cover) * Math.min(1, dt * 1.5);
     this.sheet.setAttribute('opacity', this.cover.toFixed(3));
+    this.nightSheet.setAttribute('opacity', this.cover.toFixed(3));
+    this.nightCloud.setAttribute('opacity', (this.cover * 0.82).toFixed(3));
     this.rainTint.setAttribute('opacity', (climate.falling * 0.45).toFixed(3));
 
     if (Math.floor(climate.elapsedDays) !== this.lastDaylightDay) {

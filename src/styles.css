@@ -2805,6 +2805,9 @@ body.is-menu #prompt {
 }
 
 .time-wait {
+  display: inline-flex;
+  gap: 0.55em;
+  align-items: center;
   padding: 0.35rem 1.1rem;
   font: inherit;
   font-size: 0.72rem;
