@@ -2737,8 +2737,10 @@ body.is-menu #prompt {
   display: grid;
   gap: 0.6rem;
   justify-items: center;
-  width: min(100%, 92vh);
+  width: min(100%, 64vh);
   padding: 0.6rem 1rem 1rem;
+  border: 1px solid transparent;
+  transition: background 300ms, border-color 300ms;
 }
 
 .time-face {
@@ -2757,13 +2759,17 @@ body.is-menu #prompt {
   cursor: grab;
 }
 
+.time-face .time-drag.is-held {
+  cursor: grabbing;
+}
+
 .time-face text {
   font-family: var(--type);
   fill: var(--ink);
 }
 
 .time-face .time-label {
-  font-size: 15px;
+  font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   fill: rgb(220 220 200 / 70%);
@@ -2810,11 +2816,17 @@ body.is-menu #prompt {
   background: rgb(220 220 200 / 22%);
 }
 
+/* Laid out whether or not a wait runs, so the ring does not shift when the bar comes. */
 .time-progress {
   width: min(60%, 24rem);
   height: 0.45rem;
+  visibility: hidden;
   background: rgb(220 220 200 / 14%);
   border: 1px solid rgb(220 220 200 / 40%);
+}
+
+.time-progress.is-live {
+  visibility: visible;
 }
 
 .time-progress-fill {
@@ -2836,4 +2848,13 @@ body.is-waiting #menu .menu-tabs {
 body.is-waiting #menu.is-tab-time .inv-window {
   background: transparent;
   border-color: transparent;
+}
+
+body.is-waiting #menu.is-tab-time .inv-window-head {
+  border-bottom-color: transparent;
+}
+
+body.is-waiting .time-card {
+  background: rgb(10 10 15 / 86%);
+  border-color: rgb(220 220 200 / 30%);
 }

@@ -239,12 +239,22 @@ What came out differently from the plan above, by the owner's call:
 - No keyboard controls on the pane, and Escape does nothing to it. The hours
   are chosen by dragging on the ring or with the wheel; the one button waits
   and, while waiting, stops at the next whole hour.
-- The wait is linear at one game hour per half second, no ramp.
+- The wait is linear at one game hour per 0.65 s, no ramp. The sound runs on
+  through it; nothing is hushed.
 - The time and the day stand under the ring, not in it. No season, no moon
   name. The moon on the ring still shows its phase.
+- The band is not a grey ring with a dark night arc: it is a sky turning
+  slowly behind the ring, blue with cloud, with a grey sheet drawn over it as
+  the cloud cover builds and a darkening as rain falls, both read off the
+  climate. The night still lies over it from dusk to dawn, in deep blue.
+- The four marks on the face read midnight, dawn, noon and dusk, not 12 and 6.
+- The wait arc and its dotted hand sit at half the ring's radius.
+- While a wait runs the tabs and the window vanish, but the card behind the
+  ring and its readouts keeps a backing, so the face does not sink into the
+  world. The bar under the readouts holds its place whether or not a wait
+  runs, so the ring never moves.
+- The ring takes a grabbing cursor while it is dragged.
 - The menu names its current tab on its root as `is-tab-<id>`; the
   stylesheet reads that. `Climate` gains `rate`, `reset()` and `daylight()`;
-  `START_DAY` and `START_TIME` are exported. `hush` on the audio engine keeps
-  the master-volume sync off the gain until its ramp lands. A wait under the
-  dev panel's held clock ends at once; closing the menu mid-wait keeps what
-  the clock reached.
+  `START_DAY` and `START_TIME` are exported. A wait under the dev panel's held
+  clock ends at once; closing the menu mid-wait keeps what the clock reached.
