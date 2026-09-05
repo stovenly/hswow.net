@@ -683,8 +683,8 @@ count; the coast's sea is the one per-pixel cost in the set.
 
 ### Status, 2026-09-04
 
-Phases 1 to 7 are built and committed; nothing is pushed. **Resume at
-phase 8, the forest path.**
+Phases 1 to 8 are built and committed; nothing is pushed. **Resume at
+phase 9, the forest.**
 
 - **1. Ground** — done. Per-corner colour, feathered patches, smooth
   variation, grain on the stone materials, the closer palette, the debug
@@ -747,6 +747,31 @@ phase 8, the forest path.**
   - The stepping stones are reached by a spur off the east track north of
     the bridge. The west boundary is the farm's hedge; the north, east and
     south-east are treelines with barriers behind them.
+
+- **8. Forest path** — built to §3.5 with these departures:
+  - Channels sum where they meet, so the crossroads is a terrace at the
+    lanes' floor level, 8 m across with a 5 m blend, which stops the three
+    lanes digging a pit under the oak. The oak stands on that level with the
+    hill's foot behind it.
+  - The banks are soft grass as stated, so the corridor's wall is the banks'
+    mantle (hazel, elder, thicket, bramble) with slabs along the corridor's
+    outline 13 m either side of each lane, the way the riverside's treelines
+    are closed.
+  - The south lane is cut 2 m deep over 8 m banks and the ground south of
+    z 38 steps down 2.5 m over 30 m, so the floor falls about 3 m from the
+    crossroads to the forest gate and the banks stand taller as it goes.
+  - The river to the west is a bluff in the north-west corner of the square,
+    dropped 8 m past the rock angle, with water at −6.5 held outward by the
+    skirt's sea. It is seen from the north bank's top at the first bend, not
+    from the lane floor.
+  - The north-east gate is a five-bar gate in a drystone wall that runs 20 m
+    into the wood either side and stops.
+  - The pockets at the two west bends are small terraces cut into the outer
+    bank; the well's post and lantern stand at the first, the log and stump
+    at the second. The cairn is 16 m down the south lane.
+  - The brook is a 1.5 m channel across the north-east lane's bend with its
+    water 0.25 m below the floor, so the track fords it.
+  - The fingerpost and the bird emitters are gone.
 
 ## 6. Open questions
 
