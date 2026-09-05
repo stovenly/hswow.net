@@ -555,14 +555,14 @@
       }
     },
     {
-      "id": "beach-path-beach",
+      "id": "beach-path-coast",
       "a": {
         "zone": "beach-path",
         "at": [
           6,
           74
         ],
-        "yaw": 3.141592653589793,
+        "yaw": 3.1415927,
         "use": "volume",
         "volume": {
           "size": [
@@ -581,10 +581,10 @@
         }
       },
       "b": {
-        "zone": "beach",
+        "zone": "coast",
         "at": [
           0,
-          -40
+          -44
         ],
         "yaw": 0,
         "use": "volume",

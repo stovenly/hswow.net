@@ -683,8 +683,8 @@ count; the coast's sea is the one per-pixel cost in the set.
 
 ### Status, 2026-09-04
 
-Phases 1 to 10 are built and committed; nothing is pushed. **Resume at
-phase 11, the coast.**
+All twelve phases are built and committed; nothing is pushed. What is
+left is the sea tuning pass at the coast, with you looking.
 
 - **1. Ground** — done. Per-corner colour, feathered patches, smooth
   variation, grain on the stone materials, the closer palette, the debug
@@ -807,6 +807,33 @@ phase 11, the coast.**
   - The north boundary is a drystone wall from the gate's outcrops to the
     lane's east hedge; the west is a treeline behind slabs. The sheepfold
     is 8 × 6 with one 3 m gap. The mill is a `vista-tower`.
+- **11. Coast** — built to §3.8 with these departures:
+  - The shore is three scarps along one crescent line that wraps both arms:
+    the berm (0.5 m), the foreshore (2.5 m over 12 m) and the bed (4.5 m
+    over 20 m), so the waterline is 14 m below the berm and the bed is 1.4 m
+    deep 24 m below it, where the barrier runs. Sea level is −3 and the
+    backshore is at 0.
+  - The dunes are kept under the rock band: the foredune is 4 m over a 17 m
+    half-width and the grey dune 2.5 m over 11 m, so both are sand to the
+    crest. The blowout is a 26 m gap between the two halves of the foredune
+    with a 0.6 m channel through it, a hollow with soft banks rather than a
+    cut.
+  - The west arm is 5 m, not 6, over a 22 m half-width, so its landward
+    slope is turf all the way to the standing stone. Its seaward end and the
+    east arm's are painted rock; both run down into the water and the
+    barrier crosses them at the 1.4 m contour, so their last few metres are
+    seen and not walked.
+  - The stack stands on a 3 m hill painted rock, so its foot is about 1.5 m
+    above the water rather than four metres under it.
+  - The hut faces south at the sea; the barrel and pail are against its west
+    gable, clear of the door, and the log pile against the north wall.
+  - No tracks: the route is the strandline, the backshore and the arm's
+    slope. The zone keeps the `beach` vibe, so the map draws it as a bay.
+- **12. Close** — `beach-path-beach` is `beach-path-coast` and lands at
+  (0, −44); `beach.json` is gone. Both loops are closed in `world.json`:
+  village → plains → forest path → riverside → farm → village, and plains →
+  forest path → forest → beach path → plains, with the coast hanging off
+  the beach path. `check:world` was not run.
 
 ## 6. Open questions
 
