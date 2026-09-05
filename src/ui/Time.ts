@@ -183,6 +183,7 @@ export class TimePane implements Pane {
   private readonly progressEl: HTMLDivElement;
   private readonly progressFill: HTMLDivElement;
   private readonly buttonWord: HTMLSpanElement;
+  private readonly card: HTMLDivElement;
   private readonly buttonKey: HTMLElement;
   private lastDaylightDay = -1;
   private dragging = false;
@@ -192,7 +193,8 @@ export class TimePane implements Pane {
 
     const pane = menu.pane('time');
     pane.classList.add('time-pane');
-    const card = document.createElement('div');
+    this.card = document.createElement('div');
+    const card = this.card;
     card.className = 'time-card';
     pane.append(card);
 
@@ -423,6 +425,7 @@ export class TimePane implements Pane {
     this.buttonWord.textContent = 'stop';
     this.buttonKey.hidden = true;
     document.body.classList.add('is-waiting');
+    this.clipWindowToCard(true);
   }
 
   /** The wait ends at the next whole hour, keeping what it reached. */
@@ -451,11 +454,25 @@ export class TimePane implements Pane {
   private finishWait(): void {
     this.climate.rate = 1;
     document.body.classList.remove('is-waiting');
+    this.clipWindowToCard(false);
     this.progressEl.classList.remove('is-live');
     this.buttonWord.textContent = 'wait';
     this.buttonKey.hidden = false;
     this.state = 'choosing';
     this.target = 1;
+  }
+
+  /** The menu window's backing is clipped in to the card's rectangle, or let out to the whole window. */
+  private clipWindowToCard(on: boolean): void {
+    const frame = this.card.closest<HTMLElement>('.inv-window');
+    if (!frame) return;
+    const w = frame.getBoundingClientRect();
+    const c = this.card.getBoundingClientRect();
+    const px = (n: number): string => `${Math.max(0, n).toFixed(1)}px`;
+    frame.style.setProperty('--clip-top', on ? px(c.top - w.top) : '0px');
+    frame.style.setProperty('--clip-right', on ? px(w.right - c.right) : '0px');
+    frame.style.setProperty('--clip-bottom', on ? px(w.bottom - c.bottom) : '0px');
+    frame.style.setProperty('--clip-left', on ? px(c.left - w.left) : '0px');
   }
 
   /** The tab or the window went away mid-wait: the clock keeps what it reached, at once. */

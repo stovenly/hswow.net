@@ -2746,6 +2746,7 @@ body.is-menu #prompt {
   width: min(100%, 64vh);
   padding: 0.6rem 1rem 1rem;
   border: 1px solid transparent;
+  transition: border-color 300ms;
 }
 
 .time-face {
@@ -2842,8 +2843,28 @@ body.is-menu #prompt {
   background: var(--ink);
 }
 
-/* While a wait runs the clock stands over the bare world. The window and the card's backing
-   swap in one frame, so the two never fade across each other or stack. */
+/* While a wait runs the clock stands over the bare world. The menu window's backing is one
+   layer whose clip closes in to the card's rectangle, so nothing fades across anything else. */
+#menu .inv-window {
+  background: none;
+  border-color: transparent;
+  isolation: isolate;
+}
+
+#menu .inv-window::before {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  content: '';
+  background: rgb(10 10 15 / 94%);
+  border: 1px solid rgb(220 220 200 / 30%);
+  clip-path: inset(var(--clip-top, 0px) var(--clip-right, 0px) var(--clip-bottom, 0px) var(--clip-left, 0px));
+  transition: clip-path 300ms;
+}
+
+#menu .inv-window-head {
+  transition: border-bottom-color 300ms;
+}
 
 body.is-waiting #menu .menu-tabs {
   opacity: 0;
@@ -2851,16 +2872,10 @@ body.is-waiting #menu .menu-tabs {
   transition: opacity 300ms;
 }
 
-body.is-waiting #menu.is-tab-time .inv-window {
-  background: transparent;
-  border-color: transparent;
-}
-
 body.is-waiting #menu.is-tab-time .inv-window-head {
   border-bottom-color: transparent;
 }
 
 body.is-waiting .time-card {
-  background: rgb(10 10 15 / 94%);
   border-color: rgb(220 220 200 / 30%);
 }
