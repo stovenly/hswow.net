@@ -1044,12 +1044,14 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
   if (ring.length < 3) return group;
 
   /**
-   * The ring's floor between two fractions of the way out from the middle,
-   * `from` to `to`. Colour is decided per face, so a band is a part of its own
-   * rather than a colour function over one wide fan.
+   * The ring's floor as a mesh fine enough for per-face colour to follow a
+   * band: rings out from the middle, each ring edge split into short runs.
    */
-  const fan = (top: number, from = 0, to = 1): THREE.BufferGeometry => {
+  const fan = (top: number, step = 0.35): THREE.BufferGeometry => {
     const position: number[] = [];
+    let reach = 0;
+    for (const [x, z] of ring) reach = Math.max(reach, Math.hypot(x - cx, z - cz));
+    const rings = Math.max(1, Math.ceil(reach / step));
     const at = (p: readonly [number, number], f: number): [number, number, number] => {
       const x = cx + (p[0] - cx) * f;
       const z = cz + (p[1] - cz) * f;
@@ -1058,36 +1060,76 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i];
       const b = ring[(i + 1) % ring.length];
-      const a1 = at(a, to);
-      const b1 = at(b, to);
-      if (from <= 0) {
-        position.push(cx, height(cx, cz) + top, cz, ...a1, ...b1);
-        continue;
+      const runs = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+      for (let r = 0; r < runs; r++) {
+        const p: [number, number] = [a[0] + ((b[0] - a[0]) * r) / runs, a[1] + ((b[1] - a[1]) * r) / runs];
+        const q: [number, number] = [a[0] + ((b[0] - a[0]) * (r + 1)) / runs, a[1] + ((b[1] - a[1]) * (r + 1)) / runs];
+        for (let k = 0; k < rings; k++) {
+          const f0 = k / rings;
+          const f1 = (k + 1) / rings;
+          const p1 = at(p, f1);
+          const q1 = at(q, f1);
+          if (k === 0) {
+            position.push(cx, height(cx, cz) + top, cz, ...p1, ...q1);
+            continue;
+          }
+          const p0 = at(p, f0);
+          const q0 = at(q, f0);
+          position.push(...p0, ...p1, ...q1, ...p0, ...q1, ...q0);
+        }
       }
-      const a0 = at(a, from);
-      const b0 = at(b, from);
-      position.push(...a0, ...a1, ...b1, ...a0, ...b1, ...b0);
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
     return geometry;
   };
 
+  /**
+   * Where a point stands across the nearest arm, as the strips measure it: 0 on
+   * an arm's line through the middle, 1 at its edge. The gussets between arms
+   * read further out than any arm, which is where the ground shows through.
+   */
+  const axes = options.arms.map((arm) => {
+    const first = arm.row[0];
+    const last = arm.row[arm.row.length - 1];
+    const dx = (first[0] + last[0]) / 2 - cx;
+    const dz = (first[1] + last[1]) / 2 - cz;
+    const len = Math.hypot(dx, dz) || 1;
+    return { dx: dx / len, dz: dz / len, half: Math.max(0.3, arm.width / 2) };
+  });
+  const across = (x: number, z: number): number => {
+    let least = Infinity;
+    for (const axis of axes) {
+      const px = x - cx;
+      const pz = z - cz;
+      const along = px * axis.dx + pz * axis.dz;
+      const away = along >= 0 ? Math.abs(px * axis.dz - pz * axis.dx) : Math.hypot(px, pz);
+      least = Math.min(least, away / axis.half);
+    }
+    return least;
+  };
+
   const parts: Part[] = [];
   const surface = options.surface;
   switch (surface) {
-    // The strips' lateral bands, taken radially from the middle: crown, worn
-    // shoulder, then the two blends toward the ground beside.
+    // The strips' lateral bands carried through: each arm's crown runs on to
+    // the others, and only the gussets between arms take the blend toward
+    // the ground beside.
     case 'dirt': {
       const dirt = GROUND.dirt.color;
+      const crown = shade(dirt, 1 + 0.1 * wear);
       const beside = options.beside ?? dirt;
-      const bands: [number, number, number][] = [
-        [0, 0.375, shade(dirt, 1 + 0.1 * wear)],
-        [0.375, 0.625, shade(dirt, 0.92)],
-        [0.625, 0.875, blend(dirt, beside, 0.25)],
-        [0.875, 1, blend(dirt, beside, 0.6)],
-      ];
-      for (const [from, to, color] of bands) parts.push({ geometry: fan(0, from, to), color, sway: 0 });
+      parts.push({
+        geometry: fan(0),
+        color: (x, _y, z) => {
+          const u = across(x, z);
+          if (u > 0.875) return blend(dirt, beside, 0.6);
+          if (u > 0.625) return blend(dirt, beside, 0.25);
+          if (u > 0.375) return shade(dirt, 0.92);
+          return crown;
+        },
+        sway: 0,
+      });
       break;
     }
     case 'gravel': {
@@ -1115,7 +1157,7 @@ export function buildJunction(options: JunctionOptions): THREE.Group {
 
   const bedTop = bedTopOf(surface);
   if (bedTop > 0) {
-    const bed = new THREE.Mesh(fan(bedTop), BED_MATERIAL);
+    const bed = new THREE.Mesh(fan(bedTop, 100), BED_MATERIAL);
     bed.visible = false;
     bed.userData.underfoot = UNDERFOOT[surface];
     group.add(markCollidable(bed));
