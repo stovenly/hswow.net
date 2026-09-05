@@ -120,11 +120,11 @@ by the beach path's third arm. The beach is the tail.
 | Village | `village` | `village 1` | 0, 0 | S → plains · W → farm |
 | Farm | `farm` | `farm` | −1.7, 0.2 | E → village · S → riverside |
 | Plains | `plains` | `plains 1` | 0.3, 1.6 | N → village · SW → forest path · S → beach path |
-| Riverside | `riverside` | `riverside` | −2.6, 1.8 | N → farm · SE → forest path |
+| Riverside | `riverside` | `riverside` | −2.0, 1.9 | N → farm · SE → forest path |
 | Forest Path | `forest-path` | `forest path a` | −1.3, 3.0 | NE → plains · W → riverside · S → forest |
 | Forest | `forest` | `forest a` | −1.5, 4.5 | N → forest path · SE → beach path |
-| Beach Path | `beach-path` | `beach path` | −0.6, 5.7 | NW → forest · NE → plains · S → beach |
-| Beach | `beach` | `beach` | 0.2, 6.8 | N → beach path |
+| Beach Path | `beach-path` | `beach path` | −1.0, 5.4 | NW → forest · NE → plains · S → beach |
+| Beach | `beach` | `beach` | −0.8, 6.7 | N → beach path |
 
 Interiors, all `doorOf` ends on the building placed in the zone:
 

@@ -1,17 +1,11 @@
 # The vista, widened — spec
 
-**Phase 1 built, 2026-09-05.** `vistaRidge`, `vistaBank` and `vistaWoodEdge`
-are in `src/art/vista.ts`; `Part.color` takes a fourth `Facet` argument with
-the face's slope and aspect; hill, range and forest are rebuilt on them. What
-came out differently: the wood edge comes back as a whole `Part`, colour
-included, because the dark foot is part of its shape; the hill's steep side is
-a shear of the dome rather than a ridge. Phases 2 to 7 are not started.
-
-This is the plan for taking the out-of-bounds band from
-fourteen builders that read as green blobs to a suite of distant country that
-reads as slopes, ridges, woods and farmed land, and for putting each cell's
-iconic thing on its neighbours' horizons where it really stands. Names below
-are working slugs; the fiction and the naming are yours.
+**Built, all seven phases.** What came out differently is under *Built* at
+the end. This is the plan for taking the out-of-bounds band
+from fourteen builders that read as green blobs to a suite of distant country
+that reads as slopes, ridges, woods and farmed land, and for putting each
+cell's iconic thing on its neighbours' horizons where it really stands. Names
+below are working slugs; the fiction and the naming are yours.
 
 `VISTA.md` is the foundation and still holds: geometry not billboards, the
 three bands and the air they stand in, the `vistaMass` grammar, the ring with
@@ -416,3 +410,37 @@ from 5 000 for the icons), draw calls as now.
   https://www.cotswolds-nl.org.uk/wp/wp-content/uploads/2025/02/LCT-2-Escarpment.pdf ,
   https://www.southdowns.gov.uk/wp-content/uploads/2015/03/ILCA-Appendix-A-Open-Downland.pdf
 - Shelterbelts and planted lines — https://www.woodlandtrust.org.uk/plant-trees/agroforestry-benefits/shelterbelt/
+
+## Built
+
+What came out differently from the plan above:
+
+- `vistaWoodEdge` returns a whole `Part`, colour included, because the dark
+  foot is part of its shape. The builder of the same name is exported as
+  `vistaWoodEdgeBuilder` so the two can share a file's worth of imports.
+- `vista-hill` keeps its dome and shears it so one flank is steeper, rather
+  than moving onto `vistaRidge`. `vista-crag` is untouched.
+- Variants are a `variant` option on the builder (`BuilderWith`), rolled from
+  the seed unless named; a ring's `place` entry may carry `variant`, and the
+  warm pass files it under the builder call's extras.
+- The neighbours' icons stand `at` metres out from the outline (150 by
+  default, `neighbours: { at }` to change it) rather than at the honest
+  band's outer edge, which on every current ring is 70 m and inside the
+  parallax shells. Their scale is
+  `(at + 40) / distance × 1.5`, clamped to 0.08–1. Each icon keeps a 10°
+  sector between it and the origin free of scattered props, or the road out
+  of the cell would have a hill on it; hand placement is not checked.
+- The far layer in `world.json` takes two kinds of entry: `bearing`, the same
+  from every cell, and `at`, a map position each cell measures its own
+  bearing and distance to. The castle is the second kind, so it stands in one
+  place on every horizon; the mountains along the north are the first.
+- Map coordinates moved to agree with the gates: riverside to (−2.0, 1.9),
+  beach path to (−1.0, 5.4), the coast to (−0.8, 6.7). One pair cannot be
+  reconciled by moving a coordinate: the riverside's gate says the forest
+  path is south-south-west and the forest path's gate says the riverside is
+  west, which is 118° apart. The map keeps the riverside north-west of the
+  forest path, between the two; one of those gates has to turn, and which is
+  yours.
+- Rings are re-laid to §6 with the roster, `neighbours: true` and
+  `horizon: true` on every exterior, and every stand-in removed. The coastal
+  cells stay hand placed.

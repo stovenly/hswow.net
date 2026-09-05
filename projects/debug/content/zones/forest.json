@@ -9,6 +9,9 @@
     ],
     "altitude": 10
   },
+  "vista": {
+    "icon": "vista-icon-forest"
+  },
   "environment": {
     "base": "outdoor",
     "fogNear": 55,
@@ -1660,7 +1663,8 @@
             -40
           ],
           "scale": 1.5,
-          "seed": 5701
+          "seed": 9201,
+          "yaw": 1.2723
         },
         {
           "builder": "vista-forest",
@@ -1669,25 +1673,30 @@
             30
           ],
           "scale": 1.5,
-          "seed": 5702
+          "seed": 9202,
+          "yaw": 1.7682
         },
         {
-          "builder": "vista-forest",
+          "builder": "vista-wood-edge",
           "at": [
             -100,
             90
           ],
           "scale": 1.4,
-          "seed": 5703
+          "seed": 9203,
+          "variant": "straight",
+          "yaw": 2.3036
         },
         {
-          "builder": "vista-forest",
+          "builder": "vista-wood-edge",
           "at": [
             0,
             -140
           ],
           "scale": 1.6,
-          "seed": 5704
+          "seed": 9204,
+          "variant": "ride",
+          "yaw": 0.0
         },
         {
           "builder": "vista-forest",
@@ -1696,7 +1705,8 @@
             -120
           ],
           "scale": 1.5,
-          "seed": 5705
+          "seed": 9205,
+          "yaw": 0.4636
         },
         {
           "builder": "vista-forest",
@@ -1705,16 +1715,19 @@
             -130
           ],
           "scale": 1.3,
-          "seed": 5706
+          "seed": 9206,
+          "yaw": -0.4324
         },
         {
-          "builder": "vista-forest",
+          "builder": "vista-wood-edge",
           "at": [
             110,
             -80
           ],
           "scale": 1.4,
-          "seed": 5707
+          "seed": 9207,
+          "variant": "bowed",
+          "yaw": -0.942
         },
         {
           "builder": "vista-forest",
@@ -1723,7 +1736,8 @@
             130
           ],
           "scale": 1.3,
-          "seed": 5708
+          "seed": 9208,
+          "yaw": 2.8431
         },
         {
           "builder": "vista-tree",
@@ -1732,7 +1746,8 @@
             -20
           ],
           "scale": 1.2,
-          "seed": 5709
+          "seed": 9209,
+          "variant": "pine"
         },
         {
           "builder": "vista-tree",
@@ -1741,7 +1756,8 @@
             50
           ],
           "scale": 1.1,
-          "seed": 5710
+          "seed": 9210,
+          "variant": "oak"
         },
         {
           "builder": "vista-tree",
@@ -1750,7 +1766,8 @@
             -100
           ],
           "scale": 1.3,
-          "seed": 5711
+          "seed": 9211,
+          "variant": "oak"
         },
         {
           "builder": "vista-tree",
@@ -1759,7 +1776,8 @@
             -98
           ],
           "scale": 1.2,
-          "seed": 5712
+          "seed": 9212,
+          "variant": "pine"
         },
         {
           "builder": "vista-tree",
@@ -1768,7 +1786,8 @@
             -30
           ],
           "scale": 1.2,
-          "seed": 5713
+          "seed": 9213,
+          "variant": "dead"
         },
         {
           "builder": "vista-tree",
@@ -1777,44 +1796,28 @@
             100
           ],
           "scale": 1.1,
-          "seed": 5714
+          "seed": 9214,
+          "variant": "oak"
         },
         {
-          "builder": "vista-castle",
+          "builder": "vista-plantation",
           "at": [
-            20,
-            -320
+            -190,
+            -110
           ],
-          "scale": 1.6,
-          "seed": 5715,
-          "apparent": 520
+          "scale": 1.4,
+          "seed": 9215,
+          "apparent": 460
         },
         {
-          "builder": "vista-dune",
+          "builder": "vista-dune-field",
           "at": [
-            70,
+            130,
             100
           ],
           "scale": 1.2,
-          "seed": 5716
-        },
-        {
-          "builder": "vista-dune",
-          "at": [
-            120,
-            96
-          ],
-          "scale": 1.3,
-          "seed": 5717
-        },
-        {
-          "builder": "vista-dune",
-          "at": [
-            165,
-            104
-          ],
-          "scale": 1.1,
-          "seed": 5718
+          "seed": 9216,
+          "yaw": -2.2265
         },
         {
           "builder": "vista-headland",
@@ -1822,20 +1825,20 @@
             240,
             150
           ],
-          "yaw": -1.5707963,
           "scale": 1.4,
-          "seed": 5719,
-          "apparent": 380
+          "seed": 9217,
+          "apparent": 380,
+          "yaw": -1.5708
         },
         {
-          "builder": "vista-crag",
+          "builder": "vista-stack",
           "at": [
-            205,
-            205
+            215,
+            200
           ],
           "scale": 1.2,
-          "seed": 5720,
-          "apparent": 340
+          "seed": 9218,
+          "apparent": 360
         },
         {
           "builder": "vista-sail",
@@ -1844,7 +1847,18 @@
             195
           ],
           "scale": 1.1,
-          "seed": 5721
+          "seed": 9219,
+          "variant": "one"
+        },
+        {
+          "builder": "vista-island",
+          "at": [
+            250,
+            240
+          ],
+          "scale": 1.3,
+          "seed": 9220,
+          "apparent": 520
         }
       ],
       "scatter": [
@@ -1858,8 +1872,7 @@
           "scale": [
             0.9,
             1.3
-          ],
-          "spacing": 12
+          ]
         },
         {
           "builder": "vista-copse",
@@ -1869,12 +1882,61 @@
             "outer": 60
           },
           "scale": [
-            1,
+            1.0,
             1.4
+          ]
+        },
+        {
+          "builder": "vista-forest",
+          "count": 3,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "scale": [
+            1.2,
+            1.6
           ],
-          "spacing": 24
+          "apparent": [
+            260,
+            420
+          ]
+        },
+        {
+          "builder": "vista-wood-edge",
+          "count": 2,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "scale": [
+            1.1,
+            1.5
+          ],
+          "apparent": [
+            260,
+            420
+          ]
+        },
+        {
+          "builder": "vista-forest",
+          "count": 3,
+          "band": {
+            "inner": 160,
+            "outer": 185
+          },
+          "scale": [
+            1.4,
+            1.9
+          ],
+          "apparent": [
+            420,
+            700
+          ]
         }
-      ]
+      ],
+      "neighbours": true,
+      "horizon": true
     },
     {
       "id": "edge-dressing",
