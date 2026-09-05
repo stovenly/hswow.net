@@ -2843,10 +2843,8 @@ body.is-menu #prompt {
   background: var(--ink);
 }
 
-/* While a wait runs the clock stands over the bare world. */
-#menu .inv-window {
-  transition: background 300ms, border-color 300ms;
-}
+/* While a wait runs the clock stands over the bare world. The card's backing lands before the
+   window fades and the window is back before the card fades, so the two never cross half-way. */
 
 body.is-waiting #menu .menu-tabs {
   opacity: 0;
@@ -2857,6 +2855,7 @@ body.is-waiting #menu .menu-tabs {
 body.is-waiting #menu.is-tab-time .inv-window {
   background: transparent;
   border-color: transparent;
+  transition: background 300ms, border-color 300ms;
 }
 
 body.is-waiting #menu.is-tab-time .inv-window-head {
@@ -2864,6 +2863,7 @@ body.is-waiting #menu.is-tab-time .inv-window-head {
 }
 
 body.is-waiting .time-card {
-  background: rgb(10 10 15 / 86%);
+  background: rgb(10 10 15 / 94%);
   border-color: rgb(220 220 200 / 30%);
+  transition: none;
 }
