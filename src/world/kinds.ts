@@ -253,12 +253,15 @@ registerEntryKind<CreatureEntry>({
           : [...(species ? [species] : []), ...(entry.traits ?? [])];
       const name = entry.name ?? person?.name ?? traitName(traits);
       if (name) {
-        const proxy = new THREE.Mesh(
-          new THREE.CylinderGeometry(life.radius, life.radius, life.height, 8, 1, true),
-        );
+        // A figure's head is over its feet; an animal's is out past its back
+        // and its body runs nose to tail, so its proxy is as tall as the head
+        // and as wide as the body is long.
+        const tall = life.kind === 'biped' ? life.height : Math.max(life.height, life.headHeight) + 0.1;
+        const wide = life.kind === 'biped' ? life.radius : Math.max(life.radius, life.bodyLength * 0.5 + 0.1);
+        const proxy = new THREE.Mesh(new THREE.CylinderGeometry(wide, wide, tall, 8, 1, true));
         proxy.name = 'npc-hover';
         proxy.visible = false;
-        proxy.position.y = life.height / 2;
+        proxy.position.y = tall / 2;
         proxy.userData.label = name;
         proxy.userData.npc = { folk, name, person: entry.person, traits } satisfies NpcMark;
         proxy.userData.noCollide = true;
