@@ -45,12 +45,10 @@ its reasoning. Open, at the time of writing:
 
 | | |
 |---|---|
-| `CLIMATE.md` | The clock, the weather, the surfaces and the sky. Steps 1–14 **built**; the numbers in the atmosphere table and the genus roster are open to tuning |
-| `ATMOSPHERE-WEATHER.md` | Superseded by `CLIMATE.md` except for §3, props that make their own air |
+| `ATMOSPHERE-WEATHER.md` | Superseded by `done/CLIMATE.md` except for §3, props that make their own air |
 | `SHADERS-V2.md` | God rays, heat shimmer, depth of field |
 | `EDITOR.md` | Zones as data, then the editor over that data |
 | `SWIMMING-CONTROLS.md` | Water the player can be inside |
-| `VISTA.md` | The countryside band, and picking into the vista merge |
 | `FOOTSTEPS.md` | Crouch, per-foot character, the surface derivation table |
 | `READABLES-POLISH.md` | Making the reading screen worth stopping for |
 | `ZONE-LOADING.md` | Migrating the remaining zones to lazy load |
