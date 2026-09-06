@@ -269,7 +269,7 @@ body.is-playing #crosshair {
   color: rgb(220 220 200 / 78%);
   background: rgb(10 10 15 / 86%);
   border: 1px solid rgb(220 220 200 / 32%);
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   cursor: pointer;
   transition:
     color 120ms linear,
@@ -817,9 +817,8 @@ body.is-playing #crosshair {
 
   --lit: 0;
   --land: #08080c;
-  /* One turn of the wheel: a short load sees the sun come up, a long one sees
-     it cross, set, and the moon after it. */
-  --cycle: 34s;
+  /* A checker tile of two of the renderer's chunky pixels. */
+  --tile: 4px;
 }
 
 /* Visibility as well as opacity, on a delay the length of the fade: at zero
@@ -835,254 +834,186 @@ body.is-playing #crosshair {
 }
 
 /* A fresh wait starts the bar back at the beginning, and that reset is not
-   something to watch happen. The sky is on its own clock and is not reset at
-   all — it carries on from wherever the last wait left it. */
+   something to watch happen. */
 #loading.is-settling .bar-fill {
   transition: none;
 }
 
-.sky {
-  position: absolute;
-  inset: 0 0 32% 0;
-  overflow: hidden;
-}
-
-/* Two skies, one over the other, cross-faded by the same clock the sun turns
-   on: the warm one underneath is dawn and dusk, and the cool one over it is the
-   middle of the day. Opacity on whole layers, so a sky changing colour is a
-   compositor property and not twelve colours interpolated on the main thread
-   while it is blocked building a zone. */
-.sky-tier {
-  position: absolute;
-  inset: 0;
-}
-
-.sky-tier.is-dawn {
-  --b0: #12131c;
-  --b1: #191a24;
-  --b2: #23212d;
-  --b3: #302733;
-  --b4: #452f2c;
-  --b5: #5e4231;
-}
-
-.sky-tier.is-day {
-  --b0: #24313f;
-  --b1: #2c3a46;
-  --b2: #36434c;
-  --b3: #435049;
-  --b4: #565c4b;
-  --b5: #6d6c53;
-
-  opacity: 0;
-  animation: sky-day var(--cycle) linear infinite;
-}
-
-/* The sky in the same terms the renderer states everything else in: six flat
-   levels rather than a smooth ramp, with the steps between them dithered at the
-   three-pixel block the whole game is quantized to.
-
-   **Two posterised gradients, half a band apart, one of them checkerboarded.**
-   In the middle of a band both layers agree and the result is flat; at a step
-   they disagree, and half the pixels take the level above — which is an ordered
-   dither of two levels, made out of nothing but gradients. */
-.tier-bands,
-.tier-dither {
-  position: absolute;
-  inset: 0;
-}
-
-.tier-bands {
-  background: linear-gradient(
-    to bottom,
-    var(--b0) 0 16.667%,
-    var(--b1) 0 33.333%,
-    var(--b2) 0 50%,
-    var(--b3) 0 66.667%,
-    var(--b4) 0 83.333%,
-    var(--b5) 0 100%
-  );
-}
-
-.tier-dither {
-  background: linear-gradient(
-    to bottom,
-    var(--b0) 0 8.333%,
-    var(--b1) 0 25%,
-    var(--b2) 0 41.667%,
-    var(--b3) 0 58.333%,
-    var(--b4) 0 75%,
-    var(--b5) 0 100%
-  );
-  mask-image: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%);
-  mask-size: 6px 6px;
-}
-
-/* Night, over both. Deepest under the moon and gone at noon. */
-.sky-veil {
-  position: absolute;
-  inset: 0;
-  background: var(--void);
-  opacity: 0.42;
-  animation: sky-veil var(--cycle) linear infinite;
-}
-
-/* **The sun and the moon are one wheel**, opposite each other on it, turning at
-   a constant rate about the middle of the horizon. That is what a day is, it
-   costs one animated transform, and there is nothing in it to jitter or skip:
-   no script touches it, and a step blocking the main thread cannot reach a
-   transform the compositor is running. It starts a little after dawn, because
-   the first frame of a short wait should be a sky worth looking at. */
-.wheel {
+/* A dark sheet on the void, hung in the middle of the screen. Its edge is not a
+   line: two bands of the renderer's two-pixel cells, half then a quarter
+   filled, so the sheet dissolves into the black the way everything else here
+   is dithered. */
+.sheet {
   position: absolute;
   left: 50%;
-  top: 100%;
-  width: 0;
-  height: 0;
-  animation: sky-wheel var(--cycle) linear infinite;
+  top: 50%;
+  width: min(88vw, 92vh * 4 / 3);
+  aspect-ratio: 4 / 3;
+  transform: translate(-50%, -50%);
+  background: #15161e;
+  isolation: isolate;
 }
 
-@keyframes sky-wheel {
-  from {
-    transform: rotate(-80deg);
-  }
-
-  to {
-    transform: rotate(280deg);
-  }
-}
-
-/* Hard stops rather than a blur: a soft glow is the one thing on this screen
-   that would not survive the renderer it is standing in for. */
-.orb {
+.sheet::before,
+.sheet::after {
+  content: '';
   position: absolute;
-  left: 0;
-  top: 0;
+  z-index: -1;
+  image-rendering: pixelated;
+  background-size: var(--tile) var(--tile);
 }
 
-.orb.is-sun {
-  width: 15vh;
-  height: 15vh;
-  margin: -7.5vh;
-  transform: translateY(-46vh);
-  background: radial-gradient(
-    circle,
-    #f4e6bd 0 25%,
-    #d9b478 0 32%,
-    #9a6f45 0 40%,
-    #5d4430 0 49%,
-    transparent 0 100%
-  );
+.sheet::before {
+  inset: calc(-2 * var(--tile));
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR42mMQFZP7zwADIA4AFFwCkUMSqhYAAAAASUVORK5CYII=");
 }
 
-.orb.is-moon {
-  width: 9vh;
-  height: 9vh;
-  margin: -4.5vh;
-  transform: translateY(46vh);
-  background: radial-gradient(
-    circle,
-    #dcdcc8 0 30%,
-    #9a958a 0 38%,
-    #46413a 0 46%,
-    transparent 0 100%
-  );
-}
-
-/* Phase matched to the wheel: it starts eighty degrees before noon, so noon is
-   two ninths of the way through and midnight is a little past seven. */
-@keyframes sky-day {
-  0% {
-    opacity: 0.14;
-  }
-
-  22% {
-    opacity: 1;
-  }
-
-  47% {
-    opacity: 0.12;
-  }
-
-  58%,
-  92% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 0.14;
-  }
-}
-
-@keyframes sky-veil {
-  0% {
-    opacity: 0.42;
-  }
-
-  22% {
-    opacity: 0;
-  }
-
-  47% {
-    opacity: 0.4;
-  }
-
-  72% {
-    opacity: 0.82;
-  }
-
-  100% {
-    opacity: 0.42;
-  }
-}
-
-.horizon {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 68%;
-  height: 1px;
-  background: rgb(220 220 200 / 22%);
-}
-
-.land {
-  position: absolute;
-  inset: 68% 0 0 0;
-  background: var(--land);
-}
-
-/* Against the left margin, where a caption goes. Centred it would read as a
-   label on the horizon rather than as the name of the thing being started. */
-.boot-caption {
-  position: absolute;
-  left: clamp(1.5rem, 6vw, 5rem);
-  bottom: clamp(2rem, 10vh, 5.5rem);
-  display: grid;
-  justify-items: start;
-  gap: 0.8rem;
+.sheet::after {
+  inset: calc(-4 * var(--tile));
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVR42mMQFZP7z4AMABKLAUmC8lw9AAAAAElFTkSuQmCC");
 }
 
 .boot-title {
-  font-size: 0.94rem;
-  letter-spacing: 0.34em;
+  position: absolute;
+  top: 2.3%;
+  left: 0;
+  right: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.4em;
+  text-align: center;
   text-transform: lowercase;
-  color: rgb(220 220 200 / 82%);
+  color: rgb(220 220 200 / 72%);
+}
+
+/* A double rule, the inner one lighter, and a small square knot on each corner. */
+.frame {
+  position: absolute;
+  top: 7.5%;
+  left: 6%;
+  right: 6%;
+  aspect-ratio: 21 / 9;
+  border: 1px solid rgb(220 220 200 / 42%);
+}
+
+.frame::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 5px;
+  border: 1px solid rgb(220 220 200 / 18%);
+  pointer-events: none;
+}
+
+.frame-corner {
+  position: absolute;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  border: 1px solid rgb(220 220 200 / 60%);
+  background:
+    linear-gradient(var(--ink), var(--ink)) center / 3px 3px no-repeat,
+    #15161e;
+}
+
+.frame-corner:nth-child(1) {
+  top: -6px;
+  left: -6px;
+}
+
+.frame-corner:nth-child(2) {
+  top: -6px;
+  right: -6px;
+}
+
+.frame-corner:nth-child(3) {
+  bottom: -6px;
+  left: -6px;
+}
+
+.frame-corner:nth-child(4) {
+  bottom: -6px;
+  right: -6px;
+}
+
+.picture {
+  position: absolute;
+  inset: 8px;
+  overflow: hidden;
+  background: var(--land);
+}
+
+.scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Under the frame's bottom rail, faint. */
+.credit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(7.5% + 88% * 4 / 3 * 9 / 21 + 0.55rem);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: rgb(220 220 200 / 34%);
+}
+
+/* Centred in the sheet below the frame, in the pause buttons' dress. The
+   frame's bottom is its top plus its width as a fraction of the sheet's height. */
+.plaque {
+  position: absolute;
+  left: 50%;
+  top: calc((107.5% + 88% * 4 / 3 * 9 / 21) / 2);
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  min-width: 16rem;
+  padding: 0.7rem 1.5rem 0.8rem;
+  background: var(--void);
+  border: 1px solid rgb(220 220 200 / 32%);
+  transform: translate(-50%, -50%);
 }
 
 /* The name of the place a crossing is taking the player to. Hidden for a wait that goes nowhere. */
 .loading-place {
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   letter-spacing: 0.18em;
+  text-align: center;
   color: rgb(220 220 200 / 90%);
 }
 
 .loading-label {
   font-size: 0.68rem;
   letter-spacing: 0.22em;
+  text-align: center;
   text-transform: lowercase;
   color: rgb(220 220 200 / 48%);
 }
 
+/* A blinking cell after the caption: the painting is still, so this is what
+   says the game has not hung while a step holds the main thread. */
+.loading-label::after {
+  content: '';
+  display: inline-block;
+  width: var(--tile);
+  height: var(--tile);
+  margin-left: 0.4em;
+  background: rgb(220 220 200 / 48%);
+  animation: loading-blink 1s steps(2, jump-none) infinite;
+}
+
+@keyframes loading-blink {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
 
 /* Quantized, because everything the renderer draws is: a mask of hard cells over
    the track and the fill together, so what advances is blocks and not a rule

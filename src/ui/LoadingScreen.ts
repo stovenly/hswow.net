@@ -5,12 +5,11 @@
  * second, smaller indicator for the shorter waits — two of them is how one of
  * them ends up looking like a different game.
  *
- * A dithered sky with the sun and the moon turning on one wheel about the
- * middle of the horizon, over a bar beside the caption. `--lit` is how far
- * through the sequence everything is, 0..1, and it is the only thing this
- * writes. **The sky is not progress and never pretends to be** — it runs on its
- * own clock, which is what says the game has not hung, and it is left alone
- * between waits so it picks up where it was rather than snapping back to dawn.
+ * A painting in a frame on a sheet, picked at random for each wait, its credit
+ * under the frame and a plaque with the caption and the bar below that. `--lit`
+ * is how far through the sequence everything is, 0..1, and it is the only thing
+ * this writes. The painting is still; a blinking cell after the caption is what
+ * says the game has not hung.
  *
  * **A real bar is possible precisely because there is nothing to download.**
  * Every triangle and every sample is generated here, so loading is a fixed known
@@ -27,6 +26,8 @@
  * thing for a page that has none.
  */
 
+import { paintingCredit, paintingSrc, pickPainting } from './loadingScenes';
+
 /** Seconds the screen takes to go. Matches the CSS transition, and stays under the black a zone crossing holds. */
 const FADE = 0.25;
 
@@ -38,7 +39,11 @@ export class LoadingScreen {
   private readonly label: HTMLElement;
   /** Where the wait is taking the player, over the caption. Empty for a wait that goes nowhere. */
   private readonly place: HTMLElement;
+  private readonly picture: HTMLImageElement;
+  private readonly credit: HTMLElement;
   private shown = true;
+  /** The painting decoded, or given up on, so a wait's first paint has it. */
+  private hung: Promise<void> = Promise.resolve();
 
   /**
    * Adopts the markup already in the document, or builds it if it is missing.
@@ -51,7 +56,21 @@ export class LoadingScreen {
     if (!this.root.isConnected) document.body.append(this.root);
     this.label = this.root.querySelector<HTMLElement>('.loading-label') ?? labelEl();
     this.place = this.root.querySelector<HTMLElement>('.loading-place') ?? placeEl(this.label);
+    this.picture = this.root.querySelector<HTMLImageElement>('.scene') ?? sceneEl(this.root);
+    this.credit = this.root.querySelector<HTMLElement>('.credit') ?? creditEl(this.root);
+    if (this.root.dataset.scene) this.hung = decoded(this.picture);
+    else this.hang(null);
     document.body.classList.add('is-loading');
+  }
+
+  /** Hangs a painting that is not `current`, and starts waiting for it to decode. */
+  private hang(current: string | null): void {
+    const painting = pickPainting(current);
+    this.root.dataset.scene = painting.id;
+    this.picture.style.objectPosition = painting.focus ?? '';
+    this.picture.src = paintingSrc(painting);
+    this.credit.textContent = paintingCredit(painting);
+    this.hung = decoded(this.picture);
   }
 
   /**
@@ -68,13 +87,14 @@ export class LoadingScreen {
       return;
     }
     this.shown = true;
+    this.hang(this.root.dataset.scene ?? null);
     // The bar goes back to the start with its transitions off, or it runs
-    // backwards as the screen arrives. The sky is on its own clock and is not
-    // reset at all.
+    // backwards as the screen arrives.
     this.root.classList.add('is-settling');
     this.set(FIRST);
     this.root.classList.remove('is-gone');
     document.body.classList.add('is-loading');
+    await this.hung;
     await paint();
     this.root.classList.remove('is-settling');
   }
@@ -87,12 +107,13 @@ export class LoadingScreen {
    * `progress` is omitted for a step whose cost cannot be reported from inside
    * — `Zone.build()` is one synchronous call — and the bar simply holds. **A bar
    * that stops moving reads as a hang, so something else has to be moving**:
-   * here that is the sky, which is a compositor animation and carries on while
-   * the main thread is blocked.
+   * here that is the blinking cell after the caption, a compositor animation
+   * that carries on while the main thread is blocked.
    */
   async working(label: string, progress?: number): Promise<void> {
     this.label.textContent = label;
     if (progress !== undefined) this.set(progress);
+    await this.hung;
     await paint();
   }
 
@@ -130,7 +151,7 @@ export class LoadingScreen {
     this.root.classList.add('is-failed');
   }
 
-  /** How far through the sequence everything is. The sky and the bar both read it. */
+  /** How far through the sequence everything is. */
   private set(progress: number): void {
     this.root.style.setProperty('--lit', String(Math.min(Math.max(progress, 0), 1)));
   }
@@ -159,6 +180,27 @@ function wait(seconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, seconds * 1000));
 }
 
+/** Resolves when the image can be drawn, or after a beat, so a missing file cannot hold a step. */
+function decoded(image: HTMLImageElement): Promise<void> {
+  return Promise.race([image.decode().catch(() => undefined), wait(0.4)]);
+}
+
+function sceneEl(root: HTMLElement): HTMLImageElement {
+  const image = document.createElement('img');
+  image.className = 'scene';
+  image.alt = '';
+  image.decoding = 'async';
+  (root.querySelector('.picture') ?? root).append(image);
+  return image;
+}
+
+function creditEl(root: HTMLElement): HTMLElement {
+  const credit = document.createElement('div');
+  credit.className = 'credit';
+  (root.querySelector('.sheet') ?? root).append(credit);
+  return credit;
+}
+
 function labelEl(): HTMLElement {
   const label = document.createElement('div');
   label.className = 'loading-label';
@@ -185,32 +227,21 @@ function build(): HTMLElement {
   const root = document.createElement('div');
   root.id = 'loading';
 
-  const sky = div('sky');
-  sky.setAttribute('aria-hidden', 'true');
-  for (const tier of ['is-dawn', 'is-day']) {
-    const layer = div(`sky-tier ${tier}`, sky);
-    div('tier-bands', layer);
-    div('tier-dither', layer);
-  }
-  div('sky-veil', sky);
-  const wheel = div('wheel', sky);
-  div('orb is-sun', wheel);
-  div('orb is-moon', wheel);
-
-  const horizon = div('horizon');
-  horizon.setAttribute('aria-hidden', 'true');
-
-  const land = div('land');
-  land.setAttribute('aria-hidden', 'true');
+  const sheet = div('sheet', root);
 
   // No title line: which game this is belongs to the page, and the page that
   // wants one carries the markup itself.
-  const caption = div('boot-caption');
-  const label = labelEl();
-  caption.append(label);
-  placeEl(label);
-  div('bar-fill', div('bar', caption));
+  const frame = div('frame', sheet);
+  frame.setAttribute('aria-hidden', 'true');
+  for (let corner = 0; corner < 4; corner++) div('frame-corner', frame);
+  sceneEl(div('picture', frame));
+  creditEl(sheet);
 
-  root.append(sky, horizon, land, caption);
+  const plaque = div('plaque', sheet);
+  const label = labelEl();
+  plaque.append(label);
+  placeEl(label);
+  div('bar-fill', div('bar', plaque));
+
   return root;
 }

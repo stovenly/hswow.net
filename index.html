@@ -22,11 +22,11 @@
       So everything the first frame needs is duplicated here: the dark ground
       colour, and the loading screen itself. The loading markup is static rather
       than built in script for the same reason — it has to exist before any
-      script runs. `ui/Loader.ts` adopts these elements instead of creating its
-      own, and `styles.css` restates these rules for the rest of the session.
-      The transitions are not here: at `--lit: 0` this is the sky at half
-      light with the stones already standing against it, which is the frame that
-      wants to be up instantly.
+      script runs. `ui/LoadingScreen.ts` adopts these elements instead of
+      creating its own, and `styles.css` restates these rules for the rest of
+      the session. The transitions are not here: at `--lit: 0` this is the
+      sheet with its frame and an empty bar, which is the frame that wants to
+      be up instantly.
     -->
     <style>
       html,
@@ -43,11 +43,6 @@
       .is-loading #capture-hint {
         opacity: 0;
       }
-      /* Six flat levels rather than a smooth ramp, with the steps between them
-         dithered at the three-pixel block the whole game is quantized to: two
-         posterised gradients half a band apart, the upper one checkerboarded.
-         In the middle of a band they agree and it is flat; at a step they
-         disagree and half the pixels take the level above. */
       #loading {
         position: fixed;
         inset: 0;
@@ -56,191 +51,154 @@
         background: #0a0a0f;
         --lit: 0;
         --land: #08080c;
-        --cycle: 34s;
+        --tile: 4px;
       }
-      .sky {
-        position: absolute;
-        inset: 0 0 32% 0;
-        overflow: hidden;
-      }
-      .sky-tier {
-        position: absolute;
-        inset: 0;
-      }
-      .sky-tier.is-dawn {
-        --b0: #12131c;
-        --b1: #191a24;
-        --b2: #23212d;
-        --b3: #302733;
-        --b4: #452f2c;
-        --b5: #5e4231;
-      }
-      .sky-tier.is-day {
-        --b0: #24313f;
-        --b1: #2c3a46;
-        --b2: #36434c;
-        --b3: #435049;
-        --b4: #565c4b;
-        --b5: #6d6c53;
-        opacity: 0;
-        animation: sky-day var(--cycle) linear infinite;
-      }
-      .tier-bands,
-      .tier-dither {
-        position: absolute;
-        inset: 0;
-      }
-      .tier-bands {
-        background: linear-gradient(
-          to bottom,
-          var(--b0) 0 16.667%,
-          var(--b1) 0 33.333%,
-          var(--b2) 0 50%,
-          var(--b3) 0 66.667%,
-          var(--b4) 0 83.333%,
-          var(--b5) 0 100%
-        );
-      }
-      .tier-dither {
-        background: linear-gradient(
-          to bottom,
-          var(--b0) 0 8.333%,
-          var(--b1) 0 25%,
-          var(--b2) 0 41.667%,
-          var(--b3) 0 58.333%,
-          var(--b4) 0 75%,
-          var(--b5) 0 100%
-        );
-        mask-image: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%);
-        mask-size: 6px 6px;
-      }
-      .sky-veil {
-        position: absolute;
-        inset: 0;
-        background: #0a0a0f;
-        opacity: 0.42;
-        animation: sky-veil var(--cycle) linear infinite;
-      }
-      .wheel {
+      .sheet {
         position: absolute;
         left: 50%;
-        top: 100%;
-        width: 0;
-        height: 0;
-        animation: sky-wheel var(--cycle) linear infinite;
+        top: 50%;
+        width: min(88vw, 92vh * 4 / 3);
+        aspect-ratio: 4 / 3;
+        transform: translate(-50%, -50%);
+        background: #15161e;
+        isolation: isolate;
       }
-      @keyframes sky-wheel {
-        from {
-          transform: rotate(-80deg);
-        }
-        to {
-          transform: rotate(280deg);
-        }
-      }
-      .orb {
+      .sheet::before,
+      .sheet::after {
+        content: '';
         position: absolute;
+        z-index: -1;
+        image-rendering: pixelated;
+        background-size: var(--tile) var(--tile);
+      }
+      .sheet::before {
+        inset: calc(-2 * var(--tile));
+        background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR42mMQFZP7zwADIA4AFFwCkUMSqhYAAAAASUVORK5CYII=");
+      }
+      .sheet::after {
+        inset: calc(-4 * var(--tile));
+        background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVR42mMQFZP7z4AMABKLAUmC8lw9AAAAAElFTkSuQmCC");
+      }
+      .boot-title {
+        position: absolute;
+        top: 2.3%;
         left: 0;
-        top: 0;
+        right: 0;
+        font-size: 0.82rem;
+        letter-spacing: 0.4em;
+        text-align: center;
+        text-transform: lowercase;
+        color: rgb(220 220 200 / 72%);
       }
-      .orb.is-sun {
-        width: 15vh;
-        height: 15vh;
-        margin: -7.5vh;
-        transform: translateY(-46vh);
-        background: radial-gradient(
-          circle,
-          #f4e6bd 0 25%,
-          #d9b478 0 32%,
-          #9a6f45 0 40%,
-          #5d4430 0 49%,
-          transparent 0 100%
-        );
+      .frame {
+        position: absolute;
+        top: 7.5%;
+        left: 6%;
+        right: 6%;
+        aspect-ratio: 21 / 9;
+        border: 1px solid rgb(220 220 200 / 42%);
       }
-      .orb.is-moon {
-        width: 9vh;
-        height: 9vh;
-        margin: -4.5vh;
-        transform: translateY(46vh);
-        background: radial-gradient(
-          circle,
-          #dcdcc8 0 30%,
-          #9a958a 0 38%,
-          #46413a 0 46%,
-          transparent 0 100%
-        );
+      .frame::before {
+        content: '';
+        position: absolute;
+        z-index: 1;
+        inset: 5px;
+        border: 1px solid rgb(220 220 200 / 18%);
+        pointer-events: none;
       }
-      @keyframes sky-day {
-        0% {
-          opacity: 0.14;
-        }
-        22% {
-          opacity: 1;
-        }
-        47% {
-          opacity: 0.12;
-        }
-        58%,
-        92% {
-          opacity: 0;
-        }
-        100% {
-          opacity: 0.14;
-        }
+      .frame-corner {
+        position: absolute;
+        z-index: 2;
+        width: 11px;
+        height: 11px;
+        border: 1px solid rgb(220 220 200 / 60%);
+        background:
+          linear-gradient(var(--ink), var(--ink)) center / 3px 3px no-repeat,
+          #15161e;
       }
-      @keyframes sky-veil {
-        0% {
-          opacity: 0.42;
-        }
-        22% {
-          opacity: 0;
-        }
-        47% {
-          opacity: 0.4;
-        }
-        72% {
-          opacity: 0.82;
-        }
-        100% {
-          opacity: 0.42;
-        }
+      .frame-corner:nth-child(1) {
+        top: -6px;
+        left: -6px;
       }
-      .horizon {
+      .frame-corner:nth-child(2) {
+        top: -6px;
+        right: -6px;
+      }
+      .frame-corner:nth-child(3) {
+        bottom: -6px;
+        left: -6px;
+      }
+      .frame-corner:nth-child(4) {
+        bottom: -6px;
+        right: -6px;
+      }
+      .picture {
+        position: absolute;
+        inset: 8px;
+        overflow: hidden;
+        background: var(--land);
+      }
+
+      .scene {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .credit {
         position: absolute;
         left: 0;
         right: 0;
-        top: 68%;
-        height: 1px;
-        background: rgb(220 220 200 / 22%);
+        top: calc(7.5% + 88% * 4 / 3 * 9 / 21 + 0.55rem);
+        font-size: 0.62rem;
+        letter-spacing: 0.14em;
+        text-align: center;
+        color: rgb(220 220 200 / 34%);
       }
-      .land {
+
+      .plaque {
         position: absolute;
-        inset: 68% 0 0 0;
-        background: var(--land);
-      }
-      .boot-caption {
-        position: absolute;
-        left: clamp(1.5rem, 6vw, 5rem);
-        bottom: clamp(2rem, 10vh, 5.5rem);
+        left: 50%;
+        top: calc((107.5% + 88% * 4 / 3 * 9 / 21) / 2);
         display: grid;
-        justify-items: start;
-        gap: 0.8rem;
-      }
-      .boot-title {
-        font-size: 0.94rem;
-        letter-spacing: 0.34em;
-        text-transform: lowercase;
-        color: rgb(220 220 200 / 82%);
+        justify-items: center;
+        gap: 0.55rem;
+        min-width: 16rem;
+        padding: 0.7rem 1.5rem 0.8rem;
+        background: var(--void);
+        border: 1px solid rgb(220 220 200 / 32%);
+        transform: translate(-50%, -50%);
       }
       .loading-place {
-        font-size: 1.3rem;
+        font-size: 1.1rem;
         letter-spacing: 0.18em;
+        text-align: center;
         color: rgb(220 220 200 / 90%);
       }
       .loading-label {
         font-size: 0.68rem;
         letter-spacing: 0.22em;
+        text-align: center;
         text-transform: lowercase;
         color: rgb(220 220 200 / 48%);
+      }
+      .loading-label::after {
+        content: '';
+        display: inline-block;
+        width: var(--tile);
+        height: var(--tile);
+        margin-left: 0.4em;
+        background: rgb(220 220 200 / 48%);
+        animation: loading-blink 1s steps(2, jump-none) infinite;
+      }
+      @keyframes loading-blink {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
       }
       .bar {
         position: relative;
@@ -307,36 +265,48 @@
       </div>
     </div>
     <!--
-      The loading screen: a dithered sky with the sun and the moon turning on one
-      wheel about the middle of the horizon, and the horizon itself as the bar.
+      The loading screen: a painting in a frame on a sheet, hung at random by
+      the script under it, which carries the same list `ui/loadingScenes.ts` does.
       Static for the same reason the styles above are — it has to be on screen
       before any module has run. `ui/LoadingScreen.ts` builds the same thing for
       a page that has none, and drives `--lit` for every wait in the game.
     -->
     <div id="loading">
-      <div class="sky" aria-hidden="true">
-        <div class="sky-tier is-dawn">
-          <div class="tier-bands"></div>
-          <div class="tier-dither"></div>
-        </div>
-        <div class="sky-tier is-day">
-          <div class="tier-bands"></div>
-          <div class="tier-dither"></div>
-        </div>
-        <div class="sky-veil"></div>
-        <div class="wheel">
-          <div class="orb is-sun"></div>
-          <div class="orb is-moon"></div>
-        </div>
-      </div>
-      <div class="horizon" aria-hidden="true"></div>
-      <div class="land" aria-hidden="true"></div>
-      <div class="boot-caption">
+      <div class="sheet">
         <div class="boot-title">here stands what once was</div>
-        <div class="loading-place" hidden></div>
-        <div class="loading-label">starting</div>
-        <div class="bar"><div class="bar-fill"></div></div>
+        <div class="frame" aria-hidden="true">
+          <div class="frame-corner"></div><div class="frame-corner"></div><div class="frame-corner"></div><div class="frame-corner"></div>
+          <div class="picture"><img class="scene" alt="" decoding="async" /></div>
+        </div>
+        <div class="credit"></div>
+        <div class="plaque">
+          <div class="loading-place" hidden></div>
+          <div class="loading-label">starting</div>
+          <div class="bar"><div class="bar-fill"></div></div>
+        </div>
       </div>
+    </div>
+    <script>
+      (() => {
+        const paintings = [
+          ['wyant-housatonic-valley', 'Housatonic Valley', 'Alexander Helwig Wyant'],
+          ['schaeffer-hungarian-landscape', 'Hungarian Landscape', 'August Schaeffer von Wienwald'],
+          ['gay-sound-beach', 'The River, Sound Beach, Connecticut', 'Edward Gay'],
+          ['rehn-bass-rocks', 'Beach of Bass Rocks, Gloucester', 'F. K. M. Rehn'],
+          ['harpignies-view-of-a-stream', 'View of a Stream', 'Henri Harpignies'],
+          ['adams-august-sunset', 'An August Sunset, Prairie Dell', 'J. Ottis Adams'],
+          ['constable-willy-lotts-house', "Willy Lott's House", 'John Constable'],
+          ['constable-tree-in-a-landscape', 'Tree in a Landscape', 'Lionel Bicknell Constable'],
+          ['denis-clouds-over-rome', 'Study of Clouds with a Sunset near Rome', 'Simon Alexandre Clément Denis'],
+          ['steele-the-river', 'The River', 'Theodore Clement Steele'],
+        ];
+        const [id, title, artist] = paintings[Math.floor(Math.random() * paintings.length)];
+        const loading = document.getElementById('loading');
+        loading.dataset.scene = id;
+        loading.querySelector('.scene').src = './paintings/' + id + '.jpg';
+        loading.querySelector('.credit').textContent = title + ' \u00b7 ' + artist;
+      })();
+    </script>
     </div>
     <!-- Isolation, for shared memory. The very first visit reloads once so the
          document is served through the worker with the headers on. -->
