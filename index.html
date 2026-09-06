@@ -9,25 +9,17 @@
          the real one, so search and link previews still say what this is. -->
     <title>herestandswhatoncewas</title>
 
-    <!--
-      Critical first-paint styles, inline on purpose.
-
-      `styles.css` is imported from `main.ts`, so Vite serves it *through
-      JavaScript* — which means there is a window, before that module has run,
-      where the browser paints this document with its own default styles: a
-      white page, black text, and the capture hint sitting in the corner. The
-      flash is brief and extremely obvious, and nothing inside the app can fix
-      it, because the app has not started yet.
-
-      So everything the first frame needs is duplicated here: the dark ground
-      colour, and the loading screen itself. The loading markup is static rather
-      than built in script for the same reason — it has to exist before any
-      script runs. `ui/LoadingScreen.ts` adopts these elements instead of
-      creating its own, and `styles.css` restates these rules for the rest of
-      the session. The transitions are not here: at `--lit: 0` this is the
-      sheet with its frame and an empty bar, which is the frame that wants to
-      be up instantly.
-    -->
+    <!-- First-paint styles: styles.css arrives through main.ts, after this has been drawn. -->
+    <script>
+      (() => {
+        let size = 0;
+        try {
+          size = JSON.parse(localStorage.getItem('hswow.preset.options') || '{}').fontSize;
+        } catch {}
+        if (typeof size !== 'number' || !Number.isFinite(size)) size = 0;
+        document.documentElement.style.fontSize = 18 + Math.min(Math.max(size, -5), 5) + 'px';
+      })();
+    </script>
     <style>
       html,
       body {
@@ -43,6 +35,46 @@
       .is-loading #capture-hint {
         opacity: 0;
       }
+      .is-title #pause {
+        display: none;
+      }
+      #title {
+        position: fixed;
+        inset: 0;
+        z-index: 14;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 3.2rem;
+        background: #0a0a0f;
+      }
+      .title-name {
+        font-size: 1.05rem;
+        letter-spacing: 0.55em;
+        text-transform: lowercase;
+        text-align: center;
+        color: #dcdcc8;
+      }
+      .title-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+      }
+      .title-button.is-empty {
+        visibility: hidden;
+      }
+      .title-button {
+        width: 13rem;
+        padding: 0.55rem 1.5rem;
+        font: inherit;
+        font-size: 0.7rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgb(220 220 200 / 78%);
+        background: rgb(10 10 15 / 86%);
+        border: 1px solid rgb(220 220 200 / 32%);
+        cursor: pointer;
+      }
       #loading {
         position: fixed;
         inset: 0;
@@ -52,6 +84,12 @@
         --lit: 0;
         --land: #08080c;
         --tile: 4px;
+        --bar: 16rem;
+      }
+      #loading.is-gone {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
       }
       .sheet {
         position: absolute;
@@ -62,6 +100,8 @@
         transform: translate(-50%, -50%);
         background: #15161e;
         isolation: isolate;
+        --frame-top: 7.5%;
+        --frame-height: calc(88% * 4 / 3 * 9 / 16);
       }
       .sheet::before,
       .sheet::after {
@@ -84,18 +124,17 @@
         top: 2.3%;
         left: 0;
         right: 0;
-        font-size: 0.82rem;
-        letter-spacing: 0.4em;
+        font-family: ui-serif, Georgia, "Iowan Old Style", Palatino, "Palatino Linotype", "Times New Roman", serif;
+        font-size: 1.15rem;
         text-align: center;
-        text-transform: lowercase;
-        color: rgb(220 220 200 / 72%);
+        color: rgb(220 220 200 / 78%);
       }
       .frame {
         position: absolute;
-        top: 7.5%;
+        top: var(--frame-top);
         left: 6%;
         right: 6%;
-        aspect-ratio: 21 / 9;
+        height: var(--frame-height);
         border: 1px solid rgb(220 220 200 / 42%);
       }
       .frame::before {
@@ -144,53 +183,38 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
+        object-position: 50% 50%;
       }
 
       .credit {
         position: absolute;
         left: 0;
         right: 0;
-        top: calc(7.5% + 88% * 4 / 3 * 9 / 21 + 0.55rem);
-        font-size: 0.62rem;
-        letter-spacing: 0.14em;
+        top: calc(var(--frame-top) + var(--frame-height) + 0.55rem);
+        font-family: ui-serif, Georgia, "Iowan Old Style", Palatino, "Palatino Linotype", "Times New Roman", serif;
+        font-size: 0.82rem;
         text-align: center;
-        color: rgb(220 220 200 / 34%);
+        color: rgb(220 220 200 / 50%);
+      }
+
+      .credit i {
+        font-style: italic;
       }
 
       .plaque {
         position: absolute;
         left: 50%;
-        top: calc((107.5% + 88% * 4 / 3 * 9 / 21) / 2);
+        top: calc((var(--frame-top) + var(--frame-height) + 100%) / 2);
         display: grid;
         justify-items: center;
-        gap: 0.55rem;
-        min-width: 16rem;
-        padding: 0.7rem 1.5rem 0.8rem;
-        background: var(--void);
-        border: 1px solid rgb(220 220 200 / 32%);
+        gap: 0.7rem;
         transform: translate(-50%, -50%);
       }
-      .loading-place {
-        font-size: 1.1rem;
-        letter-spacing: 0.18em;
-        text-align: center;
-        color: rgb(220 220 200 / 90%);
-      }
       .loading-label {
-        font-size: 0.68rem;
-        letter-spacing: 0.22em;
+        font-family: ui-serif, Georgia, "Iowan Old Style", Palatino, "Palatino Linotype", "Times New Roman", serif;
+        font-size: 0.82rem;
         text-align: center;
-        text-transform: lowercase;
-        color: rgb(220 220 200 / 48%);
-      }
-      .loading-label::after {
-        content: '';
-        display: inline-block;
-        width: var(--tile);
-        height: var(--tile);
-        margin-left: 0.4em;
-        background: rgb(220 220 200 / 48%);
-        animation: loading-blink 1s steps(2, jump-none) infinite;
+        color: rgb(220 220 200 / 50%);
       }
       @keyframes loading-blink {
         from {
@@ -202,30 +226,35 @@
       }
       .bar {
         position: relative;
-        width: clamp(9rem, 22vw, 14rem);
-        height: 0.45rem;
+        width: var(--bar);
+        height: var(--tile);
+        overflow: hidden;
         background: rgb(220 220 200 / 14%);
-        mask-image: repeating-linear-gradient(to right, #000 0 0.3rem, transparent 0.3rem 0.46rem);
+        mask-image: repeating-linear-gradient(to right, #000 0 var(--tile), transparent var(--tile) calc(var(--tile) * 1.5));
       }
       .bar-fill {
         position: absolute;
         inset: 0;
-        background: #dcdcc8;
+        background: rgb(220 220 200 / 62%);
         transform-origin: left center;
         transform: scaleX(var(--lit));
       }
+
+      .bar-next {
+        position: absolute;
+        top: 0;
+        left: round(up, calc(var(--lit) * var(--bar)), calc(var(--tile) * 1.5));
+        width: var(--tile);
+        height: 100%;
+        background: rgb(220 220 200 / 62%);
+        animation: loading-blink 1s steps(2, jump-none) infinite;
+      }
     </style>
   </head>
-  <body class="is-loading">
+  <body class="is-title">
     <canvas id="viewport"></canvas>
     <div id="overlay">
       <div id="crosshair"></div>
-      <!--
-        The pause stack, shown whenever the mouse is not captured: the controls
-        panel, then the buttons the pause screen owns, mounted into
-        #pause-buttons by their own modules. The hint is static markup because
-        it has to be correct before any module has run.
-      -->
       <div id="pause">
         <div id="capture-hint">
         <div class="hint-title">click to play</div>
@@ -263,15 +292,18 @@
         </div>
         <div id="pause-buttons"></div>
       </div>
+      <div id="title">
+        <div class="title-name">here stands what once was</div>
+        <div class="title-buttons">
+          <button type="button" class="title-button is-empty">continue</button>
+          <button type="button" class="title-button">new game</button>
+          <button type="button" class="title-button">load</button>
+          <button type="button" class="title-button">options</button>
+        </div>
+      </div>
     </div>
-    <!--
-      The loading screen: a painting in a frame on a sheet, hung at random by
-      the script under it, which carries the same list `ui/loadingScenes.ts` does.
-      Static for the same reason the styles above are — it has to be on screen
-      before any module has run. `ui/LoadingScreen.ts` builds the same thing for
-      a page that has none, and drives `--lit` for every wait in the game.
-    -->
-    <div id="loading">
+    <!-- The painting list below is also in ui/loadingScenes.ts. -->
+    <div id="loading" class="is-gone">
       <div class="sheet">
         <div class="boot-title">here stands what once was</div>
         <div class="frame" aria-hidden="true">
@@ -280,12 +312,19 @@
         </div>
         <div class="credit"></div>
         <div class="plaque">
-          <div class="loading-place" hidden></div>
           <div class="loading-label">starting</div>
-          <div class="bar"><div class="bar-fill"></div></div>
+          <div class="bar"><div class="bar-fill"></div><div class="bar-next"></div></div>
         </div>
       </div>
     </div>
+    <script>
+      for (let slot = 1; slot <= 3; slot++) {
+        if (localStorage.getItem('hswow:save:' + slot)) {
+          document.querySelector('.title-button.is-empty').classList.remove('is-empty');
+          break;
+        }
+      }
+    </script>
     <script>
       (() => {
         const paintings = [
@@ -304,7 +343,9 @@
         const loading = document.getElementById('loading');
         loading.dataset.scene = id;
         loading.querySelector('.scene').src = './paintings/' + id + '.jpg';
-        loading.querySelector('.credit').textContent = title + ' \u00b7 ' + artist;
+        const credit = loading.querySelector('.credit');
+        credit.appendChild(document.createElement('i')).textContent = title;
+        credit.append(', ' + artist);
       })();
     </script>
     </div>

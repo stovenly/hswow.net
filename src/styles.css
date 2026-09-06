@@ -803,10 +803,7 @@ body.is-playing #crosshair {
 
 /* --- the loading screen -------------------------------------------------- */
 
-/* One screen, for everything that makes you wait: boot, a new game raising the
-   world, a doorway into a zone never built, and a compile that runs long.
-   Above everything, including the zone fade, because it is what the player is
-   waiting on and nothing should ever be composited over it. */
+/* Above the zone fade. */
 #loading {
   position: fixed;
   inset: 0;
@@ -817,13 +814,11 @@ body.is-playing #crosshair {
 
   --lit: 0;
   --land: #08080c;
-  /* A checker tile of two of the renderer's chunky pixels. */
   --tile: 4px;
+  --bar: 16rem;
 }
 
-/* Visibility as well as opacity, on a delay the length of the fade: at zero
-   opacity alone the screen is still a composited layer over the world for the
-   rest of the session. */
+/* Visibility too, or the hidden screen stays a composited layer over the world. */
 #loading.is-gone {
   opacity: 0;
   visibility: hidden;
@@ -833,16 +828,10 @@ body.is-playing #crosshair {
     visibility 0s linear 250ms;
 }
 
-/* A fresh wait starts the bar back at the beginning, and that reset is not
-   something to watch happen. */
 #loading.is-settling .bar-fill {
   transition: none;
 }
 
-/* A dark sheet on the void, hung in the middle of the screen. Its edge is not a
-   line: two bands of the renderer's two-pixel cells, half then a quarter
-   filled, so the sheet dissolves into the black the way everything else here
-   is dithered. */
 .sheet {
   position: absolute;
   left: 50%;
@@ -852,6 +841,8 @@ body.is-playing #crosshair {
   transform: translate(-50%, -50%);
   background: #15161e;
   isolation: isolate;
+  --frame-top: 7.5%;
+  --frame-height: calc(88% * 4 / 3 * 9 / 16);
 }
 
 .sheet::before,
@@ -878,20 +869,20 @@ body.is-playing #crosshair {
   top: 2.3%;
   left: 0;
   right: 0;
-  font-size: 0.82rem;
-  letter-spacing: 0.4em;
+  font-family: var(--prose);
+  font-size: 1.15rem;
   text-align: center;
-  text-transform: lowercase;
-  color: rgb(220 220 200 / 72%);
+  color: rgb(220 220 200 / 78%);
 }
 
-/* A double rule, the inner one lighter, and a small square knot on each corner. */
+/* A stated height, not aspect-ratio: the picture's percentage height must resolve.
+   88% of a 4:3 sheet's width, as a fraction of its height, at 16:9. */
 .frame {
   position: absolute;
-  top: 7.5%;
+  top: var(--frame-top);
   left: 6%;
   right: 6%;
-  aspect-ratio: 21 / 9;
+  height: var(--frame-height);
   border: 1px solid rgb(220 220 200 / 42%);
 }
 
@@ -947,62 +938,39 @@ body.is-playing #crosshair {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% 50%;
 }
 
-/* Under the frame's bottom rail, faint. */
 .credit {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(7.5% + 88% * 4 / 3 * 9 / 21 + 0.55rem);
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
+  top: calc(var(--frame-top) + var(--frame-height) + 0.55rem);
+  font-family: var(--prose);
+  font-size: 0.82rem;
   text-align: center;
-  color: rgb(220 220 200 / 34%);
+  color: rgb(220 220 200 / 50%);
 }
 
-/* Centred in the sheet below the frame, in the pause buttons' dress. The
-   frame's bottom is its top plus its width as a fraction of the sheet's height. */
+.credit i {
+  font-style: italic;
+}
+
 .plaque {
   position: absolute;
   left: 50%;
-  top: calc((107.5% + 88% * 4 / 3 * 9 / 21) / 2);
+  top: calc((var(--frame-top) + var(--frame-height) + 100%) / 2);
   display: grid;
   justify-items: center;
-  gap: 0.55rem;
-  min-width: 16rem;
-  padding: 0.7rem 1.5rem 0.8rem;
-  background: var(--void);
-  border: 1px solid rgb(220 220 200 / 32%);
+  gap: 0.7rem;
   transform: translate(-50%, -50%);
 }
 
-/* The name of the place a crossing is taking the player to. Hidden for a wait that goes nowhere. */
-.loading-place {
-  font-size: 1.1rem;
-  letter-spacing: 0.18em;
-  text-align: center;
-  color: rgb(220 220 200 / 90%);
-}
-
 .loading-label {
-  font-size: 0.68rem;
-  letter-spacing: 0.22em;
+  font-family: var(--prose);
+  font-size: 0.82rem;
   text-align: center;
-  text-transform: lowercase;
-  color: rgb(220 220 200 / 48%);
-}
-
-/* A blinking cell after the caption: the painting is still, so this is what
-   says the game has not hung while a step holds the main thread. */
-.loading-label::after {
-  content: '';
-  display: inline-block;
-  width: var(--tile);
-  height: var(--tile);
-  margin-left: 0.4em;
-  background: rgb(220 220 200 / 48%);
-  animation: loading-blink 1s steps(2, jump-none) infinite;
+  color: rgb(220 220 200 / 50%);
 }
 
 @keyframes loading-blink {
@@ -1015,28 +983,33 @@ body.is-playing #crosshair {
   }
 }
 
-/* Quantized, because everything the renderer draws is: a mask of hard cells over
-   the track and the fill together, so what advances is blocks and not a rule
-   sliding. It lives with the caption and stays about a hand's width — a bar the
-   width of the screen throws its leading edge hundreds of pixels on every step,
-   and progress arrives in jumps. Scaled rather than resized, so the browser
-   hands it to the compositor and a blocked main thread cannot freeze it
-   mid-glide. */
 .bar {
   position: relative;
-  width: clamp(9rem, 22vw, 14rem);
-  height: 0.45rem;
+  width: var(--bar);
+  height: var(--tile);
+  overflow: hidden;
   background: rgb(220 220 200 / 14%);
-  mask-image: repeating-linear-gradient(to right, #000 0 0.3rem, transparent 0.3rem 0.46rem);
+  mask-image: repeating-linear-gradient(to right, #000 0 var(--tile), transparent var(--tile) calc(var(--tile) * 1.5));
 }
 
 .bar-fill {
   position: absolute;
   inset: 0;
-  background: var(--ink);
+  background: rgb(220 220 200 / 62%);
   transform-origin: left center;
   transform: scaleX(var(--lit));
   transition: transform 260ms ease-out;
+}
+
+/* The next unlit cell, blinking: opacity only, so it runs while a step blocks the main thread. */
+.bar-next {
+  position: absolute;
+  top: 0;
+  left: round(up, calc(var(--lit) * var(--bar)), calc(var(--tile) * 1.5));
+  width: var(--tile);
+  height: 100%;
+  background: rgb(220 220 200 / 62%);
+  animation: loading-blink 1s steps(2, jump-none) infinite;
 }
 
 #loading.is-failed .bar-fill {
@@ -1047,8 +1020,6 @@ body.is-playing #crosshair {
   color: #b5695a;
 }
 
-/* The capture hint would otherwise sit behind the boot screen and appear the
-   instant it clears, before the player has seen anything of the world. */
 body.is-loading #capture-hint {
   opacity: 0;
 }
@@ -1775,6 +1746,11 @@ body.is-identifying #pause {
   transition:
     color 120ms linear,
     background-color 120ms linear;
+}
+
+/* Keeps its slot, so the stack does not shift when continue appears. */
+.title-button.is-empty {
+  visibility: hidden;
 }
 
 .title-button:hover {

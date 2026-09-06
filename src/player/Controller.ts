@@ -303,6 +303,8 @@ export class Controller {
   private stance = 0;
   /** Feet height last frame, for spotting those steps. */
   private lastFeetY: number | null = null;
+  /** Set by a teleport: the drop onto the ground that follows is not a landing. */
+  private settling = false;
 
   /** Surface the player is standing on. Straight up whenever airborne. */
   private readonly groundNormal = new THREE.Vector3(0, 1, 0);
@@ -362,6 +364,7 @@ export class Controller {
     this.crouch = 0;
     this.stepLag = 0;
     this.lastFeetY = null;
+    this.settling = true;
   }
 
   /**
@@ -574,7 +577,9 @@ export class Controller {
 
     if (this.grounded && !wasGrounded) {
       this.timeSinceLand = 0;
-      if (impact > 1) {
+      if (this.settling) {
+        this.settling = false;
+      } else if (impact > 1) {
         this.dip += Math.min(impact, 18) * t.landDip;
         this.onLand?.(impact, horizontal);
       }

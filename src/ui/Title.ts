@@ -1,10 +1,6 @@
 import { listSaves, type SlotInfo } from '../world/save';
 
-/**
- * The title screen: the game's name over continue, new game, load and options.
- * The buttons drive the same panels the pause screen owns; `body.is-title`
- * hides that stack while this one is up.
- */
+// The title screen. Adopts the page's static markup when it is there.
 
 interface Handlers {
   newGame(): Promise<void>;
@@ -19,30 +15,32 @@ export class Title {
   private busy = false;
 
   constructor(overlay: HTMLElement, title: string, handlers: Handlers) {
-    this.root = document.createElement('div');
+    const existing = document.getElementById('title');
+    this.root = existing instanceof HTMLDivElement ? existing : document.createElement('div');
     this.root.id = 'title';
 
-    const name = document.createElement('div');
+    const name = this.root.querySelector<HTMLElement>('.title-name') ?? document.createElement('div');
     name.className = 'title-name';
     name.textContent = title;
 
-    const buttons = document.createElement('div');
+    const buttons = this.root.querySelector<HTMLElement>('.title-buttons') ?? document.createElement('div');
     buttons.className = 'title-buttons';
+    buttons.replaceChildren();
 
     const newest = listSaves()
       .filter((held): held is SlotInfo => held !== null)
       .sort((a, b) => b.savedAt - a.savedAt)[0];
-    if (newest) {
-      buttons.appendChild(
-        this.button('continue', () => this.choose(() => handlers.continueFrom(newest.slot))),
-      );
-    }
+    const resume = this.button('continue', () => {
+      if (newest) this.choose(() => handlers.continueFrom(newest.slot));
+    });
+    resume.classList.toggle('is-empty', !newest);
+    buttons.appendChild(resume);
     buttons.appendChild(this.button('new game', () => this.choose(handlers.newGame)));
     buttons.appendChild(this.button('load', handlers.showLoad));
     buttons.appendChild(this.button('options', handlers.showOptions));
 
-    this.root.append(name, buttons);
-    overlay.appendChild(this.root);
+    this.root.replaceChildren(name, buttons);
+    if (!this.root.isConnected) overlay.appendChild(this.root);
     document.body.classList.add('is-title');
   }
 

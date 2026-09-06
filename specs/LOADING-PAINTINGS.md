@@ -26,9 +26,8 @@ animation, which is what says the game has not hung.
   slightly darker than the sheet. It is drawn, not photographed; there is no
   bitmap anywhere in this.
 - **The picture.** Fills the frame's opening. See below.
-- **The plaque.** A small tablet centred under the picture, overlapping the
-  bottom rail as Fable's does. It holds the place name where a crossing has one,
-  the step caption under it, and the bar. The bar keeps its quantised blocks
+- **The plaque.** Centred in the band under the picture: the step caption and
+  the bar, as text and a row of cells on the sheet with no box of their own. The bar keeps its quantised blocks
   and its `--lit` transform. The game's title line moves to the sheet's top
   margin, above the frame, in the same small spaced type it has now.
 - **Failure** keeps the plaque up with the message in it and the bar red, as
@@ -38,13 +37,13 @@ animation, which is what says the game has not hung.
 
 Real paintings, public domain, chosen by hand: ten landscapes under
 `public/paintings/`, each 2400 wide and cropped to a band no taller than 2:1,
-shown as a 21:9 cover crop that a `focus` on the entry can move. The title and
+shown as a 16:9 cover crop that a `focus` on the entry can move. The title and
 artist stand under the frame in faint ink. The list lives in
 `src/ui/loadingScenes.ts` and again in the page's inline script, which hangs
 the first one before any module has run.
 
-Nothing in the picture moves. A blinking cell after the caption on the plaque
-is the liveness signal.
+Nothing in the picture moves. The bar's next unlit cell blinks, which is the
+liveness signal.
 
 ## Not in this
 

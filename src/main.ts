@@ -26,6 +26,7 @@ const project = await loadProject();
 applyTextSize(loadOptions());
 
 let title: Title | null = null;
+let booted = false;
 
 const showTitle = (): void => {
   // Boot carries on behind the title, and a readout of it is not a reason to
@@ -33,6 +34,7 @@ const showTitle = (): void => {
   loadingScreen().hide();
   title = new Title(overlay, project.title, {
     newGame: async () => {
+      if (!booted) await loadingScreen().hold('starting');
       const { app } = await ready;
       // Day one, whatever the last run left the clock at.
       app.climate.reset();
@@ -40,6 +42,7 @@ const showTitle = (): void => {
       void app.input.capture();
     },
     continueFrom: async (slot) => {
+      if (!booted) await loadingScreen().hold('starting');
       const { items } = await ready;
       return items.loadSlot(slot);
     },
@@ -101,5 +104,6 @@ const ready = (async () => {
     title.dispose();
     title = null;
   });
+  booted = true;
   return { app, items };
 })();

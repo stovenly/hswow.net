@@ -1,6 +1,4 @@
-// The paintings on the loading screen, one per wait. Files live in
-// `public/paintings/<id>.jpg`, 2400 wide and no taller than 2:1; the frame
-// shows a 21:9 cover crop of each, placed by `focus` (an `object-position`).
+// Files are public/paintings/<id>.jpg; `focus` is an object-position for the 16:9 crop.
 
 export interface Painting {
   id: string;
@@ -26,11 +24,14 @@ export function paintingSrc(painting: Painting): string {
   return `./paintings/${painting.id}.jpg`;
 }
 
-export function paintingCredit(painting: Painting): string {
-  return `${painting.title} · ${painting.artist}`;
+export function paintingCredit(painting: Painting): DocumentFragment {
+  const credit = document.createDocumentFragment();
+  const title = document.createElement('i');
+  title.textContent = painting.title;
+  credit.append(title, `, ${painting.artist}`);
+  return credit;
 }
 
-/** A painting that is not `current`, so two waits in a row do not hang the same one. */
 export function pickPainting(current: string | null): Painting {
   const pool = PAINTINGS.filter((painting) => painting.id !== current);
   return pool[Math.floor(Math.random() * pool.length)] ?? PAINTINGS[0];

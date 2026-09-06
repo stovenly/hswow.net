@@ -218,6 +218,8 @@ const DEFAULT_VOLUME: EndVolume = { size: [2, 2.4, 2] };
 const VOLUME_SINK = 1.5;
 
 const UP = new THREE.Vector3(0, 1, 0);
+// Seconds the mix takes to come up after a fade lifts on an arrival from nothing.
+const CURTAIN_RISE = 2.5;
 
 /** Shared, and never drawn: a proxy is invisible, and one default material per box would leak one per zone build. */
 const PROXY_MATERIAL = new THREE.MeshBasicMaterial();
@@ -775,7 +777,7 @@ export class ZoneManager {
     const cold = !this.warmed.has(zone.id);
 
     if (cold) {
-      await this.loading.show('entering', zone.name);
+      await this.loading.show('entering');
       // Indeterminate: the step about to run is one synchronous `build()` that
       // cannot report its own progress.
       await this.loading.working('raising the world');
@@ -814,7 +816,7 @@ export class ZoneManager {
     setHorrorVolumes(this.horror.haunts(zone.id));
     // Only when it runs long: a compile that takes a frame is covered by the
     // fade already, and a screen that appears for one frame is a flicker.
-    const slow = window.setTimeout(() => void this.loading.show('compiling materials', zone.name), 250);
+    const slow = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
     try {
       await this.compile(root);
     } finally {
@@ -890,7 +892,7 @@ export class ZoneManager {
     // Again, with the zone in the scene. The compile above ran the root against
     // a stand-in, and a parameter that differs between the two is one a mesh
     // compiles the first frame it is drawn — whenever the player turns to it.
-    const late = window.setTimeout(() => void this.loading.show('compiling materials', zone.name), 250);
+    const late = window.setTimeout(() => void this.loading.show('compiling materials'), 250);
     try {
       await this.compile(root);
     } finally {
@@ -1640,9 +1642,11 @@ export class ZoneManager {
     this.transitioning = true;
     this.options.reticle.set(null);
 
+    this.audio?.engine.curtain(false);
     await this.options.fade.cover(async () => {
       await this.enter(id);
     });
+    this.audio?.engine.curtain(true, CURTAIN_RISE);
 
     this.transitioning = false;
   }
@@ -1656,6 +1660,7 @@ export class ZoneManager {
     this.transitioning = true;
     this.options.reticle.set(null);
 
+    this.audio?.engine.curtain(false);
     await this.options.fade.cover(async () => {
       if (this.active) this.options.scene.remove(this.active.root());
       this.active = null;
@@ -1666,6 +1671,7 @@ export class ZoneManager {
       }
       await this.enter(id, at);
     });
+    this.audio?.engine.curtain(true, CURTAIN_RISE);
 
     this.transitioning = false;
   }

@@ -143,6 +143,8 @@ export class AudioEngine {
   /** Everything but the voices, pulled down under a line of dialogue. See `duckUnder`. */
   readonly duck: GainNode;
   readonly master: GainNode;
+  /** The whole mix, after `master`: held at zero for an arrival, raised once the fade has lifted. */
+  private readonly curtainGain: GainNode;
   noise: NoiseBuffers | null = null;
   /** Resolves once the noise buffers and every room IR are ready. */
   readonly ready: Promise<void>;
@@ -195,6 +197,7 @@ export class AudioEngine {
     this.context = new AudioContext({ latencyHint });
 
     this.master = this.context.createGain();
+    this.curtainGain = this.context.createGain();
     this.duck = this.context.createGain();
     this.dry = this.context.createGain();
     this.send = this.context.createGain();
@@ -254,7 +257,8 @@ export class AudioEngine {
     const spread = crossfeed(this.context);
     this.dry.connect(this.duck);
     this.duck.connect(this.master);
-    this.master.connect(spread.input);
+    this.master.connect(this.curtainGain);
+    this.curtainGain.connect(spread.input);
     spread.output.connect(limiter);
     limiter.connect(this.context.destination);
 
@@ -642,6 +646,14 @@ export class AudioEngine {
   /** The listener's world position, for distance and occlusion tests. */
   get listenerPosition(): THREE.Vector3 {
     return _position;
+  }
+
+  curtain(open: boolean, seconds = 0): void {
+    const now = this.context.currentTime;
+    const gain = this.curtainGain.gain;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    gain.linearRampToValueAtTime(open ? 1 : 0, now + seconds);
   }
 
   applyReverbAmount(): void {
