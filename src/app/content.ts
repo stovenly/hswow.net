@@ -11,6 +11,7 @@ import type { PortalDefinition } from '../world/Portal';
 import type { WorldState } from '../world/entry';
 import { holdItems, type ItemDocument } from '../world/items';
 import { holdAtlas } from '../world/atlas';
+import { holdWaterPalettes } from '../art/water/palettes';
 import {
   holdCast,
   type PersonDocument,
@@ -68,6 +69,37 @@ export async function loadSidecars(project: string): Promise<void> {
   );
 }
 
+/**
+ * The builders wanted before any zone is raised: a portal door's building, whose
+ * doorway is measured while the graph is linked, and anything standing in water,
+ * whose radius is read while a zone is defined. Both run outside a zone's own
+ * gather, so both are in hand at boot.
+ */
+export function earlyBuilders(project: string): readonly string[] {
+  const bundle = content[project];
+  if (!bundle) return [];
+  const names = new Set<string>();
+  const doors = new Set<string>();
+  const manifest = (Object.values(bundle.world)[0] as PortalManifest | undefined) ?? { portals: [] };
+  for (const portal of manifest.portals ?? []) {
+    for (const end of [portal.a, portal.b] as { zone?: string; doorOf?: string }[]) {
+      if (end.doorOf) doors.add(`${end.zone}/${end.doorOf}`);
+    }
+  }
+  for (const [, raw] of Object.entries(bundle.zones)) {
+    const doc = raw as ZoneDocument;
+    for (const layer of [{ entries: doc.entries ?? [] }, ...(doc.layers ?? [])]) {
+      for (const entry of layer.entries ?? []) {
+        const prop = entry as { kind?: string; id?: string; builder?: string; wades?: unknown; afloat?: unknown };
+        if (prop.kind !== 'prop' || typeof prop.builder !== 'string') continue;
+        if (prop.wades || prop.afloat) names.add(prop.builder);
+        if (prop.id && doors.has(`${doc.id}/${prop.id}`)) names.add(prop.builder);
+      }
+    }
+  }
+  return [...names];
+}
+
 export function contentWorld(project: string, state?: WorldState): ContentWorld {
   const held = interpreted.get(project);
   if (held) return held;
@@ -106,6 +138,7 @@ function interpret(project: string, state?: WorldState): ContentWorld {
 
   const manifest = (Object.values(bundle.world)[0] as PortalManifest | undefined) ?? { portals: [] };
   holdAtlas(documents, manifest);
+  holdWaterPalettes(manifest.water);
 
   // Definitions first: a portal end reads the zone it stands in, and both
   // zones have to be registered before either door is placed.

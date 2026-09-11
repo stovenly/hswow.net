@@ -3,6 +3,7 @@ import { loadProject } from '../app/loadProject';
 import { contentWorld, loadSidecars } from '../app/content';
 import { Editor } from './Editor';
 import { zoneCache } from '../engine/work/cache';
+import { ensureAllBuilders } from '../art/registry';
 
 const canvas = document.getElementById('viewport');
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -30,6 +31,10 @@ const entry =
   [asked, project.editorEntry].find((id) => id && known.has(id)) ??
   content.documents[0]?.id ??
   project.entry;
+
+// The palette lists every builder there is, so the editor is the one surface
+// that takes the whole catalogue.
+await ensureAllBuilders();
 
 // The editor rebuilds what it has just changed; a cached zone would be the old one.
 zoneCache.on = false;

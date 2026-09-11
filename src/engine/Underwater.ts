@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
-import { WATER_MATERIAL, MURK_MIX } from '../art/water';
+import { WATER_MATERIAL, MURK_MIX } from '../art/water/material';
+import { NOISE_GLSL } from './noise';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
 /**
- * Being in the water. `Water.ts` draws the surface; this is the volume on the near
- * side of it, so it runs over every pixel rather than over the pixels a pond
- * covers — Beer-Lambert murk against the scene depth, plus a flat cast and a slow
- * wobble. Water surfaces are marked with alpha 0 and skipped, because the depth
- * buffer has no water in it and at those pixels holds whatever is beyond the
- * surface; the water shader murks its own back face instead.
+ * Being in the water. `Water.ts` draws the surface; this is the volume on the
+ * near side of it: Beer–Lambert murk against the scene depth, a flat cast and a
+ * slow wobble of at most one chunky pixel. Water surfaces are marked with alpha
+ * 0 and skipped, because the depth buffer has no water in it. While the near
+ * plane straddles the surface, each pixel decides for itself which side it is
+ * on, with a one-pixel meniscus between.
  */
 export class UnderwaterEffect implements PixelEffect {
   readonly label = 'underwater';
@@ -24,11 +25,28 @@ export class UnderwaterEffect implements PixelEffect {
     this.quad = new FullScreenQuad(this.material);
   }
 
-  /** Ramped over the first 35 cm, so a head bobbing at the waterline cannot strobe. */
-  setDepth(metres: number): void {
-    const amount = Math.min(Math.max(metres / 0.35, 0), 1);
-    this.material.uniforms.uAmount.value = amount;
-    this.enabled = amount > 0;
+  /**
+   * Where the camera stands against the water. `depth` is metres below the mean
+   * surface, `level` that surface's height; null in the air. The full-screen
+   * amount ramps over the first 35 cm, and while the camera is within the near
+   * plane's reach of the surface the shader decides per pixel.
+   */
+  setSurface(surface: { depth: number; level: number } | null, camera: THREE.PerspectiveCamera): void {
+    const u = this.material.uniforms;
+    if (!surface) {
+      u.uAmount.value = 0;
+      u.uCrossing.value = 0;
+      this.enabled = false;
+      return;
+    }
+    const amount = Math.min(Math.max(surface.depth / 0.35, 0), 1);
+    u.uAmount.value = amount;
+    u.uSurfaceY.value = surface.level;
+    // The near plane's half-height in metres, plus a little: within it the
+    // frame can be half in and half out.
+    const reach = camera.near * Math.tan((camera.fov * Math.PI) / 360) * 1.5 + 0.05;
+    u.uCrossing.value = Math.abs(surface.depth) < reach ? 1 : 0;
+    this.enabled = amount > 0 || u.uCrossing.value > 0;
   }
 
   setSize(): void {
@@ -43,6 +61,7 @@ export class UnderwaterEffect implements PixelEffect {
     u.tDepth.value = context.depth;
     u.uTime.value = context.time;
     u.uFar.value = camera.far;
+    (u.uResolution.value as THREE.Vector2).copy(context.size);
 
     this.inverse.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse).invert();
     (u.uInverseProjectionView.value as THREE.Matrix4).copy(this.inverse);
@@ -65,8 +84,12 @@ function createUnderwaterMaterial(): THREE.ShaderMaterial {
       tDepth: { value: null },
       uInverseProjectionView: { value: new THREE.Matrix4() },
       uCameraPosition: { value: new THREE.Vector3() },
+      uResolution: { value: new THREE.Vector2(1, 1) },
       uFar: { value: 500 },
       uTime: { value: 0 },
+      uSurfaceY: { value: 0 },
+      /** 1 while the near plane straddles the surface. */
+      uCrossing: { value: 0 },
       // Shared with the surface rather than copied, so the two cannot disagree
       // and leave a seam where they meet.
       uAmount: WATER_MATERIAL.uniforms.uSubmerged,
@@ -88,26 +111,42 @@ function createUnderwaterMaterial(): THREE.ShaderMaterial {
       uniform sampler2D tDepth;
       uniform mat4 uInverseProjectionView;
       uniform vec3 uCameraPosition;
+      uniform vec2 uResolution;
       uniform float uFar;
       uniform float uTime;
       uniform float uAmount;
+      uniform float uSurfaceY;
+      uniform float uCrossing;
       uniform vec3 uTint;
       uniform vec3 uHaze;
       uniform float uDensity;
       varying vec2 vUv;
 
+      ${NOISE_GLSL}
+
       void main() {
-        // A couple of pixels of sway, so there is something in front of the lens.
+        // Which side of the surface this pixel's bit of the near plane is on.
+        float amount = uAmount;
+        float meniscus = 0.0;
+        if (uCrossing > 0.5) {
+          vec4 nearPoint = uInverseProjectionView * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
+          float nearY = nearPoint.y / nearPoint.w;
+          float px = abs(dFdy(nearY)) + 1e-4;
+          amount = 1.0 - smoothstep(uSurfaceY - px, uSurfaceY + px, nearY);
+          meniscus = 1.0 - smoothstep(0.0, px * 1.5, abs(nearY - uSurfaceY));
+        }
+
+        // A slow two-octave sway of at most one chunky pixel, so the view swims without smearing.
+        vec2 pixel = 1.0 / uResolution;
         vec2 wobble = vec2(
-          sin(vUv.y * 23.0 + uTime * 1.3) + 0.5 * sin(vUv.y * 41.0 - uTime * 0.9),
-          sin(vUv.x * 27.0 - uTime * 1.1) + 0.5 * sin(vUv.x * 37.0 + uTime * 1.6)
-        ) * (0.0022 * uAmount);
+          valueNoise(vUv * 6.0 + vec2(uTime * 0.35, 0.0)) - 0.5,
+          valueNoise(vUv * 6.0 + vec2(0.0, uTime * 0.29) + 7.3) - 0.5
+        ) * 2.0 * pixel * amount;
         vec2 uv = clamp(vUv + wobble, 0.0, 1.0);
 
         vec4 source = texture2D(tDiffuse, uv);
         vec3 colour = source.rgb;
 
-        // Distance by unprojection, the same way the water and fog volumes do it.
         float depth = texture2D(tDepth, uv).r;
         float distance;
         if (depth >= 0.9999) {
@@ -121,12 +160,10 @@ function createUnderwaterMaterial(): THREE.ShaderMaterial {
         float murk = 1.0 - exp(-distance * uDensity);
         murk *= step(0.5, source.a);
 
-        // The far field. Same constant the surface uses — see MURK_MIX.
         vec3 scattered = mix(uTint, uHaze, ${MURK_MIX.toFixed(2)});
-        colour = mix(colour, scattered, murk * uAmount);
-        // Applies at every distance, so this is what sets how gloomy the near
-        // field is. Light-handed on purpose.
-        colour = mix(colour, colour * 0.85 + uTint * 0.09, uAmount);
+        colour = mix(colour, scattered, murk * amount);
+        colour = mix(colour, colour * 0.85 + uTint * 0.09, amount);
+        colour = mix(colour, mix(uHaze, vec3(1.0), 0.4), meniscus * 0.8);
 
         gl_FragColor = vec4(colour, 1.0);
       }

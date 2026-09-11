@@ -8,7 +8,7 @@
       },
       "b": {
         "zone": "cottage",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8811
@@ -21,7 +21,7 @@
       },
       "b": {
         "zone": "workshop",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8812
@@ -34,7 +34,7 @@
       },
       "b": {
         "zone": "store",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8813
@@ -47,7 +47,7 @@
       },
       "b": {
         "zone": "villager-hut",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8801
@@ -166,7 +166,7 @@
       },
       "b": {
         "zone": "farmhouse",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8821
@@ -179,7 +179,7 @@
       },
       "b": {
         "zone": "barn",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8822
@@ -447,7 +447,7 @@
       },
       "b": {
         "zone": "forest-cottage",
-        "wall": "-z"
+        "edge": "front-door"
       },
       "material": "timber",
       "seed": 8831

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { SoundscapeSpec } from '../audio/Soundscape';
-import { SHELL_THICKNESS, buildInterior, interiorStyleByName } from './interior';
-import { buildRooms } from './rooms';
+import { CELL, SHELL_THICKNESS, buildInteriorFromSpec, interiorBuilders, interiorOfShell, planInterior, type InteriorPlan, type InteriorSpec } from './interior';
+import { coerceFields } from '../art/schema';
 import { markCollidable } from '../player/Collider';
 import { FLAT_SIZE, flatGround, type FlatGroundOptions } from './floor';
 import { Terrain, type TerrainOptions, type TerrainRasters } from './terrain';
@@ -37,14 +37,24 @@ import {
   type Collected,
   type Entry,
   type EntryContext,
+  type PrefabEntry,
   type PropEntry,
   type ShellSpec,
   type TrackEntry,
+  type LineEntry,
+  type RegionEntry,
+  type WaterEntry,
   type WorldState,
   type Yaw,
 } from './entry';
 import { needBuilder, seedOf } from './kinds';
-import { dropWarm, useWarm, warmDocument, takeWarm, TERRAIN_ASK, SKIRT_ASK } from './warmProps';
+import { builderByName, ensureAllBuilders, ensureBuilders } from '../art/registry';
+import type { WaterBody } from '../art/water/body';
+import type { Mooring } from '../art/water/flotilla';
+import type { FloatPlacement } from './water';
+import { raiseStands } from './stands';
+import { lineBuilderByName, hashOf } from '../art/lines';
+import { dropWarm, gatherNames, useWarm, warmDocument, takeWarm, TERRAIN_ASK, SKIRT_ASK } from './warmProps';
 import { finishCaptured } from '../art/dress';
 import { markVista } from '../art/vista';
 import { hashString } from './loot';
@@ -105,6 +115,8 @@ export interface ZoneDocument {
   terrain?: TerrainSpec;
   skirt?: Omit<SkirtOptions, 'terrain'>;
   shell?: ShellSpec;
+  /** Rooms as cells and marks on their edges; a kit turns them into walls. Replaces `shell`. */
+  interior?: InteriorSpec;
   /** A gridded plane, for a zone that is neither a heightfield nor a room. */
   flat?: { size?: number } & FlatGroundOptions;
   /** Named lists of shapes, so a scatter or a ring can name one. */
@@ -130,6 +142,8 @@ export interface PortalManifest {
   portals?: readonly ManifestPortal[];
   /** The far layer every exterior shares, so the same mountains stand at the same bearings from every cell. */
   horizon?: readonly HorizonProp[];
+  /** Water palettes by id, folded over the engine's defaults. */
+  water?: Record<string, { shallow?: number; deep?: number; foam?: number; scatter?: number; bands?: number }>;
 }
 
 /**
@@ -169,6 +183,8 @@ export interface ManifestEnd {
   doorOf?: string;
   /** Put in a shell wall, facing in. */
   wall?: WallSide;
+  /** Put in an interior's marked edge, facing in. */
+  edge?: string;
   /** Which room of a graph the wall belongs to. The first, by default. */
   room?: string;
   at?: readonly number[];
@@ -189,6 +205,7 @@ interface Registered {
   doc: ZoneDocument;
   terrain: Terrain | null;
   shell: ShellSpec | null;
+  interior: InteriorPlan | null;
   groundAt(x: number, z: number): number;
 }
 
@@ -238,16 +255,27 @@ export function shellOf(zone: string): ShellSpec | null {
  */
 export function wallEnd(
   zone: string,
-  wall: WallSide,
+  wall: WallSide | undefined,
   room?: string,
+  edge?: string,
 ): { position: THREE.Vector3; yaw: number } {
+  const plan = registry.get(zone)?.interior ?? null;
+  if (edge) {
+    const site = plan?.edges.get(edge);
+    if (!site) throw new Error(`zone "${zone}" has no edge "${edge}"`);
+    // DOOR_PROUD inside the inner face, along the inward normal rotateY(yaw) takes +Z to.
+    return { position: new THREE.Vector3(site.x + Math.sin(site.yaw) * DOOR_PROUD, site.y, site.z + Math.cos(site.yaw) * DOOR_PROUD), yaw: site.yaw };
+  }
+  if (!wall) throw new Error(`zone "${zone}": a wall end needs a wall or an edge`);
   const held = shellOf(zone);
-  if (!held) throw new Error(`zone "${zone}" has no shell for wall "${wall}"`);
   // A graph names which room the door stands in; a plain box has only the one.
-  const inRoom = held.rooms?.find((candidate) => candidate.id === (room ?? held.rooms?.[0]?.id));
+  const inRoom = held?.rooms?.find((candidate) => candidate.id === (room ?? held.rooms?.[0]?.id));
+  const planRoom = plan && room ? plan.storeys[0]?.rooms.get(room) : plan?.storeys[0]?.rooms.values().next().value;
   const shell = inRoom
     ? { width: inRoom.width, depth: inRoom.depth, at: inRoom.at, level: inRoom.level ?? 0 }
-    : { width: held.width ?? 8, depth: held.depth ?? 6, at: [0, 0] as const, level: 0 };
+    : planRoom
+      ? { width: (planRoom.i1 - planRoom.i0) * CELL, depth: (planRoom.j1 - planRoom.j0) * CELL, at: [((planRoom.i0 + planRoom.i1) / 2) * CELL, ((planRoom.j0 + planRoom.j1) / 2) * CELL] as const, level: planRoom.level }
+      : { width: held?.width ?? 8, depth: held?.depth ?? 6, at: [0, 0] as const, level: 0 };
   const inset = DOOR_PROUD;
   const [cx, cz] = shell.at;
   const y = shell.level;
@@ -284,11 +312,15 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
 
   const fingerprint = fingerprintOf(doc);
   const tracks = tracksOf(doc);
+  const waters = watersOf(doc);
   const regions = { ...(doc.regions ?? {}), ...trackRegions(tracks) };
-  const terrain = doc.terrain ? new Terrain(terrainOptions(doc.terrain, tracks)) : null;
+  const terrain = doc.terrain ? new Terrain(terrainOptions(doc.terrain, tracks, doc)) : null;
   const skirt = terrain && doc.skirt ? new Skirt({ ...doc.skirt, terrain }) : null;
   const shell = doc.shell ?? null;
+  const interiorSpec: InteriorSpec | null = doc.interior ?? (shell ? interiorOfShell(shell) : null);
+  const interiorPlan = interiorSpec ? planInterior(interiorSpec) : null;
   const groundAt = (x: number, z: number): number => (terrain ? terrain.heightAt(x, z) : 0);
+  const stands = standsOf(doc, groundAt);
 
   const collected: Collected = emptyCollected();
   const spawnAt = doc.spawn?.at ?? [0, 0];
@@ -301,7 +333,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     yaw: yawOf(doc.spawn?.yaw),
   };
 
-  registry.set(doc.id, { doc, terrain, shell, groundAt });
+  registry.set(doc.id, { doc, terrain, shell, interior: interiorPlan, groundAt });
   // Kept from the last build, so one entry can be raised again on its own.
   let lastPass: ((entry: Entry, id: string) => THREE.Object3D | null) | null = null;
   rebuilders.set(doc.id, (id) => {
@@ -319,6 +351,13 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     collected.fogVolumes.length = 0;
     collected.glitches.length = 0;
     collected.horrors.length = 0;
+    for (const body of collected.water) body.dispose();
+    collected.water.length = 0;
+    collected.floats.length = 0;
+    for (const mooring of collected.moorings) mooring.dispose();
+    collected.moorings.length = 0;
+    collected.stands.clear();
+    collected.cards.length = 0;
     for (const spec of doc.soundscape?.emitters ?? []) collected.emitters.push(spec);
     for (const spec of doc.soundscape?.scatter ?? []) collected.scatters.push(spec);
 
@@ -327,7 +366,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       const ground = warm ? finishCaptured(warm) : terrain.build();
       ground.name = 'terrain';
       root.add(markCollidable(ground));
-    } else if (!shell) {
+    } else if (!interiorSpec) {
       const { size, ...rest } = doc.flat ?? {};
       root.add(flatGround(size, rest));
     }
@@ -336,33 +375,25 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       const warm = takeWarm(SKIRT_ASK);
       root.add(warm ? markVista(finishCaptured(warm)) : skirt.build());
     }
-    if (shell?.rooms) {
-      root.add(
-        markCollidable(
-          buildRooms({
-            rooms: shell.rooms,
-            joins: shell.joins,
-            seed: shell.seed,
-            style: shell.style,
-            thickness: shell.thickness,
-          }),
-        ),
-      );
-    } else if (shell) {
-      root.add(
-        markCollidable(
-          buildInterior({
-            width: shell.width ?? 8,
-            depth: shell.depth ?? 6,
-            height: shell.height ?? 3,
-            seed: shell.seed,
-            style: shell.style ? interiorStyleByName(shell.style) : undefined,
-            planks: shell.planks,
-            beams: shell.beams,
-            thickness: shell.thickness,
-          }),
-        ),
-      );
+    if (interiorSpec) {
+      const built = buildInteriorFromSpec(interiorSpec);
+      built.mesh.name = 'interior';
+      root.add(markCollidable(built.mesh));
+      // What the marks call for: windows on their walls, a hearth in its breast, a ladder under a hatch.
+      for (const prop of built.props) {
+        const builder = builderByName(prop.builder);
+        if (!builder) {
+          console.warn(`zone "${doc.id}": interior mark names no builder "${prop.builder}"`);
+          continue;
+        }
+        const options = builder.options ? coerceFields(builder.options, prop.options) : {};
+        const mesh = builder.build({ seed: prop.seed, ...options });
+        mesh.position.set(prop.at[0], prop.at[1], prop.at[2]);
+        mesh.rotation.y = prop.yaw;
+        mesh.userData.seed = prop.seed;
+        tagEntry(mesh, doc.id, `interior:${prop.builder}:${prop.at[0].toFixed(1)},${prop.at[2].toFixed(1)}`);
+        root.add(builder.solid === false ? mesh : markCollidable(mesh));
+      }
     }
 
     const byId = new Map<string, THREE.Object3D>();
@@ -373,10 +404,13 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       terrain,
       skirt,
       shell,
+      interior: interiorPlan,
       groundAt,
       slopeAt: (x, z) => (terrain ? terrain.slopeAt(x, z) : 0),
       regions,
       tracks,
+      waters,
+      stands,
       traits: doc.traits ?? [],
       outline: outlineOf(doc),
       resolve: (id) => byId.get(id),
@@ -434,6 +468,9 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
       run(layer.entries, root, '', 0);
     }
 
+    // Every stand's crowns into one instanced draw per variant, once every tree stands.
+    raiseStands(root, collected);
+
     // The manager reads these off the definition after `build()`. Copied rather
     // than aliased so a rebuild cannot leave the previous pass's volumes live.
     soundscape.emitters = [...collected.emitters];
@@ -453,7 +490,7 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     surfaceAt: terrain ? (x, z) => terrain.stepAt(x, z) : undefined,
     groundAt: terrain ? (x, z) => terrain.heightAt(x, z) : undefined,
     regions,
-    plan: planOf(doc),
+    plan: planOf(doc, interiorPlan),
     get fogVolumes() {
       return collected.fogVolumes;
     },
@@ -463,7 +500,26 @@ export function zoneFromDocument(doc: ZoneDocument, state: WorldState = worldSta
     get horrors() {
       return collected.horrors;
     },
-    warm: () => warmDocument(doc.id, layersOf(doc), { zone: doc.id, terrain, skirt, groundAt }, state, doc.skirt, fingerprint),
+    get water(): readonly WaterBody[] {
+      return collected.water;
+    },
+    get floats(): readonly FloatPlacement[] {
+      return collected.floats;
+    },
+    get moorings(): readonly Mooring[] {
+      return collected.moorings;
+    },
+    get cards() {
+      return collected.cards;
+    },
+    warm: async () => {
+      // Before the warm and before the walk, both of which look builders up by
+      // name and neither of which may await one.
+      const names = gatherNames(layersOf(doc), state, doc.prefabs ?? {});
+      if (names) await ensureBuilders([...names, ...interiorBuilders(interiorSpec)]);
+      else await ensureAllBuilders();
+      await warmDocument(doc.id, layersOf(doc), { zone: doc.id, terrain, skirt, groundAt }, state, doc.skirt, fingerprint);
+    },
     fingerprint,
     build,
   };
@@ -493,12 +549,25 @@ function stripUndefined<T extends object>(value: T): Partial<T> {
  * A track declares its ground once: the terrain is painted its surface at its
  * width and grows nothing there, with a band of tussock outside a verge.
  */
-function terrainOptions(spec: TerrainSpec, tracks: readonly TrackEntry[]): TerrainOptions {
+function terrainOptions(spec: TerrainSpec, tracks: readonly TrackEntry[], doc: ZoneDocument): TerrainOptions {
   const patches: GroundPatch[] = [...(spec.patches ?? [])];
   const verges: CoverPatch[] = [];
   for (const track of tracks) {
+    // Dirt and gravel paint: the terrain under the track is what the footsteps and the cover mask read.
+    if (track.surface === 'dirt' || track.surface === 'gravel') {
+      patches.push({ kind: 'path', through: track.through, width: track.width * 0.9, material: track.surface, feather: 1 });
+    }
     if (track.edge !== 'verge') continue;
     verges.push({ kind: 'path', through: track.through, width: track.width + 2, cover: 'tussock', edge: 'feather' });
+  }
+  for (const layer of doc.layers ?? [{ entries: doc.entries ?? [] }]) {
+    for (const entry of layer.entries) {
+      if (entry.kind !== 'region') continue;
+      const region = entry as RegionEntry;
+      if (region.builder === 'rows' && (region.options as { crop?: boolean } | undefined)?.crop) {
+        patches.push({ kind: 'polygon', points: region.points, material: 'crop', feather: 1 });
+      }
+    }
   }
   const grown: CoverPatch[] = [...(spec.cover ?? []), ...verges];
   const rasters: TerrainRasters = {};
@@ -525,12 +594,15 @@ function terrainOptions(spec: TerrainSpec, tracks: readonly TrackEntry[]): Terra
  * The shell forms are grown by the wall thickness, so an interior's extent ends
  * at the outer face of its walls and not at the inside of the room.
  */
-function planOf(doc: ZoneDocument): ZonePlan | undefined {
+function planOf(doc: ZoneDocument, interior: InteriorPlan | null): ZonePlan | undefined {
   const outline = outlineOf(doc) ?? undefined;
   if (doc.terrain) {
     const half = doc.terrain.size / 2;
     const rim = doc.terrain.landforms?.find((form) => form.kind === 'rim');
     return { min: [-half, -half], max: [half, half], outline, inset: rim?.inset };
+  }
+  if (interior) {
+    return { min: [interior.minX, interior.minZ], max: [interior.maxX, interior.maxZ], outline, ceiling: interior.ceiling };
   }
   const shell = doc.shell;
   if (shell) {
@@ -598,8 +670,8 @@ function endOf(end: ManifestEnd, portal: ManifestPortal): PortalEnd {
     const anchor = doorwayAnchor(end.zone, end.doorOf);
     out.position.copy(anchor.position);
     out.yaw = anchor.yaw;
-  } else if (end.wall) {
-    const inner = wallEnd(end.zone, end.wall, end.room);
+  } else if (end.wall || end.edge) {
+    const inner = wallEnd(end.zone, end.wall, end.room, end.edge);
     out.position.copy(inner.position);
     out.yaw = inner.yaw;
   } else if (end.at) {
@@ -667,10 +739,152 @@ function doorwayAnchor(zone: string, entryId: string): { position: THREE.Vector3
   };
 }
 
+function watersOf(doc: ZoneDocument): WaterEntry[] {
+  const out: WaterEntry[] = [];
+  const walk = (entries: readonly Entry[]): void => {
+    for (const entry of entries) {
+      if (entry.kind === 'water') out.push(entry as WaterEntry);
+      if (entry.kind === 'prefab') {
+        const body = doc.prefabs?.[(entry as PrefabEntry).prefab];
+        if (body) walk(body);
+      }
+    }
+  };
+  for (const layer of layersOf(doc)) walk(layer.entries);
+  return out;
+}
+
+/** Everything that said it stands in the water, as a disc, before anything is built: wading props, floats, and every jetty's piles. */
+function standsOf(doc: ZoneDocument, groundAt: (x: number, z: number) => number): { x: number; z: number; radius: number }[] {
+  const out: { x: number; z: number; radius: number }[] = [];
+  for (const layer of layersOf(doc)) {
+    for (const entry of layer.entries) {
+      if (entry.kind === 'line' && (entry as LineEntry).builder === 'jetty') {
+        const jetty = entry as LineEntry;
+        const builder = lineBuilderByName('jetty');
+        const points = jetty.points.filter((p) => Array.isArray(p.at)).map((p) => ({ at: p.at as Point, width: p.width, height: p.height, corner: p.corner }));
+        if (!builder || points.length < 2) continue;
+        const seed = seedOf(jetty);
+        const laid = builder.lay({ id: jetty.id ?? 'jetty', seed, closed: false, smooth: false, points, marks: jetty.marks ?? [], style: jetty.style, options: jetty.options }, { groundAt, hash: (i, c) => hashOf(seed, i, c), ground: 0 });
+        for (const [x, z, radius] of laid.wades ?? []) out.push({ x, z, radius });
+        continue;
+      }
+      if (entry.kind !== 'prop') continue;
+      const prop = entry as PropEntry;
+      if (!prop.wades && !prop.afloat) continue;
+      const at = prop.at;
+      if (!at || at.length < 2) continue;
+      const builder = builderByName(prop.builder);
+      const asked = typeof prop.afloat === 'object' ? prop.afloat : {};
+      const radius = (asked.radius ?? builder?.radius ?? 1) * (prop.scale ?? 1) * (prop.afloat ? 0.8 : 0.7);
+      out.push({ x: at[0], z: at.length >= 3 ? at[2] : at[1], radius });
+    }
+  }
+  return out;
+}
+
+/**
+ * The track network's input: every `line` whose builder is `track`, its points
+ * smoothed unless it says not, and split at its `bridge`, `gap` and `ford`
+ * marks — a ford's middle stretch becomes flagstone.
+ */
 function tracksOf(doc: ZoneDocument): TrackEntry[] {
   const out: TrackEntry[] = [];
   for (const layer of layersOf(doc)) {
-    for (const entry of layer.entries) if (entry.kind === 'track') out.push(entry as TrackEntry);
+    for (const entry of layer.entries) {
+      if (entry.kind !== 'line' || (entry as LineEntry).builder !== 'track') continue;
+      const line = entry as LineEntry;
+      const options = (line.options ?? {}) as { width?: number; surface?: TrackEntry['surface']; edge?: TrackEntry['edge']; wear?: number };
+      const through = line.points.map((p) => (Array.isArray(p.at) ? (p.at as Point) : null)).filter((p): p is Point => p !== null);
+      if (through.length < 2) continue;
+      const width = options.width ?? line.points.find((p) => p.width !== undefined)?.width ?? 2.4;
+      const surface = options.surface ?? (line.style as TrackEntry['surface'] | undefined) ?? 'dirt';
+      const smooth = line.smooth !== false && through.length > 2;
+      const spine = smooth ? smoothPolyline(through) : through;
+      const base: TrackEntry = { kind: 'track', id: line.id, through: spine, width, surface, edge: options.edge, wear: options.wear, seed: line.seed };
+      const cuts = (line.marks ?? []).filter((m) => m.kind === 'bridge' || m.kind === 'gap' || m.kind === 'ford').sort((a, b) => a.at - b.at);
+      if (cuts.length === 0) {
+        out.push(base);
+        continue;
+      }
+      let from = 0;
+      let piece = 0;
+      for (const mark of cuts) {
+        const half = (mark.width ?? 3) / 2;
+        const before = slicePolyline(spine, from, mark.at - half);
+        if (before.length >= 2) out.push({ ...base, id: piece === 0 ? line.id : `${line.id}#${piece}`, through: before });
+        piece++;
+        if (mark.kind === 'ford') {
+          const across = slicePolyline(spine, mark.at - half, mark.at + half);
+          if (across.length >= 2) out.push({ ...base, id: `${line.id}#${piece}`, through: across, surface: 'flagstone', edge: 'none' });
+          piece++;
+        }
+        from = mark.at + half;
+      }
+      const after = slicePolyline(spine, from, Infinity);
+      if (after.length >= 2) out.push({ ...base, id: `${line.id}#${piece}`, through: after });
+    }
+  }
+  return out;
+}
+
+/** Centripetal Catmull–Rom through the points, four samples a segment. */
+function smoothPolyline(points: readonly Point[]): Point[] {
+  const n = points.length;
+  const at = (i: number): Point => points[Math.min(n - 1, Math.max(0, i))];
+  const out: Point[] = [];
+  for (let i = 0; i + 1 < n; i++) {
+    const p0 = at(i - 1);
+    const p1 = at(i);
+    const p2 = at(i + 1);
+    const p3 = at(i + 2);
+    const d = (a: Point, b: Point): number => Math.max(1e-4, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])));
+    const t0 = 0;
+    const t1 = t0 + d(p0, p1);
+    const t2 = t1 + d(p1, p2);
+    const t3 = t2 + d(p2, p3);
+    for (let k = 0; k < 4; k++) {
+      const t = t1 + ((t2 - t1) * k) / 4;
+      const lerp = (a: Point, b: Point, ta: number, tb: number): Point => {
+        const w = tb - ta || 1e-6;
+        return [(a[0] * (tb - t) + b[0] * (t - ta)) / w, (a[1] * (tb - t) + b[1] * (t - ta)) / w];
+      };
+      const a1 = lerp(p0, p1, t0, t1);
+      const a2 = lerp(p1, p2, t1, t2);
+      const a3 = lerp(p2, p3, t2, t3);
+      const b1 = lerp(a1, a2, t0, t2);
+      const b2 = lerp(a2, a3, t1, t3);
+      out.push(lerp(b1, b2, t1, t2));
+    }
+  }
+  out.push(points[n - 1]);
+  return out;
+}
+
+/** The part of a polyline between two arc lengths. */
+function slicePolyline(points: readonly Point[], from: number, to: number): Point[] {
+  const out: Point[] = [];
+  let s = 0;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const s1 = s + len;
+    if (s1 < from || s > to) {
+      s = s1;
+      continue;
+    }
+    if (out.length === 0) {
+      const t = len > 0 ? Math.min(1, Math.max(0, (from - s) / len)) : 0;
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+    if (s1 <= to) out.push(b);
+    else {
+      const t = len > 0 ? Math.min(1, Math.max(0, (to - s) / len)) : 0;
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      break;
+    }
+    s = s1;
   }
   return out;
 }

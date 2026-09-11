@@ -2,26 +2,27 @@ import * as THREE from 'three';
 import { withStaticHidden } from './statics';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { WATER_LAYER } from '../layers';
-import { WATER_MATERIAL } from '../art/water';
-import { SEA_MATERIAL, bakePendingSeas } from '../art/sea';
+import { WATER_MATERIAL } from '../art/water/material';
 import type { PixelEffect, EffectContext } from './PixelStage';
 
+/** What the pass needs of the zone's water: its per-frame GPU work and its query. */
+export interface WaterRuntimeLike {
+  readonly hasWater: boolean;
+  readonly persistence: { readonly texture: THREE.Texture; readonly min: THREE.Vector2; readonly size: THREE.Vector2 };
+  step(renderer: THREE.WebGLRenderer, camera: THREE.Camera, dt: number, motion: number): void;
+  submersionAt(x: number, y: number, z: number): { depth: number; level: number } | null;
+}
+
 /**
- * The water pass: the second-stage draw, and one of the two entries in the effect
- * slot that draw rather than filter. Copy the chain's colour forward, then render
- * the scene again with the camera on `WATER_LAYER` into that same target, with the
- * colour and depth just copied bound as textures. Nothing here is lit: the camera
- * is on a layer no light is on, so no light is pushed and the shadow map is not
- * redrawn.
+ * The water pass: the second-stage draw. Copy the chain's colour forward, step
+ * the water's own buffers, then render the scene again with the camera on
+ * `WATER_LAYER` into that same target, with the colour and depth just copied
+ * bound as textures. Nothing here is lit: the camera is on a layer no light is
+ * on, so no light is pushed and the shadow map is not redrawn.
  *
- * After GTAO, so the pond bed showing through shallow water is the shaded bed.
- * Before the fog volumes, so mist hangs over a pond rather than under it — at the
- * honest cost that the fog march reads a depth buffer holding the bed, so a volume
- * sitting on a pond is integrated down to it. Before bloom, so a lantern's halo
- * lies over the water and a reflected lamp reflects the lamp and not its bleed.
- *
- * `setActive` is called on every crossing with whether the entered zone built any
- * water, taken off the geometry rather than off a declaration.
+ * After GTAO, so the bed showing through shallow water is the shaded bed.
+ * Before the fog volumes, so mist hangs over a pond rather than under it.
+ * Before bloom, so a lantern's halo lies over the water.
  */
 export class WaterEffect implements PixelEffect {
   readonly label = 'water';
@@ -29,21 +30,9 @@ export class WaterEffect implements PixelEffect {
 
   private readonly blitMaterial: THREE.ShaderMaterial;
   private readonly quad: FullScreenQuad;
+  private runtime: WaterRuntimeLike | null = null;
+  private lastTime = -1;
 
-  /** Whether the zone standing in the scene right now built any water. */
-  private present = false;
-
-  /**
-   * Every water surface in the zone, with the box it covers and the height it sits
-   * at, for working out whether the camera is under one. Collected once per zone
-   * with the boxes cached: a sea plane is tens of thousands of vertices, and asking
-   * three for its bounding box sixty times a second would cost more than the pass
-   * that draws it.
-   */
-  private readonly surfaces: { box: THREE.Box3; level: number }[] = [];
-  private scanned = false;
-
-  /** Scratch, so a per-frame uniform push allocates nothing. */
   private readonly projectionView = new THREE.Matrix4();
   private readonly inverse = new THREE.Matrix4();
   private priorMask = 1;
@@ -71,95 +60,66 @@ export class WaterEffect implements PixelEffect {
     this.quad = new FullScreenQuad(this.blitMaterial);
   }
 
-  /** Tells the pass whether the zone now standing has water in it. Called at full black during a crossing, with the fog volumes. */
-  setActive(present: boolean): void {
-    this.present = present;
-    // The surfaces belong to the zone being left. Cleared here and rebuilt on
-    // the next frame that asks, which is the same lazy shape `Zone.root` uses.
-    this.surfaces.length = 0;
-    this.scanned = false;
+  /** The standing zone's water, or null in a room with none. Swapped at full black. */
+  setRuntime(runtime: WaterRuntimeLike | null): void {
+    this.runtime = runtime;
+    this.lastTime = -1;
   }
 
-  /** True when there is anything to draw. `PostFX` layers its switch over this. */
   get hasWater(): boolean {
-    return this.present;
+    return this.runtime?.hasWater ?? false;
   }
 
   /**
-   * How far below a water surface the camera is, in metres. Zero in the air. Asked
-   * once a frame and answered from a cached list, because the underwater pass has
-   * to know before the frame is drawn. The mean surface height, not the wave
-   * height: keying a full-screen effect to a crest going past the camera would make
-   * it flicker.
+   * How far below the surface the camera is, and where that surface is. Null in
+   * the air. The mean surface height, not the wave height: keying a full-screen
+   * effect to a crest going past the camera would make it flicker.
    */
-  submersion(scene: THREE.Scene, camera: THREE.Camera): number {
-    if (!this.present) return 0;
-
-    if (!this.scanned) {
-      this.scanned = true;
-      scene.traverse((object) => {
-        if (!(object instanceof THREE.Mesh) || object.userData.water !== true) return;
-        this.surfaces.push({
-          box: new THREE.Box3().setFromObject(object),
-          level: object.getWorldPosition(_worldPosition).y,
-        });
-      });
-    }
-
+  submersion(camera: THREE.Camera): { depth: number; level: number } | null {
+    if (!this.runtime) return null;
     _cameraPosition.setFromMatrixPosition(camera.matrixWorld);
-    let deepest = 0;
-    for (const surface of this.surfaces) {
-      const { box, level } = surface;
-      if (_cameraPosition.x < box.min.x || _cameraPosition.x > box.max.x) continue;
-      if (_cameraPosition.z < box.min.z || _cameraPosition.z > box.max.z) continue;
-      deepest = Math.max(deepest, level - _cameraPosition.y);
-    }
-    return deepest;
+    return this.runtime.submersionAt(_cameraPosition.x, _cameraPosition.y, _cameraPosition.z);
   }
 
   setSize(): void {
-    // Nothing of its own to resize. The pass draws into the chain's next link
-    // and reads the colour and depth it is handed, all at chunky resolution.
+    // Nothing of its own to resize: the pass draws into the chain's next link at chunky resolution.
   }
 
   render(renderer: THREE.WebGLRenderer, context: EffectContext): void {
     const { camera, scene } = context;
 
-    // --- carry the frame forward ---------------------------------------------
     this.blitMaterial.uniforms.tDiffuse.value = context.colour;
     renderer.setRenderTarget(context.write);
     this.quad.render(renderer);
 
-    // A sea built this zone reads the whole zone from above once, now that all
-    // of it stands in the scene.
-    bakePendingSeas(renderer, scene);
-
-    // --- what the water needs to know about the frame ------------------------
-    // The colour it composites over and marches through, and the depth it tests
-    // itself against. Both are the chain's, not the stage's — so water sees the
-    // outline and the ambient occlusion that were applied before it.
-    this.projectionView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    this.inverse.copy(this.projectionView).invert();
-    for (const u of [WATER_MATERIAL.uniforms, SEA_MATERIAL.uniforms]) {
-      u.tScene.value = context.colour;
-      u.tDepth.value = context.depth;
-      (u.uResolution.value as THREE.Vector2).copy(context.size);
-      u.uFar.value = camera.far;
-      (u.uProjectionView.value as THREE.Matrix4).copy(this.projectionView);
-      (u.uInverseProjectionView.value as THREE.Matrix4).copy(this.inverse);
+    const u = WATER_MATERIAL.uniforms;
+    if (this.runtime) {
+      const dt = this.lastTime < 0 ? 1 / 60 : Math.min(0.1, Math.max(0, context.time - this.lastTime));
+      this.lastTime = context.time;
+      this.runtime.step(renderer, camera, dt, u.uWaterMotion.value as number);
+      const buffer = this.runtime.persistence;
+      u.tPersist.value = buffer.texture;
+      (u.uPersistMin.value as THREE.Vector2).copy(buffer.min);
+      (u.uPersistSize.value as THREE.Vector2).copy(buffer.size);
+      renderer.setRenderTarget(context.write);
     }
 
-    // --- the draw -------------------------------------------------------------
-    // No clear of any kind: the blit above is the frame, and the depth attached to
-    // this target is a renderbuffer nothing in this pipeline reads — the water does
-    // its own depth test in the shader against the scene's depth texture.
+    this.projectionView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.inverse.copy(this.projectionView).invert();
+    u.tScene.value = context.colour;
+    u.tDepth.value = context.depth;
+    (u.uResolution.value as THREE.Vector2).copy(context.size);
+    u.uFar.value = camera.far;
+    (u.uProjectionView.value as THREE.Matrix4).copy(this.projectionView);
+    (u.uInverseProjectionView.value as THREE.Matrix4).copy(this.inverse);
+
+    // No clear: the blit above is the frame, and the water does its own depth
+    // test in the shader against the scene's depth texture.
     const priorAutoClear = renderer.autoClear;
     this.priorMask = camera.layers.mask;
-
     renderer.autoClear = false;
     camera.layers.set(WATER_LAYER);
     withStaticHidden(() => renderer.render(scene, camera));
-
     camera.layers.mask = this.priorMask;
     renderer.autoClear = priorAutoClear;
   }
@@ -167,12 +127,8 @@ export class WaterEffect implements PixelEffect {
   dispose(): void {
     this.blitMaterial.dispose();
     this.quad.dispose();
-    // `WATER_MATERIAL` is deliberately left alone. It is shared by every pond
-    // that has ever been built, exactly as `ART_MATERIAL` is, and disposing it
-    // from here would free it out from under geometry still holding it.
+    // `WATER_MATERIAL` is shared by every body ever built and is left alone.
   }
 }
 
-/** Scratch for `submersion`, so asking every frame allocates nothing. */
-const _worldPosition = new THREE.Vector3();
 const _cameraPosition = new THREE.Vector3();

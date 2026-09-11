@@ -48,6 +48,18 @@ export function neighboursOf(zone: string): Neighbour[] {
   return found;
 }
 
+/**
+ * Every icon and far-layer piece any ring can stand. Two dozen of them, taken
+ * whole rather than per cell: which neighbours a ring shows depends on where it
+ * is, and this is read where only the entry is in hand.
+ */
+export function atlasBuilders(): readonly string[] {
+  const names = new Set<string>();
+  for (const doc of documents) if (doc.vista?.icon) names.add(doc.vista.icon);
+  for (const far of manifest.horizon ?? []) names.add(far.builder);
+  return [...names];
+}
+
 /** The far layer, the same from every cell. */
 export function horizonLayer(): readonly HorizonProp[] {
   return manifest.horizon ?? [];

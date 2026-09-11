@@ -4,7 +4,7 @@ import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
 import type { Fields } from '../schema';
-import { FENCE_POST, fenceHeight } from './fence';
+import { FENCE_POST, fenceHeight } from '../posts';
 
 // A five-bar field gate: a hanging post, a slamming post, and the leaf hung
 // between them, swung open by `open`. Built facing +Z with the gap along X and

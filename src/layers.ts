@@ -131,3 +131,10 @@ export const HELD_LAYER = 8;
  * calls `layers.set`, so a plume is on this layer and nothing else.
  */
 export const HEAT_LAYER = 9;
+
+/**
+ * Crowns: lobes and fringe drawn in the canopy material. Enabled beside layer 0,
+ * so the normal pass can point a camera at the crowns alone and draw them with
+ * their own twin after the override pass. See art/canopy.ts.
+ */
+export const CANOPY_LAYER = 10;

@@ -53,8 +53,10 @@ export const vistaHangingWood: MeshBuilder = {
         depth: 10,
         low: 8,
         high: 11,
-        spacing: 6,
+        spacing: 4,
         standards: 1,
+        scallop: rng.range(2, 3.2),
+        emergents: 2,
       }),
     );
 

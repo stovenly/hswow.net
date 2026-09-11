@@ -30,12 +30,14 @@ export const vistaForest: MeshBuilder = {
       depth,
       low,
       high,
-      spacing: 6,
+      spacing: 4,
       standards: rng.int(1, 2),
+      scallop: rng.range(2.5, 4),
+      emergents: 3,
     });
 
     const parts: Part[] = [wall];
-    const lumps = 3;
+    const lumps = 2;
     for (let i = 0; i < lumps; i++) {
       const t = (i + 0.5) / lumps - 0.5;
       const radius = rng.range(9, 13);

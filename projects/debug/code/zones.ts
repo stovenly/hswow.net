@@ -8,8 +8,6 @@ import { GALLERIES, galleryZone } from './galleries';
 import { propZones, propPortals } from './props';
 import { soundStageZone } from './SoundStage';
 import { musicStageZone, musicAnnexZone, musicStagePortal } from './MusicStage';
-import { waterShowcaseZone } from './WaterShowcase';
-import { waterShowcase2Zone } from './WaterShowcase2';
 import { footstepsShowcaseZone } from './FootstepsShowcase';
 import { groundcoverShowcaseZone } from './GroundcoverShowcase';
 import { particleShowcaseZone } from './ParticleShowcase';
@@ -366,8 +364,6 @@ export function createTestWorld(ground: ProvingGround): TestWorld {
   // which is where every door in that room is placed.
   zones.push(soundStageZone());
   // The Water Showcase, whose door stands in the same rank — see `propPortals`.
-  zones.push(waterShowcaseZone());
-  zones.push(waterShowcase2Zone());
   // And the Footsteps Showcase, whose door completes that rank.
   zones.push(footstepsShowcaseZone());
   // The Groundcover Showcase, which is the ground itself rather than anything

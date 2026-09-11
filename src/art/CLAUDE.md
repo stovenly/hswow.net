@@ -26,9 +26,13 @@ being true, edit the line — do not append a correction.
   stages, in the order they wrap.
 - `flex.ts`, `clutter.ts`, `underfoot.ts`, `fabrics.ts` — per-species tables.
   Comparative judgements, so they live in one list, not on the builders.
-- `registry.ts` — Vite-only. Nothing the headless tools reach may import it.
-  `registry-lazy.ts` is the worker's copy, one module at a time, found through
-  the name index the main thread sends over.
+- `registry-lazy.ts` — the glob, one module at a time, shared by the main
+  thread and the workers. A builder's file is its name, so nothing has to be
+  imported to know what exists; `ALIASES` covers the few that differ.
+  `registry.ts` is the main thread's cache over it, so `builderByName` can stay
+  synchronous — everything a zone names is loaded before its walk runs. Both are
+  Vite-only through the glob, and nothing the headless tools reach may import
+  either.
 
 `assemble.ts` is pure: it merges parts and hands the geometry to whichever
 **finish sink** is installed. `dress.ts` is the main thread's sink — the art
@@ -56,7 +60,7 @@ sequence for everything after it.
 **The attribute ledger.** `mergeGeometries` needs every input to carry the same
 attribute set, so a lane added here is paid for by the whole kit, and WebGL
 guarantees sixteen. Spoken for: `position` and `normal`; `color`; `aField`
-(sway, wear, detail size); `wearTint` and `detailTint`; the four byte lanes
+(sway, wear, detail size, branch); `wearTint` and `detailTint`; the four byte lanes
 `aFinish`, `aGrain`, `aGlint` and `aFace`; `aRecipe`, an index and never
 normalized; and `aEffect`, the glitch/horror owner id. Twelve, and a rigged
 creature's `skinIndex`/`skinWeight` make fourteen.

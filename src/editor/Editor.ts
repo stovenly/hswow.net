@@ -420,13 +420,8 @@ export class Editor {
         const entry = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
         if (!entry) return;
         if (shape.kind === 'polyline') {
-          if (entry.kind === 'run') entry.points = shape.points;
-          else if (entry.kind === 'track') entry.through = shape.points;
-          else if (entry.kind === 'chain') {
-            entry.start = shape.points[0];
-            entry.edges = shape.points.slice(1).map((to) => ({ to, kind: 'fence' }));
-            delete entry.runs;
-          }
+          if (entry.kind === 'line') entry.points = shape.points.map((at) => ({ at }));
+          else if (entry.kind === 'region') entry.points = shape.points;
         } else if (shape.kind === 'circle') {
           entry.from = shape.at;
           entry.within = shape.radius;
@@ -946,36 +941,25 @@ export class Editor {
       this.shapes.edit(null);
       return;
     }
-    if (record.kind === 'track' && Array.isArray(record.through)) {
-      this.shapes.edit(record.through as [number, number][], (points) => {
-        this.session.commit(tag.zone, 'zone', (doc) => {
-          const held = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
-          if (held) held.through = points;
+    if (record.kind === 'line' && Array.isArray(record.points)) {
+      const held = record.points as { at: unknown }[];
+      // Only plain points get handles; a point anchored to something built has none.
+      if (held.every((p) => Array.isArray(p.at))) {
+        this.shapes.edit(held.map((p) => p.at as [number, number]), (points) => {
+          this.session.commit(tag.zone, 'zone', (doc) => {
+            const target = findIn(doc, tag.id) as unknown as { points?: { at: unknown }[] } | undefined;
+            if (!target?.points) return;
+            target.points = points.map((at, i) => ({ ...(target.points?.[i] ?? {}), at }));
+          });
         });
-      });
-      return;
+        return;
+      }
     }
-    if (record.kind === 'run' && Array.isArray(record.points)) {
+    if (record.kind === 'region' && Array.isArray(record.points)) {
       this.shapes.edit(record.points as [number, number][], (points) => {
         this.session.commit(tag.zone, 'zone', (doc) => {
           const held = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
           if (held) held.points = points;
-        });
-      });
-      return;
-    }
-    if (record.kind === 'chain' && Array.isArray(record.edges)) {
-      const edges = record.edges as { to: [number, number]; kind?: 'wall' | 'fence' }[];
-      const start = (record.start as [number, number]) ?? [0, 0];
-      this.shapes.edit([start, ...edges.map((edge) => edge.to)], (points) => {
-        this.session.commit(tag.zone, 'zone', (doc) => {
-          const held = findIn(doc, tag.id) as unknown as Record<string, unknown> | undefined;
-          if (!held) return;
-          held.start = points[0];
-          held.edges = points.slice(1).map((to, index) => ({
-            to,
-            kind: edges[index]?.kind ?? 'fence',
-          }));
         });
       });
       return;
@@ -1159,8 +1143,8 @@ function round(value: number, places = 3): number {
 /** Every kind the isolate filter can name. */
 function entryKindNames(): string[] {
   return [
-    'prop', 'creature', 'run', 'chain', 'track', 'scatter', 'barrier', 'prefab', 'ground',
-    'water', 'particles', 'fogVolume', 'glitch', 'horror', 'sound', 'soundScatter',
+    'prop', 'creature', 'line', 'region', 'scatter', 'barrier', 'prefab', 'ground',
+    'water', 'mooring', 'particles', 'fogVolume', 'glitch', 'horror', 'sound', 'soundScatter',
     'vistaRing', 'dressing',
   ].filter((kind) => entryKind(kind) !== undefined);
 }

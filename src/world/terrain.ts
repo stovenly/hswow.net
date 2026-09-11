@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIELD_ATTRIBUTE, finish } from '../art/assemble';
+import { FIELD_ATTRIBUTE, FIELD_LANES, finish } from '../art/assemble';
 import { COVER_ATTRIBUTE, COVER_BLEND_ATTRIBUTE, COVER_FLOOR } from '../art/cover-sample';
 import {
   GROUND,
@@ -954,7 +954,7 @@ export class Terrain {
     // Ground does not move in the wind. The attribute still has to exist —
     // the sway patch reads it on one shared material, and a mesh missing the
     // attribute it reads is a mesh that fails to draw.
-    geometry.setAttribute(FIELD_ATTRIBUTE, new THREE.BufferAttribute(floats(vertices * 3), 3));
+    geometry.setAttribute(FIELD_ATTRIBUTE, new THREE.BufferAttribute(floats(vertices * FIELD_LANES), FIELD_LANES));
     // Read by the cover sampler on the CPU and by nothing else. The ground's
     // own material never declares it, so it costs a buffer and no draw.
     geometry.setAttribute(COVER_ATTRIBUTE, new THREE.BufferAttribute(covers, 4));

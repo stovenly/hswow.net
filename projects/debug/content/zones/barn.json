@@ -14,14 +14,53 @@
     "yaw": 3.1415927
   },
   "floor": -5,
-  "shell": {
-    "width": 12,
-    "depth": 6.5,
-    "height": 5,
+  "interior": {
+    "kit": "barn",
     "seed": 4840,
-    "style": "barn",
-    "planks": true,
-    "beams": 4
+    "storeys": [
+      {
+        "height": 5,
+        "origin": [
+          -12,
+          -6
+        ],
+        "cells": [
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "edges": [
+          {
+            "id": "front-door",
+            "at": [
+              -1,
+              -6
+            ],
+            "side": "n",
+            "kind": "door"
+          }
+        ]
+      }
+    ],
+    "rooms": {
+      "A": {
+        "beams": 4
+      }
+    },
+    "offset": [
+      0,
+      -0.25
+    ]
   },
   "traits": [
     "villager"

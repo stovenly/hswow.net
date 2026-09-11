@@ -147,6 +147,8 @@ export function scatterProps(
   rule: ScatterRule,
   ground: ScatterGround,
   onPlaced?: (mesh: THREE.Mesh) => void,
+  /** Makes the mesh for one candidate in place of the builder — how a stand shares geometry. */
+  make?: (seed: number, scale: number) => THREE.Mesh,
 ): void {
   const maxSlope = rule.maxSlope ?? 26;
   const avoid = rule.avoid ?? [];
@@ -169,8 +171,13 @@ export function scatterProps(
     }
     if (blocked) continue;
 
-    const warm = takeWarm({ builder: builder.name, seed, scale });
-    const mesh = warm ? finishCaptured(warm) : builder.build({ seed, scale });
+    let mesh: THREE.Mesh;
+    if (make) {
+      mesh = make(seed, scale);
+    } else {
+      const warm = takeWarm({ builder: builder.name, seed, scale });
+      mesh = warm ? finishCaptured(warm) : builder.build({ seed, scale });
+    }
     // The item systems read this back, so a taken prop is carried with the
     // exact look it stood with.
     mesh.userData.seed = seed;

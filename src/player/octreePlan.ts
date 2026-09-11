@@ -53,6 +53,21 @@ interface Node {
 
 const _half = new THREE.Vector3();
 
+const _ab = new THREE.Vector3();
+const _ac = new THREE.Vector3();
+
+function finite(triangle: THREE.Triangle): boolean {
+  const { a, b, c } = triangle;
+  return Number.isFinite(a.x + a.y + a.z + b.x + b.y + b.z + c.x + c.y + c.z);
+}
+
+/** A zero-area triangle has no closest point, and its NaN spreads to whatever touches it. */
+function flat(triangle: THREE.Triangle): boolean {
+  _ab.subVectors(triangle.b, triangle.a);
+  _ac.subVectors(triangle.c, triangle.a);
+  return _ab.cross(_ac).lengthSq() <= 1e-16;
+}
+
 export function planOctree(positions: Float32Array): OctreePlan {
   const total = Math.floor(positions.length / 9);
   const triangles: THREE.Triangle[] = new Array(total);
@@ -74,10 +89,16 @@ export function planOctree(positions: Float32Array): OctreePlan {
   box.min.z -= 0.01;
 
   const nodes: Node[] = [];
-  const root: number[] = new Array(total);
-  for (let i = 0; i < total; i += 1) root[i] = i;
+  // A non-finite vertex would intersect every child box, so the tree would divide to its cap in every branch.
+  const root: number[] = [];
+  let broken = 0;
+  for (let i = 0; i < total; i += 1) {
+    if (!finite(triangles[i])) broken++;
+    else if (!flat(triangles[i])) root.push(i);
+  }
+  if (broken > 0) console.warn(`collision: ${broken} triangles with non-finite vertices left out`);
   nodes.push({ box, tris: root, first: -1, count: 0 });
-  if (total > 0) divide(nodes, 0, triangles, 0);
+  if (root.length > 0) divide(nodes, 0, triangles, 0);
 
   const boxes = new Float32Array(nodes.length * 6);
   const firstChild = new Int32Array(nodes.length);

@@ -616,129 +616,187 @@
   "entries": [
     {
       "id": "path",
-      "kind": "track",
-      "through": [
-        [
-          0,
-          -62
-        ],
-        [
-          0,
-          -50
-        ],
-        [
-          -3,
-          -42
-        ],
-        [
-          -7,
-          -34
-        ],
-        [
-          -7,
-          -26
-        ],
-        [
-          -2,
-          -18
-        ],
-        [
-          6,
-          -12
-        ],
-        [
-          12,
-          -4
-        ],
-        [
-          12,
-          6
-        ],
-        [
-          12,
-          14
-        ],
-        [
-          16,
-          24
-        ],
-        [
-          26,
-          33
-        ],
-        [
-          38,
-          42
-        ],
-        [
-          46,
-          50
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7251,
+      "points": [
+        {
+          "at": [
+            0,
+            -62
+          ]
+        },
+        {
+          "at": [
+            0,
+            -50
+          ]
+        },
+        {
+          "at": [
+            -3,
+            -42
+          ]
+        },
+        {
+          "at": [
+            -7,
+            -34
+          ]
+        },
+        {
+          "at": [
+            -7,
+            -26
+          ]
+        },
+        {
+          "at": [
+            -2,
+            -18
+          ]
+        },
+        {
+          "at": [
+            6,
+            -12
+          ]
+        },
+        {
+          "at": [
+            12,
+            -4
+          ]
+        },
+        {
+          "at": [
+            12,
+            6
+          ]
+        },
+        {
+          "at": [
+            12,
+            14
+          ]
+        },
+        {
+          "at": [
+            16,
+            24
+          ]
+        },
+        {
+          "at": [
+            26,
+            33
+          ]
+        },
+        {
+          "at": [
+            38,
+            42
+          ]
+        },
+        {
+          "at": [
+            46,
+            50
+          ]
+        }
       ],
-      "width": 2.4,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.5,
-      "seed": 7251
+      "options": {
+        "width": 2.4,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.5
+      }
     },
     {
       "id": "ride",
-      "kind": "track",
-      "through": [
-        [
-          12,
-          14
-        ],
-        [
-          3,
-          17
-        ],
-        [
-          -8,
-          19
-        ],
-        [
-          -18,
-          24
-        ],
-        [
-          -26,
-          32
-        ],
-        [
-          -36,
-          34
-        ],
-        [
-          -44,
-          26
-        ],
-        [
-          -44,
-          14
-        ],
-        [
-          -36,
-          6
-        ],
-        [
-          -26,
-          -6
-        ],
-        [
-          -16,
-          -18
-        ],
-        [
-          -7,
-          -26
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7252,
+      "points": [
+        {
+          "at": [
+            12,
+            14
+          ]
+        },
+        {
+          "at": [
+            3,
+            17
+          ]
+        },
+        {
+          "at": [
+            -8,
+            19
+          ]
+        },
+        {
+          "at": [
+            -18,
+            24
+          ]
+        },
+        {
+          "at": [
+            -26,
+            32
+          ]
+        },
+        {
+          "at": [
+            -36,
+            34
+          ]
+        },
+        {
+          "at": [
+            -44,
+            26
+          ]
+        },
+        {
+          "at": [
+            -44,
+            14
+          ]
+        },
+        {
+          "at": [
+            -36,
+            6
+          ]
+        },
+        {
+          "at": [
+            -26,
+            -6
+          ]
+        },
+        {
+          "at": [
+            -16,
+            -18
+          ]
+        },
+        {
+          "at": [
+            -7,
+            -26
+          ]
+        }
       ],
-      "width": 1.6,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.3,
-      "seed": 7252
+      "options": {
+        "width": 1.6,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.3
+      }
     },
     {
       "id": "gate-n-oak-w",
@@ -862,253 +920,6 @@
       "scale": 1.1
     },
     {
-      "id": "edge-slab-0",
-      "kind": "barrier",
-      "from": [
-        0,
-        -56
-      ],
-      "to": [
-        20,
-        -56
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-1",
-      "kind": "barrier",
-      "from": [
-        20,
-        -56
-      ],
-      "to": [
-        40,
-        -48
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-2",
-      "kind": "barrier",
-      "from": [
-        40,
-        -48
-      ],
-      "to": [
-        54,
-        -30
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-3",
-      "kind": "barrier",
-      "from": [
-        54,
-        -30
-      ],
-      "to": [
-        60,
-        -8
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-4",
-      "kind": "barrier",
-      "from": [
-        60,
-        -8
-      ],
-      "to": [
-        60,
-        16
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-5",
-      "kind": "barrier",
-      "from": [
-        60,
-        16
-      ],
-      "to": [
-        56,
-        30
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-6",
-      "kind": "barrier",
-      "from": [
-        56,
-        30
-      ],
-      "to": [
-        48,
-        50
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-7",
-      "kind": "barrier",
-      "from": [
-        48,
-        50
-      ],
-      "to": [
-        30,
-        58
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-8",
-      "kind": "barrier",
-      "from": [
-        30,
-        58
-      ],
-      "to": [
-        8,
-        62
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-9",
-      "kind": "barrier",
-      "from": [
-        8,
-        62
-      ],
-      "to": [
-        -14,
-        62
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-10",
-      "kind": "barrier",
-      "from": [
-        -14,
-        62
-      ],
-      "to": [
-        -34,
-        56
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-11",
-      "kind": "barrier",
-      "from": [
-        -34,
-        56
-      ],
-      "to": [
-        -48,
-        44
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-12",
-      "kind": "barrier",
-      "from": [
-        -48,
-        44
-      ],
-      "to": [
-        -58,
-        26
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-13",
-      "kind": "barrier",
-      "from": [
-        -58,
-        26
-      ],
-      "to": [
-        -60,
-        4
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-14",
-      "kind": "barrier",
-      "from": [
-        -60,
-        4
-      ],
-      "to": [
-        -58,
-        -20
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-15",
-      "kind": "barrier",
-      "from": [
-        -58,
-        -20
-      ],
-      "to": [
-        -50,
-        -40
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-16",
-      "kind": "barrier",
-      "from": [
-        -50,
-        -40
-      ],
-      "to": [
-        -34,
-        -52
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-17",
-      "kind": "barrier",
-      "from": [
-        -34,
-        -52
-      ],
-      "to": [
-        -14,
-        -56
-      ],
-      "height": 3
-    },
-    {
-      "id": "edge-slab-18",
-      "kind": "barrier",
-      "from": [
-        -14,
-        -56
-      ],
-      "to": [
-        0,
-        -56
-      ],
-      "height": 3
-    },
-    {
       "id": "house",
       "kind": "prop",
       "builder": "cottage",
@@ -1133,28 +944,35 @@
     },
     {
       "id": "garden-fence",
-      "kind": "run",
+      "kind": "line",
       "builder": "fence",
       "seed": 4932,
       "points": [
-        [
-          -1.4,
-          5.2
-        ],
-        [
-          -1.4,
-          11.5
-        ],
-        [
-          7,
-          11.5
-        ],
-        [
-          7,
-          8.4
-        ]
-      ],
-      "cap": "post"
+        {
+          "at": [
+            -1.4,
+            5.2
+          ]
+        },
+        {
+          "at": [
+            -1.4,
+            11.5
+          ]
+        },
+        {
+          "at": [
+            7,
+            11.5
+          ]
+        },
+        {
+          "at": [
+            7,
+            8.4
+          ]
+        }
+      ]
     },
     {
       "id": "well",
@@ -1190,6 +1008,600 @@
       "yaw": 0
     },
     {
+      "id": "boundary-south",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 7301,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -33.75,
+            -51.43
+          ]
+        },
+        {
+          "at": [
+            -23.76,
+            -52.71
+          ]
+        },
+        {
+          "at": [
+            -13.98,
+            -53.36
+          ]
+        },
+        {
+          "at": [
+            -6.99,
+            -51.51
+          ]
+        },
+        {
+          "at": [
+            0.0,
+            -50.0
+          ]
+        },
+        {
+          "at": [
+            9.99,
+            -52.63
+          ]
+        },
+        {
+          "at": [
+            19.99,
+            -54.94
+          ]
+        },
+        {
+          "at": [
+            30.06,
+            -52.12
+          ]
+        },
+        {
+          "at": [
+            39.88,
+            -47.84
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 34.26,
+          "kind": "gate",
+          "width": 3.4,
+          "options": {
+            "open": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "boundary-east",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 7302,
+      "style": "low",
+      "points": [
+        {
+          "at": [
+            39.6,
+            -47.46
+          ]
+        },
+        {
+          "at": [
+            46.64,
+            -38.63
+          ]
+        },
+        {
+          "at": [
+            53.83,
+            -29.92
+          ]
+        },
+        {
+          "at": [
+            56.52,
+            -18.87
+          ]
+        },
+        {
+          "at": [
+            59.73,
+            -7.96
+          ]
+        },
+        {
+          "at": [
+            59.78,
+            3.99
+          ]
+        },
+        {
+          "at": [
+            59.64,
+            15.95
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 19.39,
+          "kind": "ruin",
+          "width": 13
+        },
+        {
+          "at": 51.24,
+          "kind": "ruin",
+          "width": 17
+        }
+      ]
+    },
+    {
+      "id": "boundary-north-east",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 7303,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            59.9,
+            15.99
+          ]
+        },
+        {
+          "at": [
+            57.94,
+            22.89
+          ]
+        },
+        {
+          "at": [
+            55.06,
+            29.16
+          ]
+        },
+        {
+          "at": [
+            49.28,
+            35.9
+          ]
+        },
+        {
+          "at": [
+            43.33,
+            40.72
+          ]
+        },
+        {
+          "at": [
+            38.0,
+            42.0
+          ]
+        },
+        {
+          "at": [
+            29.83,
+            57.45
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 36.11,
+          "kind": "gate",
+          "width": 3.4,
+          "options": {
+            "open": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "boundary-north",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 7304,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            29.93,
+            57.77
+          ]
+        },
+        {
+          "at": [
+            18.99,
+            59.98
+          ]
+        },
+        {
+          "at": [
+            7.97,
+            61.71
+          ]
+        },
+        {
+          "at": [
+            -2.99,
+            61.94
+          ]
+        },
+        {
+          "at": [
+            -13.95,
+            61.68
+          ]
+        },
+        {
+          "at": [
+            -24.02,
+            59.06
+          ]
+        },
+        {
+          "at": [
+            -33.93,
+            55.87
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-west",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 7305,
+      "style": "low",
+      "points": [
+        {
+          "at": [
+            -33.71,
+            55.47
+          ]
+        },
+        {
+          "at": [
+            -40.62,
+            49.5
+          ]
+        },
+        {
+          "at": [
+            -47.79,
+            43.83
+          ]
+        },
+        {
+          "at": [
+            -53.25,
+            35.13
+          ]
+        },
+        {
+          "at": [
+            -57.89,
+            25.97
+          ]
+        },
+        {
+          "at": [
+            -58.85,
+            15.0
+          ]
+        },
+        {
+          "at": [
+            -59.35,
+            4.0
+          ]
+        },
+        {
+          "at": [
+            -58.57,
+            -7.95
+          ]
+        },
+        {
+          "at": [
+            -57.42,
+            -19.86
+          ]
+        },
+        {
+          "at": [
+            -53.32,
+            -29.73
+          ]
+        },
+        {
+          "at": [
+            -49.73,
+            -39.79
+          ]
+        },
+        {
+          "at": [
+            -41.85,
+            -45.79
+          ]
+        },
+        {
+          "at": [
+            -33.8,
+            -51.56
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 27.71,
+          "kind": "ruin",
+          "width": 16
+        },
+        {
+          "at": 79.35,
+          "kind": "ruin",
+          "width": 22
+        }
+      ]
+    },
+    {
+      "id": "edge-slab-0",
+      "kind": "barrier",
+      "from": [
+        0.0,
+        -56.0
+      ],
+      "to": [
+        20.0,
+        -56.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-1",
+      "kind": "barrier",
+      "from": [
+        20.0,
+        -56.0
+      ],
+      "to": [
+        40.0,
+        -48.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-2",
+      "kind": "barrier",
+      "from": [
+        40.0,
+        -48.0
+      ],
+      "to": [
+        54.0,
+        -30.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-3",
+      "kind": "barrier",
+      "from": [
+        54.0,
+        -30.0
+      ],
+      "to": [
+        60.0,
+        -8.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-4",
+      "kind": "barrier",
+      "from": [
+        60.0,
+        -8.0
+      ],
+      "to": [
+        60.0,
+        16.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-5",
+      "kind": "barrier",
+      "from": [
+        60.0,
+        16.0
+      ],
+      "to": [
+        56.0,
+        30.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-6",
+      "kind": "barrier",
+      "from": [
+        56.0,
+        30.0
+      ],
+      "to": [
+        48.0,
+        50.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-7",
+      "kind": "barrier",
+      "from": [
+        48.0,
+        50.0
+      ],
+      "to": [
+        30.0,
+        58.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-8",
+      "kind": "barrier",
+      "from": [
+        30.0,
+        58.0
+      ],
+      "to": [
+        8.0,
+        62.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-9",
+      "kind": "barrier",
+      "from": [
+        8.0,
+        62.0
+      ],
+      "to": [
+        -14.0,
+        62.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-10",
+      "kind": "barrier",
+      "from": [
+        -14.0,
+        62.0
+      ],
+      "to": [
+        -34.0,
+        56.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-11",
+      "kind": "barrier",
+      "from": [
+        -34.0,
+        56.0
+      ],
+      "to": [
+        -48.0,
+        44.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-12",
+      "kind": "barrier",
+      "from": [
+        -48.0,
+        44.0
+      ],
+      "to": [
+        -58.0,
+        26.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-13",
+      "kind": "barrier",
+      "from": [
+        -58.0,
+        26.0
+      ],
+      "to": [
+        -60.0,
+        4.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-14",
+      "kind": "barrier",
+      "from": [
+        -60.0,
+        4.0
+      ],
+      "to": [
+        -58.0,
+        -20.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-15",
+      "kind": "barrier",
+      "from": [
+        -58.0,
+        -20.0
+      ],
+      "to": [
+        -50.0,
+        -40.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-16",
+      "kind": "barrier",
+      "from": [
+        -50.0,
+        -40.0
+      ],
+      "to": [
+        -34.0,
+        -52.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-17",
+      "kind": "barrier",
+      "from": [
+        -34.0,
+        -52.0
+      ],
+      "to": [
+        -14.0,
+        -56.0
+      ],
+      "height": 3
+    },
+    {
+      "id": "edge-slab-18",
+      "kind": "barrier",
+      "from": [
+        -14.0,
+        -56.0
+      ],
+      "to": [
+        0.0,
+        -56.0
+      ],
+      "height": 3
+    },
+    {
       "id": "lavender",
       "kind": "scatter",
       "builder": "lavender",
@@ -1211,16 +1623,76 @@
     {
       "id": "pond",
       "kind": "water",
-      "at": [
-        -32,
-        -0.5,
-        22
+      "regime": "still",
+      "palette": "pond",
+      "level": -0.5,
+      "shape": [
+        [
+          -24.6,
+          22
+        ],
+        [
+          -25.16,
+          24.07
+        ],
+        [
+          -26.77,
+          25.82
+        ],
+        [
+          -29.17,
+          26.99
+        ],
+        [
+          -32,
+          27.4
+        ],
+        [
+          -34.83,
+          26.99
+        ],
+        [
+          -37.23,
+          25.82
+        ],
+        [
+          -38.84,
+          24.07
+        ],
+        [
+          -39.4,
+          22
+        ],
+        [
+          -38.84,
+          19.93
+        ],
+        [
+          -37.23,
+          18.18
+        ],
+        [
+          -34.83,
+          17.01
+        ],
+        [
+          -32,
+          16.6
+        ],
+        [
+          -29.17,
+          17.01
+        ],
+        [
+          -26.77,
+          18.18
+        ],
+        [
+          -25.16,
+          19.93
+        ]
       ],
-      "width": 14,
-      "depth": 10,
-      "chop": 0.08,
-      "taper": 0.3,
-      "segment": 0.5
+      "rise": 2
     },
     {
       "id": "pond-reeds",
@@ -1328,7 +1800,29 @@
       "kind": "scatter",
       "builder": "oak",
       "seed": 5191,
-      "count": 12,
+      "count": 8,
+      "within": 70,
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "path",
+        "ride",
+        "spruce-w",
+        "spruce-s",
+        "heath-se"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.25
+      ]
+    },
+    {
+      "id": "wood-ashes",
+      "kind": "scatter",
+      "builder": "ash",
+      "seed": 5197,
+      "count": 4,
       "within": 70,
       "region": "wood",
       "avoid": [
@@ -1350,7 +1844,51 @@
       "kind": "scatter",
       "builder": "birch",
       "seed": 5193,
-      "count": 18,
+      "count": 12,
+      "within": 70,
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "path",
+        "ride",
+        "spruce-w",
+        "spruce-s",
+        "heath-se"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.85,
+        1.2
+      ]
+    },
+    {
+      "id": "wood-rowans",
+      "kind": "scatter",
+      "builder": "rowan",
+      "seed": 5198,
+      "count": 3,
+      "within": 70,
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "path",
+        "ride",
+        "spruce-w",
+        "spruce-s",
+        "heath-se"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.85,
+        1.2
+      ]
+    },
+    {
+      "id": "wood-hollies",
+      "kind": "scatter",
+      "builder": "holly",
+      "seed": 5199,
+      "count": 3,
       "within": 70,
       "region": "wood",
       "avoid": [
@@ -1372,7 +1910,7 @@
       "kind": "scatter",
       "builder": "spruce",
       "seed": 5192,
-      "count": 8,
+      "count": 5,
       "within": 70,
       "region": "wood",
       "avoid": [
@@ -1385,6 +1923,26 @@
       "scale": [
         0.9,
         1.3
+      ]
+    },
+    {
+      "id": "wood-pines",
+      "kind": "scatter",
+      "builder": "pine",
+      "seed": 5195,
+      "count": 3,
+      "within": 70,
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "path",
+        "ride",
+        "heath-se"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.8,
+        1.0
       ]
     },
     {
@@ -1615,7 +2173,7 @@
     {
       "id": "rise-birches",
       "kind": "scatter",
-      "builder": "small-birch",
+      "builder": "rowan",
       "seed": 5222,
       "count": 4,
       "within": 15,
@@ -1634,15 +2192,31 @@
     {
       "id": "far-water",
       "kind": "water",
-      "at": [
-        150,
-        0.05,
-        165
+      "regime": "still",
+      "palette": "tarn",
+      "level": 0.05,
+      "shape": [
+        [
+          30,
+          110
+        ],
+        [
+          270,
+          110
+        ],
+        [
+          270,
+          220
+        ],
+        [
+          30,
+          220
+        ]
       ],
-      "width": 240,
-      "depth": 110,
+      "segment": 4,
       "chop": 0.6,
-      "segment": 4
+      "ripples": false,
+      "sound": null
     },
     {
       "id": "ring",
@@ -1696,7 +2270,7 @@
           "scale": 1.6,
           "seed": 9204,
           "variant": "ride",
-          "yaw": 0.0
+          "yaw": 0
         },
         {
           "builder": "vista-forest",
@@ -1740,64 +2314,58 @@
           "yaw": 2.8431
         },
         {
-          "builder": "vista-tree",
+          "tree": "pine",
           "at": [
             -96,
             -20
           ],
-          "scale": 1.2,
-          "seed": 9209,
-          "variant": "pine"
+          "scale": 1.5,
+          "seed": 9209
         },
         {
-          "builder": "vista-tree",
+          "tree": "oak",
           "at": [
             -90,
             50
           ],
-          "scale": 1.1,
-          "seed": 9210,
-          "variant": "oak"
+          "scale": 1.38,
+          "seed": 9210
         },
         {
-          "builder": "vista-tree",
+          "tree": "oak",
           "at": [
             30,
             -100
           ],
-          "scale": 1.3,
-          "seed": 9211,
-          "variant": "oak"
+          "scale": 1.62,
+          "seed": 9211
         },
         {
-          "builder": "vista-tree",
+          "tree": "pine",
           "at": [
             -40,
             -98
           ],
-          "scale": 1.2,
-          "seed": 9212,
-          "variant": "pine"
+          "scale": 1.5,
+          "seed": 9212
         },
         {
-          "builder": "vista-tree",
+          "tree": "snag",
           "at": [
             100,
             -30
           ],
-          "scale": 1.2,
-          "seed": 9213,
-          "variant": "dead"
+          "scale": 2.8,
+          "seed": 9213
         },
         {
-          "builder": "vista-tree",
+          "tree": "oak",
           "at": [
             -70,
             100
           ],
-          "scale": 1.1,
-          "seed": 9214,
-          "variant": "oak"
+          "scale": 1.38,
+          "seed": 9214
         },
         {
           "builder": "vista-plantation",
@@ -1863,27 +2431,55 @@
       ],
       "scatter": [
         {
-          "builder": "vista-tree",
-          "count": 10,
+          "tree": "oak",
+          "count": 7,
           "band": {
             "inner": 14,
             "outer": 50
           },
           "scale": [
-            0.9,
-            1.3
+            1.1,
+            1.5
           ]
         },
         {
-          "builder": "vista-copse",
+          "tree": "pine",
           "count": 3,
+          "band": {
+            "inner": 14,
+            "outer": 50
+          },
+          "scale": [
+            1.1,
+            1.5
+          ]
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "count": 6,
+          "spacing": 9,
           "band": {
             "inner": 14,
             "outer": 60
           },
           "scale": [
-            1.0,
-            1.4
+            0.55,
+            0.8
+          ]
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "count": 3,
+          "spacing": 9,
+          "band": {
+            "inner": 14,
+            "outer": 60
+          },
+          "scale": [
+            0.55,
+            0.8
           ]
         },
         {
@@ -2021,7 +2617,7 @@
       "seed": 4960,
       "at": [
         -2.1,
-        -50.0
+        -50
       ],
       "yaw": 0.3
     },
@@ -2032,7 +2628,7 @@
       "seed": 4961,
       "at": [
         2.1,
-        -50.0
+        -50
       ],
       "yaw": 2.4
     },
@@ -2043,7 +2639,7 @@
       "seed": 4962,
       "at": [
         2.1,
-        -50.0
+        -50
       ],
       "yaw": 0.9,
       "on": "gate-n-post-b"

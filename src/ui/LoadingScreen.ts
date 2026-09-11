@@ -95,7 +95,11 @@ export class LoadingScreen {
     this.held = false;
     this.root.classList.add('is-gone');
     document.body.classList.remove('is-loading');
-    this.hang(this.root.dataset.scene ?? null);
+    // The next painting goes up only once this one has faded out, and not at
+    // all if the screen is back up by then: a swap mid-fade shows through.
+    window.setTimeout(() => {
+      if (!this.shown) this.hang(this.root.dataset.scene ?? null);
+    }, FADE * 1000 + 50);
   }
 
   fail(message: string): void {

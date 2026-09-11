@@ -1,38 +1,49 @@
 import type { MeshBuilder } from './types';
-import { pool } from '../engine/work/pool';
-import { isBuilder } from './registry-lazy';
+import { BUILDER_KEYS, keyOf, loadModule } from './registry-lazy';
 
 /**
- * Every builder in `builders/`, found automatically.
+ * The main thread's builders. `registry-lazy.ts` holds the glob and fetches one
+ * module at a time; this holds what has been fetched, so `builderByName` can
+ * stay synchronous — the document walk calls it inline and must not await.
  *
- * `import.meta.glob` is resolved by Vite at build time into a set of static
- * imports, so this is not a runtime directory scan and nothing is lazy — it
- * costs the same as having written the import list by hand, and cannot fall
- * out of date with it. Dropping a file into `builders/` is the entire process
- * for adding a mesh type.
+ * Everything a zone can name is ensured **before** its walk runs, by
+ * `ZoneManager`; a name that was never ensured looks up as `undefined`.
  *
- * **This module is Vite-only.** `import.meta.glob` does not exist under plain
- * esbuild, which is what the headless checks in `tools/` run through. Nothing
- * that those checks reach may import this file — the proving ground therefore
- * imports the builders it needs directly, and only the debug gallery goes
- * through the registry.
+ * **This module is Vite-only**, through the glob it stands on. Nothing the
+ * headless checks in `tools/` reach may import it.
  */
 
-const modules = import.meta.glob<Record<string, unknown>>('./builders/*.ts', { eager: true });
+const held = new Map<string, MeshBuilder>();
+let everything: Promise<void> | null = null;
 
-/** Sorted by name, so the gallery's layout is stable between runs. */
-export const builders: MeshBuilder[] = Object.values(modules)
-  .flatMap((module) => Object.values(module))
-  .filter(isBuilder)
-  .sort((a, b) => a.name.localeCompare(b.name));
-
-/** Builder name → glob key, which is how a worker finds the one module it needs. */
-const byName: Record<string, string> = {};
-for (const [key, module] of Object.entries(modules)) {
-  for (const value of Object.values(module)) if (isBuilder(value)) byName[value.name] = key;
+function keep(found: readonly MeshBuilder[]): void {
+  for (const builder of found) held.set(builder.name, builder);
 }
-pool.prime({ builders: byName });
 
+/** Fetches these builders' modules. Awaited before anything looks one of them up. */
+export async function ensureBuilders(names: Iterable<string>): Promise<void> {
+  const want = [...new Set(names)].filter((name) => name && !held.has(name));
+  if (want.length === 0) return;
+  await Promise.all(want.map((name) => loadModule(keyOf(name)).then(keep)));
+  // A builder added under a name its file does not match fails the first time
+  // it is placed, with the file it was looked for in.
+  for (const name of want) {
+    if (!held.has(name)) throw new Error(`no builder named "${name}": looked in ${keyOf(name)}`);
+  }
+}
+
+/** Every builder there is. The editor and the galleries; never a zone. */
+export async function ensureAllBuilders(): Promise<void> {
+  everything ??= Promise.all(BUILDER_KEYS.map((key) => loadModule(key).then(keep))).then(() => undefined);
+  await everything;
+}
+
+/** Synchronous, because the document walk calls it inline. Undefined until the name has been ensured. */
 export function builderByName(name: string): MeshBuilder | undefined {
-  return builders.find((builder) => builder.name === name);
+  return held.get(name);
+}
+
+/** Sorted by name, so the gallery's layout is stable between runs. Complete only after `ensureAllBuilders`. */
+export function builders(): MeshBuilder[] {
+  return [...held.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

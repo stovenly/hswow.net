@@ -28,13 +28,19 @@ import type { ZoneManager } from './ZoneManager';
 const DROP_REACH = 5;
 const DROP_RANGE = 4.5;
 
+/** Metres. A pickup narrower than this across gets an invisible box this wide over it, so a ring on a table is hovered from reach. */
+const HAND = 0.1;
+const REACH_MATERIAL = new THREE.MeshBasicMaterial();
+
 const COLLISION_MASK = new THREE.Layers();
 COLLISION_MASK.set(COLLISION_LAYER);
 
 const _point = new THREE.Vector3();
+const _size = new THREE.Vector3();
 const _above = new THREE.Vector3();
 const _down = new THREE.Vector3();
 const _stack = new THREE.Box3();
+const _body = new THREE.Box3();
 const _raycaster = new THREE.Raycaster();
 
 export class ItemWorld {
@@ -74,6 +80,7 @@ export class ItemWorld {
       const info: PickupInfo = { key, item };
       object.userData.pickup = info;
       if (typeof object.userData.label !== 'string') object.userData.label = item.name;
+      reachBox(object);
     });
   }
 
@@ -128,6 +135,7 @@ export class ItemWorld {
     if (!mask) return;
     mask.resetPlaced();
     mask.stampObject(root, 'placed', (mesh) => {
+      if (mesh.userData.noCollide === true && mesh.userData.footprintFaces !== true) return true;
       let node: THREE.Object3D | null = mesh;
       while (node && !node.userData.pickup) node = node.parent;
       const pickup = node?.userData.pickup as PickupInfo | undefined;
@@ -157,10 +165,7 @@ export class ItemWorld {
     if (starred) this.zones.refreshSparkles(zone.id);
     if (pickup.placedId) worldDelta.unplace(zone.id, pickup.placedId);
     else worldDelta.removed.add(pickup.key);
-    // Invalidated, never rebuilt here: reindexing a whole zone for a candle is
-    // a hitch the hand feels. The stale triangles cost a candle-shaped bump
-    // underfoot until the next entry rebuilds behind the fade.
-    if (solid) this.collider.invalidate(zone.id);
+    if (solid) this.zones.reindexCollision(zone.id, node);
     if (relight) this.zones.rebalanceLights(zone.id);
     this.refreshFootprints(zone.id, zone.root());
     this.zones.refreshTargets();
@@ -174,13 +179,19 @@ export class ItemWorld {
    * on the floor in front of it. False when nothing in reach would take it;
    * the caller keeps the item.
    */
-  drop(item: Item, origin: THREE.Vector3, direction: THREE.Vector3, feet: THREE.Vector3): boolean {
+  drop(
+    item: Item,
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    feet: THREE.Vector3,
+    heading: number,
+  ): boolean {
     const zone = this.zones.current;
     if (!zone?.isBuilt || this.zones.isTransitioning) return false;
 
     const landing = this.landingFor(zone, origin, direction, feet);
     if (!landing) return false;
-    this.placeAt(zone, item, landing, feet);
+    this.placeAt(zone, item, landing, heading);
     return true;
   }
 
@@ -194,6 +205,7 @@ export class ItemWorld {
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     feet: THREE.Vector3,
+    heading: number,
   ): boolean {
     const zone = this.zones.current;
     if (!zone?.isBuilt || this.zones.isTransitioning) return false;
@@ -201,17 +213,18 @@ export class ItemWorld {
     if (!landing) return false;
     const item = this.takeFromWorld(object);
     if (!item) return false;
-    this.placeAt(zone, item, landing, feet);
+    this.placeAt(zone, item, landing, heading);
     return true;
   }
 
-  private placeAt(zone: Zone, item: Item, at: [number, number, number], feet: THREE.Vector3): void {
+  /** `heading` is the player's yaw: they look down (−sin, −cos), so the thing's +Z faces them wherever in the view it lands. */
+  private placeAt(zone: Zone, item: Item, at: [number, number, number], heading: number): void {
     const record: PlacedItem = {
       id: worldDelta.mintPlacedId(),
       zone: zone.id,
       item: cloneItem(item),
       at,
-      yaw: Math.atan2(feet.x - at[0], feet.z - at[2]),
+      yaw: heading,
     };
     const mesh = this.buildPlaced(record);
     worldDelta.place(record);
@@ -248,14 +261,19 @@ export class ItemWorld {
   ): [number, number, number] | null {
     // Dropped items are not solid, so the collider never sees them; stacking
     // needs its own ray against the zone's item meshes. A move excludes the
-    // thing being moved, or it would stack on itself.
-    const items: THREE.Object3D[] = [];
+    // thing being moved, or it would stack on itself. Only the bodies count:
+    // a flame's glow, plume and sparks and the hover box are `noCollide`, and
+    // a plume is a unit quad that would put the top of a candle a metre up.
+    const bodies: THREE.Mesh[] = [];
     zone.root().traverse((object) => {
-      if (object.userData.pickup && object !== except) items.push(object);
+      if (!object.userData.pickup || object === except) return;
+      object.traverse((part) => {
+        if (part instanceof THREE.Mesh && part.userData.noCollide !== true) bodies.push(part);
+      });
     });
     _raycaster.set(origin, direction);
     _raycaster.far = DROP_REACH;
-    const struck = _raycaster.intersectObjects(items, true)[0];
+    const struck = _raycaster.intersectObjects(bodies, false)[0];
 
     const wall = this.collider.raycast(origin, direction);
 
@@ -264,8 +282,25 @@ export class ItemWorld {
       let holder: THREE.Object3D | null = struck.object;
       while (holder && !holder.userData.pickup) holder = holder.parent;
       if (holder) {
-        _stack.setFromObject(holder, true);
-        return [struck.point.x, _stack.max.y, struck.point.z];
+        // Onto the surface directly under the strike, not the top of the whole
+        // thing: a ray straight down from above the item, against its bodies
+        // alone, lands on a candle's dish between the rods rather than on the rods.
+        const own: THREE.Mesh[] = [];
+        _stack.makeEmpty();
+        holder.traverse((part) => {
+          if (!(part instanceof THREE.Mesh) || part.userData.noCollide === true) return;
+          own.push(part);
+          const geometry = part.geometry;
+          if (!geometry.boundingBox) geometry.computeBoundingBox();
+          if (!geometry.boundingBox) return;
+          _stack.union(_body.copy(geometry.boundingBox).applyMatrix4(part.matrixWorld));
+        });
+        if (_stack.isEmpty()) return null;
+        _above.set(struck.point.x, _stack.max.y + 0.01, struck.point.z);
+        _raycaster.set(_above, _down.set(0, -1, 0));
+        _raycaster.far = _stack.max.y - _stack.min.y + 0.02;
+        const under = _raycaster.intersectObjects(own, false)[0];
+        return [struck.point.x, under ? under.point.y : struck.point.y, struck.point.z];
       }
     }
 
@@ -297,7 +332,7 @@ export class ItemWorld {
     const seed = record.item.seed ?? hashString(record.item.name) % 1_000_000;
     const mesh = stand.build(own ? { seed } : { seed, scale: 0.55 });
     mesh.position.set(record.at[0], record.at[1], record.at[2]);
-    // rotateY(yaw) takes +Z to the bearing back toward whoever dropped it.
+    // rotateY(yaw) takes +Z to (sin yaw, cos yaw), square on to whoever dropped it.
     mesh.rotation.y = record.yaw;
     mesh.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -309,6 +344,7 @@ export class ItemWorld {
     restoreState(mesh, record.item.state);
     const info: PickupInfo = { key: record.id, item: cloneItem(record.item), placedId: record.id };
     mesh.userData.pickup = info;
+    reachBox(mesh);
     return mesh;
   }
 
@@ -328,6 +364,30 @@ export class ItemWorld {
     return lit;
   }
 
+}
+
+/**
+ * Hangs the hand-sized hover box under a small pickup. Off the mesh's own
+ * geometry, so the box is the object's frame whatever it stands on; hung here
+ * and never by the builder, so the icon renderer frames the ring and not the box.
+ */
+function reachBox(mesh: THREE.Mesh): void {
+  const geometry = mesh.geometry;
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds || bounds.isEmpty()) return;
+  bounds.getSize(_size);
+  if (_size.x >= HAND && _size.z >= HAND) return;
+  const tall = Math.max(_size.y, HAND * 0.4);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(Math.max(_size.x, HAND), tall, Math.max(_size.z, HAND)), REACH_MATERIAL);
+  box.name = 'pickup-reach';
+  box.visible = false;
+  box.castShadow = false;
+  box.receiveShadow = false;
+  bounds.getCenter(_point);
+  box.position.set(_point.x, bounds.min.y + tall / 2, _point.z);
+  box.userData.noCollide = true;
+  mesh.add(box);
 }
 
 function cloneItem(item: Item): Item {

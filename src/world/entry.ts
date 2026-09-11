@@ -11,7 +11,8 @@ import type { CoverName, GroundName, PatchShape } from './ground';
 import type { Terrain } from './terrain';
 import type { Skirt } from './vista';
 import type { GroundAt, Point } from './placement';
-import type { Join, Room } from './rooms';
+import type { ShellSpec, InteriorPlan } from './interior';
+export type { ShellSpec } from './interior';
 
 /**
  * What a zone document is made of, and the table that turns one entry into
@@ -49,11 +50,18 @@ export function yawOf(yaw: Yaw | undefined, fallback = 0): number {
 }
 
 /** Shared by every placed entry. */
+import type { WaterBody } from '../art/water/body';
+import type { FloatPlacement, MooringPlacement } from './water';
+
 export interface EntryPlacement {
   /** `[x, z]` settles onto the ground; `[x, y, z]` is absolute. */
   at?: readonly number[];
   /** Stood on the top of the entry with this id, measured after it is built. */
   on?: string;
+  /** A room letter: `at` is then metres from that room's north-west cell corner on its floor. */
+  in?: string;
+  /** Against the inner face of a cell edge, `along` it in 0..1, turned to face the room when `face` is set. */
+  against?: { at: readonly [number, number]; side: 'n' | 'e' | 's' | 'w'; along?: number; face?: boolean };
   yaw?: Yaw;
   /** YXZ about the foot, when pitch or roll is needed. Wins over `yaw`. */
   rotation?: readonly [number, number, number];
@@ -209,6 +217,10 @@ export interface PropEntry extends EntryBase {
   cover?: CoverName;
   /** Treated as ground by `prepare()`: receives shadow, casts none. */
   ground?: boolean;
+  /** Stands in the water: its footprint is a disc in the water field's stand lane. */
+  wades?: boolean;
+  /** Floats: placed at the water's level less its draft, and ridden on the wave. */
+  afloat?: boolean | { draft?: number; radius?: number };
 }
 
 export interface CreatureEntry extends EntryBase {
@@ -244,71 +256,47 @@ export type Anchor =
       offset?: Point;
     };
 
-export interface RunEntry extends EntryBase {
-  kind: 'run';
+export interface LinePointEntry {
+  at: Anchor;
+  width?: number;
+  height?: number;
+  /** Forces a hard point here whatever the turn. */
+  corner?: boolean;
+}
+
+export interface MarkEntry {
+  /** Metres along the line from its first point. */
+  at: number;
+  kind: string;
+  width?: number;
+  builder?: string;
+  seed?: number;
+  options?: Record<string, unknown>;
+}
+
+/** A painted polyline and the builder that covers it: a fence, a wall, a hedge, a track, a jetty. */
+export interface LineEntry extends EntryBase {
+  kind: 'line';
   builder: string;
   seed?: number;
-  points: readonly Anchor[];
-  /** Metres per section, when the builder's own pitch is not wanted. */
-  pitch?: number;
-  most?: number;
-  /** A post on the far end, where rounding leaves it. */
-  cap?: 'post';
-  /** Grown on every piece's walls, as a prop's `cover`. */
+  style?: string;
+  closed?: boolean;
+  smooth?: boolean;
+  points: readonly LinePointEntry[];
+  marks?: readonly MarkEntry[];
+  options?: Record<string, unknown>;
+  /** Grown on the built mesh, as a prop's `cover`. */
   cover?: CoverName;
 }
 
-export interface ChainEdge {
-  to: Anchor;
-  kind: 'wall' | 'fence';
-}
-
-export interface ChainRun {
-  start: Anchor;
-  edges: readonly ChainEdge[];
-  /** Its own seed, so a boundary's two halves are dressed independently. */
-  seed?: number;
-}
-
-export interface ChainEntry extends EntryBase {
-  kind: 'chain';
-  seed?: number;
-  /** One chain. Several are `runs`, and `close` joins their far ends in order. */
-  start?: Anchor;
-  edges?: readonly ChainEdge[];
-  runs?: readonly ChainRun[];
-  /** Closes the gap with a hedge: one chain back to its start, several end to end. */
-  close?: 'hedge';
-  closeSeed?: number;
-}
-
-export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
-  kind: 'scatter';
+/** A closed polygon and the builder that fills it: `rows` of plants, or a `border` run round it. */
+export interface RegionEntry extends EntryBase {
+  kind: 'region';
   builder: string;
   seed?: number;
-  count: number;
-  within: number;
-  from?: Point;
-  maxSlope?: number;
-  minHeight?: number;
-  maxHeight?: number;
-  /**
-   * Where not to place: a region name, a circle as `[x, z, radius]`, or a
-   * clearance round something built.
-   */
-  avoid?: string | readonly AvoidItem[];
-  /** Metres of clearance from the level outline. */
-  inset?: number;
-  /** A region name the candidates must fall inside, in place of the level outline. */
-  region?: string;
-  /** Uniform scale range, rolled per instance. */
-  scale?: readonly [number, number];
+  points: readonly Point[];
+  options?: Record<string, unknown>;
 }
-
-export type AvoidItem =
-  | readonly [number, number, number]
-  | string
-  | { ref: string; radius: number; ahead?: number };
 
 export interface BarrierEntry extends EntryBase {
   kind: 'barrier';
@@ -337,6 +325,8 @@ export interface GroundEntry extends EntryBase {
   underfoot?: SurfaceName;
 }
 
+/** The track network's input, made from a `line` entry whose builder is `track`. */
+/** The track network's input, made from a `line` entry whose builder is `track`. */
 export interface TrackEntry extends EntryBase {
   kind: 'track';
   through: readonly Point[];
@@ -350,29 +340,52 @@ export interface TrackEntry extends EntryBase {
 
 export interface WaterEntry extends EntryBase {
   kind: 'water';
-  width: number;
-  depth: number;
-  chop?: number;
-  /** Metres of column over which the chop fades in from nothing at the bed. */
-  taper?: number;
-  flow?: readonly [number, number];
-  /** A river's line, world xz; the flow follows it at `speed` and slows to nothing at the banks. Wins over `flow`. */
-  course?: readonly (readonly [number, number])[];
-  /** Metres per second along `course`. */
-  speed?: number;
+  regime: 'still' | 'flow' | 'fall' | 'sea';
+  /** A palette id from the water family, or one inline. */
+  palette?: string | { shallow?: number; deep?: number; foam?: number; scatter?: number; bands?: number };
+  /** Surface height, metres. Still and sea. */
+  level?: number;
+  /** Closed outline, world xz. Still and sea. */
+  shape?: readonly Point[];
+  /** A flowing body's centre line: width per point, level where it drops, speed where it changes. */
+  course?: readonly { at: Point; width: number; level?: number; speed?: number }[];
+  /** A fall: the lip on the upper body, a point in the lower, its width, and how far it stands out at the pool. */
+  fall?: { from: Point; to: Point; width: number; throw?: number };
+  /** Metres of apron out toward the horizon. Still and sea. */
+  reach?: number;
+  swell?: { direction: Point; length: number; height: number };
+  /** A region name: the swell and chop are damped inside it. Sea. */
+  shelter?: string;
+  /** 0 smooth, 1 plated. */
+  facet?: number;
+  /** Metres per quad. */
   segment?: number;
+  /** Metres the surface runs on under the bank. */
+  bury?: number;
+  /** Whether a still body owns a ripple field. */
+  ripples?: boolean;
+  /** Wash-line width against the bank, metres. */
+  wash?: number;
+  /** Collar width round what stands in it, metres. */
+  collar?: number;
+  /** Scales the wind's agitation and the chop. */
+  chop?: number;
+  /** Fish rising per minute. */
+  rise?: number;
+  /** Overrides the regime's default voice; null silences it. */
+  sound?: Record<string, unknown> | null;
 }
 
-export interface SeaEntry extends EntryBase {
-  kind: 'sea';
-  /** The rectangle the shore field covers, metres; `at` is its centre and the water level. */
-  width: number;
-  depth: number;
-  /** The way the swell travels (world xz), its wavelength and its height, metres. */
-  swell: { direction: readonly [number, number]; length: number; height: number };
-  /** Metres the surface runs on past the rectangle toward the horizon. Default 3000, which is the horizon. */
-  reach?: number;
-  segment?: number;
+export interface MooringEntry extends EntryBase {
+  kind: 'mooring';
+  /** The afloat prop the rope holds, by id. */
+  float: string;
+  /** The built entry the rope is made fast to ashore; `at` with a height otherwise. */
+  post?: string;
+  /** Metres up the post the rope is tied. */
+  lift?: number;
+  /** Extra rope as a fraction of the straight distance. */
+  slack?: number;
 }
 
 export interface ParticlesEntry extends EntryBase {
@@ -431,6 +444,34 @@ export interface VistaRingEntry extends EntryBase {
   horizon?: boolean | { at?: number };
 }
 
+export interface ScatterEntry extends Omit<EntryBase, 'scale'> {
+  kind: 'scatter';
+  builder: string;
+  seed?: number;
+  count: number;
+  within: number;
+  from?: Point;
+  maxSlope?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  /**
+   * Where not to place: a region name, a circle as `[x, z, radius]`, or a
+   * clearance round something built.
+   */
+  avoid?: string | readonly AvoidItem[];
+  /** Metres of clearance from the level outline. */
+  inset?: number;
+  /** A region name the candidates must fall inside, in place of the level outline. */
+  region?: string;
+  /** Uniform scale range, rolled per instance. */
+  scale?: readonly [number, number];
+}
+
+export type AvoidItem =
+  | readonly [number, number, number]
+  | string
+  | { ref: string; radius: number; ahead?: number };
+
 export interface DressingEntry extends EntryBase {
   kind: 'dressing';
   seed?: number;
@@ -442,15 +483,14 @@ export interface DressingEntry extends EntryBase {
 export type Entry =
   | PropEntry
   | CreatureEntry
-  | RunEntry
-  | ChainEntry
+  | LineEntry
+  | RegionEntry
   | ScatterEntry
   | BarrierEntry
   | PrefabEntry
   | GroundEntry
   | WaterEntry
-  | SeaEntry
-  | TrackEntry
+  | MooringEntry
   | ParticlesEntry
   | FogVolumeEntry
   | EffectVolumeEntry
@@ -462,34 +502,24 @@ export type Entry =
 
 // --- the build context ------------------------------------------------------
 
-export interface ShellSpec {
-  /** The one-room form: a sealed box centred on the origin. */
-  width?: number;
-  depth?: number;
-  height?: number;
-  seed?: number;
-  style?: string;
-  planks?: boolean;
-  beams?: number;
-  thickness?: number;
-  /** The room graph. Present, it replaces the three dimensions above. */
-  rooms?: readonly Room[];
-  joins?: readonly Join[];
-}
-
-/** What a kind's `build` is handed. Everything a zone knows about itself. */
 export interface EntryContext {
   zone: string;
   root: THREE.Group;
   terrain: Terrain | null;
   skirt: Skirt | null;
   shell: ShellSpec | null;
+  /** The interior's plan: rooms as cells and every wall derived from them. Null outdoors. */
+  interior: InteriorPlan | null;
   groundAt: GroundAt;
   slopeAt(x: number, z: number): number;
   /** Named regions the document declared, for anything that names one. */
   regions: Record<string, readonly PatchShape[]>;
   /** Every track in the document, which are built together as one network. */
   tracks: readonly TrackEntry[];
+  /** Every body of water in the document, so a course can end at another's outline. */
+  waters: readonly WaterEntry[];
+  /** Everything declared standing in the water, with a footprint, before anything is built. */
+  stands: readonly { x: number; z: number; radius: number }[];
   /** What this zone makes of anybody standing in it. The lowest trait grant. */
   traits: readonly string[];
   /** The level's outline as a closed polygon, when it has one. */
@@ -518,10 +548,25 @@ export interface Collected {
   fogVolumes: FogVolume[];
   glitches: GlitchPlacement[];
   horrors: HorrorPlacement[];
+  /** Every body of water built, in document order. */
+  water: WaterBody[];
+  floats: FloatPlacement[];
+  moorings: MooringPlacement[];
+  /** The first tree built of each stand variant, whose geometry every later one shares. */
+  stands: Map<string, THREE.Mesh>;
+  /** Every instanced crown, with its trunk, and where each copy stands — for the cards. */
+  cards: CardGroup[];
+}
+
+export interface CardGroup {
+  key: string;
+  trunk: THREE.BufferGeometry;
+  canopy: THREE.BufferGeometry;
+  instances: { x: number; y: number; z: number; yaw: number; scale: number }[];
 }
 
 export function emptyCollected(): Collected {
-  return { emitters: [], scatters: [], fogVolumes: [], glitches: [], horrors: [] };
+  return { emitters: [], scatters: [], fogVolumes: [], glitches: [], horrors: [], water: [], floats: [], moorings: [], stands: new Map(), cards: [] };
 }
 
 // --- the kind table ---------------------------------------------------------
@@ -543,6 +588,17 @@ export interface EntryKind<E extends Entry = never> {
    * shared with `build` rather than reproduced here.
    */
   asks?(entry: E, ctx: WarmContext): readonly PropAsk[];
+  /**
+   * Every builder this entry can name, the kind's own defaults included. A read
+   * of the entry and nothing else — no context, no seeds.
+   *
+   * Not `asks`: that is allowed to be partial, because a warm miss costs a build
+   * the walk would have done anyway. This one must be **complete or absent**.
+   * A kind that cannot say falls the whole zone back on the full catalogue,
+   * which is slow; a kind that under-says leaves the walk without a builder,
+   * which is an empty room.
+   */
+  names?(entry: E): readonly string[];
   /** For kinds with no mesh of their own: what the editor draws instead. */
   gizmo?(entry: E, ctx: EntryContext): THREE.Object3D | null;
   /** Where the palette lists it, and what it offers. */

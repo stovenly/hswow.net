@@ -1,4 +1,5 @@
 import { PALETTE, shade } from '../art/palette';
+import { signedDistance } from '../art/water/geometry';
 import type { SurfaceName } from '../audio/models/footsteps';
 
 /**
@@ -90,7 +91,9 @@ export type PatchShape =
   /** A rough circle — a yard, a clearing, a worn patch by a gate. */
   | { kind: 'blot'; at: readonly [number, number]; radius: number }
   /** An axis-aligned rectangle. Fields and plots, which are surveyed, not worn. */
-  | { kind: 'field'; min: readonly [number, number]; max: readonly [number, number] };
+  | { kind: 'field'; min: readonly [number, number]; max: readonly [number, number] }
+  /** Any closed shape, as its ring. */
+  | { kind: 'polygon'; points: readonly (readonly [number, number])[] };
 
 /**
  * A region of ground cover. Later patches win over earlier ones, so the list reads
@@ -173,6 +176,8 @@ export function shapeDistance(shape: PatchShape, x: number, z: number): number {
       const dz = Math.max(shape.min[1] - z, z - shape.max[1]);
       return Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dz), 0);
     }
+    case 'polygon':
+      return -signedDistance(shape.points, x, z);
   }
 }
 
@@ -205,6 +210,8 @@ function toSegment(
 /** Whether a shape contains a position. */
 function inside(patch: PatchShape, x: number, z: number): boolean {
   switch (patch.kind) {
+    case 'polygon':
+      return signedDistance(patch.points, x, z) >= 0;
     case 'blot':
       return Math.hypot(x - patch.at[0], z - patch.at[1]) <= patch.radius;
     case 'field':

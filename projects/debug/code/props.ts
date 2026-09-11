@@ -39,8 +39,6 @@ import { horrorShowcasePlan } from './galleries/horror';
 import { objectEffectsPlan } from './galleries/object-effects';
 import { soundStagePortal } from './SoundStage';
 import { musicStageHallPortal } from './MusicStage';
-import { waterShowcasePortal } from './WaterShowcase';
-import { waterShowcase2Portal } from './WaterShowcase2';
 import { footstepsShowcasePortal } from './FootstepsShowcase';
 import { groundcoverShowcasePortal } from './GroundcoverShowcase';
 import { particleShowcasePortal } from './ParticleShowcase';
@@ -432,11 +430,12 @@ export function propPortals(
     // The Sound Showcase. Iron rather than timber: what is behind it is a rack
     // of machinery, and the door is the first thing that says so.
     soundStagePortal(gridDoor(2, 'iron', 6433)),
-    // A pond is not industrial and it is not countryside; it is a surface.
-    waterShowcasePortal(gridDoor(3, 'timber', 6434)),
-    // And the open sea beside it, which is the same subject at a size nothing
-    // else in the rank is — see `WaterShowcase2`.
-    waterShowcase2Portal(gridDoor(4, 'timber', 6435)),
+    // The water showcase is a document zone: every regime, standing in one place.
+    {
+      id: 'portal:water-showcase',
+      a: gridDoor(3, 'timber', 6434),
+      b: { zone: 'water-showcase', position: new THREE.Vector3(0, 0, -44), yaw: 0, material: 'timber', seed: 6435 },
+    },
     // Footsteps. Iron again: what is behind it is a test rig rather than a
     // place.
     footstepsShowcasePortal(gridDoor(5, 'iron', 6436)),

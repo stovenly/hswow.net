@@ -11,8 +11,6 @@ import { displayOf, kindOf, type Item } from './items';
 interface LootRow {
   readonly name?: string;
   readonly builder?: string;
-  /** A row from ACCESSORY_STOCK rather than plain junk. */
-  readonly accessory?: boolean;
   readonly weight: number;
 }
 
@@ -45,8 +43,8 @@ const CHEST: readonly LootRow[] = [
   { name: 'Sewing Needle', weight: 1 },
   { name: 'Horn Buttons', weight: 1 },
   { builder: 'leather-book', weight: 0.7 },
-  { name: 'Gold Ring', accessory: true, weight: 0.25 },
-  { name: 'Silver Necklace', accessory: true, weight: 0.25 },
+  { builder: 'ring', weight: 0.25 },
+  { builder: 'necklace', weight: 0.25 },
 ];
 
 const DRESSER: readonly LootRow[] = [
@@ -57,8 +55,10 @@ const DRESSER: readonly LootRow[] = [
   { name: 'Leather Boot', weight: 1 },
   { builder: 'candle', weight: 1 },
   { builder: 'folded-letter', weight: 1 },
-  { name: 'Gold Ring', accessory: true, weight: 0.2 },
-  { name: 'Silver Necklace', accessory: true, weight: 0.2 },
+  { builder: 'ring', weight: 0.2 },
+  { builder: 'necklace', weight: 0.2 },
+  { builder: 'brooch', weight: 0.2 },
+  { builder: 'earrings', weight: 0.2 },
 ];
 
 const SACK: readonly LootRow[] = [
@@ -114,7 +114,7 @@ export function rollContainer(kind: string, key: string, worldSeed: number): Ite
         seed,
       });
     } else {
-      out.push({ name: picked.name ?? 'Oddment', kind: picked.accessory ? 'accessory' : 'stuff' });
+      out.push({ name: picked.name ?? 'Oddment', kind: 'stuff' });
     }
   }
   return out;

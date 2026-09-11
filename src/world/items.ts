@@ -107,6 +107,9 @@ const READABLES = new Set([
   'scroll-case',
 ]);
 
+/** The pickups that fit an accessory slot. */
+const ACCESSORIES = new Set(['ring', 'bracelet', 'necklace', 'brooch', 'earrings', 'belt']);
+
 /** One complete thing, hand-sized. Piles, furniture and arrangements stay out. */
 const PICKUPS = new Set([
   'lantern',
@@ -122,6 +125,7 @@ const PICKUPS = new Set([
   'quicksilver-orb',
   'oceanglass-orb',
   ...READABLES,
+  ...ACCESSORIES,
 ]);
 
 /** The pickups that fit the primary tool slot. */
@@ -138,6 +142,20 @@ export const CONTAINERS: Record<string, string> = {
   'barrel-stack': 'Barrel Pile',
 };
 
+/**
+ * Every builder the player can end up holding, dropping or seeing in a slot.
+ * Loaded once at boot: an item is picked up on a frame, and there is no room
+ * there for a module fetch.
+ */
+export const ITEM_BUILDERS: readonly string[] = [...new Set([...PICKUPS, ...Object.keys(CONTAINERS), 'sack'])];
+
+/** Those, plus whatever the loaded item documents name. */
+export function itemBuilders(): readonly string[] {
+  const names = new Set(ITEM_BUILDERS);
+  for (const doc of catalogue.values()) names.add(doc.builder);
+  return [...names];
+}
+
 export function isPickup(builder: string): boolean {
   return PICKUPS.has(builder);
 }
@@ -147,7 +165,8 @@ export function isReadable(builder: string): boolean {
 }
 
 export function kindOf(builder: string): ItemKind {
-  return TOOLS.has(builder) ? 'tool' : 'stuff';
+  if (TOOLS.has(builder)) return 'tool';
+  return ACCESSORIES.has(builder) ? 'accessory' : 'stuff';
 }
 
 export function displayOf(builder: string, seed?: number): string {

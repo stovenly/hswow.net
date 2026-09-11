@@ -266,6 +266,9 @@ export class Visualisers {
       const [x0, z0] = shape.min;
       const [x1, z1] = shape.max;
       for (const [x, z] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]]) push(x, z);
+    } else if (shape.kind === 'polygon') {
+      for (const point of shape.points) push(point[0], point[1]);
+      push(shape.points[0][0], shape.points[0][1]);
     } else {
       // The centre line, not the width: a path's edge is a signed distance and
       // walking it costs more than it says.

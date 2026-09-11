@@ -4,13 +4,14 @@ import { MATERIALS } from './underfoot';
 import type { SurfaceName } from '../audio/models/footsteps';
 import { FLEX } from './flex';
 import { SWAY_DEPTH_MATERIAL, dressArtMesh } from './sway';
-import { FIELD_ATTRIBUTE, FIELD_SWAY } from './fields';
+import { FIELD_ATTRIBUTE, FIELD_LANES, FIELD_SWAY } from './fields';
 import { ART_MATERIAL } from './material';
 import { installFinish, type Finished } from './assemble';
 import { installFlameAir } from './flame';
 import { heatPlume } from './heat';
 import { createParticles } from './particles';
 import { boneNames, type Rig, type RigHandle } from './rig';
+import { canopyMesh, CANOPY_ATTRIBUTE, WIND_ATTRIBUTE } from './canopy';
 
 /**
  * The main thread's finish sink: a merged geometry becomes a mesh on the art
@@ -18,10 +19,34 @@ import { boneNames, type Rig, type RigHandle } from './rig';
  */
 
 installFinish({
-  mesh: (geometry, name, phase, underfoot) =>
-    finishMesh(new THREE.Mesh(geometry, ART_MATERIAL), name, phase, underfoot),
+  mesh: (geometry, name, phase, underfoot, canopy) =>
+    crown(finishMesh(new THREE.Mesh(geometry, ART_MATERIAL), name, phase, underfoot), name, canopy),
   rigged: dressRigged,
 });
+
+/**
+ * Hangs a crown on a trunk: the canopy geometry as the trunk mesh's one child,
+ * on the canopy material, never collidable. The species' flex scales the
+ * crown's height weight as it scales the trunk's, once per geometry.
+ */
+export function crown<T extends THREE.Mesh>(trunk: T, name: string, canopy?: THREE.BufferGeometry): T {
+  if (!canopy) return trunk;
+  const flex = FLEX[name] ?? 0;
+  const wind = canopy.getAttribute(WIND_ATTRIBUTE);
+  if (wind && flex !== 1 && canopy.userData.flexed !== true) {
+    const array = wind.array as Float32Array;
+    for (let i = 0; i < array.length; i += wind.itemSize) array[i] *= flex;
+    wind.needsUpdate = true;
+  }
+  canopy.userData.flexed = true;
+  if (!canopy.boundingSphere) canopy.computeBoundingSphere();
+  const mesh = canopyMesh(canopy);
+  mesh.name = `${name}:canopy`;
+  if (canopy.getAttribute(CANOPY_ATTRIBUTE) === undefined) throw new Error(`crown: ${name} canopy lacks its ledger`);
+  trunk.add(mesh);
+  trunk.userData.hasCanopy = true;
+  return trunk;
+}
 
 // A flame's embers and its heat. Sizes in units of the flame's own `size`.
 installFlameAir((flame, size, seed, roof) => {
@@ -71,7 +96,7 @@ installFlameAir((flame, size, seed, roof) => {
 export function finishCaptured(taken: Finished): THREE.Mesh {
   const mesh = taken.rig
     ? dressRigged(taken.geometry, taken.rig, taken.name, taken.phase, taken.scale ?? 1)
-    : finishMesh(new THREE.Mesh(taken.geometry, ART_MATERIAL), taken.name, taken.phase, taken.underfoot);
+    : crown(finishMesh(new THREE.Mesh(taken.geometry, ART_MATERIAL), taken.name, taken.phase, taken.underfoot), taken.name, taken.canopy);
   if (taken.userData) Object.assign(mesh.userData, taken.userData);
   return mesh;
 }
@@ -90,13 +115,15 @@ export function finishMesh<T extends THREE.Mesh>(
   // Baked into the attribute rather than passed as a uniform: a uniform would
   // need a material per species, and the whole kit sharing one material is what
   // keeps a prop to a single draw call.
+  // Once per geometry: a stand shares one geometry between many trunks.
   const flex = FLEX[name] ?? 0;
   const fields = geometry.getAttribute(FIELD_ATTRIBUTE);
-  if (fields && flex !== 1) {
+  if (fields && flex !== 1 && geometry.userData.flexed !== true) {
     const array = fields.array as Float32Array;
-    for (let i = FIELD_SWAY; i < array.length; i += 3) array[i] *= flex;
+    for (let i = FIELD_SWAY; i < array.length; i += FIELD_LANES) array[i] *= flex;
     fields.needsUpdate = true;
   }
+  geometry.userData.flexed = true;
 
   // The lean material, and a note of what this prop's parts declared.
   dressArtMesh(mesh, (geometry.userData.finishMask as number | undefined) ?? 0);

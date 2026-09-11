@@ -131,7 +131,7 @@ export class Inspector {
       this.refresh();
     });
 
-    const yaw = typeof entry.yaw === 'number' ? entry.yaw : (COMPASS[entry.yaw ?? 'south'] ?? 0);
+    const yaw = typeof entry.yaw === 'number' ? entry.yaw : (COMPASS[(entry.yaw ?? 'south') as keyof typeof COMPASS] ?? 0);
     section.number('yaw', yaw, TURN, (value) =>
       this.edit(zone, id, 'transform', (target) => (target.yaw = value)),
     );
@@ -170,7 +170,7 @@ export class Inspector {
 
     if (entry.kind === 'prop' || entry.kind === 'creature') {
       const made = this.panel.section(entry.kind === 'prop' ? 'prop' : 'creature');
-      made.select('builder', (record.builder as string) ?? '', builders.map((b) => b.name), (name) => {
+      made.select('builder', (record.builder as string) ?? '', builders().map((b) => b.name), (name) => {
         this.edit(zone, id, 'entry', (target) => ((target as { builder?: string }).builder = name));
         this.refresh();
       });

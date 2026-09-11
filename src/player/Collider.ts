@@ -117,9 +117,20 @@ interface Index {
   positions: Float32Array;
   surfaces: Uint8Array;
   stamps: Uint32Array;
+  /** One per triangle, set for a mesh taken out of the world since the index was built; a query never gathers one. */
+  dead: Uint8Array;
   /** One per plan node, for the intersect tests. */
   boxes: THREE.Box3[];
   triangles: number;
+  /** Which mesh each run of triangles came from, in carve order, so one can be cut out again. */
+  ranges: Range[];
+}
+
+/** `start` and `count` in triangles. */
+interface Range {
+  mesh: THREE.Mesh;
+  start: number;
+  count: number;
 }
 
 function emptyIndex(): Index {
@@ -135,8 +146,10 @@ function emptyIndex(): Index {
     positions: new Float32Array(0),
     surfaces: new Uint8Array(0),
     stamps: new Uint32Array(0),
+    dead: new Uint8Array(0),
     boxes: [],
     triangles: 0,
+    ranges: [],
   };
 }
 
@@ -161,9 +174,10 @@ function claim(index: Index, node: number, out: number[]): void {
   const start = triStart[node];
   const end = start + triCount[node];
   const stamps = index.stamps;
+  const dead = index.dead;
   for (let i = start; i < end; i++) {
     const t = triIndices[i];
-    if (stamps[t] === query) continue;
+    if (stamps[t] === query || dead[t] !== 0) continue;
     stamps[t] = query;
     out.push(t);
   }
@@ -254,8 +268,19 @@ export class Collider {
   }
 
   private static index(root: THREE.Object3D): Index {
-    const { positions, surfaces } = carve(root);
-    return assemble(planOctree(positions), positions, surfaces);
+    const { positions, surfaces, ranges } = carve(root);
+    return assemble(planOctree(positions), positions, surfaces, ranges);
+  }
+
+  /** Marks `taken`'s triangles dead in the index cached under `key`, so it stops colliding without a rebuild. */
+  without(key: string, taken: THREE.Object3D): void {
+    const index = this.cache.get(key);
+    if (!index) return;
+    const gone = new Set<THREE.Object3D>();
+    taken.traverse((object) => gone.add(object));
+    for (const range of index.ranges) {
+      if (gone.has(range.mesh)) index.dead.fill(1, range.start, range.start + range.count);
+    }
   }
 
   /**
@@ -265,7 +290,7 @@ export class Collider {
    */
   async warmAsync(root: THREE.Object3D, key: string, urgent = false, cache?: string): Promise<void> {
     if (this.cache.has(key)) return;
-    const { positions, surfaces } = carve(root);
+    const { positions, surfaces, ranges } = carve(root);
     let plan;
     try {
       // The corners go over and come back: the plan job hands them back in its
@@ -275,7 +300,7 @@ export class Collider {
       return;
     }
     if (this.cache.has(key)) return;
-    this.cache.set(key, assemble(plan, plan.positions, surfaces));
+    this.cache.set(key, assemble(plan, plan.positions, surfaces, ranges));
   }
 
   /**
@@ -391,8 +416,12 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
   _planePoint.copy(capsule.start).addScaledVector(_axis, along);
   triangle.closestPointToPoint(_planePoint, _reference);
 
-  _segment.set(capsule.start, capsule.end);
-  _segment.closestPointToPoint(_reference, true, _centre);
+  // A capsule too squat to have a segment is a sphere; Line3 divides by its length.
+  if (_axis.lengthSq() < 1e-12) _centre.copy(capsule.start);
+  else {
+    _segment.set(capsule.start, capsule.end);
+    _segment.closestPointToPoint(_reference, true, _centre);
+  }
   triangle.closestPointToPoint(_centre, _closest);
 
   _offset.subVectors(_centre, _closest);
@@ -420,7 +449,7 @@ function penetration(capsule: Capsule, triangle: THREE.Triangle): number {
  * floats each, with the surface it was cut from beside them. Counted first
  * and written once: nothing grows.
  */
-function carve(root: THREE.Object3D): { positions: Float32Array; surfaces: Uint8Array } {
+function carve(root: THREE.Object3D): { positions: Float32Array; surfaces: Uint8Array; ranges: Range[] } {
   root.updateWorldMatrix(true, true);
 
   let total = 0;
@@ -433,6 +462,7 @@ function carve(root: THREE.Object3D): { positions: Float32Array; surfaces: Uint8
 
   const positions = new Float32Array(total * 9);
   const surfaces = new Uint8Array(total);
+  const ranges: Range[] = [];
   let triangle = 0;
 
   root.traverse((object) => {
@@ -441,6 +471,7 @@ function carve(root: THREE.Object3D): { positions: Float32Array; surfaces: Uint8
     const position = geometry.getAttribute('position');
     const index = geometry.index;
     const count = index ? index.count : position.count;
+    ranges.push({ mesh: object, start: triangle, count: Math.floor(count / 3) });
     // Set once per mesh rather than per triangle: it is the same for every
     // face of a prop, and a prop is thousands of faces.
     const surface = surfaceId((object.userData.underfoot as SurfaceName | undefined) ?? null);
@@ -461,11 +492,11 @@ function carve(root: THREE.Object3D): { positions: Float32Array; surfaces: Uint8
     }
   });
 
-  return { positions, surfaces };
+  return { positions, surfaces, ranges };
 }
 
 /** The plan's boxes as objects the intersect tests can take, over the flat corners. */
-function assemble(plan: OctreePlan, positions: Float32Array, surfaces: Uint8Array): Index {
+function assemble(plan: OctreePlan, positions: Float32Array, surfaces: Uint8Array, ranges: Range[]): Index {
   const boxes: THREE.Box3[] = new Array(plan.firstChild.length);
   for (let i = 0; i < boxes.length; i++) {
     boxes[i] = new THREE.Box3(
@@ -475,6 +506,15 @@ function assemble(plan: OctreePlan, positions: Float32Array, surfaces: Uint8Arra
   }
   const triangles = surfaces.length;
   if (boxes.length === 0) return emptyIndex();
-  return { plan, positions, surfaces, stamps: new Uint32Array(triangles), boxes, triangles };
+  return {
+    plan,
+    positions,
+    surfaces,
+    stamps: new Uint32Array(triangles),
+    dead: new Uint8Array(triangles),
+    boxes,
+    triangles,
+    ranges,
+  };
 }
 

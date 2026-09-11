@@ -1,4 +1,4 @@
-import { JOBS, primeJobs, type JobName, type JobPayload, type JobValue, type Prime } from './jobs';
+import { JOBS, type JobName, type JobPayload, type JobValue } from './jobs';
 
 /**
  * A fixed set of module workers with a queue in front of them. Callers never
@@ -59,8 +59,6 @@ export class WorkPool {
   private next = 1;
   /** Set once a worker cannot be made or dies. Everything runs inline after. */
   private broken = false;
-  private primed: Prime | null = null;
-
   get size(): number {
     return SIZE;
   }
@@ -93,14 +91,6 @@ export class WorkPool {
       else this.queue.push(pending);
       this.pump();
     });
-  }
-
-  /** Told to every worker before its first job, and to the inline path. */
-  prime(prime: Prime): void {
-    this.primed = prime;
-    primeJobs(prime);
-    for (const worker of this.idle) worker.postMessage({ id: 0, kind: 'prime', payload: prime });
-    for (const worker of this.owner.keys()) worker.postMessage({ id: 0, kind: 'prime', payload: prime });
   }
 
   /** Frees every worker. The pool still runs, inline, after this. */
@@ -169,7 +159,6 @@ export class WorkPool {
       worker.onmessage = (event: MessageEvent<Answer>) => this.answer(worker, event.data);
       worker.onerror = () => this.collapse();
       worker.onmessageerror = () => this.collapse();
-      if (this.primed) worker.postMessage({ id: 0, kind: 'prime', payload: this.primed });
       return worker;
     } catch {
       this.collapse();

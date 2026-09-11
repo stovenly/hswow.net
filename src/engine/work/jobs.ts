@@ -10,7 +10,7 @@
 
 import { capture, type Finished } from '../../art/assemble';
 import type { Rig } from '../../art/rig';
-import { indexBuilders, loadBuilder } from '../../art/registry-lazy';
+import { loadBuilder } from '../../art/registry-lazy';
 import { fromWire, toWire, type GeometryWire } from './geometry';
 import { movable } from './shared';
 import { planOctree, type OctreePlan } from '../../player/octreePlan';
@@ -38,14 +38,6 @@ export interface Job<Payload, Wire, Value> {
 }
 
 /** What every worker is told before its first job, and the inline path too. */
-export interface Prime {
-  builders: Record<string, string>;
-}
-
-export function primeJobs(prime: Prime): void {
-  indexBuilders(prime.builders);
-}
-
 const job = <P, W, V>(spec: Job<P, W, V>): Job<P, W, V> => spec;
 
 /** One prop, by the arguments its builder is called with. */
@@ -58,6 +50,8 @@ export interface PropAsk {
 
 interface PropWire {
   geometry: GeometryWire;
+  /** A crown's geometry, on its own material. */
+  canopy?: GeometryWire;
   name: string;
   phase: number;
   underfoot?: string;
@@ -80,9 +74,16 @@ export interface SkirtAsk {
 function made(taken: Finished | null): Made<PropWire | null> {
   if (!taken) return { result: null };
   const { wire, transfer } = toWire(taken.geometry);
+  let canopy: GeometryWire | undefined;
+  if (taken.canopy) {
+    const crown = toWire(taken.canopy);
+    canopy = crown.wire;
+    transfer.push(...crown.transfer);
+  }
   return {
     result: {
       geometry: wire,
+      canopy,
       name: taken.name,
       phase: taken.phase,
       underfoot: taken.underfoot,
@@ -99,6 +100,7 @@ function unwire(wire: PropWire | null): Finished | null {
     ? null
     : {
         geometry: fromWire(wire.geometry),
+        canopy: wire.canopy ? fromWire(wire.canopy) : undefined,
         name: wire.name,
         phase: wire.phase,
         underfoot: wire.underfoot as Finished['underfoot'],

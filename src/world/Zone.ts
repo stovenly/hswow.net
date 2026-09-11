@@ -280,6 +280,12 @@ export interface ZoneDefinition {
    * (art/horror.ts) and collected off the built zone instead.
    */
   readonly horrors?: readonly HorrorPlacement[];
+  /** Every body of water the last build made, in document order. */
+  readonly water?: readonly WaterBody[];
+  readonly floats?: readonly FloatPlacement[];
+  readonly moorings?: readonly Mooring[];
+  /** Every instanced crown and where its copies stand, for the card stand. */
+  readonly cards?: readonly CardGroup[];
   /** Builds the zone's geometry. Called once, lazily, on first entry. */
   readonly build?: () => THREE.Group;
   /**
@@ -298,6 +304,11 @@ export interface ZoneDefinition {
   /** A hash of everything the build reads, for the on-disk cache. Absent, nothing is cached. */
   readonly fingerprint?: string;
 }
+
+import type { WaterBody } from '../art/water/body';
+import type { Mooring } from '../art/water/flotilla';
+import type { FloatPlacement } from './water';
+import type { CardGroup } from './entry';
 
 /**
  * A definition plus whatever it built.
@@ -318,9 +329,7 @@ export class Zone {
   private loading: Promise<void> | null = null;
   /** Measured off the built world for a zone that states none. See `plan`. */
   private measured: ZonePlan | null = null;
-  /** Set when the zone is built, by looking. See `hasWater`. */
-  private water = false;
-  /** The same, for the transmissive pass. See `hasGlass`. */
+  /** Set when the zone is built, by looking. See `hasGlass`. */
   private glass = false;
 
   constructor(definition: ZoneDefinition) {
@@ -389,7 +398,7 @@ export class Zone {
    * zone to answer.
    */
   get hasWater(): boolean {
-    return this.water;
+    return (this.definition.water?.length ?? 0) > 0;
   }
 
   /**
@@ -452,10 +461,8 @@ export class Zone {
       this.group.updateWorldMatrix(true, true);
       // Once, here, rather than on every crossing: the answer cannot change
       // without the geometry being rebuilt, and this is where that happens.
-      this.water = false;
       this.glass = false;
       this.group.traverse((object) => {
-        if (object.userData.water === true) this.water = true;
         if (object.userData.glass === true) this.glass = true;
       });
     }
@@ -499,9 +506,6 @@ export class Zone {
     this.group.clear();
     this.group = null;
     this.measured = null;
-    // Recomputed on the next build. Left true, a released zone would have the
-    // water pass running in whatever room the player walked into instead.
-    this.water = false;
     this.glass = false;
   }
 }

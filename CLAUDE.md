@@ -123,6 +123,29 @@ Verify by **reading the code** and by what is reported from the world. The rende
 is the ground truth. If something cannot be worked out from the code, say so and
 ask — do not build an instrument.
 
+## Content is data the game fetches, in pack order
+
+**A shipped build must be able to load content it was not built with.** The
+plan is DLC as packs the player installs beside the base game, folded in load
+order at boot, with a later pack replacing an earlier document of the same id.
+`specs/CONTENT-PACKS.md` is the design. Until it is built, nothing may make it
+harder:
+
+- **Every content document is keyed by an id and merged by id.** Never by file
+  name, never by position in a list.
+- **No closed union over content names in the engine.** A zone family, a
+  weather kind, a ground material: the engine reads the table from the loaded
+  content. `ZoneGroup` is the one existing violation and is not a precedent.
+- **No code in a content folder.** A new tool or creature is a builder in
+  `src/art/builders/`, shipped to everyone; a pack only names it.
+- **Do not add a new eager content glob.** `vite.config.ts` still bundles the
+  base project's documents and that is the debt the spec's first step pays;
+  do not deepen it.
+
+**Why:** the whole of DLC support rests on the loader never having assumed
+there is one world. Each of these is cheap to keep and each, once violated,
+is a migration across every document that has shipped.
+
 ## Read the guidelines before designing a place
 
 `guidelines/LEVEL-DESIGN.md` and `guidelines/ENVIRONMENT-DESIGN.md` hold the

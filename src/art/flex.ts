@@ -45,25 +45,49 @@ export const FLEX: Record<string, number> = {
   elder: 0.65,
   hazel: 0.6,
   hawthorn: 0.3,
-  willow: 0.7,
   stook: 0.12,
   gorse: 0.25,
 
-  // Thin-stemmed and famously restless — the most mobile tree in the kit. The
-  // sapling moves *more* than the adult, which is not a mistake: a young birch
-  // is a wand, and the grown one at least has a trunk to hold it.
-  'small-birch': 0.8,
-  birch: 0.75,
+  // Thin-stemmed and restless. A young birch is a wand, and the grown one at
+  // least has a trunk to hold it, so the sapling moves more than the adult below.
+  'small-birch': 0.5,
   // Massive. The crown stirs and the trunk does not, and the sapling is stiff
   // for its size — which is most of what says oak rather than whip.
   'small-oak': 0.5,
-  oak: 0.35,
 
-  // A spruce is the stiffest. Short horizontal boughs on a thick straight
-  // leader barely move; what you actually see is the top nodding. Below the
-  // bushes on purpose.
+  // The grown trees swing their limbs by their own lanes; this is the trunk
+  // alone, a few percent of height at the top in a full gust. The order across
+  // them is the same judgement as everywhere else here: a birch's pole gives
+  // where an oak's, a beech's and a spruce's do not.
+  birch: 0.45,
+  rowan: 0.4,
+  willow: 0.3,
+  pine: 0.3,
+  ash: 0.28,
+  oak: 0.2,
+  beech: 0.2,
+  alder: 0.2,
+  spruce: 0.2,
+  sycamore: 0.2,
+
+  // The three that stand on the coast. A palm's bole is the only thing in the
+  // kit that whips; a baobab's is the stiffest, and an acacia sits between.
+  palm: 0.7,
+  acacia: 0.25,
+  baobab: 0.05,
+
+  // The stiff end of the wood. A poplar's whole crown moves as one and its bole
+  // does not; a holly is a cushion that barely acknowledges weather; a yew is the
+  // stiffest thing that grows here, which is the spruce's reason and more of it.
+  holly: 0.15,
+  poplar: 0.14,
+  yew: 0.12,
+
+  // A young spruce is the stiffest thing that grows. Short horizontal boughs on
+  // a thick straight leader barely move; what you actually see is the top
+  // nodding. Below the bushes on purpose.
   'small-spruce': 0.4,
-  spruce: 0.3,
+  fruit: 0.5,
   bramble: 0.4,
   thistle: 0.35,
 

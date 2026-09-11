@@ -16,7 +16,8 @@ import {
 } from './finishes';
 import { RECIPE_ATTRIBUTE } from './recipes/types';
 import { collectSparkleSites } from './sparkle-sites';
-import { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
+import { FIELD_ATTRIBUTE, FIELD_LANES, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL, FIELD_BRANCH } from './fields';
+import { CANOPY_ATTRIBUTE, WIND_ATTRIBUTE, ROOT_ATTRIBUTE, CARD_ATTRIBUTE, SHADE_ATTRIBUTE, CROWN_ATTRIBUTE, AXES_ATTRIBUTE } from './canopy';
 
 /**
  * Turning a pile of primitives into one mesh: everything the art kit builds ends
@@ -30,7 +31,7 @@ import { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields'
  * collidable are in `src/art/CLAUDE.md`.
  */
 
-export { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields';
+export { FIELD_ATTRIBUTE, FIELD_LANES, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL, FIELD_BRANCH } from './fields';
 
 /**
  * Where a finished geometry goes when nothing is capturing it. The main thread
@@ -38,7 +39,7 @@ export { FIELD_ATTRIBUTE, FIELD_SWAY, FIELD_WEAR, FIELD_DETAIL } from './fields'
  * nothing, so a builder there can only be run under `capture`.
  */
 export interface FinishSink {
-  mesh(geometry: THREE.BufferGeometry, name: string, phase: number, underfoot?: SurfaceName): THREE.Mesh;
+  mesh(geometry: THREE.BufferGeometry, name: string, phase: number, underfoot?: SurfaceName, canopy?: THREE.BufferGeometry): THREE.Mesh;
   rigged(geometry: THREE.BufferGeometry, rig: Rig, name: string, phase: number, scale: number): THREE.SkinnedMesh;
 }
 
@@ -77,6 +78,8 @@ export interface Part {
    * because afterwards the parts have all been merged.
    */
   sway?: number | ((x: number, y: number, z: number) => number);
+  /** Which limb swings this vertex, as `packBranch` packs it; per vertex in the part's own space. Omitted, the part rides the trunk alone. */
+  branch?: (x: number, y: number, z: number) => number;
   /**
    * How weathered this part is, 0..1 — the same shapes as `sway`. The fine
    * speckle is generated per pixel by `art/weathering`; this is only the field
@@ -120,6 +123,12 @@ export interface Part {
   skin?: (x: number, y: number, z: number) => ReadonlyArray<readonly [string, number]>;
   /** What this part is, for the debug picker. Unnamed parts are reported by their index. */
   name?: string;
+  /**
+   * 'canopy' parts are merged into a second geometry on the canopy material and
+   * carry their own lanes: `normal`, `color`, `aCanopy`, `aWind`, `aRoot`, all
+   * baked by the foliage helpers. See `assembleCanopy`.
+   */
+  layer?: 'art' | 'canopy';
 }
 
 /** One part's vertex range in a merged geometry, on `geometry.userData.parts`. */
@@ -138,7 +147,16 @@ export interface PartRange {
  *   wants — or blended by the part's `skin`, for a surface that must curve over
  *   a joint. The geometry can then be finished as a `SkinnedMesh`.
  */
-export function assemble(parts: Part[], bones?: readonly string[]): THREE.BufferGeometry {
+export function assemble(allParts: Part[], bones?: readonly string[]): THREE.BufferGeometry {
+  const parts = allParts.filter((part) => part.layer !== 'canopy');
+  // A builder that is all crown still needs a mesh to hang the crown on: one
+  // degenerate triangle at the origin carries the ledger and draws nothing.
+  if (parts.length === 0) {
+    const stub = new THREE.BufferGeometry();
+    stub.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(9), 3));
+    stub.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
+    parts.push({ geometry: stub, color: 0, name: 'stub' });
+  }
   // The union of the parts' finish chunks, stamped on the merged geometry so
   // `finish` can pick the material variant that compiles exactly those.
   let finishMask = 0;
@@ -180,20 +198,21 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    // The three fields, one lane each: sway and wear per vertex, detail constant
-    // per part. Zeroed where unused, because a merge needs one attribute set.
-    const fields = new Float32Array(count * 3);
+    // The fields, one lane each: sway, wear and branch per vertex, detail
+    // constant per part. Zeroed where unused, because a merge needs one attribute set.
+    const fields = new Float32Array(count * FIELD_LANES);
     for (let i = 0; i < count; i++) {
       const x = position.getX(i);
       const y = position.getY(i);
       const z = position.getZ(i);
-      fields[i * 3 + FIELD_SWAY] =
+      fields[i * FIELD_LANES + FIELD_SWAY] =
         typeof part.sway === 'function' ? clamp01(part.sway(x, y, z)) : clamp01(part.sway ?? 0);
-      fields[i * 3 + FIELD_WEAR] =
+      fields[i * FIELD_LANES + FIELD_WEAR] =
         typeof part.wear === 'function' ? clamp01(part.wear(x, y, z)) : clamp01(part.wear ?? 0);
-      fields[i * 3 + FIELD_DETAIL] = part.detail ? Math.max(part.detail, 0) : 0;
+      fields[i * FIELD_LANES + FIELD_DETAIL] = part.detail ? Math.max(part.detail, 0) : 0;
+      fields[i * FIELD_LANES + FIELD_BRANCH] = part.branch ? part.branch(x, y, z) : 0;
     }
-    geometry.setAttribute(FIELD_ATTRIBUTE, new THREE.BufferAttribute(fields, 3));
+    geometry.setAttribute(FIELD_ATTRIBUTE, new THREE.BufferAttribute(fields, FIELD_LANES));
 
     const tints = new Float32Array(count * 3);
     if (part.wearTint !== undefined) {
@@ -304,12 +323,40 @@ export function assemble(parts: Part[], bones?: readonly string[]): THREE.Buffer
 }
 
 /**
+ * The crown: every 'canopy' part merged into one geometry carrying the canopy
+ * ledger. Null when a builder made none. The helpers in `foliage.ts` bake every
+ * lane; this only checks they are all there and merges.
+ */
+export function assembleCanopy(allParts: Part[]): THREE.BufferGeometry | null {
+  const parts = allParts.filter((part) => part.layer === 'canopy');
+  if (parts.length === 0) return null;
+  const prepared = parts.map((part) => {
+    const geometry = part.geometry.index === null ? part.geometry : part.geometry.toNonIndexed();
+    geometry.deleteAttribute('uv');
+    for (const name of ['normal', 'color', CANOPY_ATTRIBUTE, WIND_ATTRIBUTE, ROOT_ATTRIBUTE]) {
+      if (!geometry.getAttribute(name)) throw new Error(`assembleCanopy: part "${part.name ?? '?'}" lacks ${name}`);
+    }
+    // A part with no cards still has to carry the card lanes for the merge.
+    for (const [name, size] of [[CARD_ATTRIBUTE, 3], [SHADE_ATTRIBUTE, 3], [CROWN_ATTRIBUTE, 4], [AXES_ATTRIBUTE, 2]] as const) {
+      if (!geometry.getAttribute(name)) geometry.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(geometry.getAttribute('position').count * size), size));
+    }
+    return geometry;
+  });
+  const merged = mergeGeometries(prepared, false);
+  for (const geometry of prepared) geometry.dispose();
+  if (!merged) throw new Error('assembleCanopy: geometries did not share an attribute set');
+  return merged;
+}
+
+/**
  * What `finish` was handed, which is everything the dressing needs. A builder
  * whose whole body is a pure walk to one `finish` call can therefore be run
  * anywhere — see `capture`.
  */
 export interface Finished {
   geometry: THREE.BufferGeometry;
+  /** The crown, when the builder is a tree or a shrub. */
+  canopy?: THREE.BufferGeometry;
   name: string;
   phase: number;
   underfoot?: SurfaceName;
@@ -450,13 +497,14 @@ export function finish(
    * stone or timber depending on its own seed.
    */
   underfoot?: SurfaceName,
+  canopy?: THREE.BufferGeometry | null,
 ): THREE.Mesh {
   if (capturing) {
     if (captured) return second();
-    captured = { geometry, name, phase, underfoot };
+    captured = { geometry, name, phase, underfoot, canopy: canopy ?? undefined };
     return STUB;
   }
-  return finishSink().mesh(geometry, name, phase, underfoot);
+  return finishSink().mesh(geometry, name, phase, underfoot, canopy ?? undefined);
 }
 
 /**

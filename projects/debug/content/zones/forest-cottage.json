@@ -14,52 +14,84 @@
     "yaw": 3.1415927
   },
   "floor": -5,
-  "shell": {
-    "width": 7,
-    "depth": 6,
-    "height": 3,
+  "interior": {
+    "kit": "house",
     "seed": 4970,
-    "style": "house",
-    "planks": true,
-    "beams": 3
+    "storeys": [
+      {
+        "height": 3,
+        "origin": [
+          -7,
+          -6
+        ],
+        "cells": [
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAA"
+        ],
+        "edges": [
+          {
+            "id": "front-door",
+            "at": [
+              -1,
+              -6
+            ],
+            "side": "n",
+            "kind": "door"
+          },
+          {
+            "id": "window-e",
+            "at": [
+              6,
+              -3
+            ],
+            "side": "e",
+            "kind": "window",
+            "seed": 4973
+          },
+          {
+            "id": "window-s",
+            "at": [
+              -4,
+              5
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4972
+          },
+          {
+            "id": "hearth",
+            "at": [
+              -7,
+              -1
+            ],
+            "side": "w",
+            "kind": "hearth",
+            "seed": 4971
+          }
+        ]
+      }
+    ],
+    "rooms": {
+      "A": {
+        "planks": true,
+        "beams": 3
+      }
+    }
   },
   "traits": [
     "villager"
   ],
   "entries": [
-    {
-      "id": "hearth",
-      "kind": "prop",
-      "builder": "fireplace",
-      "seed": 4971,
-      "at": [
-        -3.38,
-        0
-      ],
-      "yaw": 1.5707963
-    },
-    {
-      "id": "window-s",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4972,
-      "at": [
-        -1.6,
-        2.9
-      ],
-      "yaw": 3.1415927
-    },
-    {
-      "id": "window-e",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4973,
-      "at": [
-        3.4,
-        -0.8
-      ],
-      "yaw": -1.5707963
-    },
     {
       "id": "bed",
       "kind": "prop",

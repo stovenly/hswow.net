@@ -15,7 +15,9 @@ import { zoneCache } from '../engine/work/cache';
 import { Identify } from '../dev/Identify';
 import { ZoneManager, type Focus } from '../world/ZoneManager';
 import type { Project } from './project';
-import { contentWorld, loadSidecars } from './content';
+import { contentWorld, earlyBuilders, loadSidecars } from './content';
+import { ensureBuilders } from '../art/registry';
+import { itemBuilders } from '../world/items';
 import { Climate } from '../world/climate';
 import { WeatherRig } from '../world/WeatherRig';
 import { Interaction, type NpcMark } from '../world/Interaction';
@@ -166,7 +168,14 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
     warmRamps();
     return loadSidecars(project.id);
   });
+  // Before the documents are interpreted: a zone measures anything standing in
+  // its water as it is defined, and the portal graph measures a door's building
+  // as it is linked.
+  await ensureBuilders(earlyBuilders(project.id));
   const documents = contentWorld(project.id);
+  // What the player can be carrying, in hand before anything is picked up:
+  // a pickup happens on a frame and there is no room there to fetch a module.
+  await ensureBuilders(itemBuilders());
   const code = (await project.world?.(loader)) ?? { zones: [], portals: [] };
   const world = {
     zones: [...documents.zones, ...code.zones],
@@ -389,6 +398,8 @@ export async function createApp({ canvas, overlay, project, enter = false }: App
       dialogue.update(dt);
       // Not before somewhere exists to stand: with no collider the player falls.
       if (zones.current) player.update(dt);
+      // After the controller, so the wake and the swim test read where the feet ended up.
+      zones.updateWater(dt);
 
       // A floor under the world, so a fall through a seam is recoverable rather
       // than permanent. Each zone sets its own — an interior's is just below its

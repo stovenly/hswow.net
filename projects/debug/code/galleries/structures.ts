@@ -17,23 +17,6 @@ import { blacksmith } from '@engine/art/builders/blacksmith';
 import { stable } from '@engine/art/builders/stable';
 import { church } from '@engine/art/builders/church';
 import { barn } from '@engine/art/builders/barn';
-import { fence } from '@engine/art/builders/fence';
-import { fencePost } from '@engine/art/builders/fence-post';
-import { stoneWall } from '@engine/art/builders/stone-wall';
-import { stoneWallLow } from '@engine/art/builders/stone-wall-low';
-import {
-  stoneWallSquareColumn,
-  stoneWallSquareColumnLow,
-} from '@engine/art/builders/stone-wall-square-column';
-import {
-  stoneWallTriangleColumn,
-  stoneWallTriangleColumnLow,
-} from '@engine/art/builders/stone-wall-triangle-column';
-import {
-  stoneWallPentagonColumn,
-  stoneWallPentagonColumnLow,
-} from '@engine/art/builders/stone-wall-pentagon-column';
-import { stoneWallRuin } from '@engine/art/builders/stone-wall-ruin';
 import { stoneWallArchway } from '@engine/art/builders/stone-wall-archway';
 import { post } from '@engine/art/builders/post';
 import { hutDoor } from '@engine/art/builders/hut-door';
@@ -150,8 +133,6 @@ const VILLAGE_EXTERIOR_BUILDERS = [
   // The one run-and-cap pair still in this room, together, so a fence and the
   // post that finishes it are read side by side — which is the only way to see
   // that they are the same post. The masonry has a room of its own now.
-  fence,
-  fencePost,
   post,
   streetlamp,
   anvil,
@@ -176,22 +157,13 @@ const VILLAGE_EXTERIOR_BUILDERS = [
  * that is visible from where you arrive.
  */
 const STONE_WALL_BUILDERS = [
-  stoneWall,
-  stoneWallLow,
   // The piers, by how hard a turn they make: three faces bend a run sixty
   // degrees, four ninety, five thirty-six or seventy-two. They are the whole of
   // how this wall changes direction. Read in that order, each beside its own low
   // version, so the one thing that has to be true of all six is checkable at a
   // glance: **every face is the same width**, which is what lets a run meet any
   // of them.
-  stoneWallTriangleColumn,
-  stoneWallTriangleColumnLow,
-  stoneWallSquareColumn,
-  stoneWallSquareColumnLow,
-  stoneWallPentagonColumn,
-  stoneWallPentagonColumnLow,
   stoneWallArchway,
-  stoneWallRuin,
 ];
 
 /**

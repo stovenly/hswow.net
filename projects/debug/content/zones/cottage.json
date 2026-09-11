@@ -14,16 +14,101 @@
     "yaw": 3.141592653589793
   },
   "floor": -5,
-  "shell": {
-    "width": 8,
-    "depth": 6.5,
-    "height": 3,
+  "interior": {
+    "kit": "house",
     "seed": 4410,
-    "style": "house",
-    "planks": true,
-    "beams": 3
+    "storeys": [
+      {
+        "height": 3,
+        "origin": [
+          -8,
+          -6
+        ],
+        "cells": [
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA"
+        ],
+        "edges": [
+          {
+            "id": "front-door",
+            "at": [
+              -1,
+              -6
+            ],
+            "side": "n",
+            "kind": "door"
+          },
+          {
+            "id": "window-e",
+            "at": [
+              7,
+              3
+            ],
+            "side": "e",
+            "kind": "window",
+            "seed": 4431,
+            "options": {
+              "curtains": "none"
+            }
+          },
+          {
+            "id": "window-s2",
+            "at": [
+              3,
+              6
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4413
+          },
+          {
+            "id": "window-s1",
+            "at": [
+              -5,
+              6
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4412
+          },
+          {
+            "id": "hearth",
+            "at": [
+              -8,
+              0
+            ],
+            "side": "w",
+            "kind": "hearth",
+            "seed": 4411
+          }
+        ]
+      }
+    ],
+    "rooms": {
+      "A": {
+        "planks": true,
+        "beams": 3
+      }
+    },
+    "offset": [
+      0,
+      -0.25
+    ]
   },
-  "traits": ["villager"],
+  "traits": [
+    "villager"
+  ],
   "entries": [
     {
       "id": "cellar-hatch",
@@ -34,53 +119,6 @@
         2.9,
         2.3
       ]
-    },
-    {
-      "id": "hearth",
-      "kind": "prop",
-      "builder": "fireplace",
-      "seed": 4411,
-      "at": [
-        -3.88,
-        0.3
-      ],
-      "yaw": 1.5707963267948966
-    },
-    {
-      "id": "window-s1",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4412,
-      "at": [
-        -2.2,
-        3.15
-      ],
-      "yaw": 3.141592653589793
-    },
-    {
-      "id": "window-s2",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4413,
-      "at": [
-        2,
-        3.15
-      ],
-      "yaw": 3.141592653589793
-    },
-    {
-      "id": "window-e",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4431,
-      "options": {
-        "curtains": "none"
-      },
-      "at": [
-        3.9,
-        1.6
-      ],
-      "yaw": -1.5707963267948966
     },
     {
       "id": "bed",
@@ -292,7 +330,7 @@
       "builder": "gold-orb",
       "seed": 4433,
       "at": [
-        1.0,
+        1,
         -1.15
       ],
       "yaw": 0.3
@@ -317,7 +355,7 @@
         1.1,
         -1.75
       ],
-      "yaw": 2.0
+      "yaw": 2
     },
     {
       "id": "orb-oceanglass",

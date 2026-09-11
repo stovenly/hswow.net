@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { drawCoverNormals } from '../art/cover';
+import { drawCanopyNormals } from '../art/canopy';
 import { RetroShader } from './RetroShader';
 import { showSurfaces } from './surfaces';
 import type { GpuClock } from './GpuClock';
@@ -241,7 +242,9 @@ export class PixelStage extends Pass {
     // instanced construction, so a normal buffer left to the override alone
     // ends at the ground under every blade and plume.
     drawCoverNormals(renderer, this.scene, this.camera);
+    // And the crowns, for the same reason: their stipple and borrowed normals are their own.
     showSurfaces(true);
+    drawCanopyNormals(renderer, this.scene, this.camera);
     gpu?.end();
 
     let colour: THREE.Texture = this.colourTarget.texture;

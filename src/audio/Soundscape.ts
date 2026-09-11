@@ -19,6 +19,7 @@ import { createFlue, type FlueOptions } from './models/flue';
 import { createPlant, type PlantOptions } from './models/plant';
 import { createInsect, type InsectOptions } from './models/insect';
 import { createSurf, type SurfOptions } from './models/surf';
+import { createCascade, type CascadeOptions } from './models/cascade';
 import { createWire, type WireOptions } from './models/wire';
 import { createElectric, type ElectricOptions } from './models/electric';
 import { createPlate, type PlateOptions } from './models/plate';
@@ -65,6 +66,7 @@ export type ModelSpec =
   | { model: 'plant'; options?: PlantOptions }
   | { model: 'insect'; options?: InsectOptions }
   | { model: 'surf'; options?: SurfOptions }
+  | { model: 'cascade'; options?: CascadeOptions }
   | { model: 'wire'; options?: WireOptions }
   | { model: 'electric'; options?: ElectricOptions }
   | { model: 'plate'; options?: PlateOptions }
@@ -159,6 +161,8 @@ export function buildModel(engine: AudioEngine, spec: ModelSpec): SoundModel {
       return createInsect(engine, spec.options);
     case 'surf':
       return createSurf(engine, spec.options);
+    case 'cascade':
+      return createCascade(engine, spec.options);
     case 'wire':
       return createWire(engine, spec.options);
     case 'electric':
@@ -290,6 +294,11 @@ export class Soundscape {
     for (const bed of this.beds) bed.update?.(dt, this.engine, this.engine.listenerPosition);
     for (const emitter of this.emitters) emitter.update(dt, collider, retestOcclusion);
     for (const field of this.scatter) field.update(dt, collider, retestOcclusion);
+  }
+
+  /** Moves an emitter declared with an `id`: a river's voice follows the listener along its course. */
+  moveEmitter(id: string, position: THREE.Vector3): void {
+    this.emitterById.get(id)?.moveTo(position);
   }
 
   /**

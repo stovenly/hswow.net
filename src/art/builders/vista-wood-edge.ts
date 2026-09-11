@@ -39,9 +39,11 @@ export const vistaWoodEdgeBuilder: BuilderWith<VistaWoodEdgeOptions> = {
         depth: rng.range(14, 20),
         low: rng.range(9, 12),
         high: rng.range(13, 17),
-        spacing: 5,
+        spacing: 4,
         standards: rng.int(2, 3),
         gap: kind === 'ride',
+        scallop: kind === 'bowed' ? rng.range(2, 3) : rng.range(2.5, 4),
+        emergents: 3,
       }),
     ];
 

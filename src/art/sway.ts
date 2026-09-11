@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIELD_ATTRIBUTE } from './fields';
+import { FIELD_ATTRIBUTE, BRANCH_REACH, SUB_REACH } from './fields';
 import { ART_MATERIAL } from './material';
 import { applyWear } from './weathering';
 import { applyDetail } from './detail';
@@ -7,7 +7,7 @@ import { applyAerialFog } from '../engine/fog';
 import { applyFinish } from './finish';
 import { applyGlitch, applyGlitchDisplacement, glitchVariant } from './glitch';
 import { applyHorror, applyHorrorDisplacement, horrorVariant } from './horror';
-import type { Weather } from '../audio/weather';
+import { valueNoise, type Weather } from '../audio/weather';
 
 /**
  * The world moving on its own. A gust travels: the field is sampled at a phase
@@ -32,9 +32,128 @@ const WORLD_REACH = 140;
  * and an oak the same absolute distance. Object-space height, so a builder's
  * `scale` carries through for free.
  */
-const BEND = 0.16;
-/** The same, across the wind. Smaller, faster, and never quite zero. */
-const FLUTTER = 0.05;
+export const BEND = 0.16;
+
+/**
+ * The levers as damped oscillators, integrated on the CPU against the wind
+ * and shipped as rows of `gustResponse`. Nothing moves but by the wind
+ * changing; what changes it at a limb's own pace is the turbulence riding
+ * the gust, whose strength is a fraction of the wind's. Natural frequencies
+ * in hertz; the damping is enough that a lever never rings on after the
+ * wind that moved it has passed.
+ */
+export const TRUNK_HZ = 0.35;
+export const TRUNK_DAMPING = 0.35;
+export const LIMB_HZ = 0.5;
+export const LIMB_DAMPING = 0.3;
+export const SUB_HZ = 0.9;
+export const SUB_DAMPING = 0.35;
+/** The lean row: the wind smoothed over seconds, the level the limbs swing about. */
+const LEAN_HZ = 0.12;
+/** Turbulence as a fraction of the wind, and the seconds a cell of each octave spans with its weight. */
+const TURBULENCE = 0.35;
+const EDDIES: readonly (readonly [number, number])[] = [
+  [2.0, 0.5],
+  [0.8, 0.35],
+  [0.35, 0.15],
+];
+/** Frequency spread across a level's variant rows, so no two limbs ring alike. */
+const SPREAD = [0.8, 1.35] as const;
+/** Texels across the response window: with eddies of a third of a second in it, one every 30 ms. */
+const RESPONSE_SIZE = 1024;
+/** Rows of `gustResponse`: the lean, then the trunk's, the limbs' and the sub-limbs' variants. */
+const LEAN_ROW = 0;
+const TRUNK_ROWS = 4;
+const LIMB_ROWS = 8;
+const TRUNK_ROW = 1;
+const LIMB_ROW = TRUNK_ROW + TRUNK_ROWS;
+const SUB_ROW = LIMB_ROW + LIMB_ROWS;
+const RESPONSE_ROWS = SUB_ROW + LIMB_ROWS;
+/** A response is stored over this range in a byte: turbulence and overshoot carry it past one. */
+const RESPONSE_SCALE = 2.5;
+/** Seconds a limb's variant may trail the front by, per step of its phase code. */
+const TRAIL = 0.12;
+/** A limb's vertical bob as a fraction of its lag behind the lean: a bough dips as the gust takes it and lifts as it lets go. */
+export const LIMB_BOB = 0.6;
+export const SUB_BOB = 0.5;
+/** Every crown's boughs against every trunk's lean. `FLEX` scales the lean and the leaf rock but never reaches the branch lane, so this is the one dial over a tree's own motion; nothing without limbs has a branch lane, so groundcover cannot see it. */
+export const CROWN_GAIN = 1.5;
+
+/**
+ * The wind, for any vertex shader that moves a plant: the gust at a world
+ * point, the wind turned into object space, and the three motions — trunk,
+ * limbs, and what the canopy adds for itself. Declared once so the kit's
+ * wood and its crown cannot disagree about where a branch is.
+ *
+ * A trunk leans downwind and swings slowly about that lean at its own pace,
+ * quadratically in height, and only by the authored weight. A limb swings
+ * about its own base by its distance from it, at its own phase, and bobs on
+ * the same wind a beat behind; a sub-limb does the same again, faster and
+ * smaller, so the crown is many levers out of step rather than one mass.
+ * No backticks in here: it is spliced into template literals.
+ */
+export const WIND_GLSL = /* glsl */ `
+  uniform sampler2D gustField;
+  uniform sampler2D gustResponse;
+  uniform vec2 windDir;
+  uniform float windLagScale;
+  uniform float windHalfSpan;
+  uniform float windAgeScale;
+  uniform float windBuiltAt;
+  uniform float swayTime;
+  uniform float swayAmount;
+
+  // Per-instance offset, so two plants the same distance downwind do not move in lockstep.
+  float swayHash(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+  }
+  // Where a world point reads in the gust window: upwind ahead of now, downwind
+  // behind, and the window slid on by the time since it was built, so the wind
+  // moves every frame and not only when the table does.
+  float gustU(vec3 worldAt) {
+    float lag = dot(worldAt.xz, windDir) * windLagScale;
+    return clamp(0.5 - lag / (2.0 * windHalfSpan) + (swayTime - windBuiltAt) * windAgeScale, 0.0, 1.0);
+  }
+  // One lever's response to the wind at that point, from its row.
+  float gustRow(float u, float row) {
+    return texture2D(gustResponse, vec2(u, (row + 0.5) / ${RESPONSE_ROWS}.0)).r * ${RESPONSE_SCALE.toFixed(1)};
+  }
+  // The wind in an object's space, for a model matrix of one yaw and one scale:
+  // the transpose over the scale squared, so a metre of world travel is a metre.
+  vec3 windIn(mat4 m) {
+    vec3 c0 = m[0].xyz;
+    vec3 c1 = m[1].xyz;
+    vec3 c2 = m[2].xyz;
+    float scaleSq = max(dot(c0, c0), 0.0001);
+    vec3 windWorld = vec3(windDir.x, 0.0, windDir.y);
+    return vec3(dot(c0, windWorld), dot(c1, windWorld), dot(c2, windWorld)) / scaleSq;
+  }
+  // The trunk: its own response along the wind. Height is a factor because the weight is relative to each plant's own height.
+  vec3 windTrunk(float weight, float y, float u, float hash, vec3 windObj) {
+    float trunk = gustRow(u, ${TRUNK_ROW}.0 + floor(hash * ${TRUNK_ROWS}.0));
+    return windObj * (weight * max(y, 0.0) * trunk * ${BEND.toFixed(3)});
+  }
+  // The limbs, from the branch lane as fields.ts packs it: travel 7 bits, phase 5, sub travel 7, sub phase 5.
+  // A phase code picks the lever's variant row and how far it trails the front.
+  vec3 windLimbs(float packed, float u, vec3 windObj, float amount) {
+    if (packed < 0.5) return vec3(0.0);
+    float a1 = floor(packed / 131072.0);
+    packed -= a1 * 131072.0;
+    float p1 = floor(packed / 4096.0);
+    packed -= p1 * 4096.0;
+    float a2 = floor(packed / 32.0);
+    float p2 = packed - a2 * 32.0;
+    a1 *= ${(BRANCH_REACH / 127).toFixed(6)};
+    a2 *= ${(SUB_REACH / 127).toFixed(6)};
+    float lean = gustRow(u, ${LEAN_ROW}.0);
+    float r1 = gustRow(u - floor(p1 / ${LIMB_ROWS}.0) * ${TRAIL.toFixed(2)} * windAgeScale, ${LIMB_ROW}.0 + mod(p1, ${LIMB_ROWS}.0));
+    float r2 = gustRow(u - floor(p2 / ${LIMB_ROWS}.0) * ${TRAIL.toFixed(2)} * windAgeScale, ${SUB_ROW}.0 + mod(p2, ${LIMB_ROWS}.0));
+    // Buffeting grows faster than the wind: the response is scaled by the root of the wind it swings about.
+    float gain = sqrt(max(lean, 0.0)) * amount * ${CROWN_GAIN.toFixed(2)};
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    return gain * (a1 * (windObj * r1 + up * ((r1 - lean) * ${LIMB_BOB.toFixed(2)})) + a2 * (windObj * r2 + up * ((r2 - lean) * ${SUB_BOB.toFixed(2)})));
+  }
+`;
 
 export interface WindUniforms {
   gustField: { value: THREE.DataTexture };
@@ -47,6 +166,8 @@ export interface WindUniforms {
    * texture is an extension.
    */
   gustIntegral: { value: THREE.DataTexture };
+  /** The levers' responses to the same field, a row each; see `WIND_GLSL`. */
+  gustResponse: { value: THREE.DataTexture };
   windDir: { value: THREE.Vector2 };
   /** Metres per gust-time unit along the wind. Converts world position to phase. */
   windLagScale: { value: number };
@@ -54,6 +175,8 @@ export interface WindUniforms {
   windHalfSpan: { value: number };
   /** Seconds of age → texture coordinate, for reaching back into the integral. */
   windAgeScale: { value: number };
+  /** `swayTime` when the window was last built; the shader slides the window on from there. */
+  windBuiltAt: { value: number };
   swayTime: { value: number };
   swayAmount: { value: number };
 }
@@ -84,13 +207,28 @@ integral.wrapS = THREE.ClampToEdgeWrapping;
 integral.wrapT = THREE.ClampToEdgeWrapping;
 integral.needsUpdate = true;
 
+const response = new THREE.DataTexture(
+  new Uint8Array(RESPONSE_SIZE * RESPONSE_ROWS),
+  RESPONSE_SIZE,
+  RESPONSE_ROWS,
+  THREE.RedFormat,
+  THREE.UnsignedByteType,
+);
+response.minFilter = THREE.LinearFilter;
+response.magFilter = THREE.LinearFilter;
+response.wrapS = THREE.ClampToEdgeWrapping;
+response.wrapT = THREE.ClampToEdgeWrapping;
+response.needsUpdate = true;
+
 export const windUniforms: WindUniforms = {
   gustField: { value: field },
   gustIntegral: { value: integral },
+  gustResponse: { value: response },
   windDir: { value: new THREE.Vector2(1, 0) },
   windLagScale: { value: 0 },
   windHalfSpan: { value: 1 },
   windAgeScale: { value: 0 },
+  windBuiltAt: { value: 0 },
   swayTime: { value: 0 },
   // A global scale, so the whole world's motion can be turned down without
   // re-tuning seventy builders against each other. Composed below from the
@@ -141,22 +279,9 @@ export function patchArtMaterial(): void {
       .replace(
         '#include <common>',
         /* glsl */ `#include <common>
-        // Declared here for the whole chain: .x sway, .y wear, .z detail.
-        attribute vec3 ${FIELD_ATTRIBUTE};
-        uniform sampler2D gustField;
-        uniform vec2 windDir;
-        uniform float windLagScale;
-        uniform float windHalfSpan;
-        uniform float swayTime;
-        uniform float swayAmount;
-
-        // A cheap hash, for the per-instance flutter offset. Two objects the
-        // same distance downwind receive the same gust at the same moment,
-        // which is correct — but they must not then flutter in lockstep, so
-        // the fast component is offset by where the object stands.
-        float swayHash(vec2 p) {
-          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-        }
+        // Declared here for the whole chain: .x sway, .y wear, .z detail, .w branch.
+        attribute vec4 ${FIELD_ATTRIBUTE};
+        ${WIND_GLSL}
         `,
       )
       .replace(
@@ -164,48 +289,15 @@ export function patchArtMaterial(): void {
         /* glsl */ `#include <begin_vertex>
         {
           float weight = ${FIELD_ATTRIBUTE}.x * swayAmount;
-          if (weight > 0.0001) {
-            // Where this vertex stands, and therefore when the gust reaches it.
+          float packed = ${FIELD_ATTRIBUTE}.w;
+          if (weight > 0.0001 || packed > 0.5) {
             vec3 worldAt = (modelMatrix * vec4(transformed, 1.0)).xyz;
-            float lag = dot(worldAt.xz, windDir) * windLagScale;
-            // The window is centred on now, so upwind (negative lag) reads
-            // ahead of the present and downwind reads behind it.
-            float u = clamp(0.5 - lag / (2.0 * windHalfSpan), 0.0, 1.0);
-            float strength = texture2D(gustField, vec2(u, 0.5)).r;
-
-            // The wind, in this object's own space. Only Y rotation and a
-            // uniform scale are ever used, so the inverse rotation is the
-            // transpose over the scale squared — which avoids needing
-            // inverse() or transpose(), neither of which exists in GLSL ES 1.
-            vec3 c0 = modelMatrix[0].xyz;
-            vec3 c1 = modelMatrix[1].xyz;
-            vec3 c2 = modelMatrix[2].xyz;
-            float scaleSq = max(dot(c0, c0), 0.0001);
-            vec3 windWorld = vec3(windDir.x, 0.0, windDir.y);
-            vec3 windObj =
-              vec3(dot(c0, windWorld), dot(c1, windWorld), dot(c2, windWorld)) / scaleSq;
-            vec3 crossObj = vec3(-windObj.z, 0.0, windObj.x);
-
-            float offset = swayHash(floor(modelMatrix[3].xz * 4.0)) * 6.2831;
-
-            // Two frequencies that do not divide evenly, so the pair never
-            // visibly repeats. The slow one leans downwind and stays there —
-            // wind pushes one way, and a symmetric sine reads as a metronome
-            // rather than as a load.
-            float lean = 0.62 + 0.38 * sin(swayTime * 1.1 + offset);
-            float flutter = sin(swayTime * 3.7 + offset * 2.3);
-
-            // Height is a factor, and it has to be: the sway weight is relative
-            // to each plant's own height, so without this a daisy and an oak
-            // move the same number of metres -- see BEND. Object-space Y, taken
-            // before anything is displaced.
-            //
-            // (No backticks anywhere in this shader source: it is a template
-            // literal, and one would end it mid-GLSL.)
-            float tall = max(transformed.y, 0.0);
-            float push = weight * strength * tall;
-            transformed += windObj * (push * lean * ${BEND.toFixed(3)})
-                         + crossObj * (push * flutter * ${FLUTTER.toFixed(3)});
+            float u = gustU(worldAt);
+            vec3 windObj = windIn(modelMatrix);
+            float hash = swayHash(floor(modelMatrix[3].xz * 4.0));
+            float tall = transformed.y;
+            transformed += windTrunk(weight, tall, u, hash, windObj);
+            transformed += windLimbs(packed, u, windObj, swayAmount);
           }
         }
         `,
@@ -306,7 +398,7 @@ export function applySway(material: THREE.Material): void {
   // would ripple occasionally and unreproducibly. Zero means rigid.
   (material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
     ...(material as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues,
-    [FIELD_ATTRIBUTE]: [0, 0, 0],
+    [FIELD_ATTRIBUTE]: [0, 0, 0, 0],
   };
 
   // Three caches compiled programs by a key that knows nothing about an
@@ -318,6 +410,7 @@ export function applySway(material: THREE.Material): void {
 
 const texels = field.image.data as Uint8Array;
 const sums = integral.image.data as unknown as Float32Array;
+const responses = response.image.data as Uint8Array;
 
 /**
  * How often the lookup window is rebuilt, in seconds. At the authored gust rate
@@ -330,11 +423,36 @@ const WIND_INTERVAL = 1 / 12;
 /** When the window was last rebuilt, on `updateWind`'s own clock. */
 let windRebuilt = -Infinity;
 
+/** Seconds the levers are run in from rest before the window opens, so what it holds has settled. */
+const SETTLE = 8;
+
+/** Every lever's frequency in radians per second and its damping ratio, by row. */
+const LEVERS: { omega: number; zeta: number }[] = [];
+LEVERS[LEAN_ROW] = { omega: LEAN_HZ * Math.PI * 2, zeta: 1 };
+const spread = (rows: number, hz: number, zeta: number, first: number): void => {
+  for (let i = 0; i < rows; i++) {
+    const f = SPREAD[0] + ((SPREAD[1] - SPREAD[0]) * (i + 0.5)) / rows;
+    LEVERS[first + i] = { omega: hz * f * Math.PI * 2, zeta };
+  }
+};
+spread(TRUNK_ROWS, TRUNK_HZ, TRUNK_DAMPING, TRUNK_ROW);
+spread(LIMB_ROWS, LIMB_HZ, LIMB_DAMPING, LIMB_ROW);
+spread(LIMB_ROWS, SUB_HZ, SUB_DAMPING, SUB_ROW);
+
+/** The drive across the settle-in and the window, one sample a step. Reused between rebuilds. */
+let drive = new Float32Array(0);
+
 /**
- * Refills the lookup window and advances the clock, once a frame. The whole
- * texture is rebuilt rather than scrolled: 256 evaluations of a handful of
- * hashes, and it cannot drift out of alignment with the phase it claims to hold.
+ * The wind at a moment: the gust field, and on it the eddies the field is too
+ * coarse to hold, at a fraction of the wind so still air is still and a gale
+ * is rough. In absolute seconds, so a point downwind meets the same eddy later.
  */
+function windAt(field: number, seconds: number): number {
+  let eddy = 0;
+  for (let i = 0; i < EDDIES.length; i++) eddy += (valueNoise(seconds / EDDIES[i][0] + i * 37.1) - 0.5) * 2 * EDDIES[i][1];
+  return field * (1 + TURBULENCE * eddy);
+}
+
 export function updateWind(weather: Weather, elapsed: number): void {
   const { windDirection, frontSpeed, gustRate } = weather.settings;
 
@@ -352,6 +470,7 @@ export function updateWind(weather: Weather, elapsed: number): void {
 
   if (elapsed - windRebuilt < WIND_INTERVAL) return;
   windRebuilt = elapsed;
+  windUniforms.windBuiltAt.value = elapsed;
 
   // Seconds between neighbouring texels, for the integral below. The window is
   // `2·halfSpan` of gust-time wide, and `gustRate` is gust-time per second.
@@ -378,6 +497,31 @@ export function updateWind(weather: Weather, elapsed: number): void {
     previous = strength;
     sums[i] = sum;
   }
+
+  // The levers: the window in seconds is 2·WORLD_REACH / frontSpeed whatever the
+  // gust rate, so the drive is sampled on that clock from `SETTLE` seconds before
+  // the downwind edge, and each oscillator is stepped through it from rest.
+  const window = (2 * WORLD_REACH) / Math.max(frontSpeed, 0.5);
+  const ds = window / (RESPONSE_SIZE - 1);
+  const settleSteps = Math.ceil(SETTLE / ds);
+  const steps = settleSteps + RESPONSE_SIZE;
+  if (drive.length !== steps) drive = new Float32Array(steps);
+  for (let j = 0; j < steps; j++) {
+    const seconds = (j - settleSteps) * ds - window / 2;
+    drive[j] = windAt(weather.fieldAt(now + seconds * gustRate), elapsed + seconds);
+  }
+  for (let row = 0; row < RESPONSE_ROWS; row++) {
+    const { omega, zeta } = LEVERS[row];
+    let x = drive[0];
+    let v = 0;
+    for (let j = 0; j < steps; j++) {
+      v += ds * (omega * omega * (drive[j] - x) - 2 * zeta * omega * v);
+      x += ds * v;
+      const k = j - settleSteps;
+      if (k >= 0) responses[row * RESPONSE_SIZE + k] = Math.round(Math.min(1, Math.max(0, x / RESPONSE_SCALE)) * 255);
+    }
+  }
+  response.needsUpdate = true;
   field.needsUpdate = true;
   integral.needsUpdate = true;
 }

@@ -2,46 +2,1056 @@
   "id": "workshop",
   "name": "Bess's House",
   "group": "countryside",
-  "environment": { "base": "countryside-house" },
-  "spawn": { "at": [0, 0.1, 0.5], "yaw": 3.141592653589793 },
-  "floor": -5,
-  "shell": {
-    "width": 9,
-    "depth": 7,
-    "height": 3.2,
-    "seed": 4440,
-    "style": "house",
-    "planks": true,
-    "beams": 4
+  "environment": {
+    "base": "countryside-house"
   },
-  "traits": ["villager"],
+  "spawn": {
+    "at": [
+      0,
+      0.1,
+      0.5
+    ],
+    "yaw": 3.141592653589793
+  },
+  "floor": -5,
+  "interior": {
+    "kit": "house",
+    "seed": 4440,
+    "storeys": [
+      {
+        "height": 3.2,
+        "origin": [
+          -9,
+          -7
+        ],
+        "cells": [
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAA"
+        ],
+        "edges": [
+          {
+            "id": "front-door",
+            "at": [
+              -1,
+              -7
+            ],
+            "side": "n",
+            "kind": "door"
+          },
+          {
+            "id": "window-s2",
+            "at": [
+              4,
+              6
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4442
+          },
+          {
+            "id": "window-s1",
+            "at": [
+              -6,
+              6
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4441
+          }
+        ]
+      }
+    ],
+    "rooms": {
+      "A": {
+        "style": "workshop",
+        "planks": true,
+        "beams": 4
+      }
+    }
+  },
+  "traits": [
+    "villager"
+  ],
   "entries": [
-    { "id": "window-s1", "kind": "prop", "builder": "window", "seed": 4441, "at": [-2.6, 3.4], "yaw": 3.141592653589793 },
-    { "id": "window-s2", "kind": "prop", "builder": "window", "seed": 4442, "at": [2.4, 3.4], "yaw": 3.141592653589793 },
-    { "id": "wheel", "kind": "prop", "builder": "spinning-wheel", "seed": 4443, "at": [-2.9, 2.4], "yaw": 2.670353755551324 },
-    { "id": "spinner", "kind": "creature", "person": "bess", "builder": "figure", "seed": 4444, "roam": 1.5, "at": [-2.2, 1.6], "yaw": -0.7 },
-
-    { "id": "bench", "kind": "prop", "builder": "table", "seed": 4445, "at": [-2.6, -1.2], "yaw": 0.1 },
-    { "id": "stool-1", "kind": "prop", "builder": "stool", "seed": 4446, "at": [-1.6, -1.9], "yaw": 0.7 },
-    { "id": "stool-2", "kind": "prop", "builder": "stool", "seed": 4447, "at": [-3.3, -2.3], "yaw": 2.1 },
-    { "id": "washtub", "kind": "prop", "builder": "washtub", "seed": 4448, "at": [-3.8, -0.2], "yaw": 0.3 },
-
-    { "id": "stove", "kind": "prop", "builder": "stove", "seed": 4449, "at": [4.15, -2.9], "yaw": -1.5707963267948966 },
-
-    { "id": "crate-1", "kind": "prop", "builder": "crate", "seed": 4450, "at": [3.8, -1.1], "yaw": 0.1 },
-    { "id": "crate-2", "kind": "prop", "builder": "crate", "seed": 4451, "at": [3.75, 0.3], "yaw": 0.5 },
-    { "id": "crate-3", "kind": "prop", "builder": "crate", "seed": 4452, "at": [2.9, -2.1], "yaw": 0.9 },
-    { "id": "barrel-1", "kind": "prop", "builder": "barrel", "seed": 4453, "at": [3.9, 1.9], "yaw": 0 },
-    { "id": "barrel-2", "kind": "prop", "builder": "barrel", "seed": 4454, "at": [3.2, 2.7], "yaw": 0.4 },
-    { "id": "chest-1", "kind": "prop", "builder": "chest", "seed": 4455, "at": [3.6, -3.0], "yaw": 0.05 },
-
-    { "id": "herbs-e", "kind": "prop", "builder": "hanging-herbs", "seed": 4456, "at": [4.34, -0.2], "yaw": -1.5707963267948966 },
-    { "id": "herbs-w", "kind": "prop", "builder": "hanging-herbs", "seed": 4457, "at": [-4.34, 1.1], "yaw": 1.5707963267948966 },
-
-    { "id": "pegs", "kind": "prop", "builder": "wall-pegs", "seed": 4458, "at": [-1.6, -3.36], "yaw": 0 },
-    { "id": "broom", "kind": "prop", "builder": "broom", "seed": 4459, "at": [-2.4, -3.05], "yaw": -0.2 },
-
-    { "id": "candle-bench", "kind": "prop", "builder": "candle", "seed": 4460, "on": "bench", "at": [-2.35, -1.45], "yaw": 0.3 },
-    { "id": "lantern-crate", "kind": "prop", "builder": "lantern", "seed": 4461, "on": "crate-1", "at": [3.8, -1.1], "yaw": -0.6 }
+    {
+      "id": "wheel",
+      "kind": "prop",
+      "builder": "spinning-wheel",
+      "seed": 4443,
+      "at": [
+        -2.9,
+        2.4
+      ],
+      "yaw": 2.670353755551324
+    },
+    {
+      "id": "spinner",
+      "kind": "creature",
+      "person": "bess",
+      "builder": "figure",
+      "seed": 4444,
+      "roam": 1.5,
+      "at": [
+        -2.2,
+        1.6
+      ],
+      "yaw": -0.7
+    },
+    {
+      "id": "bench",
+      "kind": "prop",
+      "builder": "table",
+      "seed": 4445,
+      "at": [
+        -2.6,
+        -1.2
+      ],
+      "yaw": 0.1
+    },
+    {
+      "id": "stool-1",
+      "kind": "prop",
+      "builder": "stool",
+      "seed": 4446,
+      "at": [
+        -1.6,
+        -1.9
+      ],
+      "yaw": 0.7
+    },
+    {
+      "id": "stool-2",
+      "kind": "prop",
+      "builder": "stool",
+      "seed": 4447,
+      "at": [
+        -3.3,
+        -2.3
+      ],
+      "yaw": 2.1
+    },
+    {
+      "id": "washtub",
+      "kind": "prop",
+      "builder": "washtub",
+      "seed": 4448,
+      "at": [
+        -3.8,
+        -0.2
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "stove",
+      "kind": "prop",
+      "builder": "stove",
+      "seed": 4449,
+      "at": [
+        4.15,
+        -2.9
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "crate-1",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 4450,
+      "at": [
+        3.8,
+        -1.1
+      ],
+      "yaw": 0.1
+    },
+    {
+      "id": "crate-2",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 4451,
+      "at": [
+        3.75,
+        0.3
+      ],
+      "yaw": 0.5
+    },
+    {
+      "id": "crate-3",
+      "kind": "prop",
+      "builder": "crate",
+      "seed": 4452,
+      "at": [
+        2.9,
+        -2.1
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "barrel-1",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 4453,
+      "at": [
+        3.9,
+        1.9
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "barrel-2",
+      "kind": "prop",
+      "builder": "barrel",
+      "seed": 4454,
+      "at": [
+        3.2,
+        2.7
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "chest-1",
+      "kind": "prop",
+      "builder": "chest",
+      "seed": 4455,
+      "at": [
+        3.6,
+        -3
+      ],
+      "yaw": 0.05
+    },
+    {
+      "id": "herbs-e",
+      "kind": "prop",
+      "builder": "hanging-herbs",
+      "seed": 4456,
+      "at": [
+        4.34,
+        -0.2
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "herbs-w",
+      "kind": "prop",
+      "builder": "hanging-herbs",
+      "seed": 4457,
+      "at": [
+        -4.34,
+        1.1
+      ],
+      "yaw": 1.5707963267948966
+    },
+    {
+      "id": "pegs",
+      "kind": "prop",
+      "builder": "wall-pegs",
+      "seed": 4458,
+      "at": [
+        -1.6,
+        -3.36
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "broom",
+      "kind": "prop",
+      "builder": "broom",
+      "seed": 4459,
+      "at": [
+        -2.4,
+        -3.05
+      ],
+      "yaw": -0.2
+    },
+    {
+      "id": "candle-bench",
+      "kind": "prop",
+      "builder": "candle",
+      "seed": 4460,
+      "on": "bench",
+      "at": [
+        -2.35,
+        -1.45
+      ],
+      "yaw": 0.3
+    },
+    {
+      "id": "belt-bench",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 4462,
+      "on": "bench",
+      "at": [
+        -2.88,
+        -1.17
+      ],
+      "yaw": 0.1
+    },
+    {
+      "id": "necklace-bench",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 4463,
+      "on": "bench",
+      "at": [
+        -2.69,
+        -1.07
+      ],
+      "yaw": 0.8
+    },
+    {
+      "id": "bracelet-bench",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 4464,
+      "on": "bench",
+      "at": [
+        -2.71,
+        -1.31
+      ],
+      "yaw": -0.4
+    },
+    {
+      "id": "brooch-bench",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 4465,
+      "on": "bench",
+      "at": [
+        -2.55,
+        -1.19
+      ],
+      "yaw": 1.9
+    },
+    {
+      "id": "ring-bench",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 4466,
+      "on": "bench",
+      "at": [
+        -2.44,
+        -1.07
+      ],
+      "yaw": 2.6
+    },
+    {
+      "id": "earrings-bench",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 4467,
+      "on": "bench",
+      "at": [
+        -2.31,
+        -1.13
+      ],
+      "yaw": 0.2
+    },
+    {
+      "id": "counter",
+      "kind": "prop",
+      "builder": "table",
+      "seed": 4508,
+      "at": [
+        1.5,
+        0
+      ],
+      "yaw": 1.5707963267948966
+    },
+    {
+      "id": "ring-iron",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5004,
+      "on": "counter",
+      "at": [
+        1.08,
+        -1.19
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-bronze",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5002,
+      "on": "counter",
+      "at": [
+        1.08,
+        -0.85
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-silver",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5013,
+      "on": "counter",
+      "at": [
+        1.08,
+        -0.51
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-gold",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5001,
+      "on": "counter",
+      "at": [
+        1.08,
+        -0.17
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-iron-moonstone",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5006,
+      "on": "counter",
+      "at": [
+        1.08,
+        0.17
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-bronze-labradorite",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5003,
+      "on": "counter",
+      "at": [
+        1.08,
+        0.51
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-silver-opal",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5009,
+      "on": "counter",
+      "at": [
+        1.08,
+        0.85
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "ring-gold-sunstone",
+      "kind": "prop",
+      "builder": "ring",
+      "seed": 5000,
+      "on": "counter",
+      "at": [
+        1.08,
+        1.19
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-iron",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5006,
+      "on": "counter",
+      "at": [
+        1.22,
+        -1.19
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-bronze",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5005,
+      "on": "counter",
+      "at": [
+        1.22,
+        -0.85
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-silver",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5009,
+      "on": "counter",
+      "at": [
+        1.22,
+        -0.51
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-gold",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5015,
+      "on": "counter",
+      "at": [
+        1.22,
+        -0.17
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-iron-quartz",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5052,
+      "on": "counter",
+      "at": [
+        1.22,
+        0.17
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-bronze-pearl",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5002,
+      "on": "counter",
+      "at": [
+        1.22,
+        0.51
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-silver-sunstone",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5036,
+      "on": "counter",
+      "at": [
+        1.22,
+        0.85
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "earrings-gold-labradorite",
+      "kind": "prop",
+      "builder": "earrings",
+      "seed": 5021,
+      "on": "counter",
+      "at": [
+        1.22,
+        1.19
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-iron",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5004,
+      "on": "counter",
+      "at": [
+        1.37,
+        -1.19
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-bronze",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5002,
+      "on": "counter",
+      "at": [
+        1.37,
+        -0.85
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-silver",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5009,
+      "on": "counter",
+      "at": [
+        1.37,
+        -0.51
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-gold",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5000,
+      "on": "counter",
+      "at": [
+        1.37,
+        -0.17
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-iron-labradorite",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5049,
+      "on": "counter",
+      "at": [
+        1.37,
+        0.17
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-bronze-moonstone",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5051,
+      "on": "counter",
+      "at": [
+        1.37,
+        0.51
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-silver-quartz",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5127,
+      "on": "counter",
+      "at": [
+        1.37,
+        0.85
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "brooch-gold-opal",
+      "kind": "prop",
+      "builder": "brooch",
+      "seed": 5015,
+      "on": "counter",
+      "at": [
+        1.37,
+        1.19
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-iron",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5028,
+      "on": "counter",
+      "at": [
+        1.54,
+        -1.26
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-bronze",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5002,
+      "on": "counter",
+      "at": [
+        1.54,
+        -0.98
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-silver",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5014,
+      "on": "counter",
+      "at": [
+        1.54,
+        -0.7
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-gold",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5000,
+      "on": "counter",
+      "at": [
+        1.54,
+        -0.42
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-iron-quartz",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5067,
+      "on": "counter",
+      "at": [
+        1.54,
+        -0.14
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-bronze-opal",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5023,
+      "on": "counter",
+      "at": [
+        1.54,
+        0.14
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-silver-moonstone",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5013,
+      "on": "counter",
+      "at": [
+        1.54,
+        0.42
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-gold-pearl",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5001,
+      "on": "counter",
+      "at": [
+        1.54,
+        0.7
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-sunstone-bead",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5006,
+      "on": "counter",
+      "at": [
+        1.54,
+        0.98
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "bracelet-labradorite-bead",
+      "kind": "prop",
+      "builder": "bracelet",
+      "seed": 5005,
+      "on": "counter",
+      "at": [
+        1.54,
+        1.26
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-iron",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5012,
+      "on": "counter",
+      "at": [
+        1.72,
+        -1.26
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-bronze",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5003,
+      "on": "counter",
+      "at": [
+        1.72,
+        -0.98
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-silver",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5036,
+      "on": "counter",
+      "at": [
+        1.72,
+        -0.7
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-gold",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5001,
+      "on": "counter",
+      "at": [
+        1.72,
+        -0.42
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-iron-pearl",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5022,
+      "on": "counter",
+      "at": [
+        1.72,
+        -0.14
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-bronze-sunstone",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5027,
+      "on": "counter",
+      "at": [
+        1.72,
+        0.14
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-silver-quartz",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5047,
+      "on": "counter",
+      "at": [
+        1.72,
+        0.42
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-gold-labradorite",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5115,
+      "on": "counter",
+      "at": [
+        1.72,
+        0.7
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-moonstone-bead",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5013,
+      "on": "counter",
+      "at": [
+        1.72,
+        0.98
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "necklace-opal-bead",
+      "kind": "prop",
+      "builder": "necklace",
+      "seed": 5023,
+      "on": "counter",
+      "at": [
+        1.72,
+        1.26
+      ],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "id": "belt-iron-buckled",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5006,
+      "on": "counter",
+      "at": [
+        1.92,
+        -1.32
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-bronze-buckled",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5003,
+      "on": "counter",
+      "at": [
+        1.92,
+        -1.08
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-silver-buckled",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5038,
+      "on": "counter",
+      "at": [
+        1.92,
+        -0.84
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-gold-buckled",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5000,
+      "on": "counter",
+      "at": [
+        1.92,
+        -0.6
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-iron-studded",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5004,
+      "on": "counter",
+      "at": [
+        1.92,
+        -0.36
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-bronze-studded",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5002,
+      "on": "counter",
+      "at": [
+        1.92,
+        -0.12
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-silver-studded",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5013,
+      "on": "counter",
+      "at": [
+        1.92,
+        0.12
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-gold-studded",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5007,
+      "on": "counter",
+      "at": [
+        1.92,
+        0.36
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-iron-opal",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5137,
+      "on": "counter",
+      "at": [
+        1.92,
+        0.6
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-bronze-pearl",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5066,
+      "on": "counter",
+      "at": [
+        1.92,
+        0.84
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-silver-sunstone",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5014,
+      "on": "counter",
+      "at": [
+        1.92,
+        1.08
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "belt-gold-moonstone",
+      "kind": "prop",
+      "builder": "belt",
+      "seed": 5018,
+      "on": "counter",
+      "at": [
+        1.92,
+        1.32
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "lantern-crate",
+      "kind": "prop",
+      "builder": "lantern",
+      "seed": 4461,
+      "on": "crate-1",
+      "at": [
+        3.8,
+        -1.1
+      ],
+      "yaw": -0.6
+    }
   ]
 }

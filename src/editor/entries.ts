@@ -144,7 +144,18 @@ export function templateDocument(id: string, name: string, kind: 'exterior' | 'i
       environment: { base: 'indoor' },
       spawn: { at: [0, 0.1, 2], yaw: 'north' },
       floor: -5,
-      shell: { width: 8, depth: 6, height: 3, seed: 1, style: 'house', planks: true, beams: 3 },
+      interior: {
+        kit: 'house',
+        seed: 1,
+        storeys: [
+          {
+            height: 3,
+            origin: [-8, -6],
+            cells: Array.from({ length: 12 }, () => 'A'.repeat(16)),
+            edges: [{ id: 'front-door', at: [7, 0], side: 'n', kind: 'door' }],
+          },
+        ],
+      },
       entries: [],
     };
   }

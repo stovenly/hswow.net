@@ -1,20 +1,23 @@
 import * as THREE from 'three';
 import type { MeshBuilder } from '../types';
-import { assemble, finish, type Part } from '../assemble';
+import { heightRamp, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE, shade } from '../palette';
+import { shade } from '../palette';
+import { LEAVES, branchCards, cloud, finishFoliage, type Cloud, type Species, type Twig } from '../foliage';
+import { sweep } from '../limbs';
+import { packBranch, type Family } from '../fields';
+import { SHEET_OF } from '../branchSheet';
 
-// A bramble thicket: a low mass with half a dozen canes looping out of it and
-// diving back to the ground, which is the silhouette. Every joint stops at the
-// ground, the leaves sit on the cane in threes, and the canes come up from a stool
-// a few centimetres across leaning the same general way.
+// A bramble: canes swept out of a low mass and diving back to the ground,
+// leaves as cards rooted along them. Stands on y = 0.
+
+const TAU = Math.PI * 2;
+const CANE_TOP = 1.4;
+
 export const bramble: MeshBuilder = {
   name: 'bramble',
   category: 'foliage',
   radius: 1.3,
-  // Walked through, in spite of being the one plant here that would really stop
-  // you: a tangle's collision volume would have to be the tangle, and anything
-  // simpler catches the player on air a foot from the canes.
   solid: false,
 
   build({ seed = 1, scale = 1 } = {}) {
@@ -24,77 +27,54 @@ export const bramble: MeshBuilder = {
     const canes = rng.int(5, 8);
     const reach = rng.range(0.85, 1.4);
     const wood = rng.chance(0.5) ? 0x5a4a38 : 0x6b5230;
-    const leaf = rng.chance(0.5) ? PALETTE.LEAF_DARK : PALETTE.LEAF;
-    // The way the thicket leans as a whole. Brambles grow toward the light, so
-    // a clump that radiates evenly reads as a firework rather than as scrub.
-    const lean = rng.range(0, Math.PI * 2);
+    const lean = rng.range(0, TAU);
+    const species: Species = { colour: LEAVES.thicket, deciduous: true, bark: shade(wood, 1.2), weight: heightRamp(0, 0.9, 1.4) };
+    const sway = heightRamp(0, 0.9, 1.4);
 
+    const twigs: Twig[] = [];
+    const clouds: Cloud[] = [];
+    const at = new THREE.Vector3();
+    const dir = new THREE.Vector3();
     for (let c = 0; c < canes; c++) {
-      const bearing = lean + rng.range(-1.5, 1.5);
-      const grown = reach * rng.range(0.65, 1.1);
-      const segments = 4;
-      const step = grown / segments;
-      const thick = rng.range(0.013, 0.022);
-
-      // Up out of the stool, over the top, and down again. Ending below
-      // horizontal is what makes it an arch rather than a branch.
-      let pitch = rng.range(1, 1.35);
-      // Rooted a few centimetres off centre, not all from one point.
+      const bearing = lean + rng.range(-1.6, 1.6);
+      const cos = Math.cos(bearing);
+      const sin = Math.sin(bearing);
+      const run = reach * rng.range(0.8, 1.25);
+      const top = rng.range(0.7, 1) * CANE_TOP;
       const root = rng.range(0, 0.09);
-      const rootAt = rng.range(0, Math.PI * 2);
-      let x = Math.cos(rootAt) * root;
-      let y = 0.02;
-      let z = Math.sin(rootAt) * root;
+      const rootAt = rng.range(0, TAU);
+      const x0 = Math.cos(rootAt) * root;
+      const z0 = Math.sin(rootAt) * root;
+      const p = (f: number, y: number): THREE.Vector3 => new THREE.Vector3(x0 + cos * run * f, y, z0 + sin * run * f);
+      // Out and up to an apex at half the run, then over and down to the ground.
+      const spine = [p(0, 0.02), p(0.22, top * 0.62), p(0.5, top), p(0.78, top * 0.66), p(1, 0.05)];
+      const thick = rng.range(0.013, 0.022);
+      const family: Family = { pivot: spine[0].clone(), phase: rng.range(0, 1), swing: 0.14 };
+      parts.push({
+        geometry: sweep(spine, (t) => thick * (1 - 0.35 * t), 4),
+        color: shade(wood, rng.range(0.88, 1.1)),
+        sway,
+        branch: (x, y, z) => packBranch(x, y, z, family, null),
+      });
 
-      for (let i = 0; i < segments; i++) {
-        const piece = new THREE.CylinderGeometry(thick * 0.72, thick, step * 1.1, 4);
-        piece.translate(0, step / 2, 0);
-        piece.rotateX(Math.PI / 2 - pitch);
-        piece.rotateY(bearing);
-        piece.translate(x, y, z);
-        // Only the far end of a cane moves. The base of a thicket is a mat of
-        // woody stems and does not.
-        const looseness = (i / segments) ** 1.4;
-        parts.push({ geometry: piece, color: shade(wood, rng.range(0.88, 1.1)), sway: looseness });
-
-        // Advance along the cane, taken from the rotation the geometry got.
-        const out = Math.cos(pitch) * step;
-        const nx = x + Math.sin(bearing) * out;
-        const ny = y + Math.sin(pitch) * step;
-        const nz = z + Math.cos(bearing) * out;
-
-        // Leaves in threes, sitting *on* the cane at the joint rather than
-        // scattered near it. A bramble leaf is three leaflets round a point,
-        // and three small fins is exactly that at this size.
-        if (ny > 0.05) {
-          for (let l = 0; l < 3; l++) {
-            const size = thick * rng.range(3.6, 5.4);
-            const blade = new THREE.ConeGeometry(size * 0.55, size * 1.5, 3);
-            blade.translate(0, size * 0.75, 0);
-            blade.scale(1, 1, 0.3);
-            blade.rotateZ(rng.range(0.9, 1.4));
-            blade.rotateY((l / 3) * Math.PI * 2 + rng.range(0, 0.4));
-            blade.translate(nx, ny, nz);
-            parts.push({
-              geometry: blade,
-              color: shade(leaf, rng.range(0.85, 1.15)),
-              sway: looseness,
-            });
-          }
+      // Leaves root on the cane itself and point out from it; there are no side shoots.
+      const curve = new THREE.CatmullRomCurve3(spine, false, 'centripetal', 0.5);
+      const shoots = rng.int(6, 9);
+      for (let k = 0; k < shoots; k++) {
+        const t = (k + rng.range(0.15, 0.85)) / shoots;
+        at.copy(curve.getPointAt(t));
+        const roll = bearing + rng.range(-2.2, 2.2);
+        dir.set(Math.cos(roll), rng.range(0.35, 1.1), Math.sin(roll)).normalize().multiplyScalar(rng.range(0.12, 0.2));
+        twigs.push({ from: at.clone(), to: at.clone().add(dir), family, sub: null });
+        if (k % 3 === 1) {
+          const r = reach * rng.range(0.24, 0.34);
+          clouds.push(cloud(rng, at.clone().add(new THREE.Vector3(0, r * 0.2, 0)), new THREE.Vector3(r, r * 0.8, r), 0.24));
         }
-
-        x = nx;
-        // **Clamped at the ground.** Past the top of the arch the pitch is
-        // negative and the cane is heading down; without this the last segment
-        // or two are buried and the whip appears to stop in mid-air.
-        y = Math.max(0.03, ny);
-        z = nz;
-        pitch -= rng.range(0.4, 0.7);
       }
     }
+    clouds.push(cloud(rng, new THREE.Vector3(Math.cos(lean) * reach * 0.15, 0.38, Math.sin(lean) * reach * 0.15), new THREE.Vector3(reach * 0.62, 0.34, reach * 0.55), 0.26));
+    parts.push(...branchCards(rng, species, clouds, { twigs, count: 34, length: [0.22, 0.35], tiles: SHEET_OF.smallleaf, perTwig: 2, upward: 0.2 }));
 
-    const geometry = assemble(parts);
-    if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'bramble', rng.range(0, Math.PI * 2));
+    return finishFoliage(parts, 'bramble', rng.range(0, TAU), 0, scale);
   },
 };

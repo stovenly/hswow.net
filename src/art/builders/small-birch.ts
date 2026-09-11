@@ -1,24 +1,44 @@
 import * as THREE from 'three';
 import type { MeshBuilder } from '../types';
-import { assemble, finish, heightRamp, type Part } from '../assemble';
-import { lumpySphere } from '../blob';
+import { heightRamp, type Part } from '../assemble';
 import { createRng } from '../random';
-import { PALETTE, shade } from '../palette';
-import { rod } from '../rod';
+import { shade } from '../palette';
+import { LEAVES, branchCards, cloud, finishFoliage, heightWeight, type Cloud, type Species, type Twig } from '../foliage';
+import { SHEET_OF } from '../branchSheet';
+import { LATHE_NORMAL, LATHE_SIDES, lathe } from '../oakwood';
+import { growLimb, limbBranch, limbGeometry, type GrowForm, type Limb } from '../limbs';
 
-// A young birch: one whippy stem, a handful of branches, a wisp of crown. Its own
-// builder rather than `birch` scaled, because a sapling is a different shape. It
-// bends — the lean is four times the adult's as a fraction of height. There is no
-// black foot, and the stem is a warm buff, since the white comes in from the top
-// as the tree ages. The crown is four branches with one twig each, so the whole
-// stem shows through. Bands are finer and sparser than the adult's, five or six of
-// them, with the bottom tenth clean.
+// A birch sapling: a banded white wand carrying two or three short shoots near
+// its top, and nothing below them. The most mobile thing in the kit. On y = 0.
 
 const TAU = Math.PI * 2;
+const WHITE = 0xd7d2c3;
 
-/** Warmer and darker than `birch`'s white. Young bark has not bleached yet. */
-const YOUNG_BARK = 0xc2b9a2;
-const YOUNG_BAND = 0x5c5445;
+/** One fork and then twigs: a wand has no room for more. */
+const SMALL_BIRCH_GROWTH: GrowForm = {
+  children: [
+    [2, 3],
+    [2, 3],
+  ],
+  lengthRatio: [
+    [0.5, 0.7],
+    [0.45, 0.65],
+  ],
+  angle: [
+    [0.4, 0.75],
+    [0.5, 0.95],
+  ],
+  along: [
+    [0.2, 0.9],
+    [0.25, 0.95],
+  ],
+  lift: [0.4, 0.1, -0.35],
+  wobble: [0.12, 0.3, 0.45],
+  sides: [5, 4, 4, 4],
+  levels: 2,
+  swing: [0.12, 0.11],
+  minRadius: 0.009,
+};
 
 export const smallBirch: MeshBuilder = {
   name: 'small-birch',
@@ -28,161 +48,52 @@ export const smallBirch: MeshBuilder = {
   build({ seed = 1, scale = 1 } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
-
-    // Stem height. The leader tuft sits on top of it, so the tree measures
-    // fifteen or twenty centimetres more than this.
     const height = rng.range(2.2, 3.05);
-    // Nearly parallel-sided. A sapling carries almost no load and has almost
-    // no taper, and the taper is most of what the eye uses to judge age.
     const butt = rng.range(0.032, 0.05);
-    const crownBase = height * rng.range(0.5, 0.62);
-
     const bendAt = rng.range(0, TAU);
-    const bend = rng.range(0.18, 0.42);
-    // A shallower exponent than the adult's, so the bend starts lower and the
-    // whole stem is curved rather than just the top of it.
+    const bend = height * rng.range(0.006, 0.02);
     const spine = (y: number): THREE.Vector3 => {
-      const t = y / height;
-      const off = bend * t ** 1.7;
+      const off = bend * Math.max(0, y / height) ** 1.7;
       return new THREE.Vector3(Math.cos(bendAt) * off, y, Math.sin(bendAt) * off);
     };
-    const radiusAt = (y: number): number => butt * (1 - 0.4 * (y / height));
+    const species: Species = { colour: LEAVES.birch, deciduous: true, bark: shade(WHITE, 0.88), weight: heightWeight(height, 1.4) };
 
-    // --- the stem ------------------------------------------------------------
-    // The same three-kinds-of-segment walk as the adult, run gentler: smaller
-    // clusters, thinner scars, and a lower chance of starting one.
-    let y = 0;
-    // Scars still owed by the current cluster. Unlike the adult this starts at
-    // zero — there is no black foot to break away from, and a sapling's lowest
-    // marks genuinely are some way up the stem.
-    let cluster = 0;
-    // Two scars end to end are one fat band. Always a sliver of pale between.
-    let wasDark = false;
-    // Marks made so far, only so that the stem cannot come out with none.
-    let scars = 0;
+    const bands: number[] = [];
+    for (let y = rng.range(0.2, 0.4); y < height * 0.8; y += rng.range(0.25, 0.6)) if (rng.chance(0.5)) bands.push(y);
+    parts.push({
+      geometry: lathe(spine, butt, height * 0.72, rng.int(2, 3), rng.range(0, TAU), 0.4, [0.15, 0.5], false),
+      color: (x, y) => {
+        for (const b of bands) if (Math.abs(y - b) < 0.06 && Math.sin(x * 23 + b) > -0.3) return shade(WHITE, 0.84);
+        return shade(WHITE, 0.97 + Math.sin(y * 31 + x * 17) * 0.03);
+      },
+      sway: heightRamp(0, height, 1.6),
+    });
 
-    while (y < height - 0.05) {
-      let length: number;
-      let color: number;
-      let dark = false;
-
-      if (cluster > 0 && !wasDark) {
-        dark = true;
-        cluster -= 1;
-        scars += 1;
-        length = rng.range(0.03, 0.075);
-        color = shade(YOUNG_BAND, rng.range(0.85, 1.2));
-      } else if (cluster > 0) {
-        length = rng.range(0.04, 0.09);
-        color = shade(YOUNG_BARK, rng.range(0.86, 0.98));
-      } else {
-        length = rng.chance(0.3) ? rng.range(0.3, 0.5) : rng.range(0.11, 0.26);
-        color = shade(YOUNG_BARK, rng.range(0.92, 1.06));
-        // Nothing in the bottom tenth: the marks develop downward from the young
-        // wood at the top, so a sapling banded to the ground is a shrunk adult.
-        // Rolled after the run, so a failed roll gives two clean runs back to back.
-        // The first cluster above a third of the way up is forced — a plain sequence
-        // of failures leaves an unmarked stem, which is a stick, not a young birch.
-        const due = scars === 0 && y > height * 0.3;
-        cluster = due || (y > height * 0.1 && rng.chance(0.58)) ? (rng.chance(0.25) ? 2 : 1) : 0;
-      }
-
-      const top = Math.min(height, y + length);
-      const from = spine(y);
-      const to = spine(top);
-      // Overrun into the next segment, with an absolute floor as well as a
-      // proportional one — a three-centimetre scar overrun by 9% is under three
-      // millimetres, and the watertight check quantizes to an eighth of one.
-      const span = Math.max(to.distanceTo(from), 1e-6);
-      to.lerp(from, -Math.max(0.02, span * 0.09) / span);
-
-      parts.push({
-        geometry: rod(from, to, radiusAt(y), radiusAt(top), 5),
-        color,
-        sway: heightRamp(0, height, 2),
-      });
-      wasDark = dark;
-      y = top;
+    const twigs: Twig[] = [];
+    const clouds: Cloud[] = [];
+    const limbs: Limb[] = [];
+    const shoots = rng.int(2, 3);
+    const start = rng.range(0, TAU);
+    for (let i = 0; i < shoots; i++) {
+      const y = height * rng.range(0.5, 0.7);
+      const at = spine(y);
+      const bearing = start + i * 2.399963 + rng.around(0, 0.4);
+      const dir = new THREE.Vector3(Math.cos(bearing) * 0.5, 1, Math.sin(bearing) * 0.5).normalize();
+      growLimb(rng, at, dir, rng.range(0.5, 0.8) * (1 - y / height * 0.3), butt * 0.55, 1, SMALL_BIRCH_GROWTH, limbs, twigs);
+    }
+    // The wand goes on as the leader off the lathe's open top ring: same point,
+    // same radius, same ten sides, rising on +Y so that ring is cut square.
+    growLimb(rng, spine(height * 0.72), new THREE.Vector3(0, 1, 0), height * 0.28, butt * 0.6, 1, SMALL_BIRCH_GROWTH, limbs, twigs, null, null, LATHE_SIDES, LATHE_NORMAL);
+    for (const limb of limbs) {
+      const level = Math.min(limb.level, 3);
+      parts.push({ geometry: limbGeometry(limb), color: shade(WHITE, 0.9 - level * 0.02), sway: heightRamp(0, height, 1.6), branch: limbBranch(limb) });
+      if (limb.level !== 1) continue;
+      const head = limb.points[limb.points.length - 1];
+      const r = height * rng.range(0.16, 0.21);
+      clouds.push(cloud(rng, head, new THREE.Vector3(r, r * 1.2, r), 0.2));
     }
 
-    // --- branches ------------------------------------------------------------
-    const branches = rng.int(3, 5);
-    const lean = rng.range(0, TAU);
-    const leaf = rng.chance(0.3) ? PALETTE.LEAF_DRY : PALETTE.LEAF;
-
-    for (let i = 0; i < branches; i++) {
-      const t = branches > 1 ? i / (branches - 1) : 0;
-      const at = Math.min(height * 0.97, crownBase + (height - crownBase) * t * rng.range(0.85, 1));
-      const root = spine(at);
-      const bearing = lean + i * 2.399963 + rng.around(0, 0.4);
-      const reach = rng.range(0.28, 0.52) * (1.1 - 0.35 * t);
-      // Steeper than the adult's. Young growth is reaching for light; the
-      // horizontal branch is an old one that a decade of leaves has pulled down.
-      const rise = rng.range(1, 1.3);
-
-      const tip = new THREE.Vector3(
-        root.x + Math.cos(bearing) * Math.cos(rise) * reach,
-        root.y + Math.sin(rise) * reach,
-        root.z + Math.sin(bearing) * Math.cos(rise) * reach,
-      );
-      parts.push({
-        geometry: rod(root, tip, butt * 0.42, butt * 0.24, 4),
-        color: shade(YOUNG_BARK, rng.range(0.78, 0.9)),
-        sway: heightRamp(0, height, 1.3),
-      });
-
-      // Still drooping at the end, even this young — it is the family trait and
-      // dropping it would leave the sapling unattributable to any species.
-      const swing = bearing + rng.around(0, 0.3);
-      const droop = rng.range(-0.5, -0.1);
-      const twigLength = reach * rng.range(0.6, 0.95);
-      const end = new THREE.Vector3(
-        tip.x + Math.cos(swing) * Math.cos(droop) * twigLength,
-        tip.y + Math.sin(droop) * twigLength,
-        tip.z + Math.sin(swing) * Math.cos(droop) * twigLength,
-      );
-      // Started back down the branch, not at its tip. Two rods meeting end to end at
-      // the same point with the same radius produce identical rings whenever their
-      // directions agree closely enough. The twig sleeves over the branch, slightly
-      // fatter, so there is nothing for the two caps to coincide with.
-      const joint = tip.clone().lerp(root, 0.12);
-      parts.push({
-        geometry: rod(joint, end, butt * 0.27, butt * 0.12, 4),
-        color: shade(PALETTE.BARK_PALE, rng.range(0.9, 1.1)),
-        sway: 0.92,
-      });
-
-      // One or two tufts per twig. Any more and the crown closes up, and a
-      // closed crown on a stem this thin is the lollipop.
-      const clumps = rng.int(1, 2);
-      for (let c = 0; c < clumps; c++) {
-        const u = (c + 1) / clumps;
-        const clump = lumpySphere(rng, rng.range(0.15, 0.24), 0, 0.7, 1.3);
-        clump.scale(0.85, rng.range(1.15, 1.45), 0.85);
-        clump.translate(
-          tip.x + (end.x - tip.x) * u,
-          tip.y + (end.y - tip.y) * u - u * u * rng.range(0.03, 0.09),
-          tip.z + (end.z - tip.z) * u,
-        );
-        parts.push({
-          geometry: clump,
-          color: rng.chance(0.3) ? PALETTE.LEAF_DARK : shade(leaf, rng.range(0.92, 1.08)),
-          sway: 1,
-        });
-      }
-    }
-
-    // The leader tuft, sitting on the top of the stem. A sapling is still
-    // running for height, so the topmost growth is the strongest thing on it.
-    const apex = spine(height);
-    const leader = lumpySphere(rng, rng.range(0.18, 0.27), 0, 0.72, 1.28);
-    leader.scale(0.9, rng.range(1.2, 1.5), 0.9);
-    leader.translate(apex.x, apex.y + 0.04, apex.z);
-    parts.push({ geometry: leader, color: shade(leaf, rng.range(0.94, 1.06)), sway: 1 });
-
-    const geometry = assemble(parts);
-    geometry.rotateY(rng.range(0, TAU));
-    if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'small-birch', rng.range(0, TAU));
+    parts.push(...branchCards(rng, species, clouds, { twigs, count: 0, length: [0.6, 0.85], tiles: SHEET_OF.birch, turn: false, cross: true }));
+    return finishFoliage(parts, 'small-birch', rng.range(0, TAU), rng.range(0, TAU), scale);
   },
 };

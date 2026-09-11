@@ -822,157 +822,187 @@
       }
     },
     {
-      "id": "boundary",
-      "kind": "chain",
-      "close": "hedge",
-      "closeSeed": 6600,
-      "runs": [
+      "id": "boundary-0-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6200,
+      "points": [
         {
-          "seed": 6200,
-          "start": {
+          "at": {
             "ref": "arch",
             "edge": "+x"
-          },
-          "edges": [
-            {
-              "to": [
-                12,
-                26
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                24,
-                21
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                37,
-                16
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                45,
-                6
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                45,
-                -8
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                38,
-                -20
-              ],
-              "kind": "fence"
-            },
-            {
-              "to": [
-                22,
-                -26
-              ],
-              "kind": "fence"
-            },
-            {
-              "to": [
-                6,
-                -30
-              ],
-              "kind": "fence"
-            },
-            {
-              "to": [
-                -10,
-                -30
-              ],
-              "kind": "fence"
-            },
-            {
-              "to": [
-                -24,
-                -24
-              ],
-              "kind": "fence"
-            }
+          }
+        },
+        {
+          "at": [
+            12,
+            26
           ]
         },
         {
-          "seed": 6400,
-          "start": {
+          "at": [
+            24,
+            21
+          ]
+        },
+        {
+          "at": [
+            37,
+            16
+          ]
+        },
+        {
+          "at": [
+            45,
+            6
+          ]
+        },
+        {
+          "at": [
+            45,
+            -8
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-0-1",
+      "kind": "line",
+      "builder": "fence",
+      "seed": 6210,
+      "points": [
+        {
+          "at": [
+            45,
+            -8
+          ]
+        },
+        {
+          "at": [
+            38,
+            -20
+          ]
+        },
+        {
+          "at": [
+            22,
+            -26
+          ]
+        },
+        {
+          "at": [
+            6,
+            -30
+          ]
+        },
+        {
+          "at": [
+            -10,
+            -30
+          ]
+        },
+        {
+          "at": [
+            -24,
+            -24
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-1-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6400,
+      "points": [
+        {
+          "at": {
             "ref": "arch",
             "edge": "-x"
-          },
-          "edges": [
-            {
-              "to": [
-                -11,
-                26
-              ],
-              "kind": "wall"
-            }
-          ]
+          }
         },
         {
-          "seed": 6450,
-          "start": [
+          "at": [
+            -11,
+            26
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-2-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6450,
+      "points": [
+        {
+          "at": [
             -19,
             22
-          ],
-          "edges": [
-            {
-              "to": [
-                -24,
-                18
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                -32,
-                8
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": {
-                "ref": "arch-west",
-                "edge": "+z"
-              },
-              "kind": "wall"
-            }
           ]
         },
         {
-          "seed": 6500,
-          "start": {
+          "at": [
+            -24,
+            18
+          ]
+        },
+        {
+          "at": [
+            -32,
+            8
+          ]
+        },
+        {
+          "at": {
+            "ref": "arch-west",
+            "edge": "+z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "boundary-3-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6500,
+      "points": [
+        {
+          "at": {
             "ref": "arch-west",
             "edge": "-z"
-          },
-          "edges": [
-            {
-              "to": [
-                -32,
-                -14
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                -29,
-                -18
-              ],
-              "kind": "wall"
-            }
+          }
+        },
+        {
+          "at": [
+            -32,
+            -14
+          ]
+        },
+        {
+          "at": [
+            -29,
+            -18
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-close",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6600,
+      "points": [
+        {
+          "at": [
+            -29,
+            -18
+          ]
+        },
+        {
+          "at": [
+            -24,
+            -24
           ]
         }
       ]
@@ -991,62 +1021,64 @@
       "height": 3
     },
     {
-      "id": "stream-in",
-      "kind": "barrier",
-      "from": [
-        -30,
-        -17
-      ],
-      "to": [
-        -23,
-        -25
-      ],
-      "height": 3
-    },
-    {
       "id": "stream",
       "kind": "water",
-      "at": [
-        -22,
-        -0.45,
-        -3
-      ],
-      "width": 28,
-      "depth": 80,
-      "chop": 0.15,
-      "taper": 0.5,
-      "segment": 0.8,
+      "regime": "flow",
+      "palette": "river",
       "course": [
-        [
-          -34,
-          -40
-        ],
-        [
-          -26,
-          -22
-        ],
-        [
-          -21,
-          -8
-        ],
-        [
-          -21,
-          4
-        ],
-        [
-          -18,
-          14
-        ],
-        [
-          -16,
-          22
-        ],
-        [
-          -14,
-          34
-        ]
+        {
+          "at": [
+            -34,
+            -40
+          ],
+          "width": 6,
+          "level": -0.45,
+          "speed": 0.6
+        },
+        {
+          "at": [
+            -26,
+            -22
+          ],
+          "width": 6
+        },
+        {
+          "at": [
+            -21,
+            -8
+          ],
+          "width": 6
+        },
+        {
+          "at": [
+            -21,
+            4
+          ],
+          "width": 6
+        },
+        {
+          "at": [
+            -18,
+            14
+          ],
+          "width": 6
+        },
+        {
+          "at": [
+            -16,
+            22
+          ],
+          "width": 6
+        },
+        {
+          "at": [
+            -14,
+            34
+          ],
+          "width": 6
+        }
       ],
-      "speed": 0.6
+      "sound": null
     },
     {
       "id": "bridge",
@@ -1109,30 +1141,23 @@
       "solid": false
     },
     {
-      "id": "willow",
-      "kind": "prop",
-      "builder": "willow",
-      "seed": 5821,
-      "at": [
-        -17.6,
-        19
-      ],
-      "yaw": -2.4
-    },
-    {
       "id": "paddock-north-w",
-      "kind": "run",
+      "kind": "line",
       "builder": "hedge",
       "seed": 5831,
       "points": [
-        [
-          -31,
-          2
-        ],
-        [
-          -27.6,
-          2.5
-        ]
+        {
+          "at": [
+            -31,
+            2
+          ]
+        },
+        {
+          "at": [
+            -27.6,
+            2.5
+          ]
+        }
       ]
     },
     {
@@ -1148,175 +1173,243 @@
     },
     {
       "id": "paddock-north-e",
-      "kind": "run",
+      "kind": "line",
       "builder": "hedge",
       "seed": 5833,
       "points": [
-        [
-          -25.4,
-          2.9
-        ],
-        [
-          -22,
-          3.6
-        ]
+        {
+          "at": [
+            -25.4,
+            2.9
+          ]
+        },
+        {
+          "at": [
+            -22,
+            3.6
+          ]
+        }
       ]
     },
     {
       "id": "paddock-south",
-      "kind": "run",
+      "kind": "line",
       "builder": "hedge",
       "seed": 5834,
       "points": [
-        [
-          -31,
-          16
-        ],
-        [
-          -20,
-          15
-        ]
+        {
+          "at": [
+            -31,
+            16
+          ]
+        },
+        {
+          "at": [
+            -20,
+            15
+          ]
+        }
       ]
     },
     {
       "id": "gate-road",
-      "kind": "track",
-      "through": [
-        [
-          0,
-          34
-        ],
-        [
-          0,
-          26
-        ],
-        [
-          0,
-          20
-        ],
-        [
-          -3,
-          14
-        ],
-        [
-          -10,
-          11
-        ],
-        [
-          -16,
-          5
-        ],
-        [
-          -19.5,
-          -3.6
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7101,
+      "points": [
+        {
+          "at": [
+            0,
+            34
+          ]
+        },
+        {
+          "at": [
+            0,
+            26
+          ]
+        },
+        {
+          "at": [
+            0,
+            20
+          ]
+        },
+        {
+          "at": [
+            -3,
+            14
+          ]
+        },
+        {
+          "at": [
+            -10,
+            11
+          ]
+        },
+        {
+          "at": [
+            -16,
+            5
+          ]
+        },
+        {
+          "at": [
+            -19.5,
+            -3.6
+          ]
+        }
       ],
-      "width": 3,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.6,
-      "seed": 7101
+      "options": {
+        "width": 3,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.6
+      }
     },
     {
       "id": "west-road",
-      "kind": "track",
-      "through": [
-        [
-          -24,
-          -5.6
-        ],
-        [
-          -27,
-          -4.8
-        ],
-        [
-          -30,
-          -4
-        ],
-        [
-          -38,
-          -3
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7105,
+      "points": [
+        {
+          "at": [
+            -24,
+            -5.6
+          ]
+        },
+        {
+          "at": [
+            -27,
+            -4.8
+          ]
+        },
+        {
+          "at": [
+            -30,
+            -4
+          ]
+        },
+        {
+          "at": [
+            -38,
+            -3
+          ]
+        }
       ],
-      "width": 3,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.5,
-      "seed": 7105
+      "options": {
+        "width": 3,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.5
+      }
     },
     {
       "id": "lane-row",
-      "kind": "track",
-      "through": [
-        [
-          11.5,
-          -0.5
-        ],
-        [
-          9,
-          -6
-        ],
-        [
-          4,
-          -9.4
-        ],
-        [
-          -10,
-          -9.4
-        ],
-        [
-          -13,
-          -8
-        ],
-        [
-          -14.8,
-          -4
-        ],
-        [
-          -17.75,
-          0.7
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7102,
+      "points": [
+        {
+          "at": [
+            11.5,
+            -0.5
+          ]
+        },
+        {
+          "at": [
+            9,
+            -6
+          ]
+        },
+        {
+          "at": [
+            4,
+            -9.4
+          ]
+        },
+        {
+          "at": [
+            -10,
+            -9.4
+          ]
+        },
+        {
+          "at": [
+            -13,
+            -8
+          ]
+        },
+        {
+          "at": [
+            -14.8,
+            -4
+          ]
+        },
+        {
+          "at": [
+            -17.75,
+            0.7
+          ]
+        }
       ],
-      "width": 2.2,
-      "surface": "cobble",
-      "edge": "kerb",
-      "wear": 0.5,
-      "seed": 7102
+      "options": {
+        "width": 2.2,
+        "surface": "cobble",
+        "edge": "kerb",
+        "wear": 0.5
+      }
     },
     {
       "id": "lane-church",
-      "kind": "track",
-      "through": [
-        [
-          0,
-          23
-        ],
-        [
-          3,
-          17
-        ],
-        [
-          7,
-          11
-        ],
-        [
-          10,
-          4
-        ],
-        [
-          12,
-          -2
-        ],
-        [
-          15.5,
-          -1
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7103,
+      "points": [
+        {
+          "at": [
+            0,
+            23
+          ]
+        },
+        {
+          "at": [
+            3,
+            17
+          ]
+        },
+        {
+          "at": [
+            7,
+            11
+          ]
+        },
+        {
+          "at": [
+            10,
+            4
+          ]
+        },
+        {
+          "at": [
+            12,
+            -2
+          ]
+        },
+        {
+          "at": [
+            15.5,
+            -1
+          ]
+        }
       ],
-      "width": 2.2,
-      "surface": "cobble",
-      "edge": "kerb",
-      "wear": 0.45,
-      "seed": 7103
+      "options": {
+        "width": 2.2,
+        "surface": "cobble",
+        "edge": "kerb",
+        "wear": 0.45
+      }
     },
     {
       "id": "well",
@@ -1328,6 +1421,138 @@
         4
       ],
       "yaw": 0.3
+    },
+    {
+      "id": "green-oak",
+      "kind": "prop",
+      "builder": "oak",
+      "seed": 5150,
+      "at": [
+        1,
+        1
+      ],
+      "yaw": 0.6
+    },
+    {
+      "id": "green-spruce",
+      "kind": "prop",
+      "builder": "spruce",
+      "seed": 5160,
+      "at": [
+        -10,
+        -3
+      ],
+      "yaw": 2.1
+    },
+    {
+      "id": "stream-willow",
+      "kind": "prop",
+      "builder": "willow",
+      "seed": 5821,
+      "at": [
+        -17.6,
+        19
+      ],
+      "yaw": -2.4
+    },
+    {
+      "id": "corner-beech",
+      "kind": "prop",
+      "builder": "beech",
+      "seed": 5101,
+      "at": [
+        -27,
+        -20
+      ],
+      "yaw": 0.9
+    },
+    {
+      "id": "yew-1",
+      "kind": "prop",
+      "builder": "yew",
+      "seed": 5971,
+      "at": [
+        17,
+        5.8
+      ],
+      "yaw": 0.7
+    },
+    {
+      "id": "yew-2",
+      "kind": "prop",
+      "builder": "yew",
+      "seed": 5972,
+      "at": [
+        38.3,
+        -4.6
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "edge-birch-1",
+      "kind": "prop",
+      "builder": "birch",
+      "seed": 5003,
+      "at": [
+        26,
+        12
+      ],
+      "yaw": 1.1
+    },
+    {
+      "id": "edge-birch-2",
+      "kind": "prop",
+      "builder": "birch",
+      "seed": 5004,
+      "at": [
+        31,
+        17
+      ],
+      "yaw": 2.9
+    },
+    {
+      "id": "edge-birch-3",
+      "kind": "prop",
+      "builder": "rowan",
+      "seed": 5005,
+      "at": [
+        23,
+        18
+      ],
+      "yaw": 4.6
+    },
+    {
+      "id": "green-birch-1",
+      "kind": "prop",
+      "builder": "birch",
+      "seed": 5006,
+      "at": [
+        -8,
+        17
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "green-birch-2",
+      "kind": "prop",
+      "builder": "birch",
+      "seed": 5007,
+      "at": [
+        -5,
+        19.5
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "green-beech",
+      "kind": "prop",
+      "builder": "beech",
+      "seed": 5102,
+      "at": [
+        -7,
+        -6
+      ],
+      "yaw": 3.6
     },
     {
       "id": "bench",
@@ -1375,20 +1600,23 @@
     },
     {
       "id": "tom-fence-w",
-      "kind": "run",
+      "kind": "line",
       "builder": "fence",
       "seed": 5701,
       "points": [
-        [
-          -12.7,
-          -11.6
-        ],
-        [
-          -9.9,
-          -11.6
-        ]
-      ],
-      "cap": "post"
+        {
+          "at": [
+            -12.7,
+            -11.6
+          ]
+        },
+        {
+          "at": [
+            -9.9,
+            -11.6
+          ]
+        }
+      ]
     },
     {
       "id": "tom-gate",
@@ -1411,20 +1639,23 @@
     },
     {
       "id": "tom-fence-e",
-      "kind": "run",
+      "kind": "line",
       "builder": "fence",
       "seed": 5703,
       "points": [
-        [
-          -7.1,
-          -11.6
-        ],
-        [
-          -4.3,
-          -11.6
-        ]
-      ],
-      "cap": "post"
+        {
+          "at": [
+            -7.1,
+            -11.6
+          ]
+        },
+        {
+          "at": [
+            -4.3,
+            -11.6
+          ]
+        }
+      ]
     },
     {
       "id": "nell-house",
@@ -1439,24 +1670,29 @@
     },
     {
       "id": "nell-fence",
-      "kind": "run",
+      "kind": "line",
       "builder": "fence",
       "seed": 5711,
       "points": [
-        [
-          6.0,
-          -17.6
-        ],
-        [
-          6.0,
-          -12.0
-        ],
-        [
-          3.2,
-          -12.0
-        ]
-      ],
-      "cap": "post"
+        {
+          "at": [
+            6,
+            -17.6
+          ]
+        },
+        {
+          "at": [
+            6,
+            -12
+          ]
+        },
+        {
+          "at": [
+            3.2,
+            -12
+          ]
+        }
+      ]
     },
     {
       "id": "sunflower-1",
@@ -1476,7 +1712,7 @@
       "builder": "sunflower",
       "seed": 5713,
       "at": [
-        5.0,
+        5,
         -15.2
       ],
       "yaw": 1.9,
@@ -1501,7 +1737,7 @@
       "seed": 5715,
       "at": [
         4.8,
-        -13.0
+        -13
       ],
       "yaw": 0.7,
       "solid": false
@@ -1512,7 +1748,7 @@
       "builder": "lavender",
       "seed": 5716,
       "at": [
-        3.0,
+        3,
         -14.6
       ],
       "yaw": 2.3,
@@ -1546,7 +1782,7 @@
       "builder": "barrel",
       "seed": 5406,
       "at": [
-        15.0,
+        15,
         -13.2
       ],
       "yaw": 0.2
@@ -1562,39 +1798,6 @@
       ],
       "yaw": -0.08,
       "cover": "rose"
-    },
-    {
-      "id": "row-hazel-1",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 5310,
-      "at": [
-        -12.4,
-        -17.8
-      ],
-      "yaw": 0.8
-    },
-    {
-      "id": "row-hazel-2",
-      "kind": "prop",
-      "builder": "hazel",
-      "seed": 5311,
-      "at": [
-        15.5,
-        -18.5
-      ],
-      "yaw": 2.1
-    },
-    {
-      "id": "row-elder",
-      "kind": "prop",
-      "builder": "elder",
-      "seed": 5312,
-      "at": [
-        5,
-        -18.5
-      ],
-      "yaw": 1.3
     },
     {
       "id": "yard-logs",
@@ -1708,82 +1911,79 @@
     },
     {
       "id": "churchyard-north",
-      "kind": "run",
-      "builder": "stone-wall-low",
+      "kind": "line",
+      "builder": "wall",
       "seed": 5961,
       "points": [
-        [
-          14.5,
-          -6.5
-        ],
-        [
-          40.1,
-          -6.5
-        ]
+        {
+          "at": [
+            14.5,
+            -6.5
+          ]
+        },
+        {
+          "at": [
+            40.1,
+            -6.5
+          ]
+        }
       ],
+      "style": "low",
       "cover": "ivy"
     },
     {
       "id": "churchyard-wall",
-      "kind": "run",
-      "builder": "stone-wall-low",
+      "kind": "line",
+      "builder": "wall",
       "seed": 5962,
       "points": [
-        [
-          40.1,
-          -6.5
-        ],
-        [
-          40.1,
-          7.9
-        ],
-        [
-          14.5,
-          7.9
-        ],
-        [
-          14.5,
-          1.5
-        ]
-      ]
+        {
+          "at": [
+            40.1,
+            -6.5
+          ]
+        },
+        {
+          "at": [
+            40.1,
+            7.9
+          ]
+        },
+        {
+          "at": [
+            14.5,
+            7.9
+          ]
+        },
+        {
+          "at": [
+            14.5,
+            1.5
+          ]
+        }
+      ],
+      "style": "low"
     },
     {
       "id": "churchyard-west",
-      "kind": "run",
-      "builder": "stone-wall-low",
+      "kind": "line",
+      "builder": "wall",
       "seed": 5963,
       "points": [
-        [
-          14.5,
-          -6.5
-        ],
-        [
-          14.5,
-          -3.3
-        ]
-      ]
-    },
-    {
-      "id": "yew-1",
-      "kind": "prop",
-      "builder": "small-oak",
-      "seed": 5971,
-      "at": [
-        17,
-        5.8
+        {
+          "at": [
+            14.5,
+            -6.5
+          ]
+        },
+        {
+          "at": [
+            14.5,
+            -3.3
+          ]
+        }
       ],
-      "yaw": 0.7
-    },
-    {
-      "id": "yew-2",
-      "kind": "prop",
-      "builder": "small-oak",
-      "seed": 5972,
-      "at": [
-        38.3,
-        -4.6
-      ],
-      "yaw": 2.2
+      "style": "low"
     },
     {
       "id": "mark",
@@ -1852,102 +2052,6 @@
       ],
       "yaw": 1.9,
       "roam": 3
-    },
-    {
-      "id": "corner-oak",
-      "kind": "prop",
-      "builder": "oak",
-      "seed": 5101,
-      "at": [
-        -27,
-        -20
-      ],
-      "yaw": 0.9,
-      "scale": 1.05
-    },
-    {
-      "id": "edge-trees",
-      "kind": "scatter",
-      "builder": "tree",
-      "seed": 5007,
-      "count": 5,
-      "within": 30,
-      "from": [
-        -8,
-        -26
-      ],
-      "maxSlope": 28,
-      "avoid": [
-        "keepClear",
-        "gate-road",
-        "west-road",
-        "lane-row",
-        "lane-church"
-      ],
-      "scale": [
-        0.85,
-        1.2
-      ]
-    },
-    {
-      "id": "edge-birches",
-      "kind": "scatter",
-      "builder": "birch",
-      "seed": 5003,
-      "count": 4,
-      "within": 14,
-      "from": [
-        28,
-        14
-      ],
-      "maxSlope": 28,
-      "avoid": [
-        "keepClear",
-        "gate-road",
-        "west-road",
-        "lane-row",
-        "lane-church"
-      ],
-      "scale": [
-        0.85,
-        1.15
-      ]
-    },
-    {
-      "id": "edge-bushes",
-      "kind": "scatter",
-      "builder": "bush",
-      "seed": 5011,
-      "count": 10,
-      "within": 34,
-      "maxSlope": 30,
-      "avoid": [
-        "keepClear",
-        "gate-road",
-        "west-road",
-        "lane-row",
-        "lane-church"
-      ]
-    },
-    {
-      "id": "edge-elders",
-      "kind": "scatter",
-      "builder": "elder",
-      "seed": 5013,
-      "count": 3,
-      "within": 12,
-      "from": [
-        26,
-        20
-      ],
-      "maxSlope": 28,
-      "avoid": [
-        "keepClear",
-        "gate-road",
-        "west-road",
-        "lane-row",
-        "lane-church"
-      ]
     },
     {
       "id": "wildflowers",
@@ -2075,7 +2179,7 @@
             118,
             22
           ],
-          "scale": 1.0,
+          "scale": 1,
           "seed": 9141,
           "variant": "mixed",
           "yaw": -1.7551
@@ -2086,26 +2190,98 @@
             84,
             -66
           ],
-          "scale": 1.0,
+          "scale": 1,
           "seed": 9142
         },
         {
-          "builder": "vista-orchard",
+          "tree": "fruit",
+          "card": true,
           "at": [
-            -62,
-            92
+            -56.21,
+            92.1
           ],
-          "scale": 1.0,
-          "seed": 9143
+          "scale": 0.35,
+          "seed": 91430
         },
         {
-          "builder": "vista-copse",
+          "tree": "fruit",
+          "card": true,
           "at": [
-            88,
-            62
+            -63.89,
+            100.56
           ],
-          "scale": 1.1,
-          "seed": 9144
+          "scale": 0.35,
+          "seed": 91431
+        },
+        {
+          "tree": "fruit",
+          "card": true,
+          "at": [
+            -68.41,
+            92.06
+          ],
+          "scale": 0.35,
+          "seed": 91432
+        },
+        {
+          "tree": "fruit",
+          "card": true,
+          "at": [
+            -65.09,
+            84.71
+          ],
+          "scale": 0.35,
+          "seed": 91433
+        },
+        {
+          "tree": "fruit",
+          "card": true,
+          "at": [
+            -59.01,
+            84.32
+          ],
+          "scale": 0.35,
+          "seed": 91434
+        },
+        {
+          "tree": "fruit",
+          "card": true,
+          "at": [
+            -54.69,
+            92.94
+          ],
+          "scale": 0.35,
+          "seed": 91435
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "at": [
+            90.23,
+            69.27
+          ],
+          "scale": 0.675,
+          "seed": 91440
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "at": [
+            83.83,
+            67.82
+          ],
+          "scale": 0.81,
+          "seed": 91441
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "at": [
+            90.97,
+            59.05
+          ],
+          "scale": 0.79,
+          "seed": 91442
         },
         {
           "builder": "vista-knoll",
@@ -2132,7 +2308,7 @@
             -104,
             44
           ],
-          "scale": 1.0,
+          "scale": 1,
           "seed": 9147,
           "yaw": 1.971
         },
@@ -2213,28 +2389,132 @@
           "apparent": 460
         },
         {
-          "builder": "vista-shelterbelt",
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
           "at": [
-            -92,
-            -168
+            -118.3,
+            -153.6
           ],
-          "scale": 1.2,
-          "seed": 9155,
-          "apparent": 420,
-          "variant": "nine"
+          "scale": 0.9,
+          "seed": 9155
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -111.7,
+            -157.2
+          ],
+          "scale": 0.9,
+          "seed": 9156
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -105.2,
+            -160.8
+          ],
+          "scale": 0.9,
+          "seed": 9157
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -98.6,
+            -164.4
+          ],
+          "scale": 0.9,
+          "seed": 9158
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -92.0,
+            -168.0
+          ],
+          "scale": 0.9,
+          "seed": 9159
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -85.4,
+            -171.6
+          ],
+          "scale": 0.9,
+          "seed": 9160
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -78.8,
+            -175.2
+          ],
+          "scale": 0.9,
+          "seed": 9161
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -72.3,
+            -178.8
+          ],
+          "scale": 0.9,
+          "seed": 9162
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "variants": 3,
+          "at": [
+            -65.7,
+            -182.4
+          ],
+          "scale": 0.9,
+          "seed": 9163
         }
       ],
       "scatter": [
         {
-          "builder": "vista-copse",
-          "count": 4,
+          "tree": "oak",
+          "card": true,
+          "count": 8,
+          "spacing": 9,
           "band": {
             "inner": 14,
             "outer": 55
           },
           "scale": [
-            0.9,
-            1.3
+            0.55,
+            0.8
+          ]
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "count": 4,
+          "spacing": 9,
+          "band": {
+            "inner": 14,
+            "outer": 55
+          },
+          "scale": [
+            0.55,
+            0.8
           ]
         },
         {
@@ -2281,7 +2561,7 @@
             "outer": 138
           },
           "scale": [
-            1.0,
+            1,
             1.4
           ],
           "apparent": [
@@ -2290,19 +2570,31 @@
           ]
         },
         {
-          "builder": "vista-copse",
-          "count": 4,
+          "tree": "oak",
+          "card": true,
+          "count": 8,
+          "spacing": 9,
           "band": {
             "inner": 108,
             "outer": 138
           },
           "scale": [
-            1.2,
-            1.6
-          ],
-          "apparent": [
-            260,
-            420
+            0.55,
+            0.8
+          ]
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "count": 4,
+          "spacing": 9,
+          "band": {
+            "inner": 108,
+            "outer": 138
+          },
+          "scale": [
+            0.55,
+            0.8
           ]
         },
         {
@@ -2514,7 +2806,7 @@
         6,
         -7
       ],
-      "yaw": 5.0,
+      "yaw": 5,
       "roam": 3
     }
   ]

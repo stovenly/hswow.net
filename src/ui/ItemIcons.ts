@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { builderByName } from '../art/registry';
 import { hashString } from '../world/loot';
-import type { Item } from '../world/items';
+import { kindOf, type Item } from '../world/items';
 import type { App } from '../app/boot';
 
 /**
@@ -12,7 +12,7 @@ import type { App } from '../app/boot';
  */
 
 /** Bump when builders change enough that cached icons lie. Orphans are pruned. */
-const ICON_VERSION = 5;
+const ICON_VERSION = 6;
 
 /** Pixels square. Covers a cell at twice its CSS size, so a retina panel upscales nothing. */
 const SIZE = 128;
@@ -20,6 +20,9 @@ const SIZE = 128;
 /** Builds per frame: warming pace with no grid up, careful pace with one. */
 const PACE_IDLE = 4;
 const PACE_OPEN = 1;
+
+/** Radians about y for a flat item's icon; with the eye above and a little to +x +z, this puts +Z at the lower left. */
+const FLAT_TURN = -0.3;
 
 const DB_NAME = 'hswow-icons';
 const STORE = 'icons';
@@ -189,6 +192,10 @@ export class ItemIcons {
 
   /** The picture itself: frames `mesh`, which is already in the scene and compiled. */
   private draw(mesh: THREE.Mesh): string | null {
+    // An accessory lies flat with its face up, so it is drawn from above and
+    // turned so its head at +Z falls to the lower left rather than straight down.
+    const flat = kindOf(mesh.name) === 'accessory';
+    if (flat) mesh.rotation.y = FLAT_TURN;
     mesh.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(mesh, true);
     const centre = box.getCenter(new THREE.Vector3());
@@ -202,7 +209,10 @@ export class ItemIcons {
     this.camera.bottom = -reach;
     this.camera.far = reach * 20 + 10;
     this.camera.updateProjectionMatrix();
-    this.camera.position.copy(centre).add(new THREE.Vector3(reach * 3, reach * 2.2, reach * 3));
+    const eye = flat
+      ? new THREE.Vector3(reach * 0.9, reach * 3.4, reach * 1.8)
+      : new THREE.Vector3(reach * 3, reach * 2.2, reach * 3);
+    this.camera.position.copy(centre).add(eye);
     this.camera.lookAt(centre);
 
     const renderer = this.app.viewport.renderer;

@@ -27,50 +27,88 @@
     "yaw": 3.1415927
   },
   "floor": -5,
-  "shell": {
-    "width": 10,
-    "depth": 8,
-    "height": 3.4,
+  "interior": {
+    "kit": "house",
     "seed": 4400,
-    "style": "house",
-    "planks": true,
-    "beams": 3
+    "storeys": [
+      {
+        "height": 3.4,
+        "origin": [
+          -10,
+          -8
+        ],
+        "cells": [
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAA"
+        ],
+        "edges": [
+          {
+            "id": "front-door",
+            "at": [
+              -1,
+              -8
+            ],
+            "side": "n",
+            "kind": "door"
+          },
+          {
+            "id": "window-s2",
+            "at": [
+              4,
+              7
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 8811
+          },
+          {
+            "id": "window-s1",
+            "at": [
+              -6,
+              7
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 8810
+          },
+          {
+            "id": "hearth",
+            "at": [
+              -10,
+              -1
+            ],
+            "side": "w",
+            "kind": "hearth",
+            "seed": 8801
+          }
+        ]
+      }
+    ],
+    "rooms": {
+      "A": {
+        "planks": true,
+        "beams": 3
+      }
+    }
   },
-  "traits": ["villager"],
+  "traits": [
+    "villager"
+  ],
   "entries": [
-    {
-      "id": "hearth",
-      "kind": "prop",
-      "builder": "fireplace",
-      "seed": 8801,
-      "at": [
-        -4.88,
-        0.4
-      ],
-      "yaw": 1.5707963
-    },
-    {
-      "id": "window-s1",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 8810,
-      "at": [
-        -2.6,
-        3.9
-      ],
-      "yaw": 3.1415927
-    },
-    {
-      "id": "window-s2",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 8811,
-      "at": [
-        2.4,
-        3.9
-      ],
-      "yaw": 3.1415927
-    },
     {
       "id": "stove",
       "kind": "prop",
@@ -99,8 +137,8 @@
       "builder": "chest",
       "seed": 8830,
       "at": [
-        -4.0,
-        -1.0
+        -4,
+        -1
       ],
       "yaw": 0.06
     },
@@ -256,7 +294,7 @@
       "seed": 61,
       "at": [
         4.1,
-        -3.0
+        -3
       ],
       "yaw": 0.4
     },
@@ -302,7 +340,7 @@
       "seed": 7103,
       "at": [
         4.05,
-        -3.0
+        -3
       ],
       "yaw": 0.9,
       "on": "crate-1"

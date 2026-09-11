@@ -224,9 +224,16 @@ function createAoMaterial(): THREE.ShaderMaterial {
           gl_FragColor = vec4(1.0);
           return;
         }
+        // A crown writes alpha 0 into the normal buffer: its leaves take no
+        // occlusion, because leaves at hundreds of depths would speckle it.
+        vec4 packed = texture2D(tNormal, vUv);
+        if (packed.a < 0.5) {
+          gl_FragColor = vec4(1.0);
+          return;
+        }
 
         vec3 P = viewPosition(vUv, depth);
-        vec3 N = normalize(texture2D(tNormal, vUv).rgb * 2.0 - 1.0);
+        vec3 N = normalize(packed.rgb * 2.0 - 1.0);
         vec3 V = normalize(-P);
 
         // The world radius on screen, and it is two numbers: UV is not isotropic, so

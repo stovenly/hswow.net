@@ -1,0 +1,911 @@
+{
+  "id": "water-showcase",
+  "name": "Water Showcase",
+  "environment": {
+    "base": "outdoor",
+    "fogNear": 60,
+    "fogFar": 300,
+    "firstPersonReverb": 0.4,
+    "vibe": "plains 1"
+  },
+  "spawn": {
+    "at": [
+      0,
+      -40
+    ],
+    "yaw": 0
+  },
+  "floor": -30,
+  "soundscape": {
+    "bed": [
+      {
+        "model": "wind",
+        "id": "wind",
+        "options": {
+          "gain": 0.22,
+          "tone": 3400
+        }
+      }
+    ],
+    "emitters": [
+      {
+        "model": "surf",
+        "id": "surf",
+        "options": {
+          "gain": 0.3,
+          "period": [
+            7,
+            11
+          ],
+          "tone": 1,
+          "shingle": 0.2,
+          "swell": 0.45
+        },
+        "at": [
+          0,
+          -0.8,
+          26
+        ],
+        "refDistance": 14,
+        "maxDistance": 120,
+        "rolloff": 0.9,
+        "reverb": 0.3
+      }
+    ]
+  },
+  "terrain": {
+    "size": 130,
+    "resolution": 1,
+    "steepDetail": 2,
+    "base": "meadow",
+    "landforms": [
+      {
+        "kind": "terrace",
+        "at": [
+          -17,
+          -6
+        ],
+        "radius": 5.5,
+        "height": 2.6,
+        "blend": 0.8
+      },
+      {
+        "kind": "basin",
+        "at": [
+          -17,
+          -6
+        ],
+        "radius": 3.6,
+        "depth": 0.9
+      },
+      {
+        "kind": "terrace",
+        "shape": [
+          {
+            "kind": "path",
+            "through": [
+              [
+                -17,
+                -6
+              ],
+              [
+                -11.6,
+                -5.2
+              ]
+            ],
+            "width": 2.2
+          }
+        ],
+        "height": -0.5,
+        "blend": 0.6
+      },
+      {
+        "kind": "basin",
+        "at": [
+          -3,
+          -3
+        ],
+        "radius": 10,
+        "depth": 1.8
+      },
+      {
+        "kind": "terrace",
+        "shape": [
+          {
+            "kind": "path",
+            "through": [
+              [
+                36,
+                -34
+              ],
+              [
+                28,
+                -26
+              ],
+              [
+                20,
+                -20
+              ],
+              [
+                12,
+                -14
+              ],
+              [
+                6,
+                -10
+              ],
+              [
+                2,
+                -7
+              ]
+            ],
+            "width": 3.2
+          }
+        ],
+        "height": -0.85,
+        "blend": 1.2
+      },
+      {
+        "kind": "basin",
+        "at": [
+          30,
+          14
+        ],
+        "radius": 2.4,
+        "depth": 0.6
+      },
+      {
+        "kind": "terrace",
+        "at": [
+          0,
+          62
+        ],
+        "radius": 42,
+        "height": -4.5,
+        "blend": 10
+      }
+    ],
+    "edgeFade": {
+      "band": 12
+    }
+  },
+  "skirt": {
+    "reach": 340,
+    "resolution": 14,
+    "collar": 8,
+    "apron": 24,
+    "roll": 0.3,
+    "sea": -3,
+    "flatten": {
+      "from": 70,
+      "to": 170
+    },
+    "seed": 7491
+  },
+  "regions": {
+    "harbour": [
+      {
+        "kind": "field",
+        "min": [
+          -16,
+          14
+        ],
+        "max": [
+          16,
+          30
+        ]
+      }
+    ]
+  },
+  "entries": [
+    {
+      "id": "upper-pool",
+      "kind": "water",
+      "regime": "still",
+      "palette": "tarn",
+      "level": 2.05,
+      "shape": [
+        [
+          -16.07,
+          -3.15
+        ],
+        [
+          -17.09,
+          -3
+        ],
+        [
+          -18.09,
+          -3.2
+        ],
+        [
+          -18.96,
+          -3.73
+        ],
+        [
+          -19.61,
+          -4.52
+        ],
+        [
+          -19.96,
+          -5.49
+        ],
+        [
+          -19.96,
+          -6.51
+        ],
+        [
+          -19.61,
+          -7.48
+        ],
+        [
+          -18.96,
+          -8.27
+        ],
+        [
+          -18.09,
+          -8.8
+        ],
+        [
+          -17.09,
+          -9
+        ],
+        [
+          -16.07,
+          -8.85
+        ],
+        [
+          -11.6,
+          -4.1
+        ],
+        [
+          -11.6,
+          -6.3
+        ]
+      ],
+      "segment": 0.4
+    },
+    {
+      "id": "pond",
+      "kind": "water",
+      "regime": "still",
+      "palette": "pond",
+      "level": -0.45,
+      "shape": [
+        [
+          4.8,
+          -3
+        ],
+        [
+          4.21,
+          -0.02
+        ],
+        [
+          2.52,
+          2.52
+        ],
+        [
+          -0.02,
+          4.21
+        ],
+        [
+          -3,
+          4.8
+        ],
+        [
+          -5.98,
+          4.21
+        ],
+        [
+          -8.52,
+          2.52
+        ],
+        [
+          -10.21,
+          -0.02
+        ],
+        [
+          -10.8,
+          -3
+        ],
+        [
+          -10.21,
+          -5.98
+        ],
+        [
+          -8.52,
+          -8.52
+        ],
+        [
+          -5.98,
+          -10.21
+        ],
+        [
+          -3,
+          -10.8
+        ],
+        [
+          -0.02,
+          -10.21
+        ],
+        [
+          2.52,
+          -8.52
+        ],
+        [
+          4.21,
+          -5.98
+        ]
+      ],
+      "rise": 3
+    },
+    {
+      "id": "fall",
+      "kind": "water",
+      "regime": "fall",
+      "palette": "tarn",
+      "fall": {
+        "from": [
+          -12,
+          -5.2
+        ],
+        "to": [
+          -6,
+          -4
+        ],
+        "width": 2.2,
+        "throw": 0.7
+      }
+    },
+    {
+      "id": "brook",
+      "kind": "water",
+      "regime": "flow",
+      "palette": "river",
+      "course": [
+        {
+          "at": [
+            36,
+            -34
+          ],
+          "width": 2.4,
+          "level": -0.3,
+          "speed": 0.7
+        },
+        {
+          "at": [
+            28,
+            -26
+          ],
+          "width": 2.4
+        },
+        {
+          "at": [
+            20,
+            -20
+          ],
+          "width": 2.6
+        },
+        {
+          "at": [
+            12,
+            -14
+          ],
+          "width": 2.4
+        },
+        {
+          "at": [
+            6,
+            -10
+          ],
+          "width": 2.4
+        },
+        {
+          "at": [
+            2,
+            -7
+          ],
+          "width": 2.4
+        }
+      ]
+    },
+    {
+      "id": "rockpool",
+      "kind": "water",
+      "regime": "still",
+      "palette": "rockpool",
+      "level": -0.2,
+      "shape": [
+        [
+          31.7,
+          14
+        ],
+        [
+          31.38,
+          15
+        ],
+        [
+          30.53,
+          15.62
+        ],
+        [
+          29.47,
+          15.62
+        ],
+        [
+          28.62,
+          15
+        ],
+        [
+          28.3,
+          14
+        ],
+        [
+          28.62,
+          13
+        ],
+        [
+          29.47,
+          12.38
+        ],
+        [
+          30.53,
+          12.38
+        ],
+        [
+          31.38,
+          13
+        ]
+      ],
+      "segment": 0.3,
+      "sound": null
+    },
+    {
+      "id": "sea",
+      "kind": "water",
+      "regime": "sea",
+      "palette": "sea",
+      "level": -1,
+      "shape": [
+        [
+          -56,
+          12
+        ],
+        [
+          56,
+          12
+        ],
+        [
+          56,
+          58
+        ],
+        [
+          -56,
+          58
+        ]
+      ],
+      "reach": 600,
+      "segment": 0.8,
+      "swell": {
+        "direction": [
+          0,
+          -1
+        ],
+        "length": 26,
+        "height": 0.5
+      },
+      "shelter": "harbour"
+    },
+    {
+      "id": "brook-boulder",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3001,
+      "at": [
+        20,
+        -20
+      ],
+      "scale": 0.35,
+      "yaw": 0.7,
+      "wades": true
+    },
+    {
+      "id": "brook-stones",
+      "kind": "prop",
+      "builder": "stepping-stones",
+      "seed": 3002,
+      "at": [
+        12,
+        -14
+      ],
+      "yaw": 0.72,
+      "wades": true
+    },
+    {
+      "id": "reeds-0",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 3100,
+      "at": [
+        4.55,
+        0.19
+      ],
+      "yaw": 0.4
+    },
+    {
+      "id": "reeds-1",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 3101,
+      "at": [
+        -1.99,
+        5.14
+      ],
+      "yaw": 1.45
+    },
+    {
+      "id": "reeds-4",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 3104,
+      "at": [
+        -4.01,
+        -11.14
+      ],
+      "yaw": 4.59
+    },
+    {
+      "id": "reeds-5",
+      "kind": "prop",
+      "builder": "reeds",
+      "seed": 3105,
+      "at": [
+        3.54,
+        -7.94
+      ],
+      "yaw": 5.64
+    },
+    {
+      "id": "breakwater-0",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3200,
+      "at": [
+        -18,
+        31
+      ],
+      "scale": 0.85,
+      "yaw": 0,
+      "wades": true
+    },
+    {
+      "id": "breakwater-1",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3201,
+      "at": [
+        -12,
+        31.6
+      ],
+      "scale": 0.85,
+      "yaw": 0.9,
+      "wades": true
+    },
+    {
+      "id": "breakwater-2",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3202,
+      "at": [
+        -6,
+        31
+      ],
+      "scale": 0.85,
+      "yaw": 1.8,
+      "wades": true
+    },
+    {
+      "id": "breakwater-3",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3203,
+      "at": [
+        0,
+        31.6
+      ],
+      "scale": 0.85,
+      "yaw": 2.7,
+      "wades": true
+    },
+    {
+      "id": "breakwater-4",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3204,
+      "at": [
+        6,
+        31
+      ],
+      "scale": 0.85,
+      "yaw": 3.6,
+      "wades": true
+    },
+    {
+      "id": "breakwater-5",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3205,
+      "at": [
+        12,
+        31.6
+      ],
+      "scale": 0.85,
+      "yaw": 4.5,
+      "wades": true
+    },
+    {
+      "id": "breakwater-6",
+      "kind": "prop",
+      "builder": "boulder",
+      "seed": 3206,
+      "at": [
+        18,
+        31
+      ],
+      "scale": 0.85,
+      "yaw": 5.4,
+      "wades": true
+    },
+    {
+      "id": "post-a",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 3301,
+      "at": [
+        -8,
+        12.6
+      ],
+      "yaw": 0.3,
+      "wades": true
+    },
+    {
+      "id": "post-b",
+      "kind": "prop",
+      "builder": "post",
+      "seed": 3302,
+      "at": [
+        6.5,
+        12.8
+      ],
+      "yaw": -0.4,
+      "wades": true
+    },
+    {
+      "id": "skiff-a",
+      "kind": "prop",
+      "builder": "skiff",
+      "seed": 3401,
+      "at": [
+        -6,
+        20
+      ],
+      "yaw": 1.2,
+      "afloat": true
+    },
+    {
+      "id": "skiff-b",
+      "kind": "prop",
+      "builder": "skiff",
+      "seed": 3402,
+      "at": [
+        5,
+        22
+      ],
+      "yaw": -0.6,
+      "afloat": true
+    },
+    {
+      "id": "mooring-a",
+      "kind": "mooring",
+      "float": "skiff-a",
+      "post": "post-a",
+      "lift": 0.9,
+      "slack": 0.18
+    },
+    {
+      "id": "mooring-b",
+      "kind": "mooring",
+      "float": "skiff-b",
+      "post": "post-b",
+      "lift": 0.9,
+      "slack": 0.22
+    },
+    {
+      "id": "jetty",
+      "kind": "line",
+      "builder": "jetty",
+      "style": "pier",
+      "seed": 3601,
+      "points": [
+        {
+          "at": [
+            -14,
+            11
+          ]
+        },
+        {
+          "at": [
+            -14,
+            21
+          ]
+        }
+      ],
+      "options": {
+        "width": 2.2
+      },
+      "marks": [
+        {
+          "at": 9.5,
+          "kind": "post",
+          "options": {
+            "side": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "skiff-c",
+      "kind": "prop",
+      "builder": "skiff",
+      "seed": 3403,
+      "at": [
+        -17.5,
+        20.5
+      ],
+      "yaw": 1.4,
+      "afloat": true
+    },
+    {
+      "id": "mooring-c",
+      "kind": "mooring",
+      "float": "skiff-c",
+      "at": [
+        -15.5,
+        -0.4,
+        20.5
+      ],
+      "slack": 0.2
+    },
+    {
+      "id": "orchard",
+      "kind": "region",
+      "builder": "rows",
+      "seed": 3701,
+      "points": [
+        [
+          42,
+          -48
+        ],
+        [
+          58,
+          -46
+        ],
+        [
+          56,
+          -30
+        ],
+        [
+          40,
+          -32
+        ]
+      ],
+      "options": {
+        "rowPitch": 5,
+        "pitch": 4.5,
+        "headland": 2,
+        "plant": "fruit",
+        "crop": true,
+        "scale": [
+          0.85,
+          1.1
+        ]
+      }
+    },
+    {
+      "id": "orchard-wall",
+      "kind": "region",
+      "builder": "border",
+      "seed": 3702,
+      "points": [
+        [
+          42,
+          -48
+        ],
+        [
+          58,
+          -46
+        ],
+        [
+          56,
+          -30
+        ],
+        [
+          40,
+          -32
+        ]
+      ],
+      "options": {
+        "builder": "wall",
+        "style": "low",
+        "width": 0.5
+      }
+    },
+    {
+      "id": "lane-fence",
+      "kind": "line",
+      "builder": "fence",
+      "seed": 3703,
+      "points": [
+        {
+          "at": [
+            -30,
+            -47
+          ]
+        },
+        {
+          "at": [
+            -8,
+            -47
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 12,
+          "kind": "gate",
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "pond-hedge",
+      "kind": "line",
+      "builder": "hedge",
+      "style": "wild",
+      "seed": 3704,
+      "smooth": true,
+      "points": [
+        {
+          "at": [
+            8,
+            4
+          ]
+        },
+        {
+          "at": [
+            12,
+            0
+          ]
+        },
+        {
+          "at": [
+            14,
+            -6
+          ]
+        },
+        {
+          "at": [
+            12,
+            -12
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 7,
+          "kind": "standard",
+          "builder": "oak"
+        }
+      ]
+    }
+  ]
+}

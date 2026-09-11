@@ -14,66 +14,102 @@
     "yaw": 3.1415927
   },
   "floor": -5,
-  "shell": {
-    "width": 8,
-    "depth": 6.5,
-    "height": 3,
+  "interior": {
+    "kit": "house",
     "seed": 4810,
-    "style": "house",
-    "planks": true,
-    "beams": 3
+    "storeys": [
+      {
+        "height": 3,
+        "origin": [
+          -8,
+          -6
+        ],
+        "cells": [
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAA"
+        ],
+        "edges": [
+          {
+            "id": "front-door",
+            "at": [
+              -1,
+              -6
+            ],
+            "side": "n",
+            "kind": "door"
+          },
+          {
+            "id": "window-e",
+            "at": [
+              7,
+              -3
+            ],
+            "side": "e",
+            "kind": "window",
+            "seed": 4814,
+            "options": {
+              "curtains": "none"
+            }
+          },
+          {
+            "id": "window-s2",
+            "at": [
+              3,
+              6
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4813
+          },
+          {
+            "id": "window-s1",
+            "at": [
+              -6,
+              6
+            ],
+            "side": "s",
+            "kind": "window",
+            "seed": 4812
+          },
+          {
+            "id": "hearth",
+            "at": [
+              -8,
+              -2
+            ],
+            "side": "w",
+            "kind": "hearth",
+            "seed": 4811
+          }
+        ]
+      }
+    ],
+    "rooms": {
+      "A": {
+        "planks": true,
+        "beams": 3
+      }
+    },
+    "offset": [
+      0,
+      -0.25
+    ]
   },
   "traits": [
     "villager"
   ],
   "entries": [
-    {
-      "id": "hearth",
-      "kind": "prop",
-      "builder": "fireplace",
-      "seed": 4811,
-      "at": [
-        -3.88,
-        -0.4
-      ],
-      "yaw": 1.5707963
-    },
-    {
-      "id": "window-s1",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4812,
-      "at": [
-        -2.4,
-        3.15
-      ],
-      "yaw": 3.1415927
-    },
-    {
-      "id": "window-s2",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4813,
-      "at": [
-        2.2,
-        3.15
-      ],
-      "yaw": 3.1415927
-    },
-    {
-      "id": "window-e",
-      "kind": "prop",
-      "builder": "window",
-      "seed": 4814,
-      "at": [
-        3.9,
-        -1.2
-      ],
-      "yaw": -1.5707963,
-      "options": {
-        "curtains": "none"
-      }
-    },
     {
       "id": "bed",
       "kind": "prop",

@@ -10,6 +10,7 @@ import { SaveSlots } from '../ui/SaveSlots';
 import type { Menu } from '../ui/Menu';
 import { displayOf, isReadable, isUnique, itemById, itemFrom, kindOf, type Item } from '../world/items';
 import { holdSatchel } from '../world/dialogue';
+import type { PickupInfo } from '../world/Interaction';
 import { worldChart } from '../world/chart';
 import { worldState } from '../world/state';
 import { noteById } from '../world/notes';
@@ -51,7 +52,16 @@ export interface GameItems {
 export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): GameItems {
   const inventory = new Inventory();
   const world = new ItemWorld(app.zones, app.collider, inventory);
-  app.zones.onDressed = (zone, root) => world.dressed(zone, root);
+  const icons = new ItemIcons(app);
+  app.zones.onDressed = (zone, root) => {
+    world.dressed(zone, root);
+    // Every pickup standing in the zone gets its icon drawn now, so the first
+    // program compile for its finish lands here and not on the pickup.
+    root.traverse((object) => {
+      const pickup = object.userData.pickup as PickupInfo | undefined;
+      if (pickup) icons.request(pickup.item);
+    });
+  };
 
   // What a line of dialogue reaches for when it hands something over. The pack
   // is behind a key and the speech box covers the middle, so it says so.
@@ -97,7 +107,6 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
 
   const held = new HeldTool(app.viewport.scene);
   const sounds = new ItemAudio(app.audio);
-  const icons = new ItemIcons(app);
 
   // Equip and unequip are read off slot transitions rather than announced by
   // the UI, so a swap, a drag and a displacement all resolve to the same cue.
@@ -139,7 +148,7 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
       const camera = app.player.camera;
       _origin.copy(camera.position);
       _direction.set(ndc.x, ndc.y, 0.5).unproject(camera).sub(_origin).normalize();
-      const landed = world.drop(item, _origin, _direction, app.player.position);
+      const landed = world.drop(item, _origin, _direction, app.player.position, app.player.heading);
       if (landed) sounds.drop(item);
       return landed;
     },
@@ -167,7 +176,7 @@ export function installGameItems(app: App, overlay: HTMLElement, menu: Menu): Ga
           const camera = app.player.camera;
           _origin.copy(camera.position);
           _direction.set(at.x, at.y, 0.5).unproject(camera).sub(_origin).normalize();
-          const moved = world.move(found.object, _origin, _direction, app.player.position);
+          const moved = world.move(found.object, _origin, _direction, app.player.position, app.player.heading);
           if (moved) sounds.drop(found.pickup.item);
           return moved;
         },

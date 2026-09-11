@@ -1,14 +1,29 @@
 import type { GalleryPlan } from './layout';
 import { oak } from '@engine/art/builders/oak';
 import { smallOak } from '@engine/art/builders/small-oak';
+import { ash } from '@engine/art/builders/ash';
+import { alder } from '@engine/art/builders/alder';
+import { beech } from '@engine/art/builders/beech';
 import { birch } from '@engine/art/builders/birch';
 import { smallBirch } from '@engine/art/builders/small-birch';
 import { spruce } from '@engine/art/builders/spruce';
+import { pine } from '@engine/art/builders/pine';
+import { yew } from '@engine/art/builders/yew';
+import { rowan } from '@engine/art/builders/rowan';
+import { holly } from '@engine/art/builders/holly';
+import { poplar } from '@engine/art/builders/poplar';
+import { sycamore } from '@engine/art/builders/sycamore';
+import { willow } from '@engine/art/builders/willow';
 import { smallSpruce } from '@engine/art/builders/small-spruce';
 import { tree } from '@engine/art/builders/tree';
 import { smallTree } from '@engine/art/builders/small-tree';
 import { elder } from '@engine/art/builders/elder';
 import { hazel } from '@engine/art/builders/hazel';
+import { hawthorn } from '@engine/art/builders/hawthorn';
+import { palm } from '@engine/art/builders/palm';
+import { baobab } from '@engine/art/builders/baobab';
+import { acacia } from '@engine/art/builders/acacia';
+import { fruit } from '@engine/art/builders/fruit';
 import { gorse } from '@engine/art/builders/gorse';
 import { bush } from '@engine/art/builders/bush';
 import { fallenLog } from '@engine/art/builders/fallen-log';
@@ -34,7 +49,6 @@ import { standingStone } from '@engine/art/builders/standing-stone';
 import { deadfall } from '@engine/art/builders/deadfall';
 import { snag } from '@engine/art/builders/snag';
 import { rootTangle } from '@engine/art/builders/root-tangle';
-import { hedge } from '@engine/art/builders/hedge';
 import { thicket } from '@engine/art/builders/thicket';
 import { wildflower } from '@engine/art/builders/wildflower';
 import { bluebell } from '@engine/art/builders/bluebell';
@@ -95,30 +109,37 @@ export const ZONE_GALLERY_FOREST_MISC = 'gallery-forest-misc';
  * second tree.
  *
  * `tree` and `small-tree` close the rank. They are the generic pair the middle
- * distance is actually made of — a hundred and thirty triangles against a
- * birch's three thousand.
+ * distance is actually made of, grown two levels where a birch is grown three,
+ * so a stand of them costs a fraction of a stand of anything above.
  */
 const TREE_BUILDERS = [
   oak,
   smallOak,
+  sycamore,
+  poplar,
+  ash,
+  beech,
+  alder,
   birch,
   smallBirch,
+  rowan,
   spruce,
   smallSpruce,
+  pine,
+  yew,
+  holly,
+  hawthorn,
+  fruit,
+  hazel,
+  elder,
+  willow,
+  // The three that are a proportion rather than a species: a bole that is most
+  // of the tree, an umbrella held clear of the ground, and a head of blades.
+  baobab,
+  acacia,
+  palm,
   tree,
   smallTree,
-  // The two boundary masses. They started in the groundcover room and outgrew
-  // it: a hedge runs to nearly two metres and a thicket to two and a half, which
-  // is a storey above everything else in there and the same storey as the
-  // saplings here. Height is what these rooms are split by — see the header —
-  // and a prop is judged against the things it will actually stand beside.
-  //
-  // They also belong with the trees for a second reason: both are read as
-  // *canopy at eye level*. The question about a thicket is whether you can see
-  // over it, which is exactly the question about a sapling, and is not a
-  // question anyone asks about a fern.
-  hedge,
-  thicket,
 ];
 
 // Tallest first, so the rank steps down as you walk along it and nothing is
@@ -129,8 +150,7 @@ const GROUNDCOVER_BUILDERS = [
   // The middle storey, between ankle height and overhead. Without it a wood
   // goes from grass to canopy with nothing in between, which is what makes a
   // stand of trees read as a stage set.
-  hazel,
-  elder,
+  thicket,
   gorse,
   bush,
   bramble,

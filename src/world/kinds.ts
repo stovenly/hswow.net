@@ -11,19 +11,17 @@ import { markCollidable } from '../player/Collider';
 import { markLabelled, markReadable } from './Interaction';
 import { markGlitched } from '../art/glitch';
 import { markHaunted } from '../art/horror';
-import { waterPlane } from '../art/water';
-import { seaPlane } from '../art/sea';
-import { TRACK_SURFACES } from './track';
+import { WaterBody, specCovers, specLevelAt, type WaterBodySpec, type ShelterShape } from '../art/water/body';
+import { Mooring } from '../art/water/flotilla';
+import type { TrackEntry } from './entry';
 import { buildTrackNetwork } from './trackNetwork';
 import { createParticles, type ParticleSpec } from '../art/particles';
-import { createRng } from '../art/random';
-import { fence, FENCE_MAX_SECTIONS, FENCE_SECTION } from '../art/builders/fence';
-import { stoneWall, WALL_MAX_SECTIONS, WALL_SECTION, wallHeight } from '../art/builders/stone-wall';
-import { stoneWallLow } from '../art/builders/stone-wall-low';
-import { hedge, HEDGE_MAX_SECTIONS, HEDGE_SECTION } from '../art/builders/hedge';
-import { stoneWallSquareColumn, COLUMN_REACH } from '../art/builders/stone-wall-square-column';
-import { fencePost } from '../art/builders/fence-post';
-import { hazel } from '../art/builders/hazel';
+import { lineBuilderByName, LINE_BUILDERS, hashOf as lineHash, type Line, type LineBuilder, type Laid } from '../art/lines';
+import { rows, borderLine, type RowsOptions } from '../art/lines/regions';
+import { assemble, assembleCanopy, finish } from '../art/assemble';
+import { CELL } from './interior';
+import { STAND_SPECIES, variantSeed } from '../art/foliage';
+import { standMesh } from './stands';
 import {
   propAsk,
   vistaRing,
@@ -32,7 +30,7 @@ import {
   type VistaRingOptions,
   type VistaScatter,
 } from './vista-ring';
-import { horizonLayer, neighboursOf, placeOf } from './atlas';
+import { atlasBuilders, horizonLayer, neighboursOf, placeOf } from './atlas';
 import {
   edgeDressing,
   edgeDressingPlan,
@@ -48,7 +46,6 @@ import { dilateOutline, type Skirt } from './vista';
 import { DOOR_PROUD } from './Portal';
 import {
   insidePolygon,
-  layRun,
   place,
   scatterCandidates,
   scatterProps,
@@ -60,7 +57,6 @@ import {
   registerEntryKind,
   tagEntry,
   yawOf,
-  type ChainEntry,
   type CreatureEntry,
   type DressingEntry,
   type EffectVolumeEntry,
@@ -72,17 +68,16 @@ import {
   type ParticlesEntry,
   type PrefabEntry,
   type PropEntry,
-  type RunEntry,
+  type LineEntry,
+  type RegionEntry,
   type Anchor,
   type AvoidItem,
-  type ChainRun,
   type ScatterEntry,
   type SoundEntry,
-  type TrackEntry,
   type SoundScatterEntry,
   type VistaRingEntry,
   type WaterEntry,
-  type SeaEntry,
+  type MooringEntry,
 } from './entry';
 
 /**
@@ -110,6 +105,70 @@ function optionsOf(
   options: unknown,
 ): Record<string, unknown> {
   return builder.options ? coerceFields(builder.options, options) : {};
+}
+
+/**
+ * A placement said in a room's own terms — `in` a room, or `against` a cell
+ * edge — resolved to world `at` and `yaw` before the ordinary placement runs.
+ */
+function inRoom<E extends { at?: readonly number[]; yaw?: unknown; in?: string; against?: { at: readonly [number, number]; side: 'n' | 'e' | 's' | 'w'; along?: number; face?: boolean } }>(entry: E, ctx: EntryContext): E {
+  const plan = ctx.interior;
+  if (!plan) return entry;
+  if (entry.in) {
+    for (const storey of plan.storeys) {
+      const room = storey.rooms.get(entry.in);
+      if (!room) continue;
+      const at = entry.at ?? [0, 0];
+      const lift = at.length >= 3 ? at[1] : 0;
+      const dx = at[0] ?? 0;
+      const dz = at.length >= 3 ? at[2] : (at[1] ?? 0);
+      return { ...entry, at: [room.i0 * CELL + dx + plan.offset[0], room.level + lift, room.j0 * CELL + dz + plan.offset[1]] };
+    }
+    console.warn(`no room "${entry.in}" for a placement`);
+    return entry;
+  }
+  if (entry.against) {
+    const { at, side, along = 0.5, face } = entry.against;
+    const [i, j] = at;
+    let x: number;
+    let z: number;
+    let yaw: number;
+    // The inner face of the cell's edge, a little proud of it, and the yaw whose +Z points into the room.
+    switch (side) {
+      case 'n':
+        x = (i + along) * CELL;
+        z = j * CELL + 0.02;
+        yaw = 0;
+        break;
+      case 's':
+        x = (i + along) * CELL;
+        z = (j + 1) * CELL - 0.02;
+        yaw = Math.PI;
+        break;
+      case 'w':
+        x = i * CELL + 0.02;
+        z = (j + along) * CELL;
+        yaw = Math.PI / 2;
+        break;
+      default:
+        x = (i + 1) * CELL - 0.02;
+        z = (j + along) * CELL;
+        yaw = -Math.PI / 2;
+    }
+    let level = 0;
+    for (const storey of plan.storeys) {
+      const id = storey.cells.get((i + 32768) * 65536 + (j + 32768));
+      const room = id ? storey.rooms.get(id) : undefined;
+      if (room) level = room.level;
+    }
+    return { ...entry, at: [x + plan.offset[0], level, z + plan.offset[1]], ...(face ? { yaw } : {}) };
+  }
+  return entry;
+}
+
+/** Whether a builder's trees are shared and instanced per zone. */
+function stands(name: string): boolean {
+  return STAND_SPECIES.has(name);
 }
 
 /** The builder a name points at, or a thrown error naming the document's fault. */
@@ -182,9 +241,11 @@ function doorFront(object: THREE.Object3D): { x: number; z: number; yaw: number 
 registerEntryKind<PropEntry>({
   kind: 'prop',
   palette: { tab: 'objects', list: () => [] },
-  asks(entry) {
+  names: (entry) => [entry.builder],
+  asks(entry, ctx) {
     const builder = builderByName(entry.builder);
     if (!builder) return [];
+    if (stands(builder.name)) return [{ builder: entry.builder, seed: variantSeed(ctx.zone, builder.name, seedOf(entry)), scale: 1 }];
     return [
       {
         builder: entry.builder,
@@ -194,15 +255,22 @@ registerEntryKind<PropEntry>({
       },
     ];
   },
-  build(entry, ctx) {
+  build(placed, ctx) {
+    const entry = inRoom(placed, ctx);
     const builder = needBuilder(entry.builder);
     const extras = optionsOf(builder, entry.options);
     const seed = seedOf(entry);
     // Built on a worker before this walk ran, where the builder was one pure
     // walk to a `finish`. A miss builds it here, exactly as it always did.
-    const warm = takeWarm({ builder: entry.builder, seed, scale: entry.scale, extras });
-    const mesh = warm ? finishCaptured(warm) : builder.build({ seed, scale: entry.scale, ...extras });
+    let mesh: THREE.Mesh;
+    if (stands(builder.name)) {
+      mesh = standMesh(ctx.collected.stands, ctx.zone, builder, seed, entry.scale ?? 1);
+    } else {
+      const warm = takeWarm({ builder: entry.builder, seed, scale: entry.scale, extras });
+      mesh = warm ? finishCaptured(warm) : builder.build({ seed, scale: entry.scale, ...extras });
+    }
     applyPlacement(mesh, entry, ctx);
+    if (mesh.userData.stand && entry.stretch === undefined) mesh.scale.setScalar(entry.scale ?? 1);
     // The item systems read this back, so a taken prop is carried with the
     // exact look it stood with.
     mesh.userData.seed = seed;
@@ -212,6 +280,16 @@ registerEntryKind<PropEntry>({
     if (entry.underfoot) mesh.userData.underfoot = entry.underfoot;
     if (entry.cover) mesh.userData.cover = entry.cover;
     if (entry.ground) mesh.userData.ground = true;
+    if (entry.wades) mesh.userData.wades = true;
+    if (entry.afloat) {
+      const asked = typeof entry.afloat === 'object' ? entry.afloat : {};
+      const radius = (asked.radius ?? builder.radius) * (entry.scale ?? 1);
+      const draft = asked.draft ?? radius * 0.12;
+      const over = ctx.waters.find((w) => specCovers(waterSpecOf(w), mesh.position.x, mesh.position.z));
+      if (over) mesh.position.y = specLevelAt(waterSpecOf(over), mesh.position.x, mesh.position.z) - draft;
+      mesh.userData.floatRadius = radius;
+      ctx.collected.floats.push({ object: mesh, draft, radius });
+    }
     if (entry.label) markLabelled(mesh, entry.label);
     if (entry.text) markReadable(mesh, builder, entry.text);
     return mesh;
@@ -223,6 +301,7 @@ registerEntryKind<PropEntry>({
 registerEntryKind<CreatureEntry>({
   kind: 'creature',
   palette: { tab: 'creatures', list: () => [] },
+  names: (entry) => [wearing(entry).builder],
   asks(entry) {
     const worn = wearing(entry);
     const builder = builderByName(worn.builder);
@@ -325,94 +404,7 @@ function creatureAsk(
   };
 }
 
-// --- run --------------------------------------------------------------------
-
-interface RunShape {
-  pitch: number;
-  most: number;
-  build(seed: number, run: number, sections: number): THREE.Mesh;
-}
-
-const RUNS: Record<string, RunShape> = {
-  fence: {
-    pitch: FENCE_SECTION,
-    most: FENCE_MAX_SECTIONS,
-    build: (seed, run, sections) => fence.build({ seed, run, sections }),
-  },
-  'stone-wall': {
-    pitch: WALL_SECTION,
-    most: WALL_MAX_SECTIONS,
-    build: (seed, run, sections) => stoneWall.build({ seed, run, sections }),
-  },
-  'stone-wall-low': {
-    pitch: WALL_SECTION,
-    most: WALL_MAX_SECTIONS,
-    build: (seed, run, sections) => stoneWallLow.build({ seed, run, sections }),
-  },
-  hedge: {
-    pitch: HEDGE_SECTION,
-    most: HEDGE_MAX_SECTIONS,
-    build: (seed, run, sections) => hedge.build({ seed, run, sections }),
-  },
-};
-
-function runShape(name: string): RunShape {
-  const shape = RUNS[name];
-  if (!shape) throw new Error(`"${name}" is not something that runs along a line`);
-  return shape;
-}
-
-registerEntryKind<RunEntry>({
-  kind: 'run',
-  schema: {
-    builder: { type: 'choice', options: () => Object.keys(RUNS) },
-    pitch: { type: 'number', min: 0.2, max: 8, step: 0.05, label: 'metres per section' },
-    most: { type: 'int', min: 1, max: 12, label: 'sections per piece' },
-    cap: { type: 'choice', options: ['post'], label: 'far end' },
-  },
-  defaults: () => ({ builder: 'fence', points: [[0, 0], [6, 0]] }),
-  build(entry, ctx) {
-    const shape = runShape(entry.builder);
-    const group = new THREE.Group();
-    const seed = seedOf(entry);
-    const points = entry.points.map((point) => pointOf(point, ctx));
-    let at = points[0];
-    let yaw = 0;
-    for (let i = 1; i < points.length; i++) {
-      yaw = along(at, points[i]).yaw;
-      at = layRun(
-        group,
-        {
-          // One carpentry seed for the whole run, so two pieces meeting on a
-          // post are the same fence rather than two butted together.
-          build: (pieceSeed, sections) => shape.build(pieceSeed, seed, sections),
-          pitch: entry.pitch ?? shape.pitch,
-          most: entry.most ?? shape.most,
-          seed: seed + i * 10,
-          groundAt: ctx.groundAt,
-        },
-        at,
-        points[i],
-      );
-    }
-    // Rounding moves the far end, so a terminal post is placed where the run
-    // actually finished rather than where it was aimed.
-    if (entry.cap === 'post') {
-      place(group, fencePost.build({ seed: seed + 9, run: seed }), at[0], at[1], yaw, ctx.groundAt);
-    }
-    if (entry.cover) {
-      group.traverse((node) => {
-        if (node instanceof THREE.Mesh) node.userData.cover = entry.cover;
-      });
-    }
-    return group;
-  },
-});
-
-// --- chain ------------------------------------------------------------------
-
-/** Metres between hedge shrubs. Tight enough that the line reads as one thing. */
-const HEDGE_PITCH = 1.5;
+// --- line -------------------------------------------------------------------
 
 const BARRIER_MATERIAL = new THREE.MeshBasicMaterial();
 /** Metres of standing height on the invisible slabs. */
@@ -436,124 +428,179 @@ function slab(root: THREE.Object3D, from: Point, to: Point, ctx: EntryContext, h
   root.add(markCollidable(box));
 }
 
-registerEntryKind<ChainEntry>({
-  kind: 'chain',
-  schema: { close: { type: 'choice', options: ['hedge'], label: 'close the gap with' } },
-  defaults: () => ({ start: [0, 0], edges: [{ to: [8, 0], kind: 'fence' }] }),
-  build(entry, ctx) {
-    const group = new THREE.Group();
-    const seed = seedOf(entry);
-    const runs: readonly ChainRun[] =
-      entry.runs ?? [{ start: entry.start ?? [0, 0], edges: entry.edges ?? [] }];
-
-    const ends: Point[] = [];
-    const starts: Point[] = [];
-    runs.forEach((run, index) => {
-      const first = pointOf(run.start, ctx);
-      starts.push(first);
-      ends.push(layOneChain(group, run.seed ?? seed + index * 200, first, run.edges, ctx));
-    });
-
-    if (entry.close === 'hedge') {
-      // One chain closes back on itself; several close end to end, which is
-      // what a boundary laid outward from a gateway leaves.
-      const from = ends[ends.length - 1];
-      const to = runs.length > 1 ? ends[0] : starts[0];
-      layHedge(group, entry.closeSeed ?? seed + 600, from, to, ctx);
-    }
-
-    return group;
-  },
-});
-
-/** Lays one chain of runs, cornering between them, and returns where it stopped. */
-function layOneChain(
-  group: THREE.Object3D,
-  seed: number,
-  start: Point,
-  edges: readonly { to: Anchor; kind: 'wall' | 'fence' }[],
-  ctx: EntryContext,
-): Point {
-  let at = start;
-  for (let i = 0; i < edges.length; i++) {
-    const edge = edges[i];
-    const to = pointOf(edge.to, ctx);
-    const run = along(at, to);
-    const shape = runShape(edge.kind === 'wall' ? 'stone-wall' : 'fence');
-    const runSeed = seed + i * 10;
-    const end = layRun(
-      group,
-      {
-        build: (pieceSeed, sections) => shape.build(pieceSeed, runSeed, sections),
-        pitch: shape.pitch,
-        most: shape.most,
-        seed: runSeed,
-        groundAt: ctx.groundAt,
-      },
-      at,
-      to,
-    );
-    slab(group, at, end, ctx);
-
-    const next = edges[i + 1];
-    if (!next) return end;
-
-    // A pier wherever stone is one of the two sides, a post where both are
-    // timber. The pier stands `COLUMN_REACH` past the run that arrives and the
-    // run that leaves starts the same distance the other side of it, so the
-    // masonry butts against its faces instead of into its middle.
-    if (edge.kind === 'wall' || next.kind === 'wall') {
-      const centre: Point = [end[0] + run.ux * COLUMN_REACH, end[1] + run.uz * COLUMN_REACH];
-      const stand = wallHeight(createRng(runSeed + 7)) + 0.3;
-      place(
-        group,
-        stoneWallSquareColumn.build({ seed: runSeed + 7, height: stand }),
-        centre[0],
-        centre[1],
-        run.yaw,
-        ctx.groundAt,
-      );
-      const out = along(centre, pointOf(next.to, ctx));
-      at = [centre[0] + out.ux * COLUMN_REACH, centre[1] + out.uz * COLUMN_REACH];
-    } else {
-      place(
-        group,
-        fencePost.build({ seed: runSeed + 7, run: runSeed }),
-        end[0],
-        end[1],
-        run.yaw,
-        ctx.groundAt,
-      );
-      at = end;
-    }
+/** A water body's level under a point, from the zone's water entries alone. */
+function waterFromSpecs(ctx: EntryContext, x: number, z: number) {
+  for (const entry of ctx.waters) {
+    const spec = waterSpecOf(entry);
+    if (spec.regime === 'fall' || !specCovers(spec, x, z)) continue;
+    const level = specLevelAt(spec, x, z);
+    const column = level - ctx.groundAt(x, z);
+    if (column <= 0) continue;
+    return { body: spec.id, regime: spec.regime, level, column, flow: [0, 0] as [number, number], heightAt: () => level };
   }
-  return at;
+  return null;
+}
+
+/** One oriented box as an unseen collider, sunk and overtall as `slab` makes them. */
+function boxCollider(box: { centre: readonly [number, number, number]; halfExtents: readonly [number, number, number]; yaw: number }): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.halfExtents[0] * 2, box.halfExtents[1] * 2, box.halfExtents[2] * 2), BARRIER_MATERIAL);
+  mesh.position.set(box.centre[0], box.centre[1], box.centre[2]);
+  // rotateY(yaw) takes the box's +X to the chord's direction.
+  mesh.rotation.y = box.yaw;
+  mesh.visible = false;
+  return markCollidable(mesh);
 }
 
 /**
- * The closing stretch, and the only run that can be any length: the chains
- * finish where their rounding puts them and this divides the gap evenly.
+ * Lays a line with its builder and expands what came back: one merged mesh
+ * (with a crown when the builder made canopy parts), a collider per chord, the
+ * footprint for the cover mask, and the props standing at its marks.
  */
-function layHedge(group: THREE.Object3D, seed: number, from: Point, to: Point, ctx: EntryContext): void {
-  const { ux, uz, length, yaw } = along(from, to);
-  const gaps = Math.max(1, Math.round(length / HEDGE_PITCH));
-  place(group, fencePost.build({ seed, run: seed }), from[0], from[1], yaw, ctx.groundAt);
-  place(group, fencePost.build({ seed: seed + 1, run: seed }), to[0], to[1], yaw, ctx.groundAt);
-  for (let i = 0; i < gaps; i++) {
-    const d = ((i + 0.5) / gaps) * length;
-    place(
-      group,
-      hazel.build({ seed: seed + 10 + i }),
-      from[0] + ux * d,
-      from[1] + uz * d,
-      i * 1.3,
-      ctx.groundAt,
-    );
+function expandLaid(name: string, seed: number, laid: Laid, ctx: EntryContext, cover?: string): THREE.Group {
+  const group = new THREE.Group();
+  if (laid.parts.length > 0) {
+    const art = assemble(laid.parts);
+    const crown = assembleCanopy(laid.parts);
+    const mesh = finish(art, name, (seed % 628) / 100, laid.underfoot, crown);
+    if (laid.solid === false) mesh.userData.noCollide = true;
+    else markCollidable(mesh);
+    if (laid.footprint) {
+      mesh.userData.footprint = laid.footprint;
+      if (laid.footprintSoft) mesh.userData.footprintSoft = laid.footprintSoft;
+    }
+    if (cover) mesh.userData.cover = cover;
+    group.add(mesh);
   }
-  slab(group, from, to, ctx);
+  for (const box of laid.colliders) group.add(boxCollider(box));
+  for (const prop of laid.props) {
+    const builder = builderByName(prop.builder);
+    if (!builder) {
+      console.warn(`line: no builder named "${prop.builder}" for its mark`);
+      continue;
+    }
+    const mesh = builder.build({ seed: prop.seed, scale: prop.scale, ...optionsOf(builder, prop.options) });
+    mesh.userData.seed = prop.seed;
+    place(group, mesh, prop.at[0], prop.at[1], prop.yaw, ctx.groundAt, builder.solid !== false);
+  }
+  return group;
 }
 
-// --- scatter ----------------------------------------------------------------
+function lineOf(entry: LineEntry, ctx: EntryContext, builder: LineBuilder | null): Line {
+  return {
+    id: entry.id ?? 'line',
+    seed: seedOf(entry),
+    closed: entry.closed === true,
+    smooth: entry.smooth ?? builder?.name === 'hedge',
+    points: entry.points.map((p) => ({ at: pointOf(p.at, ctx), width: p.width, height: p.height, corner: p.corner })),
+    marks: entry.marks ?? [],
+    style: entry.style,
+    options: entry.options,
+  };
+}
+
+function layContext(ctx: EntryContext, seed: number) {
+  return {
+    groundAt: ctx.groundAt,
+    waterAt: (x: number, z: number) => waterFromSpecs(ctx, x, z),
+    hash: (index: number, channel: number) => lineHash(seed, index, channel),
+    ground: GROUND[ctx.terrain?.baseMaterial ?? 'turf'].color,
+  };
+}
+
+registerEntryKind<LineEntry>({
+  kind: 'line',
+  schema: {
+    builder: { type: 'choice', options: () => [...Object.keys(LINE_BUILDERS), 'track'] },
+    style: { type: 'string' },
+    closed: { type: 'boolean' },
+    smooth: { type: 'boolean' },
+  },
+  defaults: () => ({ builder: 'fence', points: [{ at: [0, 0] }, { at: [6, 0] }] }),
+  names(entry) {
+    const out = [...(lineBuilderByName(entry.builder)?.props ?? [])];
+    for (const mark of entry.marks ?? []) {
+      if (mark.builder) out.push(mark.builder);
+      else if (mark.kind === 'bridge') out.push('footbridge');
+    }
+    return out;
+  },
+  build(entry, ctx) {
+    if (entry.builder === 'track') return trackGroup(entry, ctx);
+    const builder = lineBuilderByName(entry.builder);
+    if (!builder) throw new Error(`no line builder named "${entry.builder}"`);
+    const line = lineOf(entry, ctx, builder);
+    if (line.points.length < 2) return null;
+    const laid = builder.lay(line, layContext(ctx, line.seed));
+    return expandLaid(builder.name, line.seed, laid, ctx, entry.cover);
+  },
+});
+
+// --- region -----------------------------------------------------------------
+
+registerEntryKind<RegionEntry>({
+  kind: 'region',
+  schema: { builder: { type: 'choice', options: ['rows', 'border'] } },
+  defaults: () => ({ builder: 'rows', points: [[-6, -6], [6, -6], [6, 6], [-6, 6]], options: { rowPitch: 6, pitch: 5, headland: 2, plant: 'fruit' } }),
+  names(entry) {
+    const options = (entry.options ?? {}) as Record<string, unknown>;
+    if (entry.builder === 'rows') return [typeof options.plant === 'string' ? options.plant : 'fruit'];
+    const line = lineBuilderByName(typeof options.builder === 'string' ? options.builder : 'hedge');
+    return [...(line?.props ?? [])];
+  },
+  asks(entry, ctx) {
+    if (entry.builder !== 'rows') return [];
+    const options = (entry.options ?? {}) as Partial<RowsOptions>;
+    const builder = builderByName(options.plant ?? 'fruit');
+    if (!builder) return [];
+    const placed = rows(entry.points, seedOf(entry), { rowPitch: options.rowPitch ?? 6, pitch: options.pitch ?? 5, headland: options.headland ?? 2, plant: builder.name, bearing: options.bearing, jitter: options.jitter, scale: options.scale });
+    if (stands(builder.name)) {
+      const seen = new Set<number>();
+      const asks: PropAsk[] = [];
+      for (const p of placed) {
+        const variant = variantSeed(ctx.zone, builder.name, p.seed);
+        if (seen.has(variant)) continue;
+        seen.add(variant);
+        asks.push({ builder: builder.name, seed: variant, scale: 1 });
+      }
+      return asks;
+    }
+    return placed.map((p) => ({ builder: builder.name, seed: p.seed, scale: p.scale }));
+  },
+  build(entry, ctx) {
+    const seed = seedOf(entry);
+    const options = (entry.options ?? {}) as Record<string, unknown>;
+    if (entry.builder === 'rows') {
+      const o = options as Partial<RowsOptions>;
+      const builder = needBuilder(o.plant ?? 'fruit');
+      const group = new THREE.Group();
+      const placed = rows(entry.points, seed, { rowPitch: o.rowPitch ?? 6, pitch: o.pitch ?? 5, headland: o.headland ?? 2, plant: builder.name, bearing: o.bearing, jitter: o.jitter, scale: o.scale });
+      for (const p of placed) {
+        const mesh = stands(builder.name)
+          ? standMesh(ctx.collected.stands, ctx.zone, builder, p.seed, p.scale)
+          : (() => {
+              const warm = takeWarm({ builder: builder.name, seed: p.seed, scale: p.scale });
+              return warm ? finishCaptured(warm) : builder.build({ seed: p.seed, scale: p.scale });
+            })();
+        mesh.userData.seed = p.seed;
+        place(group, mesh, p.x, p.z, p.yaw, ctx.groundAt, builder.solid !== false);
+      }
+      return group;
+    }
+    if (entry.builder === 'border') {
+      const name = typeof options.builder === 'string' ? options.builder : 'hedge';
+      const builder = lineBuilderByName(name);
+      if (!builder) throw new Error(`no line builder named "${name}"`);
+      const width = typeof options.width === 'number' ? options.width : 1;
+      const line = borderLine(entry.id ?? 'border', seed, entry.points, width, typeof options.style === 'string' ? options.style : undefined, options.options as Record<string, unknown> | undefined);
+      if (options.smooth === true) (line as { smooth: boolean }).smooth = true;
+      const laid = builder.lay(line, layContext(ctx, seed));
+      return expandLaid(builder.name, seed, laid, ctx);
+    }
+    throw new Error(`no region builder named "${entry.builder}"`);
+  },
+});
+
+// --- scatter ----------------------------------------------------------------// --- scatter ----------------------------------------------------------------
 
 registerEntryKind<ScatterEntry>({
   kind: 'scatter',
@@ -567,19 +614,34 @@ registerEntryKind<ScatterEntry>({
     region: { type: 'string', label: 'inside region' },
   },
   defaults: () => ({ builder: 'bush', count: 12, within: 8 }),
+  names: (entry) => [entry.builder],
   // Every candidate is warmed, including the ones the ground will reject: the
   // accept, slope, height and avoid tests need a built context this does not
   // have, and building a rejected prop on a worker costs less than waiting for
   // an accepted one on the frame. `dropWarm` frees what is not claimed.
-  asks(entry) {
-    if (!builderByName(entry.builder)) return [];
-    return scatterCandidates({
+  asks(entry, ctx) {
+    const builder = builderByName(entry.builder);
+    if (!builder) return [];
+    const candidates = scatterCandidates({
       seed: seedOf(entry),
       count: entry.count,
       within: entry.within,
       from: entry.from,
       scale: entry.scale,
-    }).map((candidate) => ({
+    });
+    if (stands(builder.name)) {
+      // Four variants at most, however many candidates: one build each.
+      const seen = new Set<number>();
+      const asks: PropAsk[] = [];
+      for (const candidate of candidates) {
+        const variant = variantSeed(ctx.zone, builder.name, candidate.seed);
+        if (seen.has(variant)) continue;
+        seen.add(variant);
+        asks.push({ builder: entry.builder, seed: variant, scale: 1 });
+      }
+      return asks;
+    }
+    return candidates.map((candidate) => ({
       builder: entry.builder,
       seed: candidate.seed,
       scale: candidate.scale,
@@ -615,6 +677,8 @@ registerEntryKind<ScatterEntry>({
           return true;
         },
       },
+      undefined,
+      stands(builder.name) ? (seed, scale) => standMesh(ctx.collected.stands, ctx.zone, builder, seed, scale) : undefined,
     );
     return group;
   },
@@ -651,6 +715,16 @@ function circlesOf(shapes: readonly PatchShape[]): readonly (readonly [number, n
       const cx = (shape.min[0] + shape.max[0]) / 2;
       const cz = (shape.min[1] + shape.max[1]) / 2;
       out.push([cx, cz, Math.hypot(shape.max[0] - cx, shape.max[1] - cz)]);
+    } else if (shape.kind === 'polygon') {
+      let cx = 0;
+      let cz = 0;
+      for (const [px, pz] of shape.points) {
+        cx += px / shape.points.length;
+        cz += pz / shape.points.length;
+      }
+      let r = 0;
+      for (const [px, pz] of shape.points) r = Math.max(r, Math.hypot(px - cx, pz - cz));
+      out.push([cx, cz, r]);
     } else {
       for (const point of shape.through) out.push([point[0], point[1], shape.width / 2]);
     }
@@ -664,6 +738,7 @@ registerEntryKind<BarrierEntry>({
   kind: 'barrier',
   schema: { height: { type: 'number', min: 0.5, max: 20, step: 0.1 } },
   defaults: () => ({ size: [2, 3, 0.5] }),
+  names: () => [],
   build(entry, ctx) {
     const group = new THREE.Group();
     if (entry.from && entry.to) {
@@ -686,6 +761,9 @@ registerEntryKind<PrefabEntry>({
   kind: 'prefab',
   schema: { prefab: { type: 'string' } },
   defaults: () => ({ prefab: '' }),
+  // Its entries', recursively. `entryNames` resolves the body; a prefab that is
+  // not there names nothing and the walk reports it.
+  names: (entry) => [`#prefab:${entry.prefab}`],
   build(entry, ctx) {
     const body = ctx.prefabs[entry.prefab];
     if (!body) throw new Error(`no prefab named "${entry.prefab}"`);
@@ -701,6 +779,7 @@ registerEntryKind<PrefabEntry>({
 
 registerEntryKind<GroundEntry>({
   kind: 'ground',
+  names: () => [],
   schema: {
     y: { type: 'number', min: -60, max: 200, step: 0.05 },
     thickness: { type: 'number', min: 0.05, max: 4, step: 0.05 },
@@ -736,158 +815,275 @@ function groundMaterial(): THREE.Material {
 
 // --- water ------------------------------------------------------------------
 
-registerEntryKind<WaterEntry>({
-  kind: 'water',
-  schema: {
-    width: { type: 'number', min: 0.5, max: 200, step: 0.1 },
-    depth: { type: 'number', min: 0.5, max: 200, step: 0.1 },
-    chop: { type: 'number', min: 0, max: 3, step: 0.01 },
-    taper: { type: 'number', min: 0, max: 8, step: 0.1, label: 'fade over (m)' },
-    speed: { type: 'number', min: 0, max: 4, step: 0.05, label: 'course speed (m/s)' },
-    segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
-  },
-  defaults: () => ({ width: 8, depth: 8, chop: 0.4 }),
-  build(entry, ctx) {
-    const holder = new THREE.Object3D();
-    applyPlacement(holder, entry, ctx);
-    const at = holder.position.clone();
-    const chop = entry.chop ?? 1;
-    const taper = entry.taper ?? 0;
-    return waterPlane({
-      width: entry.width,
-      depth: entry.depth,
-      at,
-      chop:
-        taper > 0
-          ? (x, z) => {
-              const t = Math.min(1, Math.max(0, (at.y - ctx.groundAt(x, z)) / taper));
-              return chop * t * t * (3 - 2 * t);
-            }
-          : chop,
-      flow: entry.course
-        ? courseFlow(entry.course, entry.speed ?? 0.8, at.y, ctx.groundAt)
-        : entry.flow
-          ? new THREE.Vector2(entry.flow[0], entry.flow[1])
-          : undefined,
-      segment: entry.segment,
-    });
-  },
-});
-
-/**
- * The flow along a river's line: every segment's direction, weighted by nearness so
- * the field turns smoothly round the bends, slowed to nothing over the last 0.8 m
- * of depth at the banks.
- */
-function courseFlow(
-  course: readonly (readonly [number, number])[],
-  speed: number,
-  level: number,
-  groundAt: (x: number, z: number) => number,
-): (x: number, z: number) => THREE.Vector2 {
-  return (x, z) => {
-    let fx = 0;
-    let fz = 0;
-    for (let i = 0; i + 1 < course.length; i++) {
-      const [ax, az] = course[i];
-      const [bx, bz] = course[i + 1];
-      const dx = bx - ax;
-      const dz = bz - az;
-      const length = Math.hypot(dx, dz);
-      if (length === 0) continue;
-      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (length * length)));
-      const near = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
-      const weight = 1 / (near * near + 9);
-      fx += (dx / length) * weight;
-      fz += (dz / length) * weight;
-    }
-    const size = Math.hypot(fx, fz);
-    if (size === 0) return new THREE.Vector2();
-    const column = Math.min(1, Math.max(0, (level - groundAt(x, z)) / 0.8));
-    const scale = (speed * column * column * (3 - 2 * column)) / size;
-    return new THREE.Vector2(fx * scale, fz * scale);
+/** The body an entry describes, before anything is built. */
+export function waterSpecOf(entry: WaterEntry): WaterBodySpec {
+  const at = entry.at;
+  return {
+    id: entry.id ?? 'water',
+    regime: entry.regime,
+    palette: entry.palette,
+    level: entry.level ?? (at && at.length >= 3 ? at[1] : undefined),
+    shape: entry.shape,
+    course: entry.course,
+    fall: entry.fall,
+    reach: entry.reach,
+    swell: entry.swell,
+    shelter: entry.shelter,
+    facet: entry.facet,
+    segment: entry.segment,
+    bury: entry.bury,
+    ripples: entry.ripples,
+    wash: entry.wash,
+    collar: entry.collar,
+    chop: entry.chop,
+    rise: entry.rise,
   };
 }
 
-// --- sea --------------------------------------------------------------------
+/** The voice a body has by its regime, unless the entry says otherwise. */
+function waterVoice(entry: WaterEntry, body: WaterBody): Record<string, unknown> | null {
+  const id = entry.id ?? 'water';
+  if (entry.sound === null) return null;
+  if (entry.sound) {
+    const at = (entry.sound as { at?: unknown }).at;
+    const centre = bodyCentre(body);
+    return { ...entry.sound, id, at: at ?? [centre[0], body.levelAt(centre[0], centre[1]), centre[1]] };
+  }
+  switch (body.regime) {
+    case 'still': {
+      const [cx, cz] = bodyCentre(body);
+      return {
+        model: 'water',
+        options: { flow: 'lap', gain: 0.22, tone: 1 },
+        at: [cx, body.levelAt(cx, cz), cz],
+        id,
+        refDistance: 3,
+        maxDistance: 22,
+        rolloff: 1.3,
+        reverb: 0.4,
+      };
+    }
+    case 'flow': {
+      const first = body.samples[0];
+      if (!first) return null;
+      let speed = 0;
+      let width = 0;
+      for (const sample of body.samples) {
+        speed += sample.speed;
+        width += sample.width;
+      }
+      speed /= body.samples.length;
+      width /= body.samples.length;
+      const flow = speed < 0.4 ? 'brook' : speed < 0.9 ? 'stream' : 'rapid';
+      return {
+        model: 'water',
+        options: { flow, gain: Math.min(0.45, 0.2 + width * speed * 0.03), tone: Math.max(0.7, 1.15 - width * 0.03) },
+        at: [first.x, first.level, first.z],
+        id: `${id}:flow`,
+        refDistance: 4,
+        maxDistance: 32,
+        rolloff: 1.3,
+        reverb: 0.4,
+      };
+    }
+    case 'fall': {
+      if (!body.fall) return null;
+      const { x, z, width, drop } = body.fall;
+      return {
+        model: 'cascade',
+        options: { size: width * drop, gain: 0.5 },
+        at: [x, body.levelAt(x, z) - drop, z],
+        id,
+        refDistance: 6,
+        maxDistance: 70,
+        rolloff: 1.1,
+        reverb: 0.5,
+        importance: 1.5,
+      };
+    }
+    case 'sea':
+      // The surf is placed by hand, where the shore is.
+      return null;
+  }
+}
 
-registerEntryKind<SeaEntry>({
-  kind: 'sea',
+function bodyCentre(body: WaterBody): [number, number] {
+  const b = body.bounds;
+  return [(b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2];
+}
+
+registerEntryKind<WaterEntry>({
+  kind: 'water',
+  names: () => [],
   schema: {
-    width: { type: 'number', min: 10, max: 400, step: 1 },
-    depth: { type: 'number', min: 10, max: 400, step: 1 },
+    level: { type: 'number', min: -60, max: 200, step: 0.05, label: 'level (m)' },
     reach: { type: 'number', min: 0, max: 5000, step: 10, label: 'reach (m)' },
-    segment: { type: 'number', min: 0.3, max: 4, step: 0.1, label: 'metres per quad' },
+    facet: { type: 'number', min: 0, max: 1, step: 0.05 },
+    segment: { type: 'number', min: 0.2, max: 8, step: 0.1, label: 'metres per quad' },
+    bury: { type: 'number', min: 0, max: 3, step: 0.05, label: 'bury (m)' },
+    chop: { type: 'number', min: 0, max: 3, step: 0.05 },
+    wash: { type: 'number', min: 0, max: 2, step: 0.05, label: 'wash line (m)' },
+    collar: { type: 'number', min: 0, max: 2, step: 0.05, label: 'collar (m)' },
+    rise: { type: 'number', min: 0, max: 30, step: 0.5, label: 'fish per minute' },
   },
   defaults: () => ({
-    width: 120,
-    depth: 120,
-    swell: { direction: [0, -1], length: 30, height: 0.6 },
-    reach: 3000,
+    regime: 'still',
+    level: 0,
+    shape: [
+      [-4, -4],
+      [4, -4],
+      [4, 4],
+      [-4, 4],
+    ],
   }),
   build(entry, ctx) {
-    const holder = new THREE.Object3D();
-    applyPlacement(holder, entry, ctx);
-    return seaPlane({
-      width: entry.width,
-      depth: entry.depth,
-      at: holder.position.clone(),
-      swell: entry.swell,
-      reach: entry.reach,
-      segment: entry.segment,
-      // The skirt is what holds the seabed past the level's square; the
-      // terrain's landforms die out there and would call it land.
-      groundAt: (x, z) => Math.min(ctx.groundAt(x, z), ctx.skirt?.heightAt(x, z) ?? Infinity),
+    // The skirt holds the seabed past the level's square; the terrain's landforms die out there.
+    const groundAt = (x: number, z: number): number =>
+      Math.min(ctx.groundAt(x, z), ctx.skirt?.heightAt(x, z) ?? Infinity);
+    const body = new WaterBody(waterSpecOf(entry), {
+      groundAt,
+      regions: ctx.regions as unknown as Record<string, readonly ShelterShape[]>,
+      bodies: ctx.waters.map(waterSpecOf),
+      stands: ctx.stands,
+      seed: seedOf(entry),
     });
+    ctx.collected.water.push(body);
+    const voice = waterVoice(entry, body);
+    if (voice) ctx.collected.emitters.push(voice as never);
+    return body.root;
+  },
+});
+
+// --- mooring ----------------------------------------------------------------
+
+registerEntryKind<MooringEntry>({
+  kind: 'mooring',
+  names: () => [],
+  schema: {
+    float: { type: 'ref', label: 'holds' },
+    post: { type: 'ref', label: 'made fast to' },
+    lift: { type: 'number', min: 0, max: 5, step: 0.05, label: 'tied at (m)' },
+    slack: { type: 'number', min: 0, max: 1, step: 0.01 },
+  },
+  defaults: () => ({ float: '', slack: 0.15, lift: 0.9 }),
+  build(entry, ctx) {
+    const float = ctx.resolve(entry.float);
+    if (!float) throw new Error(`nothing afloat with id "${entry.float}"`);
+    const lift = entry.lift ?? 0.9;
+    let post: THREE.Vector3;
+    if (entry.post) {
+      const base = ctx.resolve(entry.post);
+      if (!base) throw new Error(`nothing built with id "${entry.post}"`);
+      post = base.position.clone();
+      post.y += lift;
+    } else if (entry.at && entry.at.length >= 2) {
+      const x = entry.at[0];
+      const z = entry.at.length >= 3 ? entry.at[2] : entry.at[1];
+      post = new THREE.Vector3(x, entry.at.length >= 3 ? entry.at[1] : ctx.groundAt(x, z) + lift, z);
+    } else {
+      throw new Error('a mooring needs a post or a point');
+    }
+    const radius = (float.userData.floatRadius as number | undefined) ?? 1;
+    // The hull is built along +X with the bow at +X; the rope is tied at the bow, just above the sheer.
+    const mooring = new Mooring({
+      float,
+      post,
+      cleat: new THREE.Vector3(radius * 0.9, 0.3, 0),
+      slack: entry.slack ?? 0.15,
+      colour: 0x8a7550,
+    });
+    const id = entry.id ?? 'mooring';
+    mooring.mesh.name = `mooring:${id}`;
+    ctx.collected.moorings.push(mooring);
+    ctx.collected.emitters.push({
+      model: 'friction',
+      options: { motion: 'steady', force: 0, speed: 0, pitch: 170, decay: 0.35, bright: 0.35, roughness: 0.7, gain: 0.3 },
+      at: [post.x, post.y, post.z],
+      id: `${id}:creak`,
+      refDistance: 2,
+      maxDistance: 14,
+      rolloff: 1.4,
+      reverb: 0.3,
+    } as never);
+    return mooring.mesh;
   },
 });
 
 // --- track ------------------------------------------------------------------
 
-registerEntryKind<TrackEntry>({
-  kind: 'track',
-  schema: {
-    width: { type: 'number', min: 0.6, max: 12, step: 0.1 },
-    surface: { type: 'choice', options: () => [...TRACK_SURFACES] },
-    edge: { type: 'choice', options: ['none', 'kerb', 'verge'] },
-    wear: { type: 'number', min: 0, max: 1, step: 0.05 },
-  },
-  defaults: () => ({ through: [[0, 0], [8, 0]], width: 2.4, surface: 'dirt', edge: 'verge', wear: 0.5 }),
-  build(entry, ctx) {
-    // One network per pass. A group already standing in a zone is a rebuild
-    // of one entry, which gets a fresh network of its own.
-    let network = networks.get(ctx.tracks);
-    let group = network?.get(entry);
-    if (!group || group.parent) {
-      const beside = GROUND[ctx.terrain?.baseMaterial ?? 'turf'].color;
-      const built = buildTrackNetwork({
-        tracks: ctx.tracks.map((track, index) => ({
-          id: String(index),
-          through: track.through,
-          width: track.width,
-          surface: track.surface,
-          edge: track.edge,
-          wear: track.wear,
-          seed: seedOf(track),
-        })),
-        groundAt: ctx.groundAt,
-        beside,
-      });
-      network = new Map();
-      ctx.tracks.forEach((track, index) => network?.set(track, built.get(String(index)) ?? new THREE.Group()));
-      networks.set(ctx.tracks, network);
-      group = network.get(entry);
+/**
+ * A track line: the zone's tracks are one network, built together on the first
+ * of them in a pass and keyed by id. A line's marks may have split it into
+ * several network tracks (`id`, `id#1`, …); they come back as one group, with
+ * the bridge the mark named standing across the gap.
+ */
+function trackGroup(entry: LineEntry, ctx: EntryContext): THREE.Group {
+  const id = entry.id ?? 'track';
+  let network = networks.get(ctx.tracks);
+  if (!network || [...network.values()].some((group) => group.parent && group.parent.parent === null && false)) network = undefined;
+  if (!network) {
+    const beside = GROUND[ctx.terrain?.baseMaterial ?? 'turf'].color;
+    network = buildTrackNetwork({
+      tracks: ctx.tracks.map((track) => ({
+        id: track.id ?? 'track',
+        through: track.through,
+        width: track.width,
+        surface: track.surface,
+        edge: track.edge,
+        wear: track.wear,
+        seed: seedOf(track),
+      })),
+      groundAt: ctx.groundAt,
+      beside,
+    });
+    networks.set(ctx.tracks, network);
+  }
+  const group = new THREE.Group();
+  for (const [key, built] of network) {
+    if (key === id || key.startsWith(`${id}#`)) {
+      if (built.parent) built.removeFromParent();
+      group.add(built);
     }
-    return group ?? new THREE.Group();
-  },
-});
+  }
+  for (const mark of entry.marks ?? []) {
+    if (mark.kind !== 'bridge') continue;
+    const builder = builderByName(mark.builder ?? 'footbridge');
+    if (!builder) continue;
+    const line = lineOf(entry, ctx, null);
+    const walk = new (class {})() as never;
+    void walk;
+    const at = stationOf(line, mark.at);
+    const mesh = builder.build({ seed: mark.seed ?? seedOf(entry) + Math.round(mark.at * 10), ...optionsOf(builder, { ...(mark.options ?? {}), length: mark.width }) });
+    place(group, mesh, at.x, at.z, at.yaw, ctx.groundAt, builder.solid !== false);
+  }
+  return group;
+}
 
-const networks = new WeakMap<readonly TrackEntry[], Map<TrackEntry, THREE.Group>>();
+/** Where a line is at `s` metres along its chords, and the yaw that lays a builder's +X along it. */
+function stationOf(line: Line, s: number): { x: number; z: number; yaw: number } {
+  let left = s;
+  for (let i = 0; i + 1 < line.points.length; i++) {
+    const a = line.points[i].at;
+    const b = line.points[i + 1].at;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (left <= len || i + 2 === line.points.length) {
+      const t = len > 0 ? Math.min(1, Math.max(0, left / len)) : 0;
+      // rotateY(yaw) takes +X to (cos yaw, 0, −sin yaw), the chord.
+      return { x: a[0] + (b[0] - a[0]) * t, z: a[1] + (b[1] - a[1]) * t, yaw: Math.atan2(-(b[1] - a[1]), b[0] - a[0]) };
+    }
+    left -= len;
+  }
+  const p = line.points[0].at;
+  return { x: p[0], z: p[1], yaw: 0 };
+}
+
+const networks = new WeakMap<readonly TrackEntry[], Map<string, THREE.Group>>();
 
 // --- particles --------------------------------------------------------------
 
 registerEntryKind<ParticlesEntry>({
   kind: 'particles',
+  names: () => [],
   schema: {},
   defaults: () => ({
     spec: {
@@ -913,6 +1109,7 @@ registerEntryKind<ParticlesEntry>({
 
 registerEntryKind<FogVolumeEntry>({
   kind: 'fogVolume',
+  names: () => [],
   schema: {
     shape: { type: 'choice', options: ['ellipsoid', 'box'] },
     density: { type: 'number', min: 0, max: 2, step: 0.01, label: 'per metre' },
@@ -950,6 +1147,7 @@ registerEntryKind<FogVolumeEntry>({
 for (const kind of ['glitch', 'horror'] as const) {
   registerEntryKind<EffectVolumeEntry>({
     kind,
+    names: () => [],
     schema: {
       shape: { type: 'choice', options: ['ellipsoid', 'box'] },
       strength: { type: 'number', min: 0, max: 1, step: 0.01 },
@@ -997,6 +1195,7 @@ for (const kind of ['glitch', 'horror'] as const) {
 
 registerEntryKind<SoundEntry>({
   kind: 'sound',
+  names: () => [],
   schema: { ref: { type: 'ref', label: 'anchored to' }, lift: { type: 'number', min: 0, max: 20, step: 0.05 } },
   defaults: () => ({ spec: { model: 'fire', options: {} } }),
   build(entry, ctx) {
@@ -1021,6 +1220,7 @@ registerEntryKind<SoundEntry>({
 
 registerEntryKind<SoundScatterEntry>({
   kind: 'soundScatter',
+  names: () => [],
   schema: { ref: { type: 'ref', label: 'anchored to' }, lift: { type: 'number', min: 0, max: 20, step: 0.05 } },
   defaults: () => ({ spec: { sound: 'clatter', at: [0, 1, 0], spread: [6, 0.5, 6], every: 30 } }),
   build(entry, ctx) {
@@ -1045,6 +1245,18 @@ registerEntryKind<SoundScatterEntry>({
 
 registerEntryKind<VistaRingEntry>({
   kind: 'vistaRing',
+  names(entry) {
+    const out: string[] = [];
+    for (const raw of [...(entry.place ?? []), ...(entry.scatter ?? [])]) {
+      const named = raw as { builder?: string; tree?: string };
+      const name = named.tree ?? named.builder;
+      if (name) out.push(name);
+    }
+    // The neighbours' icons and the shared far layer, which the ring reads off
+    // the atlas rather than off this entry.
+    if (entry.neighbours || entry.horizon) out.push(...atlasBuilders());
+    return out;
+  },
   schema: {
     chunk: { type: 'number', min: 40, max: 800, step: 10, label: 'merge cell (m)' },
     neighbours: { type: 'boolean', label: "neighbours' icons" },
@@ -1057,7 +1269,10 @@ registerEntryKind<VistaRingEntry>({
     if (!ctx.skirt) return [];
     const plan = vistaRingPlan({ ...ringPlan(entry, ctx.zone, ctx.skirt), skirt: ctx.skirt });
     keepPlan(planKey(entry), plan);
-    return plan.map(propAsk);
+    // A tree in the ring is built through the stand path, on a variant seed
+    // rather than the placement's, and a card is built once per atlas variant
+    // however many stand in it. Neither claims a prop warmed at its own seed.
+    return plan.filter((prop) => !prop.card && !STAND_SPECIES.has(prop.builder.name)).map(propAsk);
   },
   build(entry, ctx) {
     if (!ctx.skirt) throw new Error('a vista ring needs a skirt');
@@ -1190,18 +1405,20 @@ function ringPlan(entry: VistaRingEntry, zone: string, skirt: Skirt): Omit<Vista
   };
 }
 
+/** `tree` names a real foliage builder standing in the ring; `builder` names a vista piece. */
 function namedVistaProp(raw: Record<string, unknown>): VistaProp {
-  const { builder, ...rest } = raw as { builder: string } & Record<string, unknown>;
-  return { builder: needBuilder(builder), ...rest } as VistaProp;
+  const { builder, tree, ...rest } = raw as { builder?: string; tree?: string } & Record<string, unknown>;
+  return { builder: needBuilder(tree ?? builder ?? ''), ...rest } as VistaProp;
 }
 
 function namedVistaScatter(raw: Record<string, unknown>): VistaScatter {
-  const { builder, ...rest } = raw as { builder: string } & Record<string, unknown>;
-  return { builder: needBuilder(builder), ...rest } as VistaScatter;
+  const { builder, tree, ...rest } = raw as { builder?: string; tree?: string } & Record<string, unknown>;
+  return { builder: needBuilder(tree ?? builder ?? ''), ...rest } as VistaScatter;
 }
 
 registerEntryKind<DressingEntry>({
   kind: 'dressing',
+  names: (entry) => entry.kinds.map((raw) => (raw as { builder: string }).builder),
   schema: { solidWithin: { type: 'number', min: -200, max: 200, step: 1, label: 'solid inside (m)' } },
   defaults: () => ({ band: { inner: -4, outer: 14 }, kinds: [] }),
   asks(entry, ctx) {

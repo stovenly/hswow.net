@@ -22,7 +22,7 @@ import { popBubble, bubbleRadius, bubbleHz } from '../dsp/bubble';
  * noise under bubbles is a tap running into a metal sink.
  */
 
-export type Flow = 'brook' | 'stream' | 'fountain' | 'cistern';
+export type Flow = 'brook' | 'stream' | 'rapid' | 'fountain' | 'cistern' | 'lap';
 
 interface FlowKind {
   /** Bubbles per second at full rate. */
@@ -58,6 +58,17 @@ const FLOWS: Record<Flow, FlowKind> = {
     bedLevel: 0.36,
     voice: 0.13,
   },
+  // White water: the brook's small bubbles at a far higher rate over a wide,
+  // loud bed.
+  rapid: {
+    rate: 170,
+    radius: [0.0004, 0.003],
+    cycles: 13,
+    bedHz: 1300,
+    bedQ: 0.55,
+    bedLevel: 0.5,
+    voice: 0.09,
+  },
   // Falling water entrains air far more violently than flowing water, so the
   // rate is high and the bed is bright with spray.
   fountain: {
@@ -81,6 +92,17 @@ const FLOWS: Record<Flow, FlowKind> = {
     bedQ: 1.3,
     bedLevel: 0.02,
     voice: 0.62,
+  },
+  // A pond's edge: near silence, a few large slow bubbles, and a low lapping
+  // bed that the rate scales, so a gust over the water is heard as well as seen.
+  lap: {
+    rate: 1.6,
+    radius: [0.002, 0.007],
+    cycles: 26,
+    bedHz: 320,
+    bedQ: 1.1,
+    bedLevel: 0.06,
+    voice: 0.4,
   },
 };
 

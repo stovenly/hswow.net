@@ -10,7 +10,6 @@ import type { PortalEnd, PortalDefinition } from '@engine/world/Portal';
 import { vistaHill } from '@engine/art/builders/vista-hill';
 import { vistaCrag } from '@engine/art/builders/vista-crag';
 import { vistaForest } from '@engine/art/builders/vista-forest';
-import { vistaCopse } from '@engine/art/builders/vista-copse';
 import { vistaHamlet } from '@engine/art/builders/vista-hamlet';
 import { vistaTower } from '@engine/art/builders/vista-tower';
 import { vistaFieldWall } from '@engine/art/builders/vista-field-wall';
@@ -20,6 +19,8 @@ import { vistaRing } from '@engine/world/vista-ring';
 import { edgeDressing } from '@engine/world/dressing';
 // Band 1 is ordinary props at ordinary scale — the kit's own, not the vista
 // family's.
+import { oak } from '@engine/art/builders/oak';
+import { birch } from '@engine/art/builders/birch';
 import { bush } from '@engine/art/builders/bush';
 import { gorse } from '@engine/art/builders/gorse';
 import { bramble } from '@engine/art/builders/bramble';
@@ -333,15 +334,10 @@ function buildRing(): THREE.Group {
       // it is a metre of `STILL_REACH` the fringe has to stand behind.
       { builder: vistaForest, count: 9, scale: [0.9, 1.2], spacing: 26 },
       { builder: vistaHill, count: 7, scale: [0.8, 1.4], spacing: 30 },
-      // Copses between the woods and the near edge, where a treeline would
-      // otherwise start out of nothing.
-      {
-        builder: vistaCopse,
-        count: 6,
-        band: { inner: BAND.inner, outer: 70 },
-        scale: [0.9, 1.4],
-        spacing: 20,
-      },
+      // Cards of the real trees between the woods and the near edge, where a
+      // treeline would otherwise start out of nothing.
+      { builder: oak, card: true, count: 10, band: { inner: BAND.inner, outer: 70 }, scale: [1.1, 1.6], spacing: 9 },
+      { builder: birch, card: true, count: 5, band: { inner: BAND.inner, outer: 70 }, scale: [1.1, 1.5], spacing: 9 },
       // Walls, because a landscape with no boundaries in it is scenery rather
       // than country. Kept near, where a two-metre line still resolves.
       {

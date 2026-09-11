@@ -82,14 +82,14 @@ export function treeParts(rng: Rng, height: number, x: number, z: number, palett
   trunk.translate(x, trunkTop / 2, z);
   const parts: Part[] = [{ geometry: trunk, color: shade(PALETTE.BARK, 0.9), sway: 0 }];
   const count = rng.int(1, 2);
-  const wash = landWash(rng.int(1, 0x7fffffff), palette, { scale: rng.range(8, 14), crown: height });
+  const wash = landWash(rng.int(1, 0x7fffffff), palette, { scale: rng.range(8, 14), crown: height, foot: trunkTop });
   let y = trunkTop;
   for (let i = 0; i < count; i++) {
     const radius = (height - trunkTop) * rng.range(0.28, 0.36) * (1 - i * 0.3);
     const crown = vistaMass(rng, {
       radius,
       detail: 0,
-      rough: rng.range(0.16, 0.28),
+      rough: rng.range(0.24, 0.4),
       squash: rng.range(0.75, 0.95),
       stretch: rng.range(0.85, 1.2),
       bury: 0.1,
@@ -110,7 +110,7 @@ export function pineParts(rng: Rng, height: number, x: number, z: number): Part[
   trunk.translate(x, trunkTop / 2, z);
   const parts: Part[] = [{ geometry: trunk, color: shade(PALETTE.BARK, 0.85), sway: 0 }];
   const tiers = 3;
-  const colour = shade(PALETTE.LEAF_DARK, rng.range(0.7, 0.85));
+  const colour = landWash(rng.int(1, 0x7fffffff), VISTA_MATERIALS.wood, { scale: rng.range(8, 14), crown: height, foot: trunkTop });
   for (let i = 0; i < tiers; i++) {
     const t = i / tiers;
     const radius = height * 0.22 * (1 - t * 0.6);

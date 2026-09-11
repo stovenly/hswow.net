@@ -4,11 +4,14 @@ import { finish } from '../art/assemble';
 import { finishCaptured } from '../art/dress';
 import { markVista } from '../art/vista';
 import { createRng } from '../art/random';
+import { CardAtlas, frameOf, type CardInstance, type CardVariant } from '../art/cards';
+import { STAND_SPECIES, variantSeed } from '../art/foliage';
 import type { MeshBuilder } from '../art/types';
 import { takeWarm } from './warmProps';
 import type { PropAsk } from '../engine/work/jobs';
 import { outlineBounds, type Outline, type Skirt } from './vista';
 import { VistaParallax, type ParallaxProp } from './vista-parallax';
+import { standMesh } from './stands';
 
 /**
  * The vista ring: everything standing out of bounds.
@@ -61,6 +64,13 @@ export interface VistaProp {
    * no further out than the prop really is, and it stands still and merges.
    */
   apparent?: number;
+  /**
+   * A billboard of the builder rather than the builder. Nothing works this out:
+   * a placement says so or it does not, at any range.
+   */
+  card?: boolean;
+  /** How many seeds of this species the atlas holds. One, unless the repeat shows. */
+  variants?: number;
 }
 
 export interface VistaScatter {
@@ -82,6 +92,16 @@ export interface VistaScatter {
    * other, and that difference is the depth cue. A whole band at one value is a tier.
    */
   apparent?: number | readonly [number, number];
+  /** Every prop this scatter lands is a billboard. */
+  card?: boolean;
+  /** How many seeds of this species the atlas holds. */
+  variants?: number;
+}
+
+/** What the ring hands the manager: the trees to render into an atlas, and where their cards stand. */
+export interface VistaCards {
+  variants: CardVariant[];
+  instances: CardInstance[];
 }
 
 export interface VistaRingOptions {
@@ -208,6 +228,8 @@ export function vistaRingPlan(
         at: [x, z],
         scale,
         seed: rng.int(1, 0x7fffffff),
+        card: fill.card,
+        variants: fill.variants,
         apparent:
           fill.apparent === undefined || typeof fill.apparent === 'number'
             ? fill.apparent
@@ -222,7 +244,19 @@ export function vistaRingPlan(
     if (landed === 0) onEmpty?.(fill, range);
   }
 
+  // Named here rather than at the render, so a ring over the cap says so before
+  // anything is built and says which trees put it over. Never dropped silently.
+  const keys = new Set(placed.filter((prop) => prop.card).map(cardKey));
+  if (keys.size > CardAtlas.capacity) {
+    throw new Error(`vistaRing: ${keys.size} card variants over the atlas's ${CardAtlas.capacity}: ${[...keys].join(', ')}`);
+  }
+
   return placed;
+}
+
+/** Which atlas variant a card placement wants: its species, and one of that species' seeds. */
+function cardKey(prop: VistaProp): string {
+  return `${prop.builder.name}:${variantSeed('vista', prop.builder.name, prop.seed, prop.variants ?? 1)}`;
 }
 
 /**
@@ -251,7 +285,15 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
 
   const still: VistaProp[] = [];
   const moving: { prop: VistaProp; k: number }[] = [];
+  const carded: VistaProp[] = [];
   for (const prop of placed) {
+    if (prop.card) {
+      if (prop.apparent !== undefined) {
+        console.warn(`vistaRing: ${prop.builder.name} is a card, so its apparent distance of ${prop.apparent.toFixed(0)} m does nothing — cards are one instanced mesh`);
+      }
+      carded.push(prop);
+      continue;
+    }
     const actual = skirt.outside(prop.at[0], prop.at[1]);
     const k = parallaxK(prop.apparent, actual);
     if (k > 0) moving.push({ prop, k });
@@ -280,7 +322,7 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
     mesh.userData.vistaRanges = [
       { start: 0, count, name: prop.builder.name, seed: prop.seed },
     ] satisfies Range[];
-    root.add(markVista(mesh));
+    root.add(markRing(prop, mesh));
     return {
       mesh,
       base: [prop.at[0], prop.at[1]] as const,
@@ -298,7 +340,18 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
 
   const size = options.chunk ?? CHUNK;
   const cells = new Map<string, VistaProp[]>();
+  const stands = new Map<string, THREE.Mesh>();
   for (const prop of still) {
+    // A crown is a second mesh on a second material, so a tree has nothing a
+    // chunk could merge: it stands as its own mesh and shares its geometry with
+    // the others of its variant, exactly as a tree inside the level does.
+    if (STAND_SPECIES.has(prop.builder.name)) {
+      const mesh = standMesh(stands, 'vista', prop.builder, prop.seed, prop.scale ?? 1);
+      mesh.position.set(prop.at[0], skirt.heightAt(prop.at[0], prop.at[1]), prop.at[1]);
+      mesh.rotation.y = prop.yaw ?? createRng(prop.seed ^ 0x1a71)() * Math.PI * 2;
+      root.add(markRing(prop, mesh));
+      continue;
+    }
     const key = `${Math.floor(prop.at[0] / size)},${Math.floor(prop.at[1] / size)}`;
     const cell = cells.get(key);
     if (cell) cell.push(prop);
@@ -337,7 +390,60 @@ export function vistaRing(options: VistaRingOptions): THREE.Group {
     root.add(markVista(chunk));
   }
 
+  // --- the cards ------------------------------------------------------------
+
+  // Left as a plan on the group: rendering the atlas wants the renderer, which
+  // only the manager has, and it has to happen after the branch sheet exists.
+  const cards = planCards(carded, skirt);
+  if (cards) root.userData.vistaCards = cards;
+
   return root;
+}
+
+/** The atlas variants a set of card placements wants, and where every card of them stands. */
+function planCards(props: readonly VistaProp[], skirt: Skirt): VistaCards | null {
+  if (props.length === 0) return null;
+  const index = new Map<string, number>();
+  const variants: CardVariant[] = [];
+  const instances: CardInstance[] = [];
+  for (const prop of props) {
+    const key = cardKey(prop);
+    let which = index.get(key);
+    if (which === undefined) {
+      which = variants.length;
+      index.set(key, which);
+      variants.push(cardVariant(key, prop.builder, Number(key.slice(key.lastIndexOf(':') + 1))));
+    }
+    instances.push({
+      x: prop.at[0],
+      y: skirt.heightAt(prop.at[0], prop.at[1]),
+      z: prop.at[1],
+      yaw: prop.yaw ?? createRng(prop.seed ^ 0x1a71)() * Math.PI * 2,
+      scale: prop.scale ?? 1,
+      variant: which,
+    });
+  }
+  return { variants, instances };
+}
+
+/** One tree built at the origin, split into the two halves a card is rendered from. */
+function cardVariant(key: string, builder: MeshBuilder, seed: number): CardVariant {
+  const mesh = builder.build({ seed, scale: 1 });
+  const crown = mesh.children.find((child) => child.userData.canopy === true);
+  if (!(crown instanceof THREE.Mesh)) throw new Error(`vistaRing: "${builder.name}" has no crown, so there is nothing to card`);
+  return { key, trunk: mesh.geometry, canopy: crown.geometry, ...frameOf(mesh.geometry, crown.geometry) };
+}
+
+/**
+ * Scenery, out of the collider and out of the shadow box. A real tree keeps its
+ * wind: `markVista` zeroes the sway lane, and a rigid trunk under a crown that
+ * still moves opens the seam between the two.
+ */
+function markRing(prop: VistaProp, mesh: THREE.Mesh): THREE.Mesh {
+  if (!STAND_SPECIES.has(prop.builder.name)) return markVista(mesh);
+  mesh.userData.vista = true;
+  mesh.userData.noCollide = true;
+  return mesh;
 }
 
 /** One prop, built and stood on the skirt where it was placed. */

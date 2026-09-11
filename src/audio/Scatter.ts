@@ -4,6 +4,7 @@ import { Emitter, type SoundModel } from './Emitter';
 import { createEventClock, periodic, poisson, type EventClock, type Gap } from './dsp/clock';
 import { createDrip, type DripOptions } from './oneshots/drip';
 import { createBell, type BellOptions } from './oneshots/bell';
+import { createDroplet, type DropletOptions } from './oneshots/droplet';
 import { createHammer, type HammerOptions } from './oneshots/hammer';
 import { createClatter, type ClatterOptions } from './oneshots/clatter';
 import { createBeast, type BeastOptions } from './oneshots/beast';
@@ -68,7 +69,8 @@ export type OneShotSpec =
   | { sound: 'animal'; options?: BeastOptions }
   | { sound: 'voice'; options?: VoiceOptions }
   | { sound: 'drip'; options?: DripOptions }
-  | { sound: 'bell'; options?: BellOptions };
+  | { sound: 'bell'; options?: BellOptions }
+  | { sound: 'droplet'; options?: DropletOptions };
 
 export type ScatterSpec = OneShotSpec & {
   id?: string;
@@ -123,6 +125,8 @@ export function buildOneShot(engine: AudioEngine, spec: OneShotSpec): OneShot {
       return createDrip(engine, spec.options);
     case 'bell':
       return createBell(engine, spec.options);
+    case 'droplet':
+      return createDroplet(engine, spec.options);
   }
 }
 

@@ -1910,148 +1910,213 @@
   "entries": [
     {
       "id": "w-track",
-      "kind": "track",
-      "through": [
-        [
-          -76.4,
-          -15.3
-        ],
-        [
-          -60,
-          -8
-        ],
-        [
-          -48,
-          -10
-        ],
-        [
-          -40,
-          -12
-        ],
-        [
-          -34,
-          -8
-        ],
-        [
-          -28,
-          -1
-        ],
-        [
-          -23,
-          5
-        ],
-        [
-          -17,
-          9
-        ],
-        [
-          -9,
-          10.5
-        ],
-        [
-          1,
-          9.5
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7241,
+      "points": [
+        {
+          "at": [
+            -76.4,
+            -15.3
+          ]
+        },
+        {
+          "at": [
+            -60,
+            -8
+          ]
+        },
+        {
+          "at": [
+            -48,
+            -10
+          ]
+        },
+        {
+          "at": [
+            -40,
+            -12
+          ]
+        },
+        {
+          "at": [
+            -34,
+            -8
+          ]
+        },
+        {
+          "at": [
+            -28,
+            -1
+          ]
+        },
+        {
+          "at": [
+            -23,
+            5
+          ]
+        },
+        {
+          "at": [
+            -17,
+            9
+          ]
+        },
+        {
+          "at": [
+            -9,
+            10.5
+          ]
+        },
+        {
+          "at": [
+            1,
+            9.5
+          ]
+        }
       ],
-      "width": 2.6,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.7,
-      "seed": 7241
+      "options": {
+        "width": 2.6,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.7
+      }
     },
     {
       "id": "ne-track",
-      "kind": "track",
-      "through": [
-        [
-          66,
-          -73.6
-        ],
-        [
-          60,
-          -70
-        ],
-        [
-          40,
-          -58
-        ],
-        [
-          30,
-          -52
-        ],
-        [
-          20,
-          -46
-        ],
-        [
-          14,
-          -40
-        ],
-        [
-          12,
-          -28
-        ],
-        [
-          11,
-          -16
-        ],
-        [
-          8,
-          -4
-        ],
-        [
-          4,
-          5
-        ],
-        [
-          1,
-          9.5
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7242,
+      "points": [
+        {
+          "at": [
+            66,
+            -73.6
+          ]
+        },
+        {
+          "at": [
+            60,
+            -70
+          ]
+        },
+        {
+          "at": [
+            40,
+            -58
+          ]
+        },
+        {
+          "at": [
+            30,
+            -52
+          ]
+        },
+        {
+          "at": [
+            20,
+            -46
+          ]
+        },
+        {
+          "at": [
+            14,
+            -40
+          ]
+        },
+        {
+          "at": [
+            12,
+            -28
+          ]
+        },
+        {
+          "at": [
+            11,
+            -16
+          ]
+        },
+        {
+          "at": [
+            8,
+            -4
+          ]
+        },
+        {
+          "at": [
+            4,
+            5
+          ]
+        },
+        {
+          "at": [
+            1,
+            9.5
+          ]
+        }
       ],
-      "width": 2.6,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.7,
-      "seed": 7242
+      "options": {
+        "width": 2.6,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.7
+      }
     },
     {
       "id": "s-track",
-      "kind": "track",
-      "through": [
-        [
-          1,
-          9.5
-        ],
-        [
-          0,
-          18
-        ],
-        [
-          3,
-          30
-        ],
-        [
-          -2,
-          42
-        ],
-        [
-          -4,
-          52
-        ],
-        [
-          -4,
-          62
-        ],
-        [
-          -4,
-          78
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 7243,
+      "points": [
+        {
+          "at": [
+            1,
+            9.5
+          ]
+        },
+        {
+          "at": [
+            0,
+            18
+          ]
+        },
+        {
+          "at": [
+            3,
+            30
+          ]
+        },
+        {
+          "at": [
+            -2,
+            42
+          ]
+        },
+        {
+          "at": [
+            -4,
+            52
+          ]
+        },
+        {
+          "at": [
+            -4,
+            62
+          ]
+        },
+        {
+          "at": [
+            -4,
+            78
+          ]
+        }
       ],
-      "width": 2.6,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.7,
-      "seed": 7243
+      "options": {
+        "width": 2.6,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.7
+      }
     },
     {
       "id": "gate-w-hazel-n",
@@ -2079,12 +2144,12 @@
       "id": "gate-w-slab",
       "kind": "barrier",
       "from": [
-        -64,
-        -22
+        -64.0,
+        -22.0
       ],
       "to": [
-        -64,
-        6
+        -64.0,
+        6.0
       ],
       "height": 3
     },
@@ -2104,54 +2169,53 @@
       }
     },
     {
-      "id": "ne-wall",
-      "kind": "chain",
-      "seed": 6840,
-      "runs": [
+      "id": "ne-wall-0-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6850,
+      "points": [
         {
-          "seed": 6850,
-          "start": {
+          "at": {
             "ref": "ne-gate",
             "edge": "+x"
-          },
-          "edges": [
-            {
-              "to": [
-                47,
-                -51
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                54,
-                -43
-              ],
-              "kind": "wall"
-            }
+          }
+        },
+        {
+          "at": [
+            47,
+            -51
           ]
         },
         {
-          "seed": 6860,
-          "start": {
+          "at": [
+            54,
+            -43
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ne-wall-1-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6860,
+      "points": [
+        {
+          "at": {
             "ref": "ne-gate",
             "edge": "-x"
-          },
-          "edges": [
-            {
-              "to": [
-                33,
-                -65
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                26,
-                -73
-              ],
-              "kind": "wall"
-            }
+          }
+        },
+        {
+          "at": [
+            33,
+            -65
+          ]
+        },
+        {
+          "at": [
+            26,
+            -73
           ]
         }
       ]
@@ -2901,43 +2965,55 @@
     {
       "id": "brook",
       "kind": "water",
-      "at": [
-        14,
-        -1.45,
-        -40
-      ],
-      "width": 22,
-      "depth": 18,
-      "chop": 0.12,
-      "taper": 0.3,
-      "segment": 0.5,
+      "regime": "flow",
+      "palette": "river",
       "course": [
-        [
-          -2,
-          -54
-        ],
-        [
-          5,
-          -48
-        ],
-        [
-          11,
-          -43
-        ],
-        [
-          17,
-          -38
-        ],
-        [
-          24,
-          -32
-        ],
-        [
-          32,
-          -26
-        ]
+        {
+          "at": [
+            -2,
+            -54
+          ],
+          "width": 4,
+          "level": -1.45,
+          "speed": 0.5
+        },
+        {
+          "at": [
+            5,
+            -48
+          ],
+          "width": 4
+        },
+        {
+          "at": [
+            11,
+            -43
+          ],
+          "width": 4
+        },
+        {
+          "at": [
+            17,
+            -38
+          ],
+          "width": 4
+        },
+        {
+          "at": [
+            24,
+            -32
+          ],
+          "width": 4
+        },
+        {
+          "at": [
+            32,
+            -26
+          ],
+          "width": 4
+        }
       ],
-      "speed": 0.5
+      "sound": null
     },
     {
       "id": "brook-boulder-n",
@@ -2989,20 +3065,28 @@
     {
       "id": "river",
       "kind": "water",
-      "at": [
-        -130,
-        -6.5,
-        -140
-      ],
-      "width": 150,
-      "depth": 200,
-      "chop": 0.3,
-      "taper": 1,
+      "regime": "flow",
+      "palette": "river",
       "segment": 3,
-      "flow": [
-        0.05,
-        0.4
-      ]
+      "course": [
+        {
+          "at": [
+            -142.4,
+            -239.23
+          ],
+          "width": 150,
+          "level": -6.5,
+          "speed": 0.4
+        },
+        {
+          "at": [
+            -117.6,
+            -40.77
+          ],
+          "width": 150
+        }
+      ],
+      "sound": null
     },
     {
       "id": "bend1-oak",
@@ -3189,6 +3273,556 @@
       ],
       "yaw": 1.8,
       "scale": 1
+    },
+    {
+      "id": "boundary-0",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6770,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -6.51,
+            -2.45
+          ]
+        },
+        {
+          "at": [
+            -3.85,
+            -8.08
+          ]
+        },
+        {
+          "at": [
+            -1.51,
+            -18.07
+          ]
+        },
+        {
+          "at": [
+            -1.23,
+            -23.83
+          ]
+        },
+        {
+          "at": [
+            -0.62,
+            -29.57
+          ]
+        },
+        {
+          "at": [
+            0.79,
+            -37.81
+          ]
+        },
+        {
+          "at": [
+            2.31,
+            -46.02
+          ]
+        },
+        {
+          "at": [
+            7.06,
+            -51.19
+          ]
+        },
+        {
+          "at": [
+            12.18,
+            -56.01
+          ]
+        },
+        {
+          "at": [
+            17.93,
+            -59.28
+          ]
+        },
+        {
+          "at": [
+            23.41,
+            -62.98
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-1",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6771,
+      "style": "low",
+      "points": [
+        {
+          "at": [
+            23.67,
+            -62.56
+          ]
+        },
+        {
+          "at": [
+            28.46,
+            -65.89
+          ]
+        },
+        {
+          "at": [
+            33.53,
+            -68.79
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 6.42,
+          "kind": "ruin",
+          "width": 3.5028185394463467
+        }
+      ]
+    },
+    {
+      "id": "boundary-2",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6772,
+      "style": "low",
+      "points": [
+        {
+          "at": [
+            56.37,
+            -53.18
+          ]
+        },
+        {
+          "at": [
+            51.47,
+            -50.12
+          ]
+        },
+        {
+          "at": [
+            46.49,
+            -47.18
+          ]
+        },
+        {
+          "at": [
+            41.59,
+            -44.02
+          ]
+        },
+        {
+          "at": [
+            36.6,
+            -40.99
+          ]
+        },
+        {
+          "at": [
+            27.67,
+            -36.17
+          ]
+        },
+        {
+          "at": [
+            26.0,
+            -33.82
+          ]
+        },
+        {
+          "at": [
+            24.3,
+            -26.47
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 24.09,
+          "kind": "ruin",
+          "width": 13.142009277594756
+        }
+      ]
+    },
+    {
+      "id": "boundary-3",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6773,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            24.7,
+            -26.42
+          ]
+        },
+        {
+          "at": [
+            24.06,
+            -20.18
+          ]
+        },
+        {
+          "at": [
+            23.42,
+            -13.94
+          ]
+        },
+        {
+          "at": [
+            21.88,
+            -6.86
+          ]
+        },
+        {
+          "at": [
+            20.18,
+            0.2
+          ]
+        },
+        {
+          "at": [
+            17.47,
+            5.57
+          ]
+        },
+        {
+          "at": [
+            15.04,
+            11.07
+          ]
+        },
+        {
+          "at": [
+            13.17,
+            13.98
+          ]
+        },
+        {
+          "at": [
+            12.6,
+            17.2
+          ]
+        },
+        {
+          "at": [
+            14.27,
+            24.15
+          ]
+        },
+        {
+          "at": [
+            16.3,
+            30.99
+          ]
+        },
+        {
+          "at": [
+            13.38,
+            38.42
+          ]
+        },
+        {
+          "at": [
+            10.06,
+            45.68
+          ]
+        },
+        {
+          "at": [
+            8.7,
+            53.26
+          ]
+        },
+        {
+          "at": [
+            8.62,
+            62.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-4",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6774,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -16.54,
+            62.0
+          ]
+        },
+        {
+          "at": [
+            -16.98,
+            56.38
+          ]
+        },
+        {
+          "at": [
+            -16.63,
+            50.75
+          ]
+        },
+        {
+          "at": [
+            -15.68,
+            44.46
+          ]
+        },
+        {
+          "at": [
+            -14.32,
+            38.24
+          ]
+        },
+        {
+          "at": [
+            -10.26,
+            29.01
+          ]
+        },
+        {
+          "at": [
+            -12.02,
+            23.04
+          ]
+        },
+        {
+          "at": [
+            -21.92,
+            21.08
+          ]
+        },
+        {
+          "at": [
+            -26.49,
+            17.49
+          ]
+        },
+        {
+          "at": [
+            -31.35,
+            14.29
+          ]
+        },
+        {
+          "at": [
+            -37.59,
+            7.1
+          ]
+        },
+        {
+          "at": [
+            -42.37,
+            2.12
+          ]
+        },
+        {
+          "at": [
+            -45.41,
+            2.46
+          ]
+        },
+        {
+          "at": [
+            -52.24,
+            3.68
+          ]
+        },
+        {
+          "at": [
+            -59.14,
+            4.37
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-5",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6775,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -60.89,
+            -20.81
+          ]
+        },
+        {
+          "at": [
+            -50.61,
+            -22.56
+          ]
+        },
+        {
+          "at": [
+            -44.04,
+            -23.74
+          ]
+        },
+        {
+          "at": [
+            -37.63,
+            -25.64
+          ]
+        },
+        {
+          "at": [
+            -31.56,
+            -21.62
+          ]
+        },
+        {
+          "at": [
+            -25.45,
+            -17.65
+          ]
+        },
+        {
+          "at": [
+            -21.78,
+            -13.49
+          ]
+        },
+        {
+          "at": [
+            -18.48,
+            -9.04
+          ]
+        },
+        {
+          "at": [
+            -14.32,
+            -4.66
+          ]
+        },
+        {
+          "at": [
+            -12.08,
+            -3.09
+          ]
+        },
+        {
+          "at": [
+            -8.46,
+            -2.14
+          ]
+        },
+        {
+          "at": [
+            -6.39,
+            -2.28
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-west",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6741,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -63.6,
+            -20.0
+          ]
+        },
+        {
+          "at": [
+            -63.4,
+            -14.0
+          ]
+        },
+        {
+          "at": [
+            -60.0,
+            -8.0
+          ]
+        },
+        {
+          "at": [
+            -63.2,
+            -2.0
+          ]
+        },
+        {
+          "at": [
+            -63.6,
+            4.0
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 12.9,
+          "kind": "gate",
+          "width": 3.4,
+          "options": {
+            "open": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "boundary-south-gate",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6742,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -15.6,
+            65.6
+          ]
+        },
+        {
+          "at": [
+            -9.0,
+            64.6
+          ]
+        },
+        {
+          "at": [
+            -4.0,
+            62.0
+          ]
+        },
+        {
+          "at": [
+            2.0,
+            64.4
+          ]
+        },
+        {
+          "at": [
+            7.6,
+            65.6
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 12.31,
+          "kind": "gate",
+          "width": 3.4,
+          "options": {
+            "open": 1
+          }
+        }
+      ]
     },
     {
       "id": "bank-hazels",
@@ -3429,7 +4063,32 @@
       "kind": "scatter",
       "builder": "oak",
       "seed": 4943,
-      "count": 10,
+      "count": 6,
+      "within": 110,
+      "from": [
+        0,
+        0
+      ],
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "w-track",
+        "ne-track",
+        "s-track",
+        "heath"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.9,
+        1.25
+      ]
+    },
+    {
+      "id": "wood-ashes",
+      "kind": "scatter",
+      "builder": "ash",
+      "seed": 4954,
+      "count": 4,
       "within": 110,
       "from": [
         0,
@@ -3454,7 +4113,32 @@
       "kind": "scatter",
       "builder": "birch",
       "seed": 4944,
-      "count": 16,
+      "count": 11,
+      "within": 110,
+      "from": [
+        0,
+        0
+      ],
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "w-track",
+        "ne-track",
+        "s-track",
+        "heath"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.85,
+        1.2
+      ]
+    },
+    {
+      "id": "wood-rowans",
+      "kind": "scatter",
+      "builder": "rowan",
+      "seed": 4955,
+      "count": 5,
       "within": 110,
       "from": [
         0,
@@ -3546,7 +4230,7 @@
       "kind": "scatter",
       "builder": "bush",
       "seed": 4948,
-      "count": 16,
+      "count": 10,
       "within": 110,
       "from": [
         0,
@@ -3564,6 +4248,31 @@
       "scale": [
         1,
         1.6
+      ]
+    },
+    {
+      "id": "wood-hollies",
+      "kind": "scatter",
+      "builder": "holly",
+      "seed": 4956,
+      "count": 6,
+      "within": 110,
+      "from": [
+        0,
+        0
+      ],
+      "region": "wood",
+      "avoid": [
+        "keepClear",
+        "w-track",
+        "ne-track",
+        "s-track",
+        "heath"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.85,
+        1.2
       ]
     },
     {
@@ -3617,7 +4326,7 @@
       "kind": "scatter",
       "builder": "spruce",
       "seed": 4951,
-      "count": 14,
+      "count": 10,
       "within": 60,
       "from": [
         0,
@@ -3634,6 +4343,30 @@
       "scale": [
         0.9,
         1.3
+      ]
+    },
+    {
+      "id": "south-pines",
+      "kind": "scatter",
+      "builder": "pine",
+      "seed": 4957,
+      "count": 4,
+      "within": 60,
+      "from": [
+        0,
+        50
+      ],
+      "region": "south-wood",
+      "avoid": [
+        "keepClear",
+        "w-track",
+        "ne-track",
+        "s-track"
+      ],
+      "maxSlope": 30,
+      "scale": [
+        0.8,
+        1.0
       ]
     },
     {
@@ -3663,7 +4396,7 @@
     {
       "id": "heath-birches",
       "kind": "scatter",
-      "builder": "birch",
+      "builder": "rowan",
       "seed": 4953,
       "count": 4,
       "within": 40,
@@ -3718,22 +4451,64 @@
       },
       "place": [
         {
-          "builder": "vista-copse",
+          "tree": "oak",
+          "card": true,
           "at": [
-            -125,
-            40
+            -121.55,
+            43.05
           ],
-          "scale": 1.1,
-          "seed": 9191
+          "scale": 0.69,
+          "seed": 91910
         },
         {
-          "builder": "vista-copse",
+          "tree": "birch",
+          "card": true,
           "at": [
-            -112,
-            12
+            -128.56,
+            41.6
           ],
-          "scale": 0.9,
-          "seed": 9192
+          "scale": 0.71,
+          "seed": 91911
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "at": [
+            -123.48,
+            34.45
+          ],
+          "scale": 0.71,
+          "seed": 91912
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "at": [
+            -104.08,
+            13.63
+          ],
+          "scale": 0.575,
+          "seed": 91920
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "at": [
+            -121.45,
+            13.5
+          ],
+          "scale": 0.665,
+          "seed": 91921
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "at": [
+            -110.77,
+            4.24
+          ],
+          "scale": 0.645,
+          "seed": 91922
         },
         {
           "builder": "vista-wood-edge",
@@ -3789,34 +4564,31 @@
           "yaw": 2.3562
         },
         {
-          "builder": "vista-tree",
+          "tree": "oak",
           "at": [
             10,
             108
           ],
-          "scale": 1.2,
-          "seed": 9198,
-          "variant": "oak"
+          "scale": 1.5,
+          "seed": 9198
         },
         {
-          "builder": "vista-tree",
+          "tree": "oak",
           "at": [
             -22,
             104
           ],
-          "scale": 1.1,
-          "seed": 9199,
-          "variant": "oak"
+          "scale": 1.38,
+          "seed": 9199
         },
         {
-          "builder": "vista-tree",
+          "tree": "snag",
           "at": [
             58,
             102
           ],
-          "scale": 1.3,
-          "seed": 9200,
-          "variant": "dead"
+          "scale": 3.0,
+          "seed": 9200
         },
         {
           "builder": "vista-hedge-lane",
@@ -3824,7 +4596,7 @@
             120,
             -60
           ],
-          "scale": 1.0,
+          "scale": 1,
           "seed": 9201,
           "yaw": -1.1071
         },
@@ -3893,27 +4665,55 @@
       ],
       "scatter": [
         {
-          "builder": "vista-tree",
-          "count": 8,
+          "tree": "oak",
+          "count": 6,
           "band": {
             "inner": 14,
             "outer": 50
           },
           "scale": [
-            0.9,
-            1.3
+            1.1,
+            1.5
           ]
         },
         {
-          "builder": "vista-copse",
-          "count": 3,
+          "tree": "pine",
+          "count": 2,
+          "band": {
+            "inner": 14,
+            "outer": 50
+          },
+          "scale": [
+            1.1,
+            1.5
+          ]
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "count": 6,
+          "spacing": 9,
           "band": {
             "inner": 14,
             "outer": 60
           },
           "scale": [
-            1.0,
-            1.4
+            0.55,
+            0.8
+          ]
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "count": 3,
+          "spacing": 9,
+          "band": {
+            "inner": 14,
+            "outer": 60
+          },
+          "scale": [
+            0.55,
+            0.8
           ]
         },
         {
@@ -4116,7 +4916,7 @@
       "seed": 4970,
       "at": [
         -1.9,
-        62.0
+        62
       ],
       "yaw": 3.44
     },
@@ -4127,7 +4927,7 @@
       "seed": 4971,
       "at": [
         -6.1,
-        62.0
+        62
       ],
       "yaw": 5.54
     },
@@ -4138,7 +4938,7 @@
       "seed": 4972,
       "at": [
         -6.1,
-        62.0
+        62
       ],
       "yaw": 4.04,
       "on": "gate-s-post-b"

@@ -50,6 +50,13 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import type { Footsteps, SurfaceName } from '../audio/models/footsteps';
 import { DoorAudio } from '../audio/models/door';
 import { Soundscape } from '../audio/Soundscape';
+import { WaterRuntime, WaterVoices, waterTime } from './water';
+import { WATER_MATERIAL } from '../art/water/material';
+import { ensureBranchSheet } from '../art/branchSheet';
+import { CardAtlas, cardStand } from '../art/cards';
+import { markVista } from '../art/vista';
+import type { VistaCards } from './vista-ring';
+import type { FrictionModel } from '../audio/models/friction';
 import { MusicDirector } from '../audio/music/director';
 import { musicFor } from '../audio/vibes';
 import { AmbienceDirector } from '../audio/ambience/director';
@@ -272,6 +279,8 @@ export class ZoneManager {
   private readonly masks = new Map<ZoneId, CoverMask>();
   /** Parallax controllers per zone, collected on prepare. See `slideVista`. */
   private readonly parallax = new Map<ZoneId, VistaParallax[]>();
+  /** The card atlases each zone's rings own, so they are freed with the zone. */
+  private readonly atlases = new Map<ZoneId, CardAtlas[]>();
   /** Collision geometry that is never drawn, per zone. See `showBarriers`. */
   private readonly barriers = new Map<ZoneId, THREE.Mesh[]>();
   /** Lights a builder asked to cast, per zone. See `setShadows`. */
@@ -302,6 +311,9 @@ export class ZoneManager {
   /** Built zones with anything on the particle layer in them, which is what decides whether the particle pass runs. */
   private readonly particled = new Set<ZoneId>();
   private readonly heated = new Set<ZoneId>();
+  /** The water of every built zone: the query, the ripple fields, the floats. */
+  private readonly waters = new Map<ZoneId, WaterRuntime>();
+  private waterVoices: WaterVoices | null = null;
   /** Every flame in every built zone, and what it is doing. See `LightActivity`. */
   private readonly activity = new LightActivity();
   /** Every window in every built zone that states a bearing. See `WindowLight`. */
@@ -630,17 +642,18 @@ export class ZoneManager {
     this.warmed.add(zone.id);
     this.applyAudio(zone);
     this.collectTargets(zone, root);
+    ensureBranchSheet(this.options.postfx.renderer);
     this.options.postfx.setEnvironment({
       sky: zone.environment.sky,
       fogColor: zone.environment.fogColor,
       fogNear: zone.environment.fogNear,
       fogFar: zone.environment.fogFar,
       fogVolumes: zone.fogVolumes,
-      water: zone.hasWater,
       glass: zone.hasGlass,
       particles: this.particled.has(zone.id),
       heat: this.heated.has(zone.id),
     });
+    this.options.postfx.setWater(this.waters.get(zone.id) ?? null);
     this.hovered = null;
     this.options.reticle.set(null);
   }
@@ -676,6 +689,11 @@ export class ZoneManager {
     if (this.active === zone) this.options.collider.build(root, id);
   }
 
+  /** Takes a solid thing just removed from a zone out of its collision. */
+  reindexCollision(id: ZoneId, taken: THREE.Object3D): void {
+    this.options.collider.without(id, taken);
+  }
+
   /** Everything eviction drops, for one zone. */
   private release(zone: Zone, sound: boolean): void {
     zone.dispose();
@@ -688,10 +706,14 @@ export class ZoneManager {
     this.masks.get(zone.id)?.dispose();
     this.masks.delete(zone.id);
     this.parallax.delete(zone.id);
+    for (const atlas of this.atlases.get(zone.id) ?? []) atlas.dispose();
+    this.atlases.delete(zone.id);
     this.barriers.delete(zone.id);
     this.casters.delete(zone.id);
     this.particled.delete(zone.id);
     this.heated.delete(zone.id);
+    this.waters.get(zone.id)?.dispose();
+    this.waters.delete(zone.id);
     this.activity.release(zone.id);
     this.windows.release(zone.id);
     this.cloth.release(zone.id);
@@ -743,6 +765,7 @@ export class ZoneManager {
 
   attachAudio(audio: ZoneAudio): void {
     this.audio = audio;
+    this.waterVoices = new WaterVoices(audio.engine);
     this.doorAudio = new DoorAudio(audio.engine);
     this.director = new MusicDirector(audio.engine);
     this.air = new AmbienceDirector(audio.engine);
@@ -849,13 +872,14 @@ export class ZoneManager {
       // and an environment is shared between zones.
       fogVolumes: zone.fogVolumes,
       // Read off what was actually built rather than off a declaration.
-      water: zone.hasWater,
       glass: zone.hasGlass,
       // Off `prepare`'s walk rather than off the zone, because the sparkles are
       // built after the zone is and ride the same layer.
       particles: this.particled.has(zone.id),
       heat: this.heated.has(zone.id),
     });
+
+    postfx.setWater(this.waters.get(zone.id) ?? null);
 
     this.lights.sun.intensity = env.sunIntensity;
     this.lights.sun.color.setHex(env.sunColor);
@@ -899,6 +923,7 @@ export class ZoneManager {
       window.clearTimeout(late);
     }
     if (stale()) return;
+    ensureBranchSheet(postfx.renderer);
 
     // Whatever was under the crosshair belonged to the zone we just left.
     this.hovered = null;
@@ -954,6 +979,7 @@ export class ZoneManager {
   updateSound(dt: number, retestOcclusion: boolean): void {
     if (!this.active) return;
     this.soundscapes.get(this.active.id)?.update(dt, this.options.collider, retestOcclusion);
+    this.waterVoices?.update(dt, this.options.collider, retestOcclusion);
     this.air?.setScore(this.director?.voicing ?? null);
     this.air?.update(dt, this.options.collider, retestOcclusion);
   }
@@ -1002,6 +1028,13 @@ export class ZoneManager {
 
     const dressed = await this.decorate(zone, root);
     this.onDressed?.(zone, dressed);
+    const def = zone.definition;
+    this.waters.get(zone.id)?.dispose();
+    if ((def.water?.length ?? 0) > 0 || (def.floats?.length ?? 0) > 0) {
+      this.waters.set(zone.id, new WaterRuntime(def.water ?? [], def.floats ?? [], def.moorings ?? []));
+    } else {
+      this.waters.delete(zone.id);
+    }
     return dressed;
   }
 
@@ -1228,7 +1261,8 @@ export class ZoneManager {
       // A cloth panel is `noCollide` — its triangles stay out of the octree —
       // but it is solid to light: the sim moves the actual buffer, so its
       // shadow follows the drape with nothing to patch.
-      const glow = object.userData.noCollide === true && object.userData.cloth === undefined;
+      // A crown is noCollide too, and it casts through its own depth twin.
+      const glow = object.userData.noCollide === true && object.userData.cloth === undefined && object.userData.canopy !== true;
       const ground =
         object.name === 'flatGround' ||
         object.name === 'terrain' ||
@@ -1241,7 +1275,9 @@ export class ZoneManager {
       // starts past it.
       const vista = object.userData.vista === true;
       object.castShadow = !glow && !ground && !scatter && !vista;
-      object.receiveShadow = !glow && !vista;
+      // A crown's leaves turn to the light to cast and to the eye to be seen,
+      // so its own shadow map never lines up with what is drawn: it receives none.
+      object.receiveShadow = !glow && !vista && object.userData.canopy !== true;
       // Walls opt in by stating a type — ivy on this one — without becoming
       // ground for shadows or anything else.
       if (ground || typeof object.userData.cover === 'string') grounds.push(object);
@@ -1276,6 +1312,9 @@ export class ZoneManager {
       particles = true;
     }
 
+    // Before the freeze, so the card stands are frozen with everything else.
+    this.raiseCards(zone.id, root);
+
     // Last, so it catches the doors, the cover, the light pads and the sparkles
     // as well as whatever the zone built.
     freezeMatrices(root);
@@ -1303,6 +1342,42 @@ export class ZoneManager {
     partitionStatic(root);
 
     return root;
+  }
+
+  /**
+   * Renders every vista ring's card atlas and stands its billboards. Here rather
+   * than in the ring because the atlas is a renderer pass, and it must follow the
+   * branch sheet the crowns are drawn from.
+   */
+  private raiseCards(id: ZoneId, root: THREE.Group): void {
+    const rings: THREE.Object3D[] = [];
+    root.traverse((object) => {
+      if (object.userData.vistaCards) rings.push(object);
+    });
+    if (rings.length === 0) return;
+    const renderer = this.options.postfx.renderer;
+    ensureBranchSheet(renderer);
+    for (const atlas of this.atlases.get(id) ?? []) atlas.dispose();
+    const held: CardAtlas[] = [];
+    for (const ring of rings) {
+      const plan = ring.userData.vistaCards as VistaCards;
+      delete ring.userData.vistaCards;
+      const atlas = new CardAtlas(plan.variants.length);
+      const bases = atlas.render(renderer, plan.variants);
+      // The trees were built only to be photographed; the atlas is what is kept.
+      for (const variant of plan.variants) {
+        variant.trunk.dispose();
+        variant.canopy.dispose();
+      }
+      const stand = cardStand(atlas, plan.variants, bases, plan.instances);
+      if (!stand) {
+        atlas.dispose();
+        continue;
+      }
+      ring.add(markVista(stand));
+      held.push(atlas);
+    }
+    this.atlases.set(id, held);
   }
 
   /**
@@ -1751,6 +1826,41 @@ export class ZoneManager {
   }
 
   /** Steps the active zone's cloths. Called after the wind ships, so cloth and trees answer the same frame's weather. */
+  /** The water under a point in the active zone, or null on dry ground. */
+  waterAt(x: number, z: number) {
+    return this.active ? (this.waters.get(this.active.id)?.waterAt(x, z) ?? null) : null;
+  }
+
+  /** Floats, ropes, fish, the player's wake and the rivers' voices, once a frame. */
+  updateWater(dt: number): void {
+    const zone = this.active;
+    if (!zone) return;
+    const runtime = this.waters.get(zone.id);
+    if (!runtime) return;
+    const soundscape = this.soundscapes.get(zone.id) ?? null;
+    runtime.moveEmitter = soundscape ? (id, position) => soundscape.moveEmitter(id, position) : null;
+    runtime.onCreak = soundscape
+      ? (id, tightness) => {
+          const creak = soundscape.find<FrictionModel>(`${id}:creak`);
+          if (!creak) return;
+          const strain = Math.min(1, Math.max(0, (tightness - 0.9) / 0.1));
+          creak.setForce(strain * 0.8);
+          creak.setSpeed(strain * 0.5);
+        }
+      : null;
+    runtime.onRise = (x, y, z) => this.waterVoices?.fire('rise', x, y, z, 0.8);
+    runtime.onSlap = (x, y, z, force) => this.waterVoices?.fire('plunk', x, y, z, force);
+    const u = WATER_MATERIAL.uniforms;
+    runtime.update(
+      dt,
+      waterTime(),
+      this.options.player.position,
+      this.audio?.engine.listenerPosition ?? this.options.player.camera.position,
+      u.uWaveScale.value as number,
+      u.uWaterMotion.value as number,
+    );
+  }
+
   updateCloth(dt: number, weather: Weather): void {
     this.cloth.update(this.active?.id ?? null, dt, weather, this.options.player.camera.position);
   }

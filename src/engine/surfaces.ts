@@ -1,6 +1,7 @@
 import { setGlowVisible } from '../art/glow';
 import { COVER_MATERIAL, TUFT_MATERIAL } from '../art/cover';
 import { BOLT_MATERIAL } from '../art/bolt';
+import { CANOPY_MATERIAL } from '../art/canopy';
 
 /**
  * Keeps glow, groundcover and the bolt out of the passes that read geometry —
@@ -18,4 +19,5 @@ export function showSurfaces(on: boolean): void {
   COVER_MATERIAL.visible = on;
   TUFT_MATERIAL.visible = on;
   BOLT_MATERIAL.visible = on;
+  CANOPY_MATERIAL.visible = on;
 }

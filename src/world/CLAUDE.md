@@ -122,7 +122,11 @@ ids, so the same content is the same map everywhere.
 
 A zone is a JSON file of verbs, never meshes: `document.ts` turns one into a
 `ZoneDefinition` and `world.json` into the portal graph. Before that walk runs,
-`warmProps.ts` asks every entry kind what it is going to build and makes those
+`warmProps.ts` asks every entry kind **which builders it can name** and fetches
+those modules — the walk is synchronous, so nothing may be loaded during it, and
+a kind that cannot say falls the zone back on the whole catalogue rather than
+under-loading it (`EntryKind.names`, which is total where `asks` is partial).
+Then it asks every kind what it is going to build and makes those
 geometries on the work pool; the walk claims what is ready and builds the rest
 itself. A kind says so by declaring `asks`, which has to list the same builder
 calls `build` makes, in the same order — so a kind that rolls its placement

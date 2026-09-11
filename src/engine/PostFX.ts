@@ -4,10 +4,9 @@ import { PixelStage } from './PixelStage';
 import { GpuClock } from './GpuClock';
 import { GTAOEffect } from './GTAO';
 import { FogVolumesEffect, type FogVolume } from './FogVolumes';
-import { WaterEffect } from './Water';
+import { WaterEffect, type WaterRuntimeLike } from './Water';
 import { UnderwaterEffect } from './Underwater';
-import { WATER_MATERIAL } from '../art/water';
-import { SEA_MATERIAL } from '../art/sea';
+import { WATER_MATERIAL } from '../art/water/material';
 import { GlassEffect } from './Glass';
 import { glassUniforms } from '../art/glass';
 import { ParticlesEffect } from './Particles';
@@ -225,8 +224,6 @@ export interface ZoneAir {
   fogFar: number;
   /** Placed fog volumes in this zone's world space: objects made of air, not the haze of distance. */
   fogVolumes?: readonly FogVolume[];
-  /** Whether this zone has any water in it. Observed, not declared — the pass costs a whole-scene walk. */
-  water?: boolean;
   /** Whether this zone has any crystal, glass or bubbles in it. Observed, not declared. */
   glass?: boolean;
   /** Whether anything in this zone is drawn on the particle layer. Observed by looking for the layer. */
@@ -421,11 +418,15 @@ export class PostFX {
     this.air = air;
     // Swapped at full black, so a volume never survives a threshold.
     this.fog.setVolumes(air?.fogVolumes ?? []);
-    // A pass that walks the scene graph for water must not run in a room with none.
-    this.water.setActive(air?.water ?? false);
     this.glass.setActive(air?.glass ?? false);
     this.particles.setActive((air?.particles ?? false) || this.weatherParticles || this.heldParticles);
     this.heat.setActive((air?.heat ?? false) || this.heldHeat);
+    this.apply();
+  }
+
+  /** The standing zone's water, for the pass and the underwater test. Null in a room with none. */
+  setWater(runtime: WaterRuntimeLike | null): void {
+    this.water.setRuntime(runtime);
     this.apply();
   }
 
@@ -651,7 +652,8 @@ export class PostFX {
 
     // Water is part of the place, not a player option.
     this.water.enabled = this.water.hasWater;
-    for (const w of [WATER_MATERIAL.uniforms, SEA_MATERIAL.uniforms]) {
+    {
+      const w = WATER_MATERIAL.uniforms;
       w.uWaveScale.value = s.water.waves;
       // Layered over the tuning rather than written into it, as the dither is.
       w.uWaterMotion.value = this.waves ? 1 : 0;
@@ -845,7 +847,7 @@ export class PostFX {
     // `sky.follow`, the last thing in the frame to write a transform.
     this.viewport.scene.updateMatrixWorld();
     // Asked before the frame: the pass that needs it runs inside the effect chain.
-    this.underwater.setDepth(this.water.submersion(this.viewport.scene, this.viewport.camera));
+    this.underwater.setSurface(this.water.submersion(this.viewport.camera), this.viewport.camera);
     // Per frame rather than in `apply`: the count changes as the player walks.
     this.glitchFx.enabled = this.glitching && glitchUniforms.uGlitchCount.value > 0;
     this.horrorFx.enabled = this.haunting && horrorUniforms.uHorrorCount.value > 0;

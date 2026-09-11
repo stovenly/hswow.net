@@ -19,8 +19,8 @@ export interface OutlinerHooks {
 const ICONS: Record<string, string> = {
   prop: '▣',
   creature: '☗',
-  run: '▬',
-  chain: '⛓',
+  line: '▬',
+  region: '▱',
   scatter: '⁙',
   barrier: '▤',
   prefab: '⬒',

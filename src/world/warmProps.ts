@@ -1,7 +1,7 @@
 import { pool } from '../engine/work/pool';
 import type { PropAsk } from '../engine/work/jobs';
 import type { Finished } from '../art/assemble';
-import { entryKind, holds, type WarmContext, type WorldState } from './entry';
+import { entryKind, holds, type Entry, type WarmContext, type WorldState } from './entry';
 import type { Layer } from './document';
 import type { SkirtOptions } from './vista';
 import { cacheKey } from '../engine/work/cache';
@@ -76,6 +76,59 @@ function planDocument(layers: readonly Layer[], ctx: WarmContext, state: WorldSt
   }
   return found;
 }
+
+/** Prefabs whose bodies could not be found, and kinds that could not say, warned about once each. */
+const cannotSay = new Set<string>();
+
+/**
+ * Every builder a document's walk can name, under the same `when` tests the
+ * walk applies. **Null when any kind could not say**, which stands the zone on
+ * the whole catalogue rather than on a list that might be short — see
+ * `EntryKind.names`.
+ */
+export function gatherNames(
+  layers: readonly Layer[],
+  state: WorldState,
+  prefabs: Record<string, readonly Entry[]>,
+): string[] | null {
+  const names = new Set<string>();
+  let complete = true;
+  const note = (what: string): void => {
+    complete = false;
+    if (cannotSay.has(what)) return;
+    cannotSay.add(what);
+    console.warn(`builders: "${what}" cannot say what it names, so the whole catalogue is loaded`);
+  };
+  const visit = (entries: readonly Entry[], depth: number): void => {
+    for (const entry of entries) {
+      if (!holds(entry.when, state)) continue;
+      const kind = entryKind(entry.kind);
+      // An unknown kind builds nothing at all, so it names nothing either.
+      if (!kind) continue;
+      if (!kind.names) {
+        note(entry.kind);
+        continue;
+      }
+      for (const name of kind.names(entry as never)) {
+        if (!name.startsWith(PREFAB)) {
+          names.add(name);
+          continue;
+        }
+        const body = prefabs[name.slice(PREFAB.length)];
+        if (!body) continue;
+        if (depth >= 4) note('prefab');
+        else visit(body, depth + 1);
+      }
+    }
+  };
+  for (const layer of layers) {
+    if (holds(layer.when, state)) visit(layer.entries, 0);
+  }
+  return complete ? [...names] : null;
+}
+
+/** What a prefab's `names` returns in place of its body, for `gatherNames` to expand. */
+const PREFAB = '#prefab:';
 
 /**
  * Fans a document's props out over the pool. One prop is one job, which is what

@@ -14,6 +14,8 @@ import { finishUniforms } from '../art/finish';
 import { setCoverWeather } from '../art/cover';
 import { setGlowLevel } from '../art/glow';
 import { setZoneWind } from '../art/sway';
+import { setWaterRain } from '../art/water/ripples';
+import { canopyUniforms, setCanopySeason } from '../art/canopy';
 import { createRain, type RainModel, type RainSurface } from '../audio/models/rain';
 import { BUCKET, drawStrike, flashOf, skyClock, type Strike } from './lightning';
 import { worldState } from './state';
@@ -744,6 +746,7 @@ export class WeatherRig {
     const gate = outdoors ? 1 : 0;
     finishUniforms.uWetness.value = this.wet * gate;
     finishUniforms.uSnow.value = this.lying * gate;
+    canopyUniforms.uSnow.value = this.lying * gate;
 
     // Groundcover goes white and short under snow, and heavy under rain.
     // Exactly what the finish stage hands a wet surface as its environment,
@@ -819,9 +822,11 @@ export class WeatherRig {
     CONDITIONS.timeOfDay = climate.timeOfDay;
     CONDITIONS.hour = Math.floor(climate.timeOfDay * 24);
     CONDITIONS.season = climate.seasonPhase;
+    setCanopySeason(climate.seasonPhase);
     CONDITIONS.warmth = climate.temperature;
     CONDITIONS.moon = climate.moonLight;
     CONDITIONS.rain = climate.amountOf('rain');
+    setWaterRain(CONDITIONS.rain);
     CONDITIONS.snow = climate.amountOf('snow');
     CONDITIONS.fog = climate.amountOf('fog');
     CONDITIONS.storm = climate.amountOf('storm');

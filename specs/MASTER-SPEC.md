@@ -52,6 +52,14 @@ its reasoning. Open, at the time of writing:
 | `FOOTSTEPS.md` | Crouch, per-foot character, the surface derivation table |
 | `READABLES-POLISH.md` | Making the reading screen worth stopping for |
 | `ZONE-LOADING.md` | Migrating the remaining zones to lazy load |
+| `FOLIAGE.md` | Crowns made of leaves and nothing else, on trunks worth looking at |
+| `TREES.md` | Every tree rebuilt on that system, eight species added, and the zones replanted |
+| `CARD-FOLIAGE.md` | **Built, awaiting a look.** The shrubs, the hedge and the vista's trees onto branch cards; palm, baobab and acacia added |
+| `ZONE-BOUNDARY.md` | **Built, awaiting a look.** A boundary for every cell that lacked one, and a threshold at the gate ends that had none |
+| `BUILDER-LOADING.md` | **Built.** The builder catalogue off the boot path; a zone loads the builders it names |
+| `ELECTRON.md` | The same game in its own window |
+| `CONTENT-PACKS.md` | DLC as packs the game finds on disk, and the rule that keeps it possible |
+| `ACCESSORIES.md` | Rings, necklaces, brooches, earrings, bracelets and belts as builders, for the accessory slots |
 | `NPC-ANIMATION-BLEND.md` | Tweening a figure's gestures into one another |
 | `FUTURE-REFACTORS.md` | Understood, unblocked, unscheduled |
 | `BUGS.md` | Temporary, until there is a tracker |
@@ -73,6 +81,7 @@ its reasoning. Open, at the time of writing:
 | **Combat** | Out. There is no danger in this world |
 | **Accessibility** | Not a goal. The game is meant to be obscure |
 | **Stack** | three.js + TypeScript + Vite → `docs/` |
+| **Content** | Data the game fetches at boot from an ordered list of packs, merged by id; never imported as modules, never code. Builders are engine; a pack only names them. `CONTENT-PACKS.md` |
 
 ### Working agreements
 
@@ -2435,6 +2444,12 @@ are listed here because the document they came from is closed.
   shadow, including grass and clutter whose shadows are sub-pixel after the
   chunky stage and the quantize. Half of the shadow work landed; this is the
   other half.
+- **Content is fetched, not imported.** The virtual project module globs every
+  document into the bundle, so a shipped build can never see a pack a player
+  installs later. `CONTENT-PACKS.md` step 1 turns that into a fetch from an
+  ordered pack list, with no behaviour change. **Must land before the first
+  desktop release**, and until it does, nothing new may key content by file
+  name, close a union over content names, or put code in a content folder.
 
 ---
 

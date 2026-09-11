@@ -1,140 +1,121 @@
 import * as THREE from 'three';
 import type { MeshBuilder } from '../types';
-import { assemble, finish, type Part } from '../assemble';
+import { heightRamp, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
+import { LEAVES, branchCards, cloud, finishFoliage, heightWeight, type Cloud, type Species, type Twig } from '../foliage';
+import { OAK_GROWTH, growLimb, limbBranch, limbGeometry, sweep, type GrowForm, type Limb } from '../limbs';
+import { packBranch, type Family } from '../fields';
+import { SHEET_OF } from '../branchSheet';
 
-// A thicket: an overgrown shrub, head high and too dense to push through, and
-// always a big one — the small case is `bush`'s. A stool, three to five stems
-// arching out and back in, and foliage hung in lumps along each stem rather than
-// as one crown at its tip, so the leaves cover the wood that carries them.
+// A thicket: three to five stems arching out of a stool and back in, sprigs
+// off their upper halves, and a crown of small-leaf cards filling the arch.
+// Head high and too dense to push through. Stands on y = 0.
+
+const TAU = Math.PI * 2;
+
+/** Sprigs enter at level 2, so a sprig forks once into twigs and no further. */
+const THICKET_GROWTH: GrowForm = {
+  ...OAK_GROWTH,
+  children: [
+    [2, 3],
+    [2, 3],
+    [2, 3],
+  ],
+  lengthRatio: [
+    [0.5, 0.7],
+    [0.45, 0.65],
+    [0.4, 0.6],
+  ],
+  angle: [
+    [0.5, 0.95],
+    [0.45, 0.9],
+    [0.45, 0.9],
+  ],
+  along: [
+    [0.2, 0.9],
+    [0.25, 0.95],
+    [0.3, 0.95],
+  ],
+  lift: [0.3, 0.3, 0.22, 0.14],
+  wobble: [0.14, 0.32, 0.42, 0.5],
+  sides: [4, 4, 3, 3],
+  levels: 3,
+  swing: [0.2, 0.16],
+  minRadius: 0.008,
+};
+
 export const thicket: MeshBuilder = {
   name: 'thicket',
   category: 'foliage',
   radius: 1.9,
+  solid: true,
 
   build({ seed = 1, scale = 1 } = {}) {
     const rng = createRng(seed);
     const parts: Part[] = [];
 
     const height = rng.range(2.2, 2.9);
-    /** Half-width of the mass at its widest. */
     const spread = height * rng.range(0.38, 0.58);
-    /** How much bare stem shows under it. */
-    const clear = height * rng.range(0.1, 0.18);
-    /** How far up the widest point sits. */
-    const waist = rng.range(0.34, 0.56);
-    /** How hard it draws back in above the waist. */
-    const crown = rng.range(0.3, 0.72);
-    const leaf = rng.chance(0.4) ? PALETTE.LEAF_DARK : PALETTE.LEAF;
-    const dry = PALETTE.LEAF_DRY;
     const live = rng.chance(0.5) ? PALETTE.BARK : shade(PALETTE.BARK_PALE, 0.94);
-    const dead = shade(PALETTE.BARK_PALE, 1.12);
-    // Which way it has grown into the light.
-    const lean = rng.range(0, Math.PI * 2);
+    const lean = rng.range(0, TAU);
     const pull = rng.range(0.08, 0.2);
+    const species: Species = { colour: LEAVES.thicket, deciduous: true, bark: shade(live, 1.1), weight: heightWeight(height, 1.4) };
+    const sway = heightRamp(0, height, 1.4);
 
+    const limbs: Limb[] = [];
+    const twigs: Twig[] = [];
+    const heads: THREE.Vector3[] = [];
     const stems = rng.int(3, 5);
-    const start = rng.range(0, Math.PI * 2);
-    const UP = new THREE.Vector3(0, 1, 0);
-
-    /** Where a stem is at a given height — by height, not by fraction-along, because the foliage starts just above the clear stem and that is a height. */
-    const atHeight = (knee: THREE.Vector3, top: THREE.Vector3, y: number): THREE.Vector3 =>
-      y <= knee.y
-        ? new THREE.Vector3().copy(knee).multiplyScalar(y / Math.max(knee.y, 1e-3))
-        : new THREE.Vector3().lerpVectors(knee, top, (y - knee.y) / Math.max(top.y - knee.y, 1e-3));
-
-    const limb = (from: THREE.Vector3, to: THREE.Vector3, thick: number, wood: number): void => {
-      const along = new THREE.Vector3().subVectors(to, from);
-      const run = along.length();
-      if (run < 0.02) return;
-      const piece = new THREE.CylinderGeometry(thick * 0.78, thick, run * 1.08, 5);
-      piece.translate(0, run / 2, 0);
-      piece.applyQuaternion(
-        new THREE.Quaternion().setFromUnitVectors(UP, along.divideScalar(run)),
-      );
-      piece.translate(from.x, from.y, from.z);
-      parts.push({
-        geometry: piece,
-        color: shade(wood, rng.range(0.88, 1.1)),
-        sway: (_x, y) => Math.min(1, Math.max(0, y / height - 0.45)) * 0.4,
-      });
-    };
-
+    const start = rng.range(0, TAU);
     for (let i = 0; i < stems; i++) {
-      // Dealt evenly rather than drawn, so no two land on top of each other.
-      const bearing = start + (i / stems) * Math.PI * 2 + rng.around(0, 0.35);
-      const rise = height * rng.range(0.8, 0.96) * (i === 0 ? 1 : rng.range(0.88, 1));
+      const bearing = start + (i / stems) * TAU + rng.around(0, 0.35);
+      const rise = height * rng.range(0.82, 1);
       const girth = rng.range(0.028, 0.055);
-      const bare = rng.chance(0.25);
-
-      // Arches out to `out` at the waist and back in above it.
       const out = spread * rng.range(0.62, 0.9);
-      const knee = new THREE.Vector3(
-        Math.cos(bearing) * out + Math.cos(lean) * pull * rise * waist,
-        rise * waist,
-        Math.sin(bearing) * out + Math.sin(lean) * pull * rise * waist,
-      );
-      const top = new THREE.Vector3(
-        Math.cos(bearing) * out * crown + Math.cos(lean) * pull * rise,
-        rise,
-        Math.sin(bearing) * out * crown + Math.sin(lean) * pull * rise,
-      );
+      const back = rng.range(0.3, 0.72);
+      const cos = Math.cos(bearing);
+      const sin = Math.sin(bearing);
+      const drift = new THREE.Vector3(Math.cos(lean) * pull, 0, Math.sin(lean) * pull);
+      // Out to the knee at half height, then in and up to the tip: the arch.
+      const base = new THREE.Vector3(cos * 0.06, 0, sin * 0.06);
+      const knee = new THREE.Vector3(cos * out, rise * rng.range(0.4, 0.56), sin * out).addScaledVector(drift, rise * 0.5);
+      const tip = new THREE.Vector3(cos * out * back, rise, sin * out * back).addScaledVector(drift, rise);
+      const spine = [base, base.clone().lerp(knee, 0.5), knee, knee.clone().lerp(tip, 0.55), tip];
+      const family: Family = { pivot: base.clone(), phase: rng.range(0, 1), swing: 0.22 };
+      parts.push({
+        geometry: sweep(spine, (t) => girth * (1 - 0.55 * t), 5),
+        color: shade(live, rng.range(0.88, 1.1)),
+        sway,
+        branch: (x, y, z) => packBranch(x, y, z, family, null),
+      });
+      heads.push(tip);
 
-      limb(new THREE.Vector3(rng.around(0, 0.06), 0, rng.around(0, 0.06)), knee, girth, bare ? dead : live);
-      limb(knee, top, girth * 0.8, bare ? dead : live);
-
-      // Foliage up the wood, fullest at the waist and tapering both ways.
-      const lumps = rng.int(4, 5);
-      const foot = clear + spread * 0.24;
-      for (let k = 0; k < lumps; k++) {
-        const t = k / (lumps - 1);
-        const y = foot + (rise - foot) * t;
-        const at = atHeight(knee, top, y);
-        const swell = 1 - 0.4 * Math.abs(t - waist) / Math.max(waist, 1 - waist);
-        const rx = spread * swell * (bare ? rng.range(0.44, 0.55) : rng.range(0.52, 0.68));
-        const ry = rx * rng.range(0.62, 0.9);
-        const rz = rx * rng.range(0.82, 1.16);
-
-        const lump = new THREE.IcosahedronGeometry(1, 0);
-        lump.rotateY(rng.range(0, Math.PI * 2));
-        lump.rotateX(rng.range(0, Math.PI));
-        lump.scale(rx, ry, rz);
-        lump.translate(
-          at.x + rng.around(0, rx * 0.16),
-          at.y + rng.around(0, ry * 0.14),
-          at.z + rng.around(0, rz * 0.16),
-        );
-        parts.push({
-          geometry: lump,
-          color: shade(rng.chance(bare ? 0.75 : 0.16) ? dry : leaf, rng.range(0.86, 1.14)),
-          sway: (_x, y) => Math.min(1, Math.max(0, (y / height - 0.35) / 0.65)) * 0.7,
-        });
+      // Sprigs off the upper two thirds, leaving the stem outward and up.
+      const curve = new THREE.CatmullRomCurve3(spine, false, 'centripetal', 0.5);
+      const sprigs = rng.int(4, 6);
+      const at = new THREE.Vector3();
+      const dir = new THREE.Vector3();
+      for (let k = 0; k < sprigs; k++) {
+        const t = 0.34 + (0.62 * (k + rng.range(0.1, 0.9))) / sprigs;
+        at.copy(curve.getPointAt(t));
+        const roll = bearing + rng.range(-1.5, 1.5);
+        dir.set(Math.cos(roll) * rng.range(0.5, 1), rng.range(0.5, 1.1), Math.sin(roll) * rng.range(0.5, 1)).normalize();
+        growLimb(rng, at.clone(), dir, rng.range(0.3, 0.55) * spread, girth * rng.range(0.3, 0.45), 2, THICKET_GROWTH, limbs, twigs, family);
       }
     }
-
-    // A few up the middle, binding the stems' foliage into one body.
-    for (let i = rng.int(2, 4); i > 0; i--) {
-      const t = rng.range(0.25, 0.9);
-      const swell = 1 - 0.4 * Math.abs(t - waist) / Math.max(waist, 1 - waist);
-      const rx = spread * swell * rng.range(0.55, 0.75);
-      const lump = new THREE.IcosahedronGeometry(1, 0);
-      lump.rotateY(rng.range(0, Math.PI * 2));
-      lump.scale(rx, rx * rng.range(0.62, 0.8), rx * rng.range(0.9, 1.1));
-      lump.translate(
-        rng.around(Math.cos(lean) * pull * height * t, spread * 0.12),
-        clear + (height - clear) * t,
-        rng.around(Math.sin(lean) * pull * height * t, spread * 0.12),
-      );
-      parts.push({
-        geometry: lump,
-        color: shade(rng.chance(0.16) ? dry : leaf, rng.range(0.84, 1.12)),
-        sway: (_x, y) => Math.min(1, Math.max(0, (y / height - 0.35) / 0.65)) * 0.7,
-      });
+    for (const limb of limbs) {
+      parts.push({ geometry: limbGeometry(limb), color: shade(live, rng.range(0.92, 1.08)), sway, branch: limbBranch(limb) });
     }
 
-    const geometry = assemble(parts);
-    if (scale !== 1) geometry.scale(scale, scale, scale);
-    return finish(geometry, 'thicket', rng.range(0, Math.PI * 2));
+    const clouds: Cloud[] = [];
+    for (const head of heads) {
+      const r = spread * rng.range(0.42, 0.58);
+      clouds.push(cloud(rng, head.clone().lerp(new THREE.Vector3(0, height * 0.6, 0), 0.28), new THREE.Vector3(r, r * 0.9, r), 0.22));
+    }
+    clouds.push(cloud(rng, new THREE.Vector3(Math.cos(lean) * pull * height * 0.5, height * 0.58, Math.sin(lean) * pull * height * 0.5), new THREE.Vector3(spread * 0.85, height * 0.4, spread * 0.85), 0.2));
+    parts.push(...branchCards(rng, species, clouds, { twigs, count: 60, length: [0.35, 0.55], tiles: SHEET_OF.smallleaf, perTwig: 2, upward: 0.15 }));
+
+    return finishFoliage(parts, 'thicket', rng.range(0, TAU), 0, scale);
   },
 };

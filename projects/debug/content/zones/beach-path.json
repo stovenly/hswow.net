@@ -892,298 +892,531 @@
         ],
         "width": 10
       }
+    ],
+    "edge-band": [
+      {
+        "kind": "path",
+        "through": [
+          [
+            81.94,
+            77.94
+          ],
+          [
+            64.44,
+            76.91
+          ],
+          [
+            46.94,
+            78.42
+          ],
+          [
+            29.44,
+            77.08
+          ],
+          [
+            11.94,
+            79.37
+          ],
+          [
+            -5.56,
+            77.16
+          ],
+          [
+            -23.06,
+            78.94
+          ],
+          [
+            -40.56,
+            77.88
+          ],
+          [
+            -58.06,
+            78.06
+          ],
+          [
+            -58.64,
+            58.35
+          ],
+          [
+            -56.99,
+            38.64
+          ],
+          [
+            -58.57,
+            18.92
+          ],
+          [
+            -59.05,
+            -0.79
+          ],
+          [
+            -59.13,
+            -20.5
+          ],
+          [
+            -57.07,
+            -40.22
+          ],
+          [
+            -57.93,
+            -59.93
+          ]
+        ],
+        "width": 9
+      }
+    ],
+    "crest-band": [
+      {
+        "kind": "path",
+        "through": [
+          [
+            46.5,
+            -60.0
+          ],
+          [
+            46.5,
+            -30.0
+          ],
+          [
+            46.6,
+            -9.9
+          ],
+          [
+            48.6,
+            20.4
+          ],
+          [
+            54.8,
+            45.0
+          ],
+          [
+            67.2,
+            63.7
+          ],
+          [
+            83.4,
+            77.9
+          ]
+        ],
+        "width": 8
+      }
     ]
   },
   "entries": [
     {
       "id": "forest-lane",
-      "kind": "track",
-      "through": [
-        [
-          -46,
-          -58
-        ],
-        [
-          -40,
-          -50
-        ],
-        [
-          -32,
-          -40
-        ],
-        [
-          -24,
-          -30
-        ],
-        [
-          -16,
-          -20
-        ],
-        [
-          -10,
-          -10
-        ],
-        [
-          -4,
-          0
-        ],
-        [
-          4,
-          6
-        ],
-        [
-          10,
-          8
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 4401,
+      "points": [
+        {
+          "at": [
+            -46,
+            -58
+          ]
+        },
+        {
+          "at": [
+            -40,
+            -50
+          ]
+        },
+        {
+          "at": [
+            -32,
+            -40
+          ]
+        },
+        {
+          "at": [
+            -24,
+            -30
+          ]
+        },
+        {
+          "at": [
+            -16,
+            -20
+          ]
+        },
+        {
+          "at": [
+            -10,
+            -10
+          ]
+        },
+        {
+          "at": [
+            -4,
+            0
+          ]
+        },
+        {
+          "at": [
+            4,
+            6
+          ]
+        },
+        {
+          "at": [
+            10,
+            8
+          ]
+        }
       ],
-      "width": 2.4,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.5,
-      "seed": 4401
+      "options": {
+        "width": 2.4,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.5
+      }
     },
     {
       "id": "bluff-path",
-      "kind": "track",
-      "through": [
-        [
-          40,
-          -62
-        ],
-        [
-          36,
-          -54
-        ],
-        [
-          38,
-          -46
-        ],
-        [
-          41,
-          -36
-        ],
-        [
-          43,
-          -24
-        ],
-        [
-          44,
-          -10
-        ],
-        [
-          44,
-          -2
-        ],
-        [
-          43.5,
-          3
-        ],
-        [
-          43,
-          7
-        ],
-        [
-          40.5,
-          5.5
-        ],
-        [
-          37,
-          2
-        ],
-        [
-          33,
-          -2.8
-        ],
-        [
-          30.5,
-          -4.5
-        ],
-        [
-          30,
-          -1
-        ],
-        [
-          30.5,
-          3
-        ],
-        [
-          30.5,
-          9
-        ],
-        [
-          27,
-          15
-        ],
-        [
-          22,
-          20
-        ],
-        [
-          16,
-          14
-        ],
-        [
-          10,
-          8
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 4403,
+      "points": [
+        {
+          "at": [
+            40,
+            -62
+          ]
+        },
+        {
+          "at": [
+            36,
+            -54
+          ]
+        },
+        {
+          "at": [
+            38,
+            -46
+          ]
+        },
+        {
+          "at": [
+            41,
+            -36
+          ]
+        },
+        {
+          "at": [
+            43,
+            -24
+          ]
+        },
+        {
+          "at": [
+            44,
+            -10
+          ]
+        },
+        {
+          "at": [
+            44,
+            -2
+          ]
+        },
+        {
+          "at": [
+            43.5,
+            3
+          ]
+        },
+        {
+          "at": [
+            43,
+            7
+          ]
+        },
+        {
+          "at": [
+            40.5,
+            5.5
+          ]
+        },
+        {
+          "at": [
+            37,
+            2
+          ]
+        },
+        {
+          "at": [
+            33,
+            -2.8
+          ]
+        },
+        {
+          "at": [
+            30.5,
+            -4.5
+          ]
+        },
+        {
+          "at": [
+            30,
+            -1
+          ]
+        },
+        {
+          "at": [
+            30.5,
+            3
+          ]
+        },
+        {
+          "at": [
+            30.5,
+            9
+          ]
+        },
+        {
+          "at": [
+            27,
+            15
+          ]
+        },
+        {
+          "at": [
+            22,
+            20
+          ]
+        },
+        {
+          "at": [
+            16,
+            14
+          ]
+        },
+        {
+          "at": [
+            10,
+            8
+          ]
+        }
       ],
-      "width": 2.4,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.5,
-      "seed": 4403
+      "options": {
+        "width": 2.4,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.5
+      }
     },
     {
       "id": "boardwalk",
-      "kind": "track",
-      "through": [
-        [
-          10,
-          8
-        ],
-        [
-          13,
-          17
-        ],
-        [
-          17,
-          27
-        ],
-        [
-          14,
-          35
-        ],
-        [
-          10,
-          44
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 4404,
+      "points": [
+        {
+          "at": [
+            10,
+            8
+          ]
+        },
+        {
+          "at": [
+            13,
+            17
+          ]
+        },
+        {
+          "at": [
+            17,
+            27
+          ]
+        },
+        {
+          "at": [
+            14,
+            35
+          ]
+        },
+        {
+          "at": [
+            10,
+            44
+          ]
+        }
       ],
-      "width": 1.8,
-      "surface": "boards",
-      "edge": "none",
-      "wear": 0.5,
-      "seed": 4404
+      "options": {
+        "width": 1.8,
+        "surface": "boards",
+        "edge": "none",
+        "wear": 0.5
+      }
     },
     {
       "id": "dune-track",
-      "kind": "track",
-      "through": [
-        [
-          10,
-          44
-        ],
-        [
-          8,
-          50
-        ],
-        [
-          6,
-          58
-        ],
-        [
-          6,
-          62
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 4405,
+      "points": [
+        {
+          "at": [
+            10,
+            44
+          ]
+        },
+        {
+          "at": [
+            8,
+            50
+          ]
+        },
+        {
+          "at": [
+            6,
+            58
+          ]
+        },
+        {
+          "at": [
+            6,
+            62
+          ]
+        }
       ],
-      "width": 2,
-      "surface": "dirt",
-      "edge": "none",
-      "wear": 0.6,
-      "seed": 4405
+      "options": {
+        "width": 2,
+        "surface": "dirt",
+        "edge": "none",
+        "wear": 0.6
+      }
     },
     {
       "id": "loop",
-      "kind": "track",
-      "through": [
-        [
-          4,
-          6
-        ],
-        [
-          -6,
-          12
-        ],
-        [
-          -12,
-          22
-        ],
-        [
-          -12,
-          34
-        ],
-        [
-          -6,
-          44
-        ],
-        [
-          4,
-          48
-        ],
-        [
-          10,
-          44
-        ]
+      "kind": "line",
+      "builder": "track",
+      "seed": 4406,
+      "points": [
+        {
+          "at": [
+            4,
+            6
+          ]
+        },
+        {
+          "at": [
+            -6,
+            12
+          ]
+        },
+        {
+          "at": [
+            -12,
+            22
+          ]
+        },
+        {
+          "at": [
+            -12,
+            34
+          ]
+        },
+        {
+          "at": [
+            -6,
+            44
+          ]
+        },
+        {
+          "at": [
+            4,
+            48
+          ]
+        },
+        {
+          "at": [
+            10,
+            44
+          ]
+        }
       ],
-      "width": 1.4,
-      "surface": "dirt",
-      "edge": "verge",
-      "wear": 0.35,
-      "seed": 4406
+      "options": {
+        "width": 1.4,
+        "surface": "dirt",
+        "edge": "verge",
+        "wear": 0.35
+      }
     },
     {
       "id": "lane-hedge-w",
-      "kind": "run",
+      "kind": "line",
       "builder": "hedge",
       "seed": 4410,
       "points": [
-        [
-          -49.68,
-          -55.24
-        ],
-        [
-          -43.63,
-          -47.18
-        ],
-        [
-          -35.59,
-          -37.13
-        ],
-        [
-          -27.63,
-          -27.18
-        ],
-        [
-          -21.68,
-          -19.24
-        ]
+        {
+          "at": [
+            -49.68,
+            -55.24
+          ]
+        },
+        {
+          "at": [
+            -43.63,
+            -47.18
+          ]
+        },
+        {
+          "at": [
+            -35.59,
+            -37.13
+          ]
+        },
+        {
+          "at": [
+            -27.63,
+            -27.18
+          ]
+        },
+        {
+          "at": [
+            -21.68,
+            -19.24
+          ]
+        }
       ]
     },
     {
       "id": "lane-hedge-e",
-      "kind": "run",
+      "kind": "line",
       "builder": "hedge",
       "seed": 4411,
       "points": [
-        [
-          -42.32,
-          -60.76
-        ],
-        [
-          -36.37,
-          -52.82
-        ],
-        [
-          -28.41,
-          -42.87
-        ],
-        [
-          -20.37,
-          -32.82
-        ],
-        [
-          -14.32,
-          -24.76
-        ]
+        {
+          "at": [
+            -42.32,
+            -60.76
+          ]
+        },
+        {
+          "at": [
+            -36.37,
+            -52.82
+          ]
+        },
+        {
+          "at": [
+            -28.41,
+            -42.87
+          ]
+        },
+        {
+          "at": [
+            -20.37,
+            -32.82
+          ]
+        },
+        {
+          "at": [
+            -14.32,
+            -24.76
+          ]
+        }
       ]
     },
     {
@@ -1237,61 +1470,59 @@
       "height": 3
     },
     {
-      "id": "north-wall",
-      "kind": "chain",
-      "seed": 6840,
-      "runs": [
+      "id": "north-wall-0-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6850,
+      "points": [
         {
-          "seed": 6850,
-          "start": {
+          "at": {
             "ref": "gate-ne-outcrop-e",
             "edge": "+x"
-          },
-          "edges": [
-            {
-              "to": [
-                46,
-                -58
-              ],
-              "kind": "wall"
-            }
+          }
+        },
+        {
+          "at": [
+            46,
+            -58
+          ]
+        }
+      ]
+    },
+    {
+      "id": "north-wall-1-0",
+      "kind": "line",
+      "builder": "wall",
+      "seed": 6860,
+      "points": [
+        {
+          "at": {
+            "ref": "gate-ne-outcrop-w",
+            "edge": "-x"
+          }
+        },
+        {
+          "at": [
+            18,
+            -61
           ]
         },
         {
-          "seed": 6860,
-          "start": {
-            "ref": "gate-ne-outcrop-w",
-            "edge": "-x"
-          },
-          "edges": [
-            {
-              "to": [
-                18,
-                -61
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                -10,
-                -61
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                -30,
-                -59
-              ],
-              "kind": "wall"
-            },
-            {
-              "to": [
-                -41,
-                -61
-              ],
-              "kind": "wall"
-            }
+          "at": [
+            -10,
+            -61
+          ]
+        },
+        {
+          "at": [
+            -30,
+            -59
+          ]
+        },
+        {
+          "at": [
+            -41,
+            -61
           ]
         }
       ]
@@ -1543,31 +1774,42 @@
     },
     {
       "id": "sheepfold",
-      "kind": "run",
-      "builder": "stone-wall-low",
+      "kind": "line",
+      "builder": "wall",
       "seed": 4414,
       "points": [
-        [
-          6,
-          -46
-        ],
-        [
-          14,
-          -46
-        ],
-        [
-          14,
-          -40
-        ],
-        [
-          6,
-          -40
-        ],
-        [
-          6,
-          -43
-        ]
-      ]
+        {
+          "at": [
+            6,
+            -46
+          ]
+        },
+        {
+          "at": [
+            14,
+            -46
+          ]
+        },
+        {
+          "at": [
+            14,
+            -40
+          ]
+        },
+        {
+          "at": [
+            6,
+            -40
+          ]
+        },
+        {
+          "at": [
+            6,
+            -43
+          ]
+        }
+      ],
+      "style": "low"
     },
     {
       "id": "heath-outcrop-a",
@@ -1604,6 +1846,557 @@
       ],
       "yaw": 1.2,
       "scale": 0.9
+    },
+    {
+      "id": "boundary-south",
+      "kind": "line",
+      "builder": "fence",
+      "seed": 6752,
+      "style": "post-and-rail",
+      "points": [
+        {
+          "at": [
+            84.0,
+            79.6
+          ]
+        },
+        {
+          "at": [
+            72.0,
+            79.86
+          ]
+        },
+        {
+          "at": [
+            60.0,
+            79.78
+          ]
+        },
+        {
+          "at": [
+            48.0,
+            78.88
+          ]
+        },
+        {
+          "at": [
+            36.0,
+            78.7
+          ]
+        },
+        {
+          "at": [
+            24.0,
+            78.56
+          ]
+        },
+        {
+          "at": [
+            12.0,
+            80.44
+          ]
+        },
+        {
+          "at": [
+            0.0,
+            80.58
+          ]
+        },
+        {
+          "at": [
+            -12.0,
+            80.42
+          ]
+        },
+        {
+          "at": [
+            -24.0,
+            80.51
+          ]
+        },
+        {
+          "at": [
+            -36.0,
+            79.03
+          ]
+        },
+        {
+          "at": [
+            -48.0,
+            79.23
+          ]
+        },
+        {
+          "at": [
+            -60.0,
+            79.6
+          ]
+        }
+      ],
+      "options": {
+        "slack": 0.18
+      }
+    },
+    {
+      "id": "boundary-west",
+      "kind": "line",
+      "builder": "hedge",
+      "seed": 6753,
+      "style": "wild",
+      "points": [
+        {
+          "at": [
+            -59.6,
+            80.0
+          ]
+        },
+        {
+          "at": [
+            -59.47,
+            68.17
+          ]
+        },
+        {
+          "at": [
+            -59.17,
+            56.33
+          ]
+        },
+        {
+          "at": [
+            -59.41,
+            44.5
+          ]
+        },
+        {
+          "at": [
+            -59.39,
+            32.67
+          ]
+        },
+        {
+          "at": [
+            -59.7,
+            20.83
+          ]
+        },
+        {
+          "at": [
+            -59.61,
+            9.0
+          ]
+        },
+        {
+          "at": [
+            -59.98,
+            -2.83
+          ]
+        },
+        {
+          "at": [
+            -59.38,
+            -14.67
+          ]
+        },
+        {
+          "at": [
+            -59.27,
+            -26.5
+          ]
+        },
+        {
+          "at": [
+            -59.71,
+            -38.33
+          ]
+        },
+        {
+          "at": [
+            -60.09,
+            -50.17
+          ]
+        },
+        {
+          "at": [
+            -59.6,
+            -62.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary-crest",
+      "kind": "line",
+      "builder": "fence",
+      "seed": 6754,
+      "style": "post-and-rail",
+      "points": [
+        {
+          "at": [
+            48.9,
+            -64.0
+          ]
+        },
+        {
+          "at": [
+            48.51,
+            -57.0
+          ]
+        },
+        {
+          "at": [
+            48.9,
+            -50.0
+          ]
+        },
+        {
+          "at": [
+            49.31,
+            -39.98
+          ]
+        },
+        {
+          "at": [
+            49.08,
+            -29.96
+          ]
+        },
+        {
+          "at": [
+            48.07,
+            -19.95
+          ]
+        },
+        {
+          "at": [
+            48.9,
+            -9.93
+          ]
+        },
+        {
+          "at": [
+            49.43,
+            0.18
+          ]
+        },
+        {
+          "at": [
+            50.19,
+            10.27
+          ]
+        },
+        {
+          "at": [
+            50.93,
+            20.37
+          ]
+        },
+        {
+          "at": [
+            53.24,
+            32.87
+          ]
+        },
+        {
+          "at": [
+            57.1,
+            44.98
+          ]
+        },
+        {
+          "at": [
+            63.18,
+            54.4
+          ]
+        },
+        {
+          "at": [
+            69.52,
+            63.65
+          ]
+        },
+        {
+          "at": [
+            77.4,
+            71.03
+          ]
+        },
+        {
+          "at": [
+            85.75,
+            77.88
+          ]
+        }
+      ],
+      "options": {
+        "slack": 0.22
+      }
+    },
+    {
+      "id": "boundary-dune-fence",
+      "kind": "line",
+      "builder": "fence",
+      "seed": 6751,
+      "style": "post-and-rail",
+      "points": [
+        {
+          "at": [
+            13.5,
+            44.0
+          ]
+        },
+        {
+          "at": [
+            11.2,
+            52.0
+          ]
+        },
+        {
+          "at": [
+            9.0,
+            60.0
+          ]
+        },
+        {
+          "at": [
+            7.2,
+            67.0
+          ]
+        },
+        {
+          "at": [
+            6.0,
+            74.0
+          ]
+        },
+        {
+          "at": [
+            4.6,
+            78.0
+          ]
+        }
+      ],
+      "marks": [
+        {
+          "at": 30.95,
+          "kind": "gate",
+          "width": 3.4,
+          "options": {
+            "open": 1
+          }
+        }
+      ],
+      "options": {
+        "slack": 0.18
+      }
+    },
+    {
+      "id": "edge-thickets",
+      "kind": "scatter",
+      "builder": "thicket",
+      "seed": 4501,
+      "count": 26,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "edge-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 36,
+      "scale": [
+        0.9,
+        1.35
+      ]
+    },
+    {
+      "id": "edge-hollies",
+      "kind": "scatter",
+      "builder": "holly",
+      "seed": 4502,
+      "count": 8,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "edge-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 36,
+      "scale": [
+        0.85,
+        1.2
+      ]
+    },
+    {
+      "id": "edge-brambles",
+      "kind": "scatter",
+      "builder": "bramble",
+      "seed": 4503,
+      "count": 14,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "edge-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 36,
+      "scale": [
+        0.9,
+        1.4
+      ]
+    },
+    {
+      "id": "edge-spruces",
+      "kind": "scatter",
+      "builder": "spruce",
+      "seed": 4504,
+      "count": 10,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "edge-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 36,
+      "scale": [
+        0.9,
+        1.3
+      ]
+    },
+    {
+      "id": "south-gorse",
+      "kind": "scatter",
+      "builder": "gorse",
+      "seed": 4505,
+      "count": 14,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "edge-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 36,
+      "scale": [
+        0.9,
+        1.4
+      ]
+    },
+    {
+      "id": "crest-gorse",
+      "kind": "scatter",
+      "builder": "gorse",
+      "seed": 4506,
+      "count": 16,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "crest-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 44,
+      "scale": [
+        0.9,
+        1.4
+      ]
+    },
+    {
+      "id": "crest-thickets",
+      "kind": "scatter",
+      "builder": "thicket",
+      "seed": 4507,
+      "count": 14,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "crest-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 44,
+      "scale": [
+        0.9,
+        1.3
+      ]
+    },
+    {
+      "id": "crest-rocks",
+      "kind": "scatter",
+      "builder": "rock",
+      "seed": 4508,
+      "count": 12,
+      "within": 150,
+      "from": [
+        0,
+        0
+      ],
+      "region": "crest-band",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 60,
+      "scale": [
+        0.9,
+        1.7
+      ]
     },
     {
       "id": "heath-gorse",
@@ -1951,7 +2744,7 @@
       "kind": "scatter",
       "builder": "oak",
       "seed": 4461,
-      "count": 5,
+      "count": 3,
       "within": 80,
       "from": [
         -55,
@@ -1973,11 +2766,37 @@
       ]
     },
     {
+      "id": "west-hollies",
+      "kind": "scatter",
+      "builder": "holly",
+      "seed": 4467,
+      "count": 2,
+      "within": 80,
+      "from": [
+        -55.0,
+        10.0
+      ],
+      "region": "west-wood",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 34,
+      "scale": [
+        0.85,
+        1.2
+      ]
+    },
+    {
       "id": "west-spruces",
       "kind": "scatter",
       "builder": "spruce",
       "seed": 4462,
-      "count": 8,
+      "count": 5,
       "within": 80,
       "from": [
         -55,
@@ -1999,11 +2818,37 @@
       ]
     },
     {
+      "id": "west-pines",
+      "kind": "scatter",
+      "builder": "pine",
+      "seed": 4468,
+      "count": 3,
+      "within": 80,
+      "from": [
+        -55.0,
+        10.0
+      ],
+      "region": "west-wood",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 34,
+      "scale": [
+        0.8,
+        1.0
+      ]
+    },
+    {
       "id": "west-birches",
       "kind": "scatter",
       "builder": "birch",
       "seed": 4463,
-      "count": 6,
+      "count": 4,
       "within": 80,
       "from": [
         -55,
@@ -2019,6 +2864,32 @@
         "loop"
       ],
       "maxSlope": 34
+    },
+    {
+      "id": "west-rowans",
+      "kind": "scatter",
+      "builder": "rowan",
+      "seed": 4469,
+      "count": 2,
+      "within": 80,
+      "from": [
+        -55.0,
+        10.0
+      ],
+      "region": "west-wood",
+      "avoid": [
+        "keepClear",
+        "forest-lane",
+        "bluff-path",
+        "boardwalk",
+        "dune-track",
+        "loop"
+      ],
+      "maxSlope": 34,
+      "scale": [
+        0.85,
+        1.2
+      ]
     },
     {
       "id": "west-thickets",
@@ -2220,24 +3091,22 @@
           "yaw": 0.9273
         },
         {
-          "builder": "vista-tree",
+          "tree": "pine",
           "at": [
             -95,
             10
           ],
-          "scale": 1.2,
-          "seed": 9208,
-          "variant": "pine"
+          "scale": 1.5,
+          "seed": 9208
         },
         {
-          "builder": "vista-tree",
+          "tree": "oak",
           "at": [
             -90,
             60
           ],
-          "scale": 1.1,
-          "seed": 9209,
-          "variant": "oak"
+          "scale": 1.38,
+          "seed": 9209
         },
         {
           "builder": "vista-bluff",
@@ -2262,13 +3131,34 @@
           "variant": "short"
         },
         {
-          "builder": "vista-copse",
+          "tree": "oak",
+          "card": true,
           "at": [
-            -20,
-            -120
+            -9.56,
+            -118.15
           ],
-          "scale": 1.1,
-          "seed": 9212
+          "scale": 0.795,
+          "seed": 92120
+        },
+        {
+          "tree": "birch",
+          "card": true,
+          "at": [
+            -25.19,
+            -120.55
+          ],
+          "scale": 0.655,
+          "seed": 92121
+        },
+        {
+          "tree": "oak",
+          "card": true,
+          "at": [
+            -21.64,
+            -126.04
+          ],
+          "scale": 0.675,
+          "seed": 92122
         },
         {
           "builder": "vista-island",
@@ -2284,6 +3174,75 @@
       "neighbours": true,
       "horizon": true,
       "scatter": []
+    },
+    {
+      "id": "dune-palm-a",
+      "kind": "prop",
+      "builder": "palm",
+      "seed": 4490,
+      "at": [
+        15.0,
+        46.5
+      ],
+      "yaw": 3.0
+    },
+    {
+      "id": "dune-palm-b",
+      "kind": "prop",
+      "builder": "palm",
+      "seed": 4491,
+      "at": [
+        17.5,
+        50.0
+      ],
+      "yaw": 2.8,
+      "scale": 0.9
+    },
+    {
+      "id": "dune-palm-c",
+      "kind": "prop",
+      "builder": "palm",
+      "seed": 4492,
+      "at": [
+        0.5,
+        53.0
+      ],
+      "yaw": 3.4,
+      "scale": 1.1
+    },
+    {
+      "id": "dune-palm-d",
+      "kind": "prop",
+      "builder": "palm",
+      "seed": 4493,
+      "at": [
+        12.5,
+        60.0
+      ],
+      "yaw": 3.1
+    },
+    {
+      "id": "dune-palm-e",
+      "kind": "prop",
+      "builder": "palm",
+      "seed": 4494,
+      "at": [
+        14.5,
+        63.5
+      ],
+      "yaw": 3.25,
+      "scale": 0.95
+    },
+    {
+      "id": "heath-acacia",
+      "kind": "prop",
+      "builder": "acacia",
+      "seed": 4496,
+      "at": [
+        22.0,
+        -32.0
+      ],
+      "yaw": 0.6
     },
     {
       "id": "gate-nw-gate",

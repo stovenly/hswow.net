@@ -47,28 +47,29 @@ export const table: MeshBuilder = {
     const frame = timber === PALETTE.TIMBER ? PALETTE.TIMBER_DARK : PALETTE.TIMBER;
 
     // --- top: boards along the length --------------------------------------
+    // Boards and seams tile edge to edge at one thickness, every top face at
+    // `height`: a seam is a darker strip, never a slot, so the edge detector has
+    // no vertical face to find and the top has no gap to see through.
     const boards = rng.int(3, 5);
     const boardDepth = depth / boards;
-    const gap = 0.008;
+    const seamWidth = 0.009;
+    const seamColor = shade(timber, 0.55);
+    const strip = (from: number, span: number, color: number): void => {
+      const geometry = new THREE.BoxGeometry(width, topThickness, span);
+      geometry.translate(0, height - topThickness / 2, from + span / 2);
+      parts.push({ geometry, color, sway: 0, detail: span, detailTint: timber });
+    };
     for (let i = 0; i < boards; i++) {
-      const board = new THREE.BoxGeometry(
-        width,
-        topThickness * rng.range(0.93, 1),
-        boardDepth - gap,
-      );
-      board.translate(0, height - topThickness / 2, -depth / 2 + (i + 0.5) * boardDepth);
-      parts.push({ geometry: board, color: shade(timber, rng.around(1, 0.07)), sway: 0 });
+      const z = -depth / 2 + i * boardDepth;
+      if (i > 0) strip(z, seamWidth, seamColor);
+      const start = i > 0 ? z + seamWidth : z;
+      strip(start, boardDepth - (i > 0 ? seamWidth : 0), shade(timber, rng.around(1, 0.07)));
     }
 
     const legHeight = height - topThickness;
 
-    /**
-     * Where anything standing under the top actually stops — not `legHeight`, which
-     * is where the underside of the top is: a leg ending exactly there puts its top
-     * cap in the same plane as the board above it. The boards make it worse, each
-     * rolled between 93% and 100% of nominal, so a leg can also hang short. Running
-     * everything a little way into the top is inside every board however it rolled.
-     */
+    // Runs a little way into the top: a leg ending exactly at the underside
+    // puts its top cap in the same plane as the board above it.
     const legTop = height - topThickness * 0.6;
 
     if (trestle) {

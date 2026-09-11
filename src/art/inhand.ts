@@ -20,6 +20,13 @@ export const HANDLING: Record<string, SurfaceName | null> = {
   pail: 'metal-hollow-small',
   'gold-orb': 'metal-solid',
   'quicksilver-orb': 'metal-ring',
+  ring: 'metal-ring',
+  bracelet: 'metal-ring',
+  brooch: 'metal-ring',
+  earrings: 'metal-ring',
+  // A bead string or a strap says nothing a metal voice should.
+  necklace: null,
+  belt: null,
 
   // --- wood ----------------------------------------------------------------
   broom: 'wood',

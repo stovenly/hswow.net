@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { nearestOnRing } from '../art/water/geometry';
 import { assemble, finish } from '../art/assemble';
 import { markVista, landWash } from '../art/vista';
 import { shade } from '../art/palette';
@@ -7,7 +8,6 @@ import type { MeshBuilder } from '../art/types';
 import { vistaHill } from '../art/builders/vista-hill';
 import { vistaCrag } from '../art/builders/vista-crag';
 import { vistaForest } from '../art/builders/vista-forest';
-import { vistaCopse } from '../art/builders/vista-copse';
 import { vistaHamlet } from '../art/builders/vista-hamlet';
 import { vistaTower } from '../art/builders/vista-tower';
 import { vistaFieldWall } from '../art/builders/vista-field-wall';
@@ -31,11 +31,7 @@ import { vistaDuneField } from '../art/builders/vista-dune-field';
 import { vistaDune } from '../art/builders/vista-dune';
 import { vistaWoodEdgeBuilder } from '../art/builders/vista-wood-edge';
 import { vistaHangingWood } from '../art/builders/vista-hanging-wood';
-import { vistaShelterbelt } from '../art/builders/vista-shelterbelt';
 import { vistaPlantation } from '../art/builders/vista-plantation';
-import { vistaAvenue } from '../art/builders/vista-avenue';
-import { vistaOrchard } from '../art/builders/vista-orchard';
-import { vistaTree } from '../art/builders/vista-tree';
 import { vistaScrub } from '../art/builders/vista-scrub';
 import { vistaPatchwork } from '../art/builders/vista-patchwork';
 import { vistaStripFields } from '../art/builders/vista-strip-fields';
@@ -83,7 +79,6 @@ export const VISTA_BUILDERS: readonly MeshBuilder[] = [
   vistaHill,
   vistaCrag,
   vistaForest,
-  vistaCopse,
   vistaHamlet,
   vistaTower,
   vistaFieldWall,
@@ -107,11 +102,7 @@ export const VISTA_BUILDERS: readonly MeshBuilder[] = [
   vistaDune,
   vistaWoodEdgeBuilder,
   vistaHangingWood,
-  vistaShelterbelt,
   vistaPlantation,
-  vistaAvenue,
-  vistaOrchard,
-  vistaTree,
   vistaScrub,
   vistaPatchwork,
   vistaStripFields,
@@ -194,6 +185,10 @@ export function outlineClamp(
   if (!best || nearest <= 0) return out.set(x, z);
 
   switch (best.kind) {
+    case 'polygon': {
+      const [px, pz] = nearestOnRing(best.points, x, z);
+      return out.set(px, pz);
+    }
     case 'blot': {
       const dx = x - best.at[0];
       const dz = z - best.at[1];

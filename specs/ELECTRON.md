@@ -90,6 +90,7 @@ reaches the desktop build the same way it reaches the deployed site.
 | `ui/QuitToTitle.ts` | gains a quit-to-desktop entry on the pause stack when `kind` is desktop |
 | `engine/Input.ts` pointer lock | unchanged; pointer lock is the same API |
 | `PERFORMANCE-II.md` Phases 4 and 6 | read `isolated`, call `keys.lock` |
+| `app/content.ts` | gains `content` — the ordered pack list and a read from one — per `CONTENT-PACKS.md`, which owes its first step before this build ships |
 
 ---
 

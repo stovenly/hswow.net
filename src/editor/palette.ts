@@ -35,7 +35,7 @@ function tabs(): { name: string; items(): string[]; kind: string }[] {
       name: 'objects',
       kind: 'prop',
       items: () =>
-        [...builders]
+        [...builders()]
           .filter((builder) => !creatures.has(builder.name))
           .sort(byCategory)
           .map((builder) => builder.name),
@@ -54,7 +54,7 @@ function tabs(): { name: string; items(): string[]; kind: string }[] {
 }
 
 function exists(name: string): boolean {
-  return builders.some((builder) => builder.name === name);
+  return builders().some((builder) => builder.name === name);
 }
 
 function byCategory(a: { category: BuilderCategory; name: string }, b: { category: BuilderCategory; name: string }): number {

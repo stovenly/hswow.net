@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRng, type Rng } from './random';
 import { PALETTE, blend, shade } from './palette';
-import { FIELD_ATTRIBUTE, FIELD_SWAY, type Facet, type Part } from './assemble';
+import { FIELD_ATTRIBUTE, FIELD_LANES, FIELD_SWAY, type Facet, type Part } from './assemble';
 
 /**
  * The vista family's grammar. Out-of-bounds scenery is one mass function and a
@@ -37,7 +37,7 @@ export function markVista<T extends THREE.Object3D>(object: T): T {
     const fields = node.geometry.getAttribute(FIELD_ATTRIBUTE);
     if (!fields) return;
     const array = fields.array as Float32Array;
-    for (let i = FIELD_SWAY; i < array.length; i += 3) array[i] = 0;
+    for (let i = FIELD_SWAY; i < array.length; i += FIELD_LANES) array[i] = 0;
     fields.needsUpdate = true;
   });
   return object;
@@ -96,6 +96,12 @@ export interface WashOptions {
   scale?: number;
   /** Height at which the mass is fully lit. Below it, values fall away. */
   crown?: number;
+  /**
+   * Metres up to which the wash steps to the shadow under a canopy. The
+   * strongest distance cue a wood has is its dark trunk zone, and a mass
+   * without one reads as the same green all the way down.
+   */
+  foot?: number;
 }
 
 /**
@@ -110,7 +116,7 @@ export interface WashOptions {
 export function landWash(
   seed: number,
   palette: readonly number[],
-  { scale = 140, crown = 0 }: WashOptions = {},
+  { scale = 140, crown = 0, foot = 0 }: WashOptions = {},
 ): (x: number, y: number, z: number) => number {
   const rng = createRng(seed);
   const waves = Array.from({ length: 3 }, () => {
@@ -122,6 +128,16 @@ export function landWash(
       phase: rng.range(0, Math.PI * 2),
     };
   });
+  // A fourth wave, on value alone and at twice the wavelength: hue drifting
+  // across a wood is gone by a hundred metres, and one flank standing lighter
+  // than the other is what is left of it.
+  const flankAngle = rng.range(0, Math.PI * 2);
+  const flank = {
+    ax: Math.cos(flankAngle),
+    az: Math.sin(flankAngle),
+    length: scale * 2.2,
+    phase: rng.range(0, Math.PI * 2),
+  };
 
   return (x, y, z) => {
     let sum = 0;
@@ -131,13 +147,16 @@ export function landWash(
     const t = clamp01(0.5 + sum / 4);
     const span = (palette.length - 1) * t;
     const step = Math.min(palette.length - 2, Math.floor(span));
-    const base = blend(palette[step], palette[step + 1], span - step);
+    let base = blend(palette[step], palette[step + 1], span - step);
+    if (foot > 0 && y < foot) base = shade(base, 0.6);
 
-    // Value falls toward the foot of the mass, and a couple of percent of
-    // per-face wobble on top — small enough not to read as speckle, big enough
-    // that the retro pass dithers the gradient instead of banding it.
-    const lit = crown > 0 ? 0.82 + clamp01(y / crown) * 0.24 : 1;
-    return shade(base, lit * (0.975 + faceJitter(x, z) * 0.05));
+    // Value falls toward the foot of the mass, one flank stands against the
+    // other, and a couple of percent of per-face wobble on top — small enough
+    // not to read as speckle, big enough that the retro pass dithers the
+    // gradient instead of banding it.
+    const lit = crown > 0 ? 0.72 + clamp01(y / crown) * 0.42 : 1;
+    const side = 1 + Math.sin((x * flank.ax + z * flank.az) / flank.length + flank.phase) * 0.13;
+    return shade(base, lit * side * (0.975 + faceJitter(x, z) * 0.05));
   };
 }
 
@@ -572,6 +591,10 @@ export interface WoodEdgeOptions {
   gap?: boolean;
   /** Metres the foot lies below y = 0. */
   sink?: number;
+  /** Metres the front line wanders in and out, in bays eight to fourteen metres long. */
+  scallop?: number;
+  /** Crowns standing proud of the canopy along the ridge, zero to six. */
+  emergents?: number;
 }
 
 /**
@@ -581,7 +604,7 @@ export interface WoodEdgeOptions {
  * back as a part, colour and all, since the foot's darkness is part of the shape.
  */
 export function vistaWoodEdge(rng: Rng, options: WoodEdgeOptions): Part {
-  const { edge, depth, low, high, spacing = 5, standards = 2, gap = false, sink = 2 } = options;
+  const { edge, depth, low, high, spacing = 5, standards = 2, gap = false, sink = 2, scallop = 0, emergents = 0 } = options;
   if (edge.length < 2) throw new Error('vistaWoodEdge: an edge needs at least two points');
 
   const along: number[] = [0];
@@ -599,26 +622,35 @@ export function vistaWoodEdge(rng: Rng, options: WoodEdgeOptions): Part {
       edge[i - 1][1] + (edge[i][1] - edge[i - 1][1]) * t,
     ];
   };
-  const points = Array.from({ length: count }, (_, i) => at((length * i) / (count - 1)));
+  const line = Array.from({ length: count }, (_, i) => at((length * i) / (count - 1)));
+  // Taken off the straight line rather than the scalloped one: the profile runs
+  // square to the wood's run, and a tight bay would otherwise fold its depth row over.
   const tangentAt = (i: number): [number, number] => {
-    const before = points[Math.max(i - 1, 0)];
-    const after = points[Math.min(i + 1, count - 1)];
+    const before = line[Math.max(i - 1, 0)];
+    const after = line[Math.min(i + 1, count - 1)];
     const tx = after[0] - before[0];
     const tz = after[1] - before[1];
     const t = Math.hypot(tx, tz) || 1;
     return [tx / t, tz / t];
   };
+  // Bays and points: the near face of a wood has depth, and a convex outline is a wall.
+  const bay = rng.range(8, 14);
+  const bayPhase = rng.range(0, Math.PI * 2);
+  const points = line.map((p, i) => {
+    if (scallop <= 0 || i === 0 || i === count - 1) return p;
+    const s = (length * i) / (count - 1);
+    const wave = Math.sin((s / bay) * Math.PI * 2 + bayPhase) * 0.7 + Math.sin((s / (bay * 0.62)) * Math.PI * 2 + bayPhase * 1.7) * 0.3;
+    const [tx, tz] = tangentAt(i);
+    return [p[0] + tz * scallop * wave, p[1] - tx * scallop * wave] as [number, number];
+  });
 
   const heights = points.map(() => rng.range(low, high));
   for (let i = 1; i < count - 1; i++) heights[i] = (heights[i - 1] + heights[i] * 2 + heights[i + 1]) / 4;
-  for (let s = rng.range(0, spacing * 2); s < length; s += rng.range(8, 15)) {
-    const i = Math.round(s / spacing);
-    if (i <= 0 || i >= count - 1) continue;
-    const lift = rng.range(1, 2);
-    heights[i] += lift;
-    heights[i - 1] += lift * 0.4;
-    heights[i + 1] += lift * 0.4;
-  }
+  // A wood's top edge is a row of separate crowns, so every other column is
+  // crowned and the one between it dropped. Smoothed first, or the two fight.
+  const crown = rng.range(0.75, 1.25);
+  const parity = rng.chance(0.5) ? 0 : 1;
+  for (let i = 1; i < count - 1; i++) heights[i] += i % 2 === parity ? crown : -crown * 0.7;
   if (gap && count >= 5) {
     const i = rng.int(Math.floor(count / 3), Math.floor((count * 2) / 3) - 1);
     heights[i] = low / 3;
@@ -696,16 +728,32 @@ export function vistaWoodEdge(rng: Rng, options: WoodEdgeOptions): Part {
     crown.translate(x, trunkTop, z);
     pieces.push(crown);
   }
+  for (let n = 0; n < emergents; n++) {
+    const i = rng.int(1, count - 2);
+    const [tx, tz] = tangentAt(i);
+    const back = rng.range(0.15, 0.5) * depth;
+    const radius = rng.range(2.5, 4);
+    const stand = vistaMass(rng, {
+      radius,
+      detail: 0,
+      rough: rng.range(0.22, 0.36),
+      squash: rng.range(0.85, 1.15),
+      stretch: rng.range(0.85, 1.2),
+      bury: 0.2,
+    });
+    stand.rotateY(rng.range(0, Math.PI * 2));
+    stand.translate(points[i][0] + tz * back, heights[i] + rng.range(2, 4) - radius * 0.6, points[i][1] - tx * back);
+    pieces.push(stand);
+  }
   const geometry = pieces.length > 1 ? mergeGeometries(pieces, false) : wall;
   if (!geometry) throw new Error('vistaWoodEdge: pieces did not share an attribute set');
   if (geometry !== wall) for (const piece of pieces) piece.dispose();
 
-  const wash = landWash(rng.int(1, 0x7fffffff), VISTA_MATERIALS.wood, { scale: rng.range(30, 60), crown: high });
+  const wash = landWash(rng.int(1, 0x7fffffff), VISTA_MATERIALS.wood, { scale: rng.range(30, 60), crown: high, foot });
   return {
     geometry,
     color: (x, y, z, facet) => {
       const base = wash(x, y, z);
-      if (y < foot && facet.slope > 1.1) return shade(base, 0.62);
       if (facet.slope < 0.5) return shade(base, 1.06);
       return base;
     },

@@ -3,7 +3,7 @@ import type { MeshBuilder } from '../types';
 import { assemble, finish, type Part } from '../assemble';
 import { createRng } from '../random';
 import { PALETTE, shade } from '../palette';
-import { FENCE_POST, fenceHeight, postGeometry, rollPost } from './fence';
+import { FENCE_POST, fenceHeight, postGeometry, rollPost } from '../posts';
 
 // Stile: two posts, a hand rail between them and a step board through the line.
 // The line runs along +X on y = 0; it is crossed in ±Z. Never solid, so it can be.

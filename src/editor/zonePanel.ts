@@ -6,7 +6,7 @@ import { SURFACES } from '../audio/models/footsteps';
 import { VIBE_NAMES } from '../audio/vibes';
 import { ZONE_GROUPS } from '../world/Zone';
 import type { ZoneDocument } from '../world/document';
-import type { Join, Room } from '../world/rooms';
+import type { Join, Room } from '../world/interior';
 import type { Session } from './session';
 
 /** Rooms and joins being edited: the document's own lists are read-only. */
