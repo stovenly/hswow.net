@@ -4,7 +4,7 @@ import { withStaticHidden } from '../engine/statics';
 import { applyAerialFog } from '../engine/fog';
 import { windUniforms, WIND_GLSL } from './sway';
 import { coverUniforms } from './cover';
-import { SHEET_COLUMNS, SHEET_ROWS, branchSheetUniforms } from './branchSheet';
+import { SHEET_COLUMNS, SHEET_PIXELS, SHEET_ROWS, branchSheetUniforms } from './branchSheet';
 
 
 // The canopy material: cluster cards turned to the eye about their roots,
@@ -134,21 +134,15 @@ function vertexBody(collapse: boolean, lit: boolean): string {
     float sheetCard = max(branch, pinned);
     float sprite = max(card, sheetCard);
     vec3 worldRoot = (placed * vec4(${ROOT_ATTRIBUTE}, 1.0)).xyz;
-    float away = distance(cameraPosition, worldRoot);
     float hash = canopyHash(floor(placed[3].xz * 4.0));
     vec3 c0 = placed[0].xyz;
     vec3 c1 = placed[1].xyz;
     vec3 c2 = placed[2].xyz;
 
-    // Rank shrink-and-grow: a leaf whose rank exceeds the LOD shrinks to its
-    // root over a band of ranks, never as a switch, and the survivors grow by
-    // up to half. Nothing thins inside thirty metres, and a branch card never
-    // thins at all: it is the crown itself, with only wood behind it.
-    float thins = fringe * (1.0 - sheetCard);
-    float lod = 0.1 + 0.9 * (1.0 - smoothstep(30.0, 90.0, away));
-    float survive = thins > 0.5 ? 1.0 - smoothstep(lod, lod + 0.12, ${CANOPY_ATTRIBUTE}.z) : 1.0;
-    float grow = 1.0 + 0.5 * (1.0 - lod) * thins;
-    float scaleTo = survive * grow;
+    // Every leaf a crown has is drawn at every range: one that shrinks away with
+    // distance takes the crown's mass with it, and thinning as it is walked away
+    // from is the one thing a tree may never do.
+    float scaleTo = 1.0;
     // Winter: a deciduous lobe and a leaf shrink to nothing; a static fin dissolves below.
     // A leaf never dissolves: a stipple hole seen against the sky is a white pixel.
     float bare = uSeasonA.x * deciduous;
@@ -254,13 +248,19 @@ const STIPPLE_DECLS = /* glsl */ `
   varying vec3 vSheet;
   uniform sampler2D tBranch;
   uniform vec3 uBark;
-  // The cut-out's alpha, sharpened by its own screen-space slope so the edge
-  // stays a pixel wide at every mip: a far mip's averaged alpha neither
-  // swells a card into its square nor thins its leaves away, and handed to
-  // the multisampling as coverage it draws an antialiased edge.
+  // The cut-out's alpha. Near, sharpened by its own screen-space slope, so the
+  // edge stays a pixel wide and the multisampling draws it antialiased. Far,
+  // where a mip has averaged a sprig down to a fraction of a texel's coverage,
+  // the cut falls to that fraction instead: twenty cards drawn at a fifth of a
+  // coverage do not add up to a bush, because every one of them is handed the
+  // same multisample mask, so a leaf that is there at ten metres is there at a
+  // hundred.
   float canopySheetAlpha(vec2 uv) {
     float a = texture2D(tBranch, uv).a;
-    return clamp((a - 0.5) / max(fwidth(a), 1e-4) + 0.5, 0.0, 1.0);
+    float sharp = clamp((a - 0.5) / max(fwidth(a), 1e-4) + 0.5, 0.0, 1.0);
+    vec2 texels = fwidth(uv) * vec2(${SHEET_PIXELS[0].toFixed(1)}, ${SHEET_PIXELS[1].toFixed(1)});
+    float mip = log2(max(max(texels.x, texels.y), 1.0));
+    return mix(sharp, smoothstep(0.02, 0.3, a), smoothstep(0.5, 2.0, mip));
   }
   float canopyStippleHash(vec2 p) {
     vec3 q = fract(vec3(p.x, p.y, p.x) * 0.1031);
@@ -453,7 +453,10 @@ CANOPY_FLAT_MATERIAL.onBeforeCompile = (shader) => {
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', `#include <common>\n${STIPPLE_DECLS}\n${FIELD_COLOUR}\n${SEASON_COLOUR}`)
     .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${stippleTest(HARD_CUT)}`)
-    .replace('#include <color_fragment>', `#include <color_fragment>\n      if (vField.w > 0.5) diffuseColor.rgb = canopyField(diffuseColor.rgb);\n      ${SHEET_COLOUR}\n      diffuseColor.rgb = canopySeason(diffuseColor.rgb, vCanopy.w);\n`);
+    // Alpha straight out of the cut: the tile is read back as a coverage, and a
+    // partly covered texel would un-premultiply into a colour brighter than the
+    // leaf it came from.
+    .replace('#include <color_fragment>', `#include <color_fragment>\n      if (vField.w > 0.5) diffuseColor.rgb = canopyField(diffuseColor.rgb);\n      ${SHEET_COLOUR}\n      diffuseColor.rgb = canopySeason(diffuseColor.rgb, vCanopy.w);\n      diffuseColor.a = 1.0;\n`);
 };
 CANOPY_FLAT_MATERIAL.customProgramCacheKey = () => 'canopy-flat';
 

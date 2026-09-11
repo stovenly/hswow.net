@@ -57,6 +57,7 @@ export class CardAtlas {
   readonly perRow: number;
   readonly size: number;
   private readonly scene = new THREE.Scene();
+  private readonly blank = new THREE.Scene();
   private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
   private readonly trunk = new THREE.Mesh();
   private readonly crown = new THREE.Mesh();
@@ -66,11 +67,13 @@ export class CardAtlas {
     this.perRow = Math.min(MAX_PER_ROW, Math.max(1, Math.ceil(Math.sqrt(Math.max(1, variants) * VIEWS))));
     this.size = this.perRow * TILE;
     const side = this.size;
+    // Mipped: a card minified to a fraction of its tile otherwise samples one
+    // texel in sixteen, and the tree is a different tree at every range.
     const make = (): THREE.WebGLRenderTarget =>
       new THREE.WebGLRenderTarget(side, side, {
         format: THREE.RGBAFormat,
         type: THREE.UnsignedByteType,
-        minFilter: THREE.LinearFilter,
+        minFilter: THREE.LinearMipmapLinearFilter,
         magFilter: THREE.LinearFilter,
         depthBuffer: true,
         stencilBuffer: false,
@@ -133,6 +136,17 @@ export class CardAtlas {
       }
     });
 
+    // three builds a target's chain at the end of a render, so the flag goes on
+    // for one empty pass at the end: the chain is built once, not once a tile.
+    for (const target of [this.colour, this.normal]) {
+      target.texture.generateMipmaps = true;
+      renderer.setRenderTarget(target);
+      renderer.setViewport(0, 0, this.size, this.size);
+      renderer.setScissor(0, 0, this.size, this.size);
+      renderer.render(this.blank, this.camera);
+      target.texture.generateMipmaps = false;
+    }
+
     renderer.setViewport(priorViewport);
     renderer.setScissor(priorScissorBox);
     renderer.setScissorTest(priorScissor);
@@ -169,8 +183,10 @@ export class CardAtlas {
 /** One material per stand, sharing the sky's uniforms by reference. */
 function cardMaterial(atlas: CardAtlas): THREE.ShaderMaterial {
   const perRow = atlas.perRow.toFixed(1);
+  const side = atlas.size.toFixed(1);
   const material = new THREE.ShaderMaterial({
   name: 'Cards',
+  alphaToCoverage: true,
   uniforms: {
     tCard: { value: atlas.colour.texture },
     tCardNormal: { value: atlas.normal.texture },
@@ -245,17 +261,32 @@ function cardMaterial(atlas: CardAtlas): THREE.ShaderMaterial {
     #include <fog_pars_fragment>
 
     void main() {
-      vec4 c = mix(texture2D(tCard, vUv0), texture2D(tCard, vUv1), vBlend);
-      if (c.a < 0.5) discard;
-      vec4 n0 = texture2D(tCardNormal, vUv0);
-      vec4 n1 = texture2D(tCardNormal, vUv1);
-      vec3 nv = mix(n0, n1, vBlend).xyz * 2.0 - 1.0;
+      vec4 s0 = texture2D(tCard, vUv0);
+      vec4 s1 = texture2D(tCard, vUv1);
+      // Un-premultiplied: a tile is cleared to black round the tree and a mip
+      // has averaged that in, so alpha is the fraction of the texel that is tree.
+      vec3 rgb0 = s0.rgb / max(s0.a, 0.02);
+      vec3 rgb1 = s1.rgb / max(s1.a, 0.02);
+      vec4 c = vec4(mix(rgb0, rgb1, vBlend), mix(s0.a, s1.a, vBlend));
+      // Near, sharpened by its own screen slope so the silhouette is a pixel
+      // wide and the multisampling draws it. Far, where a mip has averaged the
+      // crown's gaps into it, the cut falls to that fraction: a crown that is a
+      // fifth leaf to the texel is still a crown and is never eaten away.
+      float sharp = clamp((c.a - 0.5) / max(fwidth(c.a), 1e-4) + 0.5, 0.0, 1.0);
+      float mip = log2(max(max(fwidth(vUv0.x), fwidth(vUv0.y)) * ${side}, 1.0));
+      float cover = mix(sharp, smoothstep(0.02, 0.3, c.a), smoothstep(0.5, 2.0, mip));
+      // Cut as well as covered: with the multisampling off there is nothing to
+      // hand a coverage to, and the card would stand as its whole square.
+      if (cover < 0.3) discard;
+      vec3 nv0 = texture2D(tCardNormal, vUv0).xyz / max(s0.a, 0.02);
+      vec3 nv1 = texture2D(tCardNormal, vUv1).xyz / max(s1.a, 0.02);
+      vec3 nv = mix(nv0, nv1, vBlend) * 2.0 - 1.0;
       vec3 n = normalize(vRight * nv.x + vUp * nv.y + vBack * nv.z);
       vec3 sun = normalize(uSunDirection);
       float lit = 0.42 + 0.7 * uSunIntensity * max(dot(n, sun), 0.0);
       vec3 colour = c.rgb * (vec3(lit) * mix(vec3(1.0), uSunColor, 0.4));
       colour = mix(colour, vec3(0.86, 0.9, 0.96), clamp(uSnow, 0.0, 1.0) * 0.62 * smoothstep(0.2, 0.9, n.y));
-      gl_FragColor = vec4(colour, 1.0);
+      gl_FragColor = vec4(colour, cover);
       #include <fog_fragment>
     }
   `,

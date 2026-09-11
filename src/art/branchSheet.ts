@@ -201,6 +201,9 @@ const TILE = 384;
 /** The branch is drawn this much smaller than its tile, so nothing is cut flat at the tile's edge. */
 const FIT = 0.8;
 
+/** The whole sheet in texels, so a shader can tell how far down the mip chain a card is sampling. */
+export const SHEET_PIXELS: readonly [number, number] = [TILE * SHEET_COLUMNS, TILE * SHEET_ROWS];
+
 /** Bound by the canopy material's twins; filled the first time a zone is raised. */
 export const branchSheetUniforms = {
   tBranch: { value: null as THREE.Texture | null },
